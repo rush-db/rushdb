@@ -1,0 +1,28 @@
+name: 'Install'
+description: 'Set up and install dependencies'
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+
+    - name: Use Node.js 18
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: pnpm
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Setup Git User
+      shell: bash
+      run: |
+        git config --global user.email "artemiy.vereshchinskiy@gmail.com"
+        git config --global user.name "artemiy.vereshchinskiy"
+
+    - name: Install Dependencies
+      shell: bash
+      run: |
+        corepack enable
+        node -v
+        pnpm -v
+        pnpm install

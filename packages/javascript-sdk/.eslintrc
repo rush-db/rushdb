@@ -1,0 +1,54 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 8,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "impliedStrict": true,
+      "experimentalObjectRestSpread": true
+    },
+    "allowImportExportEverywhere": true,
+    "project": ["**/tsconfig.json"]
+  },
+  "plugins": [
+    "@typescript-eslint"
+//    "perfectionist"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier",
+    "plugin:perfectionist/recommended-natural"
+  ],
+  "env": {
+    "es6": true,
+    "browser": true,
+    "node": true,
+    "jest": true
+  },
+  "rules": {
+    "prefer-const": "off",
+    "@typescript-eslint/consistent-type-imports": [
+      2,
+      { "prefer": "type-imports" }
+    ],
+    "perfectionist/sort-classes": [
+      "off",
+      {
+        "type": "natural",
+        "order": "asc",
+        "groups": [
+          "static-property",
+          "private-property",
+          "property",
+          "constructor",
+          "static-method",
+          "private-method",
+          "method"
+        ]
+      }
+    ]
+  },
+  "ignorePatterns": ["dist/", "node_modules", "scripts", "examples"]
+}

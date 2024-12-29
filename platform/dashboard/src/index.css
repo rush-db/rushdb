@@ -1,0 +1,63 @@
+@import url('@fontsource/manrope');
+@import url('@fontsource/manrope/600.css');
+@import url('@fontsource/jetbrains-mono');
+@import url('@fontsource/jetbrains-mono/600.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    @apply box-border min-w-0 border-stroke outline-none;
+  }
+
+  :root {
+    @apply bg-fill font-sans text-base text-content;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+    --radius: 0.5rem;
+    color-scheme: dark;
+    /* scrollbar-gutter: stable; */
+  }
+
+  ::selection {
+    @apply bg-accent-ring;
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-md bg-disabled text-disabled [&>*]:invisible;
+  }
+}
+
+[hidden] {
+  display: none;
+}
+
+body {
+  overflow-y: scroll;
+  min-height: 100dvh;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  @apply text-balance;
+}
+
+p {
+  @apply text-pretty;
+}
+
+svg {
+  display: inline-block;
+}
+
+a {
+  @apply focus-visible:outline-none focus-visible:ring focus-visible:ring-primary-ring;
+}

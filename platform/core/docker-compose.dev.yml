@@ -1,0 +1,99 @@
+version: "3.8"
+services:
+    backend:
+        container_name: backend
+        build:
+            context: .
+            target: development
+            dockerfile: Dockerfile
+        command: npm run start:debug
+        volumes:
+            - ./:/app
+        depends_on:
+            neo4j:
+                condition: service_healthy
+        environment:
+            - NODE_ENV=development
+            - RUSHDB_DASHBOARD_URL=${RUSHDB_DASHBOARD_URL}
+            - NEO4J_URL=${NEO4J_URL}
+            - NEO4J_USERNAME=${NEO4J_USERNAME}
+            - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+            - APP_PORT=${APP_PORT}
+            - HASH_ROUNDS=${HASH_ROUNDS}
+            - JWT_SECRET=${JWT_SECRET}
+            - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+            - RATE_LIMITER_REQUESTS_LIMIT=${RATE_LIMITER_REQUESTS_LIMIT}
+            - RATE_LIMITER_TTL=${RATE_LIMITER_TTL}
+            - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+            - GOOGLE_SECRET=${GOOGLE_SECRET}
+            - GH_CLIENT_ID=${GH_CLIENT_ID}
+            - GH_SECRET=${GH_SECRET}
+            - GH_REDIRECT_URL=${GH_REDIRECT_URL}
+            - MAIL_HOST=${MAIL_HOST}
+            - MAIL_USER=${MAIL_USER}
+            - MAIL_PASSWORD=${MAIL_PASSWORD}
+            - MAIL_FROM=${MAIL_FROM}
+            - SERVICE_CAPTCHA_KEY=${SERVICE_CAPTCHA_KEY}
+            - RUSH_DB_LOGIN=${RUSH_DB_LOGIN}
+            - RUSH_DB_PASSWORD=${RUSH_DB_PASSWORD}
+            - API_TOKEN_SECRET=${API_TOKEN_SECRET}
+            - API_TOKEN_ENCRYPTION_KEY=${API_TOKEN_ENCRYPTION_KEY}
+
+            - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+            - STRIPE_ENDPOINT_SECRET=${STRIPE_ENDPOINT_SECRET}
+
+            - RUSHDB_ALLOWED_LOGINS=${RUSHDB_ALLOWED_LOGINS}
+            - RUSHDB_SELF_HOSTED=${RUSHDB_SELF_HOSTED}
+        ports:
+            - ${APP_PORT}:${APP_PORT}
+        networks:
+            - collect
+        restart: always
+        labels:
+            org.label-schema.group: "app"
+
+    neo4j:
+        image: neo4j:5.25.1
+        healthcheck:
+            test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
+            interval: 5s
+            retries: 30
+            start_period: 10s
+        ports:
+            - "7474:7474"
+            - "7687:7687"
+        environment:
+            - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+            - NEO4J_server_directories_run=/run
+            - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
+            - USERNAME=${NEO4J_USERNAME}
+            - PASSWORD=${NEO4J_PASSWORD}
+        networks:
+            - collect
+        volumes:
+            - ./neo4j/plugins:/plugins
+        labels:
+            org.label-schema.group: "app"
+
+    nginx:
+        build:
+            context: nginx
+            dockerfile: Dockerfile.dev
+        depends_on:
+            - backend
+        ports:
+            - "80:80"
+        restart: always
+        networks:
+            - collect
+        labels:
+            org.label-schema.group: "app"
+
+networks:
+    collect:
+        driver: bridge
+
+volumes:
+    mg_lib:
+    mg_log:
+    mg_etc:
