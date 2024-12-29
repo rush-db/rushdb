@@ -1,0 +1,19 @@
+.wrapper > *:not(:first-child):not(:last-child) {
+  @apply rounded-none;
+}
+
+.wrapper > *:not(:first-child) {
+  @apply !border-l;
+}
+
+.wrapper > *:not(:last-child) {
+  @apply !border-r-0;
+}
+
+.wrapper > :first-child:not(:only-child) {
+  @apply rounded-r-none;
+}
+
+.wrapper > :last-child:not(:only-child) {
+  @apply rounded-l-none;
+}

@@ -1,0 +1,35 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "perfectionist", "import"],
+  "extends": [
+    "next/core-web-vitals",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:perfectionist/recommended-natural"
+  ],
+  "settings": {
+    "react": {
+      "version": "detect"
+    },
+    "import/extensions": [".ts", ".tsx", ".js", ".jsx"],
+    "import/external-module-folders": ["node_modules", "node_modules/@types"],
+    "import/parsers": {
+      "@typescript-eslint/parser": [".ts", ".tsx"]
+    },
+    "import/resolver": {
+      "node": {
+        "extensions": [".ts", ".tsx", ".js", ".jsx"]
+      }
+    }
+  },
+  "rules": {
+    "@typescript-eslint/consistent-type-imports": "error",
+    "perfectionist/sort-objects": "off",
+    "import/no-cycle": "error",
+    "@typescript-eslint/ban-types": "off",
+    "@typescript-eslint/no-empty-function": "warn",
+    "@typescript-eslint/ban-ts-comment": "warn",
+    "no-fallthrough": "error"
+  },
+  "ignorePatterns": ["dist/", "node_modules", "scripts", "examples"]
+}

@@ -1,0 +1,9 @@
+version: "3.8"
+services:
+  platform:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+      - "5173:5173"

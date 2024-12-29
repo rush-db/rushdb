@@ -1,0 +1,280 @@
+import { forwardRef, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import { Transaction } from 'neo4j-driver'
+import { QueryRunner } from 'neogma'
+import { uuidv7 } from 'uuidv7'
+
+import { arrayIsConsistent } from '@/common/utils/arrayIsConsistent'
+import { getISOWithMicrosecond } from '@/common/utils/getISOWithMicrosecond'
+import { isArray } from '@/common/utils/isArray'
+import { isObject } from '@/common/utils/isObject'
+import { isPrimitiveArray } from '@/common/utils/isPrimitiveArray'
+import { pickPrimitives } from '@/common/utils/pickPrimitives'
+import { suggestPropertyType } from '@/common/utils/suggestPropertyType'
+import { toBoolean } from '@/common/utils/toBolean'
+import { RUSHDB_VALUE_EMPTY_ARRAY, RUSHDB_VALUE_NULL } from '@/core/common/constants'
+import { MaybeArray } from '@/core/common/types'
+import { CreateEntityDto } from '@/core/entity/dto/create-entity.dto'
+import { EntityQueryService } from '@/core/entity/entity-query.service'
+import { ImportJsonDto } from '@/core/entity/import-export/dto/import-json.dto'
+import {
+  TImportOptions,
+  TImportJsonPayload,
+  TImportRecordsRelation,
+  WithId,
+  TImportQueue
+} from '@/core/entity/import-export/import.types'
+import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
+import { PropertyDto } from '@/core/property/dto/property.dto'
+import { PROPERTY_TYPE_NULL, PROPERTY_TYPE_STRING } from '@/core/property/property.constants'
+import { TPropertyPrimitiveValue } from '@/core/property/property.types'
+import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
+import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
+import { NeogmaService } from '@/database/neogma/neogma.service'
+
+@Injectable()
+export class ImportService {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly neogmaService: NeogmaService,
+    private readonly entityQueryService: EntityQueryService,
+
+    @Inject(forwardRef(() => WorkspaceService))
+    private readonly workspaceService: WorkspaceService
+  ) {}
+
+  getValueParameters(value: MaybeArray<TPropertyPrimitiveValue>) {
+    if (Array.isArray(value)) {
+      const isInconsistentArray = !arrayIsConsistent(value)
+      const isEmptyArray = !value.length || value.every((v) => typeof v === 'undefined')
+
+      return {
+        isInconsistentArray,
+        isEmptyArray
+      }
+    }
+
+    return {}
+  }
+
+  parsePrimitive({
+    key,
+    value,
+    target,
+    options
+  }: {
+    key: string
+    value: MaybeArray<TPropertyPrimitiveValue>
+    target: WithId<CreateEntityDto>
+    options: TImportOptions
+  }) {
+    const valueParameters = this.getValueParameters(value)
+
+    const property = {
+      id: uuidv7(),
+      name: key,
+      created: getISOWithMicrosecond(),
+      value: '',
+      type: PROPERTY_TYPE_STRING
+    } as PropertyDto & { created: string }
+
+    if (Array.isArray(value)) {
+      if (options.suggestTypes) {
+        const { isEmptyArray, isInconsistentArray } = valueParameters
+
+        if (isEmptyArray) {
+          property.value = RUSHDB_VALUE_EMPTY_ARRAY
+        } else if (isInconsistentArray) {
+          property.value = value.map(String)
+          property.type = PROPERTY_TYPE_STRING
+        } else if (value[0] === null) {
+          property.value = value.map(() => RUSHDB_VALUE_NULL)
+          property.type = PROPERTY_TYPE_NULL
+        } else {
+          property.value = value
+          property.type = suggestPropertyType(value[0])
+        }
+      } else {
+        property.value = value.map(String)
+        property.type = PROPERTY_TYPE_STRING
+      }
+    } else {
+      if (options.suggestTypes) {
+        const valueType = suggestPropertyType(value)
+
+        property.value = valueType === PROPERTY_TYPE_NULL ? RUSHDB_VALUE_NULL : value
+        property.type = valueType
+      } else {
+        property.value = String(value)
+        property.type = PROPERTY_TYPE_STRING
+      }
+    }
+
+    target.properties?.push(property)
+  }
+
+  serializeBFS(
+    payload: TImportJsonPayload,
+    label: string,
+    options: TImportOptions
+  ): [Array<WithId<CreateEntityDto>>, TImportRecordsRelation[]] {
+    const entities: Array<WithId<CreateEntityDto>> = []
+    const relations: TImportRecordsRelation[] = []
+
+    const queue: Array<TImportQueue> = []
+
+    if (isArray(payload) && payload.length > 0) {
+      payload.forEach((value: WithId<CreateEntityDto>) =>
+        queue.push({
+          key: label,
+          suggestTypes: options.suggestTypes,
+          value,
+          target: null
+        })
+      )
+    } else {
+      const skip = !toBoolean(Object.keys(pickPrimitives(payload)).length)
+      queue.push({
+        key: label,
+        suggestTypes: options.suggestTypes,
+        value: payload,
+        target: null,
+        // @FYI: Skip creation redundant start Record with no meaningful data:
+        // { someObject: {...} } previously led to creation of two records instead of one =>
+        // object (node:NULL) that holds other object (node:someObject)
+        skip
+      })
+    }
+
+    const parse = ({
+      value: valuePart,
+      target
+    }: {
+      value: TImportJsonPayload
+      target: WithId<CreateEntityDto>
+    }) => {
+      Object.entries(valuePart).forEach(([key, value]) => {
+        if (isObject(value)) {
+          queue.push({
+            ...options,
+            key,
+            value,
+            parentId: target.id,
+            target
+          })
+        } else if (isArray(value) && !isPrimitiveArray(value)) {
+          value.forEach((val: WithId<CreateEntityDto>) =>
+            queue.push({
+              ...options,
+              key,
+              value: val,
+              parentId: target.id,
+              target
+            })
+          )
+        } else {
+          this.parsePrimitive({ key, value, target, options })
+        }
+      })
+    }
+
+    while (queue.length > 0) {
+      const current = queue.shift()
+      const { key, value, parentId, target } = current
+      const recordDraft: WithId<CreateEntityDto> = {
+        id: uuidv7(),
+        properties: []
+      } as WithId<CreateEntityDto>
+
+      recordDraft.label = key
+
+      if (!toBoolean(current?.skip)) {
+        relations.push({ from: parentId, to: recordDraft.id })
+        entities.push(recordDraft)
+      }
+
+      parse({ value, target: recordDraft })
+    }
+
+    return [entities, relations]
+  }
+
+  async checkLimits(recordsCount: number, projectId: string, transaction: Transaction) {
+    if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
+      return true
+    }
+
+    // @FYI: This exists to prevent saving more Records than allowed by current plan
+    const workspaceInstance = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
+    const workspaceStats = await this.workspaceService.getAccumulatedWorkspaceStats(
+      workspaceInstance,
+      transaction
+    )
+
+    const limits = JSON.parse(workspaceInstance.dataValues.limits) as TWorkspaceLimits
+
+    if (workspaceStats.records + recordsCount > limits.records) {
+      throw new HttpException(
+        'The number of items you are trying to send exceeds your limits.',
+        HttpStatus.PAYMENT_REQUIRED
+      )
+    }
+  }
+
+  async importRecords(
+    {
+      payload,
+      label,
+      options = {
+        suggestTypes: true,
+        returnResult: false
+      }
+    }: ImportJsonDto,
+    projectId: string,
+    transaction: Transaction,
+    queryRunner?: QueryRunner
+  ): Promise<boolean | TEntityPropertiesNormalized[]> {
+    const runner = queryRunner || this.neogmaService.createRunner()
+
+    // @FYI: Approximate time for 25MB JSON: 2.5s. RUST WASM?))))))
+    const [records, relations] = this.serializeBFS(payload, label, options)
+
+    // Will throw error if the amount of uploading Records is more than allowed by current plan
+    await this.checkLimits(records.length, projectId, transaction)
+
+    const CHUNK_SIZE = 1000 // Adjust chunk size as needed
+
+    // @TODO: Accumulate result only if records <= 1000. Otherwise - ignore options.returnResult
+    let result = []
+    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+      const recordsChunk = records.slice(i, i + CHUNK_SIZE)
+
+      const data = await runner.run(
+        this.entityQueryService.importRecords(options.returnResult),
+        {
+          records: recordsChunk,
+          projectId
+        },
+        transaction
+      )
+
+      if (options.returnResult) {
+        result = result.concat(data.records?.[0]?.get('data'))
+      }
+    }
+
+    for (let i = 0; i < relations.length; i += CHUNK_SIZE) {
+      const relationsChunk = relations.slice(i, i + CHUNK_SIZE)
+
+      await runner.run(
+        this.entityQueryService.linkRecords(),
+        {
+          relations: relationsChunk
+        },
+        transaction
+      )
+    }
+
+    return options.returnResult ? result : true
+  }
+}

@@ -1,0 +1,73 @@
+name: Release SDK
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read # for checkout
+
+env:
+  CI: true
+  PNPM_CACHE_FOLDER: .pnpm-store
+
+jobs:
+  #  test:
+  #    name: Test
+  #    runs-on: ubuntu-latest
+  #    steps:
+  #      - name: Checkout
+  #        uses: actions/checkout@v3
+  #
+  #      - name: Install
+  #        uses: ./.github/workflows/install
+  #
+  #      - name: Lint and test
+  #        run: |
+  #          pnpm lint
+  #          pnpm types:check
+  #          pnpm test
+  release:
+    name: Release SDK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to be able to publish a GitHub release
+      issues: write # to be able to comment on released issues
+      pull-requests: write # to be able to comment on released pull requests
+      id-token: write # to enable use of OIDC for npm provenance
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        uses: ./.github/workflows/npm-publish/install.yml
+
+      - name: Build SDK Package
+        run: |
+          pnpm --filter ./packages/javascript-sdk... build
+
+      - name: Setup .npmrc
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Create Release Pull Request or Publish to NPM
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: pnpm release --filter ./packages/javascript-sdk...
+          commit: "ci(changesets): version packages"
+          setupGitUser: false
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create @dev Release
+        if: steps.changesets.outputs.published != 'true'
+        run: |
+          git checkout main
+          pnpm --filter ./packages/javascript-sdk... version:dev
+          pnpm --filter ./packages/javascript-sdk... release:dev
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

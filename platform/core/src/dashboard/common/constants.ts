@@ -1,0 +1,8 @@
+export const RUSHDB_LABEL_USER = '__RUSHDB__LABEL__USER__' as const
+export const RUSHDB_LABEL_WORKSPACE = '__RUSHDB__LABEL__WORKSPACE__' as const
+export const RUSHDB_LABEL_PROJECT = '__RUSHDB__LABEL__PROJECT__' as const
+export const RUSHDB_LABEL_TOKEN = '__RUSHDB__LABEL__TOKEN__' as const
+
+export const RUSHDB_RELATION_CONTAINS = '__RUSHDB__RELATION__CONTAINS__' as const
+export const RUSHDB_RELATION_HAS_ACCESS = '__RUSHDB__RELATION__HAS_ACCESS__' as const
+export const RUSHDB_RELATION_MEMBER_OF = '__RUSHDB__RELATION__MEMBER_OF__' as const
