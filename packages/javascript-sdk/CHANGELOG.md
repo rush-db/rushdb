@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.2.4
+
+### Patch Changes
+
+- 3741a7e: Release workflow change
+
 ## 0.2.3
 
 ### Patch Changes

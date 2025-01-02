@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.2.4
+
+### Patch Changes
+
+- 3741a7e: Release workflow change
+- Updated dependencies [3741a7e]
+  - @rushdb/javascript-sdk@0.2.4
+
 ## 0.2.3
 
 ### Patch Changes
