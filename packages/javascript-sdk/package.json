@@ -2,7 +2,7 @@
   "name": "@rushdb/javascript-sdk",
   "description": "RushDB Javascript SDK",
   "license": "MIT",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "main": "cjs/index.cjs.node.js",
   "types": "types/index.d.ts",
