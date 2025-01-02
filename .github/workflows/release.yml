@@ -89,6 +89,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -103,6 +106,7 @@ jobs:
         with:
           context: .
           file: platform/Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             rushdb/platform:latest
