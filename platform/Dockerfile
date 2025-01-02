@@ -50,7 +50,7 @@ RUN cp -r platform/dashboard/dist/* platform/core/public/
 RUN cd platform/core && pnpm build
 
 # Production image
-FROM node:18-alpine
+FROM --platform=$TARGETPLATFORM node:18-alpine
 
 ENV NODE_ENV=production \
     RUSHDB_PORT=3000 \
