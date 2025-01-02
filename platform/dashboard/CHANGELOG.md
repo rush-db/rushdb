@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.2.1
+
+### Patch Changes
+
+- f934b0f: Bump version
+- Updated dependencies [f934b0f]
+  - @rushdb/javascript-sdk@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
