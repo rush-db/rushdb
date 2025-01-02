@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.2.3
+
+### Patch Changes
+
+- c7f1eb9: Update workflow
+- Updated dependencies [c7f1eb9]
+  - @rushdb/javascript-sdk@0.2.3
+
 ## 0.2.2
 
 ### Patch Changes
