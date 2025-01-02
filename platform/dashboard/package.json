@@ -2,6 +2,7 @@
   "name": "rushdb-dashboard",
   "version": "0.2.3",
   "type": "module",
+  "private": true,
   "scripts": {
     "dev": "vite",
     "build": "pnpm typecheck && vite build",
