@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 0.2.6
+
+### Patch Changes
+
+- 89852a4: Update docker image release
+
 ## 0.2.5
 
 ### Patch Changes

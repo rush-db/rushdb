@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.2.6
+
+### Patch Changes
+
+- 89852a4: Update docker image release
+- Updated dependencies [89852a4]
+  - @rushdb/javascript-sdk@0.2.6
+
 ## 0.2.5
 
 ### Patch Changes
