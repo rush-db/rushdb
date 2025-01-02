@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.2.5
+
+### Patch Changes
+
+- cd0be33: Release flow improvements
+
 ## 0.2.4
 
 ### Patch Changes
