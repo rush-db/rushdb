@@ -35,8 +35,8 @@ export class UserModule implements OnApplicationBootstrap {
 
   async initUser(): Promise<void> {
     const isSelfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
-    const adminLogin = this.configService.get('RUSH_DB_LOGIN')
-    const adminPassword = this.configService.get('RUSH_DB_PASSWORD')
+    const adminLogin = this.configService.get('RUSHDB_LOGIN')
+    const adminPassword = this.configService.get('RUSHDB_PASSWORD')
 
     const session = this.neogmaService.createSession()
     const transaction = session.beginTransaction()

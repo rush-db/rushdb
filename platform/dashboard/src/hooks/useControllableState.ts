@@ -12,8 +12,7 @@ export type TUseControllableStateParams<T> = {
 
 export function useControllableProp<T>(prop: T | undefined, internalState: T) {
   const isControlled = prop !== undefined
-  const valueProp =
-    isControlled && typeof prop !== 'undefined' ? prop : internalState
+  const valueProp = isControlled && typeof prop !== 'undefined' ? prop : internalState
 
   return [isControlled, valueProp] as const
 }
@@ -31,23 +30,21 @@ export function useControllableState<T>({
   const isControlled = valueProp !== undefined
   const value = isControlled ? valueProp : uncontrolledState
 
-  const setValue: React.Dispatch<React.SetStateAction<T | undefined>> =
-    useCallback(
-      (nextValue) => {
-        if (isControlled) {
-          const setter = nextValue as TSetStateFn<T>
-          const value =
-            typeof nextValue === 'function' ? setter(valueProp) : nextValue
+  const setValue: React.Dispatch<React.SetStateAction<T | undefined>> = useCallback(
+    (nextValue) => {
+      if (isControlled) {
+        const setter = nextValue as TSetStateFn<T>
+        const value = typeof nextValue === 'function' ? setter(valueProp) : nextValue
 
-          if (value !== valueProp && typeof onChange !== 'undefined') {
-            onChange(value as T)
-          }
-        } else {
-          setUncontrolledState(nextValue)
+        if (value !== valueProp && typeof onChange !== 'undefined') {
+          onChange(value as T)
         }
-      },
-      [isControlled, valueProp, setUncontrolledState, onChange]
-    )
+      } else {
+        setUncontrolledState(nextValue)
+      }
+    },
+    [isControlled, valueProp, setUncontrolledState, onChange]
+  )
 
   return [value, setValue] as [T, (value: T) => void]
 }

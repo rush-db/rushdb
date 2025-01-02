@@ -42,11 +42,12 @@ async function bootstrap() {
   })
 
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, fastifyAdapter, {})
-  // @TODO: Make api versioning great again
+
   app.setGlobalPrefix('api/v1', {
     exclude: [{ path: '/', method: RequestMethod.GET }]
   })
   app.enableCors(CORS_OPTIONS)
+
   const config = new DocumentBuilder()
     .setTitle('RushDB API')
     .setDescription('RushDB API specs')
@@ -60,7 +61,8 @@ async function bootstrap() {
   const neogmaService = app.get<NeogmaService>(NeogmaService)
 
   app.useGlobalFilters(new GlobalExceptionFilter(neogmaService))
-  await app.listen(process.env['APP_PORT'], '0.0.0.0')
+
+  await app.listen(process.env['RUSHDB_PORT'] || 3000, '0.0.0.0')
 }
 
 void bootstrap()

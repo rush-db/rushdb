@@ -3,9 +3,9 @@ services:
     backend:
         container_name: backend
         build:
-            context: .
+            context: ../..
             target: development
-            dockerfile: Dockerfile
+            dockerfile: platform/core/Dockerfile
         command: npm run start:debug
         volumes:
             - ./:/app
@@ -18,26 +18,22 @@ services:
             - NEO4J_URL=${NEO4J_URL}
             - NEO4J_USERNAME=${NEO4J_USERNAME}
             - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-            - APP_PORT=${APP_PORT}
-            - HASH_ROUNDS=${HASH_ROUNDS}
-            - JWT_SECRET=${JWT_SECRET}
-            - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+            - RUSHDB_PORT=${RUSHDB_PORT}
             - RATE_LIMITER_REQUESTS_LIMIT=${RATE_LIMITER_REQUESTS_LIMIT}
             - RATE_LIMITER_TTL=${RATE_LIMITER_TTL}
             - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
             - GOOGLE_SECRET=${GOOGLE_SECRET}
-            - GH_CLIENT_ID=${GH_CLIENT_ID}
-            - GH_SECRET=${GH_SECRET}
-            - GH_REDIRECT_URL=${GH_REDIRECT_URL}
+            - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+            - GITHUB_SECRET=${GITHUB_SECRET}
+            - GITHUB_REDIRECT_URL=${GITHUB_REDIRECT_URL}
             - MAIL_HOST=${MAIL_HOST}
             - MAIL_USER=${MAIL_USER}
             - MAIL_PASSWORD=${MAIL_PASSWORD}
             - MAIL_FROM=${MAIL_FROM}
             - SERVICE_CAPTCHA_KEY=${SERVICE_CAPTCHA_KEY}
-            - RUSH_DB_LOGIN=${RUSH_DB_LOGIN}
-            - RUSH_DB_PASSWORD=${RUSH_DB_PASSWORD}
-            - API_TOKEN_SECRET=${API_TOKEN_SECRET}
-            - API_TOKEN_ENCRYPTION_KEY=${API_TOKEN_ENCRYPTION_KEY}
+            - RUSHDB_LOGIN=${RUSHDB_LOGIN}
+            - RUSHDB_PASSWORD=${RUSHDB_PASSWORD}
+            - RUSHDB_AES_256_ENCRYPTION_KEY=${RUSHDB_AES_256_ENCRYPTION_KEY}
 
             - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
             - STRIPE_ENDPOINT_SECRET=${STRIPE_ENDPOINT_SECRET}
@@ -45,9 +41,9 @@ services:
             - RUSHDB_ALLOWED_LOGINS=${RUSHDB_ALLOWED_LOGINS}
             - RUSHDB_SELF_HOSTED=${RUSHDB_SELF_HOSTED}
         ports:
-            - ${APP_PORT}:${APP_PORT}
+            - ${RUSHDB_PORT}:${RUSHDB_PORT}
         networks:
-            - collect
+            - rushdb
         restart: always
         labels:
             org.label-schema.group: "app"
@@ -69,7 +65,7 @@ services:
             - USERNAME=${NEO4J_USERNAME}
             - PASSWORD=${NEO4J_PASSWORD}
         networks:
-            - collect
+            - rushdb
         volumes:
             - ./neo4j/plugins:/plugins
         labels:
@@ -85,12 +81,12 @@ services:
             - "80:80"
         restart: always
         networks:
-            - collect
+            - rushdb
         labels:
             org.label-schema.group: "app"
 
 networks:
-    collect:
+    rushdb:
         driver: bridge
 
 volumes:

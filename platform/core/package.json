@@ -1,8 +1,9 @@
 {
   "name": "rushdb-core",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "",
   "author": "",
+  "private": true,
   "license": "UNLICENSED",
   "config": {
     "commitizen": {
@@ -43,6 +44,7 @@
     "@nestjs/jwt": "10.0.3",
     "@nestjs/microservices": "^10.2.10",
     "@nestjs/platform-fastify": "9.4.0",
+    "@nestjs/serve-static": "^4.0.2",
     "@nestjs/swagger": "6.3.0",
     "@nestjs/throttler": "5.2.0",
     "@nestlab/google-recaptcha": "3.3.1",
@@ -89,7 +91,7 @@
     "eslint-plugin-prettier": "~3.4.0",
     "jest": "~27.5.1",
     "madge": "^6.1.0",
-    "prettier": "~2.8.1",
+    "prettier": "^3.4.2",
     "pretty-quick": "~3.1.1",
     "shelljs": "~0.8.4",
     "supertest": "~6.3.3",

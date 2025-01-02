@@ -18,10 +18,7 @@ import type {
 export type DatetimeExpression =
   | DatetimeValue
   | RequireAtLeastOne<
-      Record<
-        '$gt' | '$gte' | '$lt' | '$lte' | '$ne',
-        DatetimeObject | DatetimeValue
-      > &
+      Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', DatetimeObject | DatetimeValue> &
         Record<'$in' | '$nin', Array<DatetimeObject | DatetimeValue>>
     >
 

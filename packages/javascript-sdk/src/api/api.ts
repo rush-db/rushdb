@@ -1,10 +1,5 @@
 import type { HttpClient } from '../network/HttpClient.js'
-import type {
-  DBRecord,
-  RelationDetachOptions,
-  RelationOptions,
-  RelationTarget
-} from '../sdk/record.js'
+import type { DBRecord, RelationDetachOptions, RelationOptions, RelationTarget } from '../sdk/record.js'
 import type { UserProvidedConfig } from '../sdk/types.js'
 import type {
   PropertyValue,
@@ -16,14 +11,7 @@ import type {
 } from '../types/index.js'
 import type { ApiResponse, RecordsApi } from './types.js'
 
-import {
-  isArray,
-  isEmptyObject,
-  isObject,
-  isObjectFlat,
-  isString,
-  toBoolean
-} from '../common/utils.js'
+import { isArray, isEmptyObject, isObject, isObjectFlat, isString, toBoolean } from '../common/utils.js'
 import { createFetcher } from '../network/index.js'
 import { EmptyTargetError } from '../sdk/errors.js'
 import {
@@ -110,12 +98,7 @@ export class RestAPI {
 
         // target is MaybeArray<string>
         else {
-          return await this.api.records.attach(
-            sourceId,
-            target as MaybeArray<string>,
-            options,
-            transaction
-          )
+          return await this.api.records.attach(sourceId, target as MaybeArray<string>, options, transaction)
         }
       },
 
@@ -127,10 +110,7 @@ export class RestAPI {
         let response
 
         if (labelOrData instanceof DBRecordDraft) {
-          response = await this.api?.records.create<S>(
-            labelOrData,
-            pickTransaction(maybeDataOrTransaction)
-          )
+          response = await this.api?.records.create<S>(labelOrData, pickTransaction(maybeDataOrTransaction))
         }
 
         if (!response && isString(labelOrData)) {
@@ -141,9 +121,7 @@ export class RestAPI {
             })
 
             response = await this.api?.records.create<S>(
-              new DBRecordDraft(
-                normalizedRecord as { label: string; properties: PropertyWithValue[] }
-              ),
+              new DBRecordDraft(normalizedRecord as { label: string; properties: PropertyWithValue[] }),
               transaction
             )
           } else if (isObject(maybeDataOrTransaction)) {
@@ -162,10 +140,7 @@ export class RestAPI {
 
       createMany: async <S extends Schema = any>(
         labelOrData: DBRecordsBatchDraft | string,
-        maybeDataOrTransaction?:
-          | Transaction
-          | MaybeArray<InferSchemaTypesWrite<S>>
-          | string,
+        maybeDataOrTransaction?: Transaction | MaybeArray<InferSchemaTypesWrite<S>> | string,
         transaction?: Transaction | string
       ): Promise<DBRecordsArrayInstance<S>> => {
         let response
@@ -211,10 +186,7 @@ export class RestAPI {
         return this.api?.records.delete(searchParams, transaction)
       },
 
-      deleteById: async (
-        idOrIds: MaybeArray<string>,
-        transaction?: Transaction | string
-      ) => {
+      deleteById: async (idOrIds: MaybeArray<string>, transaction?: Transaction | string) => {
         return this.api?.records.deleteById(idOrIds, transaction)
       },
 
@@ -265,12 +237,7 @@ export class RestAPI {
 
         // target is MaybeArray<string>
         else {
-          return await this.api.records.detach(
-            sourceId,
-            target as MaybeArray<string>,
-            options,
-            transaction
-          )
+          return await this.api.records.detach(sourceId, target as MaybeArray<string>, options, transaction)
         }
       },
 
@@ -287,10 +254,7 @@ export class RestAPI {
         transaction?: Transaction | string
       ): Promise<DBRecordsArrayInstance<S>> => {
         const isTransactionParam = isTransaction(searchParamsOrTransaction)
-        const { id, searchParams } = createSearchParams<S>(
-          labelOrSearchParams,
-          searchParamsOrTransaction
-        )
+        const { id, searchParams } = createSearchParams<S>(labelOrSearchParams, searchParamsOrTransaction)
         const tx = isTransactionParam ? searchParamsOrTransaction : transaction
         const response = await this.api?.records.find<S>({ id, searchParams }, tx)
 
@@ -306,25 +270,22 @@ export class RestAPI {
       findById: async <
         S extends Schema = Schema,
         Arg extends MaybeArray<string> = MaybeArray<string>,
-        Result = Arg extends string[] ? DBRecordsArrayInstance<S>
-        : DBRecordInstance<S>
+        Result = Arg extends string[] ? DBRecordsArrayInstance<S> : DBRecordInstance<S>
       >(
         idOrIds: Arg,
         transaction?: Transaction | string
       ): Promise<Result> => {
         if (isArray(idOrIds)) {
-          const response = (await this.api?.records.findById<S>(
-            idOrIds,
-            transaction
-          )) as ApiResponse<DBRecord<S>[]>
+          const response = (await this.api?.records.findById<S>(idOrIds, transaction)) as ApiResponse<
+            DBRecord<S>[]
+          >
           const result = new DBRecordsArrayInstance<S>(response.data, response.total)
           result.init(this)
           return result as Result
         } else {
-          const response = (await this.api?.records.findById<S>(
-            idOrIds,
-            transaction
-          )) as ApiResponse<DBRecord<S>>
+          const response = (await this.api?.records.findById<S>(idOrIds, transaction)) as ApiResponse<
+            DBRecord<S>
+          >
           const result = new DBRecordInstance<S>(response.data)
           result.init(this)
           return result as Result
@@ -337,17 +298,11 @@ export class RestAPI {
         transaction?: Transaction | string
       ): Promise<DBRecordInstance<S>> => {
         const isTransactionParam = isTransaction(searchParamsOrTransaction)
-        const { searchParams } = createSearchParams<S>(
-          labelOrSearchParams,
-          searchParamsOrTransaction
-        )
+        const { searchParams } = createSearchParams<S>(labelOrSearchParams, searchParamsOrTransaction)
         const tx = isTransactionParam ? searchParamsOrTransaction : transaction
         const response = await this.api?.records.findOne<S>(searchParams, tx)
 
-        const result = new DBRecordInstance<S>(
-          response.data,
-          searchParamsOrTransaction as SearchQuery<S>
-        )
+        const result = new DBRecordInstance<S>(response.data, searchParamsOrTransaction as SearchQuery<S>)
         result.init(this)
         return result
       },
@@ -358,17 +313,11 @@ export class RestAPI {
         transaction?: Transaction | string
       ): Promise<DBRecordInstance<S>> => {
         const isTransactionParam = isTransaction(searchParamsOrTransaction)
-        const { searchParams } = createSearchParams<S>(
-          labelOrSearchParams,
-          searchParamsOrTransaction
-        )
+        const { searchParams } = createSearchParams<S>(labelOrSearchParams, searchParamsOrTransaction)
         const tx = isTransactionParam ? searchParamsOrTransaction : transaction
         const response = await this.api?.records.findUniq<S>(searchParams, tx)
 
-        const result = new DBRecordInstance<S>(
-          response.data,
-          searchParamsOrTransaction as SearchQuery<S>
-        )
+        const result = new DBRecordInstance<S>(response.data, searchParamsOrTransaction as SearchQuery<S>)
         result.init(this)
         return result
       },

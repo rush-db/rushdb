@@ -1,9 +1,6 @@
-import type { CollectPropertyWithValue } from '@collect.so/javascript-sdk'
+import type { PropertyWithValue } from '@rushdb/javascript-sdk'
 
-export const formatSinglePropertyValue = ({
-  type,
-  value
-}: Pick<CollectPropertyWithValue, 'type' | 'value'>) => {
+export const formatSinglePropertyValue = ({ type, value }: Pick<PropertyWithValue, 'type' | 'value'>) => {
   if (typeof value === 'undefined') {
     return '—'
   }
@@ -19,14 +16,9 @@ export const formatSinglePropertyValue = ({
   return value?.toString() ?? ''
 }
 
-export const formatPropertyValue = ({
-  value,
-  type
-}: Pick<CollectPropertyWithValue, 'type' | 'value'>): string => {
+export const formatPropertyValue = ({ value, type }: Pick<PropertyWithValue, 'type' | 'value'>): string => {
   if (Array.isArray(value)) {
-    return value
-      .map((v) => formatSinglePropertyValue({ value: v, type }))
-      .join(', ')
+    return value.map((v) => formatSinglePropertyValue({ value: v, type })).join(', ')
   }
 
   return formatSinglePropertyValue({ value, type })

@@ -31,16 +31,8 @@ export class TokenService {
     return new TokenEntity(node.id, node.name, node.created, node.expiration, node.value, node.description)
   }
 
-  signToken(token, payload) {
-    const secretKey = this.configService.get('API_TOKEN_SECRET')
-    const hmac = crypto.createHmac('sha256', secretKey)
-    hmac.update(token + JSON.stringify(payload))
-
-    return hmac.digest('hex')
-  }
-
   encryptTokenData(tokenData) {
-    const encryptionKey = this.configService.get('API_TOKEN_ENCRYPTION_KEY')
+    const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
     const iv = crypto.randomBytes(16)
 
     const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
@@ -49,7 +41,7 @@ export class TokenService {
   }
 
   decrypt(encrypted) {
-    const encryptionKey = this.configService.get('API_TOKEN_ENCRYPTION_KEY')
+    const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
     const iv = encrypted.substring(0, 32)
     const cipherText = encrypted.substring(32)
 

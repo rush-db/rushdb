@@ -1,4 +1,4 @@
-import type { CollectPropertyWithValue } from '@collect.so/javascript-sdk'
+import type { PropertyWithValue } from '@rushdb/javascript-sdk'
 import { useMemo, type PointerEventHandler } from 'react'
 
 import { flip, shift, useFloating } from '@floating-ui/react-dom'
@@ -15,10 +15,7 @@ import { Tooltip } from '~/elements/Tooltip'
 import { addFilter } from '~/features/projects/stores/current-project'
 import { SearchOperationIcon } from '~/features/search/components/SearchOperationIcon'
 import { SearchOperations, operationsRecord } from '~/features/search/constants'
-import {
-  getViableSearchOperations,
-  isViableSearchOperation
-} from '~/features/search/types'
+import { getViableSearchOperations, isViableSearchOperation } from '~/features/search/types'
 import { useHotkeys } from '~/hooks/useHotkeys'
 import { $router } from '~/lib/router'
 import { cn, isUrl } from '~/lib/utils'
@@ -29,7 +26,7 @@ import { PropertyName } from './PropertyName'
 export const PROPERTY_TOOLTIP_ID = 'propertyValueTooltip'
 
 export const $propertyValueTooltip = atom<
-  | (Pick<CollectPropertyWithValue, 'name' | 'type' | 'value'> & {
+  | (Pick<PropertyWithValue, 'name' | 'type' | 'value'> & {
       element: HTMLElement
       showOperations: boolean
     })
@@ -56,7 +53,7 @@ export const handlePointerEnter =
     property,
     showOperations = true
   }: {
-    property: Pick<CollectPropertyWithValue, 'name' | 'type' | 'value'>
+    property: Pick<PropertyWithValue, 'name' | 'type' | 'value'>
     showOperations?: boolean
   }): PointerEventHandler<HTMLElement> =>
   (event) => {
@@ -74,11 +71,7 @@ export const handlePointerLeave: PointerEventHandler<HTMLElement> = (event) => {
   $propertyValueTooltip.set(undefined)
 }
 
-function Operations({
-  property
-}: {
-  property: Pick<CollectPropertyWithValue, 'name' | 'type' | 'value'>
-}) {
+function Operations({ property }: { property: Pick<PropertyWithValue, 'name' | 'type' | 'value'> }) {
   const createHandler = (operation: SearchOperations) => () => {
     if (
       !isViableSearchOperation({
@@ -100,10 +93,7 @@ function Operations({
   }
 
   const { hotkeys, operations } = useMemo(() => {
-    const operations: Record<
-      SearchOperations,
-      { code: string; handler: () => void; label: string }
-    > = {
+    const operations: Record<SearchOperations, { code: string; handler: () => void; label: string }> = {
       [SearchOperations.Equals]: {
         code: 'E',
         handler: createHandler(SearchOperations.Equals),
@@ -151,9 +141,7 @@ function Operations({
       }
     }
 
-    const hotkeys = Object.fromEntries(
-      Object.values(operations).map((entry) => [entry.code, entry.handler])
-    )
+    const hotkeys = Object.fromEntries(Object.values(operations).map((entry) => [entry.code, entry.handler]))
 
     return { hotkeys, operations }
   }, [property])
@@ -167,9 +155,7 @@ function Operations({
         {getViableSearchOperations(property.type).map((operation) => {
           if (!(operation in operations)) {
             if (import.meta.env.DEV)
-              console.warn(
-                `Operation ${operation} missing in PropertyValueTooltip config`
-              )
+              console.warn(`Operation ${operation} missing in PropertyValueTooltip config`)
 
             return null
           }
@@ -182,12 +168,7 @@ function Operations({
             <Tooltip
               key={label}
               trigger={
-                <IconButton
-                  aria-label={text}
-                  onClick={handler}
-                  size="xsmall"
-                  variant="secondary"
-                >
+                <IconButton aria-label={text} onClick={handler} size="xsmall" variant="secondary">
                   <SearchOperationIcon operation={operation} />
                 </IconButton>
               }
@@ -227,7 +208,7 @@ export function PropertyValueTooltip() {
   return (
     <div
       className={cn(
-        'pointer-events-auto fixed z-tooltip flex max-h-[60vh] w-max min-w-[200px] max-w-[300px]  flex-col justify-start gap-1 overflow-auto rounded-md border bg-menu p-2 text-menu-contrast shadow-lg '
+        'z-tooltip bg-menu text-menu-contrast pointer-events-auto fixed flex max-h-[60vh] w-max min-w-[200px] max-w-[300px] flex-col justify-start gap-1 overflow-auto rounded-md border p-2 shadow-lg'
         // { 'transition-transform': isPositioned }
       )}
       onPointerDown={(event) => {
@@ -242,7 +223,7 @@ export function PropertyValueTooltip() {
     >
       <div className="flex">
         <PropertyName
-          className="gap-1 rounded-sm bg-accent/30 px-1 text-2xs leading-snug text-accent"
+          className="bg-accent/30 text-2xs text-accent gap-1 rounded-sm px-1 leading-snug"
           iconSize={12}
           name={property.name}
           type={property.type}

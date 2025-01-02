@@ -2,15 +2,13 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB SDK
+# RushDB SDK for JavaScript and TypeScript
 
-> The RushDB.com SDK for JavaScript and TypeScript
-
-[![NPM Version](https://img.shields.io/npm/v/%40collect.so%2Fjavascript-sdk)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
+[![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license "Go to license section")
 
-![NPM Downloads](https://img.shields.io/npm/dw/%40collect.so%2Fjavascript-sdk)
-![npm bundle size](https://img.shields.io/bundlephobia/minzip/%40collect.so%2Fjavascript-sdk)
+![NPM Downloads](https://img.shields.io/npm/dw/%40rushdb%2Fjavascript-sdk)
+![npm bundle size](https://img.shields.io/bundlephobia/minzip/%40rushdb%2Fjavascript-sdk)
 
 
 [![Made with Node](https://img.shields.io/badge/dynamic/json?label=node&query=%24.engines%5B%22node%22%5D&url=https%3A%2F%2Fraw.githubusercontent.com%2Fcollect-so%2Fcollect%2Fmaster%2Fpackage.json)](https://nodejs.org "Go to Node.js homepage")
@@ -19,13 +17,17 @@
 [Homepage](https://rushdb.com) — [Blog](https://rushdb.com/blog) — [Platform](https://app.rushdb.com) — [Docs](https://docs.rushdb.com) — [Examples](https://github.com/rush-db/rushdb/examples)
 </div>
 
-## Features
+## Highlights
 
 ---
-- **Automatic Type Inference**: Enjoy seamless type safety with automatic TypeScript inference.
-- **Isomorphic Architecture**: Fully compatible with both server and browser environments.
-- **Zero Dependencies**: Lightweight and efficient with no external dependencies.
-- **No Configuration Needed**: Plug-and-play design requires no setup or configuration.
+> **✨ No Configuration Needed**: Plug-and-play design requires no setup or configuration.
+
+> **🤖 Automatic Type Inference**: Enjoy seamless type safety with automatic TypeScript inference.
+
+> **↔️ Isomorphic Architecture**: Fully compatible with both server and browser environments.
+
+> **🏋️ Zero Dependencies**: Lightweight and efficient with no external dependencies.
+
 
 
 ## Installation
@@ -51,51 +53,71 @@ pnmp add @rushdb/javascript-sdk
 
 ---
 
-1. **Obtain RushDB API Token**: Grab your API token from the [Dashboard](https://app.rushdb.com).
-2. **Setup RushDB Instance**: Initialize your RushDB instance with obtained token.
-3. **(Optional) Define Data Models**: Tailor your data models to fit your needs.
-4. **Manage Your Data**: Push, link, fetch, and manage your data effortlessly.
+1. **Obtain API Token**: Grab one from the [Dashboard](https://app.rushdb.com).
+2. **Build anything**: Easily push, search, and manage relationships within your data.
 
 ### TLDR;
 ```ts
-/* ./your-app/src/db.ts */
-
 import RushDB, { Model } from '@rushdb/javascript-sdk'
 
-// Setup RushDB instance
-const db = new RushDB("API_TOKEN")
+// Setup SDK
+const db = new RushDB("API_TOKEN", {
+  // This is the default URL; no need to provide it unless overriding.
+  url: "https://api.rushdb.com", 
+});
 
-// Optionaly define Model
-export const UserRepo = new Model(
-    'USER',
-    {
-        name: { type: 'string' },
-        email: { type: 'string', uniq: true },
-        verified: { type: 'boolean', default: false },
-        hobbies: { type: 'string', multiple: true, requiered: false },
-        rating: { type: 'number', default: 1 },
-        created: { type: 'datetime', default: () => new Date().toISOString() },
-        password: { type: 'string' }
-    },
-    db
-)
-
-// Create new Record
-const newUser = await UserRepo.create({
-    name: "John Galt",
-    email: 'john.g@example.com',
-    hobbies: ['Programming', 'Hiking'],
-    password: '********'
+// Push any data, and RushDB will automatically flatten it into Records 
+// and establish relationships between them accordingly.
+await db.records.createMany("COMPANY", {
+  name: 'Google LLC',
+  address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
+  foundedAt: '1998-09-04T00:00:00.000Z',
+  rating: 4.9,
+  DEPARTMENT: [{
+    name: 'Research & Development',
+    description:
+        'Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.',
+    PROJECT: [{
+      name: 'Bard AI',
+      description:
+          'A state-of-the-art generative AI model designed for natural language understanding and creation.',
+      active: true,
+      budget: 1200000000,
+      EMPLOYEE: [{
+        name: 'Jeff Dean',
+        position: 'Head of AI Research',
+        email: 'jeff@google.com',
+        dob: '1968-07-16T00:00:00.000Z',
+        salary: 3000000
+      }]
+    }]
+  }]
 })
+
 
 // Find Records by specific criteria
-const matchedUsers = await UserRepo.find({
-    where: {
-        email: { $ne: 'john.g@example.com' },
-        hobbies: { $in: ['Hiking'] },
-        rating: { $gte: 1.5 }
+const matchedEmployees = await db.records.find({
+  labels: ['EMPLOYEE'],
+  where: {
+    position: { $contains: 'AI' },
+    PROJECT: {
+      DEPARTMENT: {
+        COMPANY: {
+          rating: { $gte: 4 }
+        }
+      }
     }
+  }
 })
+
+const company = await db.records.findUniq('COMPANY', {
+  where: {
+    name: 'Google LLC'
+  }
+})
+
+// Manage relationships
+await company.attach(matchedEmployees, { type: "WORKING_AT" })
 ```
 
 <div align="center">

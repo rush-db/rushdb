@@ -31,8 +31,8 @@ export function ExploreDocsStep() {
 
             <CardBody>
               <p>
-                Walk through the process of registering for RushDB and
-                generating an API token necessary for using the RushDB SDK.
+                Walk through the process of registering for RushDB and generating an API token necessary for
+                using the RushDB SDK.
               </p>
             </CardBody>
 
@@ -55,8 +55,7 @@ export function ExploreDocsStep() {
 
             <CardBody>
               <p>
-                This section will guide you through installing the SDK and
-                setting up your first SDK instance.
+                This section will guide you through installing the SDK and setting up your first SDK instance.
               </p>
             </CardBody>
 
@@ -78,10 +77,7 @@ export function ExploreDocsStep() {
             <CardHeader title="Creating and Retrieving Records with the SDK" />
 
             <CardBody>
-              <p>
-                Learn how to use the RushDB SDK to create and retrieve simple
-                data records.
-              </p>
+              <p>Learn how to use the RushDB SDK to create and retrieve simple data records.</p>
             </CardBody>
 
             <CardFooter>

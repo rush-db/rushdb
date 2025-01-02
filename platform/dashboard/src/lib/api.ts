@@ -1,23 +1,13 @@
 /**
  * This file is responsible for all api calls and data normalization
  */
-import type {
-  AnyObject,
-  CollectProperty,
-  CollectQuery,
-  CollectRecord,
-  MaybeArray
-} from '@collect.so/javascript-sdk'
+import type { AnyObject, Property, SearchQuery, DBRecord, MaybeArray } from '@rushdb/javascript-sdk'
 
-import { CollectBatchDraft } from '@collect.so/javascript-sdk'
+import { DBRecordsBatchDraft } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
 import type { PlanId, PlanPeriod } from '~/features/billing/types'
-import type {
-  Project,
-  ProjectStats,
-  WithProjectID
-} from '~/features/projects/types'
+import type { Project, ProjectStats, WithProjectID } from '~/features/projects/types'
 import type { ProjectToken } from '~/features/tokens/types'
 import type { Workspace } from '~/features/workspaces/types'
 import type { GenericApiResponse, Override } from '~/types'
@@ -51,7 +41,7 @@ export const api = {
       options?: { suggestTypes?: boolean }
       payload: MaybeArray<AnyObject>
     }) {
-      const data = new CollectBatchDraft({ label, options, payload })
+      const data = new DBRecordsBatchDraft({ label, options, payload })
       try {
         return await sdk(init).records.createMany(data)
       } catch (e: any) {
@@ -61,39 +51,24 @@ export const api = {
         return {}
       }
     },
-    async batchDelete({
-      init,
-      ...payload
-    }: WithInit & ({ ids: string[] } | CollectQuery)) {
+    async batchDelete({ init, ...payload }: WithInit & ({ ids: string[] } | SearchQuery)) {
       if ('ids' in payload && payload.ids) {
         return sdk(init).records.deleteById(payload.ids)
       } else {
-        return sdk(init).records.delete(payload as CollectQuery)
+        return sdk(init).records.delete(payload as SearchQuery)
       }
     },
-    async findById({
-      id,
-      init
-    }: {
-      id: CollectRecord['__id']
-      init: RequestInit
-    }) {
+    async findById({ id, init }: { id: DBRecord['__id']; init: RequestInit }) {
       return sdk(init).records.findById(id)
     },
-    async deleteById({
-      id,
-      init
-    }: {
-      id: CollectRecord['__id']
-      init?: RequestInit
-    }) {
+    async deleteById({ id, init }: { id: DBRecord['__id']; init?: RequestInit }) {
       return sdk(init).records.deleteById(id)
     },
     async relations({
       id,
       init
     }: WithInit & {
-      id: CollectRecord['__id']
+      id: DBRecord['__id']
     }) {
       return sdk(init).records.relations(id)
     },
@@ -103,10 +78,10 @@ export const api = {
     async properties(id: string, init: RequestInit) {
       return sdk(init).records.properties(id)
     },
-    async find(queryOdId: CollectQuery | string, init: RequestInit) {
+    async find(queryOdId: SearchQuery | string, init: RequestInit) {
       return sdk(init).records.find(queryOdId)
     },
-    async exportCsv(query: CollectQuery, init: RequestInit) {
+    async exportCsv(query: SearchQuery, init: RequestInit) {
       return sdk(init).records.export(query)
     }
   },
@@ -116,20 +91,18 @@ export const api = {
       pagination,
       searchQuery
     }: {
-      searchQuery: CollectQuery
-      pagination?: Pick<CollectQuery, 'limit' | 'skip'>
+      searchQuery: SearchQuery
+      pagination?: Pick<SearchQuery, 'limit' | 'skip'>
     } & WithInit) {
       return sdk(init).relations.find({ pagination, search: searchQuery })
     }
   },
   workspaces: {
-    async workspace(
-      { id }: Pick<Workspace, 'id'>,
-      init: RequestInit
-    ): Promise<Workspace> {
-      const { data } = await fetcher<
-        GenericApiResponse<Override<Workspace, { limits: string }>>
-      >(`/api/v1/workspaces/${id}`, init)
+    async workspace({ id }: Pick<Workspace, 'id'>, init: RequestInit): Promise<Workspace> {
+      const { data } = await fetcher<GenericApiResponse<Override<Workspace, { limits: string }>>>(
+        `/api/v1/workspaces/${id}`,
+        init
+      )
       return { ...data, limits: JSON.parse(data.limits) }
     },
     list(init: RequestInit) {
@@ -142,10 +115,7 @@ export const api = {
         body: JSON.stringify({ name })
       })
     },
-    update(
-      params: Partial<Omit<Workspace, 'id'> & Pick<Workspace, 'id'>>,
-      init: RequestInit
-    ) {
+    update(params: Partial<Omit<Workspace, 'id'> & Pick<Workspace, 'id'>>, init: RequestInit) {
       const { id, ...body } = params
 
       return fetcher<Workspace>(`/api/v1/workspaces/${id}`, {
@@ -167,11 +137,7 @@ export const api = {
     async list({ projectId }: WithProjectID, init: RequestInit) {
       return fetcher<ProjectToken[]>(`/api/v1/tokens`, init)
     },
-    async create({
-      projectId,
-      init,
-      ...body
-    }: WithProjectID & Partial<ProjectToken> & WithInit) {
+    async create({ projectId, init, ...body }: WithProjectID & Partial<ProjectToken> & WithInit) {
       const { noExpire, ...payload } = body
       return fetcher<ProjectToken>(`/api/v1/tokens`, {
         ...init,
@@ -204,18 +170,16 @@ export const api = {
       return {
         data: projects.map<Project>((p) => ({
           ...p,
-          stats: JSON.parse(
-            p?.stats ?? '{"records":0, "properties": 0}'
-          ) as ProjectStats
+          stats: JSON.parse(p?.stats ?? '{"records":0, "properties": 0}') as ProjectStats
         })),
         total
       }
     },
     async project({ projectId }: WithProjectID, init: RequestInit) {
-      const { data: project } = await fetcher<GenericApiResponse<Project>>(
-        `/api/v1/projects/${projectId}`,
-        { ...init, transformResponse: false }
-      )
+      const { data: project } = await fetcher<GenericApiResponse<Project>>(`/api/v1/projects/${projectId}`, {
+        ...init,
+        transformResponse: false
+      })
 
       return project
     },
@@ -265,13 +229,10 @@ export const api = {
     }
   },
   properties: {
-    async list(query: CollectQuery, init: RequestInit) {
+    async list(query: SearchQuery, init: RequestInit) {
       return sdk(init).properties.find(query)
     },
-    async values({
-      init,
-      propertyId
-    }: WithInit & { propertyId: CollectProperty['id'] }) {
+    async values({ init, propertyId }: WithInit & { propertyId: Property['id'] }) {
       return sdk(init).properties.values(propertyId)
     }
   },
@@ -287,11 +248,7 @@ export const api = {
         method: 'POST'
       })
     },
-    async resetPassword(body: {
-      email: string
-      userConfirmationToken: string
-      userNewPassword: string
-    }) {
+    async resetPassword(body: { email: string; userConfirmationToken: string; userNewPassword: string }) {
       return fetcher<GetUserResponse['data']>(`/api/v1/auth/reset-password`, {
         body: JSON.stringify(body),
         method: 'POST'
@@ -328,25 +285,26 @@ export const api = {
     }: WithInit & {
       returnUrl: string
     }) {
-      return fetcher<{ redirectUrl: string }>(
-        `/api/v1/billing/payment/create-portal-session`,
-        {
-          ...init,
-          method: 'POST',
-          body: JSON.stringify(body)
-        }
-      )
+      return fetcher<{ redirectUrl: string }>(`/api/v1/billing/payment/create-portal-session`, {
+        ...init,
+        method: 'POST',
+        body: JSON.stringify(body)
+      })
     }
   },
   settings: {
     get: ({ init }: WithInit) => {
-      return fetcher<{ data: { selfHosted: boolean; dashboardUrl: string } }>(
-        `/api/v1/settings`,
-        {
-          ...init,
-          method: 'GET'
+      return fetcher<{
+        data: {
+          selfHosted: boolean
+          dashboardUrl: string
+          googleOAuthEnabled: boolean
+          githubOAuthEnabled: boolean
         }
-      )
+      }>(`/api/v1/settings`, {
+        ...init,
+        method: 'GET'
+      })
     }
   }
 }

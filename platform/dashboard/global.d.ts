@@ -1,3 +1,5 @@
+import type { JSX } from 'react'
+
 export {}
 
 declare global {
@@ -8,11 +10,8 @@ declare global {
   }
 
   // A more precise version of just React.ComponentPropsWithoutRef on its own
-  type TPropsOf<
-    As extends
-      | React.JSXElementConstructor<unknown>
-      | keyof JSX.IntrinsicElements
-  > = JSX.LibraryManagedAttributes<As, React.ComponentPropsWithoutRef<As>>
+  type TPropsOf<As extends React.JSXElementConstructor<unknown> | keyof JSX.IntrinsicElements> =
+    JSX.LibraryManagedAttributes<As, React.ComponentPropsWithoutRef<As>>
 
   type AsProp<As extends React.ElementType> = {
     /**
@@ -27,20 +26,21 @@ declare global {
    * (`OverrideProps`), ensuring that any duplicates are overridden by the overriding
    * set of props.
    */
-  type TExtendableProps<
-    ExtendedProps = IObject,
-    OverrideProps = IObject
-  > = OverrideProps & Omit<ExtendedProps, keyof OverrideProps>
+  type TExtendableProps<ExtendedProps = IObject, OverrideProps = IObject> = Omit<
+    ExtendedProps,
+    keyof OverrideProps
+  > &
+    OverrideProps
 
   /**
    * Allows for inheriting the props from the specified element type so that
    * props like children, className & style work, as well as element-specific
    * attributes like aria roles. The component (`C`) must be passed in.
    */
-  type TInheritableElementProps<
-    As extends React.ElementType,
-    Props = IObject
-  > = TExtendableProps<TPropsOf<As>, Props>
+  type TInheritableElementProps<As extends React.ElementType, Props = IObject> = TExtendableProps<
+    TPropsOf<As>,
+    Props
+  >
 
   /**
    * A more sophisticated version of `TInheritableElementProps` where
@@ -50,24 +50,20 @@ declare global {
     As extends React.ElementType,
     // eslint-disable-next-line @typescript-eslint/ban-types
     Props = {}
-  > = TInheritableElementProps<As, Props & AsProp<As>>
+  > = TInheritableElementProps<As, AsProp<As> & Props>
 
   /**
    * Utility type to extract the `ref` prop from a polymorphic component
    */
-  type TPolymorphicRef<As extends React.ElementType> =
-    React.ComponentPropsWithRef<As>['ref']
+  type TPolymorphicRef<As extends React.ElementType> = React.ComponentPropsWithRef<As>['ref']
 
   /**
    * A wrapper of `TPolymorphicComponentProps` that also includes the `ref`
    * prop for the polymorphic component
    */
-  type TPolymorphicComponentPropsWithRef<
-    As extends React.ElementType,
-    Props = IObject
-  > = TPolymorphicComponentProps<As, Props> & {
+  type TPolymorphicComponentPropsWithRef<As extends React.ElementType, Props = IObject> = {
     ref?: TPolymorphicRef<As>
-  }
+  } & TPolymorphicComponentProps<As, Props>
 
   /**
    * Extends component props with props from `as` attribute

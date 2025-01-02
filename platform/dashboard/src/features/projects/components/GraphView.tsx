@@ -12,7 +12,7 @@ import {
 import { Renderer } from 'three'
 import { $sheetRecordId } from '~/features/projects/stores/id.ts'
 import { getLabelColor } from '~/features/labels'
-import { CollectRecord, type CollectRelation } from '@collect.so/javascript-sdk'
+import { DBRecord, type Relation } from '@rushdb/javascript-sdk'
 
 export function getRelationCounts(tree: Output) {
   const counts: Record<string, number> = {}
@@ -33,12 +33,12 @@ export function getRelationCounts(tree: Output) {
 }
 
 interface Output {
-  nodes: CollectRecord[]
-  links: CollectRelation[]
+  nodes: DBRecord[]
+  links: Relation[]
 }
 
-function createNodesAndLinks(data: CollectRelation[]): Output {
-  const nodesMap = new Map<string, CollectRecord>()
+function createNodesAndLinks(data: Relation[]): Output {
+  const nodesMap = new Map<string, DBRecord>()
 
   // Extract nodes from each relation
   data.forEach(({ sourceId, sourceLabel, targetId, targetLabel }) => {
@@ -58,9 +58,7 @@ function createNodesAndLinks(data: CollectRelation[]): Output {
 }
 
 export const GraphView: FC = () => {
-  const extraRenderers: Renderer[] = [
-    new CSS2DRenderer() as unknown as Renderer
-  ]
+  const extraRenderers: Renderer[] = [new CSS2DRenderer() as unknown as Renderer]
 
   const { data: relations } = useStore($filteredRecordsRelations)
 
@@ -162,7 +160,7 @@ export const GraphView: FC = () => {
         nodeResolution={24}
         height={window.innerHeight - 182 - 61}
         width={window.innerWidth - 16}
-        nodeVal={(node: CollectRecord) => weights[node.__id as string]}
+        nodeVal={(node: DBRecord) => weights[node.__id as string]}
         linkDirectionalArrowRelPos={1}
         linkDirectionalArrowLength={4}
         linkDirectionalArrowResolution={16}
@@ -170,10 +168,7 @@ export const GraphView: FC = () => {
         onLinkClick={handleLinkClick}
         nodeColor={(node) => {
           const { data: labels } = $currentProjectLabels.get()
-          return getLabelColor(
-            node.__label,
-            Object.keys(labels ?? {}).indexOf(node.__label)
-          )
+          return getLabelColor(node.__label, Object.keys(labels ?? {}).indexOf(node.__label))
         }}
         onNodeDragEnd={(node) => {
           node.fx = node.x
@@ -182,9 +177,7 @@ export const GraphView: FC = () => {
         }}
         linkThreeObjectExtend={true}
         linkThreeObject={(link) => {
-          const sprite = new SpriteText(
-            `${link.sourceLabel} > ${link.targetLabel}`
-          )
+          const sprite = new SpriteText(`${link.sourceLabel} > ${link.targetLabel}`)
           sprite.color = 'lightgrey'
           sprite.textHeight = 1.5
           return sprite
@@ -201,15 +194,13 @@ export const GraphView: FC = () => {
           // Position sprite
           Object.assign(sprite.position, middlePos)
         }}
-        nodeLabel={(node) =>
-          `<div><b>${node.__label}</b>: <span>${node.__id}</span></div>`
-        }
+        nodeLabel={(node) => `<div><b>${node.__label}</b>: <span>${node.__id}</span></div>`}
         onNodeClick={handleClick}
       />
     </>
   )
 }
-// nodeAutoColorBy={(node: CollectRecord) => node)}
+// nodeAutoColorBy={(node: DBRecord) => node)}
 // nodeThreeObject={(node) => {
 // const nodeEl = document.createElement('div');
 // nodeEl.textContent = 'COMPANY';

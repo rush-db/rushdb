@@ -64,8 +64,9 @@ export const parseSubQuery = (
     ctx
   )
 
-  const condition = isArray(subQueryWhere)
-    ? subQueryWhere.filter(toBoolean).join(options.joinOperator ? ` ${options.joinOperator} ` : ' AND ')
+  const condition =
+    isArray(subQueryWhere) ?
+      subQueryWhere.filter(toBoolean).join(options.joinOperator ? ` ${options.joinOperator} ` : ' AND ')
     : subQueryWhere
 
   const rel = buildRelationPart($relation)

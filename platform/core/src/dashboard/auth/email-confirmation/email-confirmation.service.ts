@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import { Transaction } from 'neo4j-driver'
 
+import { TOKEN_EXPIRES_IN } from '@/common/constants'
 import { IDecodedResetToken } from '@/dashboard/auth/auth.types'
 import { MailService } from '@/dashboard/mail/mail.service'
 import { UserService } from '@/dashboard/user/user.service'
@@ -35,7 +36,7 @@ export class EmailConfirmationService {
   public async decodeConfirmationToken(token: string) {
     try {
       const payload = await this.jwtService.verify(token, {
-        secret: this.configService.get('JWT_SECRET')
+        secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
       })
 
       if (typeof payload === 'object' && 'email' in payload) {
@@ -53,7 +54,7 @@ export class EmailConfirmationService {
   public async decodePasswordResetToken(token: string): Promise<IDecodedResetToken> {
     try {
       const payload = await this.jwtService.verify(token, {
-        secret: this.configService.get('JWT_SECRET')
+        secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
       })
 
       if (typeof payload === 'object' && 'email' in payload && 'id' in payload) {
@@ -73,8 +74,8 @@ export class EmailConfirmationService {
     const token = this.jwtService.sign(
       { email },
       {
-        secret: this.configService.get('JWT_SECRET'),
-        expiresIn: `${this.configService.get('JWT_EXPIRES_IN')}`
+        secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY'),
+        expiresIn: TOKEN_EXPIRES_IN
       }
     )
     await this.mailService.sendUserConfirmation(email, token, userName)
@@ -94,8 +95,8 @@ export class EmailConfirmationService {
     const token = this.jwtService.sign(
       { email: user.login, id: user.id },
       {
-        secret: this.configService.get('JWT_SECRET'),
-        expiresIn: `${this.configService.get('JWT_EXPIRES_IN')}`
+        secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY'),
+        expiresIn: TOKEN_EXPIRES_IN
       }
     )
     await this.mailService.sendUserForgotPasswordLink(user.login, token)

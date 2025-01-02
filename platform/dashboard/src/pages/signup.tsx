@@ -1,26 +1,22 @@
 import { Button } from '~/elements/Button'
 import { Divider } from '~/elements/Divider'
 import { TextField } from '~/elements/Input'
-import { GithHubButton } from '~/features/auth/components/GitHubButton'
+import { GithubButton } from '~/features/auth/components/GitHubButton'
 import { GoogleButton } from '~/features/auth/components/GoogleButton'
 import { createUser } from '~/features/auth/stores/auth'
 import { AuthLayout } from '~/layout/AuthLayout'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
+import { useStore } from '@nanostores/react'
+import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { useMemo } from 'react'
 
 export const schema = object({
   login: string().required(),
-  password: string()
-    .required()
-    .min(8, 'Should be at least 8 characters long')
-    .max(32),
-  passwordConfirmation: string().test(
-    'passwords-match',
-    'Passwords must match',
-    function (value?: string) {
-      return this.parent.password === value
-    }
-  )
+  password: string().required().min(8, 'Should be at least 8 characters long').max(32),
+  passwordConfirmation: string().test('passwords-match', 'Passwords must match', function (value?: string) {
+    return this.parent.password === value
+  })
 }).required()
 
 function SignUpForm() {
@@ -56,13 +52,7 @@ function SignUpForm() {
           error={errors?.passwordConfirmation?.message as string}
         />
 
-        <Button
-          className="mt-2"
-          loading={isSubmitting}
-          size="large"
-          type="submit"
-          variant="secondary"
-        >
+        <Button className="mt-2" loading={isSubmitting} size="large" type="submit" variant="secondary">
           Continue With Email
         </Button>
       </form>
@@ -71,13 +61,35 @@ function SignUpForm() {
 }
 
 export function SignUpPage() {
+  const platformSettings = useStore($platformSettings)
+
+  const hasGoogleOAuth = useMemo(
+    () => platformSettings.data?.googleOAuthEnabled,
+    [platformSettings.data?.googleOAuthEnabled]
+  )
+
+  const hasGithubOAuth = useMemo(
+    () => platformSettings.data?.githubOAuthEnabled,
+    [platformSettings.data?.githubOAuthEnabled]
+  )
+
+  const hasOauth = useMemo(() => hasGoogleOAuth || hasGithubOAuth, [hasGoogleOAuth, hasGithubOAuth])
+
   return (
     <AuthLayout title={'Create new RushDB account'}>
-      <div className="flex w-full justify-between gap-2">
-        <GoogleButton />
-        <GithHubButton />
-      </div>
-      <Divider />
+      {hasOauth ?
+        <>
+          <div className="flex w-full justify-between gap-2">
+            {hasGoogleOAuth ?
+              <GoogleButton />
+            : null}
+            {hasGithubOAuth ?
+              <GithubButton />
+            : null}
+          </div>
+          <Divider />
+        </>
+      : null}
 
       <SignUpForm />
 

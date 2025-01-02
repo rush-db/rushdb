@@ -10,13 +10,7 @@ import type {
   RelationTarget
 } from '../sdk/record.js'
 import type { Transaction } from '../sdk/transaction.js'
-import type {
-  Property,
-  SearchQuery,
-  Schema,
-  InferSchemaTypesWrite,
-  MaybeArray
-} from '../types/index.js'
+import type { Property, SearchQuery, Schema, InferSchemaTypesWrite, MaybeArray } from '../types/index.js'
 
 export type ApiResponse<T, E = Record<string, any>> = {
   data: T
@@ -50,10 +44,7 @@ export type RecordsApi = {
   ): Promise<DBRecordsArrayInstance<S>>
   createMany<S extends Schema = any>(
     labelOrData: DBRecordsBatchDraft | string,
-    maybeDataOrTransaction?:
-      | Transaction
-      | MaybeArray<InferSchemaTypesWrite<S>>
-      | string,
+    maybeDataOrTransaction?: Transaction | MaybeArray<InferSchemaTypesWrite<S>> | string,
     transaction?: Transaction | string
   ): Promise<DBRecordsArrayInstance<S>>
 
@@ -130,15 +121,9 @@ export type RecordsApi = {
     transaction?: Transaction | string
   ): Promise<DBRecordInstance<S>>
 
-  properties(
-    target: DBRecordTarget,
-    transaction?: Transaction | string
-  ): Promise<ApiResponse<Property[]>>
+  properties(target: DBRecordTarget, transaction?: Transaction | string): Promise<ApiResponse<Property[]>>
 
-  relations(
-    target: DBRecordTarget,
-    transaction?: Transaction | string
-  ): Promise<ApiResponse<Array<Relation>>>
+  relations(target: DBRecordTarget, transaction?: Transaction | string): Promise<ApiResponse<Array<Relation>>>
 
   // overwrite whole record
   set<S extends Schema = any>(

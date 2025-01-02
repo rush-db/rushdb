@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
-export type PointerEventHandler = (
-  event: MouseEvent | PointerEvent | TouchEvent
-) => void
+export type PointerEventHandler = (event: MouseEvent | PointerEvent | TouchEvent) => void
 
 /**
  * A custom hook that runs provided callback

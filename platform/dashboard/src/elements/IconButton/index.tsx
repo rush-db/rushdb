@@ -32,29 +32,22 @@ type IconButtonProps = {
   ['aria-label']: string
 } & VariantProps<typeof buttonVariants>
 
-export const IconButton: TPolymorphicComponent<IconButtonProps, 'button'> =
-  forwardRef(
-    (
-      { className, as = 'button', type = 'button', size, variant, ...props },
-      ref
-    ) => {
-      const Element = as
+// @ts-ignore
+export const IconButton: TPolymorphicComponent<IconButtonProps, 'button'> = forwardRef(
+  ({ className, as = 'button', type = 'button', size, variant, ...props }, ref) => {
+    const Element = as
 
-      return (
-        <Element
-          className={cn(
-            'shrink-none',
-            buttonVariants({ size, variant, className }),
-            iconButton({ size })
-          )}
-          ref={ref}
-          title={props['aria-label']}
-          type={type}
-          {...props}
-        />
-      )
-    }
-  )
+    return (
+      <Element
+        className={cn('shrink-none', buttonVariants({ size, variant, className }), iconButton({ size }))}
+        ref={ref}
+        title={props['aria-label']}
+        type={type}
+        {...props}
+      />
+    )
+  }
+)
 
 IconButton.displayName = 'IconButton'
 
@@ -88,7 +81,7 @@ export function IconCopyButton({
     () => {
       setCopied(false)
     },
-    copied ? timeout ?? null : null
+    copied ? (timeout ?? null) : null
   )
 
   useHotkeys({
@@ -108,7 +101,9 @@ export function IconCopyButton({
           title={copied ? 'Copied' : 'Copy'}
           variant={copied ? 'success' : variant}
         >
-          {copied ? <CopyCheck /> : <Copy />}
+          {copied ?
+            <CopyCheck />
+          : <Copy />}
         </IconButton>
       }
     >

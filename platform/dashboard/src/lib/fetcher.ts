@@ -55,8 +55,9 @@ export async function fetcher<Data = unknown>(
   const currentWorkspaceId = $currentWorkspaceId.get()
   const currentProjectId = $currentProjectId.get()
 
-  const authHeaders: HeadersInit = token
-    ? {
+  const authHeaders: HeadersInit =
+    token ?
+      {
         Authorization: `Bearer ${token}`,
         ...(currentWorkspaceId ? { 'x-workspace-id': currentWorkspaceId } : {}),
         ...(currentProjectId ? { 'x-project-id': currentProjectId } : {})
@@ -95,10 +96,7 @@ export async function fetcher<Data = unknown>(
 }
 
 function defaultMutationErrorHandler(error: unknown) {
-  if (
-    error instanceof FetchError &&
-    error.response.status === BillingErrorCodes.PaymentRequired
-  ) {
+  if (error instanceof FetchError && error.response.status === BillingErrorCodes.PaymentRequired) {
     return $limitReachModalOpen.set(true)
   }
 

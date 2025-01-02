@@ -50,10 +50,8 @@ export const initSDK = (httpClient: HttpClient) => {
 
     public getModel<Label extends keyof Models | string = keyof Models>(
       label: Label
-    ): Label extends keyof Models ? Model<Models[Label]>
-    : Model | undefined {
-      return this.models.get(label) as Label extends keyof Models ? Models[Label]
-      : Model
+    ): Label extends keyof Models ? Model<Models[Label]> : Model | undefined {
+      return this.models.get(label) as Label extends keyof Models ? Models[Label] : Model
     }
 
     public toInstance<S extends Schema = Schema>(record: DBRecord<S>) {

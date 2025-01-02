@@ -11,7 +11,6 @@
     "build-esm": "mkdir -p esm && tsc -p tsconfig.esm.json",
     "build-cjs": "mkdir -p cjs && tsc -p tsconfig.cjs.json",
     "postbuild": "node scripts/post-build.js",
-    "dev": "tsup --watch",
     "types:check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./node_modules/.cache ./coverage ./esm ./cjs ./types",
     "flush": "rm -rf node_modules",

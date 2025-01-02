@@ -70,59 +70,40 @@ export const logIn = action(
   }
 )
 
-export const logInGoogle = action(
-  $user,
-  'logInGoogle',
-  (store, searchParams: SearchParams) => {
-    const query = new URLSearchParams(searchParams).toString()
-    return fetcher<GetUserResponse['data']>(
-      `/api/v1/auth/google/callback?${query}`
-    ).then((user) => {
-      $user.set({ ...user, isLoggedIn: true })
-    })
+export const logInGoogle = action($user, 'logInGoogle', (store, searchParams: SearchParams) => {
+  const query = new URLSearchParams(searchParams).toString()
+  return fetcher<GetUserResponse['data']>(`/api/v1/auth/google/callback?${query}`).then((user) => {
+    $user.set({ ...user, isLoggedIn: true })
+  })
+})
+
+export const oauthLogin = action($user, 'oauthLogin', (store, token: string) => {
+  if (token) {
+    $token.set(token)
+
+    api.user
+      .current()
+      .then((user) => {
+        $user.set({ ...user, isLoggedIn: true })
+      })
+      .catch(() => {
+        $token.set(undefined)
+      })
   }
-)
+})
 
-export const oauthLogin = action(
-  $user,
-  'oauthLogin',
-  (store, token: string) => {
-    if (token) {
-      $token.set(token)
+export const confirmEmail = action($user, 'confirmEmail', (store, searchParams: SearchParams) => {
+  const query = new URLSearchParams(searchParams).toString()
 
-      api.user
-        .current()
-        .then((user) => {
-          $user.set({ ...user, isLoggedIn: true })
-        })
-        .catch(() => {
-          $token.set(undefined)
-        })
-    }
-  }
-)
+  return fetcher<GetUserResponse['data']>(`/api/v1/auth/confirm?${query}`).then((user) => {
+    store.set({ ...user, isLoggedIn: true })
+  })
+})
 
-export const confirmEmail = action(
-  $user,
-  'confirmEmail',
-  (store, searchParams: SearchParams) => {
-    const query = new URLSearchParams(searchParams).toString()
-
-    return fetcher<GetUserResponse['data']>(
-      `/api/v1/auth/confirm?${query}`
-    ).then((user) => {
-      store.set({ ...user, isLoggedIn: true })
-    })
-  }
-)
-
-export const createUser = action(
-  $user,
-  'createUser',
-  (store, params: ApiParams<typeof api.auth.register>) =>
-    api.auth.register(params).then((user) => {
-      store.set({ ...user, isLoggedIn: true })
-    })
+export const createUser = action($user, 'createUser', (store, params: ApiParams<typeof api.auth.register>) =>
+  api.auth.register(params).then((user) => {
+    store.set({ ...user, isLoggedIn: true })
+  })
 )
 
 export const $sendRecoveryLink = createMutator({

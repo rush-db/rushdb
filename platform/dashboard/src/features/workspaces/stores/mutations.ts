@@ -10,18 +10,14 @@ import { redirectRoute } from '~/lib/router'
 import { $currentWorkspace, setCurrentWorkspace } from './current-workspace'
 import { $workspacesList } from './workspaces'
 
-export const updateWorkspace = createMutator<
-  Parameters<typeof api.workspaces.update>[0]
->({
+export const updateWorkspace = createMutator<Parameters<typeof api.workspaces.update>[0]>({
   invalidates: [$currentWorkspace],
   async fetcher({ init, ...workspace }) {
     return await api.workspaces.update(workspace, init)
   }
 })
 
-export const deleteWorkspace = createMutator<
-  Parameters<typeof api.workspaces.update>[0]
->({
+export const deleteWorkspace = createMutator<Parameters<typeof api.workspaces.update>[0]>({
   invalidates: [$workspacesList, $currentWorkspace],
   async fetcher({ init, id }) {
     if (!id) {

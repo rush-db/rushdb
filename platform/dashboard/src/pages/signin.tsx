@@ -2,7 +2,7 @@ import { Button } from '~/elements/Button'
 import { Divider } from '~/elements/Divider'
 import { TextField } from '~/elements/Input'
 import { Link } from '~/elements/Link'
-import { GithHubButton } from '~/features/auth/components/GitHubButton'
+import { GithubButton } from '~/features/auth/components/GitHubButton'
 import { GoogleButton } from '~/features/auth/components/GoogleButton'
 import { logIn } from '~/features/auth/stores/auth'
 import { AuthLayout } from '~/layout/AuthLayout'
@@ -10,13 +10,13 @@ import { FetchError } from '~/lib/fetcher'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { LogIn } from 'lucide-react'
+import { useStore } from '@nanostores/react'
+import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { useMemo } from 'react'
 
 const schema = object({
   login: string().required(),
-  password: string()
-    .required()
-    .min(8, 'Should be at least 8 characters long')
-    .max(32)
+  password: string().required().min(8, 'Should be at least 8 characters long').max(32)
 }).required()
 
 function SignInForm() {
@@ -43,7 +43,7 @@ function SignInForm() {
             }
           }
         })}
-        className=" flex flex-col gap-3"
+        className="flex flex-col gap-3"
       >
         <TextField
           label="Login"
@@ -54,11 +54,7 @@ function SignInForm() {
           error={errors?.login?.message as string}
         />
         <TextField
-          caption={
-            <Link href={getRoutePath('passwordRecovery')}>
-              Forgot password?
-            </Link>
-          }
+          caption={<Link href={getRoutePath('passwordRecovery')}>Forgot password?</Link>}
           label="Password"
           type="password"
           {...register('password')}
@@ -81,13 +77,36 @@ function SignInForm() {
 }
 
 export function SignInPage() {
+  const platformSettings = useStore($platformSettings)
+
+  const hasGoogleOAuth = useMemo(
+    () => platformSettings.data?.googleOAuthEnabled,
+    [platformSettings.data?.googleOAuthEnabled]
+  )
+
+  const hasGithubOAuth = useMemo(
+    () => platformSettings.data?.githubOAuthEnabled,
+    [platformSettings.data?.githubOAuthEnabled]
+  )
+
+  const hasOauth = useMemo(() => hasGoogleOAuth || hasGithubOAuth, [hasGoogleOAuth, hasGithubOAuth])
+
   return (
     <AuthLayout title={'Sign in to RushDB'}>
-      <div className="flex w-full justify-between gap-2">
-        <GoogleButton />
-        <GithHubButton />
-      </div>
-      <Divider />
+      {hasOauth ?
+        <>
+          <div className="flex w-full justify-between gap-2">
+            {hasGoogleOAuth ?
+              <GoogleButton />
+            : null}
+            {hasGithubOAuth ?
+              <GithubButton />
+            : null}
+          </div>
+          <Divider />
+        </>
+      : null}
+
       <SignInForm />
       <Divider />
       <Button as="a" href={getRoutePath('signup')} size="large" variant="ghost">

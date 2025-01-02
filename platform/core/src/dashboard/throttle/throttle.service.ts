@@ -11,9 +11,10 @@ export class ThrottleService implements ThrottlerOptionsFactory {
   // @TODO: Make it sensitive to current plan
   createThrottlerOptions(): ThrottlerModuleOptions {
     const ttl = this.configService.get('RATE_LIMITER_TTL') || 1000
-    const limit = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
-      ? 1000
-      : this.configService.get('RATE_LIMITER_REQUESTS_LIMIT') || 10
+    const limit =
+      toBoolean(this.configService.get('RUSHDB_SELF_HOSTED')) ? 1000 : (
+        this.configService.get('RATE_LIMITER_REQUESTS_LIMIT') || 10
+      )
 
     return {
       throttlers: [

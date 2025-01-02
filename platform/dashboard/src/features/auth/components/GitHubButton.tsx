@@ -9,7 +9,7 @@ const GITHUB_URL = `${BASE_URL}/api/v1/auth/github?redirectUrl=${
   window.location.origin
 }${getRoutePath('oauth')}`
 
-export function GithHubButton() {
+export function GithubButton() {
   const [loading, setLoading] = useState(false)
 
   return (

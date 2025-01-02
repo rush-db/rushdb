@@ -1,0 +1,51 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: pnpm
+
+      - name: Install dependencies
+        run: |
+          npm install -g pnpm
+          pnpm install
+
+      - name: Bump version using Changeset
+        run: |
+          npx changeset version
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Release version bump"
+          git push
+
+      - name: Extract version from package.json
+        id: get-version
+        run: echo "VERSION=$(jq -r '.version' ./package.json)" >> $GITHUB_ENV
+
+      - name: Build Docker image
+        run: |
+          docker build -t rushdb/platform:$VERSION -t rushdb/platform:latest .
+
+      - name: Publish Docker image
+        run: |
+          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+          docker push rushdb/platform:$VERSION
+          docker push rushdb/platform:latest

@@ -26,6 +26,6 @@
     "allowUnusedLabels": true
   },
   "exclude": ["**/node_modules"],
-//  "include": ["src", "global.d.ts", "config"],
+  "include": ["src", "global.d.ts", "config"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

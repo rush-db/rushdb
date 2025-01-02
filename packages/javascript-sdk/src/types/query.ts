@@ -49,10 +49,9 @@ export type NorExpression<T = PropertyExpression & Related> = {
   $nor: MaybeArray<LogicalExpressionValue<T>>
 }
 
-export type LogicalExpression<T = PropertyExpression & Related> =
-  RequireAtLeastOne<
-    AndExpression<T> & OrExpression<T> & NotExpression<T> & XorExpression<T> & NorExpression<T>
-  >
+export type LogicalExpression<T = PropertyExpression & Related> = RequireAtLeastOne<
+  AndExpression<T> & OrExpression<T> & NotExpression<T> & XorExpression<T> & NorExpression<T>
+>
 
 type MaybeLogicalExpression<T> = LogicalExpression<T> | T
 
@@ -65,14 +64,11 @@ export type Expression<S extends Schema = Schema> =
   | (S extends Schema ?
       // When used with actual Schema
       {
-        [Key in keyof S]?: MaybeLogicalExpression<
-          PropertyExpressionByType[S[Key]['type']]
-        >
+        [Key in keyof S]?: MaybeLogicalExpression<PropertyExpressionByType[S[Key]['type']]>
       }
     : // When used with random object
       {
-        [Key in keyof S]?: S[Key] extends MaybeArray<number> ?
-          MaybeLogicalExpression<NumberExpression>
+        [Key in keyof S]?: S[Key] extends MaybeArray<number> ? MaybeLogicalExpression<NumberExpression>
         : S[Key] extends MaybeArray<boolean> ? MaybeLogicalExpression<BooleanExpression>
         : S[Key] extends MaybeArray<string> ?
           MaybeLogicalExpression<DatetimeExpression> | MaybeLogicalExpression<StringExpression>
@@ -81,14 +77,10 @@ export type Expression<S extends Schema = Schema> =
       })
 
 export type Where<S extends Schema = Schema> =
-  | ((Expression<S> & Related) &
-      LogicalGrouping<Expression<S> & Related>)
+  | ((Expression<S> & Related) & LogicalGrouping<Expression<S> & Related>)
   | LogicalGrouping<Expression<S> & Related>
 
-export type Order<S extends Schema = Schema> =
-  | 'asc'
-  | 'desc'
-  | Partial<Record<keyof S, 'asc' | 'desc'>>
+export type Order<S extends Schema = Schema> = 'asc' | 'desc' | Partial<Record<keyof S, 'asc' | 'desc'>>
 
 export type AggregateCollectFn = {
   alias: string

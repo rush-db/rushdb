@@ -21,20 +21,13 @@ export const ALT_MODIFIER = 'alt' as const
 export const META_MODIFIER = 'meta' as const
 export const CTRL_MODIFIER = 'ctrl' as const
 
-export const modifiers = [
-  SHIFT_MODIFIER,
-  ALT_MODIFIER,
-  META_MODIFIER,
-  CTRL_MODIFIER
-] as const
+export const modifiers = [SHIFT_MODIFIER, ALT_MODIFIER, META_MODIFIER, CTRL_MODIFIER] as const
 
 export type ModifierKey = (typeof modifiers)[number]
 
 export type HotKeyEventHandler = (event: KeyboardEvent) => void
 
-export type Hotkeys = Partial<
-  Record<`${ModifierKey}+${Key}` | Key | (string & {}), HotKeyEventHandler>
->
+export type Hotkeys = Partial<Record<`${ModifierKey}+${Key}` | Key | (string & {}), HotKeyEventHandler>>
 
 export const shouldFireEvent = (event: KeyboardEvent) => {
   if (event.target instanceof HTMLElement) {
@@ -83,15 +76,12 @@ export const matchesHotKey =
 
     const matchesModifier = Object.entries(eventModifiersMap).every(
       ([eventModifier, eventModifierValue]) =>
-        passedModifiers.includes(eventModifier as ModifierKey)
-          ? eventModifierValue === true // passed values must be included in the event
-          : eventModifierValue === false // missing values must be absent in the event
+        passedModifiers.includes(eventModifier as ModifierKey) ?
+          eventModifierValue === true // passed values must be included in the event
+        : eventModifierValue === false // missing values must be absent in the event
     )
 
-    const matchesKey =
-      eventKey === passedKey ||
-      eventCode === passedKey ||
-      eventCode?.slice(-1) === passedKey
+    const matchesKey = eventKey === passedKey || eventCode === passedKey || eventCode?.slice(-1) === passedKey
 
     if (matchesKey && matchesModifier) {
       return true
@@ -103,10 +93,7 @@ export const matchesHotKey =
 /**
  * Binds hotkeys to document element
  */
-export const useHotkeys = (
-  hotkeys: Hotkeys,
-  { disabled }: { disabled?: boolean } = {}
-) => {
+export const useHotkeys = (hotkeys: Hotkeys, { disabled }: { disabled?: boolean } = {}) => {
   useEffect(() => {
     if (!disabled) {
       const keydownListener = (event: KeyboardEvent) => {
@@ -121,8 +108,7 @@ export const useHotkeys = (
       }
 
       document.documentElement.addEventListener('keydown', keydownListener)
-      return () =>
-        document.documentElement.removeEventListener('keydown', keydownListener)
+      return () => document.documentElement.removeEventListener('keydown', keydownListener)
     }
   }, [hotkeys, disabled])
 }

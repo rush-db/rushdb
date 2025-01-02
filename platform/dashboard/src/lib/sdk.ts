@@ -1,7 +1,4 @@
-import CollectSDK, {
-  HttpClient,
-  HttpClientResponse
-} from '@collect.so/javascript-sdk'
+import RushDB, { HttpClient, HttpClientResponse } from '@rushdb/javascript-sdk'
 
 import { BASE_URL } from '~/config.ts'
 import { $token } from '~/features/auth/stores/token.ts'
@@ -27,10 +24,7 @@ class CustomHttpClientResponse extends HttpClientResponse {
 class CustomHttpClient extends HttpClient {
   headers: HeadersInit = {}
 
-  constructor(
-    headers: HeadersInit = {} as HeadersInit,
-    signal?: AbortSignal | null
-  ) {
+  constructor(headers: HeadersInit = {} as HeadersInit, signal?: AbortSignal | null) {
     super()
     this.headers = headers
   }
@@ -54,16 +48,17 @@ export const sdk = (init?: Partial<RequestInit>) => {
   const currentWorkspaceId = $currentWorkspaceId.get()
   const currentProjectId = $currentProjectId.get()
 
-  const headers: HeadersInit = token
-    ? {
+  const headers: HeadersInit =
+    token ?
+      {
         Authorization: `Bearer ${token}`,
         ...(currentWorkspaceId ? { 'x-workspace-id': currentWorkspaceId } : {}),
         ...(currentProjectId ? { 'x-project-id': currentProjectId } : {})
       }
     : {}
 
-  return new CollectSDK(undefined, {
-    url: BASE_URL,
+  return new RushDB(undefined, {
+    url: BASE_URL || document.URL,
     httpClient: new CustomHttpClient(headers, init?.signal)
   })
 }

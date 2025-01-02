@@ -6,10 +6,7 @@ import { useForm as useFormHook } from 'react-hook-form'
 
 export * from 'yup'
 
-export const useForm = <
-  TFieldValues extends FieldValues = FieldValues,
-  TContext = any
->({
+export const useForm = <TFieldValues extends FieldValues = FieldValues, TContext = any>({
   schema,
   ...props
 }: Omit<UseFormProps<TFieldValues, TContext>, 'schema'> & {

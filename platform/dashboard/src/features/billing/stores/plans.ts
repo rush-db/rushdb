@@ -32,44 +32,38 @@ export const $availablePlans = computed([], () => {
   ] as PaidPlan[]
 })
 
-export const $currentPlan = computed(
-  [$availablePlans, $currentWorkspace],
-  (plans, workspace) => {
-    const loading = workspace.loading
+export const $currentPlan = computed([$availablePlans, $currentWorkspace], (plans, workspace) => {
+  const loading = workspace.loading
 
-    if (loading) {
-      return { loading: true as const }
-    }
+  if (loading) {
+    return { loading: true as const }
+  }
 
-    const planId = workspace.data?.planId
+  const planId = workspace.data?.planId
 
-    if (!planId) {
-      return {
-        loading: false as const,
-        currentPlan: FREE_PLAN,
-        validTill: workspace.data?.validTill,
-        isSubscriptionCancelled: workspace.data?.isSubscriptionCancelled
-      }
-    }
-
-    const foundPlan = plans.find((plan) => plan.id === planId)
-
-    const currentPlan = foundPlan ?? FREE_PLAN
-
+  if (!planId) {
     return {
       loading: false as const,
-      currentPlan,
+      currentPlan: FREE_PLAN,
       validTill: workspace.data?.validTill,
       isSubscriptionCancelled: workspace.data?.isSubscriptionCancelled
     }
   }
-)
+
+  const foundPlan = plans.find((plan) => plan.id === planId)
+
+  const currentPlan = foundPlan ?? FREE_PLAN
+
+  return {
+    loading: false as const,
+    currentPlan,
+    validTill: workspace.data?.validTill,
+    isSubscriptionCancelled: workspace.data?.isSubscriptionCancelled
+  }
+})
 
 export const $paidUser = computed($currentPlan, ({ currentPlan }) =>
   Boolean(currentPlan && !isFreePlan(currentPlan))
 )
 
-export const $currentPeriod = persistentAtom<PlanPeriod>(
-  'billing:period',
-  'annual'
-)
+export const $currentPeriod = persistentAtom<PlanPeriod>('billing:period', 'annual')

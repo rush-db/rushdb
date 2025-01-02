@@ -1,6 +1,6 @@
 {
   "name": "rushdb-dashboard",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@chatra/chatra": "^1.0.3",
-    "@collect.so/javascript-sdk": "0.30.0",
+    "@rushdb/javascript-sdk": "workspace:*",
     "@floating-ui/react-dom": "^2.0.2",
     "@hookform/resolvers": "^3.1.0",
     "@monaco-editor/react": "^4.5.2",
@@ -55,7 +55,6 @@
   "devDependencies": {
     "@fontsource/jetbrains-mono": "5.0.18",
     "@fontsource/manrope": "5.0.18",
-    "@sentry/vite-plugin": "^2.8.0",
     "@types/culori": "^2.0.0",
     "@types/node": "^18.15.11",
     "@types/react": "^18.0.35",
@@ -75,10 +74,10 @@
     "nanoevents": "^8.0.0",
     "postcss": "8.4.31",
     "postcss-preset-env": "^8.3.1",
-    "prettier": "^2.8.7",
-    "prettier-plugin-tailwindcss": "^0.2.7",
+    "prettier": "^3.4.2",
+    "prettier-plugin-tailwindcss": "^0.6.9",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5.0.4",
+    "typescript": "5.7.2",
     "vite": "5.4.6",
     "vite-plugin-checker": "^0.6.4",
     "vite-plugin-svg-icons": "^2.0.1"

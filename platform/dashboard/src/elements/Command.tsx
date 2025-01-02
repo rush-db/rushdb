@@ -12,39 +12,22 @@ import { menuItem } from './Menu'
 export const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive>
->(({ className, ...props }, ref) => (
-  <CommandPrimitive className={cn(className)} ref={ref} {...props} />
-))
+>(({ className, ...props }, ref) => <CommandPrimitive className={cn(className)} ref={ref} {...props} />)
 Command.displayName = CommandPrimitive.displayName
 
 export const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
-  Omit<
-    React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>,
-    'prefix' | 'size'
-  > & {
+  Omit<React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>, 'prefix' | 'size'> & {
     prefix?: React.ReactNode
     showSearchIcon?: boolean
     suffix?: React.ReactNode
   } & VariantProps<typeof inputWrapper>
 >(
   (
-    {
-      className,
-      placeholder = 'Search...',
-      showSearchIcon = true,
-      prefix,
-      suffix,
-      size,
-      variant,
-      ...props
-    },
+    { className, placeholder = 'Search...', showSearchIcon = true, prefix, suffix, size, variant, ...props },
     ref
   ) => (
-    <label
-      className={inputWrapper({ size, variant, className })}
-      cmdk-input-wrapper=""
-    >
+    <label className={inputWrapper({ size, variant, className })} cmdk-input-wrapper="">
       {showSearchIcon && <Search className="shrink-0" />}
       {prefix}
       <CommandPrimitive.Input
@@ -72,13 +55,7 @@ CommandList.displayName = CommandPrimitive.List.displayName
 export const CommandEmpty = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Empty>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Empty>
->((props, ref) => (
-  <CommandPrimitive.Empty
-    className="py-6 text-center text-sm"
-    ref={ref}
-    {...props}
-  />
-))
+>((props, ref) => <CommandPrimitive.Empty className="py-6 text-center text-sm" ref={ref} {...props} />)
 
 CommandEmpty.displayName = CommandPrimitive.Empty.displayName
 
@@ -88,7 +65,7 @@ export const CommandGroup = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.Group
     className={cn(
-      'overflow-hidden text-content [&_[cmdk-group-heading]]:sticky [&_[cmdk-group-heading]]:top-0 [&_[cmdk-group-heading]]:border-b [&_[cmdk-group-heading]]:bg-fill [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:text-content3',
+      'text-content [&_[cmdk-group-heading]]:bg-fill [&_[cmdk-group-heading]]:text-content3 overflow-hidden [&_[cmdk-group-heading]]:sticky [&_[cmdk-group-heading]]:top-0 [&_[cmdk-group-heading]]:border-b [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase',
       className
     )}
     ref={ref}
@@ -102,25 +79,16 @@ export const CommandSeparator = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Separator>
 >(({ className, ...props }, ref) => (
-  <CommandPrimitive.Separator
-    className={cn('-mx-1 h-px bg-stroke', className)}
-    ref={ref}
-    {...props}
-  />
+  <CommandPrimitive.Separator className={cn('bg-stroke -mx-1 h-px', className)} ref={ref} {...props} />
 ))
 CommandSeparator.displayName = CommandPrimitive.Separator.displayName
 
 export const CommandItem = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item> &
-    VariantProps<typeof menuItem>
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item> & VariantProps<typeof menuItem>
 >(({ className, size, variant, ...props }, ref) => (
   <CommandPrimitive.Item
-    className={cn(
-      menuItem({ size, variant }),
-      'flex-row justify-start ',
-      className
-    )}
+    className={cn(menuItem({ size, variant }), 'flex-row justify-start', className)}
     ref={ref}
     {...props}
   />
@@ -128,19 +96,8 @@ export const CommandItem = React.forwardRef<
 
 CommandItem.displayName = CommandPrimitive.Item.displayName
 
-export const CommandShortcut = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLSpanElement>) => {
-  return (
-    <span
-      className={cn(
-        'ml-auto gap-2 text-xs tracking-widest text-content3',
-        className
-      )}
-      {...props}
-    />
-  )
+export const CommandShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => {
+  return <span className={cn('text-content3 ml-auto gap-2 text-xs tracking-widest', className)} {...props} />
 }
 CommandShortcut.displayName = 'CommandShortcut'
 
@@ -149,6 +106,7 @@ export const SearchItem = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof CommandItem> & {
     // exact match with suggested option
     hasMatch?: boolean
+    placeholder?: string
   }
 >(({ hasMatch, ...props }, ref) => {
   const search = useCommandState((state) => state.search)

@@ -1,4 +1,4 @@
-import type { CollectDatetimeObject } from '@collect.so/javascript-sdk'
+import type { DatetimeObject } from '@rushdb/javascript-sdk'
 
 import type { ISO8601 } from '~/types'
 
@@ -17,9 +17,8 @@ export const currencyFormatters = {
   })
 }
 
-export const collectDateToString = (collectDate: CollectDatetimeObject) => {
+export const collectDateToString = (collectDate: DatetimeObject) => {
   return `${collectDate.$day}/${collectDate.$month}/${collectDate.$year}`
 }
 
-export const formatIsoToLocal = (iso: ISO8601) =>
-  new Date(iso).toLocaleDateString()
+export const formatIsoToLocal = (iso: ISO8601) => new Date(iso).toLocaleDateString()

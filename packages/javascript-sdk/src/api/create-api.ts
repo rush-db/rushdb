@@ -7,13 +7,7 @@ import type {
   RelationOptions
 } from '../sdk/record.js'
 import type { Transaction } from '../sdk/transaction.js'
-import type {
-  Property,
-  PropertyValuesData,
-  SearchQuery,
-  Schema,
-  MaybeArray
-} from '../types/index.js'
+import type { Property, PropertyValuesData, SearchQuery, Schema, MaybeArray } from '../types/index.js'
 import type { ApiResponse } from './types.js'
 
 import { isArray } from '../common/utils.js'
@@ -25,10 +19,7 @@ import { buildTransactionHeader, pickRecordId, pickTransactionId } from './utils
 
 export const createApi = (fetcher: ReturnType<typeof createFetcher>) => ({
   labels: {
-    async find<S extends Schema = any>(
-      searchParams: SearchQuery<S>,
-      transaction?: Transaction | string
-    ) {
+    async find<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
 
       return fetcher<ApiResponse<Record<string, number>>>(`/labels`, {
@@ -47,10 +38,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>) => ({
         method: 'DELETE'
       })
     },
-    find: <S extends Schema = any>(
-      searchParams: SearchQuery<S>,
-      transaction?: Transaction | string
-    ) => {
+    find: <S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
 
       return fetcher<ApiResponse<Property[]>>(`/properties`, {
@@ -76,13 +64,10 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>) => ({
     values: (id: string, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
 
-      return fetcher<ApiResponse<Property & PropertyValuesData>>(
-        `/properties/${id}/values`,
-        {
-          headers: Object.assign({}, buildTransactionHeader(txId)),
-          method: 'GET'
-        }
-      )
+      return fetcher<ApiResponse<Property & PropertyValuesData>>(`/properties/${id}/values`, {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'GET'
+      })
     }
   },
   records: {
@@ -139,10 +124,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>) => ({
       return { data: [], success: false }
     },
 
-    delete<S extends Schema = any>(
-      searchParams: SearchQuery<S>,
-      transaction?: Transaction | string
-    ) {
+    delete<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
 
       return fetcher<ApiResponse<{ message: string }>>(`/records/delete`, {
@@ -189,20 +171,14 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>) => ({
       })
     },
 
-    export<S extends Schema = any>(
-      searchParams: SearchQuery<S>,
-      transaction?: Transaction | string
-    ) {
+    export<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
 
-      return fetcher<ApiResponse<{ dateTime: string; fileContent: string }>>(
-        `/records/export/csv`,
-        {
-          headers: Object.assign({}, buildTransactionHeader(txId)),
-          method: 'POST',
-          requestData: searchParams
-        }
-      )
+      return fetcher<ApiResponse<{ dateTime: string; fileContent: string }>>(`/records/export/csv`, {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: searchParams
+      })
     },
 
     find<S extends Schema = any>(
@@ -219,10 +195,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>) => ({
       })
     },
 
-    findById<S extends Schema = any>(
-      idOrIds: MaybeArray<string>,
-      transaction?: Transaction | string
-    ) {
+    findById<S extends Schema = any>(idOrIds: MaybeArray<string>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
       if (isArray(idOrIds)) {
         return fetcher<ApiResponse<DBRecord<S>[]>>(`/records`, {
@@ -237,38 +210,26 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>) => ({
       })
     },
 
-    async findOne<S extends Schema = any>(
-      searchParams: SearchQuery<S>,
-      transaction?: Transaction | string
-    ) {
+    async findOne<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
 
-      const response = await fetcher<ApiResponse<DBRecord<S>[]>>(
-        `/records/search`,
-        {
-          headers: Object.assign({}, buildTransactionHeader(txId)),
-          method: 'POST',
-          requestData: { ...searchParams, limit: 1, skip: 0 } as SearchQuery<S>
-        }
-      )
+      const response = await fetcher<ApiResponse<DBRecord<S>[]>>(`/records/search`, {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: { ...searchParams, limit: 1, skip: 0 } as SearchQuery<S>
+      })
       const [record] = response.data
       return { ...response, data: record } as ApiResponse<DBRecord<S>>
     },
 
-    async findUniq<S extends Schema = any>(
-      searchParams: SearchQuery<S>,
-      transaction?: Transaction | string
-    ) {
+    async findUniq<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
 
-      const response = await fetcher<ApiResponse<DBRecord<S>[]>>(
-        `/records/search`,
-        {
-          headers: Object.assign({}, buildTransactionHeader(txId)),
-          method: 'POST',
-          requestData: { ...searchParams, limit: 1, skip: 0 } as SearchQuery<S>
-        }
-      )
+      const response = await fetcher<ApiResponse<DBRecord<S>[]>>(`/records/search`, {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: { ...searchParams, limit: 1, skip: 0 } as SearchQuery<S>
+      })
 
       if (typeof response.total !== 'undefined' && response.total > 1) {
         throw new NonUniqueResultError(response.total, searchParams)
@@ -349,14 +310,11 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>) => ({
 
       const queryString = queryParams.toString() ? '?' + queryParams.toString() : ''
 
-      return fetcher<ApiResponse<Array<Relation>>>(
-        `/records/relations/search${queryString}`,
-        {
-          headers: Object.assign({}, buildTransactionHeader(txId)),
-          method: 'POST',
-          requestData: searchParams
-        }
-      )
+      return fetcher<ApiResponse<Array<Relation>>>(`/records/relations/search${queryString}`, {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: searchParams
+      })
     }
   },
   tx: {

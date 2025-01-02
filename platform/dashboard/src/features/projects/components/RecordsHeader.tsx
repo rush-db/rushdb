@@ -1,4 +1,4 @@
-import type { CollectProperty } from '@collect.so/javascript-sdk'
+import type { Property } from '@rushdb/javascript-sdk'
 
 import { useStore } from '@nanostores/react'
 import { Check, X, Settings } from 'lucide-react'
@@ -24,11 +24,7 @@ import { IngestRecordsModal } from '~/features/records/components/IngestRecordsM
 import { FilterPopover } from '~/features/search/components/FilterPopover'
 import { cn } from '~/lib/utils'
 
-import {
-  $hiddenFields,
-  $toggleHiddenField,
-  isFieldHidden
-} from '../stores/hidden-fields'
+import { $hiddenFields, $toggleHiddenField, isFieldHidden } from '../stores/hidden-fields'
 import { SelectCombineFiltersMode } from './SelectCombineFiltersMode'
 import { Divider } from '~/elements/Divider.tsx'
 import { SwitchField } from '~/elements/Switch.tsx'
@@ -64,11 +60,7 @@ function Filters() {
   return (
     <>
       {filtersArray.map((filter) => (
-        <FilterPopover
-          filter={filter}
-          key={`filter-${filter.filterId}`}
-          onRemove={removeFilter}
-        />
+        <FilterPopover filter={filter} key={`filter-${filter.filterId}`} onRemove={removeFilter} />
       ))}
     </>
   )
@@ -78,7 +70,7 @@ function HiddenFieldsSelector() {
   const { data: fields } = useStore($currentProjectFields)
   const hiddenFields = useStore($hiddenFields)
 
-  const internalIdField: CollectProperty = {
+  const internalIdField: Property = {
     id: '__id',
     type: 'string',
     name: '__id'
@@ -91,29 +83,19 @@ function HiddenFieldsSelector() {
     <ButtonGroup>
       <SearchSelect
         trigger={
-          <IconButton
-            size="small"
-            variant="outline"
-            aria-label="columns-visibility"
-          >
+          <IconButton size="small" variant="outline" aria-label="columns-visibility">
             <Settings />
           </IconButton>
         }
       >
         {allFields?.map((field) => (
-          <SelectItem
-            closeOnSelect={false}
-            key={field.id}
-            onSelect={() => $toggleHiddenField(field.id)}
-          >
+          <SelectItem closeOnSelect={false} key={field.id} onSelect={() => $toggleHiddenField(field.id)}>
             <span className="hidden">{field.id}</span>
             <PropertyName name={field.name} type={field.type} />
             <Check
               className={cn(
-                'ml-auto text-content2',
-                isFieldHidden(hiddenFields, field.id)
-                  ? 'opacity-0'
-                  : 'opacity-100'
+                'text-content2 ml-auto',
+                isFieldHidden(hiddenFields, field.id) ? 'opacity-0' : 'opacity-100'
               )}
             />
           </SelectItem>
@@ -134,20 +116,16 @@ function HiddenFieldsSelector() {
 }
 
 export function RecordsHeader() {
-  const { data: labels, loading: loadingLabels } = useStore(
-    $currentProjectLabels
-  )
+  const { data: labels, loading: loadingLabels } = useStore($currentProjectLabels)
   const { hasAnyFiltersApplied } = useProjectFiltersState()
 
   const activeLabels = useStore($activeLabels)
 
   return (
     <header className="flex justify-between gap-x-3 gap-y-3 border-b p-5">
-      <div className="flex flex-1 flex-wrap items-start gap-inherit">
+      <div className="gap-inherit flex flex-1 flex-wrap items-start">
         <SearchBox
-          prefix={
-            <SelectCombineFiltersMode className="-ml-3 rounded-none border-0 border-r" />
-          }
+          prefix={<SelectCombineFiltersMode className="-ml-3 rounded-none border-0 border-r" />}
           className="max-w-sm"
           size="small"
         />
@@ -160,7 +138,7 @@ export function RecordsHeader() {
         <Filters />
       </div>
 
-      <div className="flex gap-inherit">
+      <div className="gap-inherit flex">
         <ResetFiltersButton />
         {hasAnyFiltersApplied && <Divider vertical />}
 

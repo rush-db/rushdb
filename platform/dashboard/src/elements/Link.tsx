@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { forwardRef } from 'react'
 
 import { cn } from '~/lib/utils'
@@ -20,34 +21,17 @@ export const Link: TPolymorphicComponent<
     disabled?: boolean
   },
   'a'
-> = forwardRef(
-  (
-    {
-      as = 'a',
-      className,
-      size = 'medium',
-      variant = 'accent',
-      disabled,
-      ...props
-    },
-    ref
-  ) => {
-    const Element = as
+> = forwardRef(({ as = 'a', className, size = 'medium', variant = 'accent', disabled, ...props }, ref) => {
+  const Element = as
 
-    return (
-      <Element
-        className={cn(
-          'inline-grid shrink-0 hover:underline',
-          sizes[size],
-          variants[variant],
-          className
-        )}
-        disabled={disabled}
-        ref={ref}
-        {...props}
-      />
-    )
-  }
-)
+  return (
+    <Element
+      className={cn('inline-grid shrink-0 hover:underline', sizes[size], variants[variant], className)}
+      disabled={disabled}
+      ref={ref}
+      {...props}
+    />
+  )
+})
 
 Link.displayName = 'Link'

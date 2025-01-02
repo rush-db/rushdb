@@ -11,19 +11,23 @@ import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor
 export class AppController {
   constructor(private readonly configService: ConfigService) {}
 
-  @Get('')
-  root(): string {
-    return 'It works!'
-  }
+  // @Get('')
+  // root(): string {
+  //   return 'It works!'
+  // }
 
   @Get('settings')
   settings() {
     const selfHosted = this.configService.get('RUSHDB_SELF_HOSTED')
     const dashboardUrl = this.configService.get('RUSHDB_DASHBOARD_URL')
+    const googleAuthClientId = this.configService.get('GOOGLE_CLIENT_ID')
+    const githubAuthClientId = this.configService.get('GITHUB_CLIENT_ID')
 
     return {
       selfHosted: toBoolean(selfHosted),
-      dashboardUrl: dashboardUrl
+      dashboardUrl: dashboardUrl,
+      googleOAuthEnabled: toBoolean(googleAuthClientId),
+      githubOAuthEnabled: toBoolean(githubAuthClientId)
     }
   }
 }

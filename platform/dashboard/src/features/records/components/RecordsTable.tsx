@@ -1,4 +1,4 @@
-import type { CollectProperty, CollectRecord } from '@collect.so/javascript-sdk'
+import type { Property, DBRecord } from '@rushdb/javascript-sdk'
 import type { ReactElement, ReactNode, UIEventHandler } from 'react'
 
 import { useStore } from '@nanostores/react'
@@ -14,18 +14,12 @@ import { NothingFound } from '~/elements/NothingFound'
 import { Paginator } from '~/elements/Paginator'
 import { Skeleton } from '~/elements/Skeleton'
 import { DataCell, HeadCell, TableRow } from '~/elements/Table'
-import {
-  $recordsOrderBy,
-  setRecordsSort
-} from '~/features/projects/stores/current-project'
+import { $recordsOrderBy, setRecordsSort } from '~/features/projects/stores/current-project'
 import { $hiddenFields } from '~/features/projects/stores/hidden-fields'
 import { collectPropertiesFromRecord } from '~/features/projects/utils'
 import { PropertyName } from '~/features/properties/components/PropertyName'
 import { PropertyValue } from '~/features/properties/components/PropertyValue'
-import {
-  handlePointerEnter,
-  handlePointerLeave
-} from '~/features/properties/components/PropertyValueTooltip'
+import { handlePointerEnter, handlePointerLeave } from '~/features/properties/components/PropertyValueTooltip'
 import { RecordsBatchActionsBar } from '~/features/records/components/RecordsBatchActionsBar'
 import { cn, composeEventHandlers, isInViewport, range } from '~/lib/utils'
 
@@ -48,16 +42,12 @@ function FieldHeadCell({
   field,
   ...props
 }: THeadCellProps & {
-  field: CollectProperty
+  field: Property
 }) {
   const sort = useStore($recordsOrderBy)
   const sortField = typeof sort === 'string' ? '__id' : (sort ?? {})[field.name]
-  const sortActive =
-    typeof sort === 'string'
-      ? field.name === '__id'
-      : !!(sort ?? {})[field.name]
-  const sortDirection =
-    typeof sort === 'string' ? sort : (sort ?? {})[field.name]
+  const sortActive = typeof sort === 'string' ? field.name === '__id' : !!(sort ?? {})[field.name]
+  const sortDirection = typeof sort === 'string' ? sort : (sort ?? {})[field.name]
 
   return (
     <HeadCell
@@ -81,22 +71,20 @@ function FieldHeadCell({
   )
 }
 
-const RecordRowSkeleton = forwardRef<HTMLTableRowElement, { cols?: number }>(
-  ({ cols = 1 }, ref) => {
-    return (
-      <TableRow ref={ref}>
-        <DataCell className="text-content-secondary">
-          <Database size={16} />
+const RecordRowSkeleton = forwardRef<HTMLTableRowElement, { cols?: number }>(({ cols = 1 }, ref) => {
+  return (
+    <TableRow ref={ref}>
+      <DataCell className="text-content-secondary">
+        <Database size={16} />
+      </DataCell>
+      {[...Array(cols)].map((_, idx) => (
+        <DataCell key={idx}>
+          <Skeleton enabled>Loading...</Skeleton>
         </DataCell>
-        {[...Array(cols)].map((_, idx) => (
-          <DataCell key={idx}>
-            <Skeleton enabled>Loading...</Skeleton>
-          </DataCell>
-        ))}
-      </TableRow>
-    )
-  }
-)
+      ))}
+    </TableRow>
+  )
+})
 RecordRowSkeleton.displayName = 'RecordRowSkeleton'
 
 function StickyHeaderWrapper({
@@ -136,11 +124,8 @@ function StickyHeaderWrapper({
       if (startBufferEl.current && endBufferEl.current) {
         const thead = wrapper.querySelectorAll('thead')
         const rows = wrapper.querySelectorAll('tr')
-        const theadHeight =
-          ((thead && thead[0].getBoundingClientRect()) || {}).height || 0
-        const lastRowHeight =
-          ((rows && rows[rows.length - 1].getBoundingClientRect()) || {})
-            .height || 0
+        const theadHeight = ((thead && thead[0].getBoundingClientRect()) || {}).height || 0
+        const lastRowHeight = ((rows && rows[rows.length - 1].getBoundingClientRect()) || {}).height || 0
         endBufferEl.current.style.top = `-${theadHeight + lastRowHeight / 2}px`
         const states = new Map()
         const observer = new IntersectionObserver(
@@ -168,9 +153,7 @@ function StickyHeaderWrapper({
 
   const syncStickyHeaderScroll: UIEventHandler<HTMLDivElement> = (event) => {
     // sync scroll
-    const clonedHeader = (
-      event.target as HTMLElement
-    ).querySelector<HTMLElement>('[data-clone="true"]')
+    const clonedHeader = (event.target as HTMLElement).querySelector<HTMLElement>('[data-clone="true"]')
 
     if (!clonedHeader) {
       return
@@ -180,12 +163,7 @@ function StickyHeaderWrapper({
   }
 
   return (
-    <div
-      {...props}
-      className={cn('overflow-auto', className)}
-      onScroll={syncStickyHeaderScroll}
-      ref={el}
-    >
+    <div {...props} className={cn('overflow-auto', className)} onScroll={syncStickyHeaderScroll} ref={el}>
       <div ref={startBufferEl} />
       {children(sticky)}
       <div className="relative -z-10" ref={endBufferEl} />
@@ -193,13 +171,7 @@ function StickyHeaderWrapper({
   )
 }
 
-const StickyTableHead = ({
-  children,
-  sticky
-}: {
-  children: ReactElement
-  sticky: boolean
-}) => {
+const StickyTableHead = ({ children, sticky }: { children: ReactElement; sticky: boolean }) => {
   const trRef = useRef<HTMLTableRowElement>(null)
   const cloneRef = useRef<HTMLTableRowElement>(null)
 
@@ -254,17 +226,17 @@ export function RecordsTable({
 }: TPolymorphicComponentProps<
   'div',
   {
-    fields?: CollectProperty[]
+    fields?: Property[]
     loading?: boolean
-    onRecordClick?: (record: CollectRecord) => void
-    records?: CollectRecord[]
+    onRecordClick?: (record: DBRecord) => void
+    records?: DBRecord[]
     view?: 'related' | 'main'
   } & PaginatorProps
 >) {
   const tableRef = useRef<HTMLTableElement>(null)
   const hiddenFields = useStore($hiddenFields)
 
-  const internalIdField: CollectProperty = {
+  const internalIdField: Property = {
     id: '__id',
     type: 'string',
     name: '__id'
@@ -289,9 +261,9 @@ export function RecordsTable({
   const mixedRelatedSelection = useStore($mixedRelatedRecordsSelection)
 
   const getSelectedState = (id: string) =>
-    view === 'main'
-      ? !mixedSelection || selectedRecords.includes(id)
-      : !mixedRelatedSelection || selectedRelatedRecords.includes(id)
+    view === 'main' ?
+      !mixedSelection || selectedRecords.includes(id)
+    : !mixedRelatedSelection || selectedRelatedRecords.includes(id)
 
   const checked = view === 'main' ? hasSelection : hasRelatedSelection
   const mixed = view === 'main' ? mixedSelection : mixedRelatedSelection
@@ -332,7 +304,7 @@ export function RecordsTable({
         {(sticky) => (
           <table className="w-full" ref={tableRef}>
             <StickyTableHead sticky={sticky}>
-              <tr className="group border-b bg-fill shadow-[0_5px_10px_rgba(0,0,0,0.2)]">
+              <tr className="bg-fill group border-b shadow-[0_5px_10px_rgba(0,0,0,0.2)]">
                 <HeadCell style={{ width: 44 }}>
                   <Checkbox
                     className={cn('hidden group-hover:block', {
@@ -344,30 +316,24 @@ export function RecordsTable({
                   />
                 </HeadCell>
                 {!hiddenFields.includes('__id') && (
-                  <FieldHeadCell
-                    field={internalIdField}
-                    key={internalIdField.id}
-                  />
+                  <FieldHeadCell field={internalIdField} key={internalIdField.id} />
                 )}
 
-                {fields
-                  ? fields?.map((field) => (
-                      <FieldHeadCell field={field} key={field.id} />
-                    ))
-                  : range(1).map((key) => (
-                      <HeadCell key={key}>
-                        <Skeleton enabled>
-                          <PropertyName name={'Loading'} type="string" />
-                        </Skeleton>
-                      </HeadCell>
-                    ))}
+                {fields ?
+                  fields?.map((field) => <FieldHeadCell field={field} key={field.id} />)
+                : range(1).map((key) => (
+                    <HeadCell key={key}>
+                      <Skeleton enabled>
+                        <PropertyName name={'Loading'} type="string" />
+                      </Skeleton>
+                    </HeadCell>
+                  ))
+                }
               </tr>
             </StickyTableHead>
             <tbody>
               {(!records || !fields) &&
-                range(records?.length ?? limit).map((index) => (
-                  <RecordRowSkeleton key={index} />
-                ))}
+                range(records?.length ?? limit).map((index) => <RecordRowSkeleton key={index} />)}
 
               {fields &&
                 records &&
@@ -383,9 +349,7 @@ export function RecordsTable({
                       className={cn('group cursor-pointer transition-colors', {
                         'bg-fill2': index % 2 === 0
                       })}
-                      onClick={
-                        onRecordClick ? () => onRecordClick(record) : undefined
-                      }
+                      onClick={onRecordClick ? () => onRecordClick(record) : undefined}
                       key={record.__id}
                       style={{ height: 52.5 }}
                       tabIndex={0}
@@ -396,15 +360,15 @@ export function RecordsTable({
                             '!block': selected
                           })}
                           onCheckedChange={() =>
-                            view === 'main'
-                              ? toggleRecordSelection({
-                                  recordId: record.__id,
-                                  selected
-                                })
-                              : toggleRelatedRecordSelection({
-                                  recordId: record.__id,
-                                  selected
-                                })
+                            view === 'main' ?
+                              toggleRecordSelection({
+                                recordId: record.__id,
+                                selected
+                              })
+                            : toggleRelatedRecordSelection({
+                                recordId: record.__id,
+                                selected
+                              })
                           }
                           checked={selected}
                           onClick={(e) => e.stopPropagation()}
@@ -433,20 +397,14 @@ export function RecordsTable({
                           <Skeleton enabled={loading}>
                             <Label>{record.__label}</Label>
 
-                            <PropertyValue
-                              className="text-content2"
-                              type={'string'}
-                              value={record.__id}
-                            />
+                            <PropertyValue className="text-content2" type={'string'} value={record.__id} />
                           </Skeleton>
                         </DataCell>
                       )}
 
                       {/* account for missing values */}
                       {fields?.map((field) => {
-                        const property = collectPropertiesFromRecord(
-                          record as CollectRecord
-                        )?.find(
+                        const property = collectPropertiesFromRecord(record as DBRecord)?.find(
                           (p) => p.type === field.type && p.name === field.name
                         )
 
@@ -469,10 +427,7 @@ export function RecordsTable({
                             onPointerLeave={handlePointerLeave}
                           >
                             <Skeleton enabled={loading}>
-                              <PropertyValue
-                                type={property.type}
-                                value={property.value}
-                              />
+                              <PropertyValue type={property.type} value={property.value} />
                             </Skeleton>
                           </DataCell>
                         )
@@ -487,16 +442,16 @@ export function RecordsTable({
 
       <RecordsBatchActionsBar view={view} />
 
-      {records?.length ? (
+      {records?.length ?
         <Paginator
-          className="sticky bottom-0 border-t bg-fill"
+          className="bg-fill sticky bottom-0 border-t"
           limit={limit}
           onNext={composeEventHandlers(scrollToHead, onNext)}
           onPrev={composeEventHandlers(scrollToHead, onPrev)}
           skip={skip}
           total={total}
         />
-      ) : null}
+      : null}
     </>
   )
 }

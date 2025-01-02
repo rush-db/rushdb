@@ -4,30 +4,20 @@ import { action, atom, computed } from 'nanostores'
 
 import type { AnySearchOperation, Filter } from '~/features/search/types'
 import type { SearchParams } from '~/lib/router'
-import {
-  isAnyObject,
-  type FiltersCombineMode,
-  type Sort,
-  type SortMap,
-  SortDirection
-} from '~/types'
+import { isAnyObject, type FiltersCombineMode, type Sort, type SortMap, SortDirection } from '~/types'
 
 import { DEFAULT_LIMIT } from '~/config'
 import { isViableSearchOperation } from '~/features/search/types'
 import { api } from '~/lib/api'
 import { createAsyncStore, createMutator } from '~/lib/fetcher'
-import {
-  $searchParams,
-  changeSearchParam,
-  removeSearchParam
-} from '~/lib/router'
+import { $searchParams, changeSearchParam, removeSearchParam } from '~/lib/router'
 import { $router, isProjectPage } from '~/lib/router'
 import { addOrRemove, clamp } from '~/lib/utils'
 
 import type { RecordViewType } from '../types'
 
 import {
-  convertToCollectQuery,
+  convertToSearchQuery,
   decodeQuery,
   encodeQuery,
   filterToSearchOperation,
@@ -37,10 +27,7 @@ import { $currentProjectId, $currentRecordId, $sheetRecordId } from './id'
 import { $selectedRecords } from '~/features/records/stores/actionbar.ts'
 import { $currentRecordChildrenSkip } from '~/features/projects/stores/current-record.ts'
 
-export const $recordView = persistentAtom<RecordViewType>(
-  'records:view',
-  'table'
-)
+export const $recordView = persistentAtom<RecordViewType>('records:view', 'table')
 
 export const $recordsOrderBy = atom<Sort>()
 
@@ -48,10 +35,7 @@ export const $currentProjectRecordsSkip = atom<number>(0)
 
 export const $currentProjectRecordsLimit = atom<number>(DEFAULT_LIMIT)
 
-export const $combineFilters = persistentAtom<FiltersCombineMode>(
-  'records:combine-mode',
-  'and'
-)
+export const $combineFilters = persistentAtom<FiltersCombineMode>('records:combine-mode', 'and')
 
 export const $currentProject = createAsyncStore({
   key: '$currentProject',
@@ -67,15 +51,11 @@ export const $currentProject = createAsyncStore({
   deps: [$currentProjectId]
 })
 
-export const $currentProjectFilters = computed(
-  [$searchParams],
-  (params: SearchParams) => {
-    if (!('query' in params) || params.query.length < 1)
-      return [] satisfies Filter[]
+export const $currentProjectFilters = computed([$searchParams], (params: SearchParams) => {
+  if (!('query' in params) || params.query.length < 1) return [] satisfies Filter[]
 
-    return decodeQuery(params.query) as Filter[]
-  }
-)
+  return decodeQuery(params.query) as Filter[]
+})
 
 export const $currentProjectLabels = createAsyncStore({
   key: '$currentProject',
@@ -98,27 +78,24 @@ export const $filteredRecords = createAsyncStore({
     const combineMode = $combineFilters.get()
     const properties = filters.map(filterToSearchOperation)
 
-    const order = Object.entries(orderBy ?? {}).reduce<Sort>(
-      (acc, [key, direction]) => {
-        if (key === '__id') {
-          return direction as SortDirection
-        }
+    const order = Object.entries(orderBy ?? {}).reduce<Sort>((acc, [key, direction]) => {
+      if (key === '__id') {
+        return direction as SortDirection
+      }
 
-        if (key && direction) {
-          // @ts-ignore
-          acc[key] = direction as SortDirection
-        }
-        return acc
-      },
-      {}
-    )
+      if (key && direction) {
+        // @ts-ignore
+        acc[key] = direction as SortDirection
+      }
+      return acc
+    }, {})
 
     const { data, total } = await api.records.find(
       {
         where:
-          combineMode === 'or'
-            ? { $or: convertToCollectQuery(properties) }
-            : convertToCollectQuery(properties),
+          combineMode === 'or' ?
+            { $or: convertToSearchQuery(properties) }
+          : convertToSearchQuery(properties),
         orderBy: order,
         skip,
         limit,
@@ -150,27 +127,24 @@ export const $filteredRecordsRelations = createAsyncStore({
     const combineMode = $combineFilters.get()
     const properties = filters.map(filterToSearchOperation)
 
-    const order = Object.entries(orderBy ?? {}).reduce<Sort>(
-      (acc, [key, direction]) => {
-        if (key === '__id') {
-          return direction as SortDirection
-        }
+    const order = Object.entries(orderBy ?? {}).reduce<Sort>((acc, [key, direction]) => {
+      if (key === '__id') {
+        return direction as SortDirection
+      }
 
-        if (key && direction) {
-          // @ts-ignore
-          acc[key] = direction as SortDirection
-        }
-        return acc
-      },
-      {}
-    )
+      if (key && direction) {
+        // @ts-ignore
+        acc[key] = direction as SortDirection
+      }
+      return acc
+    }, {})
 
     const { data, total } = await api.relations.find({
       searchQuery: {
         where:
-          combineMode === 'or'
-            ? { $or: convertToCollectQuery(properties) }
-            : convertToCollectQuery(properties),
+          combineMode === 'or' ?
+            { $or: convertToSearchQuery(properties) }
+          : convertToSearchQuery(properties),
         orderBy: order,
         skip,
         limit,
@@ -212,17 +186,12 @@ export const $currentProjectFields = createAsyncStore({
     return await api.properties.list(
       {
         labels,
-        where: convertToCollectQuery(properties)
+        where: convertToSearchQuery(properties)
       },
       init
     )
   },
-  deps: [
-    $combineFilters,
-    $currentProjectId,
-    $activeLabels,
-    $currentProjectFilters
-  ]
+  deps: [$combineFilters, $currentProjectId, $activeLabels, $currentProjectFilters]
 })
 
 export const $currentProjectSuggestedFields = createAsyncStore({
@@ -249,26 +218,18 @@ export const $currentProjectSuggestedFields = createAsyncStore({
   deps: [$currentProjectId, $activeLabels, $currentProjectFilters]
 })
 
-export const incrementRecordsPage = action(
-  $currentProjectRecordsSkip,
-  'incrementPage',
-  (store) => {
-    const limit = $currentProjectRecordsLimit.get()
-    const total = $filteredRecords.get().total
+export const incrementRecordsPage = action($currentProjectRecordsSkip, 'incrementPage', (store) => {
+  const limit = $currentProjectRecordsLimit.get()
+  const total = $filteredRecords.get().total
 
-    return store.set(clamp(0, total ?? Infinity, store.get() + limit))
-  }
-)
-export const decrementRecordsPage = action(
-  $currentProjectRecordsSkip,
-  'incrementPage',
-  (store) => {
-    const limit = $currentProjectRecordsLimit.get()
-    const total = $filteredRecords.get().total
+  return store.set(clamp(0, total ?? Infinity, store.get() + limit))
+})
+export const decrementRecordsPage = action($currentProjectRecordsSkip, 'incrementPage', (store) => {
+  const limit = $currentProjectRecordsLimit.get()
+  const total = $filteredRecords.get().total
 
-    store.set(clamp(0, total ?? Infinity, store.get() - limit))
-  }
-)
+  store.set(clamp(0, total ?? Infinity, store.get() - limit))
+})
 
 export const $currentProjectTokens = createAsyncStore({
   key: '$currentProjectTokens',
@@ -283,61 +244,46 @@ export const $currentProjectTokens = createAsyncStore({
   }
 })
 
-export const $currentProjectIsEmpty = computed(
-  [$filteredRecords],
-  ({ total, loading }) => {
-    return isProjectEmpty({ totalRecords: total, loading })
-  }
-)
+export const $currentProjectIsEmpty = computed([$filteredRecords], ({ total, loading }) => {
+  return isProjectEmpty({ totalRecords: total, loading })
+})
 
-export const $currentProjectFirstToken = computed(
-  [$currentProjectTokens],
-  ({ data, loading }) => {
-    return {
-      token: data?.[0],
-      loading
+export const $currentProjectFirstToken = computed([$currentProjectTokens], ({ data, loading }) => {
+  return {
+    token: data?.[0],
+    loading
+  }
+})
+
+export const setRecordsSort = action($recordsOrderBy, 'setRecordsSort', (store, fieldName: string) => {
+  const sort = store.get()
+
+  const sortDirection = typeof sort === 'string' ? sort : (sort ?? {})[fieldName]
+
+  const nextSortDirection =
+    sortDirection === undefined ? 'asc'
+    : sortDirection === 'asc' ? 'desc'
+    : undefined
+
+  let newSort: Sort
+
+  if (typeof sort === 'string') {
+    newSort = nextSortDirection
+  } else {
+    newSort = {
+      [fieldName]: nextSortDirection
     }
   }
-)
 
-export const setRecordsSort = action(
-  $recordsOrderBy,
-  'setRecordsSort',
-  (store, fieldName: string) => {
-    const sort = store.get()
-
-    const sortDirection =
-      typeof sort === 'string' ? sort : (sort ?? {})[fieldName]
-
-    const nextSortDirection =
-      sortDirection === undefined
-        ? 'asc'
-        : sortDirection === 'asc'
-        ? 'desc'
-        : undefined
-
-    let newSort: Sort
-
-    if (typeof sort === 'string') {
-      newSort = nextSortDirection
-    } else {
-      newSort = {
-        [fieldName]: nextSortDirection
-      }
-    }
-
-    $recordsOrderBy.set(newSort)
-  }
-)
+  $recordsOrderBy.set(newSort)
+})
 
 export const resetFilters = () => {
   removeSearchParam('query')
 }
 
 export const removeFilter = (filter: Filter) => {
-  const newFilters = $currentProjectFilters
-    .get()
-    .filter(({ filterId }) => filterId !== filter.filterId)
+  const newFilters = $currentProjectFilters.get().filter(({ filterId }) => filterId !== filter.filterId)
 
   if (Object.keys(newFilters).length === 0) {
     return resetFilters()
@@ -371,9 +317,7 @@ export const editFilter = (filter: Filter) => {
       return currentFilter
     }
 
-    const field = $currentProjectSuggestedFields
-      .get()
-      .data?.find((field) => field.name === newFilter.name)
+    const field = $currentProjectSuggestedFields.get().data?.find((field) => field.name === newFilter.name)
 
     //  validate
 
@@ -396,15 +340,11 @@ export const editFilter = (filter: Filter) => {
   changeSearchParam('query', encodeQuery(newFilters))
 }
 
-export const toggleLabel = action(
-  $activeLabels,
-  'toggleLabel',
-  (store, labelValue: string) => {
-    const labels = store.get()
+export const toggleLabel = action($activeLabels, 'toggleLabel', (store, labelValue: string) => {
+  const labels = store.get()
 
-    store.set(addOrRemove(labels, labelValue))
-  }
-)
+  store.set(addOrRemove(labels, labelValue))
+})
 
 // @TODO: Consider refactoring here
 export const $exportCsv = createMutator({
@@ -427,7 +367,7 @@ export const $exportCsv = createMutator({
     return await api.records.exportCsv(
       {
         labels,
-        where: convertToCollectQuery(properties),
+        where: convertToSearchQuery(properties),
         orderBy
       },
       init
@@ -435,16 +375,9 @@ export const $exportCsv = createMutator({
   },
   onSuccess(response) {
     const anchor = document.createElement('a')
-    anchor.setAttribute(
-      'href',
-      'data:attachment/csv;charset=utf-8,' +
-        encodeURI(response.data.fileContent)
-    )
+    anchor.setAttribute('href', 'data:attachment/csv;charset=utf-8,' + encodeURI(response.data.fileContent))
     anchor.setAttribute('target', '_blank')
-    anchor.setAttribute(
-      'download',
-      `collect-export_${response.data.dateTime}.csv`
-    )
+    anchor.setAttribute('download', `collect-export_${response.data.dateTime}.csv`)
     anchor.click()
     anchor.remove()
   }

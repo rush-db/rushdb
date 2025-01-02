@@ -1,4 +1,4 @@
-import type { CollectPropertyWithValue } from '@collect.so/javascript-sdk'
+import type { PropertyWithValue } from '@rushdb/javascript-sdk'
 
 import { NothingFound } from '~/elements/NothingFound'
 import { Skeleton } from '~/elements/Skeleton'
@@ -8,25 +8,15 @@ import { PropertyName } from './PropertyName'
 import { PropertyValue } from './PropertyValue'
 import { handlePointerEnter, handlePointerLeave } from './PropertyValueTooltip'
 
-function DataListItem({
-  property
-}: {
-  property: Pick<CollectPropertyWithValue, 'name' | 'type' | 'value'>
-}) {
+function DataListItem({ property }: { property: Pick<PropertyWithValue, 'name' | 'type' | 'value'> }) {
   return (
     <li
-      className={cn(
-        'flex justify-between gap-5 p-2.5 hover:bg-secondary sm:gap-10'
-      )}
+      className={cn('hover:bg-secondary flex justify-between gap-5 p-2.5 sm:gap-10')}
       onPointerEnter={handlePointerEnter({ property, showOperations: false })}
       onPointerLeave={handlePointerLeave}
     >
       <PropertyName name={property.name} type={property.type} />
-      <PropertyValue
-        className="truncate text-end"
-        type={property.type}
-        value={property.value}
-      />
+      <PropertyValue className="truncate text-end" type={property.type} value={property.value} />
     </li>
   )
 }
@@ -47,7 +37,7 @@ export function PropertiesList({
   properties
 }: {
   loading?: boolean
-  properties?: Array<Pick<CollectPropertyWithValue, 'name' | 'type' | 'value'>>
+  properties?: Array<Pick<PropertyWithValue, 'name' | 'type' | 'value'>>
 }) {
   return (
     <ul
@@ -58,13 +48,9 @@ export function PropertiesList({
       {loading && range(5).map((num) => <DataListItemSkeleton key={num} />)}
 
       {!loading &&
-        properties?.map((property, index) => (
-          <DataListItem key={`${property.name}`} property={property} />
-        ))}
+        properties?.map((property, index) => <DataListItem key={`${property.name}`} property={property} />)}
 
-      {!loading && !properties?.length && (
-        <NothingFound title="This findById has no data" />
-      )}
+      {!loading && !properties?.length && <NothingFound title="This findById has no data" />}
     </ul>
   )
 }

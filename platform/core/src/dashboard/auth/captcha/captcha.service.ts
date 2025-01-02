@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { GoogleRecaptchaException, GoogleRecaptchaValidator } from '@nestlab/google-recaptcha'
 
+import { RECAPTCHA_SCORE } from '@/dashboard/auth/captcha/constants'
+
 @Injectable()
 export class CaptchaService {
   constructor(
@@ -12,7 +14,7 @@ export class CaptchaService {
   async isCaptchaTokenValid(recaptchaToken: string): Promise<boolean> {
     const result = await this.recaptchaValidator.validate({
       response: recaptchaToken,
-      score: this.configService.get<number>('RECAPTCHA_SCORE')
+      score: RECAPTCHA_SCORE
     })
 
     if (!result.success) {

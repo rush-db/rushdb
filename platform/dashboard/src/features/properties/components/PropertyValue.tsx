@@ -8,7 +8,7 @@
 //   HoverCardContent,
 //   HoverCardTrigger
 // } from '~/elements/HoverCard'
-import type { CollectPropertyWithValue } from '@collect.so/javascript-sdk'
+import type { PropertyWithValue } from '@rushdb/javascript-sdk'
 
 // import { IconButton, IconCopyButton } from '~/elements/IconButton'
 import { cn } from '~/lib/utils'
@@ -20,10 +20,7 @@ export function PropertyValue({
   value,
   type,
   ...props
-}: TPolymorphicComponentProps<
-  'span',
-  Pick<CollectPropertyWithValue, 'type' | 'value'>
->) {
+}: TPolymorphicComponentProps<'span', Pick<PropertyWithValue, 'type' | 'value'>>) {
   const formatted = formatPropertyValue({ value, type })
 
   return (

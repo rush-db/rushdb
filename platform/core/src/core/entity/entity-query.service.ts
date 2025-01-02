@@ -439,9 +439,8 @@ export class EntityQueryService {
       return `(record)${relationPart}(targetRecord:${RUSHDB_LABEL_RECORD} { ${projectIdInline()}, ${RUSHDB_KEY_ID}: targetId })`
     }
 
-    const matchClauses = isArray(typeOrTypes)
-      ? typeOrTypes.map(buildMatchClause)
-      : [buildMatchClause(typeOrTypes, 0)]
+    const matchClauses =
+      isArray(typeOrTypes) ? typeOrTypes.map(buildMatchClause) : [buildMatchClause(typeOrTypes, 0)]
     const deleteClauses = matchClauses.map((_, index) => `rel${index}`)
 
     const queryBuilder = new QueryBuilder()

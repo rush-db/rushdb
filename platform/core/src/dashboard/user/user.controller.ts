@@ -21,7 +21,10 @@ import { UserService } from './user.service'
 @ApiExcludeController()
 @UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, NeogmaTransactionInterceptor)
 export class UserController {
-  constructor(private readonly authService: AuthService, private readonly userService: UserService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly userService: UserService
+  ) {}
 
   @Get()
   @ApiTags('Users')

@@ -65,11 +65,12 @@ export const prepareProperties = (
   options: { suggestTypes: boolean } = { suggestTypes: true }
 ) =>
   Object.entries(data).map(([name, value]) => {
-    const { type, value: processedValue } = isArray(value)
-      ? processArrayValue(value, options.suggestTypes)
-      : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    const { type, value: processedValue } =
+      isArray(value) ?
+        processArrayValue(value, options.suggestTypes)
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
-        processNonArrayValue(value, options.suggestTypes)
+      : processNonArrayValue(value, options.suggestTypes)
 
     return { name, type, value: processedValue, id: uuidv7() }
   }) as TPropertyPropertiesNormalized[]

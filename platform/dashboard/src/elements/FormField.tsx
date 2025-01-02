@@ -24,41 +24,28 @@ export const Label: TPolymorphicComponent<FormFieldProps, 'label'> = ({
   )
 }
 
-export const FormField: TPolymorphicComponent<FormFieldProps, 'label'> =
-  forwardRef(
-    (
-      {
-        caption,
-        children,
-        className,
-        error,
-        label,
-        as = 'label',
-        ...forwardedProps
-      },
-      ref
-    ) => {
-      const Wrapper = as
+// @ts-ignore
+export const FormField: TPolymorphicComponent<FormFieldProps, 'label'> = forwardRef(
+  ({ caption, children, className, error, label, as = 'label', ...forwardedProps }, ref) => {
+    const Wrapper = as
 
-      return (
-        <fieldset className="flex-start flex flex-col gap-1">
-          <Wrapper
-            className={cn('flex-start flex flex-col gap-1', className)}
-            ref={ref}
-            {...forwardedProps}
-          >
-            {label ? <Label as="span">{label}</Label> : null}
-            {children}
-            {caption && !error ? (
-              <span className="text-content-secondary text-xs">{caption}</span>
-            ) : null}
-          </Wrapper>
-          {error ? (
-            <span className="text-start text-xs text-danger">{error}</span>
-          ) : null}
-        </fieldset>
-      )
-    }
-  )
+    return (
+      <fieldset className="flex-start flex flex-col gap-1">
+        <Wrapper className={cn('flex-start flex flex-col gap-1', className)} ref={ref} {...forwardedProps}>
+          {label ?
+            <Label as="span">{label}</Label>
+          : null}
+          {children}
+          {caption && !error ?
+            <span className="text-content-secondary text-xs">{caption}</span>
+          : null}
+        </Wrapper>
+        {error ?
+          <span className="text-danger text-start text-xs">{error}</span>
+        : null}
+      </fieldset>
+    )
+  }
+)
 
 FormField.displayName = 'FormField'

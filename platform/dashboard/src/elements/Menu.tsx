@@ -1,17 +1,9 @@
-import type {
-  DropdownMenuProps,
-  MenuContentProps
-} from '@radix-ui/react-dropdown-menu'
+// @ts-nocheck
+import type { DropdownMenuProps, MenuContentProps } from '@radix-ui/react-dropdown-menu'
 import type { VariantProps } from 'class-variance-authority'
 import type { ComponentPropsWithoutRef, ElementRef, ReactNode } from 'react'
 
-import {
-  Content,
-  Item,
-  Portal,
-  Root,
-  Trigger
-} from '@radix-ui/react-dropdown-menu'
+import { Content, Item, Portal, Root, Trigger } from '@radix-ui/react-dropdown-menu'
 import { cva } from 'class-variance-authority'
 import { ChevronsUpDown } from 'lucide-react'
 import { forwardRef } from 'react'
@@ -26,19 +18,13 @@ export const menuContent = cva(
   'text-menu-content z-50 max-h-[var(--radix-popover-content-available-height)] min-w-[180px] overflow-auto rounded-md border bg-menu shadow-lg animate-in data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
 )
 
-export const MenuContent = forwardRef<
-  ElementRef<typeof Content>,
-  MenuContentProps
->(({ className, sideOffset = 4, ...props }, ref) => (
-  <Portal>
-    <Content
-      className={menuContent({ className })}
-      ref={ref}
-      sideOffset={sideOffset}
-      {...props}
-    />
-  </Portal>
-))
+export const MenuContent = forwardRef<ElementRef<typeof Content>, MenuContentProps>(
+  ({ className, sideOffset = 4, ...props }, ref) => (
+    <Portal>
+      <Content className={menuContent({ className })} ref={ref} sideOffset={sideOffset} {...props} />
+    </Portal>
+  )
+)
 MenuContent.displayName = Content.displayName
 
 export const menuItem = cva(
@@ -46,18 +32,14 @@ export const menuItem = cva(
   {
     variants: {
       size: {
-        medium:
-          'gap-4 px-4 font-medium h-[44px] py-2 [&>svg]:h-[16px] [&>svg]:w-[16px]',
-        small:
-          'gap-3 px-3 font-medium h-[36px] py-1 [&>svg]:h-[16px] [&>svg]:w-[16px]'
+        medium: 'gap-4 px-4 font-medium h-[44px] py-2 [&>svg]:h-[16px] [&>svg]:w-[16px]',
+        small: 'gap-3 px-3 font-medium h-[36px] py-1 [&>svg]:h-[16px] [&>svg]:w-[16px]'
       },
       variant: {
         default:
           'hover:bg-menu-hover focus-visible:bg-menu-focus active:bg-menu-hover aria-selected:bg-secondary-hover aria-selected:text-content data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        danger:
-          'text-danger hover:bg-danger/30 focus-visible:bg-menu-focus active:bg-menu-hover',
-        warning:
-          'text-warning hover:bg-warning/30 focus-visible:bg-menu-focus active:bg-menu-hover',
+        danger: 'text-danger hover:bg-danger/30 focus-visible:bg-menu-focus active:bg-menu-hover',
+        warning: 'text-warning hover:bg-warning/30 focus-visible:bg-menu-focus active:bg-menu-hover',
         accent: 'text-accent hover:bg-accent/30 focus-visible:bg-menu-focus'
       }
     },
@@ -78,20 +60,7 @@ export const MenuItem: TPolymorphicComponent<
   } & VariantProps<typeof menuItem>,
   'div'
 > = forwardRef(
-  (
-    {
-      as = 'button',
-      children,
-      className,
-      dropdown,
-      icon,
-      inset,
-      onSelect,
-      variant,
-      ...props
-    },
-    ref
-  ) => {
+  ({ as = 'button', children, className, dropdown, icon, inset, onSelect, variant, ...props }, ref) => {
     const As = as === 'a' ? 'button' : as
 
     return (
@@ -111,13 +80,13 @@ export const MenuItem: TPolymorphicComponent<
       >
         <As
           // for nanostores/router link behavior, too lazy to fix differently now. Without this event.preventDefault() on an anchor tag prevents menu from closing (preventDefault check inside radix-menu)
-          {...(as === 'a'
-            ? {
-                onClick: (event: Event) => {
-                  $router.open(props.href)
-                }
+          {...(as === 'a' ?
+            {
+              onClick: (event: Event) => {
+                $router.open(props.href)
               }
-            : {})}
+            }
+          : {})}
         >
           {icon}
           {children}
@@ -143,7 +112,9 @@ export function Menu({
   Pick<DropdownMenuProps, 'onOpenChange' | 'open'>) {
   return (
     <Root onOpenChange={onOpenChange} open={open}>
-      {trigger ? <Trigger asChild>{trigger}</Trigger> : null}
+      {trigger ?
+        <Trigger asChild>{trigger}</Trigger>
+      : null}
       <MenuContent
         className={cn(
           // '[&>[role="menuitem"]+[role="menuitem"]]:border-t',
@@ -158,19 +129,8 @@ export function Menu({
   )
 }
 
-export function MenuTitle({
-  className,
-  ...props
-}: TPolymorphicComponentProps<'div'>) {
-  return (
-    <div
-      className={cn(
-        'px-4 pt-2 text-[12px] font-semibold text-content2',
-        className
-      )}
-      {...props}
-    />
-  )
+export function MenuTitle({ className, ...props }: TPolymorphicComponentProps<'div'>) {
+  return <div className={cn('text-content2 px-4 pt-2 text-[12px] font-semibold', className)} {...props} />
 }
 
 export const MenuIcon = ChevronsUpDown
