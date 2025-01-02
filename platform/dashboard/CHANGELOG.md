@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.2.5
+
+### Patch Changes
+
+- cd0be33: Release flow improvements
+- Updated dependencies [cd0be33]
+  - @rushdb/javascript-sdk@0.2.5
+
 ## 0.2.4
 
 ### Patch Changes
