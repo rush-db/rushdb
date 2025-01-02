@@ -46,6 +46,6 @@ jobs:
 
       - name: Publish Docker image
         run: |
-          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ vars.DOCKER_HUB_USERNAME }}" --password-stdin
           docker push rushdb/platform:$VERSION
           docker push rushdb/platform:latest
