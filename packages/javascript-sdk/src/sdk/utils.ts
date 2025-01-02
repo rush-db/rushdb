@@ -104,9 +104,7 @@ export const parseConfig = (config?: Record<string, unknown>): UserProvidedConfi
   const values = Object.keys(config).filter((value) => !ALLOWED_CONFIG_PROPERTIES.includes(value))
 
   if (values.length > 0) {
-    throw new Error(
-      `Config object may only contain the following: ${ALLOWED_CONFIG_PROPERTIES.join(', ')}`
-    )
+    throw new Error(`Config object may only contain the following: ${ALLOWED_CONFIG_PROPERTIES.join(', ')}`)
   }
 
   return config as UserProvidedConfig

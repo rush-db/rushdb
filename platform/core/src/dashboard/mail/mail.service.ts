@@ -5,7 +5,10 @@ import { ConfigService } from '@nestjs/config'
 // https://nest-modules.github.io/mailer/docs/mailer.html
 @Injectable()
 export class MailService {
-  constructor(private mailerService: MailerService, private readonly configService: ConfigService) {}
+  constructor(
+    private mailerService: MailerService,
+    private readonly configService: ConfigService
+  ) {}
 
   async sendUserConfirmation(email: string, token: string, userName?: string) {
     const url = `${this.configService.get('RUSHDB_DASHBOARD_URL')}/confirm_email?token=${token}`

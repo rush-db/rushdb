@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { VariantProps } from 'class-variance-authority'
 
 import { cva } from 'class-variance-authority'
@@ -18,22 +19,19 @@ export const variants = {
 export const filterLabel = cva<{
   size: Record<string, string>
   variant: Record<string, string>
-}>(
-  'inline-grid shrink-0 grid-flow-col place-items-center max-w-[180px] truncate',
-  {
-    variants: {
-      variant: variants,
-      size: {
-        medium: 'h-9 rounded gap-2.5 px-4 text-xs font-bold',
-        circle: 'h-1 w-1 rounded-full'
-      }
-    },
-    defaultVariants: {
-      size: 'medium',
-      variant: 'blank'
+}>('inline-grid shrink-0 grid-flow-col place-items-center max-w-[180px] truncate', {
+  variants: {
+    variant: variants,
+    size: {
+      medium: 'h-9 rounded gap-2.5 px-4 text-xs font-bold',
+      circle: 'h-1 w-1 rounded-full'
     }
+  },
+  defaultVariants: {
+    size: 'medium',
+    variant: 'blank'
   }
-)
+})
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -43,35 +41,18 @@ export const FilterLabel: TPolymorphicComponent<
     quantity?: number | string
   } & VariantProps<typeof filterLabel>,
   'button'
-> = forwardRef(
-  (
-    {
-      active,
-      children,
-      className,
-      quantity,
-      size,
-      type = 'button',
-      variant,
-      ...props
-    },
-    ref
-  ) => {
-    return (
-      <button
-        className={cn(
-          filterLabel({ size, variant, className }),
-          !active && 'opacity-30'
-        )}
-        ref={ref}
-        type={type}
-        {...props}
-      >
-        <span>{children}</span>
-        {quantity && <span className="text-content-secondary">{quantity}</span>}
-      </button>
-    )
-  }
-)
+> = forwardRef(({ active, children, className, quantity, size, type = 'button', variant, ...props }, ref) => {
+  return (
+    <button
+      className={cn(filterLabel({ size, variant, className }), !active && 'opacity-30')}
+      ref={ref}
+      type={type}
+      {...props}
+    >
+      <span>{children}</span>
+      {quantity && <span className="text-content-secondary">{quantity}</span>}
+    </button>
+  )
+})
 
 FilterLabel.displayName = 'FilterLabel'

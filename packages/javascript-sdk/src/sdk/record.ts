@@ -134,9 +134,7 @@ export class DBRecordDraft {
   }
 }
 
-export class DBRecordInstance<
-  S extends Schema = Schema
-> extends RestApiProxy {
+export class DBRecordInstance<S extends Schema = Schema> extends RestApiProxy {
   data?: DBRecord<S>
   searchParams?: SearchQuery<S>
 
@@ -169,30 +167,20 @@ export class DBRecordInstance<
     }
   }
 
-  async attach(
-    target: RelationTarget,
-    options?: RelationOptions,
-    transaction?: Transaction | string
-  ) {
+  async attach(target: RelationTarget, options?: RelationOptions, transaction?: Transaction | string) {
     if (this.data) {
       return this.apiProxy.records.attach(this.data.__id, target, options, transaction)
     }
   }
 
-  async detach(
-    target: RelationTarget,
-    options?: RelationDetachOptions,
-    transaction?: Transaction | string
-  ) {
+  async detach(target: RelationTarget, options?: RelationDetachOptions, transaction?: Transaction | string) {
     if (this.data) {
       return this.apiProxy.records.detach(this.data.__id, target, options, transaction)
     }
   }
 }
 
-export class DBRecordsArrayInstance<
-  S extends Schema = Schema
-> extends RestApiProxy {
+export class DBRecordsArrayInstance<S extends Schema = Schema> extends RestApiProxy {
   data?: DBRecord<S>[]
   total: number | undefined
   searchParams?: SearchQuery<S>

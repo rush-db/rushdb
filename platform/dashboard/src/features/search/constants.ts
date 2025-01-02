@@ -53,8 +53,7 @@ export const operationsRecord: Record<
     label: 'Equals',
     value: SearchOperations.Equals,
     symbol: SearchSymbols[SearchOperations.Equals],
-    description:
-      'Perform exact matching of property values with the given input.'
+    description: 'Perform exact matching of property values with the given input.'
   },
   [SearchOperations.Contains]: {
     label: 'Contains',
@@ -85,8 +84,7 @@ export const operationsRecord: Record<
     label: 'Not',
     value: SearchOperations.NotEquals,
     symbol: SearchSymbols[SearchOperations.NotEquals],
-    description:
-      'Exclude records with property values matching the given input.'
+    description: 'Exclude records with property values matching the given input.'
   },
   // [SearchOperations.NotIn]: {
   //   label: 'Not In',

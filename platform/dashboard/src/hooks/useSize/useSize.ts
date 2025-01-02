@@ -29,45 +29,43 @@ export const useSize = <T extends TMeasurableElement = HTMLDivElement>({
 
   const observer = useMemo(
     () =>
-      typeof window === 'undefined'
-        ? null
-        : new ResizeObserver((entries) => {
-            if (disabled) {
-              return
-            }
+      typeof window === 'undefined' ? null : (
+        new ResizeObserver((entries) => {
+          if (disabled) {
+            return
+          }
 
-            if (!Array.isArray(entries) || !entries.length) {
-              return
-            }
+          if (!Array.isArray(entries) || !entries.length) {
+            return
+          }
 
-            const [entry] = entries
+          const [entry] = entries
 
-            let width: number
-            let height: number
+          let width: number
+          let height: number
 
-            if (entry.borderBoxSize) {
-              const borderSizeEntry = entry['borderBoxSize']
-              const borderSize = Array.isArray(borderSizeEntry)
-                ? borderSizeEntry[0]
-                : borderSizeEntry
-              width = borderSize['inlineSize']
-              height = borderSize['blockSize']
-            } else {
-              width = entry.contentRect.width
-              height = entry.contentRect.height
-            }
+          if (entry.borderBoxSize) {
+            const borderSizeEntry = entry['borderBoxSize']
+            const borderSize = Array.isArray(borderSizeEntry) ? borderSizeEntry[0] : borderSizeEntry
+            width = borderSize['inlineSize']
+            height = borderSize['blockSize']
+          } else {
+            width = entry.contentRect.width
+            height = entry.contentRect.height
+          }
 
-            const size = {
-              width,
-              height
-            }
+          const size = {
+            width,
+            height
+          }
 
-            debouncedSetSize(size)
+          debouncedSetSize(size)
 
-            if (cb) {
-              cb({ size, elementRef: ref })
-            }
-          }),
+          if (cb) {
+            cb({ size, elementRef: ref })
+          }
+        })
+      ),
     [cb, debouncedSetSize, disabled]
   )
 

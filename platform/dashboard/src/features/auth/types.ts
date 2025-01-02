@@ -9,8 +9,6 @@ export type AuthorizedUser = {
   token: string
 }
 
-export type GetUserResponse = GenericApiResponse<
-  Omit<AuthorizedUser, 'settings'> & { settings: string }
->
+export type GetUserResponse = GenericApiResponse<Omit<AuthorizedUser, 'settings'> & { settings: string }>
 
 export type User = { isLoggedIn: boolean } & Partial<AuthorizedUser>

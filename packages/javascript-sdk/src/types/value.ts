@@ -65,5 +65,4 @@ export type PropertySingleValue<TType extends PropertyType = PropertyType> =
   : TType extends typeof PROPERTY_TYPE_BOOLEAN ? BooleanValue
   : StringValue
 
-export type PropertyValue<TType extends PropertyType = PropertyType> =
-  MaybeArray<PropertySingleValue<TType>>
+export type PropertyValue<TType extends PropertyType = PropertyType> = MaybeArray<PropertySingleValue<TType>>

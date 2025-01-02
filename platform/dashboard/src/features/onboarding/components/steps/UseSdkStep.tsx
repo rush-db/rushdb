@@ -24,21 +24,20 @@ import { cn, getNumberOfLines } from '~/lib/utils'
 
 const TOKEN_FALLBACK = 'TOKEN'
 
-const getCreateFirstRecordSteps = ({
-  language
-}: {
-  language: AvailableSdkLanguage
-}) => {
+const getCreateFirstRecordSteps = ({ language }: { language: AvailableSdkLanguage }) => {
   const javascriptSteps = {
     defineModel: {
       title: 'Define your first model',
-      code: `import { CollectModel } from '@collect.so/javascript-sdk';
+      code: `import { Model } from '@rushdb/javascript-sdk';
 
-const User = new CollectModel('user', {
-  name: { type: 'string' },
-});
-
-export const UserRepo = collect.registerModel(User);`
+export const UserRepo = new Model(
+  'user', 
+  {
+    name: { type: 'string' },
+  },
+  db
+);
+`
     },
     createRecord: {
       title: 'Create your first record',
@@ -54,16 +53,8 @@ export const UserRepo = collect.registerModel(User);`
   }[language]
 }
 
-const getInstallationCode = ({
-  token,
-  language
-}: {
-  token: string
-  language: AvailableSdkLanguage
-}) => {
-  const jsCode = (
-    token: string
-  ) => `import RushDB from '@rushdb/javascript-sdk';
+const getInstallationCode = ({ token, language }: { token: string; language: AvailableSdkLanguage }) => {
+  const jsCode = (token: string) => `import RushDB from '@rushdb/javascript-sdk';
 
 const db = new RushDB("${token}");`
 
@@ -83,13 +74,9 @@ export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
       stickyHeader
       title={
         <>
-          <OnboardingStepTitle>
-            Connect through your library of choice
-          </OnboardingStepTitle>
+          <OnboardingStepTitle>Connect through your library of choice</OnboardingStepTitle>
 
-          <OnboardingStepDescription>
-            Interact with RushDB using our SDKs.
-          </OnboardingStepDescription>
+          <OnboardingStepDescription>Interact with RushDB using our SDKs.</OnboardingStepDescription>
 
           <Button
             size="medium"
@@ -107,7 +94,7 @@ export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
         <div className="grid grid-cols-[max-content_1fr] gap-3 sm:col-span-2">
           <OnboardingSubStep index={1}>Authorization</OnboardingSubStep>
 
-          <p className="col-span-2 text-content2 sm:col-span-1 sm:col-start-2">
+          <p className="text-content2 col-span-2 sm:col-span-1 sm:col-start-2">
             Both SDK and API require an API Key for every request.{' '}
             {(token || loading) && (
               <span
@@ -128,15 +115,11 @@ export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
             })}
           />
 
-          <p className="col-span-2 text-content2 sm:col-span-1 sm:col-start-2">
+          <p className="text-content2 col-span-2 sm:col-span-1 sm:col-start-2">
             You can issue your own API keys from the{' '}
             <Link
               disabled={!projectId}
-              href={
-                projectId
-                  ? getRoutePath('projectTokens', { id: projectId })
-                  : ''
-              }
+              href={projectId ? getRoutePath('projectTokens', { id: projectId }) : ''}
             >
               API keys page
             </Link>
@@ -153,7 +136,7 @@ export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
 
           <>
             <OnboardingSubStep index={3}>Initialize SDK</OnboardingSubStep>
-            <Card className="col-span-2 rounded-md bg-fill p-1 sm:col-span-1 sm:col-start-2">
+            <Card className="bg-fill col-span-2 rounded-md p-1 sm:col-span-1 sm:col-start-2">
               <InitializeSdk />
             </Card>
           </>
@@ -164,20 +147,11 @@ export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
           </>
 
           <>
-            <OnboardingSubStep index={5}>
-              See your records update
-            </OnboardingSubStep>
+            <OnboardingSubStep index={5}>See your records update</OnboardingSubStep>
 
-            <p className="col-span-2 text-content2 sm:col-span-1 sm:col-start-2">
+            <p className="text-content2 col-span-2 sm:col-span-1 sm:col-start-2">
               You can see your records update in the dashboard on the{' '}
-              <Link
-                href={
-                  projectId ? getRoutePath('project', { id: projectId }) : ''
-                }
-              >
-                Records
-              </Link>{' '}
-              page .
+              <Link href={projectId ? getRoutePath('project', { id: projectId }) : ''}>Records</Link> page .
             </p>
           </>
         </div>
@@ -195,7 +169,7 @@ function InstallSdk({ className }: { className?: string }) {
         <Card className={className}>
           <CardBody className="pt-5">
             <FormField label="Install core sdk">
-              <CopyInput value="npm install @collect.so/javascript-sdk" />
+              <CopyInput value="npm install @rushdb/javascript-sdk" />
             </FormField>
           </CardBody>
         </Card>

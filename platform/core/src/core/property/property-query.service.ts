@@ -15,8 +15,8 @@ import { TSearchSortDirection } from '@/core/search/search.types'
 @Injectable()
 export class PropertyQueryService {
   affectedRecordsMatchingPart(entityIds?: string[]) {
-    return entityIds?.length
-      ? `
+    return entityIds?.length ?
+        `
                 UNWIND $entityIds as entityId
                 CALL {
                    WITH entityId

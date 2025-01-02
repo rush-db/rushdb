@@ -30,7 +30,7 @@ export const buildRelatedQueryPart = (
 ) => {
   const relationPart = buildRelationPart(relation)
 
-  return id
-    ? `(source:${RUSHDB_LABEL_RECORD} { ${projectIdInline()}, ${RUSHDB_KEY_ID}: "${id}" })${relationPart}`
+  return id ?
+      `(source:${RUSHDB_LABEL_RECORD} { ${projectIdInline()}, ${RUSHDB_KEY_ID}: "${id}" })${relationPart}`
     : ''
 }

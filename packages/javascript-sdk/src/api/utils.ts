@@ -1,12 +1,6 @@
 import type { DBRecordTarget } from '../sdk'
 import type { UserProvidedConfig } from '../sdk/types.js'
-import type {
-  PropertyType,
-  PropertyValue,
-  PropertyWithValue,
-  SearchQuery,
-  Schema
-} from '../types/index.js'
+import type { PropertyType, PropertyValue, PropertyWithValue, SearchQuery, Schema } from '../types/index.js'
 
 import {
   ISO_8601_FULL,
@@ -84,8 +78,7 @@ export const createSearchParams = <S extends Schema = Schema>(
 }
 
 export const isUUID = (value: any) => {
-  const regex =
-    /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/
+  const regex = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/
   return regex.test(value)
 }
 
@@ -170,13 +163,14 @@ export const buildUrl = (props: UserProvidedConfig): string => {
   let basePath = DEFAULT_BASE_PATH
 
   if ('url' in props) {
-    const url = new URL(props.url)
+    const url = new URL(props.url || document?.URL)
     protocol = url.protocol.replace(':', '')
     host = url.hostname
     port = parseInt(
-      url.port || protocol === 'http' ? '80'
-      : protocol === 'https' ? '443'
-      : ''
+      url.port ||
+        (protocol === 'http' ? '80'
+        : protocol === 'https' ? '443'
+        : '')
     )
   }
 

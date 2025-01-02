@@ -1,8 +1,4 @@
-import type {
-  HttpClientInterface,
-  HttpClientResponseInterface,
-  MakeRequestConfig
-} from './HttpClient.js'
+import type { HttpClientInterface, HttpClientResponseInterface, MakeRequestConfig } from './HttpClient.js'
 import type { ResponseHeaders } from './types.js'
 
 import { DEFAULT_TIMEOUT } from '../common/constants.js'

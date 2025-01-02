@@ -14,7 +14,7 @@ import {
   $filteredRecords
 } from '~/features/projects/stores/current-project'
 // import {
-//   convertToCollectQuery,
+//   convertToSearchQuery,
 //   filterToSearchOperation
 // } from '~/features/projects/utils'
 import { api } from '~/lib/api'
@@ -33,8 +33,7 @@ export const $hasRecordsSelection = computed(
 
 export const $mixedRecordsSelection = computed(
   [$selectedRecords, $filteredRecords],
-  (selectedRecords, filteredRecords) =>
-    selectedRecords.length !== filteredRecords.data?.length
+  (selectedRecords, filteredRecords) => selectedRecords.length !== filteredRecords.data?.length
 )
 
 export const $selectionLength = computed(
@@ -51,13 +50,9 @@ export const $selectionLength = computed(
   }
 )
 
-export const resetRecordsSelection = action(
-  $selectedRecords,
-  'resetRecordsSelection',
-  (store) => {
-    store.set([])
-  }
-)
+export const resetRecordsSelection = action($selectedRecords, 'resetRecordsSelection', (store) => {
+  store.set([])
+})
 
 export const toggleRecordSelection = action(
   $selectedRecords,
@@ -112,7 +107,7 @@ export const batchDeleteSelected = createMutator({
     return await api.records.batchDelete({
       init,
       ...body
-      // where: ('where' in body && convertToCollectQuery(body?.where)) || {}
+      // where: ('where' in body && convertToSearchQuery(body?.where)) || {}
     })
   },
   invalidates: [$currentProjectLabels, $currentProjectFields, $filteredRecords],

@@ -12,7 +12,10 @@ export enum ESideEffectType {
 export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
   @Injectable()
   class RunSideEffectInterceptor implements NestInterceptor {
-    constructor(readonly neogmaService: NeogmaService, readonly projectService: ProjectService) {}
+    constructor(
+      readonly neogmaService: NeogmaService,
+      readonly projectService: ProjectService
+    ) {}
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
       const { projectId } = context.switchToHttp().getRequest()
       const session = this.neogmaService.createSession()

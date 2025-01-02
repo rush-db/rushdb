@@ -2,8 +2,9 @@ import { isDevMode } from '@/common/utils/isDevMode'
 import { TPlan } from '@/dashboard/billing/stripe/interfaces/stripe.types'
 
 // @TODO: Move to env
-export const PRODUCT_PLAN_MAP: TPlan = isDevMode()
-  ? {
+export const PRODUCT_PLAN_MAP: TPlan =
+  isDevMode() ?
+    {
       pro: {
         month: {
           amount: 11,

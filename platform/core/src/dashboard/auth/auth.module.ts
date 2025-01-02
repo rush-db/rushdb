@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { JwtModule } from '@nestjs/jwt'
 
+import { TOKEN_EXPIRES_IN } from '@/common/constants'
 import { EntityModule } from '@/core/entity/entity.module'
 import { CaptchaModule } from '@/dashboard/auth/captcha/captcha.module'
 import { GithubOAuthController } from '@/dashboard/auth/providers/github/github.controller'
@@ -24,9 +25,9 @@ import { EncryptionService } from './encryption/encryption.service'
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
+        secret: configService.get<string>('RUSHDB_AES_256_ENCRYPTION_KEY'),
         signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN')
+          expiresIn: TOKEN_EXPIRES_IN
         }
       })
     }),

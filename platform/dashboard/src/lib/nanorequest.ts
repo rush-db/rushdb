@@ -15,9 +15,7 @@ type Options = {
 type Init = Pick<RequestInit, 'signal'>
 
 /** When undefined is returned, nothing happens */
-type FetcherFn = (
-  init: Init & { transformResponse?: boolean }
-) => Promise<unknown> | undefined
+type FetcherFn = (init: Init & { transformResponse?: boolean }) => Promise<unknown> | undefined
 
 type AsyncStoreOptions<Fetcher extends FetcherFn> = {
   /** List of stores that this store depends on. Will call fetcher when data in those stores is modified */
@@ -152,11 +150,7 @@ function createAsyncStore(options: Options) {
     if (options.enableLoggerQueryLogger && key) {
       import('@nanostores/logger')
         .then(({ logger }) => logger({ [key]: store }))
-        .catch(() =>
-          console.log(
-            'Please install `@nanostores/logger` to enable query logging'
-          )
-        )
+        .catch(() => console.log('Please install `@nanostores/logger` to enable query logging'))
     }
 
     return { ...store, refetch }

@@ -1,2 +1,2 @@
-export * from "./useSize";
-export * from "./types";
+export * from './useSize'
+export * from './types'

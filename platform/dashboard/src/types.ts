@@ -19,14 +19,9 @@ type FinalType<T> = T extends infer U ? { [K in keyof U]: U[K] } : never
  * Merge keys of U into T, overriding value types with those in U.
  * https://stackoverflow.com/questions/51599481/replacing-property-of-a-typescript-type
  */
-export type Override<
-  T,
-  U extends Partial<Record<keyof T, unknown>>
-> = FinalType<Omit<T, keyof U> & U>
+export type Override<T, U extends Partial<Record<keyof T, unknown>>> = FinalType<Omit<T, keyof U> & U>
 
-export type ISO8601 =
-  | `${number}-${number}-${number}T${number}:${number}:${number}`
-  | ({} & string)
+export type ISO8601 = `${number}-${number}-${number}T${number}:${number}:${number}` | ({} & string)
 
 export type GenericApiResponse<Data> = {
   data: Data
@@ -38,20 +33,23 @@ export type AnyObject = Record<string, any>
 
 export type AnyFunction = (...args: any[]) => any
 
-export type DeepPartial<T> = T extends IObject
-  ? {
+export type DeepPartial<T> =
+  T extends IObject ?
+    {
       [P in keyof T]?: DeepPartial<T[P]>
     }
   : T
 
-export type DeepRequired<T> = T extends IObject
-  ? {
+export type DeepRequired<T> =
+  T extends IObject ?
+    {
       [P in keyof T]-?: DeepRequired<T[P]>
     }
   : T
 
-export type DeepNonNullable<T> = T extends IObject
-  ? {
+export type DeepNonNullable<T> =
+  T extends IObject ?
+    {
       [P in keyof T]-?: DeepNonNullable<T[P]>
     }
   : NonNullable<T>

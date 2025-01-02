@@ -34,18 +34,10 @@ export const getFromIndex = <T extends unknown[]>(
   }
 }
 
-export const addOrRemove = <T extends unknown[]>(
-  array: T,
-  item: T[number]
-): T =>
-  array.includes(item)
-    ? (array.filter((i) => i !== item) as T)
-    : ([...array, item] as T)
+export const addOrRemove = <T extends unknown[]>(array: T, item: T[number]): T =>
+  array.includes(item) ? (array.filter((i) => i !== item) as T) : ([...array, item] as T)
 
-export function debounce<Fn extends AnyFunction>(
-  callback: Fn,
-  delayMs: number
-) {
+export function debounce<Fn extends AnyFunction>(callback: Fn, delayMs: number) {
   let timeout: ReturnType<typeof setTimeout>
 
   return ((...args: Parameters<Fn>) => {
@@ -70,10 +62,7 @@ export function debounce<Fn extends AnyFunction>(
  *
  * @returns Map of the array grouped by the grouping function.
  */
-export function groupBy<K, V>(
-  list: Array<V>,
-  keyGetter: (input: V) => K
-): Map<K, Array<V>> {
+export function groupBy<K, V>(list: Array<V>, keyGetter: (input: V) => K): Map<K, Array<V>> {
   const map = new Map()
   list.forEach((item) => {
     const key = keyGetter(item)
@@ -100,10 +89,7 @@ export const composeEventHandlers =
   (event: E) => {
     originalEventHandler?.(event)
 
-    if (
-      checkForDefaultPrevented === false ||
-      !(event as unknown as Event).defaultPrevented
-    ) {
+    if (checkForDefaultPrevented === false || !(event as unknown as Event).defaultPrevented) {
       return ourEventHandler?.(event)
     }
   }
@@ -234,8 +220,33 @@ export const copyToClipboard = (
     showSuccessToast?: boolean
   } = {}
 ) => {
-  window.navigator.clipboard
-    .writeText(String(text))
+  async function copyToClipboard(textToCopy: string) {
+    // Navigator clipboard api needs a secure context (https)
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(textToCopy)
+    } else {
+      // Use the 'out of viewport hidden text area' trick
+      const textArea = document.createElement('textarea')
+      textArea.value = textToCopy
+
+      // Move textarea out of the viewport so it's not visible
+      textArea.style.position = 'absolute'
+      textArea.style.left = '-999999px'
+
+      document.body.prepend(textArea)
+      textArea.select()
+
+      try {
+        document.execCommand('copy')
+      } catch (error) {
+        console.error(error)
+      } finally {
+        textArea.remove()
+      }
+    }
+  }
+
+  copyToClipboard(String(text))
     .then(() => {
       if (showSuccessToast)
         toast({
@@ -256,5 +267,4 @@ export const capitalize = (str: string) => {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-export const getNumberOfLines = (value: string) =>
-  value.split(/\r\n|\r|\n/).length
+export const getNumberOfLines = (value: string) => value.split(/\r\n|\r|\n/).length

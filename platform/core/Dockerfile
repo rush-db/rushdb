@@ -7,17 +7,17 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y procps
 
-# Copy package.json and yarn.lock to the container
-COPY package*.json yarn.lock tsconfig*.json nest-cli.json ./
+# Copy package.json and pnpm-lock.yaml to the container
+COPY ./platform/core/package*.json pnpm-lock.yaml ./platform/core/tsconfig*.json ./platform/core/nest-cli.json ./
 
 # Install development dependencies
-RUN yarn install --frozen-lockfile --production=false
+RUN npm install -g pnpm && pnpm install --recursive --filter ./platform/core --no-frozen-lockfile
 
 # Copy the rest of the application code
-COPY src ./src
+COPY ./platform/core/src ./src
 
 # Build the application (optional)
-RUN yarn build
+RUN pnpm build --recursive --filter ./platform/core
 
 ###################
 # PRODUCTION
@@ -29,11 +29,11 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y procps
 
-# Copy package.json and yarn.lock to the container
-COPY package.json yarn.lock ./
+# Copy package.json and pnpm-lock.yaml to the container
+COPY ./platform/core/package.json pnpm-lock.yaml ./
 
 # Install only production dependencies
-RUN yarn install --frozen-lockfile --production=true
+RUN pnpm install --no-frozen-lockfile --production=true
 
 # Copy built files from the development stage
 COPY --from=development /app/dist ./dist

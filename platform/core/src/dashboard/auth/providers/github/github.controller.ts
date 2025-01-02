@@ -36,9 +36,9 @@ export class GithubOAuthController {
   @Redirect('https://github.com/login/oauth/authorize', 302)
   async githubAuth(@Query() query: { redirectUrl: string }): Promise<IOauthUrl> {
     const params = queryString.stringify({
-      client_id: this.configService.get('GH_CLIENT_ID'),
+      client_id: this.configService.get('GITHUB_CLIENT_ID'),
       // GITHUB ONLY ALLOWS FOR ONE CALLBACK URL
-      redirect_uri: `${this.configService.get('GH_REDIRECT_URL')}?redirect_url=${query.redirectUrl}`,
+      redirect_uri: `${this.configService.get('GITHUB_REDIRECT_URL')}?redirect_url=${query.redirectUrl}`,
       scope: 'user:email',
       state: randomString(32),
       allow_signup: 'true'

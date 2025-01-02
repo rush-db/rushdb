@@ -81,10 +81,7 @@ export class NodeHttpClient extends HttpClient {
   }
 }
 
-export class NodeHttpClientResponse
-  extends HttpClientGenericResponse
-  implements HttpClientResponseInterface
-{
+export class NodeHttpClientResponse extends HttpClientGenericResponse implements HttpClientResponseInterface {
   _res: http_.IncomingMessage
 
   constructor(res: http_.IncomingMessage) {

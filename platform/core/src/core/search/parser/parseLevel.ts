@@ -17,9 +17,7 @@ export const parseLevel = (
 
   // SUB QUERY PROCESSING
   if (toBoolean(subQueries)) {
-    Object.entries(subQueries).forEach(([k, value]) =>
-      parseSubQuery(k, value as Where, options, ctx)
-    )
+    Object.entries(subQueries).forEach(([k, value]) => parseSubQuery(k, value as Where, options, ctx))
   }
 
   let result = ''

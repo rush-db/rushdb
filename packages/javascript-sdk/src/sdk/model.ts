@@ -19,11 +19,7 @@ import type { Transaction } from './transaction.js'
 import { RestApiProxy } from '../api/rest-api-proxy.js'
 import { isEmptyObject } from '../common/utils.js'
 import { EmptyTargetError, UniquenessError } from './errors.js'
-import {
-  mergeDefaultsWithPayload,
-  pickUniqFieldsFromRecord,
-  pickUniqFieldsFromRecords
-} from './utils.js'
+import { mergeDefaultsWithPayload, pickUniqFieldsFromRecord, pickUniqFieldsFromRecords } from './utils.js'
 
 type RushDBInstance = {
   registerModel(model: Model): void
@@ -75,15 +71,16 @@ export class Model<S extends Schema = any> extends RestApiProxy {
     return this.label
   }
 
-  async find(
-    params: SearchQuery<S> & { labels?: never } = {},
-    transaction?: Transaction | string
-  ) {
+  async find(params: SearchQuery<S> & { labels?: never } = {}, transaction?: Transaction | string) {
     return this.apiProxy?.records.find<S>(this.label, params, transaction)
   }
 
   async findOne(
-    params: SearchQuery<S> & { labels?: never; limit?: never; skip?: never } = {},
+    params: SearchQuery<S> & {
+      labels?: never
+      limit?: never
+      skip?: never
+    } = {},
     transaction?: Transaction | string
   ) {
     return this.apiProxy?.records.findOne<S>(this.label, { ...params }, transaction)
@@ -94,7 +91,12 @@ export class Model<S extends Schema = any> extends RestApiProxy {
   }
 
   async findUniq(
-    params: SearchQuery<S> & { labels?: never; limit?: never; skip?: never } = {},
+    params: SearchQuery<S> & {
+      labels?: never
+      limit?: never
+      skip?: never
+    } = {},
+
     transaction?: Transaction | string
   ) {
     return this.apiProxy?.records.findUniq<S>(this.label, { ...params }, transaction)
@@ -183,26 +185,15 @@ export class Model<S extends Schema = any> extends RestApiProxy {
     return await this.apiProxy.records[method]<S>(id, data, transaction)
   }
 
-  async set(
-    id: string,
-    record: InferSchemaTypesWrite<S>,
-    transaction?: Transaction | string
-  ) {
+  async set(id: string, record: InferSchemaTypesWrite<S>, transaction?: Transaction | string) {
     return await this.handleSetOrUpdate(id, record, 'set', transaction)
   }
 
-  async update(
-    id: string,
-    record: Partial<InferSchemaTypesWrite<S>>,
-    transaction?: Transaction | string
-  ) {
+  async update(id: string, record: Partial<InferSchemaTypesWrite<S>>, transaction?: Transaction | string) {
     return await this.handleSetOrUpdate(id, record, 'update', transaction)
   }
 
-  async createMany(
-    records: InferSchemaTypesWrite<S>[],
-    transaction?: Transaction | string
-  ) {
+  async createMany(records: InferSchemaTypesWrite<S>[], transaction?: Transaction | string) {
     // Begin a transaction if one isn't provided.
     const hasOwnTransaction = typeof transaction !== 'undefined'
     const tx = transaction ?? (await this.apiProxy.tx.begin())
@@ -239,11 +230,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
       }
 
       // Create records in the database
-      const createdRecords = await this.apiProxy.records.createMany<S>(
-        this.label,
-        recordsToStore,
-        tx
-      )
+      const createdRecords = await this.apiProxy.records.createMany<S>(this.label, recordsToStore, tx)
 
       // Commit the transaction if it was created internally
       if (!hasOwnTransaction) {
@@ -259,20 +246,14 @@ export class Model<S extends Schema = any> extends RestApiProxy {
     }
   }
 
-  async delete(
-    searchParams: Omit<SearchQuery<S>, 'labels'>,
-    transaction?: Transaction | string
-  ) {
+  async delete(searchParams: Omit<SearchQuery<S>, 'labels'>, transaction?: Transaction | string) {
     if (isEmptyObject(searchParams.where)) {
       throw new EmptyTargetError(
         `You must specify criteria to delete records of type '${this.label}'. Empty criteria are not allowed. If this was intentional, use the Dashboard instead.`
       )
     }
 
-    return await this.apiProxy.records.delete(
-      { ...searchParams, labels: [this.label] },
-      transaction
-    )
+    return await this.apiProxy.records.delete({ ...searchParams, labels: [this.label] }, transaction)
   }
 
   async deleteById(idOrIds: MaybeArray<string>, transaction?: Transaction | string) {
@@ -280,6 +261,4 @@ export class Model<S extends Schema = any> extends RestApiProxy {
   }
 }
 
-export type InferType<M extends Model<any> = Model<any>> = FlattenTypes<
-  InferSchemaTypesRead<M['schema']>
->
+export type InferType<M extends Model<any> = Model<any>> = FlattenTypes<InferSchemaTypesRead<M['schema']>>

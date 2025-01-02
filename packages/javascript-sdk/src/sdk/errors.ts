@@ -1,8 +1,6 @@
 export class UniquenessError extends Error {
   constructor(label: string, properties: any) {
-    super(
-      `Record with label "${label}" and properties ${JSON.stringify(properties)} already exists`
-    )
+    super(`Record with label "${label}" and properties ${JSON.stringify(properties)} already exists`)
     this.name = 'UniquenessError'
     Object.setPrototypeOf(this, UniquenessError.prototype)
   }

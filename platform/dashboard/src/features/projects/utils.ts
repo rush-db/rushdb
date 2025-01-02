@@ -1,14 +1,6 @@
-import type {
-  CollectPropertyWithValue,
-  CollectQueryWhere,
-  CollectRecord
-} from '@collect.so/javascript-sdk'
+import type { PropertyWithValue, Where, DBRecord } from '@rushdb/javascript-sdk'
 
-import {
-  getViableSearchOperations,
-  type AnySearchOperation,
-  type Filter
-} from '~/features/search/types'
+import { getViableSearchOperations, type AnySearchOperation, type Filter } from '~/features/search/types'
 import type { AnyObject } from '~/types'
 
 import { SearchOperations } from '~/features/search/constants.ts'
@@ -26,7 +18,7 @@ export const encodeQuery = (object: AnyObject) => {
 export const filterToSearchOperation = (filter: Filter) =>
   removeProperty(filter, 'filterId') as AnySearchOperation
 
-export const collectPropertiesFromRecord = (record: CollectRecord) => {
+export const collectPropertiesFromRecord = (record: DBRecord) => {
   return Object.entries(record ?? {})
     .map(([key, value]) => ({
       type: record?.__proptypes?.[key],
@@ -34,17 +26,12 @@ export const collectPropertiesFromRecord = (record: CollectRecord) => {
       value
     }))
     .filter(
-      (prop) =>
-        prop.name !== '__proptypes' &&
-        prop.name !== '__id' &&
-        prop.name !== '__label'
-    ) as Array<Pick<CollectPropertyWithValue, 'name' | 'type' | 'value'>>
+      (prop) => prop.name !== '__proptypes' && prop.name !== '__id' && prop.name !== '__label'
+    ) as Array<Pick<PropertyWithValue, 'name' | 'type' | 'value'>>
 }
 
-export const convertToCollectQuery = (
-  filters: AnySearchOperation[] = []
-): CollectQueryWhere<any> => {
-  return filters?.reduce<CollectQueryWhere<any>>((where, filter) => {
+export const convertToSearchQuery = (filters: AnySearchOperation[] = []): Where<any> => {
+  return filters?.reduce<Where<any>>((where, filter) => {
     const { name, operation, value } = filter
 
     const stringOperations = getViableSearchOperations('string')
@@ -76,13 +63,7 @@ export const convertToCollectQuery = (
   }, {})
 }
 
-export const isProjectEmpty = ({
-  loading,
-  totalRecords
-}: {
-  loading: boolean
-  totalRecords?: number
-}) => {
+export const isProjectEmpty = ({ loading, totalRecords }: { loading: boolean; totalRecords?: number }) => {
   if (loading || typeof totalRecords === 'undefined') {
     return false
   }

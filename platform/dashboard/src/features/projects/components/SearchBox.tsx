@@ -1,12 +1,7 @@
-import type {
-  CollectProperty,
-  CollectPropertyType,
-  CollectPropertyValue
-} from '@collect.so/javascript-sdk'
+import type { Property, PropertyType, PropertyValue } from '@rushdb/javascript-sdk'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
 import { useStore } from '@nanostores/react'
-import { Edit, PlusCircle } from 'lucide-react'
 import { action, atom, computed, map } from 'nanostores'
 import { useEffect, useMemo, useRef } from 'react'
 import useVirtual from 'react-cool-virtual'
@@ -32,12 +27,7 @@ import { PropertyTypeIcon } from '~/features/properties/components/PropertyTypeI
 import { formatPropertyValue } from '~/features/properties/utils.ts'
 import { SearchOperationIcon } from '~/features/search/components/SearchOperationIcon.tsx'
 import { operatorOptions } from '~/features/search/constants.ts'
-import {
-  type AnySearchOperation,
-  // type ExcludeRangeOperation,
-  // type RangeOperation,
-  isViableSearchOperation
-} from '~/features/search/types.ts'
+import { type AnySearchOperation, isViableSearchOperation } from '~/features/search/types.ts'
 import { useHotkeys } from '~/hooks/useHotkeys.ts'
 import { api } from '~/lib/api.ts'
 import { createAsyncStore } from '~/lib/fetcher.ts'
@@ -70,16 +60,12 @@ const $page = computed($pages, (pages) => pages[pages.length - 1])
 const goPageBack = action($pages, 'goPageBack', (store) => {
   return store.set(store.get().slice(0, -1))
 })
-const goPageForward = action(
-  $pages,
-  'goPageForward',
-  (store, page: BoxPages) => {
-    return store.set([...store.get(), page])
-  }
-)
+const goPageForward = action($pages, 'goPageForward', (store, page: BoxPages) => {
+  return store.set([...store.get(), page])
+})
 
 // current
-const $currentField = atom<CollectProperty | undefined>(undefined)
+const $currentField = atom<Property | undefined>(undefined)
 const $currentFieldValues = createAsyncStore({
   key: '$fieldValues',
   deps: [$currentField],
@@ -96,8 +82,8 @@ const $currentFieldValues = createAsyncStore({
     })
 
     // as unknown as Array<
-    //    CollectProperty &
-    //    CollectPropertyValuesData & { values: CollectPropertySingleValue }
+    //    Property &
+    //    PropertyValuesData & { values: PropertySingleValue }
     //  >
   }
 })
@@ -158,7 +144,7 @@ function CurrentValueSuggestion({
 }: {
   children?: ReactNode
   disabled?: boolean
-  onSelect: (value: CollectPropertyValue) => void
+  onSelect: (value: PropertyValue) => void
 }) {
   const { data: fieldValues } = useStore($currentFieldValues)
   const query = useStore($recordQuery)
@@ -178,21 +164,17 @@ function CurrentValueSuggestion({
 }
 
 /** filter operator options by field type */
-const operatorByFieldType =
-  (fieldType: CollectPropertyType) =>
-  (operatorOption: (typeof operatorOptions)[number]) =>
-    isViableSearchOperation({
-      propertyType: fieldType,
-      searchOperation: operatorOption.value
-    })
+const operatorByFieldType = (fieldType: PropertyType) => (operatorOption: (typeof operatorOptions)[number]) =>
+  isViableSearchOperation({
+    propertyType: fieldType,
+    searchOperation: operatorOption.value
+  })
 
 function OperationItem({ start, end }: { end?: ReactNode; start?: ReactNode }) {
   return (
     <div className="flex w-full flex-col">
       <span>{start}</span>
-      <span className="hidden truncate text-xs text-content2 sm:block">
-        {end}
-      </span>
+      <span className="text-content2 hidden truncate text-xs sm:block">{end}</span>
     </div>
   )
 }
@@ -279,7 +261,7 @@ function OperationItem({ start, end }: { end?: ReactNode; start?: ReactNode }) {
 //             value={String(value)}
 //           >
 //             <PropertyTypeIcon type={currentField!.type} />
-//             <span className="truncate">{value as CollectPrimitiveValue}</span>
+//             <span className="truncate">{value as PrimitiveValue}</span>
 //           </ComboboxItem>
 //         ))}
 //     </>
@@ -360,7 +342,7 @@ function OperationItem({ start, end }: { end?: ReactNode; start?: ReactNode }) {
 //           value={String(value)}
 //         >
 //           <PropertyTypeIcon type={currentField!.type} />
-//           {value as CollectPrimitiveValue}
+//           {value as PrimitiveValue}
 //         </ComboboxItem>
 //       ))}
 //     </>
@@ -386,9 +368,7 @@ export function SearchBox({
 
   const filteredValues = useMemo(
     () =>
-      fieldValues?.values?.filter((value) =>
-        normalizeString(String(value)).includes(normalizeString(query))
-      ),
+      fieldValues?.values?.filter((value) => normalizeString(String(value)).includes(normalizeString(query))),
     [query, fieldValues]
   )
 
@@ -436,7 +416,7 @@ export function SearchBox({
     >
       <ComboboxInput
         suffix={
-          <div className="flex gap-1 px-inherit">
+          <div className="px-inherit flex gap-1">
             <Kbd code="Meta" pressed />
             <Kbd code="K" />
           </div>
@@ -457,11 +437,7 @@ export function SearchBox({
 
             {page === BoxPages.Operators && (
               <div className="flex items-center">
-                <PropertyName
-                  iconSize={ICON_SIZE}
-                  name={currentField!.name}
-                  type={currentField!.type}
-                />
+                <PropertyName iconSize={ICON_SIZE} name={currentField!.name} type={currentField!.type} />
                 <AngledSeparator size={ICON_SIZE} />
               </div>
             )}
@@ -509,11 +485,7 @@ export function SearchBox({
 
             {page === BoxPages.Values && (
               <div className="flex items-center">
-                <PropertyName
-                  iconSize={ICON_SIZE}
-                  name={currentField!.name}
-                  type={currentField!.type}
-                />
+                <PropertyName iconSize={ICON_SIZE} name={currentField!.name} type={currentField!.type} />
                 <AngledSeparator size={ICON_SIZE} />
                 {currentOperator}
               </div>
@@ -551,46 +523,36 @@ export function SearchBox({
                   </ComboboxItem>
                 ))}
 
-                {fields.length === 0 && (
-                  <ComboboxItem disabled>Nothing found</ComboboxItem>
-                )}
+                {fields.length === 0 && <ComboboxItem disabled>Nothing found</ComboboxItem>}
                 <ComboboxEmpty>No property match...</ComboboxEmpty>
               </>
             )}
             {page === BoxPages.Operators && (
               <>
-                {operatorOptions
-                  .filter(operatorByFieldType(currentField!.type))
-                  .map((operation) => (
-                    <ComboboxItem
-                      onSelect={() => {
-                        $currentOperator.set(operation.value)
+                {operatorOptions.filter(operatorByFieldType(currentField!.type)).map((operation) => (
+                  <ComboboxItem
+                    onSelect={() => {
+                      $currentOperator.set(operation.value)
 
-                        // switch (operation.value) {
-                        //   case SearchOperations.Range:
-                        //   case SearchOperations.ExcludeRange:
-                        //     const nextPage =
-                        //       currentField?.type === 'datetime'
-                        //         ? BoxPages.DateRange
-                        //         : BoxPages.ChooseMinMax
-                        //     return goPageForward(nextPage)
-                        //   default:
-                        goPageForward(BoxPages.Values)
-                        // }
-                      }}
-                      key={operation.value}
-                      value={operation.label}
-                    >
-                      <SearchOperationIcon
-                        operation={operation.value}
-                        variant="filled"
-                      />
-                      <OperationItem
-                        end={operation.description}
-                        start={operation.label}
-                      />
-                    </ComboboxItem>
-                  ))}
+                      // switch (operation.value) {
+                      //   case SearchOperations.Range:
+                      //   case SearchOperations.ExcludeRange:
+                      //     const nextPage =
+                      //       currentField?.type === 'datetime'
+                      //         ? BoxPages.DateRange
+                      //         : BoxPages.ChooseMinMax
+                      //     return goPageForward(nextPage)
+                      //   default:
+                      goPageForward(BoxPages.Values)
+                      // }
+                    }}
+                    key={operation.value}
+                    value={operation.label}
+                  >
+                    <SearchOperationIcon operation={operation.value} variant="filled" />
+                    <OperationItem end={operation.description} start={operation.label} />
+                  </ComboboxItem>
+                ))}
 
                 <ComboboxEmpty>No operator match...</ComboboxEmpty>
               </>
@@ -649,7 +611,7 @@ export function SearchBox({
             )}
           </ComboboxList>
 
-          <div className="sticky bottom-0 flex gap-3 border-t bg-fill px-3 py-1.5 shadow">
+          <div className="bg-fill sticky bottom-0 flex gap-3 border-t px-3 py-1.5 shadow">
             {page && (
               <Kbd code="Backspace" onClick={goPageBack}>
                 Back

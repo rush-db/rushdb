@@ -1,13 +1,7 @@
 import type { useStore } from '@nanostores/react'
 import type { ParamsArg } from '@nanostores/router'
 
-import {
-  createRouter,
-  createSearchParams,
-  getPagePath,
-  openPage,
-  redirectPage
-} from '@nanostores/router'
+import { createRouter, createSearchParams, getPagePath, openPage, redirectPage } from '@nanostores/router'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 
 const userConfirmationLeavePublicRoutes = {
@@ -44,9 +38,7 @@ const protectedRoutes = {
   newProject: '/projects/new',
   workspaceSettings: '/workspace-settings',
   projects: '/',
-  workspaceBilling: !$platformSettings.get().data?.selfHosted
-    ? '/billing'
-    : '/',
+  workspaceBilling: !$platformSettings.get().data?.selfHosted ? '/billing' : '/',
   profile: '/profile',
   ...projectRoutes
 } as const
@@ -76,41 +68,30 @@ export function removeSearchParam(key: string) {
   $searchParams.open(cpy)
 }
 
-export const isPublicRoute = <PageName extends keyof typeof routes>(
-  route?: PageName
-) => Boolean(route && route in publicRoutes)
+export const isPublicRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
+  Boolean(route && route in publicRoutes)
 
-export const isProtectedRoute = <PageName extends keyof typeof routes>(
-  route?: PageName
-) => Boolean(route && route in protectedRoutes)
+export const isProtectedRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
+  Boolean(route && route in protectedRoutes)
 
-export const isUserLeaveConfirmationRoute = <
-  PageName extends keyof typeof routes
->(
-  route?: PageName
-) => Boolean(route && route in userConfirmationLeavePublicRoutes)
+export const isUserLeaveConfirmationRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
+  Boolean(route && route in userConfirmationLeavePublicRoutes)
 
-export const isProjectRoute = <PageName extends keyof typeof routes>(
-  route?: PageName
-) => Boolean(route && route in projectRoutes)
+export const isProjectRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
+  Boolean(route && route in projectRoutes)
 
-export const isProjectRecordRoute = <PageName extends keyof typeof routes>(
-  route?: PageName
-) => Boolean(route && route in projectRecordRoutes)
+export const isProjectRecordRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
+  Boolean(route && route in projectRecordRoutes)
 
 /** check for id param existance */
-export const isProjectPage = <
-  Page extends ReturnType<typeof useStore<typeof $router>>
->(
+export const isProjectPage = <Page extends ReturnType<typeof useStore<typeof $router>>>(
   page?: Page
 ): page is {
   params: Record<'id', string>
   route: keyof typeof projectRoutes
 } & Page => Boolean(page && page.route in projectRoutes)
 
-export const isProjectRecordPage = <
-  Page extends ReturnType<typeof useStore<typeof $router>>
->(
+export const isProjectRecordPage = <Page extends ReturnType<typeof useStore<typeof $router>>>(
   page?: Page
 ): page is {
   params: Record<'id' | 'recordId', string>

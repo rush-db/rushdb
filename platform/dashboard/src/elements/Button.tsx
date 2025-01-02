@@ -18,31 +18,21 @@ export const buttonVariants = cva(
     variants: {
       size: {
         large: 'h-[44px] gap-4 px-5 text-lg font-bold rounded-lg',
-        medium:
-          'h-11 gap-3 [&>svg]:w-[20px] [&>svg]:h-[20px] font-medium rounded-md px-4',
-        small:
-          'h-9 gap-2 [&>svg]:w-[16px] [&>svg]:h-[16px] rounded-sm px-3 text-sm',
-        xsmall:
-          'h-7 gap-1 [&>svg]:w-[16px] [&>svg]:h-[16px] rounded-sm px-2 text-xs',
-        xxsmall:
-          'h-5 gap-1 [&>svg]:w-[16px] [&>svg]:h-[16px] rounded-sm px-1 text-xs'
+        medium: 'h-11 gap-3 [&>svg]:w-[20px] [&>svg]:h-[20px] font-medium rounded-md px-4',
+        small: 'h-9 gap-2 [&>svg]:w-[16px] [&>svg]:h-[16px] rounded-sm px-3 text-sm',
+        xsmall: 'h-7 gap-1 [&>svg]:w-[16px] [&>svg]:h-[16px] rounded-sm px-2 text-xs',
+        xxsmall: 'h-5 gap-1 [&>svg]:w-[16px] [&>svg]:h-[16px] rounded-sm px-1 text-xs'
       },
       variant: {
-        success:
-          'bg-success text-success-contrast hover:bg-success-hover ring-success-ring',
+        success: 'bg-success text-success-contrast hover:bg-success-hover ring-success-ring',
         accent:
           'bg-accent text-accent-contrast hover:bg-accent-hover focus-visible:bg-accent-focus ring-accent-ring',
-        primary:
-          'bg-primary ring-primary-ring text-primary-contrast hover:bg-primary-hover',
+        primary: 'bg-primary ring-primary-ring text-primary-contrast hover:bg-primary-hover',
         info: 'bg-badge-blue ring-badge-blue/10 text-badge-blue-contrast hover:bg-badge-blue/80',
-        danger:
-          'bg-danger text-danger-contrast hover:bg-danger-hover ring-danger-ring',
-        outline:
-          'border hover:bg-secondary-hover hover:border-bg-secondary-hover',
-        secondary:
-          'bg-secondary text-secondary-content hover:bg-secondary-hover ring-secondary-ring',
-        ghost:
-          'hover:bg-secondary-hover hover:text-secondary-content-hover text-secondary-content',
+        danger: 'bg-danger text-danger-contrast hover:bg-danger-hover ring-danger-ring',
+        outline: 'border hover:bg-secondary-hover hover:border-bg-secondary-hover',
+        secondary: 'bg-secondary text-secondary-content hover:bg-secondary-hover ring-secondary-ring',
+        ghost: 'hover:bg-secondary-hover hover:text-secondary-content-hover text-secondary-content',
         dangerGhost: 'hover:bg-danger/20 hover:text-danger-hover text-danger',
         link: 'text-content-2 hover:text-content underline-offset-4 hover:underline',
         inverse: 'hover:bg-fill/30'
@@ -56,19 +46,10 @@ type TButtonProps = {
   loading?: boolean
 } & VariantProps<typeof buttonVariants>
 
+// @ts-ignore
 export const Button: TPolymorphicComponent<TButtonProps, 'button'> = forwardRef(
   (
-    {
-      as = 'button',
-      children,
-      className,
-      disabled,
-      loading,
-      size,
-      type = 'button',
-      variant,
-      ...props
-    },
+    { as = 'button', children, className, disabled, loading, size, type = 'button', variant, ...props },
     ref
   ) => {
     const Element = as
@@ -120,7 +101,7 @@ export function CopyButton({
     () => {
       setCopied(false)
     },
-    copied ? timeout ?? null : null
+    copied ? (timeout ?? null) : null
   )
 
   return (

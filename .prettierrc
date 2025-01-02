@@ -4,5 +4,9 @@
   "useTabs": false,
   "singleQuote": true,
   "trailingComma": "none",
+  "arrowParens": "always",
+  "printWidth": 110,
+  "parser": "typescript",
+  "experimentalTernaries": true,
   "plugins": ["prettier-plugin-tailwindcss"]
 }

@@ -11,12 +11,9 @@ import { UNLABELED } from './constants'
 
 type LabelColor = NonNullable<VariantProps<typeof filterLabel>['variant']>
 
-const $assignedColors = persistentMap<Record<string, LabelColor>>(
-  'label:colors',
-  {
-    [UNLABELED]: 'blank'
-  }
-)
+const $assignedColors = persistentMap<Record<string, LabelColor>>('label:colors', {
+  [UNLABELED]: 'blank'
+})
 
 export const getLabelColor = (label: string, idx: number): LabelColor => {
   if (label === UNLABELED || !label) {
@@ -30,9 +27,7 @@ export const getLabelColor = (label: string, idx: number): LabelColor => {
   }
 
   // assign new color
-  const array = Object.keys(variants).filter(
-    (v) => v !== 'blank'
-  ) as Array<LabelColor>
+  const array = Object.keys(variants).filter((v) => v !== 'blank') as Array<LabelColor>
   const color = getFromIndex(array, idx, 0)
   $assignedColors.setKey(label, color)
   return color

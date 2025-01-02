@@ -1,8 +1,4 @@
-import type {
-  CollectPropertySingleValue,
-  CollectPropertyType,
-  CollectRecord
-} from '@collect.so/javascript-sdk'
+import type { PropertySingleValue, PropertyType, DBRecord } from '@rushdb/javascript-sdk'
 
 import type { GenericApiResponse } from '~/types'
 
@@ -18,7 +14,7 @@ type SearchOperation<
 
 export type EqualsOperation = SearchOperation<{
   operation: SearchOperations.Equals
-  value: CollectPropertySingleValue
+  value: PropertySingleValue
 }>
 
 // export type ExactMatchOperation = SearchOperation<{
@@ -28,7 +24,7 @@ export type EqualsOperation = SearchOperation<{
 
 export type ExcludeOperation = SearchOperation<{
   operation: SearchOperations.NotEquals
-  value: CollectPropertySingleValue
+  value: PropertySingleValue
 }>
 
 // export type ExactExcludeOperation = SearchOperation<{
@@ -95,9 +91,7 @@ export type Filter = AnySearchOperation & { filterId: string }
 //   }
 // }
 
-export const getViableSearchOperations = (
-  propertyType: CollectPropertyType
-): Array<SearchOperations> => {
+export const getViableSearchOperations = (propertyType: PropertyType): Array<SearchOperations> => {
   switch (propertyType) {
     case 'boolean':
       return [SearchOperations.Equals, SearchOperations.NotEquals]
@@ -128,8 +122,8 @@ export const isViableSearchOperation = ({
   propertyType,
   searchOperation
 }: {
-  propertyType: CollectPropertyType
+  propertyType: PropertyType
   searchOperation: SearchOperations
 }) => getViableSearchOperations(propertyType).includes(searchOperation)
 
-export type SearchResponse = GenericApiResponse<CollectRecord[]>
+export type SearchResponse = GenericApiResponse<DBRecord[]>

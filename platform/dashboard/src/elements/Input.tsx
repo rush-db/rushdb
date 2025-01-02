@@ -70,19 +70,7 @@ export type InputProps = Omit<
   VariantProps<typeof inputWrapper>
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  (
-    {
-      className,
-      prefix,
-      suffix,
-      as = 'label',
-      size,
-      variant,
-      readOnly,
-      ...props
-    },
-    ref
-  ) => {
+  ({ className, prefix, suffix, as = 'label', size, variant, readOnly, ...props }, ref) => {
     const Element = as
 
     return (
@@ -96,40 +84,22 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
       >
         {prefix}
-        <input
-          className={input({ size, variant })}
-          {...props}
-          ref={ref}
-          readOnly={readOnly}
-        />
+        <input className={input({ size, variant })} {...props} ref={ref} readOnly={readOnly} />
         {suffix}
       </Element>
     )
   }
 )
 
-export const SearchInput = forwardRef<HTMLInputElement, InputProps>(
-  (props, ref) => {
-    return (
-      <Input ref={ref} type="search" {...props} prefix={<Search size={16} />} />
-    )
-  }
-)
+export const SearchInput = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
+  return <Input ref={ref} type="search" {...props} prefix={<Search size={16} />} />
+})
 
-export const TextField: TPolymorphicComponent<
-  InputProps & FormFieldProps,
-  'label'
-> = forwardRef(
+// @ts-ignore
+export const TextField: TPolymorphicComponent<InputProps & FormFieldProps, 'label'> = forwardRef(
   ({ caption, className, error, label, as, ...inputProps }, ref) => {
     return (
-      <FormField
-        as={as}
-        caption={caption}
-        className={className}
-        error={error}
-        label={label}
-        ref={ref}
-      >
+      <FormField as={as} caption={caption} className={className} error={error} label={label} ref={ref}>
         <Input
           aria-invalid={Boolean(error)}
           as="div"
@@ -141,48 +111,36 @@ export const TextField: TPolymorphicComponent<
   }
 )
 
-export const CopyInput = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, value, ...props }, ref) => {
-    const [justCopied, setJustCopied] = useState(false)
+export const CopyInput = forwardRef<HTMLInputElement, InputProps>(({ className, value, ...props }, ref) => {
+  const [justCopied, setJustCopied] = useState(false)
 
-    useTimeout(
-      () => {
-        setJustCopied(false)
-      },
-      justCopied ? 1000 : null
-    )
+  useTimeout(
+    () => {
+      setJustCopied(false)
+    },
+    justCopied ? 1000 : null
+  )
 
-    const copyToken = () => {
-      if (value && !Array.isArray(value)) {
-        copyToClipboard(value as string, {
-          callback: () => setJustCopied(true)
-        })
-      }
+  const copyToken = () => {
+    if (value && !Array.isArray(value)) {
+      copyToClipboard(value as string, {
+        callback: () => setJustCopied(true)
+      })
     }
-
-    return (
-      <Input
-        ref={ref}
-        onClick={copyToken}
-        suffix={
-          justCopied ? (
-            <CopyCheck className="h-5 w-5 text-success" />
-          ) : (
-            <Copy className="h-5 w-5" />
-          )
-        }
-        readOnly
-        className={cn(
-          '!border-transparent !ring-0',
-          { '!border-success': justCopied },
-          className
-        )}
-        value={value}
-        {...props}
-      />
-    )
   }
-)
+
+  return (
+    <Input
+      ref={ref}
+      onClick={copyToken}
+      suffix={justCopied ? <CopyCheck className="text-success h-5 w-5" /> : <Copy className="h-5 w-5" />}
+      readOnly
+      className={cn('!border-transparent !ring-0', { '!border-success': justCopied }, className)}
+      value={value}
+      {...props}
+    />
+  )
+})
 
 Input.displayName = 'Input'
 TextField.displayName = 'TextField'

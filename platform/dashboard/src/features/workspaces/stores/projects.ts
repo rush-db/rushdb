@@ -25,12 +25,8 @@ export const $workspaceProjects = createAsyncStore({
 
 export const $projectsQuery = atom<string>('')
 
-export const $filteredProjects = computed(
-  [$workspaceProjects, $projectsQuery],
-  (allProjects, q) =>
-    allProjects?.data?.filter((project) =>
-      normalizeString(project.name).includes(normalizeString(q))
-    )
+export const $filteredProjects = computed([$workspaceProjects, $projectsQuery], (allProjects, q) =>
+  allProjects?.data?.filter((project) => normalizeString(project.name).includes(normalizeString(q)))
 )
 
 export const $showUpgrade = computed(
@@ -38,10 +34,12 @@ export const $showUpgrade = computed(
   (projects, workspace) => {
     const maxProjects = workspace.data?.limits?.projects ?? Infinity
 
-    return !$platformSettings.get().data?.selfHosted &&
-      typeof maxProjects !== 'undefined' &&
-      typeof projects.data !== 'undefined'
-      ? projects.data?.length >= maxProjects
+    return (
+        !$platformSettings.get().data?.selfHosted &&
+          typeof maxProjects !== 'undefined' &&
+          typeof projects.data !== 'undefined'
+      ) ?
+        projects.data?.length >= maxProjects
       : false
   }
 )

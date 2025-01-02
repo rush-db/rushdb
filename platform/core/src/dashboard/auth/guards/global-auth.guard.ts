@@ -84,9 +84,9 @@ class GlobalAuthGuard implements CanActivate {
         }
 
         const targetId =
-          dashboardTargetType === 'workspace'
-            ? request.headers['x-workspace-id']
-            : request.headers['x-project-id']
+          dashboardTargetType === 'workspace' ?
+            request.headers['x-workspace-id']
+          : request.headers['x-project-id']
 
         if (!targetId || !userId) {
           return false

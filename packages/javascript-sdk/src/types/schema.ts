@@ -1,8 +1,7 @@
 import type { FlattenTypes, MaybePromise } from './utils.js'
 import type { DatetimeObject, PropertyType, PropertyValue } from './value.js'
 
-export type SchemaDefaultValue<T extends PropertyType = PropertyType> =
-  MaybePromise<PropertyValue<T>>
+export type SchemaDefaultValue<T extends PropertyType = PropertyType> = MaybePromise<PropertyValue<T>>
 
 export type SchemaField<T extends PropertyType = PropertyType> = {
   default?: SchemaDefaultValue<T>
@@ -37,12 +36,10 @@ export type RequiredKeysWrite<S extends Schema = Schema> = {
 
 export type InferSchemaTypesWrite<S extends Schema = Schema> = FlattenTypes<
   {
-    [Key in RequiredKeysWrite<S>]: S[Key]['multiple'] extends true ?
-      TypeMappingWrite[S[Key]['type']][]
+    [Key in RequiredKeysWrite<S>]: S[Key]['multiple'] extends true ? TypeMappingWrite[S[Key]['type']][]
     : TypeMappingWrite[S[Key]['type']]
   } & {
-    [Key in OptionalKeysWrite<S>]?: S[Key]['multiple'] extends true ?
-      TypeMappingWrite[S[Key]['type']][]
+    [Key in OptionalKeysWrite<S>]?: S[Key]['multiple'] extends true ? TypeMappingWrite[S[Key]['type']][]
     : TypeMappingWrite[S[Key]['type']]
   }
 >
@@ -66,12 +63,10 @@ export type RequiredKeysRead<S extends Schema = Schema> = {
 
 export type InferSchemaTypesRead<S extends Schema = Schema> = FlattenTypes<
   {
-    [Key in RequiredKeysRead<S>]: S[Key]['multiple'] extends true ?
-      TypeMappingRead[S[Key]['type']][]
+    [Key in RequiredKeysRead<S>]: S[Key]['multiple'] extends true ? TypeMappingRead[S[Key]['type']][]
     : TypeMappingRead[S[Key]['type']]
   } & {
-    [Key in OptionalKeysRead<S>]?: S[Key]['multiple'] extends true ?
-      TypeMappingRead[S[Key]['type']][]
+    [Key in OptionalKeysRead<S>]?: S[Key]['multiple'] extends true ? TypeMappingRead[S[Key]['type']][]
     : TypeMappingRead[S[Key]['type']]
   }
 >

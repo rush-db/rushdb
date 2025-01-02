@@ -1,17 +1,15 @@
-import { SdkLanguage } from '~/features/onboarding/types'
+import type { SdkLanguage } from '~/features/onboarding/types'
 
-import javascriptLogo from './assets/js-logo.png'
-import typescriptLogo from './assets/ts-logo.png'
 import pythonLogo from './assets/python-logo.png'
 import rubyLogo from './assets/ruby-logo.png'
+import typescriptLogo from './assets/ts-logo.png'
 
 export const docsUrls = {
   sdk: {
     typescript: {
-      installation: 'https://docs.collect.so/quick-start/installation/',
-      usage:
-        'https://docs.collect.so/quick-start/creating-and-retrieving-records',
-      github: 'https://github.com/collect-so/collect',
+      installation: 'https://docs.rushdb.com/quick-start/installation/',
+      usage: 'https://docs.rushdb.com/quick-start/creating-and-retrieving-records',
+      github: 'https://github.com/rush-db/rushdb',
       logo: typescriptLogo
     },
     python: {
@@ -28,25 +26,23 @@ export const docsUrls = {
     }
   },
   dashboard: {
-    configuration: 'https://docs.collect.so/quick-start/configuring-dashboard'
+    configuration: 'https://docs.rushdb.com/quick-start/configuring-dashboard'
   }
 } satisfies {
-  sdk: Record<
-    SdkLanguage,
-    {
-      installation: undefined | string
-      usage: undefined | string
-      github: undefined | string
-      logo: string
-    }
-  >
   dashboard: {
     configuration: string
   }
+  sdk: Record<
+    SdkLanguage,
+    {
+      github: string | undefined
+      installation: string | undefined
+      logo: string
+      usage: string | undefined
+    }
+  >
 }
 
 export const SDK_LANGUAGES = ['typescript', 'python', 'ruby'] as const
 
-export const AVAILABLE_SDK_LANGUAGES = [
-  'typescript'
-] as const satisfies readonly SdkLanguage[]
+export const AVAILABLE_SDK_LANGUAGES = ['typescript'] as const satisfies readonly SdkLanguage[]

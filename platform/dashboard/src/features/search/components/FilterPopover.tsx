@@ -1,7 +1,4 @@
-import type {
-  CollectProperty,
-  CollectPropertySingleValue
-} from '@collect.so/javascript-sdk'
+import type { Property, PropertySingleValue } from '@rushdb/javascript-sdk'
 import type { Control, UseFormSetValue, UseFormWatch } from 'react-hook-form'
 
 import { useStore } from '@nanostores/react'
@@ -18,13 +15,7 @@ import type { InferType } from '~/lib/form'
 
 import { Button } from '~/elements/Button'
 import { Calendar, formatIso } from '~/elements/Calendar'
-import {
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxPopover,
-  SearchItem
-} from '~/elements/Combobox'
+import { ComboboxInput, ComboboxItem, ComboboxList, ComboboxPopover, SearchItem } from '~/elements/Combobox'
 import { Combobox } from '~/elements/Combobox'
 import { FormField } from '~/elements/FormField'
 import { IconButton } from '~/elements/IconButton'
@@ -34,10 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '~/elements/Popover'
 import { SearchSelect, SelectItem } from '~/elements/SearchSelect'
 import { Slider } from '~/elements/Slider'
 import { Tooltip } from '~/elements/Tooltip'
-import {
-  $currentProjectSuggestedFields,
-  editFilter
-} from '~/features/projects/stores/current-project'
+import { $currentProjectSuggestedFields, editFilter } from '~/features/projects/stores/current-project'
 import { PropertyName } from '~/features/properties/components/PropertyName'
 import { PropertyTypeIcon } from '~/features/properties/components/PropertyTypeIcon'
 import { formatPropertyValue } from '~/features/properties/utils'
@@ -49,7 +37,7 @@ import { createAsyncStore } from '~/lib/fetcher'
 import { mixed, object, string, useForm } from '~/lib/form'
 // import { formatMinMax } from '~/lib/formatters'
 
-const $fieldId = atom<CollectProperty['id'] | undefined>(undefined)
+const $fieldId = atom<Property['id'] | undefined>(undefined)
 const $fieldValues = createAsyncStore({
   key: '$fieldValues',
   deps: [$fieldId],
@@ -88,19 +76,13 @@ function SelectSearchOperator({
   return (
     <Controller
       render={({ field, fieldState }) => {
-        const currentOption = operatorOptions.find(
-          (o) => o.value === field.value
-        )
+        const currentOption = operatorOptions.find((o) => o.value === field.value)
 
         return (
           <SearchSelect
             trigger={
               <TextField
-                prefix={
-                  currentOption && (
-                    <SearchOperationIcon operation={currentOption.value} />
-                  )
-                }
+                prefix={currentOption && <SearchOperationIcon operation={currentOption.value} />}
                 error={fieldState.error?.message}
                 label="Operator"
                 readOnly
@@ -145,10 +127,10 @@ function SelectField({
   InputProps & FormFieldProps,
   {
     control: Control<any>
-    fields: CollectProperty[]
+    fields: Property[]
     name: string
     setValue: UseFormSetValue<any>
-    value?: CollectProperty
+    value?: Property
   }
 >) {
   return (
@@ -200,10 +182,10 @@ function SelectOperationValue({
   React.ComponentPropsWithoutRef<typeof Combobox>,
   {
     control: Control<TFilterSchema>
-    field?: CollectProperty
+    field?: Property
     name: keyof TFilterSchema
     setValue: UseFormSetValue<TFilterSchema>
-    value?: CollectPropertySingleValue
+    value?: PropertySingleValue
   }
 >) {
   const [open, setOpen] = useState(false)
@@ -245,9 +227,7 @@ function SelectOperationValue({
                   hasMatch={
                     !!formattedCurrent &&
                     values?.some(
-                      (value) =>
-                        formatPropertyValue({ value, type: fieldType! }) ==
-                        formattedCurrent
+                      (value) => formatPropertyValue({ value, type: fieldType! }) == formattedCurrent
                     )
                   }
                   onSelect={() => {
@@ -309,7 +289,7 @@ function SelectOperationValue({
 //   React.ComponentPropsWithoutRef<typeof Combobox>,
 //   {
 //     control: Control<TFilterSchema>
-//     field?: CollectProperty
+//     field?: Property
 //     max?: number
 //     min?: number
 //     operator: SearchOperations
@@ -481,7 +461,7 @@ function NumberValues({
   setValue
 }: {
   control: Control<TFilterSchema>
-  field: CollectProperty
+  field: Property
   setValue: UseFormSetValue<TFilterSchema>
   watch: UseFormWatch<TFilterSchema>
 }) {
@@ -519,14 +499,11 @@ function NumberValues({
   //   )
   // }
 
-  if (
-    selectedOperator === SearchOperations.Greater ||
-    selectedOperator === SearchOperations.GreaterOrEqual
-  ) {
+  if (selectedOperator === SearchOperations.Greater || selectedOperator === SearchOperations.GreaterOrEqual) {
     const value =
-      selectedValue === undefined || Number.isNaN(selectedValue)
-        ? fieldValues?.min ?? 0
-        : Number(selectedValue)
+      selectedValue === undefined || Number.isNaN(selectedValue) ?
+        (fieldValues?.min ?? 0)
+      : Number(selectedValue)
 
     return (
       <div className="flex flex-col gap-5">
@@ -557,14 +534,11 @@ function NumberValues({
     )
   }
 
-  if (
-    selectedOperator === SearchOperations.Less ||
-    selectedOperator === SearchOperations.LessOrEqual
-  ) {
+  if (selectedOperator === SearchOperations.Less || selectedOperator === SearchOperations.LessOrEqual) {
     const value =
-      selectedValue === undefined || Number.isNaN(selectedValue)
-        ? fieldValues?.max ?? 0
-        : Number(selectedValue)
+      selectedValue === undefined || Number.isNaN(selectedValue) ?
+        (fieldValues?.max ?? 0)
+      : Number(selectedValue)
 
     return (
       <div className="flex flex-col gap-5">
@@ -594,14 +568,7 @@ function NumberValues({
     )
   }
 
-  return (
-    <SelectOperationValue
-      control={control}
-      field={field}
-      name="value"
-      setValue={setValue}
-    />
-  )
+  return <SelectOperationValue control={control} field={field} name="value" setValue={setValue} />
 }
 
 function DateTimeValues({
@@ -611,7 +578,7 @@ function DateTimeValues({
   setValue
 }: {
   control: Control<TFilterSchema>
-  field: CollectProperty
+  field: Property
   setValue: UseFormSetValue<TFilterSchema>
   watch: UseFormWatch<TFilterSchema>
 }) {
@@ -685,18 +652,13 @@ function DateTimeValues({
   //   )
   // }
 
-  if (
-    selectedOperator === SearchOperations.Greater ||
-    selectedOperator === SearchOperations.GreaterOrEqual
-  ) {
+  if (selectedOperator === SearchOperations.Greater || selectedOperator === SearchOperations.GreaterOrEqual) {
     const selected = new Date(selectedValue)
 
     return (
       <>
         <TextField
-          onChange={(event) =>
-            setValue('value', event.target.value, { shouldDirty: true })
-          }
+          onChange={(event) => setValue('value', event.target.value, { shouldDirty: true })}
           label="Value"
           prefix={<PropertyTypeIcon type="datetime" />}
           size="small"
@@ -719,18 +681,13 @@ function DateTimeValues({
     )
   }
 
-  if (
-    selectedOperator === SearchOperations.Less ||
-    selectedOperator === SearchOperations.LessOrEqual
-  ) {
+  if (selectedOperator === SearchOperations.Less || selectedOperator === SearchOperations.LessOrEqual) {
     const selected = new Date(selectedValue)
 
     return (
       <>
         <TextField
-          onChange={(event) =>
-            setValue('value', event.target.value, { shouldDirty: true })
-          }
+          onChange={(event) => setValue('value', event.target.value, { shouldDirty: true })}
           label="Value"
           prefix={<PropertyTypeIcon type="datetime" />}
           size="small"
@@ -753,14 +710,7 @@ function DateTimeValues({
     )
   }
 
-  return (
-    <SelectOperationValue
-      control={control}
-      field={field}
-      name="value"
-      setValue={setValue}
-    />
-  )
+  return <SelectOperationValue control={control} field={field} name="value" setValue={setValue} />
 }
 
 function SelectFilterValues({
@@ -770,7 +720,7 @@ function SelectFilterValues({
   setValue
 }: {
   control: Control<TFilterSchema>
-  field?: CollectProperty
+  field?: Property
   setValue: UseFormSetValue<TFilterSchema>
   watch: UseFormWatch<TFilterSchema>
 }) {
@@ -795,42 +745,15 @@ function SelectFilterValues({
 
   switch (field.type) {
     case 'datetime':
-      return (
-        <DateTimeValues
-          control={control}
-          field={field}
-          setValue={setValue}
-          watch={watch}
-        />
-      )
+      return <DateTimeValues control={control} field={field} setValue={setValue} watch={watch} />
     case 'number':
-      return (
-        <NumberValues
-          control={control}
-          field={field}
-          setValue={setValue}
-          watch={watch}
-        />
-      )
+      return <NumberValues control={control} field={field} setValue={setValue} watch={watch} />
     default:
-      return (
-        <SelectOperationValue
-          control={control}
-          field={field}
-          name="value"
-          setValue={setValue}
-        />
-      )
+      return <SelectOperationValue control={control} field={field} name="value" setValue={setValue} />
   }
 }
 
-export function FilterPopover({
-  filter,
-  onRemove
-}: {
-  filter: Filter
-  onRemove: (filter: Filter) => void
-}) {
+export function FilterPopover({ filter, onRemove }: { filter: Filter; onRemove: (filter: Filter) => void }) {
   const [open, setOpen] = useState(false)
   const { data: fields = [] } = useStore($currentProjectSuggestedFields)
 
@@ -865,9 +788,7 @@ export function FilterPopover({
   //   rightPart = field ? formatMinMax({ ...filter, type: field?.type }) : ''
   // } else {
   // eslint-disable-next-line prefer-const
-  rightPart = field
-    ? formatPropertyValue({ value: filter.value, type: field?.type })
-    : ''
+  rightPart = field ? formatPropertyValue({ value: filter.value, type: field?.type }) : ''
   // }
 
   useEffect(() => {
@@ -893,28 +814,12 @@ export function FilterPopover({
   return (
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger>
-        <Button
-          as="div"
-          className="gap-1 pr-1"
-          size="small"
-          tabIndex={0}
-          variant="outline"
-        >
-          <PropertyName
-            iconSize={12}
-            name={filter.name ?? ''}
-            type={field?.type}
-          />
+        <Button as="div" className="gap-1 pr-1" size="small" tabIndex={0} variant="outline">
+          <PropertyName iconSize={12} name={filter.name ?? ''} type={field?.type} />
 
-          <SearchOperationIcon
-            className="text-content3"
-            operation={filter.operation}
-          />
+          <SearchOperationIcon className="text-content3" operation={filter.operation} />
 
-          <span
-            className="max-w-[140px] truncate"
-            title={rightPart?.toString()}
-          >
+          <span className="max-w-[140px] truncate" title={rightPart?.toString()}>
             {rightPart}
           </span>
 
@@ -940,25 +845,10 @@ export function FilterPopover({
           onSubmit={submit}
         >
           <div className="grid grid-cols-2 gap-3">
-            <SelectField
-              control={control}
-              fields={fields}
-              name="field"
-              setValue={setValue}
-              value={field}
-            />
-            <SelectSearchOperator
-              control={control}
-              name="operator"
-              setValue={setValue}
-            />
+            <SelectField control={control} fields={fields} name="field" setValue={setValue} value={field} />
+            <SelectSearchOperator control={control} name="operator" setValue={setValue} />
             <div className="col-span-2 grid gap-[inherit]">
-              <SelectFilterValues
-                control={control}
-                field={field}
-                setValue={setValue}
-                watch={watch}
-              />
+              <SelectFilterValues control={control} field={field} setValue={setValue} watch={watch} />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-5">

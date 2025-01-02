@@ -114,25 +114,20 @@ export type NorExpression<T = PropertyExpression & Related> = {
   $nor: MaybeArray<LogicalExpressionValue<T>>
 }
 
-export type LogicalExpression<T = PropertyExpression & Related> =
-  RequireAtLeastOne<
-    AndExpression<T> & OrExpression<T> & NotExpression<T> & XorExpression<T> & NorExpression<T>
-  >
+export type LogicalExpression<T = PropertyExpression & Related> = RequireAtLeastOne<
+  AndExpression<T> & OrExpression<T> & NotExpression<T> & XorExpression<T> & NorExpression<T>
+>
 
 type MaybeLogicalExpression<T> = LogicalExpression<T> | T
 
-type SchemaBasedExpression<T> = T extends Schema
-  ? MaybeLogicalExpression<PropertyExpressionByType[T[keyof T]['type']]>
-  : never
+type SchemaBasedExpression<T> =
+  T extends Schema ? MaybeLogicalExpression<PropertyExpressionByType[T[keyof T]['type']]> : never
 
-type ObjectBasedExpression<T> = T extends number
-  ? MaybeLogicalExpression<NumberExpression>
-  : T extends boolean
-  ? MaybeLogicalExpression<BooleanExpression>
-  : T extends string
-  ? MaybeLogicalExpression<StringExpression> | MaybeLogicalExpression<DatetimeExpression>
-  : T extends null
-  ? MaybeLogicalExpression<NullExpression>
+type ObjectBasedExpression<T> =
+  T extends number ? MaybeLogicalExpression<NumberExpression>
+  : T extends boolean ? MaybeLogicalExpression<BooleanExpression>
+  : T extends string ? MaybeLogicalExpression<StringExpression> | MaybeLogicalExpression<DatetimeExpression>
+  : T extends null ? MaybeLogicalExpression<NullExpression>
   : LogicalExpression | Partial<PropertyExpression & Related>
 
 export type Condition<T extends FlatObject | Schema = Schema> =
@@ -141,9 +136,8 @@ export type Condition<T extends FlatObject | Schema = Schema> =
     }
   | { $id?: MaybeLogicalExpression<StringExpression> }
 
-export type Where<T extends FlatObject | Schema = Schema> =
-  (Condition<T> & Related) &
-    Partial<LogicalGrouping<Condition<T> & Related>>
+export type Where<T extends FlatObject | Schema = Schema> = (Condition<T> & Related) &
+  Partial<LogicalGrouping<Condition<T> & Related>>
 
 export type AggregateCollectFn = {
   skip?: number

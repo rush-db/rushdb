@@ -1,7 +1,4 @@
-import type {
-  CollectProperty,
-  CollectPropertyType
-} from '@collect.so/javascript-sdk'
+import type { Property, PropertyType } from '@rushdb/javascript-sdk'
 
 import type { SortIconProps, SortingProps } from '~/elements/Table'
 
@@ -24,8 +21,8 @@ export function PropertyName({
   'div',
   {
     iconSize?: number
-    name: CollectProperty['name']
-    type: CollectPropertyType | undefined
+    name: Property['name']
+    type: PropertyType | undefined
   } & SortingProps &
     SortIconProps
 >) {
@@ -42,9 +39,7 @@ export function PropertyName({
         <PropertyTypeIcon size={iconSize} type={type ?? 'string'} />
       </Skeleton>
       {name}
-      {sortable && (
-        <SortIcon sortActive={sortActive} sortDirection={sortDirection} />
-      )}
+      {sortable && <SortIcon sortActive={sortActive} sortDirection={sortDirection} />}
     </div>
   )
 }

@@ -4,22 +4,14 @@ import { atom, onSet } from 'nanostores'
 import { type ReactNode, Suspense, lazy, useState, ChangeEvent } from 'react'
 
 import { Button } from '~/elements/Button'
-import {
-  Dialog,
-  DialogFooter,
-  DialogLoadingOverlay,
-  DialogTitle
-} from '~/elements/Dialog'
+import { Dialog, DialogFooter, DialogLoadingOverlay, DialogTitle } from '~/elements/Dialog'
 import { TextField } from '~/elements/Input'
 import { cn } from '~/lib/utils'
 
 import { batchUpload } from '../stores/batch'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
 
-function RadioGroup({
-  className,
-  ...props
-}: TInheritableElementProps<'div', {}>) {
+function RadioGroup({ className, ...props }: TInheritableElementProps<'div', {}>) {
   return <div className={cn(className, 'flex flex-col gap-5')} {...props} />
 }
 
@@ -40,14 +32,12 @@ function RadioButton({
   return (
     <button
       className={cn(
-        'flex w-full items-start gap-5 rounded-lg border bg-secondary px-5 py-4 text-start ring-accent-ring transition-all hover:border-accent-hover hover:bg-secondary-hover focus-visible:border-accent-focus focus-visible:ring group-hover:border-accent-hover group-hover:bg-secondary-hover group-focus:ring',
+        'bg-secondary ring-accent-ring hover:border-accent-hover hover:bg-secondary-hover focus-visible:border-accent-focus group-hover:border-accent-hover group-hover:bg-secondary-hover flex w-full items-start gap-5 rounded-lg border px-5 py-4 text-start transition-all focus-visible:ring group-focus:ring',
         className
       )}
       {...props}
     >
-      <div className="mt-2.5 flex items-center justify-center text-accent">
-        {icon}
-      </div>
+      <div className="text-accent mt-2.5 flex items-center justify-center">{icon}</div>
       <div className="flex flex-col">
         <h3 className="font-bold">{title}</h3>
         <p className="text-content2">{description}</p>
@@ -106,12 +96,9 @@ function EditorStep() {
       </div>
 
       <div
-        className={cn(
-          '-mx-5 flex h-[70vh] min-h-[300px] flex-col overflow-hidden pb-5',
-          {
-            'opacity-0': loading
-          }
-        )}
+        className={cn('-mx-5 flex h-[70vh] min-h-[300px] flex-col overflow-hidden pb-5', {
+          'opacity-0': loading
+        })}
       >
         <Suspense>
           <Editor
@@ -245,9 +232,7 @@ export function IngestRecordsModal() {
           <RadioButton
             onClick={async () => {
               try {
-                const data = await import('../batchData.json').then(
-                  (mod) => mod.default
-                )
+                const data = await import('../batchData.json').then((mod) => mod.default)
                 $editorData.set(JSON.stringify(data))
                 $label.set('COMPANY')
               } catch (error) {}

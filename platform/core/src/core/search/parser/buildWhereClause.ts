@@ -7,11 +7,7 @@ import { ParseContext } from '@/core/search/parser/types'
 import { splitCriteria, wrapInParentheses } from '@/core/search/parser/utils'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
-const parseCurrentLevel = (
-  input: Where,
-  options?: TSearchQueryBuilderOptions,
-  ctx?: ParseContext
-) => {
+const parseCurrentLevel = (input: Where, options?: TSearchQueryBuilderOptions, ctx?: ParseContext) => {
   if (isArray(input)) {
     const condition = input
       .map((condition, index) => {
@@ -176,13 +172,14 @@ export const buildWhereClause = (input: any, options?: TSearchQueryBuilderOption
   const firstLevelClause = 'record IS NOT NULL'
   const relatedRecordsClause = parseCurrentLevel(input, options, ctx)
 
-  const hasRelatedRecordClause = isArray(relatedRecordsClause)
-    ? toBoolean(relatedRecordsClause.filter(toBoolean))
+  const hasRelatedRecordClause =
+    isArray(relatedRecordsClause) ?
+      toBoolean(relatedRecordsClause.filter(toBoolean))
     : toBoolean(relatedRecordsClause)
 
-  const relatedClause = hasRelatedRecordClause
-    ? isArray(relatedRecordsClause)
-      ? ' AND ' + relatedRecordsClause.filter(toBoolean).join(' AND ')
+  const relatedClause =
+    hasRelatedRecordClause ?
+      isArray(relatedRecordsClause) ? ' AND ' + relatedRecordsClause.filter(toBoolean).join(' AND ')
       : ' AND ' + relatedRecordsClause
     : ''
 

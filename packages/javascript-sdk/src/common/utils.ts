@@ -6,8 +6,7 @@ export const isArray = (item: any): item is any[] =>
 export const isObject = (input: unknown): input is object =>
   input !== null && Object.prototype.toString.call(input) === '[object Object]'
 
-export const isEmptyObject = (input: unknown): boolean =>
-  isObject(input) && Object.keys(input).length === 0
+export const isEmptyObject = (input: unknown): boolean => isObject(input) && Object.keys(input).length === 0
 
 export const isObjectFlat = (input: any): input is Record<string, PropertyValue> => {
   return (

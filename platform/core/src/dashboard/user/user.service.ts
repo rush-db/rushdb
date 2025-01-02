@@ -245,9 +245,9 @@ export class UserService {
     const queryRunner = this.neogmaService.createRunner()
 
     const targetPart =
-      targetType === 'workspace'
-        ? `-[rel:${RUSHDB_RELATION_MEMBER_OF}]->(:${RUSHDB_LABEL_WORKSPACE} { id: $targetId })`
-        : `-[rel:${RUSHDB_RELATION_HAS_ACCESS}]->(:${RUSHDB_LABEL_PROJECT} { id: $targetId }) `
+      targetType === 'workspace' ?
+        `-[rel:${RUSHDB_RELATION_MEMBER_OF}]->(:${RUSHDB_LABEL_WORKSPACE} { id: $targetId })`
+      : `-[rel:${RUSHDB_RELATION_HAS_ACCESS}]->(:${RUSHDB_LABEL_PROJECT} { id: $targetId }) `
 
     const query = `
             MATCH (:${RUSHDB_LABEL_USER} { id: $userId })${targetPart}

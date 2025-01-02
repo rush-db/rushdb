@@ -1,14 +1,8 @@
-import type { CollectPropertyType } from '@collect.so/javascript-sdk'
+import type { PropertyType } from '@rushdb/javascript-sdk'
 
 import { Calendar, CircleSlash2, Hash, ToggleRight, Type } from 'lucide-react'
 
-export function PropertyTypeIcon({
-  size,
-  type
-}: {
-  size?: number | string
-  type: CollectPropertyType
-}) {
+export function PropertyTypeIcon({ size, type }: { size?: number | string; type: PropertyType }) {
   switch (type) {
     case 'boolean':
       return <ToggleRight size={size} />

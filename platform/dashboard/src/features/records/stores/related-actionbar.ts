@@ -13,7 +13,7 @@ import {
   $filteredRecords
 } from '~/features/projects/stores/current-project'
 // import {
-//   convertToCollectQuery,
+//   convertToSearchQuery,
 //   filterToSearchOperation
 // } from '~/features/projects/utils'
 import { api } from '~/lib/api'
@@ -33,16 +33,11 @@ export const $hasRelatedRecordsSelection = computed(
 
 export const $mixedRelatedRecordsSelection = computed(
   [$selectedRelatedRecords, $currentRelatedRecords],
-  (selectedRecords, currentRelatedRecords) =>
-    selectedRecords.length !== currentRelatedRecords.data?.length
+  (selectedRecords, currentRelatedRecords) => selectedRecords.length !== currentRelatedRecords.data?.length
 )
 
 export const $selectionRelatedLength = computed(
-  [
-    $selectedRelatedRecords,
-    $hasRelatedRecordsSelection,
-    $mixedRelatedRecordsSelection
-  ],
+  [$selectedRelatedRecords, $hasRelatedRecordsSelection, $mixedRelatedRecordsSelection],
   (selectedRecords, hasSelection, mixed) => {
     return selectedRecords.length
     // if (!hasSelection) {
@@ -115,14 +110,10 @@ export const batchDeleteRelatedSelected = createMutator({
     return await api.records.batchDelete({
       init,
       ...body
-      // where: ('where' in body && convertToCollectQuery(body?.where)) || {}
+      // where: ('where' in body && convertToSearchQuery(body?.where)) || {}
     })
   },
-  invalidates: [
-    $currentProjectLabels,
-    $currentProjectFields,
-    $currentRelatedRecords
-  ],
+  invalidates: [$currentProjectLabels, $currentProjectFields, $currentRelatedRecords],
   onSuccess: () => {
     resetRelatedRecordsSelection()
     toast({

@@ -25,19 +25,13 @@ const formatColor = (color: Color | string | undefined) =>
 
 const parseColor = (color: string) => oklch(color) as Color
 
-const shiftColorLuminance = (
-  _color: ColorOrColorState,
-  shiftAmount: Color['l']
-): Color => {
+const shiftColorLuminance = (_color: ColorOrColorState, shiftAmount: Color['l']): Color => {
   const color = isColorState(_color) ? _color.DEFAULT : _color
 
   return { ...color, l: color.l + shiftAmount }
 }
 
-const shiftColorAlpha = (
-  _color: ColorOrColorState,
-  alpha: Color['l']
-): Color => {
+const shiftColorAlpha = (_color: ColorOrColorState, alpha: Color['l']): Color => {
   const color = isColorState(_color) ? _color.DEFAULT : _color
 
   return { ...color, alpha }
@@ -88,9 +82,10 @@ const generateColorState = (_color: Color | string): ColorState => {
 }
 
 function deepFormat<O extends Record<string, Color | string>>(obj: O) {
-  return Object.fromEntries(
-    Object.entries(obj).map(([key, val]) => [key, formatColor(val)])
-  ) as Record<keyof O, ReturnType<typeof formatColor>>
+  return Object.fromEntries(Object.entries(obj).map(([key, val]) => [key, formatColor(val)])) as Record<
+    keyof O,
+    ReturnType<typeof formatColor>
+  >
 }
 
 /**
@@ -125,11 +120,7 @@ type SuggestedKeys =
 function createColors<
   // eslint-disable-next-line @typescript-eslint/ban-types
   E extends [key: SuggestedKeys | (string & {}), baseColor: string][]
->({
-  entries
-}: {
-  entries: E
-}): Record<E[number][0], ReturnType<typeof deepFormat>> {
+>({ entries }: { entries: E }): Record<E[number][0], ReturnType<typeof deepFormat>> {
   const colors = entries.map(([key, baseColor]) => {
     return [key, deepFormat(generateColorState(baseColor))]
   })

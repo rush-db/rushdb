@@ -1,16 +1,6 @@
-import type {
-  InferType,
-  DBRecord,
-  UserProvidedConfig,
-  Relation
-} from './src/sdk'
+import type { InferType, DBRecord, UserProvidedConfig, Relation } from './src/sdk'
 
-import {
-  DBRecordsBatchDraft,
-  DBRecordDraft,
-  RestAPI,
-  ApiResponse
-} from './src/api'
+import { DBRecordsBatchDraft, DBRecordDraft, RestAPI, ApiResponse } from './src/api'
 import { HttpClient, HttpClientResponse } from './src/network/HttpClient'
 import {
   Model,
@@ -38,9 +28,7 @@ declare module '@rushdb/javascript-sdk' {
     public getModel(label: string): Model
     public getModels(): Map<string, Model>
     public getInstance(token: string, config?: UserProvidedConfig): RushDB
-    public toInstance<Schema extends Schema = Schema>(
-      record: DBRecord<Schema>
-    ): DBRecordInstance
+    public toInstance<Schema extends Schema = Schema>(record: DBRecord<Schema>): DBRecordInstance
   }
 
   export {
