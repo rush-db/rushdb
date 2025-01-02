@@ -39,7 +39,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t rushdb/platform:$VERSION -t rushdb/platform:latest .
+          docker build -t rushdb/platform:$VERSION -t rushdb/platform:latest -f platform/Dockerfile .
 
       - name: Publish Docker image
         run: |
