@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 0.2.2
+
+### Patch Changes
+
+- de0fb17: Update release workflow
+
 ## 0.2.1
 
 ### Patch Changes
