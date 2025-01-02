@@ -15,6 +15,9 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.package-version.outputs.version }}
+      has_tag: ${{ steps.check-tag.outputs.has_tag }}
 
     steps:
       - name: Checkout
@@ -47,6 +50,12 @@ jobs:
           always-auth=true
           EOF
 
+      - name: Get Package Version
+        id: package-version
+        run: |
+          VERSION=$(jq -r '.version' ./packages/javascript-sdk/package.json)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT    
+
       - name: Create Release PR or Publish
         id: changesets
         uses: changesets/action@v1
@@ -59,12 +68,24 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Check Tag Creation
+        id: check-tag
+        run: |
+          if git rev-parse "@rushdb/javascript-sdk@${{ steps.package-version.outputs.version }}" >/dev/null 2>&1; then
+            echo "has_tag=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_tag=false" >> $GITHUB_OUTPUT
+          fi
+
   docker:
     needs: release
-    if: needs.release.outputs.published == 'true'
+    if: needs.release.outputs.has_tag == 'true'
     runs-on: ubuntu-latest
 
     steps:
+      - run: echo '${{ toJSON(needs.release.outputs) }}'
+
       - name: Checkout
         uses: actions/checkout@v3
 
