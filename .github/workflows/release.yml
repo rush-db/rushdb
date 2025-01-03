@@ -18,6 +18,8 @@ jobs:
     outputs:
       version: ${{ steps.package-version.outputs.version }}
       has_tag: ${{ steps.check-tag.outputs.has_tag }}
+      is_version_bump: ${{ steps.check-commit.outputs.is_version_bump }}
+
 
     steps:
       - name: Checkout
@@ -78,9 +80,18 @@ jobs:
             echo "has_tag=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check Commit Type
+        id: check-commit
+        run: |
+          if git log -1 --pretty=%B | grep -q "chore(release): version packages"; then
+            echo "is_version_bump=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_version_bump=false" >> $GITHUB_OUTPUT
+          fi    
+
   docker:
     needs: release
-    if: needs.release.outputs.has_tag == 'true'
+    if: needs.release.outputs.is_version_bump == 'true'
     runs-on: ubuntu-latest
 
     steps:
