@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.2.7
+
+### Patch Changes
+
+- 147cc2b: Build docker image only on version bump
+- Updated dependencies [147cc2b]
+  - @rushdb/javascript-sdk@0.2.7
+
 ## 0.2.6
 
 ### Patch Changes
