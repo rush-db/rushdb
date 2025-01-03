@@ -5,10 +5,12 @@
     "neo4j",
     "database",
     "firebase-alternative",
+    "firebase",
     "cypher",
-    "graphql",
+    "instant",
+    "instantdb",
     "rushdb"
-  ]
+  ],
   "license": "MIT",
   "version": "0.2.6",
   "type": "module",
