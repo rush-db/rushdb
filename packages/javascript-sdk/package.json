@@ -1,6 +1,16 @@
 {
   "name": "@rushdb/javascript-sdk",
   "description": "RushDB Javascript SDK",
+  "keywords": [
+    "neo4j",
+    "database",
+    "firebase-alternative",
+    "firebase",
+    "cypher",
+    "instant",
+    "instantdb",
+    "rushdb"
+  ],
   "license": "MIT",
   "version": "0.2.6",
   "type": "module",
