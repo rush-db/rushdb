@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.2.8
+
+### Patch Changes
+
+- 1cf62ae: Minor fixes and cleanups
+- Updated dependencies [1cf62ae]
+  - @rushdb/javascript-sdk@0.2.8
+
 ## 0.2.7
 
 ### Patch Changes
