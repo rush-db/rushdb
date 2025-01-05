@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    @apply box-border min-w-0 border-stroke outline-none;
+  }
+
+  :root {
+    @apply bg-fill font-sans text-content antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+    --radius: 0.5rem;
+    color-scheme: dark;
+    scrollbar-gutter: stable;
+  }
+
+  ::selection {
+    @apply bg-accent-ring;
+  }
+}
+
+[hidden] {
+  display: none;
+}
+
+body {
+  overflow-y: scroll;
+  min-height: 100dvh;
+
+}
+
+
+
+h1,
+h2,
+h3,
+h4 {
+  @apply text-balance;
+}
+
+p {
+  @apply text-pretty;
+}
+
+svg {
+  display: inline-block;
+  @apply shrink-0;
+}
+
+a {
+  @apply focus-visible:outline-none focus-visible:ring focus-visible:ring-primary-ring;
+}
+
+.typography-4xl {
+  @apply mb-8 font-bold tracking-normal leading-none text-4xl md:leading-[3.5rem] md:text-3xl sm:text-2xl sm:leading-[3rem];
+}
+
+.typography-3xl {
+  @apply relative text-3xl font-bold tracking-tight md:leading-[3rem] md:text-2xl sm:leading-[2.5rem] sm:text-xl;
+}
+
+.typography-2xl {
+  @apply relative text-2xl font-bold tracking-tight md:leading-[3rem] md:text-xl sm:leading-[2.5rem];
+}
+
+.typography-xl {
+  @apply relative text-xl font-bold tracking-tight md:text-base;
+}
+
+.typography-lg {
+  @apply font-medium tracking-tight text-lg sm:text-base leading-8;
+}
+
+.typography-base {
+  @apply font-medium tracking-tight text-base md:text-sm;
+}

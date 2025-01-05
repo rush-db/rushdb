@@ -1,4 +1,3 @@
-/* eslint-disable perfectionist/sort-enums */
 export enum SearchOperations {
   // Perform exact matching of property values with the given input.
   Equals = '$equals',

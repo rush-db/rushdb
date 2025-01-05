@@ -2,6 +2,7 @@
 // @ts-nocheck
 import { RUSHDB_KEY_ID, RUSHDB_KEY_ID_ALIAS } from '@/core/common/constants'
 import { parse } from '@/core/search/parser/parse'
+import { ID_CLAUSE_OPERATOR } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
 describe('parseQuery', () => {
@@ -376,7 +377,7 @@ describe('parseQuery', () => {
   it('parses ID criteria correctly 10', () => {
     const result10 = parse(
       {
-        [RUSHDB_KEY_ID_ALIAS]: '123'
+        [ID_CLAUSE_OPERATOR]: '123'
       },
       queryBuilderOptions
     )
@@ -384,7 +385,7 @@ describe('parseQuery', () => {
       nodeAliases: ['record'],
       aliasesMap: { $record: 'record' },
       queryParts: {
-        record: `(record.${RUSHDB_KEY_ID} = "123")`
+        record: `(any(value IN record.${RUSHDB_KEY_ID} WHERE value = "123"))`
       },
       where: 'record IS NOT NULL'
     })
@@ -393,9 +394,9 @@ describe('parseQuery', () => {
   it('parses nested ID criteria correctly 11', () => {
     const result10 = parse(
       {
-        [RUSHDB_KEY_ID_ALIAS]: '123',
+        [ID_CLAUSE_OPERATOR]: '123',
         CAR: {
-          [RUSHDB_KEY_ID_ALIAS]: '567'
+          [ID_CLAUSE_OPERATOR]: '567'
         }
       },
       queryBuilderOptions
@@ -404,8 +405,9 @@ describe('parseQuery', () => {
       nodeAliases: ['record', 'record1'],
       aliasesMap: { $record: 'record' },
       queryParts: {
-        record: `(record.${RUSHDB_KEY_ID} = "123")`,
-        record1: `OPTIONAL MATCH (record)--(record1:CAR) WHERE (record1.${RUSHDB_KEY_ID} = "567")`
+        record: '(any(value IN record.__RUSHDB__KEY__ID__ WHERE value = "123"))',
+        record1:
+          'OPTIONAL MATCH (record)--(record1:CAR) WHERE (any(value IN record1.__RUSHDB__KEY__ID__ WHERE value = "567"))'
       },
       where: 'record IS NOT NULL AND record1 IS NOT NULL'
     })

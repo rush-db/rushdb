@@ -80,7 +80,7 @@ export const normalizeRecord = ({
   options = { suggestTypes: true },
   payload
 }: {
-  label?: string
+  label: string
   options?: { suggestTypes: boolean }
   parentId?: string
   payload: Record<string, TPropertyValue>
