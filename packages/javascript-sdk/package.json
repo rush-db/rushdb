@@ -12,7 +12,7 @@
     "rushdb"
   ],
   "license": "MIT",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "type": "module",
   "main": "cjs/index.cjs.node.js",
   "types": "types/index.d.ts",
