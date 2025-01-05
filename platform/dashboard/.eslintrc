@@ -1,11 +1,10 @@
 {
   "root": true,
   "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint", "perfectionist", "import"],
+  "plugins": ["@typescript-eslint", "import"],
   "extends": [
     "next/core-web-vitals",
-    "plugin:@typescript-eslint/recommended",
-    "plugin:perfectionist/recommended-natural"
+    "plugin:@typescript-eslint/recommended"
   ],
   "settings": {
     "react": {
@@ -24,7 +23,6 @@
   },
   "rules": {
     "@typescript-eslint/consistent-type-imports": "error",
-    "perfectionist/sort-objects": "off",
     "import/no-cycle": "error",
     "@typescript-eslint/ban-types": "off",
     "@typescript-eslint/no-empty-function": "warn",

@@ -1,0 +1,14 @@
+{
+  "extends": ["eslint-config-next"],
+  "globals": {
+    "React": true,
+    "JSX": true,
+    "globalThis": true
+  },
+  "ignorePatterns": ["global.d.ts", "**/*.test.*"],
+
+  "rules": {
+    "react-hooks/exhaustive-deps": "warn",
+    "react/no-unescaped-entities": "off"
+  }
+}

@@ -1,0 +1,9 @@
+.columns-wrapper {
+    display: flex;
+    justify-content: space-between;
+  }
+  
+.column {
+    flex: 1;
+    padding: 1rem;
+}

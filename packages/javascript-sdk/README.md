@@ -11,8 +11,8 @@
 ![npm bundle size](https://img.shields.io/bundlephobia/minzip/%40rushdb%2Fjavascript-sdk)
 
 
-[![Made with Node](https://img.shields.io/badge/dynamic/json?label=node&query=%24.engines%5B%22node%22%5D&url=https%3A%2F%2Fraw.githubusercontent.com%2Fcollect-so%2Fcollect%2Fmaster%2Fpackage.json)](https://nodejs.org "Go to Node.js homepage")
-[![Package - Typescript](https://img.shields.io/github/package-json/dependency-version/collect-so/collect/dev/typescript?logo=typescript&logoColor=white)](https://www.npmjs.com/package/typescript "Go to TypeScript on NPM")
+[![Made with Node](https://img.shields.io/badge/dynamic/json?label=node&query=%24.engines%5B%22node%22%5D&url=https%3A%2F%2Fraw.githubusercontent.com%2Frush-db%2Frushdb%2Fmain%2Fpackage.json)](https://nodejs.org "Go to Node.js homepage")
+[![Package - Typescript](https://img.shields.io/github/package-json/dependency-version/rush-db/rushdb/dev/typescript?logo=typescript&logoColor=white)](https://www.npmjs.com/package/typescript "Go to TypeScript on NPM")
 
 [Homepage](https://rushdb.com) — [Blog](https://rushdb.com/blog) — [Platform](https://app.rushdb.com) — [Docs](https://docs.rushdb.com) — [Examples](https://github.com/rush-db/rushdb/examples)
 </div>
@@ -128,7 +128,7 @@ await company.attach(matchedEmployees, { type: "WORKING_AT" })
 
 <div align="center" style="margin-top: 20px">
 
-> Check the [Docs](https://docs.rushdb.com) and [Examples Repository](https://github.com/collect-so/examples) to learn more 🤓
+> Check the [Docs](https://docs.rushdb.com) and [Examples Repository](https://github.com/rush-db/rushdb/examples) to learn more 🤓
 
 
 </div>

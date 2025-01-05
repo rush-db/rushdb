@@ -1,0 +1,143 @@
+---
+sidebar_position: 1
+---
+# Introduction
+
+<div align="center">
+![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
+
+[![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
+[![License](https://img.shields.io/badge/License-MIT-blue)](#license "Go to license section")
+
+![NPM Downloads](https://img.shields.io/npm/dw/%40rushdb%2Fjavascript-sdk)
+![npm bundle size](https://img.shields.io/bundlephobia/minzip/%40rushdb%2Fjavascript-sdk)
+
+[![Made with Node](https://img.shields.io/badge/dynamic/json?label=node&query=%24.engines%5B%22node%22%5D&url=https%3A%2F%2Fraw.githubusercontent.com%2Frush-db%2Frushdb%2Fmain%2Fpackage.json)](https://nodejs.org "Go to Node.js homepage")
+[![Package - Typescript](https://img.shields.io/github/package-json/dependency-version/rush-db/rushdb/dev/typescript?logo=typescript&logoColor=white)](https://www.npmjs.com/package/typescript "Go to TypeScript on NPM")
+
+[Homepage](https://rushdb.com) — [Blog](https://rushdb.com/blog) — [Dashboard](https://app.rushdb.com)
+</div>
+
+
+:::info
+All examples are provided in two formats: raw `JSON` body and `SDK`-like code snippets.
+
+When using the REST API, please ensure that the `Content-Type: application/json` and authorization `token` headers are set.
+:::
+
+
+## Features
+
+---
+- **Automatic Type Inference**: Enjoy seamless type safety with automatic TypeScript inference.
+- **Isomorphic Architecture**: Fully compatible with both server and browser environments.
+- **Zero Dependencies**: Lightweight and efficient with no external dependencies.
+- **No Configuration Needed**: Plug-and-play design requires no setup or configuration.
+
+
+## Installation
+
+---
+NPM:
+```bash
+npm install @rushdb/javascript-sdk
+```
+
+YARN:
+```bash
+yarn add @rushdb/javascript-sdk
+```
+
+PNPM:
+```bash
+pnmp add @rushdb/javascript-sdk
+```
+
+
+## Usage
+
+1. Get API Token at [app.rushdb.com](https://app.rushdb.com/)
+2. Install `@rushdb/javascript-sdk`
+3. Build something ~~people~~ you want:
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk';
+
+const db = new RushDB("API_TOKEN")
+
+// Push any data to RushDB the way you perceive it
+await db.records.createMany({
+  label: "PRODUCT",
+  payload: [
+      {
+         title: 'T-Shirt',
+         price: 50,
+      },
+      {
+         title: 'Sneakers',
+         price: 135,
+         SIZE: [
+            {
+              uk: 8.5,
+              qty: 5
+            }
+         ]
+      }
+   ]
+})
+
+// Find it with granular precision and without any query language
+await db.records.find("PRODUCT", {
+    where: {
+        title: { $contains: "Sneakers" },
+        SIZE: {
+            uk: { $gte: 8, $lte: 9 },
+            qty: { $gt: 0 }
+        }
+    }
+})
+```
+
+---
+### Example with data modeling
+
+```typescript
+import RushDB, { Model } from '@rushdb/javascript-sdk';
+
+const db = new RushDB("API_TOKEN")
+
+const UserRepo = new Model(
+  'USER',
+   {
+      name: { type: 'string' },
+      rating: { type: 'number' },
+   },
+  db
+);
+
+await UserRepo.create({
+   name: "John Galt",
+   rating: 100
+})
+
+await UserRepo.find({
+   where: {
+     rating: { $gte: 50 }
+   }
+})
+```
+
+
+
+## How this achieved?
+RushDB achieves its flexibility through a unique hybrid approach to data storage by harnessing the capabilities of
+Neo4j's graph database, extending beyond its original features. This approach combines the
+strengths of a strongly typed graph on one hand while offering the flexibility of saving data within the built-in
+mechanisms of dynamically extending graph structures on the other.
+
+Internal algorithms, including customized BFS (Breadth-First Search) and batching techniques, are intentionally crafted
+for efficiency and speed. Their primary goal is to provide an outstanding user and developer experience, ensuring smooth
+and high-speed operations throughout the platform.
+
+In this documentation, you will find comprehensive information on how to use RushDB to its fullest potential,
+from getting started to advanced features.
