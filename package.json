@@ -1,12 +1,13 @@
 {
   "name": "rushdb",
   "private": true,
-  "license": "MIT",
+  "license": "Apache-2.0",
   "scripts": {
     "clean": "pnpm -r run clean",
     "clean:install": "pnpm -r run flush & pnpm install",
-    "dev": "pnpm -r run dev",
+    "dev": "cd platform && pnpm dev:platform",
     "build": "pnpm -r run build",
+    "build:platform-image": "docker build -t platform -f platform/Dockerfile .",
     "types:check": "pnpm -r run types:check",
     "format": "prettier --write ./**/*.{ts,tsx}",
     "lint": "eslint --ext mjs,js,ts,tsx",
@@ -18,7 +19,6 @@
     "version:dev": "changeset version --snapshot dev",
     "release:dev": "changeset publish --tag dev",
     "reinstall": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && pnpm i"
-    "docker:build:platform": "docker build -t platform -f platform/Dockerfile ."
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.10",
@@ -51,5 +51,8 @@
     "docs",
     "website",
     "examples/*"
-  ]
+  ],
+  "dependencies": {
+    "npm-run-all": "^4.1.5"
+  }
 }

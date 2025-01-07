@@ -46,11 +46,10 @@ declare global {
    * A more sophisticated version of `TInheritableElementProps` where
    * the passed in `as` prop will determine which props can be included
    */
-  type TPolymorphicComponentProps<
-    As extends React.ElementType,
-    // eslint-disable-next-line @typescript-eslint/ban-types
-    Props = {}
-  > = TInheritableElementProps<As, AsProp<As> & Props>
+  type TPolymorphicComponentProps<As extends React.ElementType, Props = {}> = TInheritableElementProps<
+    As,
+    AsProp<As> & Props
+  >
 
   /**
    * Utility type to extract the `ref` prop from a polymorphic component

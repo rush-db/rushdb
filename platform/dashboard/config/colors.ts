@@ -1,6 +1,6 @@
 import type { Oklch } from 'culori'
 
-import { formatHsl, formatCss, oklch, wcagContrast } from 'culori'
+import { formatHsl, oklch, wcagContrast } from 'culori'
 
 import { isAnyObject } from '../src/types'
 
@@ -117,10 +117,11 @@ type SuggestedKeys =
   | 'secondary'
   | 'stroke'
 
-function createColors<
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  E extends [key: SuggestedKeys | (string & {}), baseColor: string][]
->({ entries }: { entries: E }): Record<E[number][0], ReturnType<typeof deepFormat>> {
+function createColors<E extends [key: SuggestedKeys | (string & {}), baseColor: string][]>({
+  entries
+}: {
+  entries: E
+}): Record<E[number][0], ReturnType<typeof deepFormat>> {
   const colors = entries.map(([key, baseColor]) => {
     return [key, deepFormat(generateColorState(baseColor))]
   })

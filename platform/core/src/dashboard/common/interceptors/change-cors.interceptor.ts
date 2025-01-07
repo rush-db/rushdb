@@ -10,8 +10,7 @@ export class ChangeCorsInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const frontendUrl = this.configService.get<string>('RUSHDB_DASHBOARD_URL')
 
-    // @TODO: Remove http://localhost:3005. Only for development purposes.
-    const allowedOrigins = isDevMode() ? ['*'] : [frontendUrl, 'http://localhost:3005']
+    const allowedOrigins = isDevMode() ? ['*'] : [frontendUrl]
 
     const modifiedCorsOptions = {
       allowedHeaders: [
@@ -36,7 +35,6 @@ export class ChangeCorsInterceptor implements NestInterceptor {
     const response = ctx.getResponse()
     const requestOrigin = request.headers.origin
 
-    // @TODO: Remove http://localhost:3005. Only for development purposes.
     if (!isDevMode() && allowedOrigins.includes(requestOrigin)) {
       response.header('Access-Control-Allow-Origin', requestOrigin)
     }

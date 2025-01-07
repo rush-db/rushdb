@@ -129,5 +129,7 @@ override.tf.json
 
 # Ignore CLI configuration files
 .terraformrc
+.terraform
+tfplan
 terraform.rc
 versions.tf

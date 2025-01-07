@@ -34,7 +34,7 @@ function SignUpForm() {
           placeholder="example@example.com"
           {...register('login')}
           autoFocus
-          error={errors?.email?.message as string}
+          error={errors?.login?.message as string}
         />
         <TextField
           autoComplete="new-password"
