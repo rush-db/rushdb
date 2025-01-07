@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.2.9
+
+### Patch Changes
+
+- 9580ede: Update infrastructure and minor fixes
+- Updated dependencies [9580ede]
+  - @rushdb/javascript-sdk@0.2.9
+
 ## 0.2.8
 
 ### Patch Changes
