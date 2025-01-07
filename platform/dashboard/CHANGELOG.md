@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.2.10
+
+### Patch Changes
+
+- 89f2783: Update readme and license
+- Updated dependencies [89f2783]
+  - @rushdb/javascript-sdk@0.2.10
+
 ## 0.2.9
 
 ### Patch Changes
