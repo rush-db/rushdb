@@ -123,7 +123,7 @@ jobs:
         with:
           context: .
           file: platform/Dockerfile
-          platforms: linux/amd64,linux/arm64,windows/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             rushdb/platform:latest
