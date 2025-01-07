@@ -254,9 +254,9 @@ export const api = {
         method: 'POST'
       })
     },
-    async register({ email, password }: { email?: string; password?: string }) {
+    async register({ login, password }: { login?: string; password?: string }) {
       return fetcher<GetUserResponse['data']>(`/api/v1/auth/register`, {
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ login, password }),
         method: 'POST'
       })
     }

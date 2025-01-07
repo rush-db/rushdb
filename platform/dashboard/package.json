@@ -1,15 +1,17 @@
 {
   "name": "rushdb-dashboard",
   "version": "0.2.8",
+  "description": "RushDB Dashboard",
   "type": "module",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm typecheck && vite build",
+    "build": "pnpm types:check && vite build",
     "preview": "vite preview",
     "lint": "eslint --ext .js,.jsx,.ts,.tsx .",
     "lint:fix": "pnpm lint --fix",
-    "typecheck": "tsc --noEmit",
+    "types:check": "tsc --noEmit",
     "reinstall": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && pnpm i"
   },
   "dependencies": {

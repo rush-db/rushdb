@@ -8,7 +8,7 @@ $ cd app & yarn
 $ cd ..
 
 # 3. start the app
-$ docker-compose -f docker-compose.dev.yml up
+$ docker-compose up
 ```
 
 ### Generate aws ecs task definition

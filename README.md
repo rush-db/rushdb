@@ -41,15 +41,13 @@ RushDB is built by developers, for developers—making your experience seamless 
 
 ## Setup
 
-### Managed Environment
+### Option 1: Managed Environment
 
 The easiest way to start using RushDB is through **RushDB Cloud**. Free Tier is available.
 
 Get up and running in minutes by signing up at [app.rushdb.com](https://app.rushdb.com). RushDB Cloud provides a fully managed environment, so you can focus on building your application without worrying about setup or infrastructure.
 
----
-
-### Self-Hosted Environment
+### Option 2: Self-Hosted Environment
 
 If you prefer to manage your own infrastructure, you can set up RushDB with a Neo4j instance. Here’s how:
 
@@ -67,19 +65,38 @@ Both options allow you to connect RushDB to your Neo4j database for a fully cust
 
 Make sure your setup meets these requirements for optimal functionality.
 
-### Running the RushDB Platform
+---
+
+#### Running the RushDB Platform
 
 You can quickly launch the **RushDB Platform** using the following Docker command:
 
 ```shell
 docker run -p 3000:3000 \
+--name rushdb \
 -e NEO4J_URL='neo4j+s://1234567.databases.neo4j.io' \
 -e NEO4J_USERNAME='neo4j' \
 -e NEO4J_PASSWORD='password' \
 rushdb/platform
 ```
 
-### Environment Variables
+Or by using Docker Compose:
+
+```yaml
+version: '3.8'
+services:
+  rushdb:
+    image: rushdb/platform
+    container_name: rushdb
+    ports:
+      - "3000:3000"
+    environment:
+      - NEO4J_URL=neo4j+s://1234567.databases.neo4j.io
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=password
+```
+
+#### Environment Variables
 
 Before running the container, ensure you provide the following required environment variables:
 
@@ -99,7 +116,6 @@ Before running the container, ensure you provide the following required environm
 - **Important**: Change this to a secure value in production.
 - **Default**: `32SymbolStringForTokenEncryption`
 
-
 #### 3. `RUSHDB_LOGIN`
 - **Description**: The login username for the RushDB admin account.
 - **Important**: Change this to a secure value in production.
@@ -110,8 +126,9 @@ Before running the container, ensure you provide the following required environm
 - **Important**: Change this to a secure value in production.
 - **Default**: `password`
 
+---
 
-### Usage with TypeScript / JavaScript
+## Usage
 
 1. **Obtain an API Token**:
    - If you’re using **RushDB Cloud**, get your token from [app.rushdb.com](https://app.rushdb.com).
@@ -120,18 +137,15 @@ Before running the container, ensure you provide the following required environm
 2. **Build Anything**:  
    Easily push, search, and manage relationships within your data.
 
----
+### With TypeScript / JavaScript
 
 #### Install the SDK
 
-**NPM:**
 ```bash
 npm install @rushdb/javascript-sdk
 ```
 
----
-
-### TL;DR
+#### Push any json data
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
@@ -166,7 +180,10 @@ await db.records.createMany("COMPANY", {
     }]
   }]
 });
+```
 
+#### Find Records by specific criteria
+```typescript
 // Find Records by specific criteria
 const matchedEmployees = await db.records.find({
   labels: ['EMPLOYEE'],
@@ -187,33 +204,16 @@ const company = await db.records.findUniq('COMPANY', {
     name: 'Google LLC',
   },
 });
-
-// Create relationships between the `COMPANY` Record and matched employees
-await company.attach(matchedEmployees, { type: "WORKING_AT" });
 ```
-
-
-### Usage with REST API and cURL
-
-1. **Obtain an API Token**:
-   - If you’re using **RushDB Cloud**, get your token from [app.rushdb.com](https://app.rushdb.com).
-   - For a self-hosted RushDB instance, retrieve the token from the **Dashboard** running locally (`localhost:3000`).
-
-2. **Build Anything**:  
-   Use the REST API to push, search, and manage relationships in your data via simple HTTP requests.
-
 ---
+### With REST API and cURL
 
-#### API Base URL
+#### Specify API base URL
 
 - **RushDB Cloud**: `https://api.rushdb.com`
 - **Self-Hosted**: Your custom URL (e.g., `http://localhost:3000`)
 
----
-
-### TL;DR
-
-#### Push Data
+####  Push any json data
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/records/import/json \
@@ -247,9 +247,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 }'
 ```
 
----
-
-#### Find Records by Specific Criteria
+#### Find Records by specific criteria
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/records/search \

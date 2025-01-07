@@ -57,6 +57,7 @@ ENV NODE_ENV=production \
     RUSHDB_AES_256_ENCRYPTION_KEY=32SymbolStringForTokenEncryption \
     RUSHDB_DASHBOARD_URL=/ \
     RUSHDB_SELF_HOSTED=true \
+    RUSHDB_SERVE_STATIC=true \
     RUSHDB_LOGIN=admin \
     RUSHDB_PASSWORD=password
 
