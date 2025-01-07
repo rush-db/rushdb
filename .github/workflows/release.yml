@@ -180,6 +180,27 @@ jobs:
                     "awslogs-stream-prefix": "ecs-rushdb"
                   }
                 }
+                "environment": [
+                  { "name": "RUSHDB_DASHBOARD_URL", "value": "${{ vars.RUSHDB_DASHBOARD_URL }}" },
+                  { "name": "RUSHDB_AES_256_ENCRYPTION_KEY", "value": "${{ secrets.RUSHDB_AES_256_ENCRYPTION_KEY }}" },
+                  { "name": "RUSHDB_SELF_HOSTED", "value": "false" },
+                  { "name": "RUSHDB_SERVE_STATIC", "value": "false" },
+                  { "name": "NEO4J_URL", "value": "${{ secrets.NEO4J_URL }}" },
+                  { "name": "NEO4J_USERNAME", "value": "${{ secrets.NEO4J_USERNAME }}" },
+                  { "name": "NEO4J_PASSWORD", "value": "${{ secrets.NEO4J_PASSWORD }}" },
+                  { "name": "GOOGLE_CLIENT_ID", "value": "${{ secrets.GOOGLE_CLIENT_ID }}" },
+                  { "name": "GOOGLE_SECRET", "value": "${{ secrets.GOOGLE_SECRET }}" },
+                  { "name": "GITHUB_CLIENT_ID", "value": "${{ secrets.GITHUB_CLIENT_ID }}" },
+                  { "name": "GITHUB_SECRET", "value": "${{ secrets.GITHUB_SECRET }}" },
+                  { "name": "GITHUB_REDIRECT_URL", "value": "${{ secrets.GITHUB_REDIRECT_URL }}" },
+                  { "name": "MAIL_HOST", "value": "${{ secrets.MAIL_HOST }}" },
+                  { "name": "MAIL_USER", "value": "${{ secrets.MAIL_USER }}" },
+                  { "name": "MAIL_PASSWORD", "value": "${{ secrets.MAIL_PASSWORD }}" },
+                  { "name": "MAIL_FROM", "value": "${{ secrets.MAIL_FROM }}" },
+                  { "name": "SERVICE_CAPTCHA_KEY", "value": "${{ secrets.SERVICE_CAPTCHA_KEY }}" },
+                  { "name": "STRIPE_SECRET_KEY", "value": "${{ secrets.STRIPE_SECRET_KEY }}" },
+                  { "name": "STRIPE_ENDPOINT_SECRET", "value": "${{ secrets.STRIPE_ENDPOINT_SECRET }}" }
+                ]
               }
             ],
             "family": "rushdb-task-definition",
