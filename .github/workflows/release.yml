@@ -1,4 +1,4 @@
-name: Release
+name: Release and Deploy
 
 on:
   push:
@@ -11,6 +11,10 @@ permissions:
   pull-requests: write
   id-token: write
 
+env:
+  ECS_SERVICE_NEST: 'rushdb-ecs-service'
+  ECS_CLUSTER: 'rushdb-ecs-cluster'
+
 jobs:
   release:
     name: Release
@@ -19,7 +23,6 @@ jobs:
       version: ${{ steps.package-version.outputs.version }}
       has_tag: ${{ steps.check-tag.outputs.has_tag }}
       is_version_bump: ${{ steps.check-commit.outputs.is_version_bump }}
-
 
     steps:
       - name: Checkout
@@ -93,6 +96,9 @@ jobs:
     needs: release
     if: needs.release.outputs.is_version_bump == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.set-image.outputs.image }}
+      version: ${{ needs.release.outputs.version }}
 
     steps:
       - run: echo '${{ toJSON(needs.release.outputs) }}'
@@ -117,8 +123,68 @@ jobs:
         with:
           context: .
           file: platform/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,windows/amd64
           push: true
           tags: |
             rushdb/platform:latest
             rushdb/platform:${{ needs.release.outputs.version }}
+
+      - name: Set image output
+        id: set-image
+        run: echo "image=rushdb/platform:${{ needs.release.outputs.version }}" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: [release, docker]
+    if: needs.release.outputs.is_version_bump == 'true'
+    name: Deploy to ECS
+    runs-on: ubuntu-22.04
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Render Amazon ECS task definition
+        id: render-app-container
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ./platform/core/task-definition-nest.json
+          container-name: 'rushdb'
+          image: ${{ needs.docker.outputs.image }}
+          environment-variables: |
+            RUSHDB_DASHBOARD_URL=${{ vars.RUSHDB_DASHBOARD_URL }}
+            RUSHDB_AES_256_ENCRYPTION_KEY=${{ secrets.RUSHDB_AES_256_ENCRYPTION_KEY }}
+            RUSHDB_SELF_HOSTED=false
+            RUSHDB_SERVE_STATIC=false
+            
+            NEO4J_URL=${{ secrets.NEO4J_URL }}
+            NEO4J_USERNAME=${{ secrets.NEO4J_USERNAME }}
+            NEO4J_PASSWORD=${{ secrets.NEO4J_PASSWORD }}
+            
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            GOOGLE_SECRET=${{ secrets.GOOGLE_SECRET }}
+            GITHUB_CLIENT_ID=${{ secrets.GITHUB_CLIENT_ID }}
+            GITHUB_SECRET=${{ secrets.GITHUB_SECRET }}
+            GITHUB_REDIRECT_URL=${{ secrets.GITHUB_REDIRECT_URL }}
+            MAIL_HOST=${{ secrets.MAIL_HOST }}
+            MAIL_USER=${{ secrets.MAIL_USER }}
+            MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+            MAIL_FROM=${{ secrets.MAIL_FROM }}
+            SERVICE_CAPTCHA_KEY=${{ secrets.SERVICE_CAPTCHA_KEY }}
+            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+            STRIPE_ENDPOINT_SECRET=${{ secrets.STRIPE_ENDPOINT_SECRET }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-app-container.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE_NEST }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: false

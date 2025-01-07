@@ -1,12 +1,7 @@
 import { useStore } from '@nanostores/react'
 
 import { RootLayout } from '~/layout/RootLayout'
-import {
-  $router,
-  isProjectPage,
-  isProjectRecordPage,
-  isProtectedRoute
-} from '~/lib/router'
+import { $router, isProjectPage, isProjectRecordPage, isProtectedRoute } from '~/lib/router'
 import { NotFoundPage } from '~/pages/404'
 import { PasswordRecoveryPage } from '~/pages/forgot-password'
 import { NewProjectPage } from '~/pages/project/new'
@@ -128,26 +123,23 @@ function Gtm() {
 function ProductionScripts() {
   const platformSettings = useStore($platformSettings)
 
-  if (!import.meta.env.PROD || platformSettings.data?.selfHosted) {
-    return null
+  if (!platformSettings.loading && !platformSettings.data?.selfHosted) {
+    return (
+      <>
+        <LiveChat />
+        <Gtm />
+      </>
+    )
   }
 
-  return (
-    <>
-      <LiveChat />
-
-      <Gtm />
-    </>
-  )
+  return null
 }
 
 export function App() {
   return (
     <>
       <Routes />
-
       <Toaster />
-
       <ProductionScripts />
     </>
   )

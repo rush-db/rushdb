@@ -163,7 +163,7 @@ export const buildUrl = (props: UserProvidedConfig): string => {
   let basePath = DEFAULT_BASE_PATH
 
   if ('url' in props) {
-    const url = new URL(props.url || document?.URL)
+    const url = new URL(props.url)
     protocol = url.protocol.replace(':', '')
     host = url.hostname
     port = parseInt(

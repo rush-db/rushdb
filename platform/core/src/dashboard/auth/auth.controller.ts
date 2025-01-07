@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
   UseInterceptors
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { ApiExcludeController, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
@@ -45,7 +46,8 @@ export class AuthController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
-    private readonly emailConfirmationService: EmailConfirmationService
+    private readonly emailConfirmationService: EmailConfirmationService,
+    private readonly configService: ConfigService
   ) {}
 
   @Post('register')
@@ -57,17 +59,36 @@ export class AuthController {
   ): Promise<IAuthenticatedUser> {
     // @TODO: handle existing user error properly
     try {
-      return this.userService.create(user, transaction).then(async ({ userData }) => {
-        const createdUserData = userData.toJson()
-        await this.emailConfirmationService.sendVerificationLink(
-          createdUserData.login,
-          createdUserData.firstName
+      const hasMailerConfig =
+        this.configService.get('MAIL_HOST') &&
+        this.configService.get('MAIL_USER') &&
+        this.configService.get('MAIL_PASSWORD') &&
+        this.configService.get('MAIL_FROM')
+
+      return this.userService
+        .create(
+          {
+            ...user,
+            // Set `confirmed: true` when no mailer config provided
+            confirmed: !hasMailerConfig
+          },
+          transaction
         )
-        return {
-          ...createdUserData,
-          token: this.authService.createToken(userData)
-        }
-      })
+        .then(async ({ userData }) => {
+          const createdUserData = userData.toJson()
+
+          if (createdUserData.isEmail && hasMailerConfig) {
+            await this.emailConfirmationService.sendVerificationLink(
+              createdUserData.login,
+              createdUserData.firstName
+            )
+          }
+
+          return {
+            ...createdUserData,
+            token: this.authService.createToken(userData)
+          }
+        })
     } catch (e) {
       throw new BadRequestException('Provided email is not allowed')
     }
@@ -108,7 +129,17 @@ export class AuthController {
     @TransactionDecorator() transaction: Transaction,
     @Param('email') email: string
   ) {
-    return this.emailConfirmationService.sendForgotPasswordLink(email, transaction)
+    const hasMailerConfig =
+      this.configService.get('MAIL_HOST') &&
+      this.configService.get('MAIL_USER') &&
+      this.configService.get('MAIL_PASSWORD') &&
+      this.configService.get('MAIL_FROM')
+
+    if (hasMailerConfig) {
+      return this.emailConfirmationService.sendForgotPasswordLink(email, transaction)
+    }
+
+    return true
   }
 
   @Post('resend-confirmation-link')

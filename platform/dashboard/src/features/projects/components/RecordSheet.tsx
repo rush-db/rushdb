@@ -9,10 +9,7 @@ import { RecordTitle } from '~/features/records/components/RecordTitle'
 import { deleteRecordMutation } from '~/features/records/stores/mutations'
 import { getRoutePath } from '~/lib/router'
 
-import {
-  $currentRecord,
-  $currentRelatedRecords
-} from '../stores/current-record'
+import { $currentRecord, $currentRelatedRecords } from '../stores/current-record'
 import { $currentProjectId, $sheetRecordId } from '../stores/id'
 import { RecordDataTab } from './RecordDataTab'
 import { RelatedRecordsTab } from './RelatedRecordsTab.tsx'
@@ -20,6 +17,7 @@ import { ERecordSheetTabs } from '~/features/projects/types.ts'
 import { MenuItem, Menu } from '~/elements/Menu.tsx'
 import { copyToClipboard } from '~/lib/utils.ts'
 import { Divider } from '~/elements/Divider.tsx'
+import { DialogTitle } from '~/elements/Dialog.tsx'
 
 const tabs: ERecordSheetTabs[] = [
   ERecordSheetTabs.data,
@@ -43,16 +41,16 @@ export function RecordSheet() {
       }}
       open={id !== undefined}
     >
-      <PageHeader className="sticky top-0 z-40 justify-start gap-5 bg-fill2 px-5 py-3">
+      <PageHeader className="bg-fill2 sticky top-0 z-40 justify-start gap-5 px-5 py-3">
         <Close asChild>
           <IconButton aria-label="close" variant="ghost">
             <X />
           </IconButton>
         </Close>
 
-        <PageTitle className="flex-1 truncate text-xl">
+        <DialogTitle className="flex-1 truncate text-xl">
           {record && <RecordTitle id={record.__id} label={record.__label} />}
-        </PageTitle>
+        </DialogTitle>
 
         {record && (
           <Menu
@@ -76,18 +74,12 @@ export function RecordSheet() {
             </MenuItem>
             <MenuItem
               icon={<Copy />}
-              onClick={() =>
-                copyToClipboard(record.__id, { showSuccessToast: true })
-              }
+              onClick={() => copyToClipboard(record.__id, { showSuccessToast: true })}
             >
               Copy Record ID
             </MenuItem>
             <Divider />
-            <MenuItem
-              icon={<Trash />}
-              onClick={() => deleteRecord({ id: record.__id })}
-              variant="danger"
-            >
+            <MenuItem icon={<Trash />} onClick={() => deleteRecord({ id: record.__id })} variant="danger">
               <Close>Delete Record</Close>
             </MenuItem>
           </Menu>
@@ -95,7 +87,7 @@ export function RecordSheet() {
       </PageHeader>
 
       <Tabs defaultValue={ERecordSheetTabs.data}>
-        <TabsList className="w-full border-b bg-fill2 px-5">
+        <TabsList className="bg-fill2 w-full border-b px-5">
           {tabs
             .filter((t) => (!relations ? t !== ERecordSheetTabs.relations : t))
             .map((t) => (

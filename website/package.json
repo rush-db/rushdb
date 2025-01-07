@@ -2,11 +2,13 @@
   "name": "rushdb-website",
   "version": "0.2.8",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "next dev",
     "dev:watch": "next-remote-watch ./posts",
     "build": "next build && next export",
     "postbuild": "next-sitemap",
+    "types:check": "tsc --noEmit",
     "start": "next start",
     "lint": "next lint"
   },

@@ -1,10 +1,9 @@
 {
   "name": "rushdb-core",
   "version": "0.2.8",
-  "description": "",
-  "author": "",
+  "description": "RushDB Core",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "config": {
     "commitizen": {
       "path": "cz-conventional-changelog"
@@ -30,13 +29,13 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config test/jest-e2e.json",
-    "typecheck": "tsc --noEmit",
+    "types:check": "tsc --noEmit",
     "find-circular-deps": "madge --circular --image graph.svg app"
   },
   "dependencies": {
     "@fastify/static": "6.10.1",
     "@fastify/swagger": "8.3.1",
-    "@nestjs-modules/mailer": "^2.0.2",
+    "@nestjs-modules/mailer": "1.8.1",
     "@nestjs/axios": "2.0.0",
     "@nestjs/common": "9.4.0",
     "@nestjs/config": "2.3.1",
