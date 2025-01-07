@@ -179,7 +179,7 @@ jobs:
                     "awslogs-region": "${{ vars.AWS_REGION }}",
                     "awslogs-stream-prefix": "ecs-rushdb"
                   }
-                }
+                },
                 "environment": [
                   { "name": "RUSHDB_DASHBOARD_URL", "value": "${{ vars.RUSHDB_DASHBOARD_URL }}" },
                   { "name": "RUSHDB_AES_256_ENCRYPTION_KEY", "value": "${{ secrets.RUSHDB_AES_256_ENCRYPTION_KEY }}" },
