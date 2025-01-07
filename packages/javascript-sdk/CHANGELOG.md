@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.2.10
+
+### Patch Changes
+
+- 89f2783: Update readme and license
+
 ## 0.2.9
 
 ### Patch Changes
