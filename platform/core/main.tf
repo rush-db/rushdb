@@ -171,3 +171,7 @@ resource "aws_ecs_service" "rushdb-ecs-service" {
 output "load_balancer_ip_rushdb" {
   value = aws_lb.default.dns_name
 }
+
+output "execution_role_arn" {
+  value = aws_iam_role.ecs_task_execution_role.arn
+}

@@ -151,40 +151,50 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Render Amazon ECS task definition
-        id: render-app-container
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ./platform/core/task-definition-nest.json
-          container-name: 'rushdb'
-          image: ${{ needs.docker.outputs.image }}
-          environment-variables: |
-            RUSHDB_DASHBOARD_URL=${{ vars.RUSHDB_DASHBOARD_URL }}
-            RUSHDB_AES_256_ENCRYPTION_KEY=${{ secrets.RUSHDB_AES_256_ENCRYPTION_KEY }}
-            RUSHDB_SELF_HOSTED=false
-            RUSHDB_SERVE_STATIC=false
-            
-            NEO4J_URL=${{ secrets.NEO4J_URL }}
-            NEO4J_USERNAME=${{ secrets.NEO4J_USERNAME }}
-            NEO4J_PASSWORD=${{ secrets.NEO4J_PASSWORD }}
-            
-            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-            GOOGLE_SECRET=${{ secrets.GOOGLE_SECRET }}
-            GITHUB_CLIENT_ID=${{ secrets.GITHUB_CLIENT_ID }}
-            GITHUB_SECRET=${{ secrets.GITHUB_SECRET }}
-            GITHUB_REDIRECT_URL=${{ secrets.GITHUB_REDIRECT_URL }}
-            MAIL_HOST=${{ secrets.MAIL_HOST }}
-            MAIL_USER=${{ secrets.MAIL_USER }}
-            MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
-            MAIL_FROM=${{ secrets.MAIL_FROM }}
-            SERVICE_CAPTCHA_KEY=${{ secrets.SERVICE_CAPTCHA_KEY }}
-            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-            STRIPE_ENDPOINT_SECRET=${{ secrets.STRIPE_ENDPOINT_SECRET }}
+      - name: Render task definition
+        id: render-task
+        run: |
+          cat <<EOF > task-definition.json
+          {
+            "containerDefinitions": [
+              {
+                "name": "rushdb",
+                "image": "${{ needs.docker.outputs.image }}",
+                "cpu": 1024,
+                "memory": 2048,
+                "portMappings": [
+                  {
+                    "containerPort": 3000,
+                    "hostPort": 3000,
+                    "protocol": "tcp",
+                    "appProtocol": "http"
+                  }
+                ],
+                "essential": true,
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-create-group": "true",
+                    "awslogs-group": "/ecs/rushdb",
+                    "awslogs-region": "${{ vars.AWS_REGION }}",
+                    "awslogs-stream-prefix": "ecs-rushdb"
+                  }
+                }
+              }
+            ],
+            "family": "rushdb-task-definition",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "1024",
+            "memory": "2048",
+            "executionRoleArn": "${{ secrets.ECS_EXECUTION_ROLE_ARN }}"
+          }
+          EOF
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          task-definition: ${{ steps.render-app-container.outputs.task-definition }}
+          task-definition: task-definition.json
           service: ${{ env.ECS_SERVICE_NEST }}
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: false
