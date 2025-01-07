@@ -3,6 +3,7 @@
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
 # RushDB
+### The Instant Database for Modern Apps and DS/ML Ops
 
 RushDB is an open-source alternative to Firebase, built on top of Neo4j.
 
