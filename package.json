@@ -17,7 +17,7 @@
     "release": "changeset publish",
     "version:dev": "changeset version --snapshot dev",
     "release:dev": "changeset publish --tag dev",
-    "reinstall": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && pnpm i",
+    "reinstall": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && pnpm i"
     "docker:build:platform": "docker build -t platform -f platform/Dockerfile ."
   },
   "devDependencies": {
