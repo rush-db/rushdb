@@ -85,17 +85,6 @@ jobs:
             echo "is_version_bump=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Check Commit Type
-        id: check-commit
-        run: |
-          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          EXPECTED_MESSAGE="chore(release): version packages v${{ steps.package-version.outputs.version }}"
-          if [ "$COMMIT_MESSAGE" = "$EXPECTED_MESSAGE" ]; then
-            echo "is_version_bump=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_version_bump=false" >> $GITHUB_OUTPUT
-          fi
-
   docker:
     needs: release
     if: needs.release.outputs.is_version_bump == 'true'
