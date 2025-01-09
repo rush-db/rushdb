@@ -15,30 +15,26 @@ It streamlines application development by automating data normalization, managin
 
 ## 🚀 Feature Highlights
 
-### 1. **No Data Modeling Required**
-Forget about manual data modeling! Simply push data of any shape and complexity—RushDB takes care of everything, including relationships, data types, and more.
+### 1. **No Data Modeling Needed**
+Push data of any shape—RushDB handles relationships, data types, and more automatically.
 
----
-
-### 2. **Automated Type Inference**
-RushDB automatically infers data types, minimizing overhead while optimizing for speed and high-performance searches.
-
----
+### 2. **Automatic Type Inference**
+Minimizes overhead while optimizing performance for high-speed searches.
 
 ### 3. **Powerful Search API**
-Built on top of Cypher, the search API allows you to query data with pinpoint accuracy. No need to wrestle with data—just ask for it with sniper-like precision.
-
----
+Query data with accuracy using the graph-powered search API.
 
 ### 4. **Flexible Data Import**
-RushDB supports multiple data formats out of the box, including **JSON**, **CSV**, and **JSONB**. This flexibility empowers you to import data from virtually any source, enabling the creation of data-rich applications in hours instead of days.
+Easily import data in **JSON**, **CSV**, or **JSONB**, creating data-rich applications fast.
+
+### 5. **Developer-Centric Design**
+RushDB prioritizes DX with an intuitive and consistent API.
+
+
+### 6. **REST API Readiness**
+A REST API with SDK-like DX for every operation: manage relationships, create, delete, and search effortlessly.
 
 ---
-
-### 5. **Developer Experience at Its Core**
-Developer experience (DX) is in RushDB's DNA. Designed with elegance and simplicity in mind, its API is intuitive and consistent, reflecting the fractal nature of its underlying architecture.
-
-RushDB is built by developers, for developers—making your experience seamless and delightful. 🌟
 
 ## Setup
 
@@ -133,7 +129,7 @@ Before running the container, ensure you provide the following required environm
 
 The RushDB CLI allows you to manage users in self-hosted installations. Below are the available commands:
 
-#### 2.1 **Create a New User**
+#### **Create a New User**
 
 Command:
 ```bash
@@ -147,7 +143,7 @@ rushdb create-user admin@example.com securepassword123
 
 This command creates a new user with the specified login and password. It is only allowed in self-hosted setups.
 
-#### 2.2 **Update User Password**
+#### **Update User Password**
 
 Command:
 ```bash
@@ -160,28 +156,6 @@ rushdb update-password admin@example.com newsecurepassword456
 ```
 
 This command updates the password for an existing user identified by the provided login. Like `create-user`, this command is restricted to self-hosted environments.
-
----
-
-### 3. **Docker Usage**
-
-To use the CLI inside a Docker container, ensure the image is built with the symbolic link for the CLI:
-
-```bash
-docker build -t rushdb-core .
-```
-
-Run the container and execute CLI commands:
-
-```bash
-docker run --rm rushdb-core rushdb create-user admin@example.com securepassword123
-```
-
-Or:
-
-```bash
-docker run --rm rushdb-core rushdb update-password admin@example.com newsecurepassword456
-```
 
 ---
 
@@ -326,7 +300,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 ```
 
 <div align="center">
-<b>You're Awesome!</b>  🚀
+<b>You Rock</b>  🚀
 </div>
 
 ---
