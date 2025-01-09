@@ -1,12 +1,12 @@
-import "~/styles/globals.css"
-import type { AppProps } from "next/app"
-import Script from "next/script"
+import '~/styles/globals.css'
+import type { AppProps } from 'next/app'
+import Script from 'next/script'
 
-import { jetBrainsMono, manrope, dmSerifDisplay } from "~/styles/fonts"
-import { useRef } from "react"
-import cx from "classnames"
+import { jetBrainsMono, manrope, dmSerifDisplay } from '~/styles/fonts'
+import { useRef } from 'react'
+import cx from 'classnames'
 
-const isProd = process.env.NODE_ENV === "production"
+const isProd = process.env.NODE_ENV === 'production'
 
 export default function App({ Component, pageProps }: AppProps) {
   const ref = useRef<HTMLElement>(null)
@@ -22,31 +22,20 @@ export default function App({ Component, pageProps }: AppProps) {
 
       {isProd && (
         <>
-          <Script
-            strategy="lazyOnload"
-            src={`https://www.googletagmanager.com/gtag/js?id=G-CLCR2SYDC6`}
-          />
-          {/*<Script src="https://cdn.jsdelivr.net/npm/pathseg@1.2.1/pathseg.min.js"></Script>*/}
+          <Script strategy="lazyOnload" src={`https://www.googletagmanager.com/gtag/js?id=G-Y678D4CC1J`} />
           <Script id="gtm" strategy="lazyOnload">
             {`
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
         
-        gtag('config', 'G-CLCR2SYDC6');
+        gtag('config', 'G-Y678D4CC1J');
       `}
           </Script>
         </>
       )}
 
-      <main
-        className={cx(
-          jetBrainsMono.variable,
-          dmSerifDisplay.variable,
-          manrope.variable,
-        )}
-        ref={ref}
-      >
+      <main className={cx(jetBrainsMono.variable, dmSerifDisplay.variable, manrope.variable)} ref={ref}>
         <Component {...pageProps} />
       </main>
     </>

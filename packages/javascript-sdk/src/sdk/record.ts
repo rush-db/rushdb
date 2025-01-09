@@ -15,6 +15,7 @@ import type {
 import type { Transaction } from './transaction.js'
 
 import { RestApiProxy } from '../api/rest-api-proxy.js'
+import { idToDate, idToTimestamp } from './utils.js'
 
 type DBRecordInternalProps<S extends Schema = Schema> = {
   readonly __id: string
@@ -142,6 +143,14 @@ export class DBRecordInstance<S extends Schema = Schema> extends RestApiProxy {
     super()
     this.data = data
     this.searchParams = searchParams
+  }
+
+  __date() {
+    return idToDate(this.data!.__id)
+  }
+
+  __timestamp() {
+    return idToTimestamp(this.data!.__id)
   }
 
   async delete(transaction?: Transaction | string) {

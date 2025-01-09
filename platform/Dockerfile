@@ -81,5 +81,9 @@ WORKDIR /app/platform/core
 # Expose port
 EXPOSE 3000
 
+# Create a symbolic link for the CLI
+RUN ln -s /app/platform/core/dist/cli.js /usr/local/bin/rushdb \
+    && chmod +x /usr/local/bin/rushdb
+
 # Start the application
 CMD ["node", "dist/main.js"]

@@ -129,6 +129,62 @@ Before running the container, ensure you provide the following required environm
 
 ---
 
+### **CLI Commands**
+
+The RushDB CLI allows you to manage users in self-hosted installations. Below are the available commands:
+
+#### 2.1 **Create a New User**
+
+Command:
+```bash
+rushdb create-user <login> <password>
+```
+
+Example:
+```bash
+rushdb create-user admin@example.com securepassword123
+```
+
+This command creates a new user with the specified login and password. It is only allowed in self-hosted setups.
+
+#### 2.2 **Update User Password**
+
+Command:
+```bash
+rushdb update-password <login> <newPassword>
+```
+
+Example:
+```bash
+rushdb update-password admin@example.com newsecurepassword456
+```
+
+This command updates the password for an existing user identified by the provided login. Like `create-user`, this command is restricted to self-hosted environments.
+
+---
+
+### 3. **Docker Usage**
+
+To use the CLI inside a Docker container, ensure the image is built with the symbolic link for the CLI:
+
+```bash
+docker build -t rushdb-core .
+```
+
+Run the container and execute CLI commands:
+
+```bash
+docker run --rm rushdb-core rushdb create-user admin@example.com securepassword123
+```
+
+Or:
+
+```bash
+docker run --rm rushdb-core rushdb update-password admin@example.com newsecurepassword456
+```
+
+---
+
 ## Usage
 
 1. **Obtain an API Token**:

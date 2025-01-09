@@ -27,6 +27,7 @@
   },
   "rules": {
     "prefer-const": "off",
+    "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/consistent-type-imports": [
       2,
       { "prefer": "type-imports" }
