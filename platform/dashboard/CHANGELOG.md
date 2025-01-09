@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.3.1
+
+### Patch Changes
+
+- d3b73ac: Minor fixes
+- Updated dependencies [d3b73ac]
+  - @rushdb/javascript-sdk@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes

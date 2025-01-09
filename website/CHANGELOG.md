@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.3.1
+
+### Patch Changes
+
+- d3b73ac: Minor fixes
+
 ## 0.3.0
 
 ### Minor Changes
