@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 0.3.0
+
+### Minor Changes
+
+- 70d108d: CLI commands & datetime helpers in the Javascript SDK
+
 ## 0.2.10
 
 ### Patch Changes

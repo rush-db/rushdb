@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 0.3.0
+
+### Minor Changes
+
+- 70d108d: CLI commands & datetime helpers in the Javascript SDK
+
+### Patch Changes
+
+- Updated dependencies [70d108d]
+  - @rushdb/javascript-sdk@0.3.0
+
 ## 0.2.10
 
 ### Patch Changes
