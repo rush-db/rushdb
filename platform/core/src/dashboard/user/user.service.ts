@@ -200,11 +200,12 @@ export class UserService {
     }
 
     const { userNewPassword } = newPasswordData
+    const newPasswordEncrypted = await this.encryptionService.hash(userNewPassword)
 
     return this.update(
       userToValidate.id,
       {
-        password: userNewPassword
+        password: newPasswordEncrypted
       },
       transaction
     )

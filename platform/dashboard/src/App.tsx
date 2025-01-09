@@ -97,7 +97,7 @@ function Routes() {
 
 function Gtm() {
   useEffect(() => {
-    const id = 'G-CLCR2SYDC6'
+    const id = 'G-Y678D4CC1J'
 
     const gtagScript = document.createElement('script')
     gtagScript.src = `https://www.googletagmanager.com/gtag/js?id=${id}`

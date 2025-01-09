@@ -3,10 +3,12 @@ import { ConfigModule } from '@nestjs/config'
 import { APP_INTERCEPTOR } from '@nestjs/core'
 import { ServeStaticModule } from '@nestjs/serve-static'
 import { ThrottlerModule } from '@nestjs/throttler'
+import { ConsoleModule } from 'nestjs-console'
 
 import { AppSettingsController } from '@/app-settings.controller'
 import { AppController } from '@/app.controller'
 import { AppService } from '@/app.service'
+import { CliService } from '@/cli/cli.service'
 import { ExcludeNullInterceptor } from '@/common/interceptors/exclude-null-response.interceptor'
 import { toBoolean } from '@/common/utils/toBolean'
 import { CoreModule } from '@/core/core.module'
@@ -34,14 +36,16 @@ import { join } from 'path'
           exclude: ['/api*']
         })
       ]
-    : [])
+    : []),
+    ConsoleModule
   ],
   providers: [
     AppService,
     {
       provide: APP_INTERCEPTOR,
       useClass: ExcludeNullInterceptor
-    }
+    },
+    CliService
   ],
   controllers: [
     ...(!toBoolean(process.env.RUSHDB_SERVE_STATIC) ? [AppController] : []),

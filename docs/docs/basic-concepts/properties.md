@@ -9,7 +9,7 @@ This part of the documentation is actively in development.
 
 If you encounter any issues while using it, we kindly
 request that you notify us through any available channels or contact us directly at
-[hi@rushdb.com](mailto:hi@rushdb.com) or [@CollectAPI on X](https://x.com/collectAPI/)
+[hi@rushdb.com](mailto:hi@rushdb.com) or [@RushDatabase on X](https://x.com/RushDatabase/)
 :::
 
 ```bash

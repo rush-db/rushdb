@@ -56,6 +56,7 @@
     "neo4j-driver": "~4.4.10",
     "neo4j-driver-core": "~4.4.10",
     "neogma": "1.11.1",
+    "nestjs-console": "^9.0.0",
     "nodemailer": "^6.9.16",
     "papaparse": "^5.4.1",
     "query-string": "7.1.3",
