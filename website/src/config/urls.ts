@@ -7,7 +7,7 @@ export const socials = {
   github: 'https://github.com/rush-db/rushdb',
   email,
   emailUrl,
-  x: 'https://twitter.com/CollectAPI',
+  x: 'https://x.com/RushDatabase',
   linkedIn: 'https://www.linkedin.com/company/rushdb/',
   blog: '/blog'
 } as const

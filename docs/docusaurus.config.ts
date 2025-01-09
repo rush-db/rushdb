@@ -174,7 +174,7 @@ const config: Config = {
             items: [
               {
                 label: 'X (Twitter)',
-                href: 'https://x.com/CollectAPI'
+                href: 'https://x.com/RushDatabase'
               },
               {
                 label: 'LinkedIn',
