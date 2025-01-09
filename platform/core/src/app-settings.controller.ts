@@ -16,7 +16,7 @@ export class AppSettingsController {
     const selfHosted = this.configService.get('RUSHDB_SELF_HOSTED')
     const dashboardUrl = this.configService.get('RUSHDB_DASHBOARD_URL')
     const googleAuthClientId = this.configService.get('GOOGLE_CLIENT_ID')
-    const githubAuthClientId = this.configService.get('GITHUB_CLIENT_ID')
+    const githubAuthClientId = this.configService.get('GH_CLIENT_ID')
 
     return {
       selfHosted: toBoolean(selfHosted),

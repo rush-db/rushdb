@@ -92,9 +92,9 @@ You can customize the application by setting environment variables. Below are th
 - `GOOGLE_SECRET=`
 
 #### GitHub
-- `GITHUB_CLIENT_ID=`
-- `GITHUB_SECRET=`
-- `GITHUB_REDIRECT_URL=`
+- `GH_CLIENT_ID=`
+- `GH_SECRET=`
+- `GH_REDIRECT_URL=`
 
 ### CAPTCHA
 - `SERVICE_CAPTCHA_KEY=`

@@ -62,8 +62,8 @@ export class GithubOAuthService {
       const { data } = await axios.post<{ access_token: string }>(
         GITHUB_TOKEN_URL,
         {
-          client_id: this.configService.get('GITHUB_CLIENT_ID'),
-          client_secret: this.configService.get('GITHUB_SECRET'),
+          client_id: this.configService.get('GH_CLIENT_ID'),
+          client_secret: this.configService.get('GH_SECRET'),
           code
         },
         {
