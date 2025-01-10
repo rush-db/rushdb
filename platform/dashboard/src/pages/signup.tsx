@@ -10,6 +10,7 @@ import { getRoutePath } from '~/lib/router'
 import { useStore } from '@nanostores/react'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { useMemo } from 'react'
+import { Spinner } from '~/elements/Spinner.tsx'
 
 export const schema = object({
   login: string().required(),
@@ -74,6 +75,16 @@ export function SignUpPage() {
   )
 
   const hasOauth = useMemo(() => hasGoogleOAuth || hasGithubOAuth, [hasGoogleOAuth, hasGithubOAuth])
+
+  if (platformSettings.loading) {
+    return (
+      <AuthLayout title={'Sign in to RushDB'}>
+        <div className="m-auto flex content-center items-center justify-between">
+          <Spinner />
+        </div>
+      </AuthLayout>
+    )
+  }
 
   return (
     <AuthLayout title={'Create new RushDB account'}>

@@ -154,7 +154,7 @@ function Operations({ property }: { property: Pick<PropertyWithValue, 'name' | '
       <div className="flex w-full flex-wrap gap-1">
         {getViableSearchOperations(property.type).map((operation) => {
           if (!(operation in operations)) {
-            if (import.meta.env.DEV)
+            if (import.meta.env.NODE_ENV)
               console.warn(`Operation ${operation} missing in PropertyValueTooltip config`)
 
             return null

@@ -20,7 +20,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.package-version.outputs.version }}
+      version: ${{ steps.determine-version.outputs.version }}
       has_tag: ${{ steps.check-tag.outputs.has_tag }}
       is_version_bump: ${{ steps.check-commit.outputs.is_version_bump }}
 
@@ -55,11 +55,11 @@ jobs:
           always-auth=true
           EOF
 
-      - name: Get Package Version
-        id: package-version
+      - name: Determine Upcoming Version
+        id: determine-version
         run: |
-          VERSION=$(jq -r '.version' ./packages/javascript-sdk/package.json)
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT    
+          VERSION=$(pnpm changeset version | grep 'Bumping version to' | awk '{print $NF}')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Create Release PR or Publish
         id: changesets
@@ -67,8 +67,8 @@ jobs:
         with:
           version: pnpm changeset version
           publish: pnpm release --filter ./packages/javascript-sdk...
-          commit: "chore(release): version packages v${{ steps.package-version.outputs.version }}"
-          title: "chore(release): version packages v${{ steps.package-version.outputs.version }}"
+          commit: "chore(release): version packages v${{ steps.determine-version.outputs.version }}"
+          title: "chore(release): version packages v${{ steps.determine-version.outputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -78,7 +78,7 @@ jobs:
         id: check-commit
         run: |
           COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          EXPECTED_MESSAGE="chore(release): version packages v${{ steps.package-version.outputs.version }}"
+          EXPECTED_MESSAGE="chore(release): version packages v${{ steps.determine-version.outputs.version }}"
           if [ "$COMMIT_MESSAGE" = "$EXPECTED_MESSAGE" ]; then
             echo "is_version_bump=true" >> $GITHUB_OUTPUT
           else

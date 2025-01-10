@@ -5,10 +5,10 @@ export type PlanId = FreePlanId | PaidPlanId
 export type PlanPeriod = 'annual' | 'month'
 
 export type PaidPlan = {
-  annualDiscount: number
   id: PaidPlanId
   name: string
-  price: number
+  monthlyPrice: number
+  yearlyPrice: number
 }
 
 export type FreePlan = {
