@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { Check } from 'lucide-react'
+import { Check, DiamondIcon, SparklesIcon } from 'lucide-react'
 
 import type { Plan, PlanId, PlanPeriod } from '~/features/billing/types'
 
@@ -11,31 +11,23 @@ import { Skeleton } from '~/elements/Skeleton'
 import { Tab, Tabs, TabsList } from '~/elements/Tabs'
 import { CheckoutButton } from '~/features/billing/components/CheckoutButton'
 import { FREE_PLAN, PLAN_PERIODS } from '~/features/billing/constants'
-import {
-  $availablePlans,
-  $currentPeriod,
-  $currentPlan,
-  $paidUser
-} from '~/features/billing/stores/plans'
+import { $availablePlans, $currentPeriod, $currentPlan, $paidUser } from '~/features/billing/stores/plans'
 import { isFreePlan } from '~/features/billing/utils'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
 import { api } from '~/lib/api'
 import { currencyFormatters, percentFormatter } from '~/lib/formatters'
 import { cn, range } from '~/lib/utils'
 
-const benefitsMap: Record<
-  PlanId,
-  Array<{ description?: string; title: string }>
-> = {
+const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>> = {
   free: [
     { title: '2 Projects' },
-    { title: '10.000 Records' },
+    { title: '10,000 Records' },
     { title: 'Unlimited API Requests', description: 'Up to 10 RPS' },
     { title: 'Community support' }
   ],
   pro: [
     { title: 'Unlimited Projects' },
-    { title: '1.000.000 Records', description: 'then $1 per 10.000 Records' },
+    { title: '1,000,000 Records', description: 'Next 1,000,000 Records for $19 per month' },
     { title: 'Unlimited API Requests', description: 'No RPS Limits' },
     { title: 'Priority Support' }
   ]
@@ -72,11 +64,12 @@ function PlanCard({
   const paidUser = useStore($paidUser)
   const currentPeriod = useStore($currentPeriod)
 
-  const priceAfterDiscount = free
-    ? 0
-    : (currentPeriod === 'annual' ? 1 - plan.annualDiscount : 1) * plan.price
+  const priceAfterDiscount =
+    free ? 0
+    : currentPeriod === 'annual' ? plan.yearlyPrice / 12
+    : plan.monthlyPrice
 
-  const discount = free ? 0 : plan.price - priceAfterDiscount
+  const discount = free ? 0 : plan.monthlyPrice * 12 - plan.yearlyPrice
 
   const hasDiscount = currentPeriod === 'annual' && !free && discount > 0
 
@@ -84,9 +77,7 @@ function PlanCard({
     <div
       className={cn(
         'rounded-2xl shadow-lg',
-        free
-          ? 'bg-secondary p-1'
-          : 'bg-gradient-to-br from-accent-hover to-badge-yellow p-1',
+        free ? 'bg-secondary p-1' : 'from-accent-hover to-badge-yellow bg-gradient-to-br p-1',
         className
       )}
       {...props}
@@ -100,50 +91,49 @@ function PlanCard({
         <div className="flex w-full justify-between gap-3">
           <h2 className="text-bold text-lg font-bold">{plan.name}</h2>
           {hasDiscount && (
-            <span className="flex items-center rounded-full bg-gradient-to-bl  from-badge-blue/10 to-badge-blue/30 px-3 font-mono text-base text-badge-blue">
-              Save {currencyFormatters.usd.format(discount * 12)} with annual
-              discount
+            <span className="from-badge-blue/10 to-badge-blue/30 text-badge-blue flex items-center rounded-full bg-gradient-to-bl px-3 font-mono text-base">
+              Save {currencyFormatters.usd.format(discount)}
             </span>
           )}
         </div>
 
         <div className="flex w-full justify-between">
-          <div className="block">
-            <span className="font-mono text-3xl font-bold">
-              {hasDiscount && (
-                <span className="text-content3 line-through">
-                  {currencyFormatters.usd.format(plan.price)}
-                </span>
-              )}{' '}
-              {currencyFormatters.usd.format(priceAfterDiscount)}
-            </span>
-            <span className="text-sm text-content2">
-              /{free ? 'forever' : 'month'}
-            </span>
-          </div>
-          {hasDiscount && !free ? (
+          {(currentPeriod === 'month' || free) && (
+            <div className="block">
+              <span className="font-mono text-3xl font-bold">
+                {currencyFormatters.usd.format(priceAfterDiscount)}
+              </span>
+              <span className="text-content2 text-sm">/{free ? 'forever' : 'month'}</span>
+            </div>
+          )}
+          {hasDiscount && !free ?
             <div className="block">
               <span className="font-mono text-3xl font-bold">
                 {hasDiscount && (
                   <span className="text-content3 line-through">
-                    {currencyFormatters.usd.format(plan.price * 12)}
+                    {currencyFormatters.usd.format(plan.monthlyPrice * 12)}
                   </span>
                 )}{' '}
                 {currencyFormatters.usd.format(priceAfterDiscount * 12)}
               </span>
-              <span className="text-sm text-content2">/year</span>
+              <span className="text-content2 text-sm">/year</span>
             </div>
-          ) : null}
+          : null}
         </div>
 
         <div className="flex items-center gap-5">
           <CheckoutButton
-            className="min-w-48"
+            className="w-full min-w-48 font-semibold"
             disabled={active || free}
             id={plan.id}
             variant={free ? 'secondary' : 'accent'}
           >
-            {active ? 'Current Plan' : free ? 'Free' : 'Upgrade'}
+            {active ?
+              'Current Plan'
+            : free ?
+              'Free'
+            : 'Upgrade'}
+            {!free && <SparklesIcon />}
           </CheckoutButton>
           {paidUser && active && (
             <form
@@ -177,9 +167,8 @@ function SelectPeriod() {
 
   const plans = useStore($availablePlans)
 
-  const highestDiscount = plans
-    ? Math.max(...plans.map((plan) => plan.annualDiscount))
-    : 0
+  const highestDiscount =
+    plans ? Math.max(...plans.map((plan) => plan.monthlyPrice * 12 - plan.yearlyPrice)) : 0
 
   return (
     <Tabs
@@ -189,16 +178,12 @@ function SelectPeriod() {
     >
       <TabsList className="flex w-full rounded-xl border-none !px-1">
         {PLAN_PERIODS.map((period) => (
-          <Tab
-            className="flex-1 justify-center text-center"
-            key={period.value}
-            value={period.value}
-          >
+          <Tab className="flex-1 justify-center text-center" key={period.value} value={period.value}>
             <span className="capitalize">{period.name}</span>
 
             {period.value === 'annual' && highestDiscount > 0 && (
-              <span className="text-xs text-accent">
-                Up to -{percentFormatter.format(highestDiscount)}
+              <span className="text-accent text-xs">
+                Save {currencyFormatters.usd.format(highestDiscount)}
               </span>
             )}
           </Tab>
@@ -215,19 +200,10 @@ function Plans() {
 
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      <PlanCard
-        active={!paidUser}
-        className="order-last sm:order-first"
-        plan={FREE_PLAN}
-      />
+      <PlanCard active={!paidUser} className="order-last sm:order-first" plan={FREE_PLAN} />
 
       {plans?.map((plan) => (
-        <PlanCard
-          active={plan.id === currentPlan?.id}
-          className="lg:col-span-2"
-          key={plan.id}
-          plan={plan}
-        />
+        <PlanCard active={plan.id === currentPlan?.id} className="lg:col-span-2" key={plan.id} plan={plan} />
       ))}
 
       {!plans &&

@@ -12,7 +12,6 @@ It streamlines application development by automating data normalization, managin
 [🌐 Homepage](https://rushdb.com) — [📢 Blog](https://rushdb.com/blog) — [☁️ Platform ](https://app.rushdb.com) — [📖 Docs](https://docs.rushdb.com) — [🧑‍💻 Examples](https://github.com/rush-db/rushdb/examples)
 </div>
 
-
 ## 🚀 Feature Highlights
 
 ### 1. **No Data Modeling Needed**
@@ -30,7 +29,6 @@ Easily import data in **JSON**, **CSV**, or **JSONB**, creating data-rich applic
 ### 5. **Developer-Centric Design**
 RushDB prioritizes DX with an intuitive and consistent API.
 
-
 ### 6. **REST API Readiness**
 A REST API with SDK-like DX for every operation: manage relationships, create, delete, and search effortlessly.
 
@@ -42,7 +40,7 @@ A REST API with SDK-like DX for every operation: manage relationships, create, d
 
 The easiest way to start using RushDB is through **RushDB Cloud**. Free Tier is available.
 
-Get up and running in minutes by signing up at [app.rushdb.com](https://app.rushdb.com). RushDB Cloud provides a fully managed environment, so you can focus on building your application without worrying about setup or infrastructure.
+Get up and running in less than 30 seconds by signing up at [app.rushdb.com](https://app.rushdb.com). RushDB Cloud provides a fully managed environment, so you can focus on building your application without worrying about setup or infrastructure.
 
 ### Option 2: Self-Hosted Environment
 
@@ -237,6 +235,7 @@ const company = await db.records.findUniq('COMPANY', {
 });
 ```
 ---
+
 ### With REST API and cURL
 
 #### Specify API base URL
@@ -308,7 +307,6 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 <div align="center" style="margin-top: 20px">
 
 > Check the [Documentation](https://docs.rushdb.com) and [Examples](https://github.com/rush-db/rushdb/examples) to learn more 🤓
-
 
 </div>
 

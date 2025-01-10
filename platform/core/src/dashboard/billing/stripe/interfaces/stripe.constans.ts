@@ -21,14 +21,14 @@ export const PRODUCT_PLAN_MAP: TPlan =
   : {
       pro: {
         month: {
-          amount: 11,
-          priceId: 'price_1OGYIEJKGwDMYurpDcJtNLCq',
-          productId: 'prod_P4hhGEK0PYpRuQ'
+          amount: 19,
+          priceId: 'price_1QfcypJKGwDMYurpc9GTBUzb',
+          productId: 'prod_RYkT6hrMw3XBGI'
         },
         annual: {
-          amount: 99,
-          priceId: 'price_1OGjWtJKGwDMYurpsE11shVk',
-          productId: 'prod_P4tJQJyzJWMI7e'
+          amount: 199,
+          priceId: 'price_1QfcwoJKGwDMYurplLpyerlu',
+          productId: 'prod_RYkRuqwNDrnyr7'
         }
       }
     }
