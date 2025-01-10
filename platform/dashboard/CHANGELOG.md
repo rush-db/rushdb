@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.4.1
+
+### Patch Changes
+
+- 070d094: Minor cloud update
+- Updated dependencies [070d094]
+  - @rushdb/javascript-sdk@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes

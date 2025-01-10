@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.4.1
+
+### Patch Changes
+
+- 070d094: Minor cloud update
+
 ## 0.4.0
 
 ### Minor Changes
