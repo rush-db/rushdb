@@ -22,8 +22,8 @@ export const PRODUCT_PLAN_MAP: TPlan =
       pro: {
         month: {
           amount: 19,
-          priceId: 'price_1QfcypJKGwDMYurpc9GTBUzb',
-          productId: 'prod_RYkT6hrMw3XBGI'
+          priceId: 'price_1QflgOJKGwDMYurpVSD8neET',
+          productId: 'prod_RYtTNwQNaP025W'
         },
         annual: {
           amount: 199,
