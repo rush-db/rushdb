@@ -58,7 +58,7 @@ jobs:
       - name: Determine Upcoming Version
         id: determine-version
         run: |
-          VERSION=$(pnpm changeset version | grep 'Bumping version to' | awk '{print $NF}')
+          VERSION=$(pnpm changeset status --verbose | grep '@rushdb/javascript-sdk' | awk '{print $NF}')
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Create Release PR or Publish
