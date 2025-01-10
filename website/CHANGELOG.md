@@ -1,5 +1,16 @@
 # rushdb-website
 
+## 0.4.0
+
+### Minor Changes
+
+- 0e04a46: Version bump
+
+### Patch Changes
+
+- 4f83de0: Minor fixes and updates
+- defeaf0: Minor fixes and updates
+
 ## 0.3.1
 
 ### Patch Changes

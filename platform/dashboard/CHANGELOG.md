@@ -1,5 +1,20 @@
 # rushdb-dashboard
 
+## 0.4.0
+
+### Minor Changes
+
+- 0e04a46: Version bump
+
+### Patch Changes
+
+- 4f83de0: Minor fixes and updates
+- defeaf0: Minor fixes and updates
+- Updated dependencies [0e04a46]
+- Updated dependencies [4f83de0]
+- Updated dependencies [defeaf0]
+  - @rushdb/javascript-sdk@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes
