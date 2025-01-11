@@ -5,5 +5,6 @@ export const ALLOWED_CONFIG_PROPERTIES = [
   'port',
   'protocol',
   'url',
-  'validator'
+  'validator',
+  'logger'
 ]
