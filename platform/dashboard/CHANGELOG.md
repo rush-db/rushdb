@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 0.5.0
+
+### Minor Changes
+
+- 3112626: Implemented logger feature for sdk
+
+### Patch Changes
+
+- Updated dependencies [3112626]
+  - @rushdb/javascript-sdk@0.5.0
+
 ## 0.4.1
 
 ### Patch Changes

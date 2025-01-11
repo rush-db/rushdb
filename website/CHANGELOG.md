@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.5.0
+
+### Minor Changes
+
+- 3112626: Implemented logger feature for sdk
+
 ## 0.4.1
 
 ### Patch Changes
