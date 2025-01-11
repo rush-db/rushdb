@@ -48,7 +48,8 @@ export class RestAPI {
         url
       })
     }
-    this.api = createApi(this.fetcher)
+
+    this.api = createApi(this.fetcher, config?.logger)
 
     this.records = {
       attach: async (
