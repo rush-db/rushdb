@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Console, Command } from 'nestjs-console'
 
+import { BackupService } from '@/backup/backup.service'
+import { sleep } from '@/common/utils/fetchRetry'
 import { toBoolean } from '@/common/utils/toBolean'
 import { EncryptionService } from '@/dashboard/auth/encryption/encryption.service'
 import { UserService } from '@/dashboard/user/user.service'
@@ -14,7 +16,8 @@ export class CliService {
     private readonly configService: ConfigService,
     private readonly userService: UserService,
     private readonly encryptionService: EncryptionService,
-    private readonly neogmaService: NeogmaService
+    private readonly neogmaService: NeogmaService,
+    private readonly backupService: BackupService
   ) {}
 
   @Command({
@@ -80,6 +83,36 @@ export class CliService {
         await transaction.close()
       }
       await session.close()
+    }
+  }
+
+  @Command({
+    command: 'db-restore <projectId> <filePath>',
+    description: 'Restore backup from dump file'
+  })
+  async dbRestore(projectId: string, filePath: string): Promise<void> {
+    const isSelfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
+    const session = this.neogmaService.createSession()
+    const transaction = session.beginTransaction()
+
+    try {
+      if (isSelfHosted) {
+        await this.backupService.restore({ projectId, filePath, transaction })
+      } else {
+        console.error('CLI Error: Backup restore within CLI in managed setup is not allowed')
+        await transaction.rollback()
+      }
+    } catch (error) {
+      await transaction.rollback()
+      console.error('Error restoring from backup:', error.message)
+    } finally {
+      if (transaction.isOpen()) {
+        await transaction.commit()
+        await transaction.close()
+      }
+      await session.close()
+
+      sleep(10000).then(() => this.backupService.runSideEffects(projectId))
     }
   }
 }

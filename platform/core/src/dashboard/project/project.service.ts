@@ -131,11 +131,11 @@ export class ProjectService {
     }
   }
 
-  async recomputeProjectNodes(id: string, transaction: Transaction): Promise<string> {
-    const projectNode = await this.getProjectNode(id, transaction)
-    const projectNodePayload = JSON.stringify(await this.getNodesCount(id, transaction))
+  async recomputeProjectNodes(projectId: string, transaction: Transaction): Promise<string> {
+    const projectNode = await this.getProjectNode(projectId, transaction)
+    const projectNodePayload = JSON.stringify(await this.getNodesCount(projectId, transaction))
     projectNode.stats = projectNodePayload
-
+    console.log(projectNodePayload)
     await projectNode.save()
     return projectNodePayload
   }

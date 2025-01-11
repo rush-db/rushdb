@@ -8,6 +8,7 @@ import { ConsoleModule } from 'nestjs-console'
 import { AppSettingsController } from '@/app-settings.controller'
 import { AppController } from '@/app.controller'
 import { AppService } from '@/app.service'
+import { BackupModule } from '@/backup/backup.module'
 import { CliService } from '@/cli/cli.service'
 import { ExcludeNullInterceptor } from '@/common/interceptors/exclude-null-response.interceptor'
 import { toBoolean } from '@/common/utils/toBolean'
@@ -37,7 +38,8 @@ import { join } from 'path'
         })
       ]
     : []),
-    ConsoleModule
+    ConsoleModule,
+    BackupModule
   ],
   providers: [
     AppService,

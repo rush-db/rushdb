@@ -368,6 +368,12 @@ export class EntityService {
       transaction
     )
 
+    await this.propertyService.deleteOrphanProps({
+      projectId,
+      transaction,
+      queryRunner
+    })
+
     return {
       message: `Record were successfully deleted`
     }

@@ -229,9 +229,12 @@ export class EntityQueryService {
       .append(`WITH $relations as relations`)
       .append(`UNWIND relations as relation`)
       .append(
-        `MATCH (source:${RUSHDB_LABEL_RECORD} {${RUSHDB_KEY_ID}: relation.from}), (target:${RUSHDB_LABEL_RECORD} {${RUSHDB_KEY_ID}: relation.to})`
+        `MATCH (source:${RUSHDB_LABEL_RECORD} {${RUSHDB_KEY_ID}: relation.source}), (target:${RUSHDB_LABEL_RECORD} {${RUSHDB_KEY_ID}: relation.target})`
       )
-      .append(`CREATE (source)-[:${RUSHDB_RELATION_DEFAULT}]->(target)`)
+      .append(
+        `CALL apoc.create.relationship(source, coalesce(relation.type, '${RUSHDB_RELATION_DEFAULT}'), {}, target) YIELD rel`
+      )
+      .append(`RETURN rel`)
 
     return queryBuilder.getQuery()
   }

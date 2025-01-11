@@ -1,6 +1,6 @@
 {
   "collection": "@nestjs/schematics",
-  "sourceRoot": "./src",
+  "sourceRoot": "src",
   "compilerOptions": {
     "assets": ["**/*.ejs"],
     "watchAssets": true
