@@ -1,8 +1,9 @@
 import { CreateEntityDto } from '@/core/entity/dto/create-entity.dto'
 
 export type TImportRecordsRelation = {
-  from: string
-  to: string
+  source: string
+  target: string
+  type?: string
 }
 export type TImportJsonPayload = Record<string, any> | Array<Record<string, any>>
 export type TImportOptions = {

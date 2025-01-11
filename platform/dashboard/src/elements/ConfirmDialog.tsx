@@ -4,10 +4,11 @@ import { useRef, useState } from 'react'
 
 import alert from '~/assets/Alert.png'
 
-import type { TDialogProps } from './Dialog'
+import { DialogTitle, TDialogProps } from './Dialog'
 
 import { Button } from './Button'
 import { Close, Dialog, DialogFooter } from './Dialog'
+import { DialogContent } from '@radix-ui/react-dialog'
 
 export function ConfirmDialog({
   description = 'This action cannot be undone',
@@ -30,18 +31,19 @@ export function ConfirmDialog({
         event.preventDefault()
         ref.current?.focus()
       }}
-      className="justify-center gap-3 text-center"
+      className="justify-center gap-3"
       onOpenChange={setOpen}
       open={open}
       trigger={trigger}
     >
-      <img
-        alt="alert"
-        className="mx-auto h-[100px] w-[100px] sm:h-[160px] sm:w-[160px]"
-        src={alert}
-      />
-      <h2 className=" text-base font-bold">{title}</h2>
-      {description && <p className="text-content2">{description}</p>}
+      <img alt="alert" className="mx-auto h-[100px] w-[100px] sm:h-[160px] sm:w-[160px]" src={alert} />
+      <DialogTitle className="text-base font-bold">{title}</DialogTitle>
+
+      {description && (
+        <DialogContent>
+          <p className="text-content2">{description}</p>
+        </DialogContent>
+      )}
       <DialogFooter className="mt-5 flex-col sm:flex-row">
         {handler && (
           <Button

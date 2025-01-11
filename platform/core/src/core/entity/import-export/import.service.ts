@@ -12,7 +12,13 @@ import { isPrimitiveArray } from '@/common/utils/isPrimitiveArray'
 import { pickPrimitives } from '@/common/utils/pickPrimitives'
 import { suggestPropertyType } from '@/common/utils/suggestPropertyType'
 import { toBoolean } from '@/common/utils/toBolean'
-import { RUSHDB_VALUE_EMPTY_ARRAY, RUSHDB_VALUE_NULL } from '@/core/common/constants'
+import {
+  RUSHDB_KEY_ID,
+  RUSHDB_KEY_LABEL,
+  RUSHDB_KEY_PROPERTIES_META,
+  RUSHDB_VALUE_EMPTY_ARRAY,
+  RUSHDB_VALUE_NULL
+} from '@/core/common/constants'
 import { MaybeArray } from '@/core/common/types'
 import { CreateEntityDto } from '@/core/entity/dto/create-entity.dto'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
@@ -70,47 +76,55 @@ export class ImportService {
   }) {
     const valueParameters = this.getValueParameters(value)
 
-    const property = {
-      id: uuidv7(),
-      name: key,
-      created: getISOWithMicrosecond(),
-      value: '',
-      type: PROPERTY_TYPE_STRING
-    } as PropertyDto & { created: string }
+    if (key === RUSHDB_KEY_ID) {
+      target.id = value as string
+    } else if (key === RUSHDB_KEY_LABEL) {
+      target.label = value as string
+    } else if (key === RUSHDB_KEY_PROPERTIES_META) {
+      // @TODO: Use it for schema validation https://github.com/rush-db/rushdb/issues/43
+    } else {
+      const property = {
+        id: uuidv7(),
+        name: key,
+        created: getISOWithMicrosecond(),
+        value: '',
+        type: PROPERTY_TYPE_STRING
+      } as PropertyDto & { created: string }
 
-    if (Array.isArray(value)) {
-      if (options.suggestTypes) {
-        const { isEmptyArray, isInconsistentArray } = valueParameters
+      if (Array.isArray(value)) {
+        if (options.suggestTypes) {
+          const { isEmptyArray, isInconsistentArray } = valueParameters
 
-        if (isEmptyArray) {
-          property.value = RUSHDB_VALUE_EMPTY_ARRAY
-        } else if (isInconsistentArray) {
+          if (isEmptyArray) {
+            property.value = RUSHDB_VALUE_EMPTY_ARRAY
+          } else if (isInconsistentArray) {
+            property.value = value.map(String)
+            property.type = PROPERTY_TYPE_STRING
+          } else if (value[0] === null) {
+            property.value = value.map(() => RUSHDB_VALUE_NULL)
+            property.type = PROPERTY_TYPE_NULL
+          } else {
+            property.value = value
+            property.type = suggestPropertyType(value[0])
+          }
+        } else {
           property.value = value.map(String)
           property.type = PROPERTY_TYPE_STRING
-        } else if (value[0] === null) {
-          property.value = value.map(() => RUSHDB_VALUE_NULL)
-          property.type = PROPERTY_TYPE_NULL
-        } else {
-          property.value = value
-          property.type = suggestPropertyType(value[0])
         }
       } else {
-        property.value = value.map(String)
-        property.type = PROPERTY_TYPE_STRING
-      }
-    } else {
-      if (options.suggestTypes) {
-        const valueType = suggestPropertyType(value)
+        if (options.suggestTypes) {
+          const valueType = suggestPropertyType(value)
 
-        property.value = valueType === PROPERTY_TYPE_NULL ? RUSHDB_VALUE_NULL : value
-        property.type = valueType
-      } else {
-        property.value = String(value)
-        property.type = PROPERTY_TYPE_STRING
+          property.value = valueType === PROPERTY_TYPE_NULL ? RUSHDB_VALUE_NULL : value
+          property.type = valueType
+        } else {
+          property.value = String(value)
+          property.type = PROPERTY_TYPE_STRING
+        }
       }
+
+      target.properties?.push(property)
     }
-
-    target.properties?.push(property)
   }
 
   serializeBFS(
@@ -183,13 +197,12 @@ export class ImportService {
       const { key, value, parentId, target } = current
       const recordDraft: WithId<CreateEntityDto> = {
         id: uuidv7(),
-        properties: []
+        properties: [],
+        label: key
       } as WithId<CreateEntityDto>
 
-      recordDraft.label = key
-
       if (!toBoolean(current?.skip)) {
-        relations.push({ from: parentId, to: recordDraft.id })
+        relations.push({ source: parentId, target: recordDraft.id })
         entities.push(recordDraft)
       }
 
@@ -249,14 +262,13 @@ export class ImportService {
     for (let i = 0; i < records.length; i += CHUNK_SIZE) {
       const recordsChunk = records.slice(i, i + CHUNK_SIZE)
 
-      const data = await runner.run(
-        this.entityQueryService.importRecords(options.returnResult),
-        {
-          records: recordsChunk,
-          projectId
-        },
-        transaction
-      )
+      const data = await this.processRecordsChunk({
+        transaction,
+        options,
+        recordsChunk,
+        projectId,
+        queryRunner: runner
+      })
 
       if (options.returnResult) {
         result = result.concat(data.records?.[0]?.get('data'))
@@ -265,16 +277,54 @@ export class ImportService {
 
     for (let i = 0; i < relations.length; i += CHUNK_SIZE) {
       const relationsChunk = relations.slice(i, i + CHUNK_SIZE)
-
-      await runner.run(
-        this.entityQueryService.linkRecords(),
-        {
-          relations: relationsChunk
-        },
-        transaction
-      )
+      await this.processRelationshipsChunk({ relationsChunk, transaction, queryRunner: runner })
     }
 
     return options.returnResult ? result : true
+  }
+
+  async processRecordsChunk({
+    recordsChunk,
+    projectId,
+    transaction,
+    queryRunner,
+    options
+  }: {
+    projectId: string
+    recordsChunk: WithId<CreateEntityDto>[]
+    transaction: Transaction
+    queryRunner?: QueryRunner
+    options: TImportOptions
+  }) {
+    const runner = queryRunner || this.neogmaService.createRunner()
+
+    return await runner.run(
+      this.entityQueryService.importRecords(options.returnResult),
+      {
+        records: recordsChunk,
+        projectId
+      },
+      transaction
+    )
+  }
+
+  async processRelationshipsChunk({
+    relationsChunk,
+    transaction,
+    queryRunner
+  }: {
+    relationsChunk: TImportRecordsRelation[]
+    transaction: Transaction
+    queryRunner?: QueryRunner
+  }) {
+    const runner = queryRunner || this.neogmaService.createRunner()
+
+    await runner.run(
+      this.entityQueryService.linkRecords(),
+      {
+        relations: relationsChunk
+      },
+      transaction
+    )
   }
 }
