@@ -1,6 +1,6 @@
 {
   "name": "rushdb-core",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "RushDB Core",
   "private": true,
   "license": "Apache-2.0",

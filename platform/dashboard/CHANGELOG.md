@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 0.6.0
+
+### Minor Changes
+
+- 6ec52f2: Add simple backup module, cli command and minor fixes
+
+### Patch Changes
+
+- Updated dependencies [6ec52f2]
+  - @rushdb/javascript-sdk@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
