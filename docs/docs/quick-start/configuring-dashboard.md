@@ -17,19 +17,13 @@ Once signed in, you'll be directed to the dashboard. To start working with RushD
 
 ![Create Project Button](../../static/img/quick-start/create-project-screen.png "Highlighting the 'Create Project' Button")
 
-## Step 3: Generate an API Token
+## Step 3: Copy an API Token
 
-After creating your project, you'll be taken to its details page. Here, you can manage various aspects of your project, including API tokens.
+After you create your project, you’ll be taken to its Help page, where an API key will already be available. If needed, you can create additional API tokens on the **API Keys** tab.
 
-- Navigate to the **Api Keys** tab at the top of the page.
+![Copy API Token](../../static/img/quick-start/create-token-screen.png "Copy API Token")
 
-![API Keys Tab](../../static/img/quick-start/api-keys-screen.png "Navigating to the API Keys Tab")
-
-- Inside the Api Keys section, click on **Create** to generate a new API token.
-
-![Generate API Token](../../static/img/quick-start/create-token-screen.png "Generating a New API Token")
-
-- Copy the generated token. This token will be used to authenticate your SDK instances and allow them to interact with your RushDB project.
+- In the Authorization section, click the automatically generated API token to copy it. This token will be used to authenticate your SDK instances and allow them to interact with your RushDB project.
 
 **Important:** Keep your API token secure and do not share it publicly. This token provides access to your RushDB project and the data within it.
 

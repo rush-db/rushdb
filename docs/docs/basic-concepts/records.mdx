@@ -111,19 +111,19 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
               "type": "number",
               "value": 5
             },
-              "sum": {
+            "sum": {
               "type": "number",
               "value": 232
             },
-              "promocode": {
+            "promocode": {
               "type": "string",
               "value": "3heg09j",
             },
-              "confirmed": {
+            "confirmed": {
               "type": "boolean",
               "value": true,
             },
-              "createdAt": {
+            "createdAt": {
               "type": "datetime",
               "value": "2024-09-02T19:22:21+0000",
             },
@@ -182,7 +182,7 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
   <div className="col-span-3">
     This API allows you to push data and get it is automatically normalized, and labels are generated based on the structure of the payload. The API also suggests data types for each field within the payload. Currently, this API supports `JSON` and `CSV` formats, with upcoming support for `YAML`, `NDJSON`, `XML`, and `GEXF`.
 
-    This API facilitates the creation of records and their relationships using a Breadth-First Search (BFS) algorithm, ensuring accurate and efficient connections between data points.
+    This API facilitates the creation of records and their [relationships](/basic-concepts/relations) using a Breadth-First Search (BFS) algorithm, ensuring accurate and efficient connections between data points.
 
     ### Request
     <Tabs defaultValue="sdk" >
@@ -363,6 +363,136 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
 
 ---
 
+## Search with Data Aggregation
+<div className="grid xl:grid-cols-5 grid-cols-1 gap-8">
+  <div  className="xl:order-last col-span-2">
+    ### Endpoints
+    Search from root:
+    ```ts
+    POST /api/v1/records/search
+    ```
+    Search from specific Record:
+    ```ts
+    POST /api/v1/records/:id/search
+    ```
+    :::info
+    Note: When searching from a specific Record, replace `:id` with the actual ID of the Record you want to start the search from.
+    :::
+  </div>
+  <div className="col-span-3">
+    You can also return records related to a given Record (those that have a [Relation](/basic-concepts/relations) with that Record) during the search.
+    Sometimes, you may also need to perform mathematical operations on your data during the search, adding new dynamic fields to the response.
+
+    Below, you can see an example that will return all available shoe sizes and also add the minimum and maximum UK size.
+
+    Read more about [Search with Data Aggregation](/advanced/search-aggregation)
+    ### Request
+    <Tabs defaultValue="sdk" >
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="sdk">SDK</TabsTrigger>
+        <TabsTrigger value="api">API</TabsTrigger>
+      </TabsList>
+      <TabsContent value="sdk">
+        ```typescript
+        await db.records.find("PRODUCT", {
+          where: {
+            title: { $contains: "Sneakers" },
+            SIZE: {
+              // Linking the aggregate field with the where condition
+              $alias: "$size",
+              uk: { $lte: 10 },
+              qty: { $gt: 0 }
+            }
+          },
+          aggregate: {
+            // Add the necessary PRODUCT fields that need to be returned in the Response.
+            title: "$record.title",
+            price: "$record.price",
+            // Return all sizes related to PRODUCT
+            SIZE: {
+            fn: 'collect',
+            uniq: true,
+            alias: '$size',
+          },
+          // Add a field with the minimum and maximum sizes for the found SIZE
+          minSize: { fn: 'min', field: 'uk', alias: '$size' },
+          maxSize: { fn: 'max', field: 'uk', alias: '$size' },
+        },
+      })
+        ```
+      </TabsContent>
+      <TabsContent value="api">
+        ```javascript
+        {
+          "labels": ["PRODUCT"],
+          "where": {
+            "title": { "$contains": "Sneakers" },
+            "SIZE": {
+              // Linking the aggregate field with the where condition
+              "$alias": "$size",
+              "uk": { "$lte": 10 },
+              "qty": { "$gt": 0 }
+            }
+          },
+          "aggregate": {
+            // Add the necessary PRODUCT fields that need to be returned in the Response.
+            "title": "$record.title",
+            "price": "$record.price",
+            // Return all sizes related to PRODUCT
+            "SIZE": {
+              "fn": 'collect',
+              "uniq": true,
+              "alias": '$size',
+            },
+            // Add fields with the minimum and maximum sizes for the found SIZE
+            "minSize": { "fn": 'min', "field": 'uk', "alias": '$size' },
+            "maxSize": { "fn": 'max', "field": 'uk', "alias": '$size' },
+          }
+          "limit": 1000,
+          "offset": 0
+        }
+        ```
+      </TabsContent>
+    </Tabs>
+
+    ### Response
+    ```javascript
+    // DBRecord[]
+    [
+    {
+      "__id": "0191b44a-c815-7d40-bf48-b2d1727670d4",
+      "__label": "PRODUCT",
+      "__proptypes": {
+        "title": "string",
+        "price": "number"
+      },
+      "title": 'Sneakers'
+      "price": 135,
+      "maxSize": 8,
+      "minSize": 3,
+      "SIZE": [
+        {
+          "__id": "0193dabd-c783-76f2-bb8f-c18ac915c91b",
+          "__label": "SIZE",
+          "uk": 7,
+          "qty" 2,
+          // Remaining SIZE properties
+          "__proptypes": {
+            "uk": "number",
+            "qty": "number"
+          },
+        }
+      // Other SIZE records
+      ]
+    },
+    // ...
+    ]
+    ```
+  </div>
+</div>
+
+---
+
 ## Get Record
 <div className="grid xl:grid-cols-5 grid-cols-1 gap-8">
   <div  className="xl:order-last col-span-2">
@@ -388,7 +518,7 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
       <TabsContent value="sdk">
         ```typescript
         const record = await db.records.findById(
-          "0191b44a-c815-7d40-bf48-b2d1727670d7"
+        "0191b44a-c815-7d40-bf48-b2d1727670d7"
         )
         ```
       </TabsContent>
@@ -419,76 +549,20 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
 
 ---
 
-## Relations
-<div className="grid xl:grid-cols-5 grid-cols-1 gap-8">
-  <div  className="xl:order-last col-span-2">
-    ### Endpoint
-    Get list of all parents of Record's Relations
-    ```ts
-    GET /api/v1/records/:id/relations
-    ```
-    :::info
-    Note: Replace `:id` with the actual ID of the Record whose relations you want to retrieve.
-    :::
-  </div>
-  <div className="col-span-3">
-    To retrieve the Relations of a Record in RushDB, use the `.getRelations` method or make a GET request to the REST API endpoint.
-
-    ### Request
-
-    <Tabs defaultValue="sdk" >
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="sdk">SDK</TabsTrigger>
-        <TabsTrigger value="api">API</TabsTrigger>
-      </TabsList>
-      <TabsContent value="sdk">
-        ```typescript
-        const relations = await db.records.getRelations("0191b44a-c815-7d40-bf48-b2d1727670d7")
-        ```
-      </TabsContent>
-      <TabsContent value="api">
-        ```bash
-        GET /api/v1/records/0191b44a-c815-7d40-bf48-b2d1727670d7/relations
-        ```
-      </TabsContent>
-    </Tabs>
-
-    ### Response
-
-    ```javascript
-    [
-      {
-        "__id": "0191b44a-c815-7d40-bf48-b2d1727670d8",
-        "__label": "USER",
-        // ... other properties of the related record
-      },
-      {
-        "__id": "0191b44a-c815-7d40-bf48-b2d1727670d9",
-        "__label": "PRODUCT",
-        // ... other properties of the related record
-      }
-      // ... more related records
-    ]
-    ```
-  </div>
-</div>
-
----
-
 ## Update Record
 <div className="grid xl:grid-cols-5 grid-cols-1 gap-8">
   <div  className="xl:order-last col-span-2">
     ### Endpoint
     Update single [Record](/advanced/records)
     ```ts
-    PATCH /api/v1/records/:id
+    PUT /api/v1/records/:id
     ```
     :::info
     Note: Replace `:id` with the actual ID of the Record you want to update.
     :::
   </div>
   <div className="col-span-3">
-    To update a Record in RushDB, use the `.update` method or make a PATCH request to the REST API endpoint.
+    To update a Record in RushDB, use the `.update` method or make a PUT request to the REST API endpoint.
 
     ### Request
 
@@ -610,8 +684,5 @@ The Records API provides several endpoints for managing and interacting with Rec
 | <Method method="PUT" color="#f5a742" />    | `/api/v1/records/delete`           | Delete Records by criteria                                  |
 | <Method method="DELETE" color="#f54242" /> | `/api/v1/records/:id`              | Delete a single Record                                        |
 | <Method method="POST" color="#2e8555" />   | `/api/v1/records/:id/properties`   | Get detailed list of Record's Properties                    |
-| <Method method="GET" color="#4287f5" />    | `/api/v1/records/:id/relations`    | Get a list of Records' Relations                    |
-| <Method method="POST" color="#2e8555" />   | `/api/v1/records/:id/relations`    | Create new Relations between Records                     |
-| <Method method="PUT" color="#f5a742" />    | `/api/v1/records/:id/relations`    | Delete specific Records' Relations                  |
 
 Each endpoint is designed to perform specific operations on Records, allowing you to create, read, update, delete, and search for Records within your project. The following sections provide more detailed information about each operation.
