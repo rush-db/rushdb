@@ -1,15 +1,13 @@
-data "aws_vpc" "default" {
-  # Fetches the default VPC in the AWS account. Used to configure resources in the correct network.
-  default = true
-}
-
-data "aws_subnets" "all" {
-  # Retrieves all subnets associated with the default VPC.
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
+    }
   }
 }
+
+# IAM =============================================================================================
 
 resource "aws_iam_role" "ecs_task_execution_role" {
   # Creates an IAM role for ECS tasks to execute with the specified assume role policy.
@@ -39,6 +37,21 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
   # Attaches the Amazon ECS Task Execution Role policy to the ECS execution role.
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# NETWORK =========================================================================================
+
+data "aws_vpc" "default" {
+  # Fetches the default VPC in the AWS account. Used to configure resources in the correct network.
+  default = true
+}
+
+data "aws_subnets" "all" {
+  # Retrieves all subnets associated with the default VPC.
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
 }
 
 resource "aws_security_group" "rushdb-security-group" {
@@ -107,10 +120,32 @@ resource "aws_lb_listener" "rushdb-listener" {
   protocol          = "HTTP"
 
   default_action {
-    target_group_arn = aws_lb_target_group.rushdb-target-group.id
-    type             = "forward"
+    type = "redirect"
+
+    redirect {
+      protocol = "HTTPS"
+      port     = "443"
+      status_code = "HTTP_301"
+    }
   }
 }
+
+resource "aws_lb_listener" "https_listener" {
+  # Adds an HTTPS listener to the load balancer using the validated SSL certificate.
+  load_balancer_arn = aws_lb.default.arn
+  port              = 443
+  protocol          = "HTTPS"
+
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = aws_acm_certificate_validation.rushdb_cert_validation.certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.rushdb-target-group.arn
+  }
+}
+
+# ECS =============================================================================================
 
 resource "aws_ecs_task_definition" "rushdb-task-definition" {
   # Defines an ECS task for the RushDB application, specifying resources, image, and logging configuration.
@@ -180,6 +215,8 @@ resource "aws_ecs_service" "rushdb-ecs-service" {
   depends_on = [aws_lb_listener.rushdb-listener]
 }
 
+# DOMAIN ==========================================================================================
+
 # Fetch existing Route 53 zone
 data "aws_route53_zone" "rushdb_zone" {
   # Fetches the Route 53 hosted zone for the domain rushdb.com.
@@ -230,21 +267,7 @@ resource "aws_acm_certificate_validation" "rushdb_cert_validation" {
   validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
 }
 
-# HTTPS listener for the load balancer
-resource "aws_lb_listener" "https_listener" {
-  # Adds an HTTPS listener to the load balancer using the validated SSL certificate.
-  load_balancer_arn = aws_lb.default.arn
-  port              = 443
-  protocol          = "HTTPS"
-
-  ssl_policy        = "ELBSecurityPolicy-2016-08"
-  certificate_arn   = aws_acm_certificate_validation.rushdb_cert_validation.certificate_arn
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.rushdb-target-group.arn
-  }
-}
+# OUTPUT ==========================================================================================
 
 output "load_balancer_ip_rushdb" {
   # Outputs the DNS name of the load balancer.

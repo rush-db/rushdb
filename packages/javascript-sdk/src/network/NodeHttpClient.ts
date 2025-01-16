@@ -44,7 +44,7 @@ export class NodeHttpClient extends HttpClient {
         agent,
         ciphers: 'DEFAULT:!aNULL:!eNULL:!LOW:!EXPORT:!SSLv2:!MD5',
         headers,
-        host: url.host,
+        host: url.hostname,
         method,
         path: url.pathname + url.search,
         port: url.port
