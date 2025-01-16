@@ -109,7 +109,7 @@ export class EntityQueryService {
     const relatedQueryPart = buildRelatedQueryPart(id)
     const labelPart = singleLabelPart(searchParams?.labels)
 
-    const { queryClauses, sortedQueryParts, parsedWhere, aliasesMap } = buildQuery(searchParams)
+    const { queryClauses, sortedQueryParts, parsedWhere, pagination, aliasesMap } = buildQuery(searchParams)
 
     const { withPart: aggregateProjections, recordPart: returnPart } = buildAggregation(
       searchParams?.aggregate,
@@ -123,7 +123,10 @@ export class EntityQueryService {
       .append(queryClauses)
 
     if (sortedQueryParts.length > 1) {
-      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
+      queryBuilder
+        .append(`WITH ${parsedWhere.nodeAliases.join(', ')}`)
+        .append(`WHERE ${parsedWhere.where}`)
+        .append(pagination)
     }
 
     queryBuilder.append(aggregateProjections).append(`RETURN ${returnPart}`)
@@ -135,14 +138,15 @@ export class EntityQueryService {
     const relatedQueryPart = buildRelatedQueryPart(id)
     const labelPart = singleLabelPart(searchParams?.labels)
 
-    const { sortedQueryParts, parsedWhere } = buildQuery(searchParams)
+    const { sortedQueryParts, parsedWhere, pagination, hasRelatedConditions } = buildQuery(searchParams)
 
     const queryClauses = buildQueryClause({
       queryParts: sortedQueryParts,
       // Explicitly omitting sort and pagination for count query
       sortParams: '',
       pagination: '',
-      labelClause: buildLabelsClause(searchParams?.labels)
+      labelClause: buildLabelsClause(searchParams?.labels),
+      hasRelatedConditions
     })
 
     const queryBuilder = new QueryBuilder()
@@ -152,7 +156,10 @@ export class EntityQueryService {
       .append(queryClauses)
 
     if (sortedQueryParts.length > 1) {
-      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
+      queryBuilder
+        .append(`WITH ${parsedWhere.nodeAliases.join(', ')}`)
+        .append(`WHERE ${parsedWhere.where}`)
+        .append(pagination)
     }
 
     queryBuilder.append('RETURN count(DISTINCT record) as total')
@@ -170,14 +177,15 @@ export class EntityQueryService {
         `MATCH (record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()}, ${RUSHDB_KEY_ID}: "${id}" })`
       )
     } else {
-      const { sortedQueryParts, parsedWhere } = buildQuery(searchParams)
+      const { sortedQueryParts, parsedWhere, hasRelatedConditions } = buildQuery(searchParams)
 
       const queryClauses = buildQueryClause({
         queryParts: sortedQueryParts,
         // Explicitly omitting sort and pagination for count query
         sortParams: '',
         pagination: '',
-        labelClause: buildLabelsClause(searchParams?.labels)
+        labelClause: buildLabelsClause(searchParams?.labels),
+        hasRelatedConditions
       })
 
       queryBuilder
@@ -197,7 +205,7 @@ export class EntityQueryService {
   }
 
   getEntityLabels(searchParams?: SearchDto) {
-    const { sortedQueryParts, parsedWhere } = buildQuery({
+    const { sortedQueryParts, parsedWhere, hasRelatedConditions } = buildQuery({
       // Omitting 'labels', 'orderBy', 'skip', 'limit', 'aggregate'
       where: searchParams?.where
     })
@@ -207,7 +215,8 @@ export class EntityQueryService {
       // Explicitly omitting sort and pagination for count query
       sortParams: '',
       pagination: '',
-      labelClause: buildLabelsClause(searchParams?.labels)
+      labelClause: buildLabelsClause(searchParams?.labels),
+      hasRelatedConditions
     })
 
     const queryBuilder = new QueryBuilder()
@@ -251,14 +260,20 @@ export class EntityQueryService {
     const relatedQueryPart = buildRelatedQueryPart(id)
     const labelPart = singleLabelPart(searchParams?.labels)
 
-    const { sortedQueryParts, parsedWhere, queryClauses: rawQueryClauses } = buildQuery(searchParams)
+    const {
+      sortedQueryParts,
+      parsedWhere,
+      queryClauses: rawQueryClauses,
+      hasRelatedConditions
+    } = buildQuery(searchParams)
 
     const queryClauses = buildQueryClause({
       queryParts: sortedQueryParts,
       // Explicitly omitting sort and pagination for id-targeted query
       sortParams: '',
       pagination: '',
-      labelClause: buildLabelsClause(searchParams?.labels)
+      labelClause: buildLabelsClause(searchParams?.labels),
+      hasRelatedConditions
     })
 
     const queryBuilder = new QueryBuilder()
@@ -293,14 +308,20 @@ export class EntityQueryService {
     const relatedQueryPart = buildRelatedQueryPart(id)
     const labelPart = singleLabelPart(searchParams?.labels)
 
-    const { sortedQueryParts, parsedWhere, queryClauses: rawQueryClauses } = buildQuery(searchParams)
+    const {
+      sortedQueryParts,
+      parsedWhere,
+      queryClauses: rawQueryClauses,
+      hasRelatedConditions
+    } = buildQuery(searchParams)
 
     const queryClauses = buildQueryClause({
       queryParts: sortedQueryParts,
       // Explicitly omitting sort and pagination for id-targeted query
       sortParams: '',
       pagination: '',
-      labelClause: buildLabelsClause(searchParams?.labels)
+      labelClause: buildLabelsClause(searchParams?.labels),
+      hasRelatedConditions
     })
 
     const queryBuilder = new QueryBuilder()
@@ -356,14 +377,15 @@ export class EntityQueryService {
   }
 
   deleteRecords(searchParams?: SearchDto) {
-    const { sortedQueryParts, parsedWhere } = buildQuery(searchParams)
+    const { sortedQueryParts, parsedWhere, hasRelatedConditions } = buildQuery(searchParams)
 
     const queryClauses = buildQueryClause({
       queryParts: sortedQueryParts,
       // Explicitly omitting sort and pagination for count query
       sortParams: '',
       pagination: '',
-      labelClause: buildLabelsClause(searchParams?.labels)
+      labelClause: buildLabelsClause(searchParams?.labels),
+      hasRelatedConditions
     })
 
     const whereClause = `WITH ${parsedWhere.nodeAliases.join(', ')} WHERE ${parsedWhere.where}`

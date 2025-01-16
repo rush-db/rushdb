@@ -45,12 +45,14 @@ export const buildQueryClause = ({
   queryParts,
   labelClause,
   sortParams,
-  pagination
+  pagination,
+  hasRelatedConditions
 }: {
   queryParts: string[]
   labelClause?: string
   sortParams: string
   pagination: string
+  hasRelatedConditions: boolean
 }) => {
   return queryParts
     .map((part, index) => {
@@ -60,7 +62,7 @@ export const buildQueryClause = ({
         const combinedClause = `${whereClause}${
           labelClause ? (whereClause ? ' AND ' : 'WHERE ') + labelClause : ''
         }`
-        return `${combinedClause} ${sortParams} ${pagination}`.trim()
+        return `${combinedClause} ${sortParams} ${hasRelatedConditions ? '' : pagination}`.trim()
       }
       return part
     })
@@ -69,6 +71,8 @@ export const buildQueryClause = ({
 
 export const buildQuery = (searchParams: SearchDto) => {
   const parsedWhere = parse(searchParams.where)
+
+  const hasRelatedConditions = parsedWhere.nodeAliases.length > 1
 
   // Sort query parts in ascending order
   const sortedQueryParts = sortQueryParts(parsedWhere.queryParts)
@@ -80,13 +84,16 @@ export const buildQuery = (searchParams: SearchDto) => {
     queryParts: sortedQueryParts,
     pagination,
     sortParams,
-    labelClause: buildLabelsClause(searchParams.labels)
+    labelClause: buildLabelsClause(searchParams.labels),
+    hasRelatedConditions
   })
 
   return {
     queryClauses,
     sortedQueryParts,
     aliasesMap: parsedWhere.aliasesMap,
+    pagination,
+    hasRelatedConditions,
     parsedWhere
   }
 }
