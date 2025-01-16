@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.7.1
+
+### Patch Changes
+
+- 0551051: Restore original skip & limit behaviour for nested search
+- Updated dependencies [0551051]
+  - @rushdb/javascript-sdk@0.7.1
+
 ## 0.7.0
 
 ### Minor Changes

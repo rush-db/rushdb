@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.7.1
+
+### Patch Changes
+
+- 0551051: Restore original skip & limit behaviour for nested search
+
 ## 0.7.0
 
 ### Minor Changes
