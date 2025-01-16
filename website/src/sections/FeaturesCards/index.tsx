@@ -3,11 +3,8 @@ import { ArrowUpRight, CheckIcon, Code, Cpu, Database, FileText, Layers, Search,
 import NextLink from 'next/link'
 import { FunctionComponent, ReactNode } from 'react'
 import { Grid, GridItem } from '~/components/Grid'
-import { Link } from '~/components/Link'
 
 import { Section } from '~/components/Section'
-import { WireBox } from '~/components/WireBox'
-import { links } from '~/config/urls'
 import cx from 'classnames'
 
 const colors = {
@@ -96,7 +93,6 @@ const Feat = ({
           className="to-fill pointer-events-none absolute left-0 top-0 w-full bg-gradient-to-b from-transparent"
           aria-hidden
         >
-          <WireBox className={classNames('left-0 top-0 w-full', colors[color])} wireColor="currentColor" />
           <div className="to-fill pointer-events-none absolute inset-0 h-full w-full bg-gradient-to-b from-transparent to-60%" />
         </div>
 

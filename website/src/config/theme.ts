@@ -1,1 +1,1 @@
-export const metaThemeColor = "#000"
+export const metaThemeColor = '#3f81ff'

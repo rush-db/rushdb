@@ -1,36 +1,40 @@
-import { CSSProperties, PropsWithoutRef, forwardRef } from "react"
+import { CSSProperties, PropsWithoutRef, forwardRef, useState, ReactNode, Children } from 'react'
 import {
-  materialDark as codeTheme,
+  materialDark as codeTheme
   // atomDark,
   // nightOwl,
   // synthwave84,
   // tomorrow,
-} from "react-syntax-highlighter/dist/cjs/styles/prism"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import classNames from "classnames"
-import cx from "classnames"
+} from 'react-syntax-highlighter/dist/cjs/styles/prism'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import classNames from 'classnames'
+import cx from 'classnames'
+import { copyToClipboard } from '~/utils/copyToClipboard'
+import { CopyCheck, CopyIcon } from 'lucide-react'
+import { Button } from '~/components/Button'
+import { CopyButton } from '~/components/CopyButton'
 
 const PreStyles: CSSProperties = {
-  textAlign: "left",
-  whiteSpace: "pre",
-  wordSpacing: "normal",
-  wordBreak: "normal",
-  overflowWrap: "normal",
-  color: "rgb(195, 206, 227)",
-  background: "#131313",
-  fontSize: "1em",
-  hyphens: "none",
-  overflow: "auto",
-  position: "relative",
+  textAlign: 'left',
+  whiteSpace: 'pre',
+  wordSpacing: 'normal',
+  wordBreak: 'normal',
+  overflowWrap: 'normal',
+  color: 'rgb(195, 206, 227)',
+  background: '#131313',
+  fontSize: '1em',
+  hyphens: 'none',
+  overflow: 'auto',
+  position: 'relative'
 }
 
 const override = {
   ...codeTheme,
   'code[class*="language-"]': {
     ...codeTheme['code[class*="language-"]'],
-    background: "inherit",
-    fontFamily: "var(--font-jet-brains-mono) !important",
-  },
+    background: 'inherit',
+    fontFamily: 'var(--font-jet-brains-mono) !important'
+  }
 }
 
 export const CodeBlock = forwardRef<
@@ -41,21 +45,25 @@ export const CodeBlock = forwardRef<
     preClassName?: string
     style?: CSSProperties
     language?: string
+    children?: ReactNode
+    copyButton?: boolean
   }>
->(({ code, className, preClassName, style, language = "javascript" }, ref) => {
+>(({ code, className, preClassName, children: extra, copyButton, style, language = 'javascript' }, ref) => {
   return (
-    <div
-      className={classNames("sm:text-[14px]", className)}
-      ref={ref}
-      style={style}
-    >
+    <div className={classNames('sm:text-[14px]', className)} ref={ref} style={style}>
       <SyntaxHighlighter
         language={language}
         style={override}
         PreTag={({ children }) => (
-          <pre className={cx(preClassName, "p-4 rounded-xl")} style={PreStyles}>
-            {children}
-          </pre>
+          <div className={cx('flex items-start justify-between gap-2 rounded-xl')} style={PreStyles}>
+            <pre className={cx(preClassName, 'p-4')}>{children}</pre>
+            {Children.count(extra) || copyButton ?
+              <div className="flex h-full items-center gap-4 pr-4">
+                {extra}
+                {copyButton && <CopyButton text={code} />}
+              </div>
+            : null}
+          </div>
         )}
       >
         {code}
@@ -64,4 +72,4 @@ export const CodeBlock = forwardRef<
   )
 })
 
-CodeBlock.displayName = "CodeBlock"
+CodeBlock.displayName = 'CodeBlock'

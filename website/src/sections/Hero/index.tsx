@@ -1,134 +1,87 @@
 import cx from 'classnames'
 import Link from 'next/link'
-import { ArrowDownIcon, ArrowRightIcon, BookText, DatabaseIcon } from 'lucide-react'
-import { useScroll, useTransform } from 'framer-motion'
-import { useRef } from 'react'
-import { motion } from 'framer-motion'
+import { BookIcon, CopyIcon } from 'lucide-react'
 
 import { Button, MainCta } from '~/components/Button'
-import { defaultDescription } from '~/components/Meta'
 import { links } from '~/config/urls'
 import { CodeBlock } from '~/components/CodeBlock'
+import { copyToClipboard } from '~/utils/copyToClipboard'
 
-const code = `const db = new RushDB("API_TOKEN")
+const code = `import RushDB from '@rushdb/javascript-sdk'
 
-// Any JSON is ok
-await db.records.createMany("member", {
-  email: "john.galt@example.com",
+const db = new RushDB('api_token')
+
+const user = await db.records.create('USER', {
+  name: 'Paul Schmitz',
+  lastActive: '2024-12-02T11:38:29Z',
   verified: true,
-  plan: {
-    name: "pro",
-    credits: 100,
-    validTill: "2024-09-20T09:05:54"     
+  size: 9.5,
+  favoriteTags: ['Daily Run', 'Foam']
+})
+
+await db.records.find({
+  labels: ['USER'],
+  where: {
+    size: { $gte: 9 },
+    favoriteTags: {
+      $in: ['Foam']
+    }
   }
 })`
 
-const code1 = `email: "string"
-verified: "boolean"`
-
-const code2 = `name: "string"
-credits: "number"
-validTill: "datetime"`
-
 export const Hero = () => {
-  const spacerRef = useRef(null)
-
-  const { scrollYProgress } = useScroll({
-    target: spacerRef,
-    offset: ['start start', 'end start']
-  })
-
-  const opacity = useTransform(scrollYProgress, [0, 0.6], [1, 0])
-
   return (
     <>
-      <div className="h-[90dvh] sm:hidden" aria-hidden ref={spacerRef} />
+      <div className="hero absolute top-0 z-0 h-dvh w-full" />
 
-      <div className="flex">
-        <motion.section
-          className={cx(
-            'container fixed inset-0 z-0 grid h-dvh place-content-center items-center',
-            'sm:static sm:h-auto sm:place-content-start sm:pb-12 sm:pt-32 sm:!opacity-100 md:!grid-cols-1'
-          )}
-          style={{ opacity }}
-        >
-          <div className="z-0 mb-8 w-full items-center text-center">
-            <h1 role="heading" className={cx('typography-4xl mb-4 !font-bold !tracking-tight md:text-2xl')}>
-              Build{' '}
-              <i>
-                <span className="font-special relative text-[72px] md:text-[48px]">better</span>
-              </i>{' '}
-              software{' '}
-              <i>
-                <span className="font-special relative text-[72px] md:text-[48px]">faster</span>
-              </i>
-            </h1>
-            <p className={cx('text-content2 text-xl !font-medium !tracking-normal md:text-lg')}>
-              {defaultDescription}
+      <section
+        className={cx(
+          'container z-10 mt-16 grid place-content-center items-center',
+          'sm:static sm:h-auto sm:place-content-start sm:pb-12 sm:pt-32 md:!grid-cols-1'
+        )}
+      >
+        <div className="z-0 flex flex-col content-center items-center justify-center gap-8">
+          <div className="mb-4 grid grid-cols-2 items-center gap-24">
+            <div className="mb-8 items-center">
+              <h1 role="heading" className={cx('typography-4xl !font-extrabold sm:text-2xl')}>
+                Instant database
+                <br />
+                for modern apps
+              </h1>
+              <h2 className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-lg')}>
+                Focus on frontend and features,
+                <br /> RushDB handles the rest
+              </h2>
+              <div className="flex gap-4">
+                <MainCta variant="accent" text="Create Project" />
+                <Button as={Link} href={links.getStarted} variant="outline" className="bg-fill">
+                  Docs <BookIcon />
+                </Button>
+              </div>
+            </div>
+            <div className={cx('flex w-full items-center justify-start md:flex-col')}>
+              <CodeBlock
+                code={code}
+                className="grid place-content-center md:w-full lg:w-fit"
+                preClassName="md:w-full"
+              />
+            </div>
+          </div>
+          <div className={cx('w-full justify-center text-center align-bottom md:flex-col')}>
+            <p className={cx('text-content3 text-md mb-4 text-center !font-medium md:text-lg')}>
+              RushDB is an open-source, graph-powered alternative to Firebase
             </p>
-          </div>
-          <div className={cx('mb-8 flex w-full items-center justify-center md:flex-col')}>
             <CodeBlock
-              code={code}
-              className="grid place-content-center md:!m-0 md:!mt-10 md:w-full lg:w-fit"
-              preClassName="md:w-full border-2 border-content3"
-            />
-            <div className="text-content3 flex flex-col gap-28 p-8 md:flex-row md:p-4">
-              <ArrowRightIcon className="md:hidden" />
-              <ArrowRightIcon className="md:hidden" />
-              <ArrowRightIcon className="md:hidden" />
-
-              <ArrowDownIcon className="hidden md:block" />
-              <ArrowDownIcon className="hidden md:block" />
-              <ArrowDownIcon className="hidden md:block" />
-            </div>
-            <div className="flex flex-col items-center sm:flex-col sm:gap-0 md:flex-row md:gap-6">
-              <div className={'border-accent rounded-xl border-2 bg-[#131313] p-4'}>
-                <div className="mb-4 flex w-min items-center gap-2 rounded bg-[#E8FFB9] px-4 py-2 font-semibold text-[#131313]">
-                  <DatabaseIcon /> <span>member</span>
-                </div>
-                <CodeBlock
-                  code={code1}
-                  className="md:!m-0 md:w-full lg:m-auto lg:w-fit"
-                  preClassName="md:w-full !p-0"
-                />
-              </div>
-              <svg
-                width="12"
-                height="60"
-                viewBox="0 0 12 60"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="text-accent scale-[1.3] sm:rotate-0 md:rotate-90"
-              >
-                <path
-                  d="M6 0.226497L0.226497 6L6 11.7735L11.7735 6L6 0.226497ZM6 59.7735L11.7735 54L6 48.2265L0.226495 54L6 59.7735ZM5 6L5 54L7 54L7 6L5 6Z"
-                  fill="currentColor"
-                />
-              </svg>
-
-              <div className={'border-accent rounded-xl border-2 bg-[#131313] p-4'}>
-                <div className="mb-4 flex w-min items-center gap-2 rounded bg-[#F7E1FF] px-4 py-2 font-semibold text-[#131313]">
-                  <DatabaseIcon /> <span>plan</span>
-                </div>
-                <CodeBlock
-                  code={code2}
-                  className="md:!m-0 md:w-full lg:m-auto lg:w-fit"
-                  preClassName="md:w-full !p-0"
-                />
-              </div>
-            </div>
+              code={'pnpm add @rushdb/javascript-sdk'}
+              className="m-auto grid place-content-center md:w-full lg:w-fit"
+              preClassName="md:w-full"
+              copyButton={true}
+            >
+              <img src="https://img.shields.io/npm/v/@rushdb/javascript-sdk" alt="npm-version" />
+            </CodeBlock>
           </div>
-
-          <div className="flex justify-center gap-4 sm:flex-col">
-            <MainCta variant="accent" className="min-w-[170px]" text="Create Project" />
-
-            <Button className="min-w-[170px]" as={Link} href={links.getStarted} variant="secondary">
-              Documentation <BookText />
-            </Button>
-          </div>
-        </motion.section>
-      </div>
+        </div>
+      </section>
     </>
   )
 }

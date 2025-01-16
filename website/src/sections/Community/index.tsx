@@ -1,5 +1,5 @@
 import { ComponentPropsWithoutRef, FunctionComponent, ReactNode } from 'react'
-import { Section, SectionHeader, SectionSubtitle, SectionTitle } from '~/components/Section'
+import { Section, SectionHeader, SectionSubtitle } from '~/components/Section'
 import cx from 'classnames'
 import { Button } from '~/components/Button'
 import { ArrowUpRight, BookOpen, Github } from 'lucide-react'

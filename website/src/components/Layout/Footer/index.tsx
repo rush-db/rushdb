@@ -13,14 +13,11 @@ export function Footer() {
         <div className="grid grid-cols-2 items-start gap-4 sm:grid-cols-1 sm:text-center">
           <div className="justify-self-start sm:order-2 sm:mt-5 sm:justify-self-center">
             <div className="flex gap-10">
-              <Logo className="text-content sm:m-auto sm:h-[60px] sm:w-[60px]" width={140} height={140} />
+              <Logo className="text-content sm:m-auto sm:h-[60px] sm:w-[60px]" width={100} height={100} />
               <div className="m-auto flex flex-col gap-4">
-                <h2 className="text-content justify-self-end text-left text-[80px] font-bold leading-[0.7] tracking-tight md:text-xl md:leading-6">
+                <span className="text-content justify-self-end text-left text-3xl font-bold leading-[0.7] tracking-tight md:text-xl md:leading-6">
                   RushDB
-                </h2>
-                <p className="text-content2 justify-self-start text-sm font-medium leading-snug tracking-tight sm:text-sm">
-                  © {new Date().getFullYear()}, Collect Software Inc.
-                </p>
+                </span>
               </div>
             </div>
           </div>
@@ -29,12 +26,6 @@ export function Footer() {
             <a href={socials.emailUrl} className="text-content text-xl font-medium leading-none">
               {socials.email}
             </a>
-            {/*<a*/}
-            {/*  href="tel:+1(302)4809110"*/}
-            {/*  className="text-xl leading-none font-medium text-content"*/}
-            {/*>*/}
-            {/*  +1 (302) 480 9110*/}
-            {/*</a>*/}
             <div className="flex justify-between">
               <Link
                 href={socials.x}
@@ -55,8 +46,7 @@ export function Footer() {
               </Link>
             </div>
 
-            <div className="grid items-end gap-y-4 justify-self-end text-right md:mb-4 md:justify-self-center md:text-center">
-              <p className="text-lg font-bold">Legal</p>
+            <div className="flex gap-y-4 justify-self-end text-right md:mb-4 md:justify-self-center md:text-center">
               <Link
                 href="/privacy-policy"
                 target="__blank"
@@ -83,6 +73,10 @@ export function Footer() {
               </Link>
             </div>
           </div>
+
+          <p className="text-content2 justify-self-start text-sm font-medium leading-snug tracking-tight sm:text-sm">
+            © {new Date().getFullYear()}, Collect Software Inc.
+          </p>
         </div>
       </div>
     </footer>

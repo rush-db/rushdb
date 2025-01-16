@@ -1,6 +1,6 @@
 import { Portal } from '@radix-ui/react-portal'
 import classNames from 'classnames'
-import { useScroll, motion, useMotionValueEvent, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowUpRight, Github, Menu, X } from 'lucide-react'
 import Link from 'next/link'
 import { ComponentPropsWithoutRef, useCallback, useEffect, useState } from 'react'
@@ -116,85 +116,39 @@ function MobileMenu() {
 }
 
 function Nav() {
-  const [hasScrolled, setHasScrolled] = useState(false)
-  const { scrollYProgress } = useScroll()
-
-  useMotionValueEvent(scrollYProgress, 'change', (latest) => {
-    if (latest > 0.1) {
-      setHasScrolled(true)
-    } else {
-      setHasScrolled(false)
-    }
-  })
-
   return (
-    <nav className="flex items-center">
-      <div className="mr-3 flex items-center sm:hidden">
-        <Button variant="primaryText" as={Link} size="small" href={links.pricing}>
-          Pricing
-        </Button>
-        <Button variant="primaryText" as={Link} size="small" href={links.docs}>
+    <nav className="bg-fill/40 border-stroke-dark flex items-center justify-self-center rounded-full border p-2 shadow-2xl backdrop-blur-sm sm:justify-self-end">
+      <div className="mr-3 flex items-center gap-2 sm:hidden">
+        <Button variant="primaryText" as={Link} size="small" href={links.docs} className="!rounded-full">
           Docs
         </Button>
-        {/*<Button*/}
-        {/*  variant="primaryText"*/}
-        {/*  as={Link}*/}
-        {/*  size="small"*/}
-        {/*  href={links.tutorials}*/}
-        {/*>*/}
-        {/*  Tutorials*/}
-        {/*</Button>*/}
-        <Button variant="primaryText" as={Link} size="small" href={socials.blog}>
+        <Button variant="primaryText" as={Link} size="small" href={links.docs} className="!rounded-full">
+          Use Cases
+        </Button>
+        <Button variant="primaryText" as={Link} size="small" href={socials.blog} className="!rounded-full">
           Blog
+        </Button>
+        <Button variant="primaryText" as={Link} size="small" href={links.pricing} className="!rounded-full">
+          Pricing
         </Button>
       </div>
 
-      <AnimatePresence>
-        {!hasScrolled && (
-          <motion.div
-            key={'nav-socials'}
-            initial={{ width: 0 }}
-            animate={{ width: 'auto' }}
-            exit={{ width: 0 }}
-            className="flex min-w-0 items-center gap-4 overflow-hidden whitespace-nowrap sm:!hidden"
-          >
-            <IconButton
-              variant="secondary"
-              size="small"
-              as={Link}
-              href={socials.discord}
-              target="_blank"
-              rel="noreferrer noopener"
-              title="Discord"
-            >
-              <IconDiscord />
-            </IconButton>
-            <IconButton
-              variant="secondary"
-              size="small"
-              as={Link}
-              href={socials.x}
-              target="_blank"
-              rel="noreferrer noopener"
-              title="X (Formerly Twitter)"
-            >
-              <IconX />
-            </IconButton>
-            <IconButton
-              variant="secondary"
-              size="small"
-              as={Link}
-              href={socials.github}
-              target="_blank"
-              rel="noreferrer noopener"
-              title="Github"
-            >
-              <Github />
-            </IconButton>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <MainCta variant="accent" size="small" className="ml-4" />
+      <div
+        key={'nav-socials'}
+        className="flex min-w-0 items-center gap-4 overflow-hidden whitespace-nowrap sm:!hidden"
+      >
+        <IconButton
+          variant="custom"
+          size="small"
+          as={Link}
+          href={socials.github}
+          target="_blank"
+          rel="noreferrer noopener"
+          title="Github"
+        >
+          <Github />
+        </IconButton>
+      </div>
 
       <MobileMenu />
     </nav>
@@ -208,12 +162,13 @@ export const Header = () => {
         'fixed top-0 z-30 flex h-[100px] w-full flex-row items-center justify-between bg-transparent'
       }
     >
-      <div className="container flex flex-row justify-between">
+      <div className="container grid grid-cols-3 items-center justify-between sm:grid-cols-2">
         <Link href="/">
           <Logo className="h-[60px] w-[60px]" />
         </Link>
 
         <Nav />
+        <MainCta variant="accent" size="medium" className="ml-4 justify-self-end sm:hidden" />
       </div>
     </header>
   )
