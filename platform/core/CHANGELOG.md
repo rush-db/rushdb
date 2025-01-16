@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 0.7.0
+
+### Minor Changes
+
+- 5470782: Fix result cut-off for nested queries and url parsing in node.js env at sdk's networking
+
 ## 0.6.0
 
 ### Minor Changes
