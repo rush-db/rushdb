@@ -89,7 +89,7 @@ export type AggregateCollectFn = {
   limit?: number
   orderBy?: Order
   skip?: number
-  uniq?: true
+  uniq?: boolean
 }
 
 export type AggregateCollectNestedFn = Omit<AggregateCollectFn, 'field'> & {
@@ -101,7 +101,7 @@ export type AggregateFn<S extends Schema = Schema> =
   | { alias: string; field: string; fn: 'max' }
   | { alias: string; field: string; fn: 'min' }
   | { alias: string; field: string; fn: 'sum' }
-  | { alias: string; field?: string; fn: 'count'; uniq?: true }
+  | { alias: string; field?: string; fn: 'count'; uniq?: boolean }
   | AggregateCollectFn
 
 export type Aggregate =

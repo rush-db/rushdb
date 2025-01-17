@@ -9,8 +9,8 @@ import {
   isInt,
   isPoint
 } from 'neo4j-driver'
-import { isNode, isRelationship } from 'neo4j-driver-core'
 import Result from 'neo4j-driver/lib/result-rx'
+import { isNode, isRelationship } from 'neo4j-driver-core'
 import { Observable } from 'rxjs'
 import { map } from 'rxjs/operators'
 
