@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.7.2
+
+### Patch Changes
+
+- c32b9bf: Aggregations minor fixes
+- Updated dependencies [c32b9bf]
+  - @rushdb/javascript-sdk@0.7.2
+
 ## 0.7.1
 
 ### Patch Changes

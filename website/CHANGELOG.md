@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.7.2
+
+### Patch Changes
+
+- c32b9bf: Aggregations minor fixes
+
 ## 0.7.1
 
 ### Patch Changes
