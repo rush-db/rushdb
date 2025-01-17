@@ -356,7 +356,7 @@ WHERE (any(value IN record.rating WHERE value >= 1)) ORDER BY record.\`__RUSHDB_
 OPTIONAL MATCH (record)--(record1:departments)
 WITH record, record1
 WHERE record IS NOT NULL AND record1 IS NOT NULL
-WITH record, apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.\`tags\`)))[0..100] AS \`tags\`
+WITH record, apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.\`tags\`))), ["__RUSHDB__VALUE__EMPTY__ARRAY__"]))[0..100] AS \`tags\`
 RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`tags\`}) AS records`
 
 const q8 = {
