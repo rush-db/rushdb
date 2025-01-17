@@ -2,9 +2,10 @@ import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
 import {
   RUSHDB_KEY_ID,
-  RUSHDB_KEY_PROJECT_ID,
   RUSHDB_KEY_PROPERTIES_META,
-  DEFAULT_RECORD_ALIAS
+  DEFAULT_RECORD_ALIAS,
+  RUSHDB_KEY_ID_ALIAS,
+  RUSHDB_VALUE_EMPTY_ARRAY
 } from '@/core/common/constants'
 import {
   AggregateFn,
@@ -20,7 +21,7 @@ import { buildOrderByClause, buildSortCriteria } from './orderBy'
 import { pagination } from './pagination'
 import { label } from './pickRecordLabel'
 
-function apocSortArray(arrayClause: string, orderBy?: TSearchSort) {
+function apocSortMapsArray(arrayClause: string, orderBy?: TSearchSort) {
   const sortCriteria = buildSortCriteria(orderBy)
 
   const orderByKeyPart = Object.entries(sortCriteria).map(([property, direction]) => {
@@ -28,6 +29,18 @@ function apocSortArray(arrayClause: string, orderBy?: TSearchSort) {
   })[0]
 
   return `apoc.coll.sortMaps(${arrayClause}, ${orderByKeyPart})`
+}
+
+function apocSortArray(arrayClause: string, orderBy?: TSearchSort) {
+  return `apoc.coll.sort(apoc.coll.flatten(${arrayClause}))`
+}
+
+function apocUniqArray(arrayClause: string) {
+  return `apoc.coll.toSet(${arrayClause})`
+}
+
+function apocRemoveFromArray(arrayClause: string) {
+  return `apoc.coll.removeAll(${arrayClause}, ["${RUSHDB_VALUE_EMPTY_ARRAY}"])`
 }
 
 function parseAggregate(
@@ -44,10 +57,14 @@ function parseAggregate(
   // Process each aggregation instruction
   for (const [returnAlias, instruction] of Object.entries(aggregate)) {
     if (typeof instruction === 'string') {
-      // Simple field selection, prepend with `record.`
-      const isTopLevelRecordAlias = instruction.startsWith('$record.')
-      const value = isTopLevelRecordAlias ? instruction.replace('$record.', '') : instruction
-      ctx.fieldsInCollect.push(`\`${returnAlias}\`: ${isTopLevelRecordAlias ? 'record.' : ''}\`${value}\``)
+      // Simple field selection
+      const [recordAlias, ...fieldDescriptors] = instruction.split('.')
+      const propertyNameRaw = fieldDescriptors.join('.')
+      const recordQueryVariable = aliasesMap[recordAlias]
+
+      const propertyName = propertyNameRaw === RUSHDB_KEY_ID_ALIAS ? RUSHDB_KEY_ID : propertyNameRaw
+
+      ctx.fieldsInCollect.push(`\`${returnAlias}\`: ${recordQueryVariable}.\`${propertyName}\``)
     } else {
       if (aliasesMap[instruction.alias]) {
         // Handle aggregation functions
@@ -199,10 +216,21 @@ export function buildCollectFunction(
 
   const alias = aliasesMap[instruction.alias]
 
-  const selectTemplate = hasFieldDescriptor ? '' : ` {.*, ${label(alias)}}`
+  if (hasFieldDescriptor) {
+    const clause = apocRemoveFromArray(apocSortArray(`collect(${uniq}${alias}${propertyName})`))
 
-  return `${apocSortArray(
-    `collect(${uniq}${alias}${propertyName}${selectTemplate})`,
+    const pagination = `[${skip}..${limit}]`
+    const variableAssertion = ` AS \`${returnAlias}\``
+
+    if (uniq) {
+      return apocUniqArray(clause) + pagination + variableAssertion
+    }
+
+    return clause + pagination + variableAssertion
+  }
+
+  return `${apocSortMapsArray(
+    `collect(${uniq}${alias}${propertyName} {.*, ${label(alias)}})`,
     instruction.orderBy
   )}[${skip}..${limit}] AS \`${returnAlias}\``
 }
@@ -257,7 +285,7 @@ export function parseBottomUpQuery(
 
     const { skip, limit } = pagination(config.skip, config.limit)
 
-    return `${apocSortArray(collectPart, config.orderBy)}[${skip}..${limit}] AS \`${key}\``
+    return `${apocSortMapsArray(collectPart, config.orderBy)}[${skip}..${limit}] AS \`${key}\``
   }
 
   function processLevel(
@@ -268,15 +296,25 @@ export function parseBottomUpQuery(
     const nestedStatements: string[] = []
     const currentLevelRecords: string[] = [...parentRecords]
 
-    for (const [key, config] of Object.entries(level)) {
-      const currentRecordVar = aliasesMap[config.alias]
+    for (const [key, instruction] of Object.entries(level)) {
+      let recordQueryVariable
 
-      if (config.aggregate) {
-        // Process nested levels first (bottom-up)
-        processLevel(config.aggregate, aliasesMap[config.alias], [...currentLevelRecords, currentRecordVar])
+      if (instruction.alias) {
+        recordQueryVariable = aliasesMap[instruction.alias]
+      } else if (typeof instruction === 'string') {
+        const [recordAlias, ...fieldDescriptors] = (instruction as string).split('.')
+        recordQueryVariable = aliasesMap[recordAlias]
       }
 
-      const collectStatement = buildCollectStatement(key, config, currentRecordVar)
+      if (instruction.aggregate) {
+        // Process nested levels first (bottom-up)
+        processLevel(instruction.aggregate, aliasesMap[instruction.alias], [
+          ...currentLevelRecords,
+          recordQueryVariable
+        ])
+      }
+
+      const collectStatement = buildCollectStatement(key, instruction, recordQueryVariable)
       nestedStatements.push(collectStatement)
     }
 

@@ -15,6 +15,7 @@ import { toBoolean } from '@/common/utils/toBolean'
 import {
   RUSHDB_KEY_ID,
   RUSHDB_KEY_LABEL,
+  RUSHDB_KEY_PROJECT_ID,
   RUSHDB_KEY_PROPERTIES_META,
   RUSHDB_VALUE_EMPTY_ARRAY,
   RUSHDB_VALUE_NULL
@@ -82,6 +83,8 @@ export class ImportService {
       target.label = value as string
     } else if (key === RUSHDB_KEY_PROPERTIES_META) {
       // @TODO: Use it for schema validation https://github.com/rush-db/rushdb/issues/43
+    } else if (key === RUSHDB_KEY_PROJECT_ID) {
+      // do nothing
     } else {
       const property = {
         id: uuidv7(),
