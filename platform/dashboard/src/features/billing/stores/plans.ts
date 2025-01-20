@@ -22,7 +22,6 @@ export const $availablePlans = computed($billingSettings, (billingData) => {
     return [] as PaidPlan[]
   }
 
-  console.log(billingData.data.pro.month.amount)
   return [
     {
       id: 'pro',
