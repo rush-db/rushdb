@@ -86,7 +86,7 @@ import { EntityService } from './entity.service'
 // POST     /records/search              ✅ SEARCH SearchDto
 // POST     /records/:id/search          ✅ SEARCH SearchDto
 
-type BulUpdateRecords = {
+type BulkUpdateRecords = {
   where: SearchDto
   data: {
     name: null

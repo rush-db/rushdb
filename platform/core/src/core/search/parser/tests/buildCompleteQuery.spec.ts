@@ -2,7 +2,6 @@
 // @ts-nocheck
 import { QueryBuilder } from '@/common/QueryBuilder'
 import { RUSHDB_LABEL_RECORD } from '@/core/common/constants'
-import { Where } from '@/core/common/types'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { buildAggregation, buildQuery } from '@/core/search/parser'
 import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQueryPart'
@@ -330,46 +329,110 @@ WITH record, record1
 WHERE record IS NOT NULL AND record1 IS NOT NULL
 RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
 
+const q7 = {
+  where: {
+    rating: {
+      $gte: 1
+    },
+    departments: {
+      $alias: '$department'
+    }
+  },
+  orderBy: {},
+  skip: 0,
+  limit: 100,
+  labels: ['COMPANY'],
+  aggregate: {
+    tags: {
+      fn: 'collect',
+      alias: '$department',
+      field: 'tags'
+    }
+  }
+}
+
+const r7 = `MATCH (record:__RUSHDB__LABEL__RECORD__:COMPANY { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE (any(value IN record.rating WHERE value >= 1)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:departments)
+WITH record, record1
+WHERE record IS NOT NULL AND record1 IS NOT NULL
+WITH record, apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.\`tags\`))), ["__RUSHDB__VALUE__EMPTY__ARRAY__"]))[0..100] AS \`tags\`
+RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`tags\`}) AS records`
+
+const q8 = {
+  where: {
+    departments: {
+      $alias: '$department'
+    }
+  },
+  orderBy: {},
+  skip: 0,
+  limit: 100,
+  labels: ['COMPANY'],
+  aggregate: {
+    departmentId: `$department.__id`
+  }
+}
+
+const r8 = `MATCH (record:__RUSHDB__LABEL__RECORD__:COMPANY { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:departments)
+WITH record, record1
+WHERE record IS NOT NULL AND record1 IS NOT NULL
+RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departmentId\`: record1.\`__RUSHDB__KEY__ID__\`}) AS records`
+
 describe('build complete query', () => {
   it('0', () => {
-    const result1 = buildQ({ searchParams: q0 })
+    const result = buildQ({ searchParams: q0 })
 
-    expect(result1).toEqual(r0)
+    expect(result).toEqual(r0)
   })
 
   it('1', () => {
-    const result1 = buildQ({ searchParams: q1 })
+    const result = buildQ({ searchParams: q1 })
 
-    expect(result1).toEqual(r1)
+    expect(result).toEqual(r1)
   })
 
   it('2', () => {
-    const result1 = buildQ({ searchParams: q2 })
+    const result = buildQ({ searchParams: q2 })
 
-    expect(result1).toEqual(r2)
+    expect(result).toEqual(r2)
   })
 
   it('3', () => {
-    const result1 = buildQ({ searchParams: q3 })
+    const result = buildQ({ searchParams: q3 })
 
-    expect(result1).toEqual(r3)
+    expect(result).toEqual(r3)
   })
 
   it('4', () => {
-    const result1 = buildQ({ searchParams: q4 })
+    const result = buildQ({ searchParams: q4 })
 
-    expect(result1).toEqual(r4)
+    expect(result).toEqual(r4)
   })
 
   it('5', () => {
-    const result1 = buildQ({ searchParams: q5 })
+    const result = buildQ({ searchParams: q5 })
 
-    expect(result1).toEqual(r5)
+    expect(result).toEqual(r5)
   })
 
   it('6', () => {
-    const result1 = buildQ({ searchParams: q6 })
+    const result = buildQ({ searchParams: q6 })
 
-    expect(result1).toEqual(r6)
+    expect(result).toEqual(r6)
+  })
+
+  it('7', () => {
+    const result = buildQ({ searchParams: q7 })
+
+    expect(result).toEqual(r7)
+  })
+
+  it('8', () => {
+    const result = buildQ({ searchParams: q8 })
+
+    expect(result).toEqual(r8)
   })
 })

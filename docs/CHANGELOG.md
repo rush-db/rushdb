@@ -1,5 +1,23 @@
 # rushdb-docs
 
+## 0.7.2
+
+### Patch Changes
+
+- c32b9bf: Aggregations minor fixes
+
+## 0.7.1
+
+### Patch Changes
+
+- 0551051: Restore original skip & limit behaviour for nested search
+
+## 0.7.0
+
+### Minor Changes
+
+- 5470782: Fix result cut-off for nested queries and url parsing in node.js env at sdk's networking
+
 ## 0.6.0
 
 ### Minor Changes
