@@ -3,10 +3,12 @@ import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import Stripe from 'stripe'
 
-import { EConfigKeyByPlan, PRODUCT_PLAN_MAP } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
+import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
 import { PlansDto } from '@/dashboard/billing/stripe/plans.dto'
 import { getPlanKeyByPriceId } from '@/dashboard/billing/stripe/stripe.utils'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
+import axios from 'axios'
+import { TPlan } from '@/dashboard/billing/stripe/interfaces/stripe.types'
 
 @Injectable()
 export class StripeService {
@@ -65,12 +67,13 @@ export class StripeService {
     const userEmail = session.customer_email || (await this.stripe.customers.retrieve(session.customer)).email
 
     if (subscriptionId) {
+      const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices')
       const subscription = await this.stripe.subscriptions.retrieve(subscriptionId)
       const planId = subscription.items.data[0].plan.id
       const validTill = new Date(subscription.current_period_end * 1000)
 
       const targetId = await this.workspaceService.findUserWorkspace(userEmail, transaction)
-      const plan = getPlanKeyByPriceId(planId)
+      const plan = getPlanKeyByPriceId(planId, data)
 
       await this.workspaceService.patchWorkspace(
         targetId,
@@ -88,6 +91,7 @@ export class StripeService {
   async updateCustomerPlan(payload: Stripe.Event, transaction: Transaction) {
     const updatedSubscription = payload.data.object as Stripe.Subscription
 
+    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices')
     const customer = await this.stripe.customers.retrieve(updatedSubscription.customer as string)
     const userEmail = customer.email
 
@@ -96,7 +100,7 @@ export class StripeService {
     const updatedValidTill = new Date(updatedSubscription.current_period_end * 1000)
 
     const targetId = await this.workspaceService.findUserWorkspace(userEmail, transaction)
-    const plan = getPlanKeyByPriceId(updatedPlanId)
+    const plan = getPlanKeyByPriceId(updatedPlanId, data)
 
     if ('cancel_at_period_end' in payload.data.object && payload.data.object.cancel_at_period_end === true) {
       await this.workspaceService.patchWorkspace(
@@ -147,7 +151,9 @@ export class StripeService {
     { id, period, returnUrl }: PlansDto,
     email: string
   ): Promise<Stripe.Checkout.Session> {
-    const { priceId } = PRODUCT_PLAN_MAP[id][period]
+    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices')
+    const { priceId } = data[id][period]
+
     const customer: Stripe.Customer = await this.getCustomerByEmail(email)
 
     return await this.stripe.checkout.sessions.create({

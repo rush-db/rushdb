@@ -13,7 +13,6 @@ import { FastifyRequest } from 'fastify'
 import { Transaction } from 'neo4j-driver'
 
 import { toBoolean } from '@/common/utils/toBolean'
-import { hasPlanInPalette } from '@/dashboard/billing/stripe/stripe.utils'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
@@ -59,7 +58,7 @@ export class PlanLimitsGuard implements CanActivate {
     }
 
     // Check premium plan expiration (if exists)
-    if (properties.planId && hasPlanInPalette(properties.planId)) {
+    if (properties.planId) {
       // we don't want to touch our active subscribers
       if (!properties.isSubscriptionCancelled) {
         return true

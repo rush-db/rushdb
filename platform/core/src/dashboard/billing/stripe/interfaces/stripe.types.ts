@@ -1,6 +1,11 @@
 export type TPlan = {
-  [planKey: string]: {
-    [periodKey: string]: {
+  pro: {
+    month: {
+      amount: number
+      priceId: string
+      productId: string
+    }
+    annual: {
       amount: number
       priceId: string
       productId: string

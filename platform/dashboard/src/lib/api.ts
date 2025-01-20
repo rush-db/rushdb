@@ -17,6 +17,7 @@ import { sdk } from '~/lib/sdk.ts'
 import { fetcher } from './fetcher'
 import { BillingErrorCodes } from '~/features/billing/constants.ts'
 import { $limitReachModalOpen } from '~/features/billing/components/LimitReachedDialog.tsx'
+import { IncomingBillingData } from '~/features/billing/types'
 
 type WithInit = {
   init?: RequestInit
@@ -289,6 +290,11 @@ export const api = {
         ...init,
         method: 'POST',
         body: JSON.stringify(body)
+      })
+    },
+    async getBillingData() {
+      return fetcher<IncomingBillingData>('https://billing.rushdb.com/api/prices', {
+        method: 'GET'
       })
     }
   },

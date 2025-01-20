@@ -6,14 +6,30 @@ import type { PaidPlan, PlanPeriod } from '~/features/billing/types'
 import { FREE_PLAN } from '~/features/billing/constants'
 import { isFreePlan } from '~/features/billing/utils'
 import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace'
+import { createAsyncStore } from '~/lib/fetcher.ts'
+import { api } from '~/lib/api.ts'
 
-export const $availablePlans = computed([], () => {
+export const $billingSettings = createAsyncStore({
+  key: '$billingSettings',
+  async fetcher() {
+    return await api.billing.getBillingData()
+  },
+  deps: []
+})
+
+export const $availablePlans = computed($billingSettings, (billingData) => {
+  console.log(billingData)
+  if (!billingData.data) {
+    return [] as PaidPlan[]
+  }
+
+  console.log(billingData.data.pro.month.amount)
   return [
     {
       id: 'pro',
       name: 'RushDB Pro',
-      monthlyPrice: 19,
-      yearlyPrice: 199
+      monthlyPrice: billingData.data.pro.month.amount,
+      yearlyPrice: billingData.data.pro.annual.amount
     }
   ] as PaidPlan[]
 })
