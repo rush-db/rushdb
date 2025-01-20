@@ -18,7 +18,6 @@ export const $billingSettings = createAsyncStore({
 })
 
 export const $availablePlans = computed($billingSettings, (billingData) => {
-  console.log(billingData)
   if (!billingData.data) {
     return [] as PaidPlan[]
   }
