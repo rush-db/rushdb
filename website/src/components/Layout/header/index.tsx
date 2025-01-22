@@ -1,7 +1,7 @@
 import { Portal } from '@radix-ui/react-portal'
 import classNames from 'classnames'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowUpRight, Github, Menu, X } from 'lucide-react'
+import { ArrowUpRight, Menu, X } from 'lucide-react'
 import Link from 'next/link'
 import { ComponentPropsWithoutRef, useCallback, useEffect, useState } from 'react'
 import { Button, MainCta } from '~/components/Button'
@@ -10,6 +10,7 @@ import { IconDiscord } from '~/components/Layout/IconDiscord'
 import { IconX } from '~/components/Layout/IconX'
 import { Logo } from '~/components/Logo'
 import { links, socials } from '~/config/urls'
+import { GitHub } from '~/components/Icons/GitHub'
 
 export function MenuItem({
   className,
@@ -81,7 +82,6 @@ function MobileMenu() {
                 <MenuItem href={links.pricing}>Pricing</MenuItem>
                 <MenuItem href={socials.blog}>Blog</MenuItem>
                 <MenuItem href={links.docs}>Docs</MenuItem>
-                {/*<MenuItem href={links.tutorials}>Tutorials</MenuItem>*/}
               </div>
 
               <div className="bg-stroke my-4 h-0.5" />
@@ -102,7 +102,7 @@ function MobileMenu() {
                 </MenuItem>
                 <MenuItem as={Link} href={socials.github} target="_blank" rel="noreferrer noopener">
                   <div className="flex items-center gap-2">
-                    <Github height={18} width={18} />
+                    <GitHub height={18} width={18} className="" />
                     Github
                   </div>
                 </MenuItem>
@@ -146,7 +146,7 @@ function Nav() {
           rel="noreferrer noopener"
           title="Github"
         >
-          <Github />
+          <GitHub />
         </IconButton>
       </div>
 

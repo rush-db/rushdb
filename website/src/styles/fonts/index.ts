@@ -7,12 +7,12 @@ export const jetBrainsMono = localFont({
       path: './jet-brains-mono/JetBrainsMono-Regular.woff2',
       weight: '400',
       style: 'regular'
+    },
+    {
+      path: './jet-brains-mono/JetBrainsMono-Bold.woff2',
+      weight: '600',
+      style: 'bold'
     }
-    // {
-    //   path: "./jet-brains-mono/JetBrainsMono-Medium.woff2",
-    //   weight: "500",
-    //   style: "medium",
-    // },
   ],
   variable: '--font-jet-brains-mono'
 })
@@ -21,7 +21,6 @@ export const manrope = Manrope({
   subsets: ['latin'],
   weight: ['200', '400', '500', '600', '700', '800'],
   variable: '--font-manrope',
-  style: ['normal'],
   display: 'block',
   adjustFontFallback: false
 })

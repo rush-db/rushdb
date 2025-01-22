@@ -85,5 +85,5 @@ a {
   background-image: url("/images/hero-bg.svg");
   background-repeat: repeat;
   background-size: contain;
-  background-position: center center;
+  background-position: center bottom;
 }

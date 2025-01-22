@@ -36,11 +36,11 @@ export const Hero = () => {
 
       <section
         className={cx(
-          'container z-10 mt-16 grid place-content-center items-center',
-          'sm:static sm:h-auto sm:place-content-start sm:pb-12 sm:pt-32 md:!grid-cols-1'
+          'container z-10 grid h-dvh place-content-center items-center',
+          'sm:static sm:h-auto sm:place-content-start md:!grid-cols-1'
         )}
       >
-        <div className="z-0 flex flex-col content-center items-center justify-center gap-8">
+        <div className="z-0 flex flex-col content-center items-center justify-center gap-24">
           <div className="mb-4 grid grid-cols-2 items-center gap-24">
             <div className="mb-8 items-center">
               <h1 role="heading" className={cx('typography-4xl !font-extrabold sm:text-2xl')}>
@@ -69,7 +69,7 @@ export const Hero = () => {
           </div>
           <div className={cx('w-full justify-center text-center align-bottom md:flex-col')}>
             <p className={cx('text-content3 text-md mb-4 text-center !font-medium md:text-lg')}>
-              RushDB is an open-source, graph-powered alternative to Firebase
+              RushDB is an open-source, graph-powered <span className="underline">zero-config</span> database
             </p>
             <CodeBlock
               code={'pnpm add @rushdb/javascript-sdk'}
