@@ -224,6 +224,7 @@ const q3 = {
               },
               {
                 title: {
+                  // @TODO: help to find forest :)
                   $ne: 'Forest'
                 }
               }
@@ -381,6 +382,87 @@ WITH record, record1
 WHERE record IS NOT NULL AND record1 IS NOT NULL
 RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departmentId\`: record1.\`__RUSHDB__KEY__ID__\`}) AS records`
 
+const q9 = {
+  labels: ['ORDER'],
+  where: {
+    USER: {
+      $id: 'uuidv7'
+    }
+  }
+}
+
+const r9 = `MATCH (record:__RUSHDB__LABEL__RECORD__:ORDER { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:USER) WHERE (any(value IN record1.__RUSHDB__KEY__ID__ WHERE value = "uuidv7"))
+WITH record, record1
+WHERE record IS NOT NULL AND record1 IS NOT NULL
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
+const q10 = {
+  labels: ['USER'],
+  where: {
+    $id: 'id',
+    ORDER: {
+      $alias: '$order'
+    }
+  },
+  aggregate: {
+    orders: {
+      fn: 'collect',
+      alias: '$order'
+    }
+  },
+  limit: 1000
+}
+
+const r10 = `MATCH (record:__RUSHDB__LABEL__RECORD__:USER { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE (any(value IN record.__RUSHDB__KEY__ID__ WHERE value = "id")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+OPTIONAL MATCH (record)--(record1:ORDER)
+WITH record, record1
+WHERE record IS NOT NULL AND record1 IS NOT NULL
+WITH record, apoc.coll.sortMaps(collect(DISTINCT record1 {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "__RUSHDB__KEY__ID__")[0..100] AS \`orders\`
+RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`orders\`}) AS records`
+
+const q11 = {
+  labels: ['USER'],
+  where: {
+    $or: [
+      {
+        CAR: {
+          color: 'red',
+          $xor: [
+            {
+              SPOUSE: {
+                gender: 'male'
+              }
+            },
+            {
+              title: {
+                $not: { $contains: 'Forester' }
+              }
+            }
+          ]
+        }
+      },
+      {
+        JOB: {
+          title: 'Manager'
+        }
+      }
+    ]
+  },
+  limit: 1000
+}
+
+const r11 = `MATCH (record:__RUSHDB__LABEL__RECORD__:USER { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+OPTIONAL MATCH (record)--(record1:CAR) WHERE (any(value IN record1.color WHERE value = "red"))
+OPTIONAL MATCH (record1)--(record2:SPOUSE) WHERE (any(value IN record2.gender WHERE value = "male"))
+OPTIONAL MATCH (record)--(record3:JOB) WHERE (any(value IN record3.title WHERE value = "Manager"))
+WITH record, record1, record2, record3
+WHERE record IS NOT NULL AND ((record1 IS NOT NULL AND (record2 IS NOT NULL XOR ((NOT(any(value IN record1.title WHERE value =~ '(?i).*Forester.*')))))) OR record3 IS NOT NULL)
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
 describe('build complete query', () => {
   it('0', () => {
     const result = buildQ({ searchParams: q0 })
@@ -434,5 +516,23 @@ describe('build complete query', () => {
     const result = buildQ({ searchParams: q8 })
 
     expect(result).toEqual(r8)
+  })
+
+  it('9', () => {
+    const result = buildQ({ searchParams: q9 })
+
+    expect(result).toEqual(r9)
+  })
+
+  it('10', () => {
+    const result = buildQ({ searchParams: q10 })
+
+    expect(result).toEqual(r10)
+  })
+
+  it('11', () => {
+    const result = buildQ({ searchParams: q11 })
+
+    expect(result).toEqual(r11)
   })
 })
