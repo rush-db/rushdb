@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.8.0
+
+### Minor Changes
+
+- 49e3153: Dependencies update & landing page rework
+
 ## 0.7.2
 
 ### Patch Changes
