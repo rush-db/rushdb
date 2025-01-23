@@ -508,7 +508,7 @@ function NumberValues({
     return (
       <div className="flex flex-col gap-5">
         <TextField
-          onChange={(event) =>
+          onChange={(event: { currentTarget: { valueAsNumber: any } }) =>
             setValue('value', event.currentTarget.valueAsNumber, {
               shouldDirty: true
             })
@@ -543,7 +543,7 @@ function NumberValues({
     return (
       <div className="flex flex-col gap-5">
         <TextField
-          onChange={(event) =>
+          onChange={(event: { currentTarget: { valueAsNumber: any } }) =>
             setValue('value', event.currentTarget.valueAsNumber, {
               shouldDirty: true
             })
@@ -658,7 +658,9 @@ function DateTimeValues({
     return (
       <>
         <TextField
-          onChange={(event) => setValue('value', event.target.value, { shouldDirty: true })}
+          onChange={(event: { target: { value: any } }) =>
+            setValue('value', event.target.value, { shouldDirty: true })
+          }
           label="Value"
           prefix={<PropertyTypeIcon type="datetime" />}
           size="small"
@@ -687,7 +689,9 @@ function DateTimeValues({
     return (
       <>
         <TextField
-          onChange={(event) => setValue('value', event.target.value, { shouldDirty: true })}
+          onChange={(event: { target: { value: any } }) =>
+            setValue('value', event.target.value, { shouldDirty: true })
+          }
           label="Value"
           prefix={<PropertyTypeIcon type="datetime" />}
           size="small"

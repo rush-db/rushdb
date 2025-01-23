@@ -1,15 +1,15 @@
 import { Portal } from '@radix-ui/react-portal'
 import classNames from 'classnames'
-import { useScroll, motion, useMotionValueEvent, AnimatePresence } from 'framer-motion'
-import { ArrowUpRight, Github, Menu, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ArrowUpRight, Menu, X } from 'lucide-react'
 import Link from 'next/link'
 import { ComponentPropsWithoutRef, useCallback, useEffect, useState } from 'react'
 import { Button, MainCta } from '~/components/Button'
 import { IconButton } from '~/components/IconButton'
-import { IconDiscord } from '~/components/Layout/IconDiscord'
 import { IconX } from '~/components/Layout/IconX'
 import { Logo } from '~/components/Logo'
 import { links, socials } from '~/config/urls'
+import { GitHub } from '~/components/Icons/GitHub'
 
 export function MenuItem({
   className,
@@ -45,8 +45,8 @@ function MobileMenu() {
   return (
     <>
       <IconButton
-        variant={open ? 'outline' : 'primaryText'}
-        className="z-10 ml-3 hidden sm:grid"
+        variant={'primaryText'}
+        className="z-10 hidden sm:grid"
         aria-label="Menu"
         onClick={() =>
           setOpen((current) => {
@@ -81,20 +81,19 @@ function MobileMenu() {
                 <MenuItem href={links.pricing}>Pricing</MenuItem>
                 <MenuItem href={socials.blog}>Blog</MenuItem>
                 <MenuItem href={links.docs}>Docs</MenuItem>
-                {/*<MenuItem href={links.tutorials}>Tutorials</MenuItem>*/}
               </div>
 
               <div className="bg-stroke my-4 h-0.5" />
 
               <div className="container divide-y">
-                <h6 className="typography-base text-content2 px-3">Socials</h6>
+                {/*<h6 className="typography-base text-content2 px-3">Socials</h6>*/}
 
-                <MenuItem as={Link} href={socials.discord} target="_blank" rel="noreferrer noopener">
-                  <div className="flex items-center gap-2">
-                    <IconDiscord height={18} width={18} />
-                    Discord
-                  </div>
-                </MenuItem>
+                {/*<MenuItem as={Link} href={socials.discord} target="_blank" rel="noreferrer noopener">*/}
+                {/*  <div className="flex items-center gap-2">*/}
+                {/*    <IconDiscord height={18} width={18} />*/}
+                {/*    Discord*/}
+                {/*  </div>*/}
+                {/*</MenuItem>*/}
                 <MenuItem as={Link} href={socials.x} target="_blank" rel="noreferrer noopener">
                   <div className="flex items-center gap-2">
                     <IconX height={18} width={18} />X (Twitter)
@@ -102,7 +101,7 @@ function MobileMenu() {
                 </MenuItem>
                 <MenuItem as={Link} href={socials.github} target="_blank" rel="noreferrer noopener">
                   <div className="flex items-center gap-2">
-                    <Github height={18} width={18} />
+                    <GitHub height={18} width={18} className="" />
                     Github
                   </div>
                 </MenuItem>
@@ -116,85 +115,39 @@ function MobileMenu() {
 }
 
 function Nav() {
-  const [hasScrolled, setHasScrolled] = useState(false)
-  const { scrollYProgress } = useScroll()
-
-  useMotionValueEvent(scrollYProgress, 'change', (latest) => {
-    if (latest > 0.1) {
-      setHasScrolled(true)
-    } else {
-      setHasScrolled(false)
-    }
-  })
-
   return (
-    <nav className="flex items-center">
-      <div className="mr-3 flex items-center sm:hidden">
-        <Button variant="primaryText" as={Link} size="small" href={links.pricing}>
-          Pricing
-        </Button>
-        <Button variant="primaryText" as={Link} size="small" href={links.docs}>
+    <nav className="bg-fill/40 border-stroke-dark flex items-center justify-self-center rounded-full border p-2 shadow-2xl backdrop-blur-sm sm:justify-self-end">
+      <div className="mr-3 flex items-center gap-2 sm:hidden">
+        <Button variant="primaryText" as={Link} size="small" href={links.docs} className="!rounded-full">
           Docs
         </Button>
-        {/*<Button*/}
-        {/*  variant="primaryText"*/}
-        {/*  as={Link}*/}
-        {/*  size="small"*/}
-        {/*  href={links.tutorials}*/}
-        {/*>*/}
-        {/*  Tutorials*/}
-        {/*</Button>*/}
-        <Button variant="primaryText" as={Link} size="small" href={socials.blog}>
+        <Button variant="primaryText" as={Link} size="small" href="/#use-cases" className="!rounded-full">
+          Use Cases
+        </Button>
+        <Button variant="primaryText" as={Link} size="small" href={socials.blog} className="!rounded-full">
           Blog
+        </Button>
+        <Button variant="primaryText" as={Link} size="small" href={links.pricing} className="!rounded-full">
+          Pricing
         </Button>
       </div>
 
-      <AnimatePresence>
-        {!hasScrolled && (
-          <motion.div
-            key={'nav-socials'}
-            initial={{ width: 0 }}
-            animate={{ width: 'auto' }}
-            exit={{ width: 0 }}
-            className="flex min-w-0 items-center gap-4 overflow-hidden whitespace-nowrap sm:!hidden"
-          >
-            <IconButton
-              variant="secondary"
-              size="small"
-              as={Link}
-              href={socials.discord}
-              target="_blank"
-              rel="noreferrer noopener"
-              title="Discord"
-            >
-              <IconDiscord />
-            </IconButton>
-            <IconButton
-              variant="secondary"
-              size="small"
-              as={Link}
-              href={socials.x}
-              target="_blank"
-              rel="noreferrer noopener"
-              title="X (Formerly Twitter)"
-            >
-              <IconX />
-            </IconButton>
-            <IconButton
-              variant="secondary"
-              size="small"
-              as={Link}
-              href={socials.github}
-              target="_blank"
-              rel="noreferrer noopener"
-              title="Github"
-            >
-              <Github />
-            </IconButton>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <MainCta variant="accent" size="small" className="ml-4" />
+      <div
+        key={'nav-socials'}
+        className="flex min-w-0 items-center gap-4 overflow-hidden whitespace-nowrap sm:!hidden"
+      >
+        <IconButton
+          variant="custom"
+          size="small"
+          as={Link}
+          href={socials.github}
+          target="_blank"
+          rel="noreferrer noopener"
+          title="Github"
+        >
+          <GitHub />
+        </IconButton>
+      </div>
 
       <MobileMenu />
     </nav>
@@ -208,12 +161,13 @@ export const Header = () => {
         'fixed top-0 z-30 flex h-[100px] w-full flex-row items-center justify-between bg-transparent'
       }
     >
-      <div className="container flex flex-row justify-between">
+      <div className="container grid grid-cols-3 items-center justify-between sm:grid-cols-2">
         <Link href="/">
           <Logo className="h-[60px] w-[60px]" />
         </Link>
 
         <Nav />
+        <MainCta variant="accent" size="medium" className="ml-4 justify-self-end sm:hidden" />
       </div>
     </header>
   )

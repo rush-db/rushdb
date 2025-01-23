@@ -2,9 +2,9 @@ import Head from 'next/head'
 import { useRouter } from 'next/router'
 import { getAbsoluteURL } from '~/utils'
 
-export const defaultTitle = 'Instant Database'
+export const defaultTitle = 'Instant Database for Modern Apps'
 
-export const defaultDescription = 'Instant Database for Modern Apps'
+export const defaultDescription = 'RushDB is an open-source, graph-powered zero-config database'
 
 export const Meta = ({
   title = defaultTitle,
@@ -44,7 +44,7 @@ export const Meta = ({
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={image} />
 
-      <link rel="canonical" href={route.asPath} />
+      <link rel="canonical" href={getAbsoluteURL(route.asPath)} />
     </Head>
   )
 }

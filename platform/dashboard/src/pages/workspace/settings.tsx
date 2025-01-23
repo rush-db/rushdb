@@ -39,7 +39,7 @@ function WorkspaceNameSetting() {
 
   return (
     <Setting
-      onReset={(event) => {
+      onReset={(event: { preventDefault: () => void }) => {
         event.preventDefault()
         reset()
       }}
@@ -60,17 +60,10 @@ function DeleteWorkspaceSetting() {
 
   return (
     <Setting
-      button={
-        <DeleteWorkspaceDialog
-          trigger={<Button variant="danger">Delete</Button>}
-        />
-      }
+      button={<DeleteWorkspaceDialog trigger={<Button variant="danger">Delete</Button>} />}
       title={
         <>
-          Delete{' '}
-          <Skeleton enabled={!workspace?.name}>
-            {workspace?.name ?? 'Loading...'}
-          </Skeleton>
+          Delete <Skeleton enabled={!workspace?.name}>{workspace?.name ?? 'Loading...'}</Skeleton>
         </>
       }
       className="border-danger"
