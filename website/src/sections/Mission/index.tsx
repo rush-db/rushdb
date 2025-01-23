@@ -5,10 +5,12 @@ import Image from 'next/image'
 export const Mission = () => {
   return (
     <section className="container mx-auto grid max-w-3xl content-center items-center gap-4 py-20">
-      <div className="flex justify-start gap-4">
-        <h3 className="text-3xl font-bold">Team & Mission</h3>
-        <Image src={av.src} alt="Artemiy" width={80} height={80} className="rounded-full" />
-        <Image src={as.src} alt="Andrey" width={80} height={80} className="ml-[-30px] rounded-full" />
+      <div className="flex items-center justify-start gap-4 md:justify-between">
+        <h3 className="typography-2xl md:typography-xl font-bold">Team & Mission</h3>
+        <div className="flex">
+          <Image src={av.src} alt="Artemiy" width={60} height={60} className="rounded-full" />
+          <Image src={as.src} alt="Andrey" width={60} height={60} className="ml-[-20px] rounded-full" />
+        </div>
       </div>
       <p className="text-content3 mb2 text-md md:text-base">
         We're two engineers with 15+ years of combined experience at Yandex, 3Commas, and Sumsub. Throughout

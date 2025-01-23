@@ -36,7 +36,7 @@ export const Hero = () => {
       <section
         className={cx(
           'container z-10 mt-[-97px] grid h-dvh place-content-center items-center',
-          'sm:static sm:h-auto sm:place-content-start md:!grid-cols-1'
+          'md:mt-0 md:!grid-cols-1'
         )}
       >
         <div className="z-0 flex h-dvh flex-col items-center justify-between">

@@ -145,15 +145,15 @@ export const HowItWorks = () => {
           </div>
         </div>
       </section>
-      {/**/}
+
       <section className={cx('outline-stroke outline outline-1 outline-offset-0')}>
-        <div className="container grid w-full grid-flow-col grid-rows-2 gap-[1px] md:grid-rows-4">
-          <div className="outline-stroke flex w-full items-center gap-4 rounded-b-[50px] p-8 outline outline-1 outline-offset-0">
+        <div className="container grid w-full grid-flow-col grid-rows-2 gap-[1px] md:grid-flow-row md:grid-rows-3">
+          <div className="outline-stroke flex w-full items-center gap-4 rounded-b-[50px] p-8 outline outline-1 outline-offset-0 md:col-span-2 md:p-4">
             <span className="text-content font-mono text-xl font-bold md:text-lg">~2ms</span>{' '}
             <p className="text-md text-content3 md:text-base">Batch write speed per Record</p>
           </div>
-          <div className="outline-stroke w-full rounded-l-full p-2 outline outline-1 outline-offset-0"></div>
-          <div className="outline-stroke col-span-2 row-span-2 w-full rounded-tr-[50px] p-8 outline outline-1 outline-offset-0">
+          <div className="outline-stroke w-full rounded-l-full p-2 outline outline-1 outline-offset-0 md:hidden"></div>
+          <div className="outline-stroke col-span-2 row-span-2 w-full rounded-tr-[50px] p-8 outline outline-1 outline-offset-0 md:p-4">
             <div className="flex w-full items-start gap-4">
               <span className="text-content font-mono text-xl font-bold md:text-lg">32MB</span>
               <div>
@@ -170,10 +170,10 @@ export const HowItWorks = () => {
               </div>
             </div>
           </div>
-          <div className="outline-stroke row-span-2 w-full rounded-full rounded-br-none p-8 outline outline-1 outline-offset-0"></div>
+          <div className="outline-stroke row-span-2 w-full rounded-full rounded-br-none p-8 outline outline-1 outline-offset-0 md:hidden md:p-4"></div>
         </div>
       </section>
-      {/**/}
+
       <section className={cx('border-b')}>
         <div className="container text-center">
           <h3 className={cx('typography-2xl md:typography-xl text pt-20')}>Automatic Data Normalization</h3>
@@ -186,7 +186,7 @@ export const HowItWorks = () => {
               <div className="flex w-full flex-col items-start gap-4">
                 <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
                   <div className="bg-accent-yellow h-6 w-6 rounded-full"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-base">COMPANY</span>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">COMPANY</span>
                 </div>
                 <CodeBlock code={codeCompany} className="m-auto" preClassName="md:w-full" />
               </div>
@@ -195,7 +195,7 @@ export const HowItWorks = () => {
               <div className="flex w-full flex-col items-start gap-4">
                 <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
                   <div className="h-6 w-6 rounded-full bg-green-600"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-base">PROJECT</span>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">PROJECT</span>
                 </div>
                 <CodeBlock code={codeProject} className="m-auto" preClassName="md:w-full" />
               </div>
@@ -204,9 +204,7 @@ export const HowItWorks = () => {
               <div className="flex w-full flex-col items-start gap-4">
                 <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
                   <div className="bg-accent-orange h-6 w-6 rounded-full"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-base">
-                    DEPARTMENT
-                  </span>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">DEPARTMENT</span>
                 </div>
                 <CodeBlock code={codeDepartment} className="m-auto" preClassName="md:w-full" />
               </div>
@@ -215,7 +213,7 @@ export const HowItWorks = () => {
               <div className="flex w-full flex-col items-start gap-4">
                 <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
                   <div className="bg-accent-purple h-6 w-6 rounded-full"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-base">EMPLOYEE</span>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">EMPLOYEE</span>
                 </div>
                 <CodeBlock code={codeEmployee} className="m-auto" preClassName="md:w-full" />
               </div>
@@ -243,13 +241,11 @@ export const HowItWorks = () => {
               <div className="flex flex-col gap-4 md:gap-2">
                 <div className="flex w-fit items-center gap-4 rounded-full border px-3 py-3">
                   <div className="h-6 w-6 rounded-full bg-green-600"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-base">PROJECT</span>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">PROJECT</span>
                 </div>
                 <div className="flex items-center gap-4 rounded-full border px-3 py-3">
                   <div className="bg-accent-orange h-6 w-6 rounded-full"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-base">
-                    DEPARTMENT
-                  </span>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">DEPARTMENT</span>
                 </div>
               </div>
             </div>
@@ -337,7 +333,11 @@ export const HowItWorks = () => {
         <div className="container text-center">
           <div className={cx('outline-stroke outline outline-1 outline-offset-0')}>
             <h3 className={cx('typography-2xl md:typography-xl text pt-20')}>Fully Featured Dashboard</h3>
-            <p className={cx('text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:text-base')}>
+            <p
+              className={cx(
+                'text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:pb-8 md:text-base'
+              )}
+            >
               That helps you navigate your data intuitively and fast
             </p>
             <Image src={dashboard.src} alt="dashboard-preview" width={1894} height={989} className="w-full" />
