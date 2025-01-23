@@ -116,7 +116,7 @@ module.exports = {
           ring: 'hsla(0, 0%, 50%, 0.5)'
         },
         stroke: {
-          DEFAULT: 'hsla(0, 0%, 20%, 0.1)',
+          DEFAULT: '#EBEBEB',
           contrast: 'hsl(0, 0%, 80%)',
           hover: 'hsla(0, 0%, 20%, 0.2)',
           focus: 'hsla(0, 0%, 20%, 0.2)',
@@ -125,7 +125,7 @@ module.exports = {
         accent: {
           DEFAULT: '#3f81ff', // Base color
           contrast: 'hsl(0, 0%, 100%)', // White for contrast on buttons, etc.
-          hover: '#346ccd', // Slightly darker for hover state
+          hover: '#3c78ef', // Slightly darker for hover state
           focus: '#346ccd', // Same as hover for consistency
           ring: 'rgba(63, 129, 255, 0.24)' // Transparent version of base for focus ring
         },
@@ -139,7 +139,7 @@ module.exports = {
         secondary: {
           DEFAULT: 'hsla(0, 0%, 100%, 0.9)',
           contrast: 'hsl(0, 0%, 20%)',
-          hover: 'hsla(0, 0%, 100%, 0.8)',
+          hover: 'hsla(0,0%,96%,0.8)',
           focus: 'hsla(0, 0%, 100%, 0.8)',
           ring: 'hsla(0, 0%, 100%, 0.5)'
         }

@@ -42,34 +42,52 @@ export const CodeBlock = forwardRef<
   PropsWithoutRef<{
     code: string
     className?: string
+    wrapperClassName?: string
     preClassName?: string
     style?: CSSProperties
     language?: string
     children?: ReactNode
     copyButton?: boolean
   }>
->(({ code, className, preClassName, children: extra, copyButton, style, language = 'javascript' }, ref) => {
-  return (
-    <div className={classNames('sm:text-[14px]', className)} ref={ref} style={style}>
-      <SyntaxHighlighter
-        language={language}
-        style={override}
-        PreTag={({ children }) => (
-          <div className={cx('flex items-start justify-between gap-2 rounded-xl')} style={PreStyles}>
-            <pre className={cx(preClassName, 'p-4')}>{children}</pre>
-            {Children.count(extra) || copyButton ?
-              <div className="flex h-full items-center gap-4 pr-4">
-                {extra}
-                {copyButton && <CopyButton text={code} />}
-              </div>
-            : null}
-          </div>
-        )}
-      >
-        {code}
-      </SyntaxHighlighter>
-    </div>
-  )
-})
+>(
+  (
+    {
+      code,
+      className,
+      preClassName,
+      wrapperClassName,
+      children: extra,
+      copyButton,
+      style,
+      language = 'javascript'
+    },
+    ref
+  ) => {
+    return (
+      <div className={classNames('sm:text-[14px]', className)} ref={ref} style={style}>
+        <SyntaxHighlighter
+          language={language}
+          style={override}
+          PreTag={({ children }) => (
+            <div
+              className={cx(wrapperClassName, 'flex items-start justify-between gap-2 rounded-xl')}
+              style={PreStyles}
+            >
+              <pre className={cx(preClassName, 'p-4')}>{children}</pre>
+              {Children.count(extra) || copyButton ?
+                <div className="flex h-full items-center gap-4 pr-4">
+                  {extra}
+                  {copyButton && <CopyButton text={code} />}
+                </div>
+              : null}
+            </div>
+          )}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
+    )
+  }
+)
 
 CodeBlock.displayName = 'CodeBlock'

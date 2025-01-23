@@ -6,7 +6,7 @@ import { ArrowUpRight, Plus } from 'lucide-react'
 export const variants = {
   accent:
     'bg-accent text-accent-contrast hover:bg-accent-hover focus-visible:bg-accent-focus ring-accent-ring',
-  outline: 'border hover:bg-secondary-hover hover:border-bg-secondary-hover',
+  outline: 'border hover:bg-secondary-hover hover:border-bg-secondary-hover ',
   primary: 'bg-primary ring-primary-ring text-primary-contrast hover:bg-primary-hover',
   secondary: 'bg-secondary text-secondary-content hover:bg-secondary-hover ring-secondary-ring',
   primaryText: 'hover:text-accent hover:bg-secondary-hover',

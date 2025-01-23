@@ -1,11 +1,10 @@
 import cx from 'classnames'
 import Link from 'next/link'
-import { BookIcon, CopyIcon } from 'lucide-react'
+import { BookIcon } from 'lucide-react'
 
 import { Button, MainCta } from '~/components/Button'
 import { links } from '~/config/urls'
 import { CodeBlock } from '~/components/CodeBlock'
-import { copyToClipboard } from '~/utils/copyToClipboard'
 
 const code = `import RushDB from '@rushdb/javascript-sdk'
 
@@ -36,12 +35,12 @@ export const Hero = () => {
 
       <section
         className={cx(
-          'container z-10 grid h-dvh place-content-center items-center',
+          'container z-10 mt-[-97px] grid h-dvh place-content-center items-center',
           'sm:static sm:h-auto sm:place-content-start md:!grid-cols-1'
         )}
       >
-        <div className="z-0 flex flex-col content-center items-center justify-center gap-24">
-          <div className="mb-4 grid grid-cols-2 items-center gap-24">
+        <div className="z-0 flex h-dvh flex-col items-center justify-between">
+          <div className="mb-4 grid grow grid-cols-2 items-center gap-24 self-center">
             <div className="mb-8 items-center">
               <h1 role="heading" className={cx('typography-4xl !font-extrabold sm:text-2xl')}>
                 Instant database
@@ -49,8 +48,8 @@ export const Hero = () => {
                 for modern apps
               </h1>
               <h2 className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-lg')}>
-                Focus on frontend and features,
-                <br /> RushDB handles the rest
+                Focus on building features. <br />
+                RushDB handles the rest.
               </h2>
               <div className="flex gap-4">
                 <MainCta variant="accent" text="Create Project" />
@@ -67,7 +66,7 @@ export const Hero = () => {
               />
             </div>
           </div>
-          <div className={cx('w-full justify-center text-center align-bottom md:flex-col')}>
+          <div className={cx('w-full justify-center self-end pb-16 text-center align-bottom md:flex-col')}>
             <p className={cx('text-content3 text-md mb-4 text-center !font-medium md:text-lg')}>
               RushDB is an open-source, graph-powered <span className="underline">zero-config</span> database
             </p>

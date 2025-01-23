@@ -122,7 +122,7 @@ function Nav() {
         <Button variant="primaryText" as={Link} size="small" href={links.docs} className="!rounded-full">
           Docs
         </Button>
-        <Button variant="primaryText" as={Link} size="small" href={links.docs} className="!rounded-full">
+        <Button variant="primaryText" as={Link} size="small" href="/#use-cases" className="!rounded-full">
           Use Cases
         </Button>
         <Button variant="primaryText" as={Link} size="small" href={socials.blog} className="!rounded-full">

@@ -2,13 +2,14 @@ import cx from 'classnames'
 import { Button, MainCta } from '~/components/Button'
 import Link from 'next/link'
 import { links } from '~/config/urls'
-import { BookIcon } from 'lucide-react'
+import { Waypoints } from 'lucide-react'
 import { CodeBlock } from '~/components/CodeBlock'
 import Image from 'next/image'
 
-import d1 from '../../images/dashboard-table.png'
-import d2 from '../../images/dashboard-graph.png'
-const code1 = `const db = new RushDB('api_token')
+import dashboard from '../../images/dashboard.png'
+const code1 = `import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB('api_token')
 
 await db.records.createMany("COMPANY", {
   name: 'Google LLC',
@@ -27,12 +28,63 @@ await db.records.createMany("COMPANY", {
         name: 'Jeff Dean',
         position: 'Head of AI Research',
         email: 'jeff@google.com',
-        dob: '1968-07-16T00:00:00.000Z',
-        salary: 3000000,
-      }]
-    }]
-  }]
+        dob: '1968-07-20T00:00:00.000Z',
+        salary: 3000000`
+
+const code2 = `await db.records.find({
+  labels: ['COMPANY'],
+  where: {
+    stage: 'seed',
+    address: { $contains: 'USA' },
+    foundedAt: {
+      $year: { $lte: 2000 }
+    },
+    rating: {
+      $or: [{ $lt: 2.5 }, { $gte: 4.5 }]
+    },
+    EMPLOYEE: {
+      $alias: '$employee',
+      salary: {
+        $gte: 500_000
+      }
+    }
+  },
+  aggregate: {
+    employees: {
+      fn: 'collect',
+      alias: '$employee',
+      limit: 10
+    }
+  }
 })`
+
+const code3 = `// String Property
+await db.properties.values(
+  "0192397b-8579-7ce2-a899-01c59bad63f8"
+)
+// Response
+{
+  "values": [
+    "Alice Johnson",
+    "Best Shoe Store",
+    "John Doe"
+  ],
+  "name": "name",
+  "type": "string",
+}
+
+// Number Property
+await db.properties.values(
+  "019412c0-2051-71fe-bc9d-26117b52c119"
+)
+// Response
+{
+  min: 5.5,
+  max: 12.5,
+  values: [5.5, 6, 6.5, 7, 7.5, 8, 8.5, ...],
+  type: 'number'
+}
+`
 
 const codeDocker = `docker run -p 3000:3000 --name rushdb \\
 -e NEO4J_URL='neo4j+s://1234567.databases.neo4j.io' \\
@@ -40,178 +92,298 @@ const codeDocker = `docker run -p 3000:3000 --name rushdb \\
 -e NEO4J_PASSWORD='password' \\
 rushdb/platform`
 
+const codeCompany = `Record
+---------------------
+address:     "string"
+foundedAt: "datetime"
+rating:      "number"`
+
+const codeDepartment = `Record
+-----------------------
+name:          "string"
+description: "datetime"`
+
+const codeProject = `Record
+---------------------
+name:        "string"
+description: "string"
+active:     "boolean"
+budget:      "number"`
+
+const codeEmployee = `Record
+------------------
+name:     "string"
+position: "string"
+email:    "string"
+dob:    "datetime"
+salary:   "number"`
+
+const codeProperty = `Property
+-------------------
+name: "description"
+type:      "string"`
+
 export const HowItWorks = () => {
   return (
     <>
-      <section className={cx('z-10 grid w-full place-content-center items-center')}>
-        <div className="border text-center">
-          <h3 className={cx('typography-3xl text sm:text-2xl')}>Push any JSON or CSV data</h3>
-          <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
-            RushDB intelligently maps relationships, types,
-            <br /> and labels any input data, so you don’t have to.
-          </p>
-          <CodeBlock
-            code={code1}
-            className="grid place-content-center md:w-full lg:w-full"
-            preClassName="md:w-full"
-          />
+      <section className={cx('mt-[1px]')}>
+        <div className="container">
+          <div className="outline-stroke rounded-tl-[150px] text-center outline outline-1 outline-offset-0">
+            <h3 className={cx('typography-2xl text pt-20 sm:text-2xl')}>Push any JSON or CSV data</h3>
+            <p className={cx('text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:text-lg')}>
+              RushDB intelligently maps relationships, types,
+              <br /> and labels any input data, so you don’t have to.
+            </p>
+            <CodeBlock
+              code={code1}
+              className="h-2/3 place-content-center pb-0 md:w-full lg:w-full"
+              wrapperClassName="rounded-bl-none rounded-br-none pb-0"
+              preClassName="md:w-full pb-0"
+            >
+              <div className="absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-b from-transparent to-[#131313]"></div>
+            </CodeBlock>
+          </div>
         </div>
       </section>
       {/**/}
-      <section className={cx('border')}>
-        <div className="container grid w-full grid-flow-col grid-rows-2">
-          <div className="flex w-full items-center gap-4 border p-8">
+      <section className={cx('outline-stroke outline outline-1 outline-offset-0')}>
+        <div className="container grid w-full grid-flow-col grid-rows-2 gap-[1px]">
+          <div className="outline-stroke flex w-full items-center gap-4 rounded-b-[50px] p-8 outline outline-1 outline-offset-0">
             <span className="text-content font-mono text-xl font-bold">~2ms</span>{' '}
             <p className="text-md text-content3">Batch write speed per Record</p>
           </div>
-          <div className="w-full border p-2"></div>
-          <div className="col-span-2 row-span-2 w-full border p-8">
+          <div className="outline-stroke w-full rounded-l-full p-2 outline outline-1 outline-offset-0"></div>
+          <div className="outline-stroke col-span-2 row-span-2 w-full rounded-tr-[50px] p-8 outline outline-1 outline-offset-0">
             <div className="flex w-full items-start gap-4">
               <span className="text-content font-mono text-xl font-bold">32MB</span>
               <div>
                 <p className="text-md text-content3">In a single payload or...</p>
-
-                <p className="text-md text-content3">10,000+ products for online store</p>
-                <p className="text-md text-content3">100,000+ financial transactions</p>
-                <p className="text-md text-content3">1,000,000+ API logs</p>
+                <p className="text-md text-content3">
+                  <b>10 000+</b> products for online store
+                </p>
+                <p className="text-md text-content3">
+                  <b>100 000+</b> financial transactions
+                </p>
+                <p className="text-md text-content3">
+                  <b>1 000 000+</b> API logs
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="outline-stroke row-span-2 w-full rounded-full rounded-br-none p-8 outline outline-1 outline-offset-0"></div>
+        </div>
+      </section>
+      {/**/}
+      <section className={cx('border-b')}>
+        <div className="container text-center">
+          <h3 className={cx('typography-2xl text pt-20 sm:text-2xl')}>Automatic Data Normalization</h3>
+          <p className={cx('text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:text-lg')}>
+            Records are created with appropriate types and relationships between them, <br /> without any need
+            for predefined models or schemas.
+          </p>
+          <div className="m-auto grid w-full max-w-3xl grid-flow-col grid-rows-2 gap-[1px]">
+            <div className="outline-stroke w-full rounded-bl-[80px] p-12 outline outline-1 outline-offset-0">
+              <div className="flex w-full flex-col items-start gap-4">
+                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
+                  <div className="bg-accent-yellow h-6 w-6 rounded-full"></div>
+                  <span className="text-content mr-2 font-mono text-base font-bold">COMPANY</span>
+                </div>
+                <CodeBlock code={codeCompany} className="m-auto" preClassName="md:w-full" />
+              </div>
+            </div>
+            <div className="outline-stroke w-full rounded-br-[80px] p-12 outline outline-1 outline-offset-0">
+              <div className="flex w-full flex-col items-start gap-4">
+                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
+                  <div className="h-6 w-6 rounded-full bg-green-600"></div>
+                  <span className="text-content mr-2 font-mono text-base font-bold">PROJECT</span>
+                </div>
+                <CodeBlock code={codeProject} className="m-auto" preClassName="md:w-full" />
+              </div>
+            </div>
+            <div className="outline-stroke w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0">
+              <div className="flex w-full flex-col items-start gap-4">
+                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
+                  <div className="bg-accent-orange h-6 w-6 rounded-full"></div>
+                  <span className="text-content mr-2 font-mono text-base font-bold">DEPARTMENT</span>
+                </div>
+                <CodeBlock code={codeDepartment} className="m-auto" preClassName="md:w-full" />
+              </div>
+            </div>
+            <div className="outline-stroke w-full rounded-bl-[80px] rounded-tr-[80px] p-12 outline outline-1 outline-offset-0">
+              <div className="flex w-full flex-col items-start gap-4">
+                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
+                  <div className="bg-accent-purple h-6 w-6 rounded-full"></div>
+                  <span className="text-content mr-2 font-mono text-base font-bold">EMPLOYEE</span>
+                </div>
+                <CodeBlock code={codeEmployee} className="m-auto" preClassName="md:w-full" />
               </div>
             </div>
           </div>
         </div>
       </section>
-      {/**/}
+
       <section className={cx('')}>
         <div className="container text-center">
-          <h3 className={cx('typography-3xl text sm:text-2xl')}>Automatic Data Normalization</h3>
-          <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
-            Records are created with appropriate types and relationships between them, <br /> without any need
-            for predefined models or schemas.
-          </p>
-          <div className="m-auto grid w-full max-w-4xl grid-flow-col grid-rows-2">
-            <div className="w-full border p-12">01</div>
-            <div className="w-full border p-12">02</div>
-            <div className="w-full border p-12">03</div>
-            <div className="w-full border p-12">04</div>
-          </div>
-        </div>
-      </section>
-
-      <section className={cx('border')}>
-        <div className="container text-center">
-          <h3 className={cx('typography-3xl text sm:text-2xl')}>Query Smarter, Not Harder</h3>
-          <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
-            Every Property gets its own "container," smartly linked to other matching Records by name and
-            type, making querying easy and performant.
-          </p>
-        </div>
-      </section>
-
-      <section className={cx('border')}>
-        <div className="container m-auto grid grid-cols-2">
-          <div className="w-full border p-12">
-            <h3 className={cx('typography-2xl text sm:text-2xl')}>Complex Queries, Simple Syntax</h3>
-            <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
-              Find exactly what you need with ease. With automated on-the-fly data normalization, query
-              complex, deeply interconnected data without the acrobatics.
+          <div className="outline-stroke rounded-t-full py-20 outline outline-1 outline-offset-0">
+            <h3 className={cx('typography-2xl text sm:text-2xl')}>Query Smarter, Not Harder</h3>
+            <p className={cx('text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:text-lg')}>
+              Every Property gets its own "container," smartly linked to other matching Records
+              <br /> by name and type, making querying easy and performant.
             </p>
 
+            <div className="flex w-full flex-row items-center justify-center gap-4">
+              <CodeBlock
+                code={codeProperty}
+                className="place-content-center gap-[1px]"
+                preClassName="md:w-full"
+              />
+              <Waypoints />
+              <div className="flex flex-col gap-4">
+                <div className="flex w-fit items-center gap-4 rounded-full border px-3 py-3">
+                  <div className="h-6 w-6 rounded-full bg-green-600"></div>
+                  <span className="text-content mr-2 font-mono text-base font-bold">PROJECT</span>
+                </div>
+                <div className="flex items-center gap-4 rounded-full border px-3 py-3">
+                  <div className="bg-accent-orange h-6 w-6 rounded-full"></div>
+                  <span className="text-content mr-2 font-mono text-base font-bold">DEPARTMENT</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={cx('border-b border-t')}>
+        <div className="container m-auto grid grid-cols-2 gap-[1px]">
+          <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-bl-[80px] rounded-tr-[80px] pt-12 outline outline-1 outline-offset-0">
+            <div className="mx-auto mb-8 max-w-xl">
+              <h4 className="mb-8 text-xl font-bold">Complex Queries, Simple Syntax</h4>
+              <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
+                Find exactly what you need with ease. With automated on-the-fly data normalization, query
+                complex, deeply interconnected data without the acrobatics.
+              </p>
+            </div>
             <CodeBlock
-              code={code1}
-              className="grid place-content-center md:w-full lg:w-full"
+              code={code2}
+              className="mx-auto w-full max-w-xl"
               preClassName="md:w-full"
-            />
+              wrapperClassName="rounded-bl-none rounded-br-none pb-0"
+            >
+              {/*<div className="absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-b from-transparent to-[#131313]"></div>*/}
+            </CodeBlock>
           </div>
 
-          <div className="w-full border p-12">
-            <h3 className={cx('typography-2xl text sm:text-2xl')}>Build Powerful Filters & Search</h3>
-            <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
-              List every variation. Filter with ease. Build catalogs and search experiences like a pro - no
-              backend, no fuss. All from a single API.
+          <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-br-[80px] pt-12 outline outline-1 outline-offset-0">
+            <div className="mx-auto mb-8 max-w-xl">
+              <h4 className="mb-8 text-xl font-bold">Build Powerful Filters & Search</h4>
+              <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
+                List every variation. Filter with ease. Build catalogs and search experiences like a pro - no
+                backend, no fuss. All from a single API.
+              </p>
+            </div>
+            <CodeBlock
+              code={code3}
+              className="mx-auto w-full max-w-xl"
+              preClassName="md:w-full"
+              wrapperClassName="rounded-bl-none rounded-br-none pb-0"
+            >
+              {/*<div className="absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-b from-transparent to-[#131313]"></div>*/}
+            </CodeBlock>
+          </div>
+        </div>
+      </section>
+
+      <section className={cx('outline-stroke outline outline-1 outline-offset-0')} id="use-cases">
+        <div className="container">
+          <div className="outline-stroke outline outline-1 outline-offset-0">
+            <h3 className={cx('typography-2xl text py-16 text-center sm:text-2xl')}>Use Cases</h3>
+
+            <div className="m-auto grid w-full grid-flow-col grid-rows-2 gap-[1px]">
+              <div className="outline-stroke w-full rounded-b-[80px] p-12 outline outline-1 outline-offset-0">
+                <h4 className="mb-8 text-xl font-bold">SaaS & Apps</h4>
+                <p className="text-content3 text-md">
+                  Building the next big thing shouldn't start with battling clumsy databases and other stuff.
+                  Focus on delivering features - RushDB takes care of the rest.
+                </p>
+              </div>
+              <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0">
+                <h4 className="mb-8 text-xl font-bold">Hobby Projects</h4>
+                <p className="text-content3 text-md">
+                  What’s more frustrating than losing your spark of inspiration to infrastructure hassle?
+                  RushDB lets you skip the grind and get back to building.
+                </p>
+              </div>
+              <div className="outline-stroke w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0">
+                <h4 className="mb-8 text-xl font-bold">AI / ML & Research</h4>
+                <p className="text-content3 text-md">
+                  Having fast and reliable data storage for AI is challenging yet rewarding. RushDB helps you
+                  store structured and semi-structured data at scale.
+                </p>
+              </div>
+
+              <div className="outline-stroke w-full rounded-l-[80px] rounded-br-[80px] p-12 outline outline-1 outline-offset-0">
+                <h4 className="mb-8 text-xl font-bold">Search Engines</h4>
+                <p className="text-content3 text-md">
+                  RushDB makes filtering large datasets fast and efficient, handling data of any shape and
+                  complexity with search capabilities designed for performance.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={cx('mt-[1px] border-b')}>
+        <div className="container text-center">
+          <div className={cx('outline-stroke outline outline-1 outline-offset-0')}>
+            <h3 className={cx('typography-2xl text pt-20 sm:text-2xl')}>Fully Featured Dashboard</h3>
+            <p className={cx('text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:text-lg')}>
+              That helps you navigate your data intuitively and fast
             </p>
+            <Image src={dashboard.src} alt="dashboard-preview" width={1894} height={989} className="w-full" />
+          </div>
+        </div>
+      </section>
 
+      <section className={cx('border-b')}>
+        <div className="container text-center">
+          <div className="outline-stroke rounded-b-full py-20 outline outline-1 outline-offset-0">
+            <h3 className={cx('typography-2xl text mb-8 sm:text-2xl')}>Self-hosted? Simple.</h3>
+            <p className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-lg')}>
+              Just run Docker container with Neo4j credentials
+            </p>
             <CodeBlock
-              code={code1}
-              className="grid place-content-center md:w-full lg:w-full"
+              language="bash"
+              code={codeDocker}
+              className="mb-8 grid place-content-center gap-[1px] md:w-full lg:w-full"
               preClassName="md:w-full"
             />
+            <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
+              That's it. RushDB is ready at <span className="bold font-mono font-bold">localhost:3000</span>{' '}
+              🎉️
+            </p>
           </div>
         </div>
       </section>
 
-      <section className={cx('border')}>
+      <section className={cx('outline-stroke outline outline-1 outline-offset-0')}>
         <div className="container text-center">
-          <h3 className={cx('typography-3xl text sm:text-2xl')}>Use Cases</h3>
-
-          <div className="m-auto grid w-full grid-flow-col grid-rows-2">
-            <div className="w-full border p-12">
-              <h4 className="bold text-xl">SaaS & Apps</h4>
-              <p className="text-content3 text-base">
-                Building the next big thing shouldn't start with battling clumsy databases and other stuff.
-                Focus on delivering features - RushDB takes care of the rest.
-              </p>
-            </div>
-            <div className="w-full border p-12">
-              <h4 className="bold text-xl">AI / ML & Research</h4>
-              <p className="text-content3 text-base">
-                Having fast and reliable data storage for AI is challenging yet rewarding. RushDB helps you
-                store structured and semi-structured data at scale.
-              </p>
-            </div>
-            <div className="w-full border p-12">
-              <h4 className="bold text-xl">Hobby Projects</h4>
-              <p className="text-content3 text-base">
-                What’s more frustrating than losing your spark of inspiration to infrastructure hassle? RushDB
-                lets you skip the grind and get back to building.
-              </p>
-            </div>
-            <div className="w-full border p-12">
-              <h4 className="bold text-xl">Search Engines</h4>
-              <p className="text-content3 text-base">
-                RushDB makes filtering large datasets fast and efficient, handling data of any shape and
-                complexity with search capabilities designed for performance.
-              </p>
+          <div className="outline-stroke rounded-full py-20 outline outline-1 outline-offset-0">
+            <h3 className={cx('typography-2xl text mb-8 sm:text-2xl')}>
+              Not an infra fan? Opt for <span className="text-accent">RushDB Cloud</span>
+            </h3>
+            <p className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-lg')}>
+              2 Projects Free Forever. No Maintenance Required.
+              <br />
+              Focus on building apps, not on managing infrastructure.
+            </p>
+            <div className="m-auto mb-8 flex w-full justify-center gap-4">
+              <MainCta variant="accent" text="Create Project" />
+              <Button as={Link} href={links.pricing} variant="outline" className="bg-fill">
+                Explore Plans
+              </Button>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className={cx('border')}>
-        <div className="container text-center">
-          <h3 className={cx('typography-2xl text sm:text-2xl')}>Fully Featured Dashboard</h3>
-          <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
-            That helps you navigate your data intuitively and fast
-          </p>
-        </div>
-        <Image src={d1.src} alt="dashboard-preview-1" width={1544} height={527} />
-        <Image src={d2.src} alt="dashboard-preview-2" width={1544} height={527} />
-      </section>
-
-      <section className={cx('border')}>
-        <div className="container text-center">
-          <h3 className={cx('typography-3xl text sm:text-2xl')}>Self-hosted? Simple.</h3>
-          <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
-            Just run Docker container with Neo4j credentials
-          </p>
-          <CodeBlock
-            language="bash"
-            code={codeDocker}
-            className="grid place-content-center md:w-full lg:w-full"
-            preClassName="md:w-full"
-          />
-          <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
-            That's it. RushDB is ready at <span className="bold font-mono font-bold">localhost:3000</span> 🎉️
-          </p>
-        </div>
-      </section>
-
-      <section className={cx('border')}>
-        <div className="container text-center">
-          <h3 className={cx('typography-3xl text sm:text-2xl')}>Not an infra fan? Opt for RushDB Cloud</h3>
-          <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-lg')}>
-            2 Projects Free Forever. No Maintenance Required.
-            <br />
-            Focus on building apps, not on managing infrastructure.
-          </p>
         </div>
       </section>
     </>
