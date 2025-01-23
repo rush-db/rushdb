@@ -46,8 +46,8 @@ function MobileMenu() {
   return (
     <>
       <IconButton
-        variant={open ? 'outline' : 'primaryText'}
-        className="z-10 ml-3 hidden sm:grid"
+        variant={'primaryText'}
+        className="z-10 hidden sm:grid"
         aria-label="Menu"
         onClick={() =>
           setOpen((current) => {
@@ -87,14 +87,14 @@ function MobileMenu() {
               <div className="bg-stroke my-4 h-0.5" />
 
               <div className="container divide-y">
-                <h6 className="typography-base text-content2 px-3">Socials</h6>
+                {/*<h6 className="typography-base text-content2 px-3">Socials</h6>*/}
 
-                <MenuItem as={Link} href={socials.discord} target="_blank" rel="noreferrer noopener">
-                  <div className="flex items-center gap-2">
-                    <IconDiscord height={18} width={18} />
-                    Discord
-                  </div>
-                </MenuItem>
+                {/*<MenuItem as={Link} href={socials.discord} target="_blank" rel="noreferrer noopener">*/}
+                {/*  <div className="flex items-center gap-2">*/}
+                {/*    <IconDiscord height={18} width={18} />*/}
+                {/*    Discord*/}
+                {/*  </div>*/}
+                {/*</MenuItem>*/}
                 <MenuItem as={Link} href={socials.x} target="_blank" rel="noreferrer noopener">
                   <div className="flex items-center gap-2">
                     <IconX height={18} width={18} />X (Twitter)

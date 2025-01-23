@@ -128,7 +128,7 @@ export const HowItWorks = () => {
     <>
       <section className={cx('mt-[1px]')}>
         <div className="container">
-          <div className="outline-stroke rounded-tl-[150px] text-center outline outline-1 outline-offset-0">
+          <div className="outline-stroke rounded-tl-[150px] text-center outline outline-1 outline-offset-0 md:rounded-tl-[80px]">
             <h3 className={cx('typography-2xl md:typography-xl text pt-20')}>Push any JSON or CSV data</h3>
             <p className={cx('text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:text-base')}>
               RushDB intelligently maps relationships, types,
@@ -256,8 +256,8 @@ export const HowItWorks = () => {
       <section className={cx('border-b border-t')}>
         <div className="container m-auto grid grid-cols-2 gap-[1px] md:grid-cols-1">
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-bl-[80px] rounded-tr-[80px] pt-12 outline outline-1 outline-offset-0">
-            <div className="mx-auto mb-8 max-w-xl">
-              <h4 className="mb-8 text-xl font-bold md:text-lg">Complex Queries, Simple Syntax</h4>
+            <div className="mx-auto mb-8 max-w-xl md:px-6">
+              <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Complex Queries, Simple Syntax</h4>
               <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-base')}>
                 Find exactly what you need with ease. With automated on-the-fly data normalization, query
                 complex, deeply interconnected data without the acrobatics.
@@ -272,8 +272,8 @@ export const HowItWorks = () => {
           </div>
 
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-br-[80px] pt-12 outline outline-1 outline-offset-0">
-            <div className="mx-auto mb-8 max-w-xl">
-              <h4 className="mb-8 text-xl font-bold md:text-lg">Build Powerful Filters & Search</h4>
+            <div className="mx-auto mb-8 max-w-xl md:px-6">
+              <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Build Powerful Filters & Search</h4>
               <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-base')}>
                 List every variation. Filter with ease. Build catalogs and search experiences like a pro - no
                 backend, no fuss. All from a single API.
@@ -296,21 +296,21 @@ export const HowItWorks = () => {
 
             <div className="m-auto grid w-full grid-flow-col grid-rows-2 gap-[1px] md:grid-rows-4">
               <div className="outline-stroke w-full rounded-b-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
-                <h4 className="mb-8 text-xl font-bold md:text-lg">SaaS & Apps</h4>
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">SaaS & Apps</h4>
                 <p className="text-content3 text-md md:text-base">
                   Building the next big thing shouldn't start with battling clumsy databases and other stuff.
                   Focus on delivering features - RushDB takes care of the rest.
                 </p>
               </div>
               <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
-                <h4 className="mb-8 text-xl font-bold md:text-lg">Hobby Projects</h4>
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Hobby Projects</h4>
                 <p className="text-content3 text-md md:text-base">
                   What’s more frustrating than losing your spark of inspiration to infrastructure hassle?
                   RushDB lets you skip the grind and get back to building.
                 </p>
               </div>
               <div className="outline-stroke w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
-                <h4 className="mb-8 text-xl font-bold md:text-lg">AI / ML & Research</h4>
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">AI / ML & Research</h4>
                 <p className="text-content3 text-md md:text-base">
                   Having fast and reliable data storage for AI is challenging yet rewarding. RushDB helps you
                   store structured and semi-structured data at scale.
@@ -318,7 +318,7 @@ export const HowItWorks = () => {
               </div>
 
               <div className="outline-stroke w-full rounded-l-[80px] rounded-br-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
-                <h4 className="mb-8 text-xl font-bold md:text-lg">Search Engines</h4>
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Search Engines</h4>
                 <p className="text-content3 text-md md:text-base">
                   RushDB makes filtering large datasets fast and efficient, handling data of any shape and
                   complexity with search capabilities designed for performance.
@@ -374,7 +374,7 @@ export const HowItWorks = () => {
             </h3>
             <p className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base')}>
               2 Projects Free Forever. No Maintenance Required.
-              <br />
+              <br className="md:hidden" />
               Focus on building apps, not on managing infrastructure.
             </p>
             <div className="m-auto mb-8 flex w-full justify-center gap-4">
