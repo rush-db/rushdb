@@ -19,24 +19,13 @@ export type PaginatorProps = TInheritableElementProps<
   }
 >
 
-export function Paginator({
-  total,
-  skip,
-  limit,
-  onNext,
-  onPrev,
-  className,
-  ...props
-}: PaginatorProps) {
+export function Paginator({ total, skip, limit, onNext, onPrev, className, ...props }: PaginatorProps) {
   return (
-    <div
-      className={cn('flex items-center gap-4 py-2 pl-1.5 pr-5', className)}
-      {...props}
-    >
+    <div className={cn('flex items-center gap-4 py-2 pl-1.5 pr-5', className)} {...props}>
       <div className="flex gap-x-4">
         <Select
           className="w-20"
-          onChange={(value) => {
+          onChange={(value: { target: { value: any } }) => {
             $currentProjectRecordsLimit.set(Number(value.target.value))
           }}
           value={limit}
@@ -48,12 +37,7 @@ export function Paginator({
             { value: 1000, label: '1000' }
           ]}
         />
-        <IconButton
-          aria-label="Previous page"
-          disabled={skip <= 0}
-          onClick={onPrev}
-          title="Previous page"
-        >
+        <IconButton aria-label="Previous page" disabled={skip <= 0} onClick={onPrev} title="Previous page">
           <ChevronLeft />
         </IconButton>
         <IconButton
@@ -66,11 +50,9 @@ export function Paginator({
         </IconButton>
       </div>
 
-      <div className="text-end text-sm text-content2">
-        {total > 1 ? 'Records' : 'Record'}{' '}
-        <strong>{clamp(1, total, skip)}</strong> -{' '}
-        <strong>{clamp(1, total, skip + limit)}</strong> of{' '}
-        <strong>{total}</strong>
+      <div className="text-content2 text-end text-sm">
+        {total > 1 ? 'Records' : 'Record'} <strong>{clamp(1, total, skip)}</strong> -{' '}
+        <strong>{clamp(1, total, skip + limit)}</strong> of <strong>{total}</strong>
       </div>
     </div>
   )

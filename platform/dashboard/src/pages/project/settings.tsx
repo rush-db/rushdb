@@ -40,7 +40,7 @@ function ProjectNameSetting({}: WithProjectID) {
 
   return (
     <Setting
-      onReset={(event) => {
+      onReset={(event: { preventDefault: () => void }) => {
         event.preventDefault()
         reset()
       }}
@@ -73,8 +73,7 @@ function DeleteProjectSetting({ projectId }: WithProjectID) {
       }
       title={
         <>
-          Delete{' '}
-          <Skeleton enabled={loading}>{project?.name ?? 'Loading'}</Skeleton>
+          Delete <Skeleton enabled={loading}>{project?.name ?? 'Loading'}</Skeleton>
         </>
       }
       className="border-danger"

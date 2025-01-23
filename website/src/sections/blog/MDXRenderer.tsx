@@ -1,7 +1,7 @@
 import classNames from 'classnames'
 import { MDXRemote } from 'next-mdx-remote'
 import Image from 'next/image'
-import { ComponentPropsWithoutRef, ReactNode, isValidElement } from 'react'
+import { ComponentPropsWithoutRef, isValidElement } from 'react'
 import { CodeBlock } from '~/components/CodeBlock'
 import { LetterTypingText } from '~/components/LetterTypingText'
 import { Link } from '~/components/Link'
@@ -176,32 +176,30 @@ const Blockquote = (props: ComponentPropsWithoutRef<'blockquote'>) => {
   )
 }
 
-const getPostComponents = (data: Post['data']) =>
-  ({
-    PostHeader: (props: Omit<ComponentPropsWithoutRef<typeof PostHeader>, 'data'>) => (
-      <PostHeader data={data} {...props} />
-    ),
-    p: P,
-    h1: H2,
-    h2: H2,
-    h3: H3,
-    img: Img,
-    pre: Pre,
-    ul: (props: ComponentPropsWithoutRef<typeof List>) => <List {...props} as="ul" />,
-    ol: (props: ComponentPropsWithoutRef<typeof List>) => <List {...props} as="ol" />,
-    li: Li,
-    a: Link,
-    hr: Hr,
-    blockquote: Blockquote
-  }) as unknown as Record<string, ReactNode>
-
+const getPostComponents = (data: Post['data']) => ({
+  PostHeader: (props: Omit<ComponentPropsWithoutRef<typeof PostHeader>, 'data'>) => (
+    <PostHeader data={data} {...props} />
+  ),
+  p: P,
+  h1: H2,
+  h2: H2,
+  h3: H3,
+  img: Img,
+  pre: Pre,
+  ul: (props: ComponentPropsWithoutRef<typeof List>) => <List {...props} as="ul" />,
+  ol: (props: ComponentPropsWithoutRef<typeof List>) => <List {...props} as="ol" />,
+  li: Li,
+  a: Link,
+  hr: Hr,
+  blockquote: Blockquote
+})
 export function MDXRenderer({
   data,
   ...props
 }: Omit<ComponentPropsWithoutRef<typeof MDXRemote>, 'components'> & {
   data: Post['data']
 }) {
-  const components = getPostComponents(data)
+  const components = getPostComponents(data) as unknown as null
 
   return (
     <section className="container">

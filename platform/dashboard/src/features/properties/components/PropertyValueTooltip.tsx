@@ -242,7 +242,7 @@ export function PropertyValueTooltip() {
 
         <IconCopyButton
           className="pointer-events-auto"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e: { stopPropagation: () => any }) => e.stopPropagation()}
           size="xsmall"
           text={formattedValue}
           variant="secondary"
