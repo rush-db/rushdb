@@ -40,7 +40,7 @@ export const Hero = () => {
         )}
       >
         <div className="z-0 flex h-dvh flex-col items-center justify-between">
-          <div className="mb-4 grid grow grid-cols-2 items-center gap-24 self-center">
+          <div className="mb-4 grid grow grid-cols-2 items-center gap-24 self-center md:grid-cols-1">
             <div className="mb-8 items-center">
               <h1 role="heading" className={cx('typography-4xl !font-extrabold sm:text-2xl')}>
                 Instant database
@@ -61,7 +61,7 @@ export const Hero = () => {
             <div className={cx('flex w-full items-center justify-start md:flex-col')}>
               <CodeBlock
                 code={code}
-                className="grid place-content-center md:w-full lg:w-fit"
+                className="grid place-content-center md:hidden md:w-full lg:w-fit"
                 preClassName="md:w-full"
               />
             </div>
@@ -72,7 +72,7 @@ export const Hero = () => {
             </p>
             <CodeBlock
               code={'pnpm add @rushdb/javascript-sdk'}
-              className="m-auto grid place-content-center md:w-full lg:w-fit"
+              className="m-auto grid place-content-center md:hidden md:w-full lg:w-fit"
               preClassName="md:w-full"
               copyButton={true}
             >
