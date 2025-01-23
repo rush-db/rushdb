@@ -31,12 +31,15 @@ await db.records.find({
 export const Hero = () => {
   return (
     <>
-      <div className="hero absolute top-0 z-0 h-dvh w-full md:bg-cover" />
+      <div className="hero absolute top-0 z-0 min-h-dvh w-full md:bg-cover" />
 
       <section
-        className={cx('container z-10 mt-[-97px] grid h-dvh place-content-center items-center', 'md:mt-0')}
+        className={cx(
+          'container z-10 mt-[-97px] grid min-h-dvh place-content-center items-center',
+          'md:mt-0'
+        )}
       >
-        <div className="z-0 flex h-dvh flex-col items-center justify-between">
+        <div className="z-0 flex min-h-dvh flex-col items-center justify-between">
           <div className="mb-4 grid grow grid-cols-2 items-center gap-24 self-center md:grid-cols-1 md:gap-0 md:text-center">
             <div className="mb-8 items-center">
               <h1 role="heading" className={cx('typography-4xl !font-extrabold sm:text-2xl')}>
@@ -65,7 +68,7 @@ export const Hero = () => {
           </div>
           <div
             className={cx(
-              'w-full justify-center self-end pb-16 text-center align-bottom md:flex-col md:pb-4'
+              'w-full justify-center self-end pb-16 text-center align-bottom md:hidden md:flex-col md:pb-4'
             )}
           >
             <p className={cx('text-content3 text-md mb-4 text-center !font-medium md:text-lg')}>
