@@ -1,20 +1,18 @@
-import { ComponentPropsWithoutRef, PropsWithChildren } from "react"
-import { Footer } from "./Footer"
-import { Header } from "./header"
-import { Meta } from "~/components/Meta"
-import classNames from "classnames"
+import { ComponentPropsWithoutRef, PropsWithChildren } from 'react'
+import { Footer } from './Footer'
+import { Header } from './header'
+import { Meta } from '~/components/Meta'
+import classNames from 'classnames'
+import CookieNotification from '~/components/CookiesConsent'
 
 export function Layout({
   description,
   title,
   image,
   children,
-  className,
+  className
 }: PropsWithChildren<
-  Pick<
-    ComponentPropsWithoutRef<typeof Meta>,
-    "title" | "description" | "image"
-  > & {
+  Pick<ComponentPropsWithoutRef<typeof Meta>, 'title' | 'description' | 'image'> & {
     className?: string
   }
 >) {
@@ -24,11 +22,10 @@ export function Layout({
 
       <Header />
 
-      <main className={classNames("min-h-screen pt-24 md:pt-0", className)}>
-        {children}
-      </main>
+      <main className={classNames('min-h-screen pt-24 md:pt-0', className)}>{children}</main>
 
       <Footer />
+      <CookieNotification />
     </>
   )
 }

@@ -2,7 +2,7 @@ import cx from 'classnames'
 import { Button, MainCta } from '~/components/Button'
 import Link from 'next/link'
 import { links } from '~/config/urls'
-import { Waypoints } from 'lucide-react'
+import { BookIcon, Waypoints } from 'lucide-react'
 import { CodeBlock } from '~/components/CodeBlock'
 import Image from 'next/image'
 
@@ -58,22 +58,22 @@ const code2 = `await db.records.find({
   }
 })`
 
-const code3 = `// String Property
+const code3 = `// Property \`name\` [string]
 await db.properties.values(
   "0192397b-8579-7ce2-a899-01c59bad63f8"
 )
 // Response
 {
   "values": [
-    "Alice Johnson",
-    "Best Shoe Store",
-    "John Doe"
+    "Eleanor Whitaker",
+    "Marcus Donovan",
+    "Priya Kapoor",
+    "Julian Alvarez"
   ],
-  "name": "name",
-  "type": "string",
+  "type": "string"
 }
 
-// Number Property
+// Property \`size\` [number]
 await db.properties.values(
   "019412c0-2051-71fe-bc9d-26117b52c119"
 )
@@ -94,6 +94,7 @@ rushdb/platform`
 
 const codeCompany = `Record
 ---------------------
+name:        "string"
 address:     "string"
 foundedAt: "datetime"
 rating:      "number"`
@@ -132,7 +133,7 @@ export const HowItWorks = () => {
             <h3 className={cx('typography-2xl md:typography-xl text pt-20')}>Push any JSON or CSV data</h3>
             <p className={cx('text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:text-base')}>
               RushDB intelligently maps relationships, types,
-              <br /> and labels any input data, so you don’t have to.
+              <br className="md:hidden" /> and labels any input data, so you don’t have to.
             </p>
             <CodeBlock
               code={code1}
@@ -184,36 +185,36 @@ export const HowItWorks = () => {
           <div className="m-auto grid w-full max-w-3xl grid-flow-col grid-rows-2 gap-[1px] md:grid-rows-4">
             <div className="outline-stroke w-full rounded-bl-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
               <div className="flex w-full flex-col items-start gap-4">
-                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
-                  <div className="bg-accent-yellow h-6 w-6 rounded-full"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">COMPANY</span>
+                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
+                  <div className="bg-accent-yellow h-6 w-6 rounded-full md:h-4 md:w-4"></div>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">COMPANY</span>
                 </div>
                 <CodeBlock code={codeCompany} className="m-auto" preClassName="md:w-full" />
               </div>
             </div>
             <div className="outline-stroke w-full rounded-br-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
               <div className="flex w-full flex-col items-start gap-4">
-                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
-                  <div className="h-6 w-6 rounded-full bg-green-600"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">PROJECT</span>
+                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
+                  <div className="h-6 w-6 rounded-full bg-green-600 md:h-4 md:w-4"></div>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">PROJECT</span>
                 </div>
                 <CodeBlock code={codeProject} className="m-auto" preClassName="md:w-full" />
               </div>
             </div>
             <div className="outline-stroke w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
               <div className="flex w-full flex-col items-start gap-4">
-                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
-                  <div className="bg-accent-orange h-6 w-6 rounded-full"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">DEPARTMENT</span>
+                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
+                  <div className="bg-accent-orange h-6 w-6 rounded-full md:h-4 md:w-4"></div>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">DEPARTMENT</span>
                 </div>
                 <CodeBlock code={codeDepartment} className="m-auto" preClassName="md:w-full" />
               </div>
             </div>
             <div className="outline-stroke w-full rounded-bl-[80px] rounded-tr-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
               <div className="flex w-full flex-col items-start gap-4">
-                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3">
-                  <div className="bg-accent-purple h-6 w-6 rounded-full"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">EMPLOYEE</span>
+                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
+                  <div className="bg-accent-purple h-6 w-6 rounded-full md:h-4 md:w-4"></div>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">EMPLOYEE</span>
                 </div>
                 <CodeBlock code={codeEmployee} className="m-auto" preClassName="md:w-full" />
               </div>
@@ -239,13 +240,13 @@ export const HowItWorks = () => {
               />
               <Waypoints />
               <div className="flex flex-col gap-4 md:gap-2">
-                <div className="flex w-fit items-center gap-4 rounded-full border px-3 py-3">
-                  <div className="h-6 w-6 rounded-full bg-green-600"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">PROJECT</span>
+                <div className="flex w-fit items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
+                  <div className="h-6 w-6 rounded-full bg-green-600 md:h-4 md:w-4"></div>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">PROJECT</span>
                 </div>
-                <div className="flex items-center gap-4 rounded-full border px-3 py-3">
-                  <div className="bg-accent-orange h-6 w-6 rounded-full"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-sm">DEPARTMENT</span>
+                <div className="flex items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
+                  <div className="bg-accent-orange h-6 w-6 rounded-full md:h-4 md:w-4"></div>
+                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">DEPARTMENT</span>
                 </div>
               </div>
             </div>
@@ -295,21 +296,21 @@ export const HowItWorks = () => {
             <h3 className={cx('typography-2xl md:typography-xl text py-16 text-center')}>Use Cases</h3>
 
             <div className="m-auto grid w-full grid-flow-col grid-rows-2 gap-[1px] md:grid-rows-4">
-              <div className="outline-stroke w-full rounded-b-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
+              <div className="outline-stroke w-full rounded-b-[80px] p-12 outline outline-1 outline-offset-0 md:rounded-b-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">SaaS & Apps</h4>
                 <p className="text-content3 text-md md:text-base">
                   Building the next big thing shouldn't start with battling clumsy databases and other stuff.
                   Focus on delivering features - RushDB takes care of the rest.
                 </p>
               </div>
-              <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
+              <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0 md:rounded-t-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Hobby Projects</h4>
                 <p className="text-content3 text-md md:text-base">
                   What’s more frustrating than losing your spark of inspiration to infrastructure hassle?
                   RushDB lets you skip the grind and get back to building.
                 </p>
               </div>
-              <div className="outline-stroke w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
+              <div className="outline-stroke w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0 md:rounded-r-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">AI / ML & Research</h4>
                 <p className="text-content3 text-md md:text-base">
                   Having fast and reliable data storage for AI is challenging yet rewarding. RushDB helps you
@@ -317,7 +318,7 @@ export const HowItWorks = () => {
                 </p>
               </div>
 
-              <div className="outline-stroke w-full rounded-l-[80px] rounded-br-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
+              <div className="outline-stroke w-full rounded-l-[80px] rounded-br-[80px] p-12 outline outline-1 outline-offset-0 md:rounded-l-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Search Engines</h4>
                 <p className="text-content3 text-md md:text-base">
                   RushDB makes filtering large datasets fast and efficient, handling data of any shape and
@@ -347,7 +348,7 @@ export const HowItWorks = () => {
 
       <section className={cx('border-b')}>
         <div className="container text-center">
-          <div className="outline-stroke rounded-b-full py-20 outline outline-1 outline-offset-0">
+          <div className="outline-stroke rounded-b-full py-20 outline outline-1 outline-offset-0 md:rounded-b-[100px]">
             <h3 className={cx('typography-2xl md:typography-xl text mb-8')}>Self-hosted? Simple.</h3>
             <p className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base')}>
               Just run Docker container with Neo4j credentials
@@ -359,16 +360,26 @@ export const HowItWorks = () => {
               preClassName="md:w-full"
             />
             <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-base')}>
-              That's it. RushDB is ready at <span className="bold font-mono font-bold">localhost:3000</span>{' '}
-              🎉️
+              That's it. RushDB is ready at <br className="hidden md:block" />
+              <span className="bold font-mono font-bold">localhost:3000</span> 🎉️
             </p>
+
+            <Button
+              as={Link}
+              href={links.getStarted}
+              size="small"
+              variant="outline"
+              className="bg-fill m-auto mt-8 w-fit"
+            >
+              Read the Docs <BookIcon />
+            </Button>
           </div>
         </div>
       </section>
 
       <section className={cx('outline-stroke outline outline-1 outline-offset-0')}>
         <div className="container text-center">
-          <div className="outline-stroke rounded-full py-20 outline outline-1 outline-offset-0">
+          <div className="outline-stroke rounded-full py-20 outline outline-1 outline-offset-0 md:rounded-[100px]">
             <h3 className={cx('typography-2xl md:typography-xl text mb-8')}>
               Not an infra fan? Opt for <span className="text-accent">RushDB Cloud</span>
             </h3>
@@ -377,9 +388,9 @@ export const HowItWorks = () => {
               <br className="md:hidden" />
               Focus on building apps, not on managing infrastructure.
             </p>
-            <div className="m-auto mb-8 flex w-full justify-center gap-4">
-              <MainCta variant="accent" text="Create Project" />
-              <Button as={Link} href={links.pricing} variant="outline" className="bg-fill">
+            <div className="m-auto flex w-full justify-center gap-4">
+              <MainCta size="small" variant="accent" text="Create Project" />
+              <Button as={Link} href={links.pricing} size="small" variant="outline" className="bg-fill">
                 Explore Plans
               </Button>
             </div>

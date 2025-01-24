@@ -3,8 +3,9 @@ import Link from 'next/link'
 import { BookIcon } from 'lucide-react'
 
 import { Button, MainCta } from '~/components/Button'
-import { links } from '~/config/urls'
+import { links, socials } from '~/config/urls'
 import { CodeBlock } from '~/components/CodeBlock'
+import { GitHub } from '~/components/Icons/GitHub'
 
 const code = `import RushDB from '@rushdb/javascript-sdk'
 
@@ -31,7 +32,7 @@ await db.records.find({
 export const Hero = () => {
   return (
     <>
-      <div className="hero absolute top-0 z-0 min-h-dvh w-full md:bg-cover" />
+      <div id="hero" className="hero absolute top-0 z-0 min-h-dvh w-full md:bg-cover" />
 
       <section
         className={cx(
@@ -41,23 +42,33 @@ export const Hero = () => {
       >
         <div className="z-0 flex min-h-dvh flex-col items-center justify-between">
           <div className="mb-4 grid grow grid-cols-2 items-center gap-24 self-center md:grid-cols-1 md:gap-0 md:text-center">
-            <div className="mb-8 items-center">
+            <div className="mb-8 items-center md:mt-24">
               <h1 role="heading" className={cx('typography-4xl !font-extrabold sm:text-2xl')}>
                 Instant database
                 <br />
-                for modern apps
+                for modern apps<span className="hidden"> - RushDB</span>
               </h1>
-              <h2 className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-lg')}>
+              <h2 className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base')}>
                 Focus on building features. <br />
                 RushDB handles the rest.
               </h2>
-              <div className="flex gap-4 md:justify-center">
-                <MainCta variant="accent" text="Create Project" />
-                <Button as={Link} href={links.getStarted} variant="outline" className="bg-fill">
+
+              <Link href={socials.github} target="__blank" rel="noopener noreferrer" aria-label="Github">
+                <div className="bg-secondary m-auto mt-16 hidden w-fit items-center gap-4 rounded-full border p-2 px-4 md:flex">
+                  <p className="hidden font-mono text-base font-bold md:block">
+                    v{process.env.NEXT_PUBLIC_APP_VERSION}
+                  </p>
+                  <GitHub className="h-5 w-5" />
+                </div>
+              </Link>
+              <div className="mt-16 flex gap-4 md:justify-center">
+                <MainCta variant="accent" size="small" text="Create Project" />
+                <Button as={Link} href={links.getStarted} variant="outline" size="small" className="bg-fill">
                   Docs <BookIcon />
                 </Button>
               </div>
             </div>
+
             <div className={cx('flex w-full items-center justify-start md:hidden md:flex-col')}>
               <CodeBlock
                 code={code}
@@ -72,7 +83,7 @@ export const Hero = () => {
             )}
           >
             <p className={cx('text-content3 text-md mb-4 text-center !font-medium md:text-lg')}>
-              RushDB is an open-source, graph-powered <span className="underline">zero-config</span> database
+              RushDB is an open-source, graph-powered zero-config database
             </p>
             <CodeBlock
               code={'pnpm add @rushdb/javascript-sdk'}
@@ -86,11 +97,6 @@ export const Hero = () => {
                 className="md:hidden"
               />
             </CodeBlock>
-            <img
-              src="https://img.shields.io/npm/v/@rushdb/javascript-sdk"
-              alt="npm-version"
-              className="m-auto hidden py-8 md:block"
-            />
           </div>
         </div>
       </section>

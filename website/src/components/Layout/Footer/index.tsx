@@ -13,10 +13,12 @@ export function Footer() {
       <div className="container py-16">
         <div className="grid grid-cols-2 items-start gap-4">
           <div className="justify-self-start">
-            <div className="flex items-center gap-4">
-              <Logo className="text-content" width={60} height={60} />
-              <span className="text-content typography-xl text-left font-bold">RushDB</span>
-            </div>
+            <Link href="/#hero" rel="noopener noreferrer" aria-label="Home page">
+              <div className="flex items-center gap-4">
+                <Logo className="text-content" width={60} height={60} />
+                <span className="text-content typography-xl text-left font-bold">RushDB</span>
+              </div>
+            </Link>
           </div>
 
           <div className="flex flex-col justify-end gap-4">

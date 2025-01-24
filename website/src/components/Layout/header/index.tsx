@@ -167,7 +167,18 @@ export const Header = () => {
         </Link>
 
         <Nav />
-        <MainCta variant="accent" size="medium" className="ml-4 justify-self-end sm:hidden" />
+        <div className="ml-4 flex gap-2 justify-self-end">
+          <Button
+            variant="outline"
+            as={Link}
+            size="small"
+            className="bg-fill md:hidden"
+            href="https://app.rushdb.com"
+          >
+            Sign In
+          </Button>
+          <MainCta variant="accent" size="small" className="sm:hidden" />
+        </div>
       </div>
     </header>
   )
