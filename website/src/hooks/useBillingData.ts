@@ -1,19 +1,16 @@
 import { useState, useEffect } from 'react'
 
-type BillingData = {
-  pro: {
-    month: {
-      amount: number
-      priceId: string
-      productId: string
-    }
-    annual: {
-      amount: number
-      priceId: string
-      productId: string
-    }
-  }
+type PaidStartPlanId = 'start'
+type PaidPlanId = 'pro'
+type PlanPeriod = 'annual' | 'month'
+
+type IncomingPlanData = {
+  amount: number
+  priceId: string
+  productId: string
 }
+
+type BillingData = Record<PaidStartPlanId | PaidPlanId, Record<PlanPeriod, IncomingPlanData>>
 
 export function useBillingData() {
   const [data, setData] = useState<BillingData | null>(null)
