@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.8.2
+
+### Patch Changes
+
+- 6e900d7: bump other packages to 0.8.1
+
 ## 0.8.1
 
 ### Patch Changes
