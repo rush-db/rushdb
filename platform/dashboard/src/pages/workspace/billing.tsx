@@ -19,22 +19,15 @@ import { currencyFormatters } from '~/lib/formatters'
 import { cn, range } from '~/lib/utils'
 
 const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>> = {
-  free: [
-    { title: '2 Projects' },
-    { title: '10,000 Records' },
-    { title: 'Unlimited API Requests', description: 'Up to 10 RPS' },
-    { title: 'Community support' }
-  ],
+  free: [{ title: '2 Projects' }, { title: '10,000 Records' }, { title: 'Community support' }],
   start: [
     { title: 'Unlimited Projects' },
     { title: '400,000 Records', description: 'Next 400,000 Records for $9 per month' },
-    { title: 'Unlimited API Requests', description: 'No RPS Limits' },
     { title: 'Priority Support' }
   ],
   pro: [
     { title: 'Unlimited Projects' },
     { title: '1,000,000 Records', description: 'Next 1,000,000 Records for $19 per month' },
-    { title: 'Unlimited API Requests', description: 'No RPS Limits' },
     { title: 'Priority Support' }
   ]
 }
