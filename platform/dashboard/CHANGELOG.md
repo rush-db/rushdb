@@ -1,5 +1,12 @@
 # rushdb-dashboard
 
+## 0.8.2
+
+### Patch Changes
+
+- Updated dependencies [6e900d7]
+  - @rushdb/javascript-sdk@0.8.2
+
 ## 0.8.1
 
 ### Patch Changes
