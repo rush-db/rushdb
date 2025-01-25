@@ -6,7 +6,7 @@ import { PlanName, PlanPeriod } from '@/dashboard/billing/stripe/interfaces/stri
 export class PlansDto {
   @IsNotEmpty()
   @ApiProperty()
-  @ApiModelProperty({ example: 'pro' })
+  @ApiModelProperty({ example: 'start' })
   id: PlanName
 
   @IsNotEmpty()
