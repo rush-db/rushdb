@@ -15,7 +15,7 @@ import { $availablePlans, $currentPeriod, $currentPlan, $paidUser } from '~/feat
 import { isFreePlan } from '~/features/billing/utils'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
 import { api } from '~/lib/api'
-import { currencyFormatters, percentFormatter } from '~/lib/formatters'
+import { currencyFormatters } from '~/lib/formatters'
 import { cn, range } from '~/lib/utils'
 
 const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>> = {
@@ -24,6 +24,12 @@ const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>
     { title: '10,000 Records' },
     { title: 'Unlimited API Requests', description: 'Up to 10 RPS' },
     { title: 'Community support' }
+  ],
+  start: [
+    { title: 'Unlimited Projects' },
+    { title: '400,000 Records', description: 'Next 400,000 Records for $9 per month' },
+    { title: 'Unlimited API Requests', description: 'No RPS Limits' },
+    { title: 'Priority Support' }
   ],
   pro: [
     { title: 'Unlimited Projects' },
@@ -203,7 +209,7 @@ function Plans() {
       <PlanCard active={!paidUser} className="order-last sm:order-first" plan={FREE_PLAN} />
 
       {plans?.map((plan) => (
-        <PlanCard active={plan.id === currentPlan?.id} className="lg:col-span-2" key={plan.id} plan={plan} />
+        <PlanCard active={plan.id === currentPlan?.id} className="lg:col-span-1" key={plan.id} plan={plan} />
       ))}
 
       {!plans &&

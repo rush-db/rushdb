@@ -1,26 +1,20 @@
+export type PaidStartPlanId = 'start'
 export type PaidPlanId = 'pro'
 export type FreePlanId = 'free'
-export type PlanId = FreePlanId | PaidPlanId
+export type PlanId = FreePlanId | PaidStartPlanId | PaidPlanId
 
 export type PlanPeriod = 'annual' | 'month'
 
-export type IncomingBillingData = {
-  pro: {
-    month: {
-      amount: number
-      priceId: string
-      productId: string
-    }
-    annual: {
-      amount: number
-      priceId: string
-      productId: string
-    }
-  }
+type IncomingPlanData = {
+  amount: number
+  priceId: string
+  productId: string
 }
 
+export type IncomingBillingData = Record<PaidStartPlanId | PaidPlanId, Record<PlanPeriod, IncomingPlanData>>
+
 export type PaidPlan = {
-  id: PaidPlanId
+  id: PaidPlanId | PaidStartPlanId
   name: string
   monthlyPrice: number
   yearlyPrice: number
