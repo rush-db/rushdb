@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 0.9.0
+
+### Minor Changes
+
+- 6cc7392: Release 0.9.0 version with updated billing
+
 ## 0.8.2
 
 ### Patch Changes
