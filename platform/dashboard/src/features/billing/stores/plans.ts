@@ -24,6 +24,12 @@ export const $availablePlans = computed($billingSettings, (billingData) => {
 
   return [
     {
+      id: 'start',
+      name: 'RushDB Start',
+      monthlyPrice: billingData.data.start.month.amount,
+      yearlyPrice: billingData.data.start.annual.amount
+    },
+    {
       id: 'pro',
       name: 'RushDB Pro',
       monthlyPrice: billingData.data.pro.month.amount,

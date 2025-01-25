@@ -160,7 +160,8 @@ export class StripeService {
       customer: customer.id,
       line_items: [
         {
-          price: priceId
+          price: priceId,
+          quantity: 1
         }
       ],
       currency: 'usd',

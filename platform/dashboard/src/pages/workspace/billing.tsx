@@ -15,20 +15,20 @@ import { $availablePlans, $currentPeriod, $currentPlan, $paidUser } from '~/feat
 import { isFreePlan } from '~/features/billing/utils'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
 import { api } from '~/lib/api'
-import { currencyFormatters, percentFormatter } from '~/lib/formatters'
+import { currencyFormatters } from '~/lib/formatters'
 import { cn, range } from '~/lib/utils'
 
 const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>> = {
-  free: [
-    { title: '2 Projects' },
-    { title: '10,000 Records' },
-    { title: 'Unlimited API Requests', description: 'Up to 10 RPS' },
-    { title: 'Community support' }
+  free: [{ title: '2 Projects' }, { title: '10,000 Records' }, { title: 'Community support' }],
+  start: [
+    { title: 'Unlimited Projects' },
+    { title: '400,000 Records', description: 'Next 400,000 Records for $9 per month' },
+    { title: 'Priority Support' }
   ],
   pro: [
     { title: 'Unlimited Projects' },
     { title: '1,000,000 Records', description: 'Next 1,000,000 Records for $19 per month' },
-    { title: 'Unlimited API Requests', description: 'No RPS Limits' },
+    { title: 'Backups', description: 'Coming soon' },
     { title: 'Priority Support' }
   ]
 }
@@ -200,10 +200,15 @@ function Plans() {
 
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      <PlanCard active={!paidUser} className="order-last sm:order-first" plan={FREE_PLAN} />
+      {!paidUser && <PlanCard active={true} className="order-last sm:order-first" plan={FREE_PLAN} />}
 
       {plans?.map((plan) => (
-        <PlanCard active={plan.id === currentPlan?.id} className="lg:col-span-2" key={plan.id} plan={plan} />
+        <PlanCard
+          active={plan.id === currentPlan?.id}
+          className={cn(plan.id === currentPlan?.id ? 'lg:col-span-2' : 'lg:col-span-1')}
+          key={plan.id}
+          plan={plan}
+        />
       ))}
 
       {!plans &&

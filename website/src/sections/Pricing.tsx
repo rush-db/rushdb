@@ -83,10 +83,11 @@ enum Variants {
 }
 
 export function Pricing() {
-  const [variant, setVariant] = useState<Variants>(Variants.Cloud)
+  const [variant] = useState<Variants>(Variants.Cloud)
   const { loading, data } = useBillingData()
 
-  const monthlyPrice = data?.pro?.month?.amount
+  const monthlyPricePro = data?.pro?.month?.amount
+  const monthlyPriceStart = data?.start?.month?.amount
 
   if (loading) {
     return (
@@ -122,9 +123,27 @@ export function Pricing() {
               <Feat title="2 Projects" />
               <Feat title="Community Support" />
             </PricingCard>
-            {monthlyPrice && (
+            {monthlyPriceStart && (
               <PricingCard
-                price={monthlyPrice}
+                price={monthlyPriceStart}
+                featured
+                title="Start"
+                description="Monthly"
+                action={
+                  <Button size="small" variant="accent" as={Link} href={links.app}>
+                    Start for Free
+                    <ArrowUpRight />
+                  </Button>
+                }
+              >
+                <Feat title="400 000 Records" />
+                <Feat title="Unlimited Projects" />
+                <Feat title="Priority Support" />
+              </PricingCard>
+            )}
+            {monthlyPricePro && (
+              <PricingCard
+                price={monthlyPricePro}
                 featured
                 title="Pro"
                 description="Monthly"
@@ -137,7 +156,7 @@ export function Pricing() {
               >
                 <Feat title="1 000 000 Records" />
                 <Feat title="Unlimited Projects" />
-                <Feat title="Backups" subtitle="Comming soon" />
+                <Feat title="Backups" subtitle="Coming soon" />
                 <Feat title="Priority Support" />
               </PricingCard>
             )}

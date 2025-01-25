@@ -15,11 +15,11 @@ export function UserMenu() {
 
   return (
     <div className="flex items-center gap-2">
-      {!platformSettings.data?.selfHosted ? (
+      {!platformSettings?.data?.selfHosted ?
         <a href={getRoutePath('workspaceBilling')}>
           <CurrentSubscriptionInfo />
         </a>
-      ) : null}
+      : null}
       <Menu
         trigger={
           <IconButton
@@ -38,11 +38,11 @@ export function UserMenu() {
           </MenuTitle>
         )}
         <Divider />
-        {!$platformSettings.get()?.data?.selfHosted ? (
+        {!platformSettings?.data?.selfHosted ?
           <MenuItem as="a" href={getRoutePath('workspaceBilling')}>
             <CurrentSubscriptionInfo />
           </MenuItem>
-        ) : null}
+        : null}
         <Divider />
         <MenuItem as="a" asChild href={getRoutePath('profile')} icon={<User />}>
           Profile

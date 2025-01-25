@@ -12,6 +12,12 @@ export const WORKSPACE_LIMITS_PRO: TWorkspaceLimits = {
   importSize: 32 * 1024 * 1024 // 32 MB
 }
 
+export const WORKSPACE_LIMITS_START: TWorkspaceLimits = {
+  records: 400_000,
+  projects: null, // UNLIMITED
+  importSize: 32 * 1024 * 1024 // 32 MB
+}
+
 export const WORKSPACE_LIMITS_WHITE_LABEL: TWorkspaceLimits = {
   records: null,
   projects: null,
