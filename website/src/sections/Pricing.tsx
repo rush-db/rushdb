@@ -8,6 +8,7 @@ import { ArrowUpRight, Check, LucideMail } from 'lucide-react'
 
 import Link from 'next/link'
 import { links } from '~/config/urls'
+import { useBillingData } from '~/hooks/useBillingData'
 
 function Feat({ title, subtitle }: { title: ReactNode; subtitle?: ReactNode }) {
   return (
@@ -83,6 +84,9 @@ enum Variants {
 
 export function Pricing() {
   const [variant, setVariant] = useState<Variants>(Variants.Cloud)
+  const billingData = useBillingData()
+
+  const monthlyPrice = billingData?.pro?.month?.amount
 
   return (
     <Section className="container">
@@ -112,27 +116,29 @@ export function Pricing() {
               <Feat title="Unlimited API Requests" subtitle="Up to 10 RPS" />
               <Feat title="Community Support" />
             </PricingCard>
-            <PricingCard
-              price={11}
-              featured
-              title="Pro"
-              description="Monthly"
-              action={
-                <Button size="small" variant="accent" as={Link} href={links.app}>
-                  Start for Free
-                  <ArrowUpRight />
-                </Button>
-              }
-            >
-              <Feat title="Unlimited Projects" />
-              <Feat
-                title="100 000 Records"
-                // subtitle="then $1 per 10 000 Records"
-                subtitle="No upper limits or charges in technical preview"
-              />
-              <Feat title="Unlimited API Requests" subtitle="No RPS limits" />
-              <Feat title="Priority Support" />
-            </PricingCard>
+            {monthlyPrice && (
+              <PricingCard
+                price={monthlyPrice}
+                featured
+                title="Pro"
+                description="Monthly"
+                action={
+                  <Button size="small" variant="accent" as={Link} href={links.app}>
+                    Start for Free
+                    <ArrowUpRight />
+                  </Button>
+                }
+              >
+                <Feat title="Unlimited Projects" />
+                <Feat
+                  title="100 000 Records"
+                  // subtitle="then $1 per 10 000 Records"
+                  subtitle="No upper limits or charges in technical preview"
+                />
+                <Feat title="Unlimited API Requests" subtitle="No RPS limits" />
+                <Feat title="Priority Support" />
+              </PricingCard>
+            )}
             <PricingCard
               title="Business"
               description="Contact sales"
