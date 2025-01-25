@@ -28,6 +28,7 @@ const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>
   pro: [
     { title: 'Unlimited Projects' },
     { title: '1,000,000 Records', description: 'Next 1,000,000 Records for $19 per month' },
+    { title: 'Backups', description: 'Coming soon' },
     { title: 'Priority Support' }
   ]
 }

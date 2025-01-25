@@ -156,7 +156,7 @@ export function Pricing() {
               >
                 <Feat title="1 000 000 Records" />
                 <Feat title="Unlimited Projects" />
-                <Feat title="Backups" subtitle="Comming soon" />
+                <Feat title="Backups" subtitle="Coming soon" />
                 <Feat title="Priority Support" />
               </PricingCard>
             )}
