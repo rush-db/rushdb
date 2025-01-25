@@ -19,6 +19,8 @@ await db.records.createMany("COMPANY", {
   DEPARTMENT: [{
     name: 'Research & Development',
     description: 'Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.',
+    tags: ['AI', 'Cloud Computing', 'Research'],
+    profitable: true,
     PROJECT: [{
       name: 'Bard AI',
       description: 'A state-of-the-art generative AI model for natural language understanding and creation.',
@@ -28,7 +30,6 @@ await db.records.createMany("COMPANY", {
         name: 'Jeff Dean',
         position: 'Head of AI Research',
         email: 'jeff@google.com',
-        dob: '1968-07-20T00:00:00.000Z',
         salary: 3000000`
 
 const code2 = `await db.records.find({
@@ -100,9 +101,11 @@ foundedAt: "datetime"
 rating:      "number"`
 
 const codeDepartment = `Record
------------------------
-name:          "string"
-description: "datetime"`
+---------------------
+name:        "string"
+description: "string"
+tags:        "string"
+profitable: "boolean"`
 
 const codeProject = `Record
 ---------------------
@@ -116,7 +119,6 @@ const codeEmployee = `Record
 name:     "string"
 position: "string"
 email:    "string"
-dob:    "datetime"
 salary:   "number"`
 
 const codeProperty = `Property
@@ -130,8 +132,14 @@ export const HowItWorks = () => {
       <section className={cx('mt-[1px]')}>
         <div className="container">
           <div className="outline-stroke rounded-tl-[150px] text-center outline outline-1 outline-offset-0 md:rounded-tl-[80px]">
-            <h3 className={cx('typography-2xl md:typography-xl text pt-20')}>Push any JSON or CSV data</h3>
-            <p className={cx('text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:text-base')}>
+            <h3 className={cx('typography-2xl md:typography-xl text px-6 pt-20')}>
+              Push any JSON or CSV data
+            </h3>
+            <p
+              className={cx(
+                'text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base'
+              )}
+            >
               RushDB intelligently maps relationships, types,
               <br className="md:hidden" /> and labels any input data, so you don’t have to.
             </p>
@@ -149,13 +157,10 @@ export const HowItWorks = () => {
 
       <section className={cx('outline-stroke outline outline-1 outline-offset-0')}>
         <div className="container grid w-full grid-flow-col grid-rows-2 gap-[1px] md:grid-flow-row md:grid-rows-3">
-          <div className="outline-stroke flex w-full items-center gap-4 rounded-b-[50px] p-8 outline outline-1 outline-offset-0 md:col-span-2 md:p-4">
-            <span className="text-content font-mono text-xl font-bold md:text-lg">~2ms</span>{' '}
-            <p className="text-md text-content3 md:text-base">Batch write speed per Record</p>
-          </div>
-          <div className="outline-stroke w-full rounded-l-full p-2 outline outline-1 outline-offset-0 md:hidden"></div>
-          <div className="outline-stroke col-span-2 row-span-2 w-full rounded-tr-[50px] p-8 outline outline-1 outline-offset-0 md:p-4">
-            <div className="flex w-full items-start gap-4">
+          <div className="outline-stroke row-span-2 w-full rounded-full rounded-tr-none p-8 outline outline-1 outline-offset-0 md:hidden md:p-6"></div>
+
+          <div className="outline-stroke col-span-2 row-span-2 w-full rounded-b-[50px] p-8 outline outline-1 outline-offset-0 md:p-6">
+            <div className="flex w-full flex-col items-start gap-4 md:gap-2">
               <span className="text-content font-mono text-xl font-bold md:text-lg">32MB</span>
               <div>
                 <p className="text-md text-content3 md:text-base">In a single payload or...</p>
@@ -171,16 +176,29 @@ export const HowItWorks = () => {
               </div>
             </div>
           </div>
-          <div className="outline-stroke row-span-2 w-full rounded-full rounded-br-none p-8 outline outline-1 outline-offset-0 md:hidden md:p-4"></div>
+          <div className="outline-stroke flex w-full flex-col gap-4 rounded-tr-[50px] p-8 outline outline-1 outline-offset-0 md:col-span-2 md:gap-2 md:p-6">
+            <span className="text-content font-mono text-xl font-bold md:text-lg">~2ms</span>{' '}
+            <p className="text-md text-content3 md:text-base">Batch write speed per Record</p>
+          </div>
+          <div className="outline-stroke flex w-full flex-col gap-4 rounded-l-full p-8 outline outline-1 outline-offset-0 md:gap-2">
+            <span className="text-content font-mono text-xl font-bold md:text-lg">ACID Compliance</span>{' '}
+            <p className="text-md text-content3 md:text-base">Ensures data integrity and reliability</p>
+          </div>
+
+          <div className="outline-stroke row-span-2 w-full rounded-full rounded-br-none p-8 outline outline-1 outline-offset-0 md:hidden"></div>
         </div>
       </section>
 
       <section className={cx('border-b')}>
         <div className="container text-center">
-          <h3 className={cx('typography-2xl md:typography-xl text pt-20')}>Automatic Data Normalization</h3>
-          <p className={cx('text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:text-base')}>
-            Records are created with appropriate types and relationships between them, <br /> without any need
-            for predefined models or schemas.
+          <h3 className={cx('typography-2xl md:typography-xl text px-6 pt-20')}>
+            Automatic Data Normalization
+          </h3>
+          <p
+            className={cx('text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base')}
+          >
+            Records are created with appropriate types and relationships between them,{' '}
+            <br className="md:hidden" /> without any need for predefined models or schemas.
           </p>
           <div className="m-auto grid w-full max-w-3xl grid-flow-col grid-rows-2 gap-[1px] md:grid-rows-4">
             <div className="outline-stroke w-full rounded-bl-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
@@ -226,10 +244,14 @@ export const HowItWorks = () => {
       <section className={cx('')}>
         <div className="container text-center">
           <div className="outline-stroke rounded-t-[80px] py-20 outline outline-1 outline-offset-0 md:pb-8">
-            <h3 className={cx('typography-2xl md:typography-xl text')}>Query Smarter, Not Harder</h3>
-            <p className={cx('text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:text-base')}>
+            <h3 className={cx('typography-2xl md:typography-xl text px-6')}>Query Smarter, Not Harder</h3>
+            <p
+              className={cx(
+                'text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base'
+              )}
+            >
               Every Property gets its own "container," smartly linked to other matching Records
-              <br /> by name and type, making querying easy and performant.
+              <br className="md:hidden" /> by name and type, making querying easy and performant.
             </p>
 
             <div className="flex w-full flex-row items-center justify-center gap-4 md:gap-1">
@@ -257,7 +279,7 @@ export const HowItWorks = () => {
       <section className={cx('border-b border-t')}>
         <div className="container m-auto grid grid-cols-2 gap-[1px] md:grid-cols-1">
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-bl-[80px] rounded-tr-[80px] pt-12 outline outline-1 outline-offset-0">
-            <div className="mx-auto mb-8 max-w-xl md:px-6">
+            <div className="mx-auto mb-8 max-w-xl md:px-6 md:text-center">
               <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Complex Queries, Simple Syntax</h4>
               <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-base')}>
                 Find exactly what you need with ease. With automated on-the-fly data normalization, query
@@ -273,7 +295,7 @@ export const HowItWorks = () => {
           </div>
 
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-br-[80px] pt-12 outline outline-1 outline-offset-0">
-            <div className="mx-auto mb-8 max-w-xl md:px-6">
+            <div className="mx-auto mb-8 max-w-xl md:px-6 md:text-center">
               <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Build Powerful Filters & Search</h4>
               <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-base')}>
                 List every variation. Filter with ease. Build catalogs and search experiences like a pro - no
@@ -381,7 +403,8 @@ export const HowItWorks = () => {
         <div className="container text-center">
           <div className="outline-stroke rounded-full py-20 outline outline-1 outline-offset-0 md:rounded-[100px]">
             <h3 className={cx('typography-2xl md:typography-xl text mb-8')}>
-              Not an infra fan? Opt for <span className="text-accent">RushDB Cloud</span>
+              Not an infra fan?
+              <br className="hidden md:block" /> Opt for <span className="text-accent">RushDB Cloud</span>
             </h3>
             <p className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base')}>
               2 Projects Free Forever. No Maintenance Required.
