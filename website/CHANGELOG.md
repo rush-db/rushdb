@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.9.2
+
+### Patch Changes
+
+- eafe1b5: updated secret credentials
+
 ## 0.9.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.9.2
+
+### Patch Changes
+
+- eafe1b5: updated secret credentials
+- Updated dependencies [eafe1b5]
+  - @rushdb/javascript-sdk@0.9.2
+
 ## 0.9.1
 
 ### Patch Changes
