@@ -1,17 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { ApiModelProperty } from '@nestjs/swagger/dist/decorators/api-model-property.decorator'
 import { IsNotEmpty } from 'class-validator'
+import { PlanName, PlanPeriod } from '@/dashboard/billing/stripe/interfaces/stripe.types'
 
 export class PlansDto {
   @IsNotEmpty()
   @ApiProperty()
   @ApiModelProperty({ example: 'pro' })
-  id: 'pro'
+  id: PlanName
 
   @IsNotEmpty()
   @ApiProperty()
   @ApiModelProperty({ example: 'month' })
-  period: 'month' | 'annual'
+  period: PlanPeriod
 
   @IsNotEmpty()
   @ApiProperty()

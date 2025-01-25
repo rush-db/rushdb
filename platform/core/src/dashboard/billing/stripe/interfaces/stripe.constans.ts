@@ -1,3 +1,4 @@
 export enum EConfigKeyByPlan {
-  pro = '_PRO'
+  pro = '_PRO',
+  start = '_START'
 }

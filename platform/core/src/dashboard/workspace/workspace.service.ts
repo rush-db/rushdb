@@ -22,9 +22,11 @@ import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repos
 import {
   WORKSPACE_LIMITS_DEFAULT,
   WORKSPACE_LIMITS_PRO,
+  WORKSPACE_LIMITS_START,
   WORKSPACE_LIMITS_WHITE_LABEL
 } from '@/dashboard/workspace/workspace.constants'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -165,7 +167,19 @@ export class WorkspaceService {
       return WORKSPACE_LIMITS_WHITE_LABEL
     }
 
-    return toBoolean(key) ? WORKSPACE_LIMITS_PRO : WORKSPACE_LIMITS_DEFAULT
+    if (!toBoolean(key)) {
+      return WORKSPACE_LIMITS_DEFAULT
+    }
+
+    // @TODO: remove contract between billing service && workspace service
+    switch (key) {
+      case EConfigKeyByPlan.pro:
+        return WORKSPACE_LIMITS_PRO
+      case EConfigKeyByPlan.start:
+        return WORKSPACE_LIMITS_START
+      default:
+        return WORKSPACE_LIMITS_DEFAULT
+    }
   }
 
   async createWorkspace(
