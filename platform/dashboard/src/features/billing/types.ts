@@ -4,6 +4,21 @@ export type PlanId = FreePlanId | PaidPlanId
 
 export type PlanPeriod = 'annual' | 'month'
 
+export type IncomingBillingData = {
+  pro: {
+    month: {
+      amount: number
+      priceId: string
+      productId: string
+    }
+    annual: {
+      amount: number
+      priceId: string
+      productId: string
+    }
+  }
+}
+
 export type PaidPlan = {
   id: PaidPlanId
   name: string

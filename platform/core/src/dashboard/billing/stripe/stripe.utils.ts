@@ -1,13 +1,12 @@
-import { PRODUCT_PLAN_MAP } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
+import { TPlan } from '@/dashboard/billing/stripe/interfaces/stripe.types'
 
-export function getPlanKeyByPriceId(targetId: string): string | null {
-  const currentPlanKey = Object.keys(PRODUCT_PLAN_MAP).find((planKey) =>
-    Object.values(PRODUCT_PLAN_MAP[planKey]).some((period) => period.priceId === targetId)
+export function getPlanKeyByPriceId(targetId: string, planMap: TPlan): string | null {
+  const currentPlanKey = Object.keys(planMap).find((planKey) =>
+    Object.values<TPlan[keyof TPlan][keyof TPlan[keyof TPlan]]>(planMap[planKey]).some((period) => {
+      const price = period.priceId
+      return price === targetId
+    })
   )
 
   return currentPlanKey || null
-}
-
-export function hasPlanInPalette(key: string) {
-  return key in PRODUCT_PLAN_MAP
 }
