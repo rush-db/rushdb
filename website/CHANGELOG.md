@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.8.1
+
+### Patch Changes
+
+- 3d65528: Core/Dashboard/Website now accept billing data from internal billing service instead of hardcoded values
+
 ## 0.8.0
 
 ### Minor Changes
