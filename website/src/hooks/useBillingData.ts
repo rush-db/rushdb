@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 
-// Тип данных, которые возвращает `billing.rushdb.com/api/prices`
 type BillingData = {
   pro: {
     month: {
@@ -18,10 +17,12 @@ type BillingData = {
 
 export function useBillingData() {
   const [data, setData] = useState<BillingData | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchBillingData() {
       try {
+        setLoading(true)
         const res = await fetch('https://billing.rushdb.com/api/prices')
 
         if (!res.ok) {
@@ -33,11 +34,13 @@ export function useBillingData() {
         setData(json)
       } catch (err) {
         console.error('Failed to fetch billing data:', err)
+      } finally {
+        setLoading(false)
       }
     }
 
     fetchBillingData()
   }, [])
 
-  return data
+  return { data, loading }
 }

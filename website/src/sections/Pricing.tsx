@@ -4,7 +4,7 @@ import { Section, SectionHeader, SectionSubtitle, SectionTitle } from '~/compone
 import { ComponentPropsWithoutRef, ReactNode } from 'react'
 import cx from 'classnames'
 import { Button } from '~/components/Button'
-import { ArrowUpRight, Check, LucideMail } from 'lucide-react'
+import { ArrowUpRight, Check, Loader } from 'lucide-react'
 
 import Link from 'next/link'
 import { links } from '~/config/urls'
@@ -84,10 +84,17 @@ enum Variants {
 
 export function Pricing() {
   const [variant, setVariant] = useState<Variants>(Variants.Cloud)
-  const billingData = useBillingData()
+  const { loading, data } = useBillingData()
 
-  const monthlyPrice = billingData?.pro?.month?.amount
+  const monthlyPrice = data?.pro?.month?.amount
 
+  if (loading) {
+    return (
+      <div className="container grid h-full min-h-dvh w-full place-content-center items-center">
+        <Loader />
+      </div>
+    )
+  }
   return (
     <Section className="container">
       <SectionHeader className="text-center">
@@ -111,9 +118,8 @@ export function Pricing() {
                 </Button>
               }
             >
+              <Feat title="100 000 Records" />
               <Feat title="2 Projects" />
-              <Feat title="1 000 Records" />
-              <Feat title="Unlimited API Requests" subtitle="Up to 10 RPS" />
               <Feat title="Community Support" />
             </PricingCard>
             {monthlyPrice && (
@@ -129,31 +135,12 @@ export function Pricing() {
                   </Button>
                 }
               >
+                <Feat title="1 000 000 Records" />
                 <Feat title="Unlimited Projects" />
-                <Feat
-                  title="100 000 Records"
-                  // subtitle="then $1 per 10 000 Records"
-                  subtitle="No upper limits or charges in technical preview"
-                />
-                <Feat title="Unlimited API Requests" subtitle="No RPS limits" />
+                <Feat title="Backups" subtitle="Comming soon" />
                 <Feat title="Priority Support" />
               </PricingCard>
             )}
-            <PricingCard
-              title="Business"
-              description="Contact sales"
-              action={
-                <Button size="small" variant="primary" as={Link} href={links.contactUs}>
-                  Contact Us
-                  <LucideMail />
-                </Button>
-              }
-            >
-              <Feat title="Unlimited Everything" />
-              <Feat title="White Labeling & Customizations" />
-              <Feat title="On-Premises Deployment" subtitle="Lifetime updates on demand" />
-              <Feat title="Dedicated Support" />
-            </PricingCard>
           </>
         )}
       </div>

@@ -40,17 +40,20 @@ export const Hero = () => {
           'md:mt-0'
         )}
       >
-        <div className="z-0 flex min-h-dvh flex-col items-center justify-between">
-          <div className="mb-4 grid grow grid-cols-2 items-center gap-24 self-center md:grid-cols-1 md:gap-0 md:text-center">
+        <div className="z-0 flex min-h-dvh flex-col">
+          <div className="mb-4 mt-32 grid grow grid-cols-2 items-center gap-24 md:mt-0 md:grid-cols-1 md:gap-0 md:text-center">
             <div className="mb-8 items-center md:mt-24">
               <h1 role="heading" className={cx('typography-4xl !font-extrabold sm:text-2xl')}>
                 Instant database
                 <br />
                 for modern apps<span className="hidden"> - RushDB</span>
               </h1>
-              <h2 className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base')}>
-                Focus on building features. <br />
-                RushDB handles the rest.
+              <h2
+                className={cx(
+                  'text-content3 text-md mb-8 mt-10 !font-medium !tracking-normal md:mt-0 md:text-base'
+                )}
+              >
+                Focus on building features. RushDB handles the rest.
               </h2>
 
               <Link href={socials.github} target="__blank" rel="noopener noreferrer" aria-label="Github">
@@ -69,7 +72,7 @@ export const Hero = () => {
               </div>
             </div>
 
-            <div className={cx('flex w-full items-center justify-start md:hidden md:flex-col')}>
+            <div className="flex w-full items-center justify-start md:hidden md:flex-col">
               <CodeBlock
                 code={code}
                 className="grid place-content-center md:hidden md:w-full lg:w-fit"
@@ -77,12 +80,8 @@ export const Hero = () => {
               />
             </div>
           </div>
-          <div
-            className={cx(
-              'w-full justify-center self-end pb-16 text-center align-bottom md:hidden md:flex-col md:pb-4'
-            )}
-          >
-            <p className={cx('text-content3 text-md mb-4 text-center !font-medium md:text-lg')}>
+          <div className="w-full justify-center self-end pb-16 text-center align-bottom md:hidden md:flex-col md:pb-4">
+            <p className="text-content3 text-md mb-4 text-center !font-medium md:text-lg">
               RushDB is an open-source, graph-powered zero-config database
             </p>
             <CodeBlock
