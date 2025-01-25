@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 0.9.0
+
+### Minor Changes
+
+- 6cc7392: Release 0.9.0 version with updated billing
+
+### Patch Changes
+
+- Updated dependencies [6cc7392]
+  - @rushdb/javascript-sdk@0.9.0
+
 ## 0.8.2
 
 ### Patch Changes
