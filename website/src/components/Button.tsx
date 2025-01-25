@@ -1,12 +1,12 @@
 import React, { ComponentPropsWithoutRef } from 'react'
 import cx from 'classnames'
 import Link from 'next/link'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, Plus } from 'lucide-react'
 
 export const variants = {
   accent:
     'bg-accent text-accent-contrast hover:bg-accent-hover focus-visible:bg-accent-focus ring-accent-ring',
-  outline: 'border hover:bg-secondary-hover hover:borde-bg-secondary-hover',
+  outline: 'border hover:bg-secondary-hover hover:border-bg-secondary-hover ',
   primary: 'bg-primary ring-primary-ring text-primary-contrast hover:bg-primary-hover',
   secondary: 'bg-secondary text-secondary-content hover:bg-secondary-hover ring-secondary-ring',
   primaryText: 'hover:text-accent hover:bg-secondary-hover',
@@ -46,13 +46,13 @@ export function Button<As extends React.ElementType = 'button'>({
 export const MainCta = ({
   children,
   href = 'https://app.rushdb.com',
-  text = 'Start for Free',
+  text = 'Create Project',
   ...props
 }: Props & ComponentPropsWithoutRef<typeof Button>) => {
   return (
     <Button {...props} as={Link} href={href}>
       {children ?? text}
-      <ArrowUpRight />
+      <Plus />
     </Button>
   )
 }

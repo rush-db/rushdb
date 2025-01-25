@@ -58,7 +58,7 @@ a {
 }
 
 .typography-4xl {
-  @apply mb-8 font-bold tracking-normal leading-none text-4xl md:leading-[3.5rem] md:text-3xl sm:text-2xl sm:leading-[3rem];
+  @apply font-sans mb-8 font-bold tracking-normal leading-none text-4xl md:leading-[3.5rem] md:text-3xl sm:text-2xl sm:leading-[3rem];
 }
 
 .typography-3xl {
@@ -79,4 +79,11 @@ a {
 
 .typography-base {
   @apply font-medium tracking-tight text-base md:text-sm;
+}
+
+.hero {
+  background-image: url("/images/hero-bg.svg");
+  background-repeat: repeat;
+  background-size: contain;
+  background-position: center bottom;
 }

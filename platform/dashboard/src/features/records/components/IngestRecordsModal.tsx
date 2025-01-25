@@ -80,7 +80,7 @@ function EditorStep() {
         className="mt-5"
         required={true}
         label="Label"
-        onChange={(event) => $label.set(event.target.value)}
+        onChange={(event: { target: { value: string } }) => $label.set(event.target.value)}
         size="small"
         value={label}
       />

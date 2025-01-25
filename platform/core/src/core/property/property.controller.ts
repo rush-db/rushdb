@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   DefaultValuePipe,
-  Delete,
   forwardRef,
   Get,
   HttpCode,
@@ -26,12 +25,10 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { EntityService } from '@/core/entity/entity.service'
-import { DeletePropertyDto } from '@/core/property/dto/delete-property.dto'
 import { UpdatePropertyValueDto } from '@/core/property/dto/update-property-value.dto'
 import { UpdatePropertyDto } from '@/core/property/dto/update-property.dto'
 import { TPropertyProperties } from '@/core/property/model/property.interface'
 import { PropertyService } from '@/core/property/property.service'
-import { TFieldResponse } from '@/core/property/property.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { pagination } from '@/core/search/parser/pagination'
 import { TSearchSortDirection } from '@/core/search/search.types'

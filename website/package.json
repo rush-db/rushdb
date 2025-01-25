@@ -1,6 +1,6 @@
 {
   "name": "rushdb-website",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
@@ -13,23 +13,26 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@radix-ui/react-portal": "^1.0.4",
+    "@radix-ui/react-portal": "^1.1.2",
     "@radix-ui/react-tabs": "^1.1.2",
     "classnames": "2.3.2",
     "framer-motion": "^11.15.0",
-    "lucide-react": "0.363.0",
+    "lucide-react": "^0.473.0",
+    "mdx-mermaid": "^2.0.3",
+    "mermaid": "^11.4.1",
     "next": "13.5.8",
     "next-sitemap": "^4.2.3",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "react-syntax-highlighter": "^15.5.0"
+    "react-syntax-highlighter": "^15.5.0",
+    "rehype-mermaid": "^3.0.0"
   },
   "devDependencies": {
     "@svgr/webpack": "6.5.1",
     "@types/eslint": "9.6.1",
     "@types/node": "^18.15.11",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
+    "@types/react": "18.2.0",
+    "@types/react-dom": "18.2.0",
     "@types/react-syntax-highlighter": "^15.5.6",
     "@typescript-eslint/eslint-plugin": "^8.19.0",
     "autoprefixer": "^10.4.20",
@@ -46,7 +49,7 @@
     "eslint-plugin-storybook": "^0.11.2",
     "eslint-plugin-testing-library": "^7.1.1",
     "gray-matter": "^4.0.2",
-    "next-mdx-remote": "^3.0.1",
+    "next-mdx-remote": "^5.0.0",
     "next-remote-watch": "1.0.0",
     "postcss": "^8.4.49",
     "postcss-import": "15.0.0",
