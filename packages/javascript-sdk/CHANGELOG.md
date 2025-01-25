@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.9.1
+
+### Patch Changes
+
+- b055539: Dashboard/website: Introduced start plan, updated dashboard && website layouts
+
 ## 0.9.0
 
 ### Minor Changes
