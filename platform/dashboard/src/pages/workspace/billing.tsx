@@ -199,10 +199,15 @@ function Plans() {
 
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      <PlanCard active={!paidUser} className="order-last sm:order-first" plan={FREE_PLAN} />
+      {!paidUser && <PlanCard active={true} className="order-last sm:order-first" plan={FREE_PLAN} />}
 
       {plans?.map((plan) => (
-        <PlanCard active={plan.id === currentPlan?.id} className="lg:col-span-1" key={plan.id} plan={plan} />
+        <PlanCard
+          active={plan.id === currentPlan?.id}
+          className={cn(plan.id === currentPlan?.id ? 'lg:col-span-2' : 'lg:col-span-1')}
+          key={plan.id}
+          plan={plan}
+        />
       ))}
 
       {!plans &&
