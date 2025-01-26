@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 0.9.3
+
+### Patch Changes
+
+- 22ce867: billing setup update for dev/prod envs
+
 ## 0.9.2
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.9.3
+
+### Patch Changes
+
+- 22ce867: billing setup update for dev/prod envs
+- Updated dependencies [22ce867]
+  - @rushdb/javascript-sdk@0.9.3
+
 ## 0.9.2
 
 ### Patch Changes
