@@ -7,8 +7,9 @@ import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.c
 import { PlansDto } from '@/dashboard/billing/stripe/plans.dto'
 import { getPlanKeyByPriceId } from '@/dashboard/billing/stripe/stripe.utils'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import axios from 'axios'
+import axios, { AxiosRequestConfig } from 'axios'
 import { TPlan } from '@/dashboard/billing/stripe/interfaces/stripe.types'
+import { isProductionMode } from '@/common/utils/isProductionMode'
 
 @Injectable()
 export class StripeService {
@@ -67,7 +68,10 @@ export class StripeService {
     const userEmail = session.customer_email || (await this.stripe.customers.retrieve(session.customer)).email
 
     if (subscriptionId) {
-      const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices')
+      const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
+        ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
+      } as AxiosRequestConfig)
+
       const subscription = await this.stripe.subscriptions.retrieve(subscriptionId)
       const planId = subscription.items.data[0].plan.id
       const validTill = new Date(subscription.current_period_end * 1000)
@@ -91,7 +95,10 @@ export class StripeService {
   async updateCustomerPlan(payload: Stripe.Event, transaction: Transaction) {
     const updatedSubscription = payload.data.object as Stripe.Subscription
 
-    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices')
+    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
+      ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
+    } as AxiosRequestConfig)
+
     const customer = await this.stripe.customers.retrieve(updatedSubscription.customer as string)
     const userEmail = customer.email
 
@@ -151,7 +158,9 @@ export class StripeService {
     { id, period, returnUrl }: PlansDto,
     email: string
   ): Promise<Stripe.Checkout.Session> {
-    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices')
+    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
+      ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
+    } as AxiosRequestConfig)
     const { priceId } = data[id][period]
 
     const customer: Stripe.Customer = await this.getCustomerByEmail(email)
