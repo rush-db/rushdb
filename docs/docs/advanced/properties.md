@@ -33,20 +33,20 @@ And this is how those **Records** can be represented in code:
 ```typescript
 // Record:Jacket
 const jacket = {
-    color: "Matte black" // Property:color     [string]
+    color: "Matte black" // Property `color`     [string]
 }   
 
 // Record:SportCar
 const sportCar = {
-    name: "Porsche 911", // Property:name      [string]
-    color: "Dark grey",  // Property:color     [string]
-    maxSpeed: 295        // Property:maxSpeed  [number]
+    name: "Porsche 911", // Property `name`      [string]
+    color: "Dark grey",  // Property `color`     [string]
+    maxSpeed: 295        // Property `maxSpeed`  [number]
 }
 
 // Record:House
 const house = {
-    name: "Villa Vista", // Property:name      [string]
-    color: "Pale green"  // Property:color     [string]
+    name: "Villa Vista", // Property `name`      [string]
+    color: "Pale green"  // Property `color`     [string]
 }
 ```
 
@@ -98,8 +98,7 @@ Payload contains inconsistent values but cannot be converted to desired _number_
 --- 
 
 2. When two (or more) properties with the <u>same name</u> but <u>different types</u> come into play, RushDB will make 
-every effort to maintain data consistency. It does this by appending a suffix to the duplicated name, ensuring that the 
-distinction is preserved. For instance:
+maintain both Properties. For instance:
 
 ```js
 [
@@ -123,7 +122,7 @@ Will be saved into:
     },
     {
         type: "Cardigan",
-        size__NUMBER: 38
+        size: 38
     }
 ]
 ```

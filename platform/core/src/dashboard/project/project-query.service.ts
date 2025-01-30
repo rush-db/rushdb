@@ -63,7 +63,7 @@ export class ProjectQueryService {
         `CREATE (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })<-[newRel:${RUSHDB_RELATION_HAS_ACCESS}]-(user)`
       )
 
-    return queryBuilder.build()
+    return queryBuilder.getQuery()
   }
 
   revokeUserAccessQuery() {
@@ -76,7 +76,7 @@ export class ProjectQueryService {
       )
       .append(`DELETE oldRel`)
 
-    return queryBuilder.build()
+    return queryBuilder.getQuery()
   }
 
   getProjectsByWorkspaceId() {
@@ -89,7 +89,7 @@ export class ProjectQueryService {
       .append(`WHERE p.deleted IS null`)
       .append(`RETURN collect(DISTINCT p) as projects`)
 
-    return queryBuilder.build()
+    return queryBuilder.getQuery()
   }
 
   getProjectStatsById() {

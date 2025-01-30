@@ -49,6 +49,7 @@ export class UserModule implements OnApplicationBootstrap {
           return
         }
 
+        console.log('Initializing user...')
         await this.userService.create(
           {
             login: adminLogin,
@@ -58,8 +59,10 @@ export class UserModule implements OnApplicationBootstrap {
           transaction
         )
       } catch (error) {
+        console.log('Initializing user failed.', error)
         await transaction.rollback()
       } finally {
+        console.log('Initializing user successfully finished.')
         if (transaction.isOpen()) {
           await transaction.commit()
           await transaction.close()

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   DefaultValuePipe,
+  Delete,
   forwardRef,
   Get,
   HttpCode,
@@ -117,30 +118,51 @@ export class PropertyController {
     })
   }
 
+  @Get(':propertyId')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @UsePipes(ValidationPipe(searchSchema, 'body'))
+  @HttpCode(HttpStatus.OK)
+  async findById(
+    @Param('propertyId') propertyId: string,
+    @TransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ): Promise<unknown> {
+    const projectId = request.projectId
+
+    return await this.propertyService.findById({
+      propertyId,
+      projectId,
+      transaction
+    })
+  }
+
   // @TODO: Move it to Entity Scope Bulk Operations. (SearchDTO => delete Property for selected Records)
   // It will become more useful when posed as Record-centric API.
 
-  // // @TODO: Revamp it with put/post to meed HTTP Spec (no body in DELETE)
-  // @Delete(':propertyId')
-  // @ApiBearerAuth()
-  // @UseGuards(IsRelatedToProjectGuard())
-  // @AuthGuard('project')
-  // @HttpCode(HttpStatus.OK)
-  // async deleteField(
-  //     @Param('propertyId') propertyId: string,
-  //     @Body() deleteParams: DeletePropertyDto,
-  //     @TransactionDecorator() transaction: Transaction,
-  //     @Request() request: PlatformRequest
-  // ): Promise<boolean> {
-  //     const projectId = request.projectId;
-  //     await this.propertyService.deleteFields({
-  //         propertyId,
-  //         deleteParams,
-  //         projectId,
-  //         transaction,
-  //     });
-  //     return true;
-  // }
+  @Delete(':propertyId')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @HttpCode(HttpStatus.OK)
+  async deleteField(
+    @Param('propertyId') propertyId: string,
+    // @TODO: Revamp it with put/post to meed HTTP Spec (no body in DELETE)
+    // @Body() deleteParams: DeletePropertyDto,
+    @TransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ): Promise<{ message: string }> {
+    const projectId = request.projectId
+    await this.propertyService.deleteProperty({
+      propertyId,
+      // deleteParams,
+      projectId,
+      transaction
+    })
+
+    return { message: `Property (${propertyId}) has been successfully deleted.` }
+  }
 
   // @TODO: Move to bulk patch operation to Entity Scope
   @Patch(':propertyId/values')
@@ -161,7 +183,7 @@ export class PropertyController {
         entityIds: updateParams.entityIds
       }
 
-      await this.propertyService.deleteFields({
+      await this.propertyService.deleteProperty({
         propertyId,
         deleteParams,
         projectId,

@@ -9,7 +9,7 @@ import Image from 'next/image'
 import dashboard from '../../images/dashboard.png'
 const code1 = `import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('api_token')
+const db = new RushDB('rushdb-api-key')
 
 await db.records.createMany("COMPANY", {
   name: 'Google LLC',
@@ -61,22 +61,22 @@ const code2 = `await db.records.find({
 
 const code3 = `// Property \`name\` [string]
 await db.properties.values(
-  "0192397b-8579-7ce2-a899-01c59bad63f8"
+  '0192397b-8579-7ce2-a899-01c59bad63f8'
 )
 // Response
 {
-  "values": [
-    "Eleanor Whitaker",
-    "Marcus Donovan",
-    "Priya Kapoor",
-    "Julian Alvarez"
+  values: [
+    'Eleanor Whitaker',
+    'Marcus Donovan',
+    'Priya Kapoor',
+    'Julian Alvarez'
   ],
-  "type": "string"
+  type: 'string'
 }
 
 // Property \`size\` [number]
 await db.properties.values(
-  "019412c0-2051-71fe-bc9d-26117b52c119"
+  '019412c0-2051-71fe-bc9d-26117b52c119'
 )
 // Response
 {
@@ -125,6 +125,32 @@ const codeProperty = `Property
 -------------------
 name: "description"
 type:      "string"`
+
+const codeAiIntegration = `import OpenAI from 'openai'
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB('rushdb-api-key')
+const openai = new OpenAI({ apiKey: 'openai-api-key' })
+
+async function generateAndStoreData() {
+  // Step 1: Call OpenAI API to generate some output
+  const prompt = '...'
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-3.5-turbo',
+    messages: [{ role: 'user', content: prompt }],
+    response_format: { type: 'json_object' }
+  })
+
+  // Step 2: Extract the generated content
+  const generatedContent = completion.choices[0].message.content
+  const parsedContent = JSON.parse(generatedContent)
+
+  // Step 3: Store the output in RushDB
+  const record = await db.record.createMany(
+    'AI_RESPONSE',
+    parsedContent
+  )
+}`
 
 export const HowItWorks = () => {
   return (
@@ -317,35 +343,83 @@ export const HowItWorks = () => {
           <div className="outline-stroke outline outline-1 outline-offset-0">
             <h3 className={cx('typography-2xl md:typography-xl text py-16 text-center')}>Use Cases</h3>
 
-            <div className="m-auto grid w-full grid-flow-col grid-rows-2 gap-[1px] md:grid-rows-4">
-              <div className="outline-stroke w-full rounded-b-[80px] p-12 outline outline-1 outline-offset-0 md:rounded-b-[50px] md:p-6">
+            <div className="grid grid-cols-2 gap-[1px]">
+              <div className="outline-stroke row-end-1 w-full rounded-b-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:row-end-1 md:rounded-b-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">SaaS & Apps</h4>
                 <p className="text-content3 text-md md:text-base">
                   Building the next big thing shouldn't start with battling clumsy databases and other stuff.
                   Focus on delivering features - RushDB takes care of the rest.
                 </p>
               </div>
-              <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0 md:rounded-t-[50px] md:p-6">
-                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Hobby Projects</h4>
-                <p className="text-content3 text-md md:text-base">
-                  What’s more frustrating than losing your spark of inspiration to infrastructure hassle?
-                  RushDB lets you skip the grind and get back to building.
-                </p>
-              </div>
-              <div className="outline-stroke w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0 md:rounded-r-[50px] md:p-6">
+              <div className="outline-stroke row-end-1 w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:row-end-2 md:rounded-r-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">AI / ML & Research</h4>
                 <p className="text-content3 text-md md:text-base">
                   Having fast and reliable data storage for AI is challenging yet rewarding. RushDB helps you
                   store structured and semi-structured data at scale.
                 </p>
               </div>
+              <div className="col-span-2 row-span-1 grid grid-cols-2 items-center gap-24 md:mt-0 md:grid-cols-1 md:gap-0">
+                <div className="mb-8 items-center p-20 md:p-6 md:pb-0">
+                  <h4 className={cx('mb-8 text-xl font-bold md:mb-4 md:text-lg')}>
+                    Persistence for AI Era: Smart and Simple
+                  </h4>
+                  <p className="text-content3 text-md md:text-base">
+                    RushDB handles the complexity - so you can focus on building. Just push JSON, query
+                    granularly, and let automatic labeling and type suggestions do the rest.
+                  </p>
+                </div>
 
-              <div className="outline-stroke w-full rounded-l-[80px] rounded-br-[80px] p-12 outline outline-1 outline-offset-0 md:rounded-l-[50px] md:p-6">
+                <div className="flex w-full items-center justify-start py-20 pr-8 md:flex-col md:p-0">
+                  <CodeBlock
+                    code={codeAiIntegration}
+                    className="mx-auto w-full"
+                    preClassName="md:w-full"
+                    wrapperClassName="md:rounded-bl-none md:rounded-br-none md:pb-0"
+                  />
+                </div>
+              </div>
+
+              <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:rounded-t-[50px] md:p-6">
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">IoT Projects</h4>
+                <p className="text-content3 text-md md:text-base">
+                  Don’t let infrastructure complexity slow down your IoT innovation. RushDB handles data
+                  ingestion and storage - so you can focus on building smarter solutions.
+                </p>
+              </div>
+              <div className="outline-stroke w-full rounded-l-[80px] rounded-br-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:rounded-l-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Search Engines</h4>
                 <p className="text-content3 text-md md:text-base">
                   RushDB makes filtering large datasets fast and efficient, handling data of any shape and
                   complexity with search capabilities designed for performance.
                 </p>
+              </div>
+
+              <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:rounded-t-[50px] md:p-6">
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Hobby Projects</h4>
+                <p className="text-content3 text-md md:text-base">
+                  What’s more frustrating than losing your spark of inspiration to infrastructure hassle?
+                  RushDB lets you skip the grind and get back to building.
+                </p>
+              </div>
+
+              <div className="outline-stroke grid w-full items-center rounded-t-[80px] rounded-br-[80px] p-12 outline outline-1 outline-offset-0 md:hidden md:rounded-t-[50px] md:p-6">
+                <p className="text-content3 text-md text-center md:text-base">
+                  Create a project, grab your API token,
+                  <br />
+                  and start building in less than 30 seconds
+                </p>
+                <div className="m-auto flex w-full justify-center gap-4">
+                  <MainCta size="small" variant="accent" text="Create Project" />
+                  <Button
+                    as={Link}
+                    href={links.getStarted}
+                    size="small"
+                    variant="outline"
+                    className="bg-fill w-fit"
+                  >
+                    Read the Docs <BookIcon />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

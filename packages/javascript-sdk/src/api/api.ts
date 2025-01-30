@@ -303,7 +303,7 @@ export class RestAPI {
         const tx = isTransactionParam ? searchParamsOrTransaction : transaction
         const response = await this.api?.records.findOne<S>(searchParams, tx)
 
-        const result = new DBRecordInstance<S>(response.data, searchParamsOrTransaction as SearchQuery<S>)
+        const result = new DBRecordInstance<S>(response.data)
         result.init(this)
         return result
       },
@@ -318,7 +318,7 @@ export class RestAPI {
         const tx = isTransactionParam ? searchParamsOrTransaction : transaction
         const response = await this.api?.records.findUniq<S>(searchParams, tx)
 
-        const result = new DBRecordInstance<S>(response.data, searchParamsOrTransaction as SearchQuery<S>)
+        const result = new DBRecordInstance<S>(response.data)
         result.init(this)
         return result
       },
@@ -429,7 +429,7 @@ export class RestAPI {
       return this.api?.properties.findById(id, transaction)
     },
     values: async (id: string, transaction?: Transaction | string) => {
-      return this.api?.properties.values(id, transaction)
+      return this.api?.properties.values(id, {}, transaction)
     }
   }
 

@@ -1,10 +1,7 @@
-import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
 import { Transaction } from 'neo4j-driver'
 import { QueryRunner } from 'neogma'
 
-import { getCurrentISO } from '@/common/utils/getCurrentISO'
-import { EntityService } from '@/core/entity/entity.service'
-import { EntityRepository } from '@/core/entity/model/entity.repository'
 import { DeletePropertyDto } from '@/core/property/dto/delete-property.dto'
 import { UpdatePropertyValueDto } from '@/core/property/dto/update-property-value.dto'
 import { UpdatePropertyDto } from '@/core/property/dto/update-property.dto'
@@ -23,11 +20,7 @@ export class PropertyService {
   constructor(
     private readonly neogmaService: NeogmaService,
     private readonly propertyRepository: PropertyRepository,
-    private readonly propertyQueryService: PropertyQueryService,
-    @Inject(forwardRef(() => EntityRepository))
-    private readonly entityRepository: EntityRepository,
-    @Inject(forwardRef(() => EntityService))
-    private readonly entityService: EntityService
+    private readonly propertyQueryService: PropertyQueryService
   ) {}
 
   async getPropertyValues({
@@ -125,24 +118,23 @@ export class PropertyService {
     )
   }
 
-  async deleteFields({
+  async deleteProperty({
     propertyId,
     deleteParams,
     projectId,
     transaction
   }: {
     propertyId: string
-    deleteParams: DeletePropertyDto
+    deleteParams?: DeletePropertyDto
     projectId: string
     transaction: Transaction
   }): Promise<boolean> {
     const runner = this.neogmaService.createRunner()
 
     await runner.run(
-      this.propertyQueryService.deleteField(deleteParams.entityIds),
+      this.propertyQueryService.deletePropertyQuery(),
       {
-        target: propertyId,
-        entityIds: deleteParams.entityIds
+        target: propertyId
       },
       transaction
     )
@@ -168,7 +160,7 @@ export class PropertyService {
     const runner = this.neogmaService.createRunner()
 
     await runner.run(
-      this.propertyQueryService.updateField(updateParams.entityIds),
+      this.propertyQueryService.updateField(),
       {
         target: propertyId,
         entityIds: updateParams.entityIds,
@@ -178,6 +170,22 @@ export class PropertyService {
     )
 
     return true
+  }
+
+  async findById({
+    propertyId,
+    transaction,
+    projectId
+  }: {
+    propertyId: string
+    transaction: Transaction
+    projectId: string
+  }) {
+    return await this.propertyRepository.model.findOne({
+      where: { id: propertyId, projectId },
+      throwIfNotFound: true,
+      session: transaction
+    })
   }
 
   async updateFieldData({
@@ -232,7 +240,7 @@ export class PropertyService {
       )
 
       await runner.run(
-        this.propertyQueryService.deleteField(),
+        this.propertyQueryService.deletePropertyQuery(),
         {
           target: propertyId
         },

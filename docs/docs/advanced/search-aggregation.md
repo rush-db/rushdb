@@ -1,7 +1,7 @@
 ---
-sidebar_position: 8
+sidebar_position: 1
 ---
-# Search with Data Aggregation
+# Aggregations
 
 In addition to the classic search by specified criteria, RushDB provides data aggregation capabilities. You can return complex nested structures when searching for data, and add new fields to the search result on the fly.
 

@@ -57,5 +57,5 @@ of abstraction that exist between the raw data and our conceptual understanding 
 This is precisely why we have
 engineered RushDB to have the capability to contain **Records** within other **Records**. While each individual **Record**
 remains distinct and accessible on its own, you retain the flexibility to structure your data in a manner that aligns
-with your thought process. Read further in the [Nesting](/advanced/nesting) section.
+with your thought process. Read further in the [Relationships](/advanced/relationships) section.
 

@@ -1,7 +1,5 @@
 import Joi = require('joi')
 
-import { RUSHDB_LABEL_RECORD } from '@/core/common/constants'
-
 export const importJsonSchema = Joi.object({
   label: Joi.string(),
   payload: Joi.alternatives().try(Joi.object(), Joi.array().items(Joi.object())),

@@ -2,6 +2,8 @@ import { uuidv7 } from 'uuidv7'
 
 import { isArray } from '@/common/utils/isArray'
 import { ISO_8601_REGEX } from '@/core/common/constants'
+import { CreateEntityDtoSimple } from '@/core/entity/dto/create-entity.dto'
+import { TImportOptions } from '@/core/entity/import-export/import.types'
 import { TPropertyPropertiesNormalized } from '@/core/property/model/property.interface'
 import {
   PROPERTY_TYPE_BOOLEAN,
@@ -62,7 +64,7 @@ const processNonArrayValue = (value: TPropertyType, suggestTypes: boolean) => {
 
 export const prepareProperties = (
   data: Record<string, TPropertyValue>,
-  options: { suggestTypes: boolean } = { suggestTypes: true }
+  options: Pick<TImportOptions, 'suggestTypes'> = { suggestTypes: true }
 ) =>
   Object.entries(data).map(([name, value]) => {
     const { type, value: processedValue } =
@@ -79,11 +81,8 @@ export const normalizeRecord = ({
   label,
   options = { suggestTypes: true },
   payload
-}: {
-  label: string
-  options?: { suggestTypes: boolean }
+}: CreateEntityDtoSimple & {
   parentId?: string
-  payload: Record<string, TPropertyValue>
 }) => ({
   label,
   properties: prepareProperties(payload, options)

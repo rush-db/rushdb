@@ -58,7 +58,7 @@ pnmp add @rushdb/javascript-sdk
 
 1. Get API Token at [app.rushdb.com](https://app.rushdb.com/)
 2. Install `@rushdb/javascript-sdk`
-3. Build something ~~people~~ you want:
+3. Start building:
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
@@ -102,9 +102,9 @@ await db.records.find("PRODUCT", {
 ### Example with data modeling
 
 ```typescript
-import RushDB, { Model } from '@rushdb/javascript-sdk';
+import RushDB, { Model } from '@rushdb/javascript-sdk'
 
-const db = new RushDB("API_TOKEN")
+const db = new RushDB('API_TOKEN')
 
 const UserRepo = new Model(
   'USER',
@@ -113,7 +113,7 @@ const UserRepo = new Model(
       rating: { type: 'number' },
    },
   db
-);
+)
 
 await UserRepo.create({
    name: "John Galt",

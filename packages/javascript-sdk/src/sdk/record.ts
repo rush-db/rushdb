@@ -137,55 +137,96 @@ export class DBRecordDraft {
 
 export class DBRecordInstance<S extends Schema = Schema> extends RestApiProxy {
   data?: DBRecord<S>
-  searchParams?: SearchQuery<S>
 
-  constructor(data?: DBRecord<S>, searchParams?: SearchQuery<S>) {
+  constructor(data?: DBRecord<S>) {
     super()
     this.data = data
-    this.searchParams = searchParams
   }
 
-  __date() {
-    return idToDate(this.data!.__id)
+  get id() {
+    try {
+      return this.data!.__id
+    } catch {
+      throw new Error(`DBRecordInstance: Unable to access 'id'. The Record data is undefined.`)
+    }
   }
 
-  __timestamp() {
-    return idToTimestamp(this.data!.__id)
+  get label() {
+    try {
+      return this.data!.__label
+    } catch {
+      throw new Error(`DBRecordInstance: Unable to access 'label'. The Record data is undefined.`)
+    }
+  }
+
+  get proptypes() {
+    try {
+      return this.data!.__proptypes
+    } catch {
+      throw new Error(`DBRecordInstance: Unable to access 'proptypes'. The Record data' is undefined.`)
+    }
+  }
+
+  get date() {
+    try {
+      return idToDate(this.data!.__id)
+    } catch {
+      throw new Error(`DBRecordInstance: Unable to access 'date'. The Record data is undefined.`)
+    }
+  }
+
+  get timestamp() {
+    try {
+      return idToTimestamp(this.data!.__id)
+    } catch {
+      throw new Error(`DBRecordInstance: Unable to access 'timestamp'. The Record data is undefined.`)
+    }
   }
 
   async delete(transaction?: Transaction | string) {
-    if (this.data) {
-      return await this.apiProxy.records.deleteById(this.data.__id, transaction)
+    if (!this.data) {
+      throw new Error('DBRecordInstance: Unable to delete Record. The Record data is undefined.')
     }
+
+    return await this.apiProxy.records.deleteById(this.data.__id, transaction)
   }
 
   async update<S extends Schema = Schema>(
     partialData: DBRecordDraft | Partial<InferSchemaTypesWrite<S>>,
     transaction?: Transaction | string
   ) {
-    if (this.data) {
-      return this.apiProxy.records.update(this.data.__id, partialData, transaction)
+    if (!this.data) {
+      throw new Error('DBRecordInstance: Unable to update Record. The Record data is undefined.')
     }
+
+    return this.apiProxy.records.update(this.data.__id, partialData, transaction)
   }
+
   async set<S extends Schema = Schema>(
     data: DBRecordDraft | InferSchemaTypesWrite<S>,
     transaction?: Transaction | string
   ) {
-    if (this.data) {
-      return this.apiProxy.records.set(this.data.__id, data, transaction)
+    if (!this.data) {
+      throw new Error('DBRecordInstance: Unable to set. The Record data is undefined.')
     }
+
+    return this.apiProxy.records.set(this.data.__id, data, transaction)
   }
 
   async attach(target: RelationTarget, options?: RelationOptions, transaction?: Transaction | string) {
-    if (this.data) {
-      return this.apiProxy.records.attach(this.data.__id, target, options, transaction)
+    if (!this.data) {
+      throw new Error('DBRecordInstance: Unable to attach Record. The Record data is undefined.')
     }
+
+    return this.apiProxy.records.attach(this.data.__id, target, options, transaction)
   }
 
   async detach(target: RelationTarget, options?: RelationDetachOptions, transaction?: Transaction | string) {
-    if (this.data) {
-      return this.apiProxy.records.detach(this.data.__id, target, options, transaction)
+    if (!this.data) {
+      throw new Error('DBRecordInstance: Unable to detach Record. The Record data is undefined.')
     }
+
+    return this.apiProxy.records.detach(this.data.__id, target, options, transaction)
   }
 }
 

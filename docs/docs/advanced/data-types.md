@@ -1,23 +1,13 @@
 ---
 sidebar_position: 2
 ---
-# Supported Data Types
+# Data Types
 
 RushDB supports a wide range of data types to accommodate diverse data needs and provide a flexible environment for your applications. Below is a comprehensive list of the supported data types along with their descriptions:
 
 ### `string`
 This data type is used for any textual information and can hold text of unlimited length. 
-For example: 
 
-`"Pat spit the pips in the tin."`
-
-`"John Galt"`
-
-`"Silence is golden"` 
-
-`"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."`
-
----
 ### `number`
 This data type accommodates both floating-point numbers and integers. For instance, it can handle values like 
 `-120.209817` (a float) or `42` (an integer).
