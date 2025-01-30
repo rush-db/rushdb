@@ -4,6 +4,7 @@ import Joi = require('joi')
 
 import { checkTypeAndNameUniqueness } from '@/common/utils/checkTypeAndNameUniqueness'
 import { formatErrorMessage } from '@/common/validation/utils'
+import { normalizeRecord } from '@/core/common/normalizeRecord'
 import { CreateEntityDto, CreateEntityDtoSimple } from '@/core/entity/dto/create-entity.dto'
 import { EditEntityDto } from '@/core/entity/dto/edit-entity.dto'
 import { TPropertySingleValue } from '@/core/property/property.types'
@@ -51,6 +52,8 @@ export class PropertyValuesPipe implements PipeTransform {
       })
 
       return { ...value, properties: normalizeProperties(value.properties) }
+    } else if (metadata.type === 'body' && 'payload' in value) {
+      return normalizeRecord(value as CreateEntityDtoSimple)
     }
     return value
   }

@@ -2,7 +2,7 @@
 sidebar_position: 11
 ---
 
-# Enhanced TypeScript Support
+# Enhanced TypeScript
 :::note
 When working with RushDB SDK, achieving perfect TypeScript contracts ensures a seamless development experience. TypeScript's strong typing system allows for precise autocomplete suggestions and error checking, particularly when dealing with complex queries and nested models. This section will guide you on how to enhance TypeScript support by defining comprehensive type definitions for your models.
 :::
@@ -11,10 +11,12 @@ When working with RushDB SDK, achieving perfect TypeScript contracts ensures a s
 
 To fully leverage TypeScript's capabilities, you can define types that include all schemas you've registered with `Model`. This will allow you to perform complex queries with nested model fields, ensuring type safety and better autocompletion.
 
-### Step 1: Create Models with `Model`
+### Step 1: Create Models with Model
 
 First, define your models using `Model`:
 ```typescript
+import { Model } from '@rushdb/javascript-sdk'
+
 const Author = new Model('author', {
   name: { type: 'string' },
   email: { type: 'string', uniq: true }
@@ -37,7 +39,7 @@ const Blog = new Model('blog', {
 
 Next, create an exportable type that includes all the schemas defined in your application:
 ```typescript
-export type Models = {
+export type MyModels = {
   author: typeof Author.schema
   post: typeof Post.schema
   blog: typeof Blog.schema
@@ -46,10 +48,14 @@ export type Models = {
 
 ### Step 3: Extend the Models Interface
 
-Add this type definition to the existing `index.d.ts` file in the root of your project. This ensures that RushDB SDK is aware of your models:
+Add this type declaration to your project. This ensures that RushDB SDK is aware of your models:
 ```typescript
+// index.d.ts or other d.ts file added to include in tsconfig.json
+
+import { MyModels } from './types';
+
 declare module '@rushdb/javascript-sdk' {
-  export interface Models extends Models {}
+  export interface Models extends MyModels {}
 }
 ```
 

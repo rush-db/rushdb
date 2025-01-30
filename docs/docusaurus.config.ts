@@ -2,6 +2,7 @@ import type { Config } from '@docusaurus/types'
 import type * as Preset from '@docusaurus/preset-classic'
 import { themes } from 'prism-react-renderer'
 import tailwindPlugin from './plugins/tailwind-config.cjs'
+import { version } from './package.json'
 
 const atomTheme = {
   plain: {
@@ -48,15 +49,13 @@ const atomTheme = {
     {
       types: ['keyword', 'variable'],
       style: {
-        color: '#BD93F9',
-        fontStyle: 'italic'
+        color: '#BD93F9'
       }
     },
     {
       types: ['comment'],
       style: {
-        color: '#6272A4',
-        fontStyle: 'italic'
+        color: '#6272A4'
       }
     },
     {
@@ -132,7 +131,6 @@ const config: Config = {
           theme: { light: 'neutral', dark: 'forest' }
         }
       },
-      // Replace with your project's social card
       image: 'img/og.png',
       navbar: {
         title: 'RushDB Docs',
@@ -148,7 +146,7 @@ const config: Config = {
           },
           {
             href: 'https://www.npmjs.com/package/@rushdb/javascript-sdk',
-            label: 'NPM Package 0.24.0',
+            label: `NPM v${version}`,
             position: 'right'
           }
         ]
@@ -195,8 +193,9 @@ const config: Config = {
         copyright: `© ${new Date().getFullYear()}, Collect Software Inc.`
       },
       prism: {
-        theme: themes.vsLight,
-        darkTheme: atomTheme
+        theme: themes.oneLight,
+        darkTheme: atomTheme,
+        fontStyle: 'italic'
       }
     }
 }

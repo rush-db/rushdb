@@ -9,7 +9,7 @@ import { GitHub } from '~/components/Icons/GitHub'
 
 const code = `import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('api_token')
+const db = new RushDB('rushdb-api-key')
 
 const user = await db.records.create('USER', {
   name: 'Paul Schmitz',

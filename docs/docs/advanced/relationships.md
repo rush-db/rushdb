@@ -1,7 +1,7 @@
 ---
 sidebar_position: 5
 ---
-# Nesting
+# Relationships
 
 In the realm of real-world data and a human-centric mindset, there may arise a need to store nested data within **Records**.
 In the context of RushDB, this becomes a critical requirement in order to maintain simplicity and eliminate the layers
@@ -42,7 +42,7 @@ with its appropriate data type. Moreover, RushDB will assign **Labels** based on
 
 ```mermaid
 graph TB
-    R0((Record:Person)) -- "CONTAINS" --> R1((Record:Contact))
+    R0((Record:Person)) -- "RUSHDB_DEFUALT_RELATION" --> R1((Record:Contact))
     R0 -- "CONTAINS" --> R2((Record:Address))
 ```
 This structure is flexible and can be modified easily if necessary. You have the freedom to rearrange **Records** within the

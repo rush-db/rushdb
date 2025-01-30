@@ -7,7 +7,14 @@ import type {
   RelationOptions
 } from '../sdk/record.js'
 import type { Transaction } from '../sdk/transaction.js'
-import type { Property, PropertyValuesData, SearchQuery, Schema, MaybeArray } from '../types/index.js'
+import type {
+  Property,
+  PropertyValuesData,
+  SearchQuery,
+  Schema,
+  MaybeArray,
+  OrderDirection
+} from '../types/index.js'
 import type { ApiResponse } from './types.js'
 
 import { isArray } from '../common/utils.js'
@@ -75,16 +82,31 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
     // updateValues: (id: string, transaction?: Transaction | string) => {
     //   // @TODO
     // },
-    values: (id: string, transaction?: Transaction | string) => {
+    values: (
+      id: string,
+      options?: { sort?: OrderDirection; skip?: number; limit?: number },
+      transaction?: Transaction | string
+    ) => {
       const txId = pickTransactionId(transaction)
       const path = `/properties/${id}/values`
+
+      const { sort, skip, limit } = options ?? {}
+
+      const queryParams = new URLSearchParams()
+      if (sort) queryParams.append('sort', sort)
+      if (skip !== undefined) queryParams.append('skip', skip.toString())
+      if (limit !== undefined) queryParams.append('limit', limit.toString())
+
+      const queryString = queryParams.toString()
+      const fullPath = queryString ? `${path}?${queryString}` : path
+
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'GET'
       }
 
-      logger?.({ path, ...payload })
-      return fetcher<ApiResponse<Property & PropertyValuesData>>(path, payload)
+      logger?.({ path: fullPath, ...payload })
+      return fetcher<ApiResponse<Property & PropertyValuesData>>(fullPath, payload)
     }
   },
   records: {

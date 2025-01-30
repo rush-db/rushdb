@@ -56,15 +56,20 @@ export class DatabaseModule implements OnModuleInit {
         `CREATE INDEX index_property_mergerer IF NOT EXISTS FOR (n:${RUSHDB_LABEL_PROPERTY}) ON (n.name, n.type, n.projectId, n.metadata)`
       ]
 
+      console.log('Creating constraints...')
       for (const constraint of constraints) {
         await transaction.run(constraint)
       }
+
+      console.log('Creating indexes...')
       for (const index of indexes) {
         await transaction.run(index)
       }
     } catch (error) {
+      console.log('Initializing RushDB failed.', error)
       await transaction.rollback()
     } finally {
+      console.log('Initializing RushDB successfully finished.')
       if (transaction.isOpen()) {
         await transaction.commit()
         await transaction.close()

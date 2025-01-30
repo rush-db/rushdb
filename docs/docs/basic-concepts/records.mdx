@@ -73,13 +73,6 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
     ```ts
     POST /api/v1/records
     ```
-    Create single [Record](/advanced/records) related to specific Record
-    ```ts
-    POST /api/v1/records/:id
-    ```
-    :::info
-    Note: New Record will be created with a default incoming Relation from the Record provided in the `:id` parameter.
-    :::
   </div>
   <div className="col-span-3">
     To create Record in RushDB simply pass one-level object to `.create` method or through the REST API in `body`.
@@ -106,28 +99,13 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
         ```javascript
         {
           "label": "ORDER",
-          "properites": [{
-            "items": {
-              "type": "number",
-              "value": 5
-            },
-            "sum": {
-              "type": "number",
-              "value": 232
-            },
-            "promocode": {
-              "type": "string",
-              "value": "3heg09j",
-            },
-            "confirmed": {
-              "type": "boolean",
-              "value": true,
-            },
-            "createdAt": {
-              "type": "datetime",
-              "value": "2024-09-02T19:22:21+0000",
-            },
-          }]
+          "payload": {
+            "items": 5,
+            "sum": 232,
+            "promocode": "3heg09j",
+            "confirmed": true,
+            "createdAt": "2024-09-02T19:22:21+0000"
+          }
         }
         ```
       </TabsContent>
@@ -180,7 +158,7 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
 
   </div>
   <div className="col-span-3">
-    This API allows you to push data and get it is automatically normalized, and labels are generated based on the structure of the payload. The API also suggests data types for each field within the payload. Currently, this API supports `JSON` and `CSV` formats, with upcoming support for `YAML`, `NDJSON`, `XML`, and `GEXF`.
+    This API allows you to push data and get it automatically normalized, and labels are generated based on the structure of the payload. The API also suggests data types for each field within the payload. RushDB supports `JSON`, `JSONB` and `CSV` formats, with upcoming support for `YAML`, `NDJSON`, `XML`, and `GEXF`.
 
     This API facilitates the creation of records and their [relationships](/basic-concepts/relations) using a Breadth-First Search (BFS) algorithm, ensuring accurate and efficient connections between data points.
 

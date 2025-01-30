@@ -4,16 +4,16 @@ sidebar_position: 10
 
 # Querying Data
 :::note
-In previous sections, you have encountered the `where` condition and various logical operators like `$AND` and `$XOR`. This section provides a comprehensive guide on querying data using the `SearchQuery` type, covering all available logical and comparison operators.
+In previous sections, you have encountered the `where` condition and various logical operators like `$and` and `$xor`. This section provides a comprehensive guide on querying data using the `SearchQuery` type, covering all available logical and comparison operators.
 :::
 
 ## Table of Contents
 
 - [Logical Operators](#logical-operators)
-    - [$AND](#and)
-    - [$OR](#or)
-    - [$NOT](#not)
-    - [$XOR](#xor)
+    - [$and](#and)
+    - [$or](#or)
+    - [$not](#not)
+    - [$xor](#xor)
 - [Comparison Operators](#comparison-operators)
     - [Boolean Operators](#boolean-operators)
         - [$not](#not-1)
@@ -43,18 +43,18 @@ In previous sections, you have encountered the `where` condition and various log
 
 Logical operators allow you to build complex queries by combining multiple conditions.
 
-### $AND
+### $and
 
-The `$AND` operator combines multiple conditions and returns results that match all the conditions.
+The `$and` operator combines multiple conditions and returns results that match all the conditions.
 
-Alternatively, you can omit `$AND` and directly list the conditions if there are no other logical operators at the same level.
+Alternatively, you can omit `$and` and directly list the conditions if there are no other logical operators at the same level.
 
 ##### Examples:
 ```typescript
-// Basic example with $AND
+// Basic example with $and
 const queryWithAnd = await db.records.find('author', {
   where: {
-    $AND: [
+    $and: [
       { name: { $startsWith: 'Jane' } },
       { email: { $contains: '@example.com' } }
     ]
@@ -63,7 +63,7 @@ const queryWithAnd = await db.records.find('author', {
 ```
 
 ```typescript
-// Basic example without $AND
+// Basic example without $and
 const queryWithAnd = await db.records.find('author', {
   where: {
     name: { $startsWith: 'Jane' },
@@ -72,16 +72,16 @@ const queryWithAnd = await db.records.find('author', {
 });
 ```
 
-### $OR
+### $or
 
-The `$OR` operator combines multiple conditions and returns results that match any of the conditions. This is useful for querying records that meet at least one of several criteria.
+The `$or` operator combines multiple conditions and returns results that match any of the conditions. This is useful for querying records that meet at least one of several criteria.
 
 ##### Examples:
 ```typescript
-// Complex example with $OR
+// Complex example with $or
 const queryWithOr = await db.records.find('post', {
   where: {
-    $OR: [
+    $or: [
       { rating: { $gte: 4 } },
       { title: { $contains: 'Guide' } }
     ]
@@ -90,14 +90,14 @@ const queryWithOr = await db.records.find('post', {
 ```
 
 ```typescript
-// Complex example with $AND and $OR for numbers
+// Complex example with $and and $or for numbers
 const queryComplexNumber = await db.records.find('post', {
   where: {
-    $AND: [
+    $and: [
       { rating: { $gte: 3, $lte: 5 } },
       { views: { $gt: 1000 } }
     ],
-    $OR: [
+    $or: [
       { comments: { $lt: 50 } },
       { shares: { $gte: 100 } }
     ]
@@ -105,38 +105,38 @@ const queryComplexNumber = await db.records.find('post', {
 });
 ```
 
-### $NOT
+### $not
 
-The `$NOT` operator inverts the condition it applies to, returning results that do not match the specified condition.
+The `$not` operator inverts the condition it applies to, returning results that do not match the specified condition.
 
 ##### Examples:
 ```typescript
-// Example using $NOT
+// Example using $not
 const queryWithNot = await db.records.find('author', {
   where: {
-    $NOT: [
+    $not: [
       { email: { $contains: '@example.com' } }
     ]
   }
 });
 ```
 
-### $XOR
+### $xor
+
+The `$xor` operator (exclusive OR) combines multiple conditions and returns results that match one and only one of the conditions.
+
+##### Examples:
 ```typescript
-// Example using $XOR
+// Example using $xor
 const queryWithXor = await db.records.find('author', {
   where: {
-    $XOR: [
+    $xor: [
       { name: { $startsWith: 'Jane' } },
       { email: { $contains: '@example.com' } }
     ]
   }
 });
 ```
-
-The `$XOR` operator (exclusive OR) combines multiple conditions and returns results that match one and only one of the conditions.
-
-##### Examples:
 
 ## Comparison Operators
 
@@ -407,7 +407,7 @@ const queryWithStartsWith = await db.records.find('post', {
 // Complex example with multiple string operators
 const queryWithStringOperators = await db.records.find('post', {
   where: {
-    $OR: [
+    $or: [
       { title: { $startsWith: 'Understanding' } },
       { title: { $contains: 'Graph' } },
       { title: { $endsWith: 'Databases' } }
@@ -451,7 +451,7 @@ const queryWithNested = await db.records.find('author', {
   where: {
     name: { $startsWith: 'Jane' },
     blog: {
-      $AND: [
+      $and: [
         { title: { $contains: 'Tech' } },
         { post: { rating: { $gte: 4 } } }
       ]
@@ -465,9 +465,9 @@ const nestedQuery = await db.records.find('author', {
   where: {
     name: { $startsWith: 'Post author' },
     blog: {
-      $AND: [
+      $and: [
         { title: { $contains: 'Tech' } },
-        { post: { $OR: [{ rating: { $gte: 4 } }, { rating: { $lte: 2 } }] } }
+        { post: { $or: [{ rating: { $gte: 4 } }, { rating: { $lte: 2 } }] } }
       ]
     }
   }
@@ -530,7 +530,7 @@ const queryWithEqAndNotIn = await db.records.find('author', {
 // Complex example with multiple string operators
 const queryWithStringOperators = await db.records.find('post', {
   where: {
-    $OR: [
+    $or: [
       { title: { $startsWith: 'Understanding' } },
       { title: { $contains: 'Graph' } },
       { title: { $endsWith: 'Databases' } }
@@ -545,7 +545,7 @@ const queryWithNested = await db.records.find('author', {
   where: {
     name: { $startsWith: 'Jane' },
     blog: {
-      $AND: [
+      $and: [
         { title: { $contains: 'Tech' } },
         { post: { rating: { $gte: 4 } } }
       ]

@@ -1,12 +1,11 @@
-import { ApiPropertyOptional } from '@nestjs/swagger'
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 
-import { TRelationDirection } from '@/core/entity/entity.types'
 import { TImportOptions } from '@/core/entity/import-export/import.types'
 import { PropertyDto } from '@/core/property/dto/property.dto'
 import { TPropertyValue } from '@/core/property/property.types'
 
 export class CreateEntityDto {
-  @ApiPropertyOptional({ default: '' })
+  @ApiProperty({ default: '' })
   label: string
 
   @ApiPropertyOptional({ type: [PropertyDto] })
@@ -14,7 +13,7 @@ export class CreateEntityDto {
 }
 
 export class CreateEntityDtoSimple {
-  @ApiPropertyOptional({ default: '' })
+  @ApiProperty({ default: '' })
   label: string
 
   @ApiPropertyOptional()

@@ -80,7 +80,8 @@ export type Where<S extends Schema = Schema> =
   | ((Expression<S> & Related) & LogicalGrouping<Expression<S> & Related>)
   | LogicalGrouping<Expression<S> & Related>
 
-export type Order<S extends Schema = Schema> = 'asc' | 'desc' | Partial<Record<keyof S, 'asc' | 'desc'>>
+export type OrderDirection = 'asc' | 'desc'
+export type Order<S extends Schema = Schema> = OrderDirection | Partial<Record<keyof S, OrderDirection>>
 
 export type AggregateCollectFn = {
   alias: string
