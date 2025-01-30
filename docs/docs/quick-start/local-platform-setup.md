@@ -2,8 +2,7 @@
 sidebar_position: 4
 ---
 
-# Platform Setup
-In this section, we'll walk through the process of registering for RushDB and generating an API token necessary for using the RushDB SDK. This token is essential for authenticating your application's requests to the RushDB backend.
+# RushDB Platform Setup
 
 You can quickly launch the **RushDB Platform** using the following Docker command:
 
