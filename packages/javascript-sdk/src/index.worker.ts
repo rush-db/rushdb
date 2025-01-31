@@ -5,6 +5,7 @@ import {
   Model,
   type DBRecord,
   DBRecordInstance,
+  type Relation,
   DBRecordDraft,
   DBRecordsArrayInstance,
   Transaction,
@@ -37,6 +38,7 @@ export {
   RestAPI,
   type InferType,
   type ApiResponse,
+  type Relation,
   idToDate,
   idToTimestamp
 }

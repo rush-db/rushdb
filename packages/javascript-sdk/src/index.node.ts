@@ -14,6 +14,7 @@ import {
   initSDK,
   idToDate,
   idToTimestamp,
+  type Relation,
   type InferType
 } from './sdk/index.js'
 import { type ApiResponse, RestAPI } from './api/index.js'
@@ -26,6 +27,7 @@ export {
   DBRecordDraft,
   Model,
   DBRecord,
+  type Relation,
   DBRecordInstance,
   DBRecordsArrayInstance,
   Transaction,

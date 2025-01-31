@@ -12,12 +12,10 @@ import type {
 import type { Schema } from './schema.js'
 import type { MaybeArray, RequireAtLeastOne } from './utils.js'
 
-export type Relation = RelationOptions | string
-
 export type Related = {
   [Key in keyof Models]?: {
     $alias?: string
-    $relation?: Relation
+    $relation?: RelationOptions | string
   } & Where<Models[Key]>
 }
 

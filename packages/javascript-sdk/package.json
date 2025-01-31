@@ -17,7 +17,7 @@
   "files": ["dist"],
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
-  "types": "./dist/index.worker.ts",
+  "types": "./dist/index.worker.d.ts",
   "scripts": {
     "build": "pnpm clean && pnpm build:package && pnpm build:types",
     "build:package": "node esbuild.config.cjs",
