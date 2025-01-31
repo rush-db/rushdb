@@ -3,7 +3,9 @@ import { NodeHttpClient } from './network/NodeHttpClient.js'
 import {
   DBRecordsBatchDraft,
   Model,
+  type DBRecord,
   DBRecordInstance,
+  DBRecordDraft,
   DBRecordsArrayInstance,
   Transaction,
   EmptyTargetError,
@@ -11,15 +13,19 @@ import {
   UniquenessError,
   initSDK,
   idToDate,
-  idToTimestamp
+  idToTimestamp,
+  type InferType
 } from './sdk/index.js'
+import { type ApiResponse, RestAPI } from './api/index.js'
 
 const RushDB = initSDK(new NodeHttpClient())
 
-module.exports = {
+export {
   RushDB,
   DBRecordsBatchDraft,
+  DBRecordDraft,
   Model,
+  DBRecord,
   DBRecordInstance,
   DBRecordsArrayInstance,
   Transaction,
@@ -28,11 +34,12 @@ module.exports = {
   HttpClientResponse,
   NonUniqueResultError,
   UniquenessError,
-  default: RushDB,
+  RestAPI,
+  type InferType,
+  type ApiResponse,
   idToDate,
   idToTimestamp
 }
+export * from './types/index.js'
 
-module.exports.RushDB = RushDB
-
-module.exports.default = RushDB
+export default RushDB

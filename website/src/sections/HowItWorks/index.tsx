@@ -146,7 +146,7 @@ async function generateAndStoreData() {
   const parsedContent = JSON.parse(generatedContent)
 
   // Step 3: Store the output in RushDB
-  const record = await db.record.createMany(
+  const record = await db.records.createMany(
     'AI_RESPONSE',
     parsedContent
   )
