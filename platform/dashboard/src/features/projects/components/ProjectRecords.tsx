@@ -16,18 +16,11 @@ import { $currentProjectVisibleFields } from '../stores/hidden-fields'
 import { $sheetRecordId } from '../stores/id'
 import { GraphView } from '~/features/projects/components/GraphView.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
-import { composeEventHandlers } from '~/lib/utils.ts'
 import React from 'react'
 
 function View() {
-  const {
-    data: records,
-    loading: loadingRecords,
-    total = 0
-  } = useStore($filteredRecords)
-  const { data: fields, loading: loadingFields } = useStore(
-    $currentProjectVisibleFields
-  )
+  const { data: records, loading: loadingRecords, total = 0 } = useStore($filteredRecords)
+  const { data: fields, loading: loadingFields } = useStore($currentProjectVisibleFields)
 
   const skip = useStore($currentProjectRecordsSkip)
 
@@ -58,16 +51,16 @@ function View() {
       return (
         <>
           <GraphView />
-          {records?.length ? (
+          {records?.length ?
             <Paginator
-              className="sticky bottom-0 border-t bg-fill"
+              className="bg-fill sticky bottom-0 border-t"
               limit={limit}
               onNext={incrementRecordsPage}
               onPrev={decrementRecordsPage}
               skip={skip}
               total={total}
             />
-          ) : null}
+          : null}
         </>
       )
 
