@@ -13,6 +13,7 @@ coverage
 
 # Don't ignore the built files we need
 !packages/javascript-sdk/esm
+!packages/javascript-sdk/dist
 !packages/javascript-sdk/cjs
 !packages/javascript-sdk/types
 !packages/javascript-sdk/package.json

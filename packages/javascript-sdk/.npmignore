@@ -11,4 +11,5 @@
 !/package.json
 !/cjs/**/*
 !/esm/**/*
+!/dist/**/*
 !/types/**/*
