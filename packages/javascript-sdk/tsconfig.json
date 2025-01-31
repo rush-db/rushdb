@@ -1,12 +1,15 @@
 {
-  "extends": "./tsconfig.cjs.json",
   "compilerOptions": {
-    "noEmit": true,
-    "types": ["node"]
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "ESNext",          // Use ESNext for ES modules
+    "target": "ES2015",          // Target ES2015 for compatibility
+    "moduleResolution": "node",
+    "declaration": true,         // Generate `.d.ts` files
+    "sourceMap": true,           // Generate source maps
+    "strict": true,              // Enable strict type checking
+    "esModuleInterop": true,     // Enable ES module interop
+    "skipLibCheck": true
   },
-  "ts-node": {
-    "experimentalResolver": true
-  },
-  "exclude": [ "**/node_modules"],
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": ["src/**/*"]
 }
