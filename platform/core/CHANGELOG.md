@@ -1,5 +1,12 @@
 # rushdb-core
 
+## 0.9.5
+
+### Patch Changes
+
+- 7ea9151: Update bundling for SDK and minor typo fixes
+- fc33a7e: Fix types import and export issues
+
 ## 0.9.4
 
 ### Patch Changes
