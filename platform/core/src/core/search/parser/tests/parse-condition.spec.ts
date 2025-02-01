@@ -31,7 +31,7 @@ describe('parseComparison', () => {
     )
     expect(result2).toEqual([
       `any(value IN ${queryBuilderOptions.nodeAlias}.address WHERE value STARTS WITH \"Lo\")`,
-      `any(value IN ${queryBuilderOptions.nodeAlias}.address WHERE value =~ '(?i).*n.*')`,
+      `any(value IN ${queryBuilderOptions.nodeAlias}.address WHERE value =~ "(?i).*n.*")`,
       `any(value IN ${queryBuilderOptions.nodeAlias}.address WHERE value ENDS WITH \"don\")`
     ])
 
