@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.10.1
+
+### Patch Changes
+
+- 0442ddc: Make SDK Instance method public
+- Updated dependencies [0442ddc]
+  - @rushdb/javascript-sdk@0.10.1
+
 ## 0.10.0
 
 ### Minor Changes

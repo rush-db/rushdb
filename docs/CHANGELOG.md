@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 0.10.1
+
+### Patch Changes
+
+- 0442ddc: Make SDK Instance method public
+
 ## 0.10.0
 
 ### Minor Changes
