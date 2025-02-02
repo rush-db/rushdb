@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.10.2
+
+### Patch Changes
+
+- 476acdf: Update examples link
+
 ## 0.10.1
 
 ### Patch Changes
