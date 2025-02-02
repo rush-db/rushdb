@@ -9,7 +9,7 @@ RushDB is an open-source database built on Neo4j, designed to simplify applicati
 
 It automates data normalization, manages relationships, and infers data types, enabling developers to focus on building features rather than wrestling with data.
 
-[🌐 Homepage](https://rushdb.com) — [📢 Blog](https://rushdb.com/blog) — [☁️ Platform ](https://app.rushdb.com) — [📖 Docs](https://docs.rushdb.com) — [🧑‍💻 Examples](https://github.com/rush-db/rushdb/examples)
+[🌐 Homepage](https://rushdb.com) — [📢 Blog](https://rushdb.com/blog) — [☁️ Platform ](https://app.rushdb.com) — [📖 Docs](https://docs.rushdb.com) — [🧑‍💻 Examples](https://github.com/rush-db/examples)
 </div>
 
 ## 🚀 Feature Highlights
@@ -306,7 +306,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 
 <div align="center" style="margin-top: 20px">
 
-> Check the [Documentation](https://docs.rushdb.com) and [Examples](https://github.com/rush-db/rushdb/examples) to learn more 🤓
+> Check the [Documentation](https://docs.rushdb.com) and [Examples](https://github.com/rush-db/examples) to learn more 🤓
 
 </div>
 
