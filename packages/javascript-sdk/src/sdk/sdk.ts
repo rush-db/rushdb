@@ -34,7 +34,7 @@ export const initSDK = (httpClient: HttpClient) => {
       return RushDB.instance
     }
 
-    registerModel<M extends Model = Model>(model: Model) {
+    public registerModel(model: Model) {
       const label = model.getLabel()
 
       // Inject the API into the model
