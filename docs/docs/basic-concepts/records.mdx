@@ -170,26 +170,22 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
       </TabsList>
       <TabsContent value="sdk">
         ```typescript
-        await db.records.createMany({
-          label: "PRODUCT",
-          payload: [
-            {
-              title: 'T-Shirt',
-              price: 50,
-            },
-            {
-              title: 'Sneakers',
-              price: 135,
-              // Nested Records `SIZE`
-              SIZE: [
-                {
-                  uk: 8.5,
-                  qty: 5
-                }
-              ]
-            }
-          ]
-        })
+        await db.records.createMany("PRODUCT", [
+          {
+            title: "T-Shirt",
+            price: 50
+          },
+          {
+            title: "Sneakers",
+            price: 135,
+            SIZE: [
+              {
+                uk: 8.5,
+                qty: 5
+              }
+            ]
+          }
+        ])
         ```
       </TabsContent>
       <TabsContent value="api">

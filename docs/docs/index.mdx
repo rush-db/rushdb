@@ -66,25 +66,22 @@ import RushDB from '@rushdb/javascript-sdk';
 const db = new RushDB("API_TOKEN")
 
 // Push any data to RushDB the way you perceive it
-await db.records.createMany({
-  label: "PRODUCT",
-  payload: [
+await db.records.createMany("PRODUCT", [
+  {
+    title: "T-Shirt",
+    price: 50
+  },
+  {
+    title: "Sneakers",
+    price: 135,
+    SIZE: [
       {
-         title: 'T-Shirt',
-         price: 50,
-      },
-      {
-         title: 'Sneakers',
-         price: 135,
-         SIZE: [
-            {
-              uk: 8.5,
-              qty: 5
-            }
-         ]
+        uk: 8.5,
+        qty: 5
       }
-   ]
-})
+    ]
+  }
+])
 
 // Find it with granular precision and without any query language
 await db.records.find("PRODUCT", {

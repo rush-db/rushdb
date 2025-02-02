@@ -249,20 +249,20 @@ export class RestAPI {
         return this.api?.records.export(searchParams, transaction)
       },
 
-      find: async <S extends Schema = any>(
-        labelOrSearchParams?: SearchQuery<S> | string,
-        searchParamsOrTransaction?: SearchQuery<S> | Transaction | string,
+      find: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+        labelOrSearchParams?: Q | string,
+        searchParamsOrTransaction?: Q | Transaction | string,
         transaction?: Transaction | string
-      ): Promise<DBRecordsArrayInstance<S>> => {
+      ): Promise<DBRecordsArrayInstance<S, Q>> => {
         const isTransactionParam = isTransaction(searchParamsOrTransaction)
         const { id, searchParams } = createSearchParams<S>(labelOrSearchParams, searchParamsOrTransaction)
         const tx = isTransactionParam ? searchParamsOrTransaction : transaction
-        const response = await this.api?.records.find<S>({ id, searchParams }, tx)
+        const response = await this.api?.records.find<S, Q>({ id, searchParams: searchParams as Q }, tx)
 
-        const result = new DBRecordsArrayInstance<S>(
+        const result = new DBRecordsArrayInstance<S, Q>(
           response.data,
           response.total,
-          searchParamsOrTransaction as SearchQuery<S>
+          searchParamsOrTransaction as Q
         )
         result.init(this)
         return result
@@ -293,32 +293,32 @@ export class RestAPI {
         }
       },
 
-      findOne: async <S extends Schema = any>(
-        labelOrSearchParams?: SearchQuery<S> | string,
-        searchParamsOrTransaction?: SearchQuery<S> | Transaction | string,
+      findOne: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+        labelOrSearchParams?: Q | string,
+        searchParamsOrTransaction?: Q | Transaction | string,
         transaction?: Transaction | string
       ): Promise<DBRecordInstance<S>> => {
         const isTransactionParam = isTransaction(searchParamsOrTransaction)
         const { searchParams } = createSearchParams<S>(labelOrSearchParams, searchParamsOrTransaction)
         const tx = isTransactionParam ? searchParamsOrTransaction : transaction
-        const response = await this.api?.records.findOne<S>(searchParams, tx)
+        const response = await this.api?.records.findOne<S, Q>(searchParams as Q, tx)
 
-        const result = new DBRecordInstance<S>(response.data)
+        const result = new DBRecordInstance<S, Q>(response.data)
         result.init(this)
         return result
       },
 
-      findUniq: async <S extends Schema = any>(
-        labelOrSearchParams?: SearchQuery<S> | string,
-        searchParamsOrTransaction?: SearchQuery<S> | Transaction | string,
+      findUniq: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+        labelOrSearchParams?: Q | string,
+        searchParamsOrTransaction?: Q | Transaction | string,
         transaction?: Transaction | string
-      ): Promise<DBRecordInstance<S>> => {
+      ): Promise<DBRecordInstance<S, Q>> => {
         const isTransactionParam = isTransaction(searchParamsOrTransaction)
         const { searchParams } = createSearchParams<S>(labelOrSearchParams, searchParamsOrTransaction)
         const tx = isTransactionParam ? searchParamsOrTransaction : transaction
-        const response = await this.api?.records.findUniq<S>(searchParams, tx)
+        const response = await this.api?.records.findUniq<S, Q>(searchParams as Q, tx)
 
-        const result = new DBRecordInstance<S>(response.data)
+        const result = new DBRecordInstance<S, Q>(response.data)
         result.init(this)
         return result
       },

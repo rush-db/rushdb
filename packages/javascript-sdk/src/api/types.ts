@@ -1,16 +1,16 @@
 import type {
-  DBRecordsBatchDraft,
   DBRecordDraft,
   DBRecordInstance,
-  DBRecordTarget,
   DBRecordsArrayInstance,
+  DBRecordsBatchDraft,
+  DBRecordTarget,
   Relation,
   RelationDetachOptions,
   RelationOptions,
   RelationTarget
 } from '../sdk/record.js'
 import type { Transaction } from '../sdk/transaction.js'
-import type { Property, SearchQuery, Schema, InferSchemaTypesWrite, MaybeArray } from '../types/index.js'
+import type { InferSchemaTypesWrite, MaybeArray, Property, Schema, SearchQuery } from '../types/index.js'
 
 export type ApiResponse<T, E = Record<string, any>> = {
   data: T
@@ -70,19 +70,19 @@ export type RecordsApi = {
     transaction?: Transaction | string
   ): Promise<ApiResponse<{ dateTime: string; fileContent: string }>>
 
-  find<S extends Schema = any>(
+  find<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
     label: string,
-    searchParams?: SearchQuery<S>,
+    searchParams?: Q,
     transaction?: Transaction | string
-  ): Promise<DBRecordsArrayInstance<S>>
-  find<S extends Schema = any>(
-    labelOrSearchParams: SearchQuery<S> | string,
+  ): Promise<DBRecordsArrayInstance<S, Q>>
+  find<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+    labelOrSearchParams: Q | string,
     transaction?: Transaction | string
-  ): Promise<DBRecordsArrayInstance<S>>
-  find<S extends Schema = any>(
-    searchParams: SearchQuery<S>,
+  ): Promise<DBRecordsArrayInstance<S, Q>>
+  find<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+    searchParams: Q,
     transaction?: Transaction | string
-  ): Promise<DBRecordsArrayInstance<S>>
+  ): Promise<DBRecordsArrayInstance<S, Q>>
 
   findById<S extends Schema = any>(
     id: string,
@@ -93,33 +93,33 @@ export type RecordsApi = {
     transaction?: Transaction | string
   ): Promise<DBRecordsArrayInstance<S>>
 
-  findOne<S extends Schema = any>(
+  findOne<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
     label: string,
-    searchParams: SearchQuery<S> & { labels?: never; limit?: never; skip?: never },
+    searchParams: Q & { labels?: never; limit?: never; skip?: never },
     transaction?: Transaction | string
-  ): Promise<DBRecordInstance<S>>
-  findOne<S extends Schema = any>(
-    labelOrSearchParams: (SearchQuery<S> & { limit?: never; skip?: never }) | string,
+  ): Promise<DBRecordInstance<S, Q>>
+  findOne<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+    labelOrSearchParams: (Q & { limit?: never; skip?: never }) | string,
     transaction?: Transaction | string
-  ): Promise<DBRecordInstance<S>>
-  findOne<S extends Schema = any>(
-    searchParams: SearchQuery<S> & { limit?: never; skip?: never },
+  ): Promise<DBRecordInstance<S, Q>>
+  findOne<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+    searchParams: Q & { limit?: never; skip?: never },
     transaction?: Transaction | string
-  ): Promise<DBRecordInstance<S>>
+  ): Promise<DBRecordInstance<S, Q>>
 
-  findUniq<S extends Schema = any>(
+  findUniq<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
     label: string,
-    searchParams: SearchQuery<S> & { labels?: never; limit?: never; skip?: never },
+    searchParams: Q & { labels?: never; limit?: never; skip?: never },
     transaction?: Transaction | string
-  ): Promise<DBRecordInstance<S>>
-  findUniq<S extends Schema = any>(
-    labelOrSearchParams: (SearchQuery<S> & { limit?: never; skip?: never }) | string,
+  ): Promise<DBRecordInstance<S, Q>>
+  findUniq<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+    labelOrSearchParams: (Q & { limit?: never; skip?: never }) | string,
     transaction?: Transaction | string
-  ): Promise<DBRecordInstance<S>>
-  findUniq<S extends Schema = any>(
-    searchParams: SearchQuery<S> & { limit?: never; skip?: never },
+  ): Promise<DBRecordInstance<S, Q>>
+  findUniq<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+    searchParams: Q & { limit?: never; skip?: never },
     transaction?: Transaction | string
-  ): Promise<DBRecordInstance<S>>
+  ): Promise<DBRecordInstance<S, Q>>
 
   properties(target: DBRecordTarget, transaction?: Transaction | string): Promise<ApiResponse<Property[]>>
 

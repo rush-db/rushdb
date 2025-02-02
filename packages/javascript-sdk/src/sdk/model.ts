@@ -71,35 +71,48 @@ export class Model<S extends Schema = any> extends RestApiProxy {
     return this.label
   }
 
-  async find(params: SearchQuery<S> & { labels?: never } = {}, transaction?: Transaction | string) {
-    return this.apiProxy?.records.find<S>(this.label, params, transaction)
+  async find<Q extends SearchQuery<S> = SearchQuery<S>>(
+    params?: Q & { labels?: never },
+    transaction?: Transaction | string
+  ) {
+    const query = (params ?? {}) as Q
+    return this.apiProxy?.records.find<S, Q>(this.label, query, transaction)
   }
 
-  async findOne(
-    params: SearchQuery<S> & {
+  async findOne<Q extends SearchQuery<S> = SearchQuery<S>>(
+    params?: Q & {
       labels?: never
       limit?: never
       skip?: never
-    } = {},
+    },
     transaction?: Transaction | string
   ) {
-    return this.apiProxy?.records.findOne<S>(this.label, { ...params }, transaction)
+    const query = (params ?? {}) as Q & {
+      labels?: never
+      limit?: never
+      skip?: never
+    }
+    return this.apiProxy?.records.findOne<S, Q>(this.label, query, transaction)
   }
 
   async findById(id: string, transaction?: Transaction | string) {
     return this.findOne({ where: { $id: id } }, transaction)
   }
 
-  async findUniq(
-    params: SearchQuery<S> & {
+  async findUniq<Q extends SearchQuery<S> = SearchQuery<S>>(
+    params?: Q & {
       labels?: never
       limit?: never
       skip?: never
-    } = {},
-
+    },
     transaction?: Transaction | string
   ) {
-    return this.apiProxy?.records.findUniq<S>(this.label, { ...params }, transaction)
+    const query = (params ?? {}) as Q & {
+      labels?: never
+      limit?: never
+      skip?: never
+    }
+    return this.apiProxy?.records.findUniq<S, Q>(this.label, query, transaction)
   }
 
   async create(record: InferSchemaTypesWrite<S>, transaction?: Transaction | string) {

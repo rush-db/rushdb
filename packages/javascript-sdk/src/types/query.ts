@@ -1,23 +1,25 @@
-import type { RelationOptions } from '../sdk/index.js'
+import type { Model, RelationOptions } from '../sdk/index.js'
 import type {
   BooleanExpression,
-  PropertyExpression,
-  PropertyExpressionByType,
   DatetimeExpression,
   LogicalGrouping,
   NullExpression,
   NumberExpression,
+  PropertyExpression,
+  PropertyExpressionByType,
   StringExpression
 } from './expressions.js'
 import type { Schema } from './schema.js'
-import type { MaybeArray, RequireAtLeastOne } from './utils.js'
+import type { AnyObject, MaybeArray, RequireAtLeastOne } from './utils.js'
 
-export type Related = {
-  [Key in keyof Models]?: {
-    $alias?: string
-    $relation?: RelationOptions | string
-  } & Where<Models[Key]>
-}
+export type Related<M extends Record<string, Model['schema']> = Models> =
+  keyof M extends never ? AnyObject
+  : {
+      [Key in keyof M]?: {
+        $alias?: string
+        $relation?: RelationOptions | string
+      } & Where<M[Key]>
+    }
 
 export type LogicalExpressionValue<T = PropertyExpression & Related> =
   | AndExpression<T>
@@ -110,6 +112,17 @@ export type Aggregate =
   | {
       [field: string]: AggregateFn | string
     }
+
+type InferAggregateType<T extends AggregateFn | string> =
+  T extends string ? any
+  : T extends { fn: 'sum' | 'avg' | 'min' | 'max' | 'count' } ? number
+  : T extends { fn: 'collect' } ? any[]
+  : never
+
+// Helper type to extract aggregated fields
+export type ExtractAggregateFields<A extends Record<string, AggregateFn>> = {
+  [K in keyof A]: InferAggregateType<A[K]>
+}
 
 // CLAUSES
 export type WhereClause<S extends Schema = Schema> = {
