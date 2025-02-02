@@ -1,6 +1,7 @@
 import type { createFetcher } from '../network/index.js'
 import type {
   DBRecord,
+  DBRecordInferred,
   DBRecordTarget,
   Relation,
   RelationDetachOptions,
@@ -22,8 +23,6 @@ import { NonUniqueResultError } from '../sdk/errors.js'
 import { DBRecordsBatchDraft, DBRecordDraft } from '../sdk/record.js'
 import { buildTransactionHeader, pickRecordId, pickTransactionId } from './utils.js'
 import type { Logger } from '../sdk/types.js'
-
-// POST /api/v1/records/:id @TODO
 
 export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Logger) => ({
   labels: {
@@ -225,10 +224,10 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       logger?.({ path, ...payload })
       return fetcher<ApiResponse<{ dateTime: string; fileContent: string }>>(path, payload)
     },
-    find<S extends Schema = any>(
-      params?: { id?: string; searchParams: SearchQuery<S> },
+    find<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+      params?: { id?: string; searchParams: Q },
       transaction?: Transaction | string
-    ) {
+    ): Promise<ApiResponse<DBRecordInferred<S, Q>[]>> {
       const txId = pickTransactionId(transaction)
       const path = params?.id ? `/records/${params.id}/search` : `/records/search`
       const payload = {
@@ -238,7 +237,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       }
 
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<DBRecord<S>[]>>(path, payload)
+      return fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
     },
     findById<S extends Schema = any>(idOrIds: MaybeArray<string>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
@@ -252,7 +251,10 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       logger?.({ path, ...payload })
       return fetcher<ApiResponse<DBRecord<S>[] | DBRecord<S>>>(path, payload)
     },
-    async findOne<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
+    async findOne<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+      searchParams: Q,
+      transaction?: Transaction | string
+    ) {
       const txId = pickTransactionId(transaction)
       const path = `/records/search`
       const payload = {
@@ -262,11 +264,14 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       }
 
       logger?.({ path, ...payload })
-      const response = await fetcher<ApiResponse<DBRecord<S>[]>>(path, payload)
+      const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
       const [record] = response.data
-      return { ...response, data: record } as ApiResponse<DBRecord<S>>
+      return { ...response, data: record } as ApiResponse<DBRecordInferred<S, Q>>
     },
-    async findUniq<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
+    async findUniq<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+      searchParams: Q,
+      transaction?: Transaction | string
+    ) {
       const txId = pickTransactionId(transaction)
       const path = `/records/search`
       const payload = {
@@ -276,14 +281,14 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       }
 
       logger?.({ path, ...payload })
-      const response = await fetcher<ApiResponse<DBRecord<S>[]>>(path, payload)
+      const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
 
       if (typeof response.total !== 'undefined' && response.total > 1) {
         throw new NonUniqueResultError(response.total, searchParams)
       }
 
       const [record] = response.data
-      return { ...response, data: record } as ApiResponse<DBRecord<S>>
+      return { ...response, data: record } as ApiResponse<DBRecordInferred<S, Q>>
     },
     properties(target: string, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)

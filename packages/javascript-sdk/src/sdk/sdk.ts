@@ -41,7 +41,7 @@ export const initSDK = (httpClient: HttpClient) => {
       model.init(this)
 
       this.models.set(label, model)
-      return model //as unknown as Model<T['schema']> & Omit<RestAPI, 'find'>
+      return model
     }
 
     public getModels(): Map<string, Model> {

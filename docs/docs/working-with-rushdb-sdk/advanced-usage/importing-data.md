@@ -39,24 +39,19 @@ const data = JSON.parse(fs.readFileSync('data.json', 'utf8'));
 }
 */
 
-// Convert JSON data to RushDB records
-const usersData = data.users.map(user => ({ label: 'user', payload: user }));
-const postsData = data.posts.map(post => ({ label: 'post', payload: post }));
-const blogsData = data.blogs.map(blog => ({ label: 'blog', payload: blog }));
-
 // Function to import data
 async function importData() {
   try {
     // Import users
-    const importedUsers = await db.records.createMany(usersData);
+    const importedUsers = await db.records.createMany('user', data.users);
     console.log('Imported Users:', importedUsers.data);
 
     // Import posts
-    const importedPosts = await db.records.createMany(postsData);
+    const importedPosts = await db.records.createMany('post', data.posts);
     console.log('Imported Posts:', importedPosts.data);
 
     // Import blogs
-    const importedBlogs = await db.records.createMany(blogsData);
+    const importedBlogs = await db.records.createMany('blog', data.blogs);
     console.log('Imported Blogs:', importedBlogs.data);
   } catch (error) {
     console.error('Error importing data:', error);

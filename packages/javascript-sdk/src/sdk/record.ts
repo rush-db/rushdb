@@ -1,16 +1,17 @@
 import type {
   AnyObject,
-  PropertyType,
-  PropertyValue,
-  PropertyWithValue,
-  SearchQuery,
-  Schema,
+  ExtractAggregateFields,
   FlattenTypes,
   InferSchemaTypesRead,
   InferSchemaTypesWrite,
   MaybeArray,
   OptionalKeysRead,
-  RequiredKeysRead
+  PropertyType,
+  PropertyValue,
+  PropertyWithValue,
+  RequiredKeysRead,
+  Schema,
+  SearchQuery
 } from '../types/index.js'
 import type { Transaction } from './transaction.js'
 
@@ -34,6 +35,10 @@ export type RecordProps<S extends Schema = Schema> =
   : {
       [K in keyof S]?: S[K]
     }
+
+export type DBRecordInferred<S extends Schema, Q extends SearchQuery<S>> =
+  Q extends { aggregate: infer A extends Record<string, any> } ? DBRecord<S> & ExtractAggregateFields<A>
+  : DBRecord<S>
 
 export type DBRecord<S extends Schema = Schema> = FlattenTypes<
   DBRecordInternalProps<S> & FlattenTypes<RecordProps<S>>
@@ -135,10 +140,13 @@ export class DBRecordDraft {
   }
 }
 
-export class DBRecordInstance<S extends Schema = Schema> extends RestApiProxy {
-  data?: DBRecord<S>
+export class DBRecordInstance<
+  S extends Schema = Schema,
+  Q extends SearchQuery<S> = SearchQuery<S>
+> extends RestApiProxy {
+  data?: DBRecordInferred<S, Q>
 
-  constructor(data?: DBRecord<S>) {
+  constructor(data?: DBRecordInferred<S, Q>) {
     super()
     this.data = data
   }
@@ -230,12 +238,15 @@ export class DBRecordInstance<S extends Schema = Schema> extends RestApiProxy {
   }
 }
 
-export class DBRecordsArrayInstance<S extends Schema = Schema> extends RestApiProxy {
-  data?: DBRecord<S>[]
+export class DBRecordsArrayInstance<
+  S extends Schema = Schema,
+  Q extends SearchQuery<S> = SearchQuery<S>
+> extends RestApiProxy {
+  data?: DBRecordInferred<S, Q>[]
   total: number | undefined
   searchParams?: SearchQuery<S>
 
-  constructor(data?: DBRecord<S>[], total?: number, searchParams?: SearchQuery<S>) {
+  constructor(data?: DBRecordInferred<S, Q>[], total?: number, searchParams?: SearchQuery<S>) {
     super()
     this.data = data
     this.total = total

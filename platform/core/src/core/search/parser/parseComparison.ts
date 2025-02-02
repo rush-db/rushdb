@@ -108,7 +108,7 @@ export const parseComparison = (
           }
           case '$contains': {
             if (typeof value === 'string') {
-              return `any(value IN ${field} WHERE value =~ '(?i).*${value}.*')`
+              return `any(value IN ${field} WHERE value =~ "(?i).*${value}.*")`
             } else {
               throw new QueryCriteriaParsingError(operator, value)
             }
