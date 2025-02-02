@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 0.10.0
+
+### Minor Changes
+
+- f159dfa: Improve type inference for SDK
+
+### Patch Changes
+
+- Updated dependencies [f159dfa]
+  - @rushdb/javascript-sdk@0.10.0
+
 ## 0.9.5
 
 ### Patch Changes
