@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 0.11.0
+
+### Minor Changes
+
+- 85038ac: Update readme, website, add python package and examples
+
+### Patch Changes
+
+- Updated dependencies [85038ac]
+  - @rushdb/javascript-sdk@0.11.0
+
 ## 0.10.2
 
 ### Patch Changes

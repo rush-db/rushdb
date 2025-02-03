@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.11.0
+
+### Minor Changes
+
+- 85038ac: Update readme, website, add python package and examples
+
 ## 0.10.2
 
 ### Patch Changes
