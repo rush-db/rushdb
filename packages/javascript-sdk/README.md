@@ -5,7 +5,7 @@
 # RushDB SDK for JavaScript and TypeScript
 
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
-[![License](https://img.shields.io/badge/License-MIT-blue)](#license "Go to license section")
+[![NPM License](https://img.shields.io/npm/l/%40rushdb%2Fjavascript-sdk)](#license "Go to license section")
 
 ![NPM Downloads](https://img.shields.io/npm/dw/%40rushdb%2Fjavascript-sdk)
 ![npm bundle size](https://img.shields.io/bundlephobia/minzip/%40rushdb%2Fjavascript-sdk)

@@ -6,6 +6,9 @@ import { Button, MainCta } from '~/components/Button'
 import { links, socials } from '~/config/urls'
 import { CodeBlock } from '~/components/CodeBlock'
 import { GitHub } from '~/components/Icons/GitHub'
+import { CodeBlockWithLanguageSelector } from '~/components/CodeBlockWithLanguageSelector'
+import { useContext } from 'react'
+import { CodingLanguage } from '~/pages'
 
 const code = `import RushDB from '@rushdb/javascript-sdk'
 
@@ -29,7 +32,35 @@ await db.records.find({
   }
 })`
 
+const codePy = `from rushdb import RushDB
+
+db = RushDB("API_TOKEN")
+
+user = db.records.create(
+    "USER",
+    {
+        "name": "Paul Schmitz",
+        "lastActive": "2024-12-02T11:38:29Z",
+        "verified": True,
+        "size": 9.5,
+        "favoriteTags": ["Daily Run", "Foam"]
+    }
+)
+
+db.records.find(
+    {
+        "labels": ["USER"],
+        "where": {
+            "size": {"$gte": 9}, 
+            "favoriteTags": {"$in": ["Foam"]}
+        }
+    }
+)
+`
+
 export const Hero = () => {
+  const { language } = useContext(CodingLanguage)
+
   return (
     <>
       <div id="hero" className="hero absolute top-0 z-0 min-h-dvh w-full md:bg-cover" />
@@ -73,8 +104,11 @@ export const Hero = () => {
             </div>
 
             <div className="flex w-full items-center justify-start md:hidden md:flex-col">
-              <CodeBlock
-                code={code}
+              <CodeBlockWithLanguageSelector
+                data={{
+                  typescript: code,
+                  python: codePy
+                }}
                 className="grid place-content-center md:hidden md:w-full lg:w-fit"
                 preClassName="md:w-full"
               />
@@ -85,13 +119,17 @@ export const Hero = () => {
               RushDB is an open-source, graph-powered zero-config database
             </p>
             <CodeBlock
-              code={'pnpm add @rushdb/javascript-sdk'}
+              code={language === 'typescript' ? 'pnpm add @rushdb/javascript-sdk' : 'pip install rushdb'}
               className="m-auto grid place-content-center md:w-full lg:w-fit"
               preClassName="md:w-full"
               copyButton={true}
             >
               <img
-                src="https://img.shields.io/npm/v/@rushdb/javascript-sdk"
+                src={
+                  language === 'typescript' ?
+                    'https://img.shields.io/npm/v/@rushdb/javascript-sdk'
+                  : 'https://img.shields.io/pypi/v/rushdb'
+                }
                 alt="npm-version"
                 className="md:hidden"
               />
