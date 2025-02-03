@@ -7,6 +7,9 @@ import { CodeBlock } from '~/components/CodeBlock'
 import Image from 'next/image'
 
 import dashboard from '../../images/dashboard.png'
+import { CodeBlockWithLanguageSelector } from '~/components/CodeBlockWithLanguageSelector'
+import { useContext } from 'react'
+import { CodingLanguage } from '~/pages'
 const code1 = `import RushDB from '@rushdb/javascript-sdk'
 
 const db = new RushDB('rushdb-api-key')
@@ -31,6 +34,36 @@ await db.records.createMany("COMPANY", {
         position: 'Head of AI Research',
         email: 'jeff@google.com',
         salary: 3000000`
+
+const code1Py = `from rushdb import RushDB
+
+db = RushDB("rushdb-api-key")
+
+db.records.create_many(
+    "COMPANY",
+    {
+        "name": "Google LLC",
+        "address": "1600 Amphitheatre Parkway, Mountain View, CA 94043, USA",
+        "foundedAt": "1998-09-04T00:00:00.000Z",
+        "rating": 4.9,
+        "DEPARTMENT": [
+            {
+                "name": "Research & Development",
+                "description": "Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.",
+                "tags": ["AI", "Cloud Computing", "Research"],
+                "profitable": true,
+                "PROJECT": [
+                    {
+                        "name": "Bard AI",
+                        "description": "A state-of-the-art generative AI model for natural language understanding and creation.",
+                        "active": true,
+                        "budget": 1200000000,
+                        "EMPLOYEE": [
+                            {
+                                "name": "Jeff Dean",
+                                "position": "Head of AI Research",
+                                "email": "jeff@google.com",
+                                "salary": 3000000"`
 
 const code2 = `await db.records.find({
   labels: ['COMPANY'],
@@ -59,6 +92,33 @@ const code2 = `await db.records.find({
   }
 })`
 
+const code2Py = `db.records.find(
+    {
+        "labels": ["COMPANY"],
+        "where": {
+            "stage": "seed",
+            "address": {"$contains": "USA"},
+            "foundedAt": {"$year": {"$lte": 2000}},
+            "rating": {
+                "$or": [{"$lt": 2.5}, {"$gte": 4.5}]
+            },
+            "EMPLOYEE": {
+                "$alias": "$employee", 
+                "salary": {
+                    "$gte": 500_000
+                }
+            },
+        },
+        "aggregate": {
+            "employees": {
+                "fn": "collect",
+                "alias": "$employee",
+                "limit": 10
+            }
+        },
+    }
+)`
+
 const code3 = `// Property \`name\` [string]
 await db.properties.values(
   '0192397b-8579-7ce2-a899-01c59bad63f8'
@@ -84,6 +144,34 @@ await db.properties.values(
   max: 12.5,
   values: [5.5, 6, 6.5, 7, 7.5, 8, 8.5, ...],
   type: 'number'
+}
+`
+
+const code3Py = `# Property \`name\` [string]
+db.properties.values(
+  "0192397b-8579-7ce2-a899-01c59bad63f8"
+)
+# Response
+{
+  "values": [
+    "Eleanor Whitaker",
+    "Marcus Donovan",
+    "Priya Kapoor",
+    "Julian Alvarez"
+  ],
+  "type": "string"
+}
+
+# Property \`size\` [number]
+db.properties.values(
+  "019412c0-2051-71fe-bc9d-26117b52c119"
+)
+# Response
+{
+  "min": 5.5,
+  "max": 12.5,
+  "values": [5.5, 6, 6.5, 7, 7.5, 8, 8.5, ...],
+  "type": "number"
 }
 `
 
@@ -152,7 +240,32 @@ async function generateAndStoreData() {
   )
 }`
 
+const codeAiIntegrationPy = `import openai
+from rushdb import RushDB
+
+db = RushDB("rushdb-api-key")
+openai.api_key = "openai-api-key"
+
+
+def generate_and_store_data():
+    # Step 1: Call OpenAI API to generate some output
+    prompt = "..."
+    completion = await openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+    )
+
+    # Step 2: Extract the generated content
+    generated_content = completion["choices"][0]["message"]["content"]
+    parsed_content = json.loads(generated_content)
+
+    # Step 3: Store the output in RushDB
+    record = await db.records.create_many("AI_RESPONSE", parsed_content)`
+
 export const HowItWorks = () => {
+  const { language } = useContext(CodingLanguage)
+
   return (
     <>
       <section className={cx('mt-[1px]')}>
@@ -170,7 +283,7 @@ export const HowItWorks = () => {
               <br className="md:hidden" /> and labels any input data, so you don’t have to.
             </p>
             <CodeBlock
-              code={code1}
+              code={language === 'typescript' ? code1 : code1Py}
               className="h-2/3 place-content-center pb-0 md:w-full lg:w-full"
               wrapperClassName="rounded-bl-none rounded-br-none pb-0"
               preClassName="md:w-full pb-0"
@@ -312,12 +425,12 @@ export const HowItWorks = () => {
                 complex, deeply interconnected data without the acrobatics.
               </p>
             </div>
-            <CodeBlock
-              code={code2}
+            <CodeBlockWithLanguageSelector
+              data={{ typescript: code2, python: code2Py }}
               className="mx-auto w-full max-w-xl"
               preClassName="md:w-full"
               wrapperClassName="rounded-bl-none rounded-br-none pb-0"
-            ></CodeBlock>
+            ></CodeBlockWithLanguageSelector>
           </div>
 
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-br-[80px] pt-12 outline outline-1 outline-offset-0">
@@ -328,12 +441,12 @@ export const HowItWorks = () => {
                 backend, no fuss. All from a single API.
               </p>
             </div>
-            <CodeBlock
-              code={code3}
+            <CodeBlockWithLanguageSelector
+              data={{ typescript: code3, python: code3Py }}
               className="mx-auto w-full max-w-xl"
               preClassName="md:w-full"
               wrapperClassName="rounded-bl-none rounded-br-none pb-0"
-            ></CodeBlock>
+            ></CodeBlockWithLanguageSelector>
           </div>
         </div>
       </section>
@@ -370,8 +483,8 @@ export const HowItWorks = () => {
                 </div>
 
                 <div className="flex w-full items-center justify-start py-20 pr-8 md:flex-col md:p-0">
-                  <CodeBlock
-                    code={codeAiIntegration}
+                  <CodeBlockWithLanguageSelector
+                    data={{ typescript: codeAiIntegration, python: codeAiIntegrationPy }}
                     className="mx-auto w-full"
                     preClassName="md:w-full"
                     wrapperClassName="md:rounded-bl-none md:rounded-br-none md:pb-0"

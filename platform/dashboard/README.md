@@ -12,6 +12,8 @@ It streamlines application development by automating data normalization, managin
 [🌐 Homepage](https://rushdb.com) — [📢 Blog](https://rushdb.com/blog) — [☁️ Platform ](https://app.rushdb.com) — [📖 Docs](https://docs.rushdb.com) — [🧑‍💻 Examples](https://github.com/rush-db/examples)
 </div>
 
+---
+
 The `/platform/dashboard` directory contains the RushDB management interface, built with React and Vite. This README provides instructions for running, building, and configuring the dashboard both as a standalone app and as part of the core RushDB platform.
 
 ## Prerequisites

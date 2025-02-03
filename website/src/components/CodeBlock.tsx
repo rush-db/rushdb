@@ -1,17 +1,9 @@
-import { CSSProperties, PropsWithoutRef, forwardRef, useState, ReactNode, Children } from 'react'
-import {
-  materialDark as codeTheme
-  // atomDark,
-  // nightOwl,
-  // synthwave84,
-  // tomorrow,
-} from 'react-syntax-highlighter/dist/cjs/styles/prism'
+import { CSSProperties, PropsWithoutRef, forwardRef, ReactNode, Children } from 'react'
+import { materialDark as codeTheme } from 'react-syntax-highlighter/dist/cjs/styles/prism'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import classNames from 'classnames'
 import cx from 'classnames'
-import { copyToClipboard } from '~/utils/copyToClipboard'
-import { CopyCheck, CopyIcon } from 'lucide-react'
-import { Button } from '~/components/Button'
+
 import { CopyButton } from '~/components/CopyButton'
 
 const PreStyles: CSSProperties = {
