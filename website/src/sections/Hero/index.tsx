@@ -109,7 +109,7 @@ export const Hero = () => {
                   typescript: code,
                   python: codePy
                 }}
-                className="grid place-content-center md:hidden md:w-full lg:w-fit"
+                className="grid md:hidden md:w-full lg:w-fit"
                 preClassName="md:w-full"
               />
             </div>

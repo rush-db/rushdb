@@ -67,9 +67,6 @@ function PricingCard({
         <p className="text-content2 mb-3">{description}</p>
 
         <div className="grid w-full">{action}</div>
-        {price !== 'free' && price !== undefined ?
-          <p className="text-content3 mt-1 text-sm">No credit card required</p>
-        : <p className="mt-1 select-none text-xs text-transparent">-</p>}
 
         <ul className="mt-5 flex w-full flex-col divide-y">{children}</ul>
       </div>
@@ -113,7 +110,7 @@ export function Pricing() {
               price="free"
               description="Forever"
               action={
-                <Button size="small" variant="secondary" as={Link} href={links.app} target="_blank">
+                <Button size="small" variant="outline" as={Link} href={links.app} target="_blank">
                   Start Building
                   <ArrowUpRight />
                 </Button>
@@ -131,7 +128,7 @@ export function Pricing() {
                 description="Monthly"
                 action={
                   <Button size="small" variant="accent" as={Link} href={links.app}>
-                    Start for Free
+                    Start Building
                     <ArrowUpRight />
                   </Button>
                 }
@@ -144,12 +141,11 @@ export function Pricing() {
             {monthlyPricePro && (
               <PricingCard
                 price={monthlyPricePro}
-                featured
                 title="Pro"
                 description="Monthly"
                 action={
                   <Button size="small" variant="accent" as={Link} href={links.app}>
-                    Start for Free
+                    Start Building
                     <ArrowUpRight />
                   </Button>
                 }
