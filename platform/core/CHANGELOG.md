@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 0.11.3
+
+### Patch Changes
+
+- 5a37f89: Version bump to fix pnpm workflow version
+
 ## 0.11.2
 
 ### Patch Changes
