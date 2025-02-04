@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.11.2
+
+### Patch Changes
+
+- c7bd389: Version bump to fix pnpm workflow version
+- Updated dependencies [c7bd389]
+  - @rushdb/javascript-sdk@0.11.2
+
 ## 0.11.1
 
 ### Patch Changes
