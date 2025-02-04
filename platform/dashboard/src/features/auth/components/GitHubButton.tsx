@@ -5,7 +5,7 @@ import { DialogLoadingOverlay } from '~/elements/Dialog'
 import { getRoutePath } from '~/lib/router'
 import { Github } from 'lucide-react'
 
-const GITHUB_URL = `${BASE_URL}/api/v1/auth/github` // ?redirectUrl=${window.location.origin}${getRoutePath('oauth')}
+const GITHUB_URL = `${BASE_URL}/api/v1/auth/github`
 
 export function GithubButton() {
   const [loading, setLoading] = useState(false)
