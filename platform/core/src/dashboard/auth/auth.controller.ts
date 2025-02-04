@@ -161,12 +161,11 @@ export class AuthController {
     @TransactionDecorator() transaction: Transaction
   ): Promise<IAuthenticatedUser> {
     const { token } = resetPasswordData
-    console.log(resetPasswordData)
+
     const decodedToken = await this.emailConfirmationService.decodePasswordResetToken(token)
-    console.log({ decodedToken })
+
     const updatedUser = await this.userService.resetUserPassword(resetPasswordData, decodedToken, transaction)
 
-    console.log({ updatedUser })
     if (!updatedUser) {
       throw new UnauthorizedException()
     }

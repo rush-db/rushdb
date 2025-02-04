@@ -135,7 +135,7 @@ export class ProjectService {
     const projectNode = await this.getProjectNode(projectId, transaction)
     const projectNodePayload = JSON.stringify(await this.getNodesCount(projectId, transaction))
     projectNode.stats = projectNodePayload
-    console.log(projectNodePayload)
+
     await projectNode.save()
     return projectNodePayload
   }
