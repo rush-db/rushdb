@@ -2,7 +2,7 @@
 FROM node:18-alpine AS builder
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm@9.1.0
 
 # Set working directory
 WORKDIR /app

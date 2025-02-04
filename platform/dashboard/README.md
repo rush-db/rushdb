@@ -23,7 +23,7 @@ Before running the application, ensure the following are installed on your syste
 1. **Node.js**: Recommended version 18 or above.
 2. **PNPM**: Install PNPM globally by running:
    ```bash
-   npm install -g pnpm
+   npm install -g pnpm@9.1.0
    ```
 
 ## Environment Variable

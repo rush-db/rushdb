@@ -20,7 +20,7 @@ Before running the application, ensure that you have the following installed:
 
 1. **PNPM**: Install PNPM globally by running:
    ```bash
-   npm install -g pnpm
+   npm install -g pnpm@9.1.0
    ```
 2. **Docker**: The application requires a running Docker instance to start the Neo4j database. Make sure Docker is installed and running on your machine.
 
