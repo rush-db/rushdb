@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.11.4
+
+### Patch Changes
+
+- 08b5d22: Fix Dockerfile pnpm version
+
 ## 0.11.3
 
 ### Patch Changes
