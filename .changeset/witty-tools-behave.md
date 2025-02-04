@@ -7,3 +7,7 @@
 ---
 
 Fix github ouath login
+
+Make GraphView responsive
+
+Fix Password recovery flow
