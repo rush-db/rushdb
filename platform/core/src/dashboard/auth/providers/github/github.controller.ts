@@ -60,9 +60,9 @@ export class GithubOAuthController {
 
       const userData = user.toJson()
 
-      // if (!userData.confirmed) {
-      await this.emailConfirmationService.sendVerificationLink(userData.login, userData.firstName)
-      // }
+      if (!userData.confirmed) {
+        await this.emailConfirmationService.sendVerificationLink(userData.login, userData.firstName)
+      }
 
       return {
         ...userData,
