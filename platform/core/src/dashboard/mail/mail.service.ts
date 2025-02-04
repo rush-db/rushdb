@@ -16,7 +16,7 @@ export class MailService {
 
       await this.mailerService.sendMail({
         to: login,
-        subject: 'Welcome to RushDB – Confirm Your Email and Simplify Your Data Journey!',
+        subject: 'Welcome to RushDB – Confirm Your Email',
         template: 'welcome',
         context: {
           userName,
@@ -31,7 +31,7 @@ export class MailService {
       const url = `${this.configService.get('RUSHDB_DASHBOARD_URL')}/forgot-password?token=${token}`
       await this.mailerService.sendMail({
         to: login,
-        subject: 'Reset Your Password for RushDB Account',
+        subject: 'Reset Your Password for RushDB Cloud Account',
         template: 'forgot-password',
         context: {
           url
