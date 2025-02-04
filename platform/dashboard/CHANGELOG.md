@@ -1,5 +1,18 @@
 # rushdb-dashboard
 
+## 0.11.1
+
+### Patch Changes
+
+- 4b13961: Fix github ouath login
+
+  Make GraphView responsive
+
+  Fix Password recovery flow
+
+- Updated dependencies [4b13961]
+  - @rushdb/javascript-sdk@0.11.1
+
 ## 0.11.0
 
 ### Minor Changes
