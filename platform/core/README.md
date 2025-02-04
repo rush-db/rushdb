@@ -96,7 +96,6 @@ You can customize the application by setting environment variables. Below are th
 #### GitHub
 - `GH_CLIENT_ID=`
 - `GH_SECRET=`
-- `GH_REDIRECT_URL=`
 
 ### CAPTCHA
 - `SERVICE_CAPTCHA_KEY=`

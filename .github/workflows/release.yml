@@ -185,7 +185,6 @@ jobs:
                   { "name": "GOOGLE_SECRET", "value": "${{ secrets.GOOGLE_SECRET }}" },
                   { "name": "GH_CLIENT_ID", "value": "${{ secrets.GH_CLIENT_ID }}" },
                   { "name": "GH_SECRET", "value": "${{ secrets.GH_SECRET }}" },
-                  { "name": "GH_REDIRECT_URL", "value": "${{ secrets.GH_REDIRECT_URL }}" },
                   { "name": "MAIL_HOST", "value": "${{ secrets.MAIL_HOST }}" },
                   { "name": "MAIL_USER", "value": "${{ secrets.MAIL_USER }}" },
                   { "name": "MAIL_PASSWORD", "value": "${{ secrets.MAIL_PASSWORD }}" },
