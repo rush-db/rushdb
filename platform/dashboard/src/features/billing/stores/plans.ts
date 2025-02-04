@@ -4,17 +4,23 @@ import { computed } from 'nanostores'
 import type { PaidPlan, PlanPeriod } from '~/features/billing/types'
 
 import { FREE_PLAN } from '~/features/billing/constants'
-import { isFreePlan } from '~/features/billing/utils'
+import { isFreePlan, sleep } from '~/features/billing/utils'
 import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace'
 import { createAsyncStore } from '~/lib/fetcher.ts'
 import { api } from '~/lib/api.ts'
+import { $platformSettings } from '~/features/auth/stores/settings.ts'
 
 export const $billingSettings = createAsyncStore({
   key: '$billingSettings',
   async fetcher() {
+    // @TODO: Fix this dirty hack
+    await sleep(2000)
+    if ($platformSettings.get().data?.selfHosted) {
+      return
+    }
     return await api.billing.getBillingData()
   },
-  deps: []
+  mustHaveDeps: [$platformSettings]
 })
 
 export const $availablePlans = computed($billingSettings, (billingData) => {

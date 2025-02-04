@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, HttpException, Injectable } from '@nestjs/common'
+import { CanActivate, ExecutionContext, HttpException, HttpStatus, Injectable } from '@nestjs/common'
 
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
@@ -26,7 +26,7 @@ export class WorkspacesCountGuard implements CanActivate {
     } else {
       await transaction.close()
       await this.neogmaService.closeSession(session, 'workspaces-count-guard (2)')
-      throw new HttpException('You exceeded workspaces limit (3)', 400)
+      throw new HttpException('You exceeded workspaces limit (3)', HttpStatus.BAD_REQUEST)
     }
   }
   async canActivate(context: ExecutionContext): Promise<boolean> {

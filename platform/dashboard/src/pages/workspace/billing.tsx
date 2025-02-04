@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { Check, DiamondIcon, SparklesIcon } from 'lucide-react'
+import { Check, SparklesIcon } from 'lucide-react'
 
 import type { Plan, PlanId, PlanPeriod } from '~/features/billing/types'
 
