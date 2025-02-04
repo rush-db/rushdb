@@ -1,15 +1,15 @@
 import { useStore } from '@nanostores/react'
 import { useEffect } from 'react'
 
-import { oauthLogin } from '~/features/auth/stores/auth'
+import { logInGitHub } from '~/features/auth/stores/auth'
 import { $searchParams } from '~/lib/router'
 import { DialogLoadingOverlay } from '~/elements/Dialog.tsx'
 
-export function OauthPage() {
+export function AuthGitHub() {
   const searchParams = useStore($searchParams)
 
   useEffect(() => {
-    oauthLogin(searchParams.token)
+    logInGitHub(searchParams)
   }, [searchParams])
 
   return <DialogLoadingOverlay />

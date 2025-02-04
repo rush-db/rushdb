@@ -199,8 +199,8 @@ export class UserService {
       throw new BadRequestException('Confirmation data malformed')
     }
 
-    const { userNewPassword } = newPasswordData
-    const newPasswordEncrypted = await this.encryptionService.hash(userNewPassword)
+    const { password: newPassword } = newPasswordData
+    const newPasswordEncrypted = await this.encryptionService.hash(newPassword)
 
     return this.update(
       userToValidate.id,

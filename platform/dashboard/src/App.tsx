@@ -19,9 +19,9 @@ import { LiveChat } from './features/auth/components/LiveChat'
 import { ProjectLayout } from './layout/ProjectLayout'
 import { ProjectRecordLayout } from './layout/ProjectRecordLayout'
 import { AuthGoogle } from './pages/auth/google'
-import { OauthPage } from '~/pages/auth/oauth'
 import { useEffect } from 'react'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { AuthGitHub } from '~/pages/auth/github.tsx'
 
 function PublicRoutes() {
   const page = useStore($router)
@@ -35,10 +35,10 @@ function PublicRoutes() {
       return <PasswordRecoveryPage />
     case 'googleAuth':
       return <AuthGoogle />
+    case 'githubAuth':
+      return <AuthGitHub />
     case 'confirmEmail':
       return <ConfirmEmail />
-    case 'oauth':
-      return <OauthPage />
     default:
       return <NotFoundPage />
   }

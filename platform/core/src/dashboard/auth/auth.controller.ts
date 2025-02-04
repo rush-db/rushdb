@@ -160,8 +160,9 @@ export class AuthController {
     @Body() resetPasswordData: ResetPasswordAuthDto,
     @TransactionDecorator() transaction: Transaction
   ): Promise<IAuthenticatedUser> {
-    const { userConfirmationToken } = resetPasswordData
-    const decodedToken = await this.emailConfirmationService.decodePasswordResetToken(userConfirmationToken)
+    const { token } = resetPasswordData
+
+    const decodedToken = await this.emailConfirmationService.decodePasswordResetToken(token)
 
     const updatedUser = await this.userService.resetUserPassword(resetPasswordData, decodedToken, transaction)
 

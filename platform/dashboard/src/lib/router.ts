@@ -2,7 +2,7 @@ import type { useStore } from '@nanostores/react'
 import type { ParamsArg } from '@nanostores/router'
 
 import { createRouter, createSearchParams, getPagePath, openPage, redirectPage } from '@nanostores/router'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { $platformSettings } from '~/features/auth/stores/settings'
 
 const userConfirmationLeavePublicRoutes = {
   confirmEmail: '/confirm_email'
@@ -14,7 +14,7 @@ const publicRoutes = {
   signin: '/signin',
   signup: '/signup',
   googleAuth: '/auth/google/:token?',
-  oauth: '/auth/oauth'
+  githubAuth: '/auth/github/:token?'
 } as const
 
 const projectRecordRoutes = {

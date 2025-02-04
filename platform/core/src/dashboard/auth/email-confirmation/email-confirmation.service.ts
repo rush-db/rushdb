@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt'
 import { Transaction } from 'neo4j-driver'
 
 import { TOKEN_EXPIRES_IN } from '@/common/constants'
+import { isObject } from '@/common/utils/isObject'
 import { IDecodedResetToken } from '@/dashboard/auth/auth.types'
 import { MailService } from '@/dashboard/mail/mail.service'
 import { UserService } from '@/dashboard/user/user.service'
@@ -57,8 +58,8 @@ export class EmailConfirmationService {
         secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
       })
 
-      if (typeof payload === 'object' && 'email' in payload && 'id' in payload) {
-        return payload
+      if (isObject(payload) && 'login' in payload && 'id' in payload) {
+        return payload as IDecodedResetToken
       }
       throw new BadRequestException()
     } catch (error) {
@@ -69,23 +70,23 @@ export class EmailConfirmationService {
     }
   }
 
-  public async sendVerificationLink(email: string, userName?: string) {
+  public async sendVerificationLink(login: string, userName?: string) {
     // @TODO: Patch user node and add info about sent link
     const token = this.jwtService.sign(
-      { email },
+      { login },
       {
         secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY'),
         expiresIn: TOKEN_EXPIRES_IN
       }
     )
-    await this.mailService.sendUserConfirmation(email, token, userName)
+    await this.mailService.sendUserConfirmation(login, token, userName)
 
     return true
   }
 
-  public async sendForgotPasswordLink(email: string, transaction: Transaction): Promise<boolean> {
+  public async sendForgotPasswordLink(login: string, transaction: Transaction): Promise<boolean> {
     // @TODO: Patch user node and add info about sent link
-    const user = await this.usersService.find(email, transaction).then((user) => user?.toJson())
+    const user = await this.usersService.find(login, transaction).then((user) => user?.toJson())
 
     if (!user.id) {
       // Always send true to front that we found the user
@@ -93,7 +94,7 @@ export class EmailConfirmationService {
     }
 
     const token = this.jwtService.sign(
-      { email: user.login, id: user.id },
+      { login: user.login, id: user.id },
       {
         secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY'),
         expiresIn: TOKEN_EXPIRES_IN

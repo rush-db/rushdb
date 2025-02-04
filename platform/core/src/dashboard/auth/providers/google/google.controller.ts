@@ -5,7 +5,6 @@ import { Transaction } from 'neo4j-driver'
 import * as queryString from 'query-string'
 
 import { CommonResponseDecorator } from '@/common/decorators/common-response.decorator'
-import { EntityService } from '@/core/entity/entity.service'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { IOauthUrl } from '@/dashboard/auth/auth.types'
 import { GetOauthDto } from '@/dashboard/auth/dto/get-oauth.dto'
@@ -13,7 +12,6 @@ import { EmailConfirmationService } from '@/dashboard/auth/email-confirmation/em
 import { GoogleOAuthService } from '@/dashboard/auth/providers/google/google.service'
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
 import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
-import { UserService } from '@/dashboard/user/user.service'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
@@ -21,11 +19,9 @@ import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 @Controller('auth')
 export class GoogleOAuthController {
   constructor(
-    private readonly userService: UserService,
     private readonly authService: AuthService,
     private readonly googleOAuthService: GoogleOAuthService,
     private readonly configService: ConfigService,
-    private readonly entityService: EntityService,
     private readonly emailConfirmationService: EmailConfirmationService
   ) {}
 
@@ -36,7 +32,7 @@ export class GoogleOAuthController {
   async googleAuth(@Query() query: { redirectUrl: string }): Promise<IOauthUrl> {
     const params = queryString.stringify({
       client_id: this.configService.get('GOOGLE_CLIENT_ID'),
-      redirect_uri: query.redirectUrl ?? `${this.configService.get('RUSHDB_DASHBOARD_URL')}/auth/google`,
+      redirect_uri: `${this.configService.get('RUSHDB_DASHBOARD_URL')}/auth/google`,
       scope: [
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile'

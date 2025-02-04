@@ -1,7 +1,7 @@
 import { BASE_URL } from '~/config'
 import { Button } from '~/elements/Button'
 
-const GOOGLE_URL = `${BASE_URL}/api/v1/auth/google?redirectUrl=${window.location.origin}/auth/google`
+const GOOGLE_URL = `${BASE_URL}/api/v1/auth/google`
 
 const Google = () => (
   <svg
@@ -23,7 +23,7 @@ export function GoogleButton() {
       href={GOOGLE_URL}
       size="large"
       variant="primary"
-      className="flex grow  items-center justify-center"
+      className="flex grow items-center justify-center"
     >
       <Google /> Google
     </Button>

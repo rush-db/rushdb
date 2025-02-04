@@ -18,7 +18,7 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
     ) {}
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
       const { projectId } = context.switchToHttp().getRequest()
-      console.log({ projectId })
+
       const session = this.neogmaService.createSession()
       const transaction = session.beginTransaction()
       return next.handle().pipe(

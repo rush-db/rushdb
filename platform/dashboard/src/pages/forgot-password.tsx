@@ -5,15 +5,10 @@ import { Banner } from '~/elements/Banner'
 import { Button } from '~/elements/Button'
 import { Divider } from '~/elements/Divider'
 import { TextField } from '~/elements/Input'
-import { $sendRecoveryLink, resetPassword } from '~/features/auth/stores/auth'
+import { $resetPassword, $sendRecoveryLink } from '~/features/auth/stores/auth'
 import { AuthLayout } from '~/layout/AuthLayout'
 import { object, string, useForm } from '~/lib/form'
-import {
-  $router,
-  $searchParams,
-  getRoutePath,
-  redirectRoute
-} from '~/lib/router'
+import { $router, $searchParams, getRoutePath, redirectRoute } from '~/lib/router'
 
 import { schema as signUpSchema } from './signup'
 
@@ -40,7 +35,7 @@ function SendPasswordForm() {
   if (data) {
     return (
       <Banner
-        image={<Check className="h-24 w-24 text-success" />}
+        image={<Check className="text-success h-24 w-24" />}
         title="We've sent you a message with a recovery link"
       />
     )
@@ -55,13 +50,7 @@ function SendPasswordForm() {
         error={errors?.email?.message as string}
       />
 
-      <Button
-        className="mt-2"
-        loading={isSubmitting}
-        size="large"
-        type="submit"
-        variant="accent"
-      >
+      <Button className="mt-2" loading={isSubmitting} size="large" type="submit" variant="accent">
         Confirm
       </Button>
     </form>
@@ -72,41 +61,46 @@ function ChangePasswordForm({ token }: { token: string }) {
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
-    register,
-    setError
+    setError,
+    register
   } = useForm({
     defaultValues: {
-      email: '',
+      login: '',
       password: '',
       passwordConfirmation: ''
     },
     schema: signUpSchema
   })
 
-  const onSubmit = async ({
-    email,
-    password
-  }: {
-    email: string
-    password: string
-  }) => {
+  const { data, mutate } = useStore($resetPassword)
+
+  const onSubmit = async ({ login, password }: { login: string; password: string }) => {
     try {
-      await resetPassword({
-        email,
-        userConfirmationToken: token,
-        userNewPassword: password
+      await mutate({
+        login,
+        token,
+        password
       })
     } catch (error) {
-      setError('email', { message: "Couldn't send a link to that address" })
+      setError('login', { message: "Couldn't send a link to that address" })
     }
+  }
+
+  if (data) {
+    return (
+      <Banner
+        image={<Check className="text-success h-24 w-24" />}
+        title="Password was successfully changed"
+      />
+    )
   }
 
   return (
     <form className="flex flex-col gap-5" onSubmit={handleSubmit(onSubmit)}>
       <TextField
         label="Email"
-        {...register('email')}
-        error={errors?.email?.message}
+        {...register('login')}
+        error={errors?.login?.message}
         placeholder="example@example.com"
       />
 
@@ -124,13 +118,7 @@ function ChangePasswordForm({ token }: { token: string }) {
         type="password"
       />
 
-      <Button
-        className="mt-2"
-        loading={isSubmitting}
-        size="large"
-        type="submit"
-        variant="accent"
-      >
+      <Button className="mt-2" loading={isSubmitting} size="large" type="submit" variant="accent">
         Confirm
       </Button>
     </form>
@@ -150,7 +138,9 @@ export function PasswordRecoveryPage() {
 
   return (
     <AuthLayout title={'Recover your RushDB account'}>
-      {token ? <ChangePasswordForm token={token} /> : <SendPasswordForm />}
+      {token ?
+        <ChangePasswordForm token={token} />
+      : <SendPasswordForm />}
 
       <Divider />
 
