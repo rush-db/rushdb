@@ -1,5 +1,15 @@
 # rushdb-docs
 
+## 0.11.1
+
+### Patch Changes
+
+- 4b13961: Fix github ouath login
+
+  Make GraphView responsive
+
+  Fix Password recovery flow
+
 ## 0.11.0
 
 ### Minor Changes
