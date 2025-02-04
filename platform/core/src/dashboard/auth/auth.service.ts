@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import { Transaction } from 'neo4j-driver'
 
+import { QueryBuilder } from '@/common/QueryBuilder'
 import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
 import {
@@ -23,7 +23,6 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly encryptionService: EncryptionService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
     private readonly neogmaService: NeogmaService
   ) {}
 
@@ -77,11 +76,16 @@ export class AuthService {
   async hasProjectAccess(projectId: string, userId: string, transaction: Transaction): Promise<boolean> {
     const queryRunner = this.neogmaService.createRunner()
 
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(
+        `MATCH (p:${RUSHDB_LABEL_PROJECT} { id: $projectId })<-[rel:${RUSHDB_RELATION_HAS_ACCESS}]-(u:${RUSHDB_LABEL_USER} { id: $userId })`
+      )
+      .append(`RETURN COUNT(rel) as accessRelationCount`)
+
     const result = await queryRunner.run(
-      `
-                MATCH (p:${RUSHDB_LABEL_PROJECT} { id: $projectId })<-[rel:${RUSHDB_RELATION_HAS_ACCESS}]-(u:${RUSHDB_LABEL_USER} { id: $userId }) 
-                RETURN COUNT(rel) as accessRelationCount
-            `,
+      queryBuilder.getQuery(),
       {
         projectId,
         userId
@@ -101,12 +105,17 @@ export class AuthService {
   ): Promise<boolean> {
     const queryRunner = this.neogmaService.createRunner()
 
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(`UNWIND $idsToVerify as entityId`)
+      .append(
+        `MATCH (n) WHERE n.${RUSHDB_KEY_ID} = entityId RETURN collect(n.${RUSHDB_KEY_PROJECT_ID}) as projectIdsList`
+      )
+
     const projectIdsList = await queryRunner
       .run(
-        `
-                    UNWIND $idsToVerify as entityId
-                    MATCH (n) WHERE n.${RUSHDB_KEY_ID} = entityId RETURN collect(n.${RUSHDB_KEY_PROJECT_ID}) as projectIdsList
-                `,
+        queryBuilder.getQuery(),
         {
           idsToVerify
         },
@@ -131,12 +140,18 @@ export class AuthService {
       nodeProperty: 'id',
       projectIdProperty: 'projectId'
     }
+
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(`UNWIND $idsToVerify as entityId`)
+      .append(
+        `MATCH (n) WHERE n.${nodeProperty} = entityId RETURN collect(n.${projectIdProperty}) as projectIdsList`
+      )
+
     const projectIdsList = await queryRunner
       .run(
-        `
-                    UNWIND $idsToVerify as entityId
-                    MATCH (n) WHERE n.${nodeProperty} = entityId RETURN collect(n.${projectIdProperty}) as projectIdsList
-                `,
+        queryBuilder.getQuery(),
         {
           idsToVerify
         },

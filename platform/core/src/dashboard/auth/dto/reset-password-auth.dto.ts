@@ -8,9 +8,9 @@ export class ResetPasswordAuthDto {
 
   @IsNotEmpty()
   @ApiModelProperty()
-  userNewPassword: string
+  password: string
 
   @IsNotEmpty()
   @ApiModelProperty()
-  userConfirmationToken: string
+  token: string
 }

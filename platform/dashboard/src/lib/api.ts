@@ -249,9 +249,13 @@ export const api = {
         method: 'POST'
       })
     },
-    async resetPassword(body: { email: string; userConfirmationToken: string; userNewPassword: string }) {
+    async resetPassword({
+      password,
+      token,
+      login
+    }: { login: string; token: string; password: string } & WithInit) {
       return fetcher<GetUserResponse['data']>(`/api/v1/auth/reset-password`, {
-        body: JSON.stringify(body),
+        body: JSON.stringify({ password, token, login }),
         method: 'POST'
       })
     },

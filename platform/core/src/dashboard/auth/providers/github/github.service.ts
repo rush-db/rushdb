@@ -99,7 +99,7 @@ export class GithubOAuthService {
             firstName,
             lastName,
             githubAuth: hash,
-            confirmed: !!githubData?.email
+            confirmed: false
           },
           transaction
         )

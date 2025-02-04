@@ -104,10 +104,11 @@ export const $sendRecoveryLink = createMutator({
   }
 })
 
-export const resetPassword = (body: ApiParams<typeof api.auth.resetPassword>) =>
-  api.auth.resetPassword(body).then((user) => {
-    $user.set({ ...user, isLoggedIn: true })
-  })
+export const $resetPassword = createMutator({
+  async fetcher({ init, login, token, password }: ApiParams<typeof api.auth.resetPassword>) {
+    return await api.auth.resetPassword({ init, login, token, password })
+  }
+})
 
 export const resendConfirmationLink = () => {
   const { id } = $user.get()

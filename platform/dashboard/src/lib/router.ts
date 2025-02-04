@@ -14,8 +14,7 @@ const publicRoutes = {
   signin: '/signin',
   signup: '/signup',
   googleAuth: '/auth/google/:token?',
-  githubAuth: '/auth/github/:token?',
-  oauth: '/auth/oauth'
+  githubAuth: '/auth/github/:token?'
 } as const
 
 const projectRecordRoutes = {
