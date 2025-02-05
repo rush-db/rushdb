@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.11.5
+
+### Patch Changes
+
+- c373116: Minor docs update and temporary disabled gh auth
+- Updated dependencies [c373116]
+  - @rushdb/javascript-sdk@0.11.5
+
 ## 0.11.4
 
 ### Patch Changes
