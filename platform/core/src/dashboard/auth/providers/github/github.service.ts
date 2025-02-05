@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { JwtService } from '@nestjs/jwt'
 import axios from 'axios'
 import { Transaction } from 'neo4j-driver'
 
@@ -15,6 +14,13 @@ type TGithubAuthData = {
   name: string
 }
 
+type TGithubEmailsData = {
+  email: string
+  primary: boolean
+  verified: boolean
+  visibility: 'private' | null
+}[]
+
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token'
 const GITHUB_OAUTH_URL = 'https://api.github.com/user'
 
@@ -23,7 +29,6 @@ export class GithubOAuthService {
   constructor(
     private readonly userService: UserService,
     private readonly encryptionService: EncryptionService,
-    private readonly jwtService: JwtService,
     private readonly configService: ConfigService
   ) {}
 
@@ -37,23 +42,18 @@ export class GithubOAuthService {
     const data = userResponse
 
     // if user email is set to private
-    if (!userResponse.email) {
-      const { data: emailResponse } = await axios.get<
+    if (!data?.email) {
+      const { data: emailResponse } = await axios.get<TGithubEmailsData>(
+        'https://api.github.com/user/emails',
         {
-          email: string
-          primary: boolean
-          verified: boolean
-          visibility: 'private' | null
-        }[]
-      >('https://api.github.com/user/emails', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
         }
-      })
+      )
 
       data.email = emailResponse.find((email) => email.primary)?.email
     }
-
     return data
   }
 
