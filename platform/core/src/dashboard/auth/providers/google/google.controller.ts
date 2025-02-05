@@ -72,7 +72,7 @@ export class GoogleOAuthController {
         token: this.authService.createToken(user)
       }
     } catch (e) {
-      return new UnauthorizedException(e)
+      throw new UnauthorizedException(e)
     }
   }
 }

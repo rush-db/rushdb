@@ -2,7 +2,7 @@
 FROM node:18-alpine AS builder
 
 # Install pnpm
-RUN npm install -g pnpm@9.1.0
+RUN npm install -g pnpm@10.1.0
 
 # Set working directory
 WORKDIR /app
@@ -68,7 +68,7 @@ COPY ../../package.json ../../pnpm-lock.yaml ../../pnpm-workspace.yaml ./
 COPY ./platform/core/package.json ./platform/core/package.json
 
 # Install pnpm and production dependencies
-RUN npm install -g pnpm@9.1.0
+RUN npm install -g pnpm@10.1.0
 RUN pnpm install --prod --frozen-lockfile --no-optional
 
 # Copy built files from builder

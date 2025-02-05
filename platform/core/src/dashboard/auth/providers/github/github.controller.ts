@@ -46,13 +46,9 @@ export class GithubOAuthController {
   @ApiTags('Auth')
   @CommonResponseDecorator(GetUserDto)
   @UseInterceptors(NeogmaTransactionInterceptor, NeogmaDataInterceptor, ChangeCorsInterceptor)
-  async githubAuthRedirect(
-    @TransactionDecorator() transaction: Transaction,
-    @Query()
-    params: { code: string; scope: string; authuser: string; prompt: string }
-  ) {
+  async githubAuthRedirect(@TransactionDecorator() transaction: Transaction, @Query('code') code: string) {
     try {
-      const user = await this.githubOAuthService.githubLogin(params.code, transaction)
+      const user = await this.githubOAuthService.githubLogin(code, transaction)
 
       if (!user) {
         throw new UnauthorizedException()
@@ -69,7 +65,8 @@ export class GithubOAuthController {
         token: this.authService.createToken(user)
       }
     } catch (e) {
-      return new UnauthorizedException(e)
+      // console.log(e)
+      throw new UnauthorizedException()
     }
   }
 }
