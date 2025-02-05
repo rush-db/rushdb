@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.11.5
+
+### Patch Changes
+
+- c373116: Minor docs update and temporary disabled gh auth
+
 ## 0.11.4
 
 ### Patch Changes
