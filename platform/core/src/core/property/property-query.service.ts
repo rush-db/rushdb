@@ -180,12 +180,18 @@ export class PropertyQueryService {
         `MATCH (record:${RUSHDB_LABEL_RECORD})<-[value:${RUSHDB_RELATION_VALUE}]-(property:${RUSHDB_LABEL_PROPERTY} { id: $id })`
       )
       .append(`WHERE record[property.name] IS NOT NULL`)
+      .append(`WITH record[property.name] AS propValue, property.type AS propType`)
       .append(`ORDER BY ${sortPart} ${pagination}`)
+      .append(`WITH collect(DISTINCT propValue) AS values, collect(DISTINCT propType)[0] AS type`)
+      .append(`UNWIND values AS v`)
+      .append(
+        `WITH values, type, min(CASE type WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS minValue, max(CASE type WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS maxValue`
+      )
       .append(`RETURN {`)
-      .append(`values: collect(DISTINCT record[property.name]),`)
-      .append(`min: toFloatOrNull(min(toFloatOrNull(record[property.name]))),`)
-      .append(`max: toFloatOrNull(max(toFloatOrNull(record[property.name]))),`)
-      .append(`type: collect(DISTINCT property.type)[0]`)
+      .append(`values: values,`)
+      .append(`min: CASE type WHEN 'datetime' THEN toString(minValue) ELSE minValue END,`)
+      .append(`max: CASE type WHEN 'datetime' THEN toString(maxValue) ELSE maxValue END,`)
+      .append(`type: type`)
       .append(`} AS result`)
 
     return queryBuilder.getQuery()
