@@ -1,15 +1,15 @@
-import classNames from "classnames"
-import { motion } from "framer-motion"
-import { Plus } from "lucide-react"
-import { useState } from "react"
-import { IconButton } from "~/components/IconButton"
-import { useSize } from "~/hooks/useSize"
+import classNames from 'classnames'
+import { motion } from 'framer-motion'
+import { Plus } from 'lucide-react'
+import { useState } from 'react'
+import { IconButton } from '~/components/IconButton'
+import { useSize } from '~/hooks/useSize'
 
 function FaqItem({
   question,
   answer,
   open,
-  onClick,
+  onClick
 }: {
   question: string
   answer: string
@@ -20,13 +20,10 @@ function FaqItem({
 
   return (
     <li>
-      <h3
-        className={classNames(
-          "typography-xl min-h-16 md:min-h-11 flex justify-between ",
-          {
-            "cursor-pointer hover:text-content2 transition-colors": !open,
-          },
-        )}
+      <h5
+        className={classNames('typography-lg flex min-h-10 justify-between', {
+          'hover:text-content2 cursor-pointer transition-colors': !open
+        })}
         onClick={onClick}
       >
         {question}
@@ -34,21 +31,18 @@ function FaqItem({
         <IconButton
           aria-label="Toggle answer"
           variant="primaryText"
-          className={classNames(
-            "transition-transform pointer-events-none",
-            open ? "rotate-45" : "",
-          )}
+          className={classNames('pointer-events-none transition-transform', open ? 'rotate-45' : '')}
         >
           <Plus />
         </IconButton>
-      </h3>
+      </h5>
 
       <motion.div
         initial={{ height: 0 }}
-        animate={{ height: open ? height : "0px" }}
+        animate={{ height: open ? height : '0px' }}
         exit={{ height: 0 }}
-        transition={{ type: "spring", duration: 0.4, bounce: 0 }}
-        className={classNames("text-base text-content2 overflow-hidden", {})}
+        transition={{ type: 'spring', duration: 0.4, bounce: 0 }}
+        className={classNames('text-content2 overflow-hidden text-base', {})}
       >
         <p ref={ref} className="py-5">
           {answer}
@@ -60,7 +54,7 @@ function FaqItem({
 
 export const Faq = ({
   items,
-  className,
+  className
 }: {
   items: { question: string; answer: string }[]
   className?: string
@@ -68,14 +62,9 @@ export const Faq = ({
   const [activeIndex, setActiveIndex] = useState(0)
 
   return (
-    <ul className={classNames("flex flex-col gap-5", className)}>
+    <ul className={classNames('flex flex-col gap-5', className)}>
       {items.map((item, index) => (
-        <FaqItem
-          key={index}
-          open={activeIndex === index}
-          onClick={() => setActiveIndex(index)}
-          {...item}
-        />
+        <FaqItem key={index} open={activeIndex === index} onClick={() => setActiveIndex(index)} {...item} />
       ))}
     </ul>
   )

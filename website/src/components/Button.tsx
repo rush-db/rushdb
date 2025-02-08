@@ -1,7 +1,6 @@
 import React, { ComponentPropsWithoutRef } from 'react'
 import cx from 'classnames'
 import Link from 'next/link'
-import { ArrowUpRight, Plus } from 'lucide-react'
 
 export const variants = {
   accent:
@@ -52,7 +51,6 @@ export const MainCta = ({
   return (
     <Button {...props} as={Link} href={href}>
       {children ?? text}
-      <Plus />
     </Button>
   )
 }
