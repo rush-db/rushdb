@@ -357,6 +357,7 @@ export class EntityQueryService {
 
   deleteRecords(searchParams?: SearchDto) {
     const { sortedQueryParts, parsedWhere } = buildQuery(searchParams)
+    const labelPart = singleLabelPart(searchParams?.labels)
 
     const queryClauses = buildQueryClause({
       queryParts: sortedQueryParts,
@@ -371,7 +372,7 @@ export class EntityQueryService {
 
     queryBuilder
       .append(`CALL apoc.periodic.iterate(`)
-      .append(`'MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
+      .append(`'MATCH (record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
       .append(queryClauses)
       .append(whereClause)
       .append(`RETURN record',`)
