@@ -35,6 +35,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: searchParams
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<Record<string, number>>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -50,6 +51,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'DELETE'
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<Property>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -67,6 +69,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: searchParams
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<Property[]>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -80,6 +83,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'GET'
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<Property>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -114,6 +118,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'GET'
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<Property & PropertyValuesData>>(fullPath, payload)
       logger?.({ path: fullPath, ...payload, responseData: response.data })
@@ -140,6 +145,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
           ...(options?.direction && { direction: options.direction })
         }
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -158,6 +164,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: data instanceof DBRecordDraft ? data.toJson() : data
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<DBRecord<S> | undefined>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -176,6 +183,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: data instanceof DBRecordsBatchDraft ? data.toJson() : data
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<DBRecord<S>[]>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -191,6 +199,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'PUT',
         requestData: searchParams
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -207,6 +216,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: multipleTargets ? 'PUT' : 'DELETE',
         requestData: multipleTargets ? { limit: 1000, where: { $id: { $in: idOrIds } } } : undefined
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -231,6 +241,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
           ...(options?.direction && { direction: options.direction })
         }
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -245,6 +256,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: searchParams
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<{ dateTime: string; fileContent: string }>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -262,6 +274,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: params?.searchParams
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -276,6 +289,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: isArray(idOrIds) ? 'POST' : 'GET',
         requestData: isArray(idOrIds) ? { ids: idOrIds } : undefined
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<DBRecord<S>[] | DBRecord<S>>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -293,6 +307,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: { ...searchParams, limit: 1, skip: 0 }
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -310,6 +325,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: { ...searchParams, limit: 1, skip: 0 }
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -329,6 +345,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'GET'
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<Property[]>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -343,6 +360,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'GET'
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<Array<Relation>>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -366,6 +384,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'PUT',
         requestData: data instanceof DBRecordDraft ? data.toJson() : data
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<DBRecord<S>>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -385,6 +404,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'PATCH',
         requestData: data instanceof DBRecordDraft ? data.toJson() : data
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<DBRecord<S>>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -415,6 +435,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: searchParams
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<Array<Relation>>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -429,6 +450,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: config
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<{ id: string }>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -441,6 +463,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: {}
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -452,6 +475,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       const payload = {
         method: 'GET'
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<{ id: string }>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
@@ -462,6 +486,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: {}
       }
+      logger?.({ path, ...payload })
 
       const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
