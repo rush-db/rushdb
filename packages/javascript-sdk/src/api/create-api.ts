@@ -479,6 +479,8 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
 
       const response = await fetcher<ApiResponse<{ id: string }>>(path, payload)
       logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
     async rollback(id: string) {
       const path = `/tx/${id}/rollback`
