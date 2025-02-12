@@ -162,15 +162,13 @@ export class PropertyQueryService {
 
   getPropertyValues({
     sort,
-    paginationParams
+    query,
+    paginationParams = { skip: 0, limit: 100 }
   }: {
     sort?: TSearchSortDirection
+    query?: string
     paginationParams?: Pick<SearchDto, 'skip' | 'limit'>
   }) {
-    const pagination = buildPagination(
-      toBoolean(paginationParams) ? paginationParams : { skip: 0, limit: 100 }
-    )
-
     const sortPart = sort ? `record[property.name] ${sort}` : `record.${RUSHDB_KEY_ID}`
 
     const queryBuilder = new QueryBuilder()
@@ -181,14 +179,22 @@ export class PropertyQueryService {
       )
       .append(`WHERE record[property.name] IS NOT NULL`)
       .append(`WITH record[property.name] AS propValue, property.type AS propType`)
-      .append(`ORDER BY ${sortPart} ${pagination}`)
-      .append(`WITH collect(DISTINCT propValue) AS values, collect(DISTINCT propType)[0] AS type`)
+
+    if (query) {
+      queryBuilder.append(`any(value IN record[property.name] WHERE value  =~ "(?i).*${query}.*")`)
+    }
+
+    queryBuilder
+      .append(`ORDER BY ${sortPart}`)
+      .append(
+        `WITH apoc.coll.toSet(apoc.coll.flatten(collect(DISTINCT propValue))) AS values, propType as type`
+      )
       .append(`UNWIND values AS v`)
       .append(
         `WITH values, type, min(CASE type WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS minValue, max(CASE type WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS maxValue`
       )
       .append(`RETURN {`)
-      .append(`values: values,`)
+      .append(`values: values[${paginationParams.skip}..${paginationParams.skip + paginationParams.limit}],`)
       .append(`min: CASE type WHEN 'datetime' THEN toString(minValue) ELSE minValue END,`)
       .append(`max: CASE type WHEN 'datetime' THEN toString(maxValue) ELSE maxValue END,`)
       .append(`type: type`)

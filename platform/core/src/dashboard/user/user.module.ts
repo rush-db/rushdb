@@ -62,7 +62,7 @@ export class UserModule implements OnApplicationBootstrap {
         console.log('Initializing user failed.', error)
         await transaction.rollback()
       } finally {
-        console.log('Initializing user successfully finished.')
+        console.log('Initializing user finished.')
         if (transaction.isOpen()) {
           await transaction.commit()
           await transaction.close()

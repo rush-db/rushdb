@@ -69,7 +69,7 @@ export class DatabaseModule implements OnModuleInit {
       console.log('Initializing RushDB failed.', error)
       await transaction.rollback()
     } finally {
-      console.log('Initializing RushDB successfully finished.')
+      console.log('Initializing RushDB finished.')
       if (transaction.isOpen()) {
         await transaction.commit()
         await transaction.close()

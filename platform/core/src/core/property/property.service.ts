@@ -26,12 +26,14 @@ export class PropertyService {
   async getPropertyValues({
     propertyId,
     sort,
+    query,
     pagination,
     transaction,
     queryRunner
   }: {
     propertyId: string
     sort?: TSearchSortDirection
+    query?: string
     pagination?: Pick<SearchDto, 'skip' | 'limit'>
     transaction: Transaction
     queryRunner?: QueryRunner
@@ -42,6 +44,7 @@ export class PropertyService {
       .run(
         this.propertyQueryService.getPropertyValues({
           paginationParams: pagination,
+          query,
           sort
         }),
         {
