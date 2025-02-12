@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 0.12.0
+
+### Minor Changes
+
+- f703e9c: Update query for fetching property values and minor fixes & cleanups
+
+### Patch Changes
+
+- Updated dependencies [f703e9c]
+  - @rushdb/javascript-sdk@0.12.0
+
 ## 0.11.6
 
 ### Patch Changes
