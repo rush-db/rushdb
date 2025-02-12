@@ -178,13 +178,13 @@ export class PropertyQueryService {
         `MATCH (record:${RUSHDB_LABEL_RECORD})<-[value:${RUSHDB_RELATION_VALUE}]-(property:${RUSHDB_LABEL_PROPERTY} { id: $id })`
       )
       .append(`WHERE record[property.name] IS NOT NULL`)
-      .append(`WITH record[property.name] AS propValue, property.type AS propType`)
 
     if (query) {
-      queryBuilder.append(`any(value IN record[property.name] WHERE value  =~ "(?i).*${query}.*")`)
+      queryBuilder.append(`AND any(value IN record[property.name] WHERE value  =~ "(?i).*${query}.*")`)
     }
 
     queryBuilder
+      .append(`WITH record[property.name] AS propValue, property.type AS propType`)
       .append(`ORDER BY ${sortPart}`)
       .append(
         `WITH apoc.coll.toSet(apoc.coll.flatten(collect(DISTINCT propValue))) AS values, propType as type`
