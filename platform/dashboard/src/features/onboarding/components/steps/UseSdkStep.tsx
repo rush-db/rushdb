@@ -1,6 +1,6 @@
 import { useStore } from '@nanostores/react'
 import { Book } from 'lucide-react'
-import { Fragment } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Button } from '~/elements/Button'
 import { Card, CardBody } from '~/elements/Card'
 import { Editor } from '~/elements/Editor'
@@ -25,42 +25,54 @@ import { cn, getNumberOfLines } from '~/lib/utils'
 const TOKEN_FALLBACK = 'TOKEN'
 
 const getCreateFirstRecordSteps = ({ language }: { language: AvailableSdkLanguage }) => {
-  const javascriptSteps = {
-    defineModel: {
-      title: 'Define your first model',
-      code: `import { Model } from '@rushdb/javascript-sdk';
+  const typescriptSteps = {
+    pushAndQueryDataTs: {
+      title: 'Push and query data',
+      code: `await db.records.createMany('COMPANY', {...jsonData})
 
-export const UserRepo = new Model(
-  'user', 
-  {
-    name: { type: 'string' },
-  },
-  db
-);
-`
-    },
-    createRecord: {
-      title: 'Create your first record',
-      code: `await UserRepo.create({
-  name: 'John Doe',
-});`
+await db.records.find({
+  labels: ['COMPANY'],
+  where: {
+    rating: { $gte: 4 },
+    name: { $contains: 'AI' }
+  }
+})`
+    }
+  }
+
+  const pythonSteps = {
+    pushAndQueryDataPy: {
+      title: 'Push and query data',
+      code: `db.records.create_many("COMPANY", jsonData)
+      
+db.records.find({
+    "labels": ["COMPANY"],
+    "where": {
+      "rating": { "$gte": 4 },
+      "name": { "$contains": "AI" }
+    }
+})`
     }
   }
 
   return {
-    javascript: javascriptSteps,
-    typescript: javascriptSteps
+    typescript: typescriptSteps,
+    python: pythonSteps
   }[language]
 }
 
 const getInstallationCode = ({ token, language }: { token: string; language: AvailableSdkLanguage }) => {
-  const jsCode = (token: string) => `import RushDB from '@rushdb/javascript-sdk';
+  const jsCode = (token: string) => `import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB("${token}");`
+const db = new RushDB('${token}')`
+
+  const pyCode = (token: string) => `from rushdb import RushDB
+
+db = RushDB("${token}")`
 
   return {
-    javascript: jsCode(token),
-    typescript: jsCode(token)
+    typescript: jsCode(token),
+    python: pyCode(token)
   }[language]
 }
 
@@ -174,6 +186,17 @@ function InstallSdk({ className }: { className?: string }) {
           </CardBody>
         </Card>
       )
+    case 'python': {
+      return (
+        <Card className={className}>
+          <CardBody className="pt-5">
+            <FormField label="Install core sdk">
+              <CopyInput value="pip install rushdb" />
+            </FormField>
+          </CardBody>
+        </Card>
+      )
+    }
     default:
       return null
   }
@@ -208,9 +231,26 @@ function InitializeSdk({ className }: { className?: string }) {
 function StartBuilding({ className }: { className?: string }) {
   const { sdkLanguage } = useStore($settings)
 
-  const steps = getCreateFirstRecordSteps({
-    language: sdkLanguage
-  })
+  const [editorVisible, setEditorVisible] = useState<boolean>(true)
+
+  const steps = useMemo(
+    () =>
+      getCreateFirstRecordSteps({
+        language: sdkLanguage
+      }),
+    [sdkLanguage]
+  )
+
+  // Dirty hack to reset Editor when language has changed
+  useEffect(() => {
+    setEditorVisible(false)
+    const timeout = setTimeout(() => {
+      setEditorVisible(true)
+    }, 0)
+    return () => {
+      clearTimeout(timeout)
+    }
+  }, [sdkLanguage])
 
   return (
     <>
@@ -219,13 +259,15 @@ function StartBuilding({ className }: { className?: string }) {
           <Label className={className}>{title}</Label>
 
           <Card className={className}>
-            <Editor
-              defaultValue={code}
-              height={`${getNumberOfLines(code) * 1.2}em`}
-              readOnly
-              className={className}
-              lineNumbers="off"
-            />
+            {editorVisible && (
+              <Editor
+                defaultValue={code}
+                height={`${getNumberOfLines(code) * 1.2}em`}
+                readOnly
+                className={className}
+                lineNumbers="off"
+              />
+            )}
           </Card>
         </Fragment>
       ))}

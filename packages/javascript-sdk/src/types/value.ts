@@ -6,6 +6,7 @@ import type {
   PROPERTY_TYPE_STRING
 } from '../common/constants.js'
 import type { MaybeArray } from './utils.js'
+import type { OrderDirection } from './query'
 
 // DATETIME
 export type DatetimeObject = {
@@ -56,6 +57,8 @@ export type PropertyValuesData = {
   min?: number
   values: PropertyValue[]
 }
+
+export type PropertyValuesOptions = { sort?: OrderDirection; skip?: number; limit?: number; query?: string }
 
 export type PropertySingleValue<TType extends PropertyType = PropertyType> =
   TType extends typeof PROPERTY_TYPE_DATETIME ? DatetimeValue

@@ -13,16 +13,10 @@ export const docsUrls = {
       logo: typescriptLogo
     },
     python: {
-      installation: undefined,
-      usage: undefined,
-      github: undefined,
+      installation: 'https://docs.rushdb.com/quick-start/installation/',
+      usage: 'https://docs.rushdb.com/python-sdk/records-api',
+      github: 'https://github.com/rush-db/rushdb-python',
       logo: pythonLogo
-    },
-    ruby: {
-      installation: undefined,
-      usage: undefined,
-      github: undefined,
-      logo: rubyLogo
     }
   },
   dashboard: {
@@ -43,6 +37,6 @@ export const docsUrls = {
   >
 }
 
-export const SDK_LANGUAGES = ['typescript', 'python', 'ruby'] as const
+export const SDK_LANGUAGES = ['typescript', 'python'] as const
 
-export const AVAILABLE_SDK_LANGUAGES = ['typescript'] as const satisfies readonly SdkLanguage[]
+export const AVAILABLE_SDK_LANGUAGES = ['typescript', 'python'] as const satisfies readonly SdkLanguage[]

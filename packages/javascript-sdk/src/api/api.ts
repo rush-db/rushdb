@@ -7,7 +7,8 @@ import type {
   SearchQuery,
   Schema,
   InferSchemaTypesWrite,
-  MaybeArray
+  MaybeArray,
+  PropertyValuesOptions
 } from '../types/index.js'
 import type { ApiResponse, RecordsApi } from './types.js'
 
@@ -428,8 +429,8 @@ export class RestAPI {
     findById: async (id: string, transaction?: Transaction | string) => {
       return this.api?.properties.findById(id, transaction)
     },
-    values: async (id: string, transaction?: Transaction | string) => {
-      return this.api?.properties.values(id, {}, transaction)
+    values: async (id: string, options?: PropertyValuesOptions, transaction?: Transaction | string) => {
+      return this.api?.properties.values(id, options, transaction)
     }
   }
 

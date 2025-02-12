@@ -316,7 +316,7 @@ export const HowItWorks = () => {
             </div>
           </div>
           <div className="outline-stroke flex w-full flex-col gap-4 rounded-tr-[50px] p-8 outline outline-1 outline-offset-0 md:col-span-2 md:gap-2 md:p-6">
-            <span className="text-content font-mono text-xl font-bold md:text-lg">~2ms</span>{' '}
+            <span className="text-content font-mono text-xl font-bold md:text-lg">~0.25ms</span>{' '}
             <p className="text-md text-content3 md:text-base">Batch write speed per Record</p>
           </div>
           <div className="outline-stroke flex w-full flex-col gap-4 rounded-l-full p-8 outline outline-1 outline-offset-0 md:gap-2">

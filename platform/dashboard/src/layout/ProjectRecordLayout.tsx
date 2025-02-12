@@ -49,10 +49,7 @@ export function ProjectRecordLayout() {
   return (
     <>
       <PageTabs className="w-full">
-        <PageTab
-          href={getRoutePath('projectRecord', { id, recordId })}
-          label={ERecordSheetTabs.data}
-        />
+        <PageTab href={getRoutePath('projectRecord', { id, recordId })} label={ERecordSheetTabs.data} />
         <PageTab
           href={getRoutePath('projectRecordRelations', { id, recordId })}
           label={ERecordSheetTabs.relations}
@@ -63,10 +60,7 @@ export function ProjectRecordLayout() {
         <div className="flex flex-col">
           <PageTitle>
             <Skeleton enabled={loading}>
-              <RecordTitle
-                id={record?.__id ?? 'Id'}
-                label={record?.__label ?? 'Unlabeled'}
-              />
+              <RecordTitle id={record!.__id as string} label={record!.__label} />
             </Skeleton>
           </PageTitle>
         </div>

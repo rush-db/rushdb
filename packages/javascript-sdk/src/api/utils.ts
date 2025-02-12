@@ -193,3 +193,15 @@ export const buildUrl = (props: UserProvidedConfig): string => {
 
   return `${protocol}://${host}${portString}${basePath}`
 }
+
+export const generateRandomId = (size: number = 8): string => {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let id = ''
+
+  for (let i = 0; i < size; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length)
+    id += characters[randomIndex]
+  }
+
+  return id
+}
