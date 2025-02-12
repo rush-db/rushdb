@@ -111,17 +111,13 @@ export class PropertyController {
     @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
     @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit?: number
   ): Promise<unknown> {
-    try {
-      return await this.propertyService.getPropertyValues({
-        propertyId,
-        sort,
-        query,
-        pagination: pagination(skip, limit),
-        transaction
-      })
-    } catch (error) {
-      console.log(error)
-    }
+    return await this.propertyService.getPropertyValues({
+      propertyId,
+      sort,
+      query,
+      pagination: pagination(skip, limit),
+      transaction
+    })
   }
 
   @Get(':propertyId')
