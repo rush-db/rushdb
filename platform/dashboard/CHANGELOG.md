@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.12.1
+
+### Patch Changes
+
+- fe5c5f4: Fix cypher clauses order in querying property values
+- Updated dependencies [fe5c5f4]
+  - @rushdb/javascript-sdk@0.12.1
+
 ## 0.12.0
 
 ### Minor Changes
