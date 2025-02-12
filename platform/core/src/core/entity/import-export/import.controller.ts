@@ -63,11 +63,7 @@ export class ImportController {
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId
 
-    try {
-      return await this.importService.importRecords(body, projectId, transaction)
-    } catch (e) {
-      console.error(e)
-    }
+    return await this.importService.importRecords(body, projectId, transaction)
   }
 
   @Post('/records/import/csv')
