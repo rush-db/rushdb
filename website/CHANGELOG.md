@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.12.0
+
+### Minor Changes
+
+- f703e9c: Update query for fetching property values and minor fixes & cleanups
+
 ## 0.11.6
 
 ### Patch Changes
