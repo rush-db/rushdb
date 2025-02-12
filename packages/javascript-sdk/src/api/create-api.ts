@@ -35,24 +35,33 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: searchParams
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<Record<string, number>>>(path, payload)
+
+      const response = await fetcher<ApiResponse<Record<string, number>>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     }
   },
   properties: {
-    delete: (id: string, transaction?: Transaction | string) => {
+    delete: async (id: string, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
       const path = `/properties/${id}`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'DELETE'
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<Property>>(path, payload)
+
+      const response = await fetcher<ApiResponse<Property>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
-    find: <S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) => {
+    find: async <S extends Schema = any>(
+      searchParams: SearchQuery<S>,
+      transaction?: Transaction | string
+    ) => {
       const txId = pickTransactionId(transaction)
       const path = `/properties`
       const payload = {
@@ -60,20 +69,26 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: searchParams
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<Property[]>>(path, payload)
+
+      const response = await fetcher<ApiResponse<Property[]>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
-    findById: (id: string, transaction?: Transaction | string) => {
+    findById: async (id: string, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
       const path = `/properties/${id}`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'GET'
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<Property>>(path, payload)
+
+      const response = await fetcher<ApiResponse<Property>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
     // update: () => {
     //   // @TODO
@@ -81,7 +96,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
     // updateValues: (id: string, transaction?: Transaction | string) => {
     //   // @TODO
     // },
-    values: (
+    values: async (
       id: string,
       options?: { sort?: OrderDirection; skip?: number; limit?: number },
       transaction?: Transaction | string
@@ -103,9 +118,12 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'GET'
       }
+      logger?.({ path, ...payload })
 
-      logger?.({ path: fullPath, ...payload })
-      return fetcher<ApiResponse<Property & PropertyValuesData>>(fullPath, payload)
+      const response = await fetcher<ApiResponse<Property & PropertyValuesData>>(fullPath, payload)
+      logger?.({ path: fullPath, ...payload, responseData: response.data })
+
+      return response
     }
   },
   records: {
@@ -127,9 +145,12 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
           ...(options?.direction && { direction: options.direction })
         }
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<{ message: string }>>(path, payload)
+
+      const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
 
     async create<S extends Schema = any>(
@@ -143,9 +164,12 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: data instanceof DBRecordDraft ? data.toJson() : data
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<DBRecord<S> | undefined>>(path, payload)
+
+      const response = await fetcher<ApiResponse<DBRecord<S> | undefined>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
 
     async createMany<S extends Schema = any>(
@@ -159,12 +183,15 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: data instanceof DBRecordsBatchDraft ? data.toJson() : data
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<DBRecord<S>[]>>(path, payload)
+
+      const response = await fetcher<ApiResponse<DBRecord<S>[]>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
 
-    delete<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
+    async delete<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
       const path = `/records/delete`
       const payload = {
@@ -172,12 +199,15 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'PUT',
         requestData: searchParams
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<{ message: string }>>(path, payload)
+
+      const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
 
-    deleteById(idOrIds: MaybeArray<string>, transaction?: Transaction | string) {
+    async deleteById(idOrIds: MaybeArray<string>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
       const multipleTargets = isArray(idOrIds)
       const path = multipleTargets ? `/records/delete` : `/records/${idOrIds}`
@@ -186,9 +216,12 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: multipleTargets ? 'PUT' : 'DELETE',
         requestData: multipleTargets ? { limit: 1000, where: { $id: { $in: idOrIds } } } : undefined
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<{ message: string }>>(path, payload)
+
+      const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
     async detach(
       source: DBRecordTarget,
@@ -208,11 +241,14 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
           ...(options?.direction && { direction: options.direction })
         }
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<{ message: string }>>(path, payload)
+
+      const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
-    export<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
+    async export<S extends Schema = any>(searchParams: SearchQuery<S>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
       const path = `/records/export/csv`
       const payload = {
@@ -220,11 +256,14 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: searchParams
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<{ dateTime: string; fileContent: string }>>(path, payload)
+
+      const response = await fetcher<ApiResponse<{ dateTime: string; fileContent: string }>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
-    find<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+    async find<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
       params?: { id?: string; searchParams: Q },
       transaction?: Transaction | string
     ): Promise<ApiResponse<DBRecordInferred<S, Q>[]>> {
@@ -235,11 +274,14 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: params?.searchParams
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
+
+      const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
-    findById<S extends Schema = any>(idOrIds: MaybeArray<string>, transaction?: Transaction | string) {
+    async findById<S extends Schema = any>(idOrIds: MaybeArray<string>, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
       const path = isArray(idOrIds) ? `/records` : `/records/${idOrIds}`
       const payload = {
@@ -247,9 +289,12 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: isArray(idOrIds) ? 'POST' : 'GET',
         requestData: isArray(idOrIds) ? { ids: idOrIds } : undefined
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<DBRecord<S>[] | DBRecord<S>>>(path, payload)
+
+      const response = await fetcher<ApiResponse<DBRecord<S>[] | DBRecord<S>>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
     async findOne<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
       searchParams: Q,
@@ -262,9 +307,10 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: { ...searchParams, limit: 1, skip: 0 }
       }
-
       logger?.({ path, ...payload })
+
       const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
       const [record] = response.data
       return { ...response, data: record } as ApiResponse<DBRecordInferred<S, Q>>
     },
@@ -279,9 +325,10 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: { ...searchParams, limit: 1, skip: 0 }
       }
-
       logger?.({ path, ...payload })
+
       const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
 
       if (typeof response.total !== 'undefined' && response.total > 1) {
         throw new NonUniqueResultError(response.total, searchParams)
@@ -290,7 +337,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       const [record] = response.data
       return { ...response, data: record } as ApiResponse<DBRecordInferred<S, Q>>
     },
-    properties(target: string, transaction?: Transaction | string) {
+    async properties(target: string, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
       const recordId = pickRecordId(target)!
       const path = `/records/${recordId}/properties`
@@ -298,9 +345,12 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'GET'
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<Property[]>>(path, payload)
+
+      const response = await fetcher<ApiResponse<Property[]>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
     async relations(target: DBRecordTarget, transaction?: Transaction | string) {
       const txId = pickTransactionId(transaction)
@@ -310,15 +360,18 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'GET'
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<Array<Relation>>>(path, payload)
+
+      const response = await fetcher<ApiResponse<Array<Relation>>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
     // upsert() {
     //   // @TODO
     // }
 
-    set<S extends Schema = any>(
+    async set<S extends Schema = any>(
       target: DBRecordTarget,
       data: DBRecordDraft | S,
       transaction?: Transaction | string
@@ -331,11 +384,14 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'PUT',
         requestData: data instanceof DBRecordDraft ? data.toJson() : data
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<DBRecord<S>>>(path, payload)
+
+      const response = await fetcher<ApiResponse<DBRecord<S>>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
-    update<S extends Schema = any>(
+    async update<S extends Schema = any>(
       target: DBRecordTarget,
       data: DBRecordDraft | S,
       transaction?: Transaction | string
@@ -348,9 +404,12 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'PATCH',
         requestData: data instanceof DBRecordDraft ? data.toJson() : data
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<DBRecord<S>>>(path, payload)
+
+      const response = await fetcher<ApiResponse<DBRecord<S>>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     }
   },
   relations: {
@@ -376,50 +435,63 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
         method: 'POST',
         requestData: searchParams
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<Array<Relation>>>(path, payload)
+
+      const response = await fetcher<ApiResponse<Array<Relation>>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     }
   },
   tx: {
-    begin(config: Partial<{ ttl: number }> = {}) {
+    async begin(config: Partial<{ ttl: number }> = {}) {
       const path = `/tx`
       const payload = {
         method: 'POST',
         requestData: config
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<{ id: string }>>(path, payload)
+
+      const response = await fetcher<ApiResponse<{ id: string }>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
-    commit(id: string) {
+    async commit(id: string) {
       const path = `/tx/${id}/commit`
       const payload = {
         method: 'POST',
         requestData: {}
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<{ message: string }>>(path, payload)
+
+      const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
-    get(id: string) {
+    async get(id: string) {
       const path = `/tx/${id}`
       const payload = {
         method: 'GET'
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<{ id: string }>>(path, payload)
+
+      const response = await fetcher<ApiResponse<{ id: string }>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
+
+      return response
     },
-    rollback(id: string) {
+    async rollback(id: string) {
       const path = `/tx/${id}/rollback`
       const payload = {
         method: 'POST',
         requestData: {}
       }
-
       logger?.({ path, ...payload })
-      return fetcher<ApiResponse<{ message: string }>>(path, payload)
+
+      const response = await fetcher<ApiResponse<{ message: string }>>(path, payload)
+      logger?.({ path, ...payload, responseData: response.data })
     }
   }
 })
