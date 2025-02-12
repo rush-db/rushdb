@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.12.1
+
+### Patch Changes
+
+- fe5c5f4: Fix cypher clauses order in querying property values
+
 ## 0.12.0
 
 ### Minor Changes
