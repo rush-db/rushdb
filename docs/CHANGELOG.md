@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 0.13.0
+
+### Minor Changes
+
+- d045368: Introduce SDK options
+
 ## 0.12.2
 
 ### Patch Changes

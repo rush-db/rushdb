@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 0.13.0
+
+### Minor Changes
+
+- d045368: Introduce SDK options
+
+### Patch Changes
+
+- Updated dependencies [d045368]
+  - @rushdb/javascript-sdk@0.13.0
+
 ## 0.12.2
 
 ### Patch Changes
