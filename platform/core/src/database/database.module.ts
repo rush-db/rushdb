@@ -1,6 +1,8 @@
 import { Global, Module, OnModuleInit } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 
+import { fetchRetry } from '@/common/utils/fetchRetry'
+import { isDevMode } from '@/common/utils/isDevMode'
 import {
   RUSHDB_KEY_ID,
   RUSHDB_KEY_PROJECT_ID,
@@ -33,9 +35,20 @@ import { NeogmaService } from '@/database/neogma/neogma.service'
   ]
 })
 export class DatabaseModule implements OnModuleInit {
-  constructor(private readonly neogmaService: NeogmaService) {}
+  constructor(
+    private readonly neogmaService: NeogmaService,
+    private readonly configService: ConfigService
+  ) {}
 
   async onModuleInit() {
+    if (isDevMode()) {
+      console.log('Checking if DB is ready...')
+      const { hostname } = new URL(this.configService.get('NEO4J_URL'))
+      const healthCheckUrl = `http://${hostname}:7474`
+      await fetchRetry(healthCheckUrl, 3000, 10)
+      console.log('DB is ready')
+    }
+
     const session = this.neogmaService.createSession()
     const transaction = session.beginTransaction()
     try {
