@@ -32,7 +32,3 @@ export type SDKConfig = {
     allowForceDelete?: boolean
   }
 } & ApiConnectionConfig
-
-const config: SDKConfig = {
-  logger: () => {}
-}
