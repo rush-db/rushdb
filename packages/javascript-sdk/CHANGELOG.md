@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.12.2
+
+### Patch Changes
+
+- 2019434: Improved local development setup
+
 ## 0.12.1
 
 ### Patch Changes

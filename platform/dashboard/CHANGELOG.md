@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.12.2
+
+### Patch Changes
+
+- 2019434: Improved local development setup
+- Updated dependencies [2019434]
+  - @rushdb/javascript-sdk@0.12.2
+
 ## 0.12.1
 
 ### Patch Changes
