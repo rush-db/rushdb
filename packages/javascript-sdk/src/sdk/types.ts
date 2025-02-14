@@ -2,12 +2,12 @@ import type { HttpClientInterface } from '../network/HttpClient.js'
 
 type ApiConnectionConfig =
   | {
-      host: string
-      port: number
-      protocol: string
+      host?: string
+      port?: number
+      protocol?: string
     }
   | {
-      url: string
+      url?: string
     }
 
 export type State = {
@@ -18,10 +18,17 @@ export type State = {
 
 export type Logger = (payload: any) => void
 
-type CommonUserProvidedConfig = {
+export type SDKConfig = {
   httpClient?: HttpClientInterface
   timeout?: number
   logger?: Logger
+  options?: {
+    /**
+     * @description
+     * Defaults to `false`.
+     * Allows using the `delete()` method without a specified criteria,
+     * which results in deleting all Records in the project.
+     */
+    allowForceDelete?: boolean
+  }
 } & ApiConnectionConfig
-
-export type UserProvidedConfig = CommonUserProvidedConfig

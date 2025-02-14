@@ -1,5 +1,5 @@
 import type { PropertyValue, Schema, InferSchemaTypesWrite } from '../types/index.js'
-import type { UserProvidedConfig } from './types.js'
+import type { SDKConfig } from './types.js'
 
 import { isObject } from '../common/utils.js'
 import { ALLOWED_CONFIG_PROPERTIES } from './constants.js'
@@ -92,9 +92,9 @@ export const pickUniqFieldsFromRecords = <S extends Schema = Schema>(
   return properties
 }
 
-export const parseConfig = (config?: Record<string, unknown>): UserProvidedConfig => {
+export const parseConfig = (config?: Record<string, unknown>): SDKConfig => {
   if (!config) {
-    return {} as UserProvidedConfig
+    return {} as SDKConfig
   }
 
   if (!isObject(config)) {
@@ -107,7 +107,7 @@ export const parseConfig = (config?: Record<string, unknown>): UserProvidedConfi
     throw new Error(`Config object may only contain the following: ${ALLOWED_CONFIG_PROPERTIES.join(', ')}`)
   }
 
-  return config as UserProvidedConfig
+  return config as SDKConfig
 }
 
 export function validateInteger(name: string, n: unknown, defaultVal?: number): number {
