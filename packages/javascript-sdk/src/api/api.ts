@@ -1,13 +1,14 @@
 import type { HttpClient } from '../network/HttpClient.js'
 import type { DBRecord, RelationDetachOptions, RelationOptions, RelationTarget } from '../sdk/record.js'
-import type { UserProvidedConfig } from '../sdk/types.js'
+import type { SDKConfig } from '../sdk/types.js'
 import type {
   PropertyValue,
   PropertyWithValue,
   SearchQuery,
   Schema,
   InferSchemaTypesWrite,
-  MaybeArray
+  MaybeArray,
+  PropertyValuesOptions
 } from '../types/index.js'
 import type { ApiResponse, RecordsApi } from './types.js'
 
@@ -37,7 +38,7 @@ export class RestAPI {
 
   public records: RecordsApi
 
-  constructor(token?: string, config?: UserProvidedConfig & { httpClient: HttpClient }) {
+  constructor(token?: string, config?: SDKConfig & { httpClient: HttpClient }) {
     this.fetcher = null as unknown as ReturnType<typeof createFetcher>
 
     if (config?.httpClient) {
@@ -178,7 +179,7 @@ export class RestAPI {
         searchParams: SearchQuery<S>,
         transaction?: Transaction | string
       ) => {
-        if (isEmptyObject(searchParams.where)) {
+        if (isEmptyObject(searchParams.where) && !config?.options?.allowForceDelete) {
           throw new EmptyTargetError(
             `You must specify criteria to delete records. Empty criteria are not allowed. If this was intentional, use the Dashboard instead.`
           )
@@ -428,8 +429,8 @@ export class RestAPI {
     findById: async (id: string, transaction?: Transaction | string) => {
       return this.api?.properties.findById(id, transaction)
     },
-    values: async (id: string, transaction?: Transaction | string) => {
-      return this.api?.properties.values(id, {}, transaction)
+    values: async (id: string, options?: PropertyValuesOptions, transaction?: Transaction | string) => {
+      return this.api?.properties.values(id, options, transaction)
     }
   }
 

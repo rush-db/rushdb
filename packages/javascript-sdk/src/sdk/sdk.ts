@@ -2,7 +2,7 @@ import type { HttpClient } from '../network/HttpClient.js'
 import type { Models, Schema } from '../types/index.js'
 import type { Model } from './model.js'
 import type { DBRecord } from './record.js'
-import type { State, UserProvidedConfig } from './types.js'
+import type { State, SDKConfig } from './types.js'
 
 import { RestAPI } from '../api/api.js'
 import { DEFAULT_TIMEOUT } from '../common/constants.js'
@@ -16,7 +16,7 @@ export const initSDK = (httpClient: HttpClient) => {
 
     public models: Map<string, Model>
 
-    constructor(token?: string, config?: UserProvidedConfig) {
+    constructor(token?: string, config?: SDKConfig) {
       const props = parseConfig(config)
       super(token, { ...props, httpClient: props.httpClient ?? httpClient })
 

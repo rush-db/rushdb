@@ -107,12 +107,14 @@ export class PropertyController {
     @Param('propertyId') propertyId: string,
     @TransactionDecorator() transaction: Transaction,
     @Query('sort') sort?: TSearchSortDirection,
+    @Query('query') query?: string,
     @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
     @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit?: number
   ): Promise<unknown> {
     return await this.propertyService.getPropertyValues({
       propertyId,
       sort,
+      query,
       pagination: pagination(skip, limit),
       transaction
     })

@@ -1,6 +1,14 @@
-import React from "react"
-import NextDocument, { Html, Head, Main, NextScript } from "next/document"
-import { metaThemeColor } from "~/config/theme"
+import React from 'react'
+import NextDocument, { Html, Head, Main, NextScript } from 'next/document'
+import { metaThemeColor } from '~/config/theme'
+import Script from 'next/script'
+
+const isProd = process.env.NODE_ENV === 'production'
+
+const gtmScript = `window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-Y678D4CC1J');`
 
 export default class Document extends NextDocument {
   render() {
@@ -9,36 +17,26 @@ export default class Document extends NextDocument {
         <Head>
           <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
           <link rel="icon" type="image/png" href="/favicon.png" />
-          <link
-            rel="apple-touch-icon"
-            sizes="180x180"
-            href="/apple-touch-icon.png"
-          />
-          <link
-            rel="icon"
-            type="image/png"
-            sizes="32x32"
-            href="/favicon-32x32.png"
-          />
-          <link
-            rel="icon"
-            type="image/png"
-            sizes="16x16"
-            href="/favicon-16x16.png"
-          />
+          <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+          <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+          <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
           <link rel="manifest" href="/site.webmanifest" />
           <meta name="msapplication-TileColor" content={metaThemeColor} />
           <meta name="theme-color" content={metaThemeColor} />
           <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link
-            rel="preconnect"
-            href="https://fonts.gstatic.com"
-            crossOrigin=""
-          />
-          <link
-            rel="stylesheet"
-            href="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css"
-          />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css" />
+          {isProd && (
+            <>
+              <Script
+                strategy="lazyOnload"
+                src={`https://www.googletagmanager.com/gtag/js?id=G-Y678D4CC1J`}
+              />
+              <Script id="gtm" strategy="lazyOnload">
+                {gtmScript}
+              </Script>
+            </>
+          )}
         </Head>
         <body>
           <Main />

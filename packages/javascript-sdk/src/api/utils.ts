@@ -1,5 +1,5 @@
 import type { DBRecordTarget } from '../sdk'
-import type { UserProvidedConfig } from '../sdk/types.js'
+import type { SDKConfig } from '../sdk/types.js'
 import type { PropertyType, PropertyValue, PropertyWithValue, SearchQuery, Schema } from '../types/index.js'
 
 import {
@@ -156,14 +156,14 @@ export const normalizeRecord = ({
   properties: prepareProperties(payload, options)
 })
 
-export const buildUrl = (props: UserProvidedConfig): string => {
+export const buildUrl = (props: SDKConfig): string => {
   let protocol = DEFAULT_PROTOCOL
   let host = DEFAULT_HOST
   let port = DEFAULT_PORT
   let basePath = DEFAULT_BASE_PATH
 
   if ('url' in props) {
-    const url = new URL(props.url)
+    const url = new URL(props.url!)
     protocol = url.protocol.replace(':', '')
     host = url.hostname
     port = parseInt(
@@ -175,9 +175,9 @@ export const buildUrl = (props: UserProvidedConfig): string => {
   }
 
   if ('host' in props && 'port' in props && 'protocol' in props) {
-    protocol = props.protocol.replace(':', '')
-    host = props.host
-    port = props.port
+    protocol = props.protocol!.replace(':', '')
+    host = props.host!
+    port = props.port!
   }
 
   // Ensure the basePath starts with a '/'
@@ -192,4 +192,16 @@ export const buildUrl = (props: UserProvidedConfig): string => {
   }
 
   return `${protocol}://${host}${portString}${basePath}`
+}
+
+export const generateRandomId = (size: number = 8): string => {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let id = ''
+
+  for (let i = 0; i < size; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length)
+    id += characters[randomIndex]
+  }
+
+  return id
 }

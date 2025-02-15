@@ -1,5 +1,37 @@
 # rushdb-website
 
+## 0.13.0
+
+### Minor Changes
+
+- d045368: Introduce SDK options
+
+## 0.12.2
+
+### Patch Changes
+
+- 2019434: Improved local development setup
+
+## 0.12.1
+
+### Patch Changes
+
+- fe5c5f4: Fix cypher clauses order in querying property values
+
+## 0.12.0
+
+### Minor Changes
+
+- f703e9c: Update query for fetching property values and minor fixes & cleanups
+
+## 0.11.6
+
+### Patch Changes
+
+- 633047a: Fix missign return in get transaction method
+- b4599fc: Fix missing label criteria in delete request
+- 837f17a: Extended logger for SDK
+
 ## 0.11.5
 
 ### Patch Changes

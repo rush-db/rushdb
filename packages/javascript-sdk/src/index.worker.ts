@@ -16,7 +16,7 @@ import {
   idToDate,
   idToTimestamp,
   type InferType,
-  type UserProvidedConfig
+  type SDKConfig
 } from './sdk/index.js'
 import { type ApiResponse, RestAPI } from './api/index.js'
 
@@ -26,7 +26,7 @@ export {
   RushDB,
   DBRecordsBatchDraft,
   DBRecordDraft,
-  UserProvidedConfig,
+  SDKConfig,
   Model,
   type DBRecord,
   type Relation,

@@ -1,5 +1,55 @@
 # rushdb-dashboard
 
+## 0.13.0
+
+### Minor Changes
+
+- d045368: Introduce SDK options
+
+### Patch Changes
+
+- Updated dependencies [d045368]
+  - @rushdb/javascript-sdk@0.13.0
+
+## 0.12.2
+
+### Patch Changes
+
+- 2019434: Improved local development setup
+- Updated dependencies [2019434]
+  - @rushdb/javascript-sdk@0.12.2
+
+## 0.12.1
+
+### Patch Changes
+
+- fe5c5f4: Fix cypher clauses order in querying property values
+- Updated dependencies [fe5c5f4]
+  - @rushdb/javascript-sdk@0.12.1
+
+## 0.12.0
+
+### Minor Changes
+
+- f703e9c: Update query for fetching property values and minor fixes & cleanups
+
+### Patch Changes
+
+- Updated dependencies [f703e9c]
+  - @rushdb/javascript-sdk@0.12.0
+
+## 0.11.6
+
+### Patch Changes
+
+- 633047a: Fix missign return in get transaction method
+- b4599fc: Fix missing label criteria in delete request
+- 837f17a: Extended logger for SDK
+- Updated dependencies [633047a]
+- Updated dependencies [b4599fc]
+- Updated dependencies [837f17a]
+  - @rushdb/javascript-sdk@0.11.6
+
 ## 0.11.5
 
 ### Patch Changes
