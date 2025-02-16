@@ -453,10 +453,10 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className={cx('outline-stroke outline outline-1 outline-offset-0')} id="demo">
+      <section className={cx('outline-stroke outline outline-1 outline-offset-0 md:hidden')} id="demo">
         <div className="container">
           <div className="outline-stroke rounded-t-[80px] outline outline-1 outline-offset-0">
-            <h3 className={cx('typography-2xl md:typography-xl text pt-16 text-center')}>
+            <h3 className={cx('typography-2xl md:typography-xl text mb-8 pt-16 text-center')}>
               Live Demo: See RushDB in Action
             </h3>
             <p
@@ -470,6 +470,7 @@ export const HowItWorks = () => {
             <Button
               as={Link}
               href={links.examples}
+              target="_blank"
               size="small"
               variant="outline"
               className="bg-fill m-auto mb-16 w-fit"
