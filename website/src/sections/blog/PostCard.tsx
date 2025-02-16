@@ -1,25 +1,19 @@
-import classNames from "classnames"
-import Image from "next/image"
-import Link from "next/link"
-import { LetterTypingText } from "~/components/LetterTypingText"
-import { Post } from "~/sections/blog/types"
+import classNames from 'classnames'
+import Image from 'next/image'
+import Link from 'next/link'
+import { LetterTypingText } from '~/components/LetterTypingText'
+import { Post } from '~/sections/blog/types'
 
-export function PostCard({
-  post,
-  className,
-}: {
-  post: Post
-  className?: string
-}) {
+export function PostCard({ post, className }: { post: Post; className?: string }) {
   return (
     <Link
       key={post.slug}
       as={`/blog/${post.slug}`}
       href={`/blog/${post.slug}`}
       className={classNames(
-        "rounded-xl bg-fill2",
-        "relative block w-full group aspect-video rounded-md h-full overflow-hidden [&>div]:h-full",
-        className,
+        'bg-fill2 rounded-xl',
+        'group relative block aspect-video h-full w-full overflow-hidden rounded-md [&>div]:h-full',
+        className
       )}
     >
       {post.data.image && (
@@ -28,13 +22,10 @@ export function PostCard({
         </div>
       )}
 
-      <div className="w-full h-full flex flex-col relative justify-end z-10 p-6 bg-fill/5 ">
+      <div className="bg-fill/5 relative z-10 flex h-full w-full flex-col justify-end p-6">
         <p className="mb-auto">{post.data.date}</p>
 
-        <LetterTypingText
-          as="h2"
-          className="text-xl leading-none font-bold max-w-sm drop-shadow-lg"
-        >
+        <LetterTypingText as="h4" className="text-md max-w-sm font-bold leading-none drop-shadow-lg">
           {post.data.title as string}
         </LetterTypingText>
       </div>

@@ -1,10 +1,9 @@
 import { CSSProperties, PropsWithoutRef, forwardRef, ReactNode, useContext } from 'react'
 
-import { CodingLanguage } from '~/pages'
 import { CodeBlock } from '~/components/CodeBlock'
-import { Tabs, TabsContent, TabsList } from '~/components/Tabs'
-import { TabsTrigger } from '@radix-ui/react-tabs'
+
 import cn from 'classnames'
+import { CodingLanguage } from '~/contexts/CodingLanguage'
 
 type CodeBlockWithLanguageSelectorProps = {
   data: Record<string, string>

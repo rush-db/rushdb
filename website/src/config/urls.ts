@@ -16,6 +16,7 @@ export const links = {
   docs: 'https://docs.rushdb.com',
   getStarted: 'https://docs.rushdb.com/quick-start/installation',
   tutorials: 'https://docs.rushdb.com',
+  examples: 'https://github.com/rush-db/examples',
   pricing: '/pricing',
   app: 'https://app.rushdb.com',
   appPricing: 'https://app.rushdb.com/pricing',

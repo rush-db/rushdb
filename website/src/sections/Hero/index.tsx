@@ -8,7 +8,7 @@ import { CodeBlock } from '~/components/CodeBlock'
 import { GitHub } from '~/components/Icons/GitHub'
 import { CodeBlockWithLanguageSelector } from '~/components/CodeBlockWithLanguageSelector'
 import { useContext } from 'react'
-import { CodingLanguage } from '~/pages'
+import { CodingLanguage } from '~/contexts/CodingLanguage'
 
 const code = `import RushDB from '@rushdb/javascript-sdk'
 

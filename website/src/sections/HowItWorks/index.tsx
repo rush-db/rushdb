@@ -9,7 +9,9 @@ import Image from 'next/image'
 import dashboard from '../../images/dashboard.png'
 import { CodeBlockWithLanguageSelector } from '~/components/CodeBlockWithLanguageSelector'
 import { useContext } from 'react'
-import { CodingLanguage } from '~/pages'
+import { CodingLanguage } from '~/contexts/CodingLanguage'
+import { Demo } from '~/sections/HowItWorks/demo'
+import { GitHub } from '~/components/Icons/GitHub'
 const code1 = `import RushDB from '@rushdb/javascript-sdk'
 
 const db = new RushDB('rushdb-api-key')
@@ -447,6 +449,35 @@ export const HowItWorks = () => {
               preClassName="md:w-full"
               wrapperClassName="rounded-bl-none rounded-br-none pb-0"
             ></CodeBlockWithLanguageSelector>
+          </div>
+        </div>
+      </section>
+
+      <section className={cx('outline-stroke outline outline-1 outline-offset-0')} id="demo">
+        <div className="container">
+          <div className="outline-stroke rounded-t-[80px] outline outline-1 outline-offset-0">
+            <h3 className={cx('typography-2xl md:typography-xl text pt-16 text-center')}>
+              Live Demo: See RushDB in Action
+            </h3>
+            <p
+              className={cx(
+                'text-content3 text-md mb-8 text-center !font-medium !tracking-normal md:text-base'
+              )}
+            >
+              Experience the power of RushDB firsthand.
+            </p>
+
+            <Button
+              as={Link}
+              href={links.examples}
+              size="small"
+              variant="outline"
+              className="bg-fill m-auto mb-16 w-fit"
+            >
+              Explore examples repo <GitHub />
+            </Button>
+
+            <Demo />
           </div>
         </div>
       </section>

@@ -8,13 +8,11 @@ import { getBlogPost, getBlogPosts } from '~/sections/blog/utils'
 import { Post } from '~/sections/blog/types'
 import { MDXRenderer } from '~/sections/blog/MDXRenderer'
 import { PostCard } from '~/sections/blog/PostCard'
-import classNames from 'classnames'
 import Head from 'next/head'
 import { getAbsoluteURL } from '~/utils'
-// import mdxMermaid from 'mdx-mermaid'
 import { Faq } from '~/components/Faq'
-import { MainCta } from '~/components/Button'
-// import rehypeMermaid from 'rehype-mermaid'
+import { CallToAction } from '~/components/CallToAction'
+import remarkGfm from 'remark-gfm'
 
 type Props = {
   serializedPost: MDXRemoteSerializeResult
@@ -26,28 +24,6 @@ type Params = {
   slug: string
 }
 
-const CallToAction = ({
-  text,
-  buttonText,
-  description
-}: {
-  text: string
-  description?: string
-  buttonText?: string
-}) => (
-  <div className="bg-secondary xs:rounded-none container col-span-8 col-start-3 my-16 flex flex-row items-center justify-between gap-5 rounded-lg p-7 sm:flex-col sm:items-stretch sm:p-5 md:col-span-12 md:col-start-1">
-    <div className="flex max-w-xl flex-col gap-2">
-      <p className="typography-xl">{text}</p>
-
-      {description && <p className="typography-base">{description}</p>}
-    </div>
-
-    <MainCta variant="accent" className={'shrink-0'}>
-      {buttonText}
-    </MainCta>
-  </div>
-)
-
 export default function PostPage({ serializedPost, data, morePosts }: Props) {
   return (
     <Layout title={data.title} description={data.description} image={getAbsoluteURL(data.image)}>
@@ -56,17 +32,18 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
           <meta name="robots" content="noindex, nofollow" />
         : <meta name="robots" content="index, follow" />}
       </Head>
-      <MDXRenderer {...serializedPost} data={data} />
+      <MDXRenderer {...serializedPost} data={data} showDate />
+      <div className="container">
+        <div className="m-auto mb-8 mt-8 max-w-5xl border-t pb-8">
+          <CallToAction />
 
-      <div className="mb-8 mt-8 border-t pb-8 pt-8">
-        <div className="container">
-          <h4 className="py-8 text-2xl font-bold leading-tight">FAQ</h4>
+          <h4 className="py-8 text-xl font-bold leading-tight">FAQ</h4>
           <Faq
             items={[
               {
                 question: 'How does RushDB differ from traditional SQL and NoSQL databases?',
                 answer:
-                  'RushDB bridges the gap between SQL and NoSQL by leveraging graph-based relationships and flattening JSON or CSV data into interconnected records.'
+                  'RushDB bridges the gap between SQL and NoSQL by leveraging graph-based relationships and flattening JSON or CSV data into interconnected Records.'
               },
               {
                 question: 'Do I need to structure my data before using RushDB?',
@@ -90,29 +67,18 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
               }
             ]}
           />
-          <CallToAction
-            text="Ready to Revolutionize Your Data Workflow?"
-            description="RushDB makes data management effortless. Push your JSON or CSV data, and let RushDB handle normalization, relationships, and querying with ease. Start now and transform your data from disconnected pieces to a fully interconnected graph. Your future self—and your projects—will thank you."
-          />
         </div>
       </div>
       {morePosts?.length > 0 && (
-        <section className="mt-16 grid grid-cols-12 gap-16 overflow-hidden md:grid-cols-1">
-          <LetterTypingText
-            as="h2"
-            className="typography-3xl container col-span-9 col-start-3 md:col-span-1 md:col-start-1"
-          >
-            More Blog Posts
-          </LetterTypingText>
+        <section className="container mb-32 mt-16">
+          <div className="m-auto max-w-5xl border-t pt-16">
+            <LetterTypingText as="h2" className="typography-xl container m-0 mb-8 p-0">
+              More Blog Posts
+            </LetterTypingText>
 
-          <div className="col-span-9 col-start-3 gap-5 md:col-span-1 md:col-start-1">
-            <div className="container flex w-full gap-5 overflow-auto">
-              {morePosts.map((post, idx) => (
-                <PostCard
-                  key={post.slug}
-                  post={post}
-                  className={classNames('!aspect-[9/16] !h-[520px] !w-auto shrink-0')}
-                />
+            <div className="grid grid-cols-3 gap-4">
+              {morePosts.slice(0, 3).map((post, idx) => (
+                <PostCard key={post.slug} post={post} />
               ))}
             </div>
           </div>
@@ -133,8 +99,7 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({ params }) 
 
   const serializedPost = await serialize(post.content, {
     mdxOptions: {
-      // remarkPlugins: [[mdxMermaid, { output: 'svg' }]],
-      // rehypePlugins: [rehypeMermaid]
+      remarkPlugins: [remarkGfm]
     },
     scope: post.data
   })
