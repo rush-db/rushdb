@@ -93,7 +93,7 @@ const records = await db.records.find({
 })
 ```
 
-[Learn more in the docs](https://docs.rushdb.com)
+[Learn more in the docs](https://docs.rushdb.com/basic-concepts/records#search)
 
 ### 2. Automatic Data Normalization and Type Inference
 RushDB takes raw input data and **automatically structures it** into a connected graph, allowing for seamless navigation across relationships.
@@ -116,7 +116,7 @@ RushDB takes raw input data and **automatically structures it** into a connected
 
 Above payload will be automatically normalized into separate **flat** Records. And relationship between ORDER and SHIPPING will be created automatically.
 
-[Learn more in the docs](https://docs.rushdb.com)
+[Learn more in the docs](https://docs.rushdb.com/advanced/properties)
 
 ### 3. Relationships
 RushDB automatically creates relationships between Records based on JSON input, which is normalized into separate flat Records.
@@ -158,7 +158,7 @@ await project.attach(employee, { type: 'HAS_EMPLOYEE' })
 await project.detach(employee)
 ```
 
-[Learn more in the docs](https://docs.rushdb.com)
+[Learn more in the docs](https://docs.rushdb.com/basic-concepts/properties#how-it-works)
 
 ### 4. Query Smarter, Not Harder
 Effortlessly find exactly what you need. With automated, on-the-fly data normalization, you can query complex, deeply interconnected data without workarounds or unnecessary overhead - just clear, intuitive access to your data.
@@ -256,7 +256,7 @@ RETURN collect(DISTINCT record {
 }) AS records
 ```
 
-[Learn more in the docs](https://docs.rushdb.com)
+[Learn more in the docs](https://docs.rushdb.com/advanced/querying-data)
 
 ### 5. Transactions
 RushDB is fully ACID-compliant, providing robust tools to ensure data consistency and reliability. With the Transactions API, you can execute multiple operations confidently - either every request completes successfully, or all changes are rolled back, maintaining data integrity.
@@ -326,7 +326,7 @@ try {
 }
 ```
 
-[Learn more in the docs](https://docs.rushdb.com)
+[Learn more in the docs](https://docs.rushdb.com/basic-concepts/transactions)
 
 ### 6. Properties: Lightweight Connectors That Unify Your Data
 
@@ -412,7 +412,7 @@ await db.properties.values(
 }
 ```
 
-[Learn more in the docs](https://docs.rushdb.com)
+[Learn more in the docs](https://docs.rushdb.com/basic-concepts/properties)
 
 ### **7. A Universal API for the Entire Platform**
 
@@ -464,8 +464,6 @@ const records = await db.records.find(query)
 const properties = await db.properties.find(query)
 ```
 
-[Learn more in the docs](https://docs.rushdb.com)
-
 ### 7. Powerful Dashboard: Control, Explore, and Query with Ease
 
 RushDB comes with a **feature-rich Dashboard** that gives you full control over your data, projects, and API access—all in an intuitive, developer-friendly UI. Whether you're a developer or a data-driven team, the dashboard makes exploring and managing your data effortless.
@@ -478,7 +476,6 @@ RushDB comes with a **feature-rich Dashboard** that gives you full control over 
 - **Instant Data Import** – Upload JSON or JSONB directly from the UI—no coding required. The fastest way to get started and familiarize yourself with RushDB.
 - **SearchQuery Preview** – Build queries visually with UI filters and easily reuse the generated configuration in your applications.
 - **More Features Coming Soon!** – We're continuously improving the dashboard to make data management even more seamless.
-
 
 ![RushDB Dashboard Records](https://rushdb-public.s3.eu-central-1.amazonaws.com/blog/rushdb-the-zero-config-database-for-modern-apps-and-ai-solutions/dashboard-preview-1.png)
 > records table view
