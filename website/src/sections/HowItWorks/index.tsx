@@ -475,7 +475,7 @@ export const HowItWorks = () => {
               variant="outline"
               className="bg-fill m-auto mb-16 w-fit"
             >
-              Explore examples repo <GitHub />
+              Explore Examples <GitHub />
             </Button>
 
             <Demo />
