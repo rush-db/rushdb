@@ -44,7 +44,9 @@ const ReactLogo = ({ className }: { className: string }) => (
   </svg>
 )
 
-const dbCode = `export const db = new RushDB('API-TOKEN')
+const dbCode = `import RushDB from '@rushdb/javascript-sdk'
+
+export const db = new RushDB('API-TOKEN')
 
 // get your token at app.rushdb.com`
 
