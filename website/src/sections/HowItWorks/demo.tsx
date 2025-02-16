@@ -211,7 +211,7 @@ export const Demo = forwardRef<HTMLDivElement, PropsWithoutRef<DemoProps>>(
         </div>
 
         {tab === 'Live Preview' ?
-          <iframe src={'https://main.d2d2gymukglcvg.amplifyapp.com/'} className="h-dvh w-full" />
+          <iframe src={'https://main.d2d2gymukglcvg.amplifyapp.com/'} className="h-[85vh] w-full" />
         : <CodeBlock
             code={code[tab]}
             className={className}
