@@ -4,6 +4,7 @@ import type { AppProps } from 'next/app'
 import { jetBrainsMono, manrope } from '~/styles/fonts'
 import { useRef } from 'react'
 import cx from 'classnames'
+import { CodingLanguageProvider } from '~/contexts/CodingLanguage'
 
 export default function App({ Component, pageProps }: AppProps) {
   const ref = useRef<HTMLElement>(null)
@@ -18,7 +19,9 @@ export default function App({ Component, pageProps }: AppProps) {
       `}</style>
 
       <main className={cx(jetBrainsMono.variable, manrope.variable)} ref={ref}>
-        <Component {...pageProps} />
+        <CodingLanguageProvider>
+          <Component {...pageProps} />
+        </CodingLanguageProvider>
       </main>
     </>
   )

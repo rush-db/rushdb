@@ -3,6 +3,7 @@ import { ComponentPropsWithoutRef, isValidElement } from 'react'
 import { CodeBlock } from '~/components/CodeBlock'
 import { Post } from '~/sections/blog/types'
 import { Mermaid } from 'mdx-mermaid/lib/Mermaid'
+import { CodeBlockWithLanguageSelector } from '~/components/CodeBlockWithLanguageSelector'
 
 const Pre = ({ children, ...props }: ComponentPropsWithoutRef<'pre'>) => {
   if (isValidElement(children) && children.type === 'code') {
@@ -15,6 +16,11 @@ const Pre = ({ children, ...props }: ComponentPropsWithoutRef<'pre'>) => {
           <Mermaid chart={code as string} />
         </div>
       )
+    }
+
+    if (language === 'sdk') {
+      const [python, typescript] = code.split('___SPLIT___')
+      return <CodeBlockWithLanguageSelector data={{ typescript: typescript.replace(/\n/, ''), python }} />
     }
 
     return (
@@ -49,7 +55,7 @@ export function MDXRenderer({
       </div>
       <div className="mt-12 text-center">
         {data.date && showDate ?
-          <p className="typography-base text-content3 m-auto mb-2">{data.date}</p>
+          <p className="typography-base text-content3 m-auto">{data.date}</p>
         : null}
         <p className="typography-base text-content3 m-auto mb-2">RushDB Team</p>
       </div>

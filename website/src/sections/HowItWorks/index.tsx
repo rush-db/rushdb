@@ -9,7 +9,7 @@ import Image from 'next/image'
 import dashboard from '../../images/dashboard.png'
 import { CodeBlockWithLanguageSelector } from '~/components/CodeBlockWithLanguageSelector'
 import { useContext } from 'react'
-import { CodingLanguage } from '~/pages'
+import { CodingLanguage } from '~/contexts/CodingLanguage'
 const code1 = `import RushDB from '@rushdb/javascript-sdk'
 
 const db = new RushDB('rushdb-api-key')

@@ -360,18 +360,33 @@ WITH record, apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatte
 RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`tags\`}) AS records`
 
 const q8 = {
+  labels: ['COMPANY'],
   where: {
-    departments: {
-      $alias: '$department'
+    stage: 'seed',
+    address: { $contains: 'USA' },
+    foundedAt: {
+      $lte: { $year: 2000 }
+    },
+    rating: {
+      $or: [{ $lt: 2.5 }, { $gte: 4.5 }]
+    },
+    EMPLOYEE: {
+      $relation: { type: 'HIRED_BY', direction: 'out' },
+      $alias: '$employee',
+      salary: {
+        $gte: 500_000
+      }
     }
   },
-  orderBy: {},
-  skip: 0,
-  limit: 100,
-  labels: ['COMPANY'],
   aggregate: {
-    departmentId: `$department.__id`
-  }
+    employees: {
+      fn: 'collect',
+      alias: '$employee',
+      limit: 10
+    }
+  },
+  skip: 0,
+  limit: 100
 }
 
 const r8 = `MATCH (record:__RUSHDB__LABEL__RECORD__:COMPANY { __RUSHDB__KEY__PROJECT__ID__: $projectId })

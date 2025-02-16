@@ -1,6 +1,6 @@
 ---
-title: "RushDB: Zero-Config Instant Database for Modern Apps & the AI Era"
-description: "RushDB is a zero-config, graph-powered database for developers who need instant data ingestion, automatic normalization, and powerful querying."
+title: "RushDB: Zero-Config Instant Database for Modern Apps & AI Era"
+description: "RushDB is a zero-config, graph-powered instant database with bulk semi-structured data ingestion, automatic normalization, and powerful querying."
 image: "/images/blog/default.png"
 tags: ["database", "graph database", "NoSQL", "developer tools", "data normalization", "instant database"]
 date: "02/06/2025"
@@ -22,13 +22,12 @@ Traditional databases require extensive setup, schema definitions, and manual op
 - **Self-Hosted or Cloud** – Deploy anywhere with ease.
 
 ## Key Features
-### 1. Push Any JSON or CSV Data
+### 1. Accepts Any JSON, JSONB, and CSV Data
 RushDB allows developers to push raw JSON or CSV data without worrying about schema definitions. RushDB **automatically normalizes data** and structures it as a graph, making queries fast and intuitive.
 
 #### Create Record
 
-Python:
-```python
+```sdk
 from rushdb import RushDB
 
 db = RushDB("API_TOKEN")
@@ -41,18 +40,13 @@ data = {
 }
 
 record = db.records.create("COMPANY", data)
-```
-
-Typescript / Javascript:
-```typescript
-import RushDB from "@rushdb/javascript-sdk"
-
-const db = new RushDB("API_TOKEN");
+___SPLIT___
+const db = new RushDB('API_TOKEN');
 
 const data = {
-    name: "Google LLC",
-    address: "1600 Amphitheatre Parkway, Mountain View, CA 94043, USA",
-    foundedAt: "1998-09-04T00:00:00.000Z",
+    name: 'Google LLC',
+    address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
+    foundedAt: '1998-09-04T00:00:00.000Z',
     rating: 4.9
 }
 
@@ -61,8 +55,7 @@ const record = await db.records.create("COMPANY", data)
 
 #### Query Records
 
-Python:
-```python
+```sdk
 query = {
     "labels": ["COMPANY"],
     "where": {
@@ -72,14 +65,11 @@ query = {
 }
 
 records = db.records.find(query)
-```
-
-Typescript / Javascript:
-```typescript
+___SPLIT___
 const records = await db.records.find({
     labels: ['COMPANY'],
     where: {
-        name: { $contains: "Goog" },
+        name: { $contains: 'Goog' },
         rating: { $gte : 4 }
     }
 })
@@ -88,76 +78,33 @@ const records = await db.records.find({
 ### 2. Automatic Data Normalization and Type Inference
 RushDB takes raw input data and **automatically structures it** into a connected graph, allowing for seamless navigation across relationships.
 
-#### Example
+#### Example JSON data
 
 ```json
 /* ORDER */
 {
-  "total": 109.98,
-  "status": "processing",
-  "SHIPPING": {
-    "address": "123 Main St, City, Country",
-    "method": "express",
-    "cost": 9.99
-  },
-  "ITEMS": [
-    {
-      "productId": "abc123",
-      "name": "Wireless Mouse",
-      "quantity": 1,
-      "price": 29.99
-    },
-    {
-      "productId": "xyz789",
-      "name": "Mechanical Keyboard",
-      "quantity": 1,
-      "price": 79.99
-    }
-  ]
+  "total": 109.98,                           <-- PROPERTY total:`number`
+  "status": "processing",                    <-- PROPERTY status:`string`
+  "placedAt": "2025-02-15T09:35:26+00:00",   <-- PROPERTY placedAt:`datatime`
+  "SHIPPING": {                              <-- RECORD :SHIPPING
+    "address": "123 Main St, City, Country", <-- PROPERTY address:`string`
+    "method": "express",                     <-- PROPERTY method:`string`
+    "cost": 9.99                             <-- PROPERTY cost:`number`
+  }
 }
 ```
 
-Above payload will be automatically normalized into separate **flat** Records:
+Above payload will be automatically normalized into separate **flat** Records. And relationship between ORDER and SHIPPING will be created automatically.
 
-ORDER:
-```js
-{
-  total: "number",
-  status: "string"
-}
-```
-
-ITEMS:
-```js
-{
-  productId: "string",
-  name: "string",
-  quantity: "number",
-  price: "number"
-}
-```
-
-SHIPPING:
-```js
-{
-  address: "string",
-  method: "string",
-  cost: "number"
-}
-```
 
 ### 3. Relationships
-RushDB automatically creates relationships between Records according to input.
+RushDB automatically creates relationships between records based on JSON input, which is normalized into separate flat records.
 
-```sql
-ORDER -> ITEMS * 2
-ORDER -> SHIPPING
-```
+However, relationship creation isn't limited to data loading. You can also establish relationships between existing records, providing a powerful tool to add more meaning to your data.
 
-Creating relationships to give even more sense to data manually is also easy and smooth:
+Managing Relationships:
 
-Python:
-```python
+```sdk
 project = db.records.create(
     "PROJECT", {"name": "Secret Project", "budget": 1000000}
 )
@@ -168,42 +115,45 @@ employee = db.records.create(
 
 options = RelationshipOptions(type="HAS_EMPLOYEE")
 
+# create Relationship
 project.attach(employee, options)
-```
 
-Typescript:
-```typescript
-const project = await db.records.create("PROJECT", {
-    name: "Secret Project",
+# delete Relationship
+project.detach(employee)
+___SPLIT___
+const project = await db.records.create('PROJECT', {
+    name: 'Secret Project',
     budget: 1000000
 })
 
-const employee = await db.records.create("EMPLOYEE", {
-    name: "Nikola Tesla"
+const employee = await db.records.create('EMPLOYEE', {
+    name: 'Nikola Tesla'
 })
 
-await project.attach(employee, { type: "HAS_EMPLOYEE" })
+// create Relationship
+await project.attach(employee, { type: 'HAS_EMPLOYEE' })
+
+// delete Relationship
+await project.detach(employee)
 ```
 
-
 ### 4. Query Smarter, Not Harder
-Find exactly what you need with ease. With automated on-the-fly data normalization, query complex, deeply interconnected data without the acrobatics.
-
+Effortlessly find exactly what you need. With automated, on-the-fly data normalization, you can query complex, deeply interconnected data without workarounds or unnecessary overhead - just clear, intuitive access to your data.
 #### Examples
 
-Python:
-```python
+```sdk
 db.records.find(
     {
         "labels": ["COMPANY"],
         "where": {
             "stage": "seed",
             "address": {"$contains": "USA"},
-            "foundedAt": {"$year": {"$lte": 2000}},
+            "foundedAt": {"$lte": {"$year": 2000}},
             "rating": {
                 "$or": [{"$lt": 2.5}, {"$gte": 4.5}]
             },
             "EMPLOYEE": {
+                "$relation": {"type": "HIRED", "direction": "out"},
                 "$alias": "$employee",
                 "salary": {
                     "$gte": 500_000
@@ -217,23 +167,24 @@ db.records.find(
                 "limit": 10
             }
         },
+        "skip": 0,
+        "limit": 100
     }
 )
-```
-Typescript:
-```typescript
+___SPLIT___
 await db.records.find({
   labels: ['COMPANY'],
   where: {
     stage: 'seed',
     address: { $contains: 'USA' },
     foundedAt: {
-      $year: { $lte: 2000 }
+      $lte: { $year: 2000 }
     },
     rating: {
       $or: [{ $lt: 2.5 }, { $gte: 4.5 }]
     },
     EMPLOYEE: {
+      $relation: { type: 'HIRED', direction: 'out' },
       $alias: '$employee',
       salary: {
         $gte: 500_000
@@ -246,12 +197,111 @@ await db.records.find({
       alias: '$employee',
       limit: 10
     }
-  }
+  },
+  skip: 0,
+  limit: 100
 })
 ```
 
+Under the hood, RushDB transforms this into an optimized and powerful Cypher query. The query engine allows developers to think about data naturally, the way we intuitively use and perceive it, while RushDB handles the complexity behind the scenes:
 
-### 5. Powerful Dashboard
+```cypher
+MATCH (record:__RUSHDB__LABEL__RECORD__:COMPANY { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+
+WHERE (any(value IN record.stage WHERE value = "seed"))
+AND (any(value IN record.address WHERE value =~ "(?i).*USA.*"))
+AND (any(value IN record.foundedAt WHERE apoc.convert.fromJsonMap(`record`.`__RUSHDB__KEY__PROPERTIES__META__`).`foundedAt` = "datetime" AND datetime(value) <= datetime({year: 2000})))
+AND ((any(value IN record.rating WHERE value < 2.5) OR any(value IN record.rating WHERE value >= 4.5)))
+
+ORDER BY record.`__RUSHDB__KEY__ID__`
+DESC SKIP 0 LIMIT 100
+
+OPTIONAL MATCH (record)-[:HIRED]->(record1:EMPLOYEE) WHERE (any(value IN record1.salary WHERE value >= 500000))
+WITH record, record1
+WHERE record IS NOT NULL AND record1 IS NOT NULL
+
+WITH record,
+apoc.coll.sortMaps(collect(DISTINCT record1 {
+    .*, __RUSHDB__KEY__LABEL__: [label IN labels(record1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]
+}), "__RUSHDB__KEY__ID__")[0..10] AS `employees`
+
+RETURN collect(DISTINCT record {
+    __RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__,
+    __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__,
+    __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0],
+    `employees`
+}) AS records
+```
+
+### 5. Transactions
+RushDB is fully ACID-compliant, providing robust tools to ensure data consistency and reliability. With the Transactions API, you can execute multiple operations confidently - either every request completes successfully, or all changes are rolled back, maintaining data integrity.
+
+Working with transactions in RushDB is seamless:
+
+```sdk
+tx = db.transactions.begin()
+
+try:
+    # Create some Records
+    item = db.records.create(
+        "ITEM",
+        {"title": "Nike Air Max 270", "price": 150},
+        transaction=tx,
+    )
+
+    owner = db.records.create(
+        "OWNER",
+        {"name": "Jane Smith", "email": "janesmith@example.com"},
+        transaction=tx
+    )
+
+    options = RelationshipOptions(type="OWN", direction="out")
+
+    # create Relationship
+    owner.attach(item, options, transaction=tx)
+
+    # Simulate an error
+    raise ValueError("Simulated error")
+
+    # Commit the Transaction if all operations succeed
+    tx.commit();
+
+except ValueError:
+    #  If any records or relationships creation failed, roll back the entire operation
+    transaction.rollback()
+___SPLIT___
+const tx = await db.tx.begin();
+
+try {
+  // Create some Records
+  const item = await db.records.create('ITEM', {
+    title: 'Nike Air Max 270',
+    price: 150
+  }, tx);
+
+  const owner = await db.records.create('OWNER', {
+    name: 'Jane Smith',
+    email: 'janesmith@example.com',
+  }, tx);
+
+  // create Relationship
+  await owner.attach(item, {
+    type: 'OWN',
+    direction: 'out',
+  }, tx);
+
+  // Simulate an error
+  throw new Error('Simulated error')
+
+  // Commit the Transaction if all operations succeed
+  await tx.commit();
+} catch (e) {
+  // If any Records or Relationships creation failed, roll back the entire operation
+  await tx.rollback();
+}
+```
+
+### 6. Powerful Dashboard
 RushDB natively supports **text-based search queries**, eliminating the need for external indexing services.
 
 ///
