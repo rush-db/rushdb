@@ -37,6 +37,7 @@ export const CodeBlock = forwardRef<
     wrapperClassName?: string
     preClassName?: string
     style?: CSSProperties
+    showLineNumbers?: boolean
     language?: string
     children?: ReactNode
     copyButton?: boolean
@@ -46,6 +47,7 @@ export const CodeBlock = forwardRef<
     {
       code,
       className,
+      showLineNumbers = false,
       preClassName,
       wrapperClassName,
       children: extra,
@@ -60,6 +62,7 @@ export const CodeBlock = forwardRef<
         <SyntaxHighlighter
           language={language}
           style={override}
+          showLineNumbers={showLineNumbers}
           PreTag={({ children }) => (
             <div
               className={cx(wrapperClassName, 'flex items-start justify-between gap-2 rounded-xl')}
