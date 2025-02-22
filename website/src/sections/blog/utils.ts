@@ -1,13 +1,9 @@
 import fs from "fs"
 import matter from "gray-matter"
-import { resolve, join } from "path"
+import path, { resolve, join } from "path"
 import { Post } from "~/sections/blog/types"
 
-const filePathToFileName = (path: string) =>
-  path
-    .split("/")
-    .pop()
-    ?.replace(/\.mdx?$/, "") ?? ""
+const filePathToFileName = (filePath: string) => path.basename(filePath, path.extname(filePath))
 
 const POSTS_PATH = resolve(process.cwd(), "src/posts")
 
