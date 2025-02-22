@@ -1,4 +1,3 @@
-import cx from 'classnames'
 import { Button, MainCta } from '~/components/Button'
 import Link from 'next/link'
 import { links } from '~/config/urls'
@@ -12,6 +11,7 @@ import { useContext } from 'react'
 import { CodingLanguage } from '~/contexts/CodingLanguage'
 import { Demo } from '~/sections/HowItWorks/demo'
 import { GitHub } from '~/components/Icons/GitHub'
+
 const code1 = `import RushDB from '@rushdb/javascript-sdk'
 
 const db = new RushDB('rushdb-api-key')
@@ -178,7 +178,7 @@ db.properties.values(
 `
 
 const codeDocker = `docker run -p 3000:3000 --name rushdb \\
--e NEO4J_URL='neo4j+s://1234567.databases.neo4j.io' \\
+-e NEO4J_URL='bolt+s://your-neo4j-instance-url:7687' \\
 -e NEO4J_USERNAME='neo4j' \\
 -e NEO4J_PASSWORD='password' \\
 rushdb/platform`
@@ -270,17 +270,11 @@ export const HowItWorks = () => {
 
   return (
     <>
-      <section className={cx('mt-[1px]')}>
+      <section className="mt-[1px]">
         <div className="container">
           <div className="outline-stroke rounded-tl-[150px] text-center outline outline-1 outline-offset-0 md:rounded-tl-[80px]">
-            <h3 className={cx('typography-2xl md:typography-xl text px-6 pt-20')}>
-              Push any JSON or CSV data
-            </h3>
-            <p
-              className={cx(
-                'text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base'
-              )}
-            >
+            <h3 className="typography-2xl md:typography-xl text px-6 pt-20">Push any JSON or CSV data</h3>
+            <p className="text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base">
               RushDB intelligently maps relationships, types,
               <br className="md:hidden" /> and labels any input data, so you don’t have to.
             </p>
@@ -296,7 +290,7 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className={cx('outline-stroke outline outline-1 outline-offset-0')}>
+      <section className="outline-stroke outline outline-1 outline-offset-0">
         <div className="container grid w-full grid-flow-col grid-rows-2 gap-[1px] md:grid-flow-row md:grid-rows-3">
           <div className="outline-stroke row-span-2 w-full rounded-full rounded-tr-none p-8 outline outline-1 outline-offset-0 md:hidden md:p-6"></div>
 
@@ -330,14 +324,10 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className={cx('border-b')}>
+      <section className="border-b">
         <div className="container text-center">
-          <h3 className={cx('typography-2xl md:typography-xl text px-6 pt-20')}>
-            Automatic Data Normalization
-          </h3>
-          <p
-            className={cx('text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base')}
-          >
+          <h3 className="typography-2xl md:typography-xl text px-6 pt-20">Automatic Data Normalization</h3>
+          <p className="text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base">
             Records are created with appropriate types and relationships between them,{' '}
             <br className="md:hidden" /> without any need for predefined models or schemas.
           </p>
@@ -382,15 +372,11 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className={cx('')}>
+      <section>
         <div className="container text-center">
           <div className="outline-stroke rounded-t-[80px] py-20 outline outline-1 outline-offset-0 md:pb-8">
-            <h3 className={cx('typography-2xl md:typography-xl text px-6')}>Query Smarter, Not Harder</h3>
-            <p
-              className={cx(
-                'text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base'
-              )}
-            >
+            <h3 className="typography-2xl md:typography-xl text px-6">Query Smarter, Not Harder</h3>
+            <p className="text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base">
               Every Property gets its own "container," smartly linked to other matching Records
               <br className="md:hidden" /> by name and type, making querying easy and performant.
             </p>
@@ -417,12 +403,12 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className={cx('border-b border-t')}>
+      <section className="border-b border-t">
         <div className="container m-auto grid grid-cols-2 gap-[1px] md:grid-cols-1">
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-bl-[80px] rounded-tr-[80px] pt-12 outline outline-1 outline-offset-0">
             <div className="mx-auto mb-8 max-w-xl md:px-6 md:text-center">
               <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Complex Queries, Simple Syntax</h4>
-              <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-base')}>
+              <p className="text-content3 text-md !font-medium !tracking-normal md:text-base">
                 Find exactly what you need with ease. With automated on-the-fly data normalization, query
                 complex, deeply interconnected data without the acrobatics.
               </p>
@@ -438,7 +424,7 @@ export const HowItWorks = () => {
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-br-[80px] pt-12 outline outline-1 outline-offset-0">
             <div className="mx-auto mb-8 max-w-xl md:px-6 md:text-center">
               <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Build Powerful Filters & Search</h4>
-              <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-base')}>
+              <p className="text-content3 text-md !font-medium !tracking-normal md:text-base">
                 List every variation. Filter with ease. Build catalogs and search experiences like a pro - no
                 backend, no fuss. All from a single API.
               </p>
@@ -453,17 +439,13 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className={cx('outline-stroke outline outline-1 outline-offset-0 md:hidden')} id="demo">
+      <section className="outline-stroke outline outline-1 outline-offset-0 md:hidden" id="demo">
         <div className="container">
           <div className="outline-stroke rounded-t-[80px] outline outline-1 outline-offset-0">
-            <h3 className={cx('typography-2xl md:typography-xl text mb-8 pt-16 text-center')}>
+            <h3 className="typography-2xl md:typography-xl text mb-8 pt-16 text-center">
               Live Demo: See RushDB in Action
             </h3>
-            <p
-              className={cx(
-                'text-content3 text-md mb-8 text-center !font-medium !tracking-normal md:text-base'
-              )}
-            >
+            <p className="text-content3 text-md mb-8 text-center !font-medium !tracking-normal md:text-base">
               Experience the power of RushDB firsthand.
             </p>
 
@@ -483,10 +465,10 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className={cx('outline-stroke outline outline-1 outline-offset-0')} id="use-cases">
+      <section className="outline-stroke outline outline-1 outline-offset-0" id="use-cases">
         <div className="container">
           <div className="outline-stroke outline outline-1 outline-offset-0">
-            <h3 className={cx('typography-2xl md:typography-xl text py-16 text-center')}>Use Cases</h3>
+            <h3 className="typography-2xl md:typography-xl text py-16 text-center">Use Cases</h3>
 
             <div className="grid grid-cols-2 gap-[1px]">
               <div className="outline-stroke row-end-1 w-full rounded-b-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:row-end-1 md:rounded-b-[50px] md:p-6">
@@ -505,7 +487,7 @@ export const HowItWorks = () => {
               </div>
               <div className="col-span-2 row-span-1 grid grid-cols-2 items-center gap-24 md:mt-0 md:grid-cols-1 md:gap-0">
                 <div className="mb-8 items-center p-20 md:p-6 md:pb-0">
-                  <h4 className={cx('mb-8 text-xl font-bold md:mb-4 md:text-lg')}>
+                  <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">
                     Persistence for AI Era: Smart and Simple
                   </h4>
                   <p className="text-content3 text-md md:text-base">
@@ -571,28 +553,41 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className={cx('mt-[1px] border-b')}>
+      <section className="mt-[1px] border-b">
         <div className="container text-center">
-          <div className={cx('outline-stroke outline outline-1 outline-offset-0')}>
-            <h3 className={cx('typography-2xl md:typography-xl text pt-20')}>Fully Featured Dashboard</h3>
-            <p
-              className={cx(
-                'text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:pb-8 md:text-base'
-              )}
-            >
+          <div className="outline-stroke outline outline-1 outline-offset-0">
+            <h3 className="typography-2xl md:typography-xl text pt-20">Fully Featured Dashboard</h3>
+            <p className="text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:pb-8 md:text-base">
               That helps you navigate your data intuitively and fast
             </p>
-            <Image src={dashboard.src} alt="dashboard-preview" width={1894} height={989} className="w-full" />
+            <Image
+              priority
+              src={dashboard.src}
+              alt="dashboard-preview"
+              width={1894}
+              height={989}
+              className="w-full"
+            />
           </div>
         </div>
       </section>
 
-      <section className={cx('border-b')}>
+      <section className="border-b">
         <div className="container text-center">
           <div className="outline-stroke rounded-b-full py-20 outline outline-1 outline-offset-0 md:rounded-b-[100px]">
-            <h3 className={cx('typography-2xl md:typography-xl text mb-8')}>Self-hosted? Simple.</h3>
-            <p className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base')}>
-              Just run Docker container with Neo4j credentials
+            <h3 className="typography-2xl md:typography-xl text mb-8">Self-hosted? Simple.</h3>
+            <p className="text-content3 text-md !font-medium !tracking-normal md:text-base">
+              1. Setup your Neo4j instance or use{' '}
+              <Link
+                href="https://neo4j.com/product/auradb/"
+                target="_blank"
+                className="underline decoration-dashed"
+              >
+                Neo4j Aura
+              </Link>
+            </p>
+            <p className="text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base">
+              2. Run RushDB container with Neo4j credentials
             </p>
             <CodeBlock
               language="bash"
@@ -600,7 +595,7 @@ export const HowItWorks = () => {
               className="mb-8 grid place-content-center gap-[1px] md:w-full lg:w-full"
               preClassName="md:w-full"
             />
-            <p className={cx('text-content3 text-md !font-medium !tracking-normal md:text-base')}>
+            <p className="text-content3 text-md !font-medium !tracking-normal md:text-base">
               That's it. RushDB is ready at <br className="hidden md:block" />
               <span className="bold font-mono font-bold">localhost:3000</span> 🎉️
             </p>
@@ -618,14 +613,14 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className={cx('outline-stroke outline outline-1 outline-offset-0')}>
+      <section className="outline-stroke outline outline-1 outline-offset-0">
         <div className="container text-center">
           <div className="outline-stroke rounded-full py-20 outline outline-1 outline-offset-0 md:rounded-[100px]">
-            <h3 className={cx('typography-2xl md:typography-xl text mb-8')}>
+            <h3 className="typography-2xl md:typography-xl text mb-8">
               Not an infra fan?
               <br className="hidden md:block" /> Opt for <span className="text-accent">RushDB Cloud</span>
             </h3>
-            <p className={cx('text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base')}>
+            <p className="text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base">
               2 Projects Free Forever. No Maintenance Required.
               <br className="md:hidden" />
               Focus on building apps, not on managing infrastructure.

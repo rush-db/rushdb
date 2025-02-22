@@ -8,8 +8,15 @@ export const Mission = () => {
       <div className="flex items-center justify-start gap-4 md:justify-between">
         <h3 className="typography-2xl md:typography-xl font-bold">Team & Mission</h3>
         <div className="flex">
-          <Image src={av.src} alt="Artemiy" width={60} height={60} className="rounded-full" />
-          <Image src={as.src} alt="Andrey" width={60} height={60} className="ml-[-10px] rounded-full" />
+          <Image src={av.src} alt="Artemiy" width={60} height={60} priority className="rounded-full" />
+          <Image
+            src={as.src}
+            alt="Andrey"
+            width={60}
+            height={60}
+            priority
+            className="ml-[-10px] rounded-full"
+          />
         </div>
       </div>
       <p className="text-content3 mb2 text-md md:text-base">

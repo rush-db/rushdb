@@ -1,4 +1,3 @@
-import cx from 'classnames'
 import Link from 'next/link'
 import { BookIcon } from 'lucide-react'
 
@@ -12,7 +11,7 @@ import { CodingLanguage } from '~/contexts/CodingLanguage'
 
 const code = `import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('rushdb-api-key')
+const db = new RushDB('API_TOKEN')
 
 const user = await db.records.create('USER', {
   name: 'Paul Schmitz',
@@ -65,25 +64,16 @@ export const Hero = () => {
     <>
       <div id="hero" className="hero absolute top-0 z-0 min-h-dvh w-full md:bg-cover" />
 
-      <section
-        className={cx(
-          'container z-10 mt-[-97px] grid min-h-dvh place-content-center items-center',
-          'md:mt-0'
-        )}
-      >
+      <section className="container z-10 mt-[-97px] grid min-h-dvh place-content-center items-center md:mt-0">
         <div className="z-0 flex min-h-dvh flex-col">
           <div className="mb-4 mt-32 grid grow grid-cols-2 items-center gap-24 md:mt-0 md:grid-cols-1 md:gap-0 md:text-center">
             <div className="mb-8 items-center md:mt-24">
-              <h1 role="heading" className={cx('typography-4xl !font-extrabold sm:text-2xl')}>
+              <h1 role="heading" className="typography-4xl !font-extrabold sm:text-2xl">
                 Instant database
                 <br />
                 for modern apps<span className="hidden"> - RushDB</span>
               </h1>
-              <h2
-                className={cx(
-                  'text-content3 text-md mb-8 mt-10 !font-medium !tracking-normal md:mt-0 md:text-base'
-                )}
-              >
+              <h2 className="text-content3 text-md mb-8 mt-10 !font-medium !tracking-normal md:mt-0 md:text-base">
                 Focus on building features. RushDB handles the rest.
               </h2>
 
@@ -130,7 +120,7 @@ export const Hero = () => {
                     'https://img.shields.io/npm/v/@rushdb/javascript-sdk'
                   : 'https://img.shields.io/pypi/v/rushdb'
                 }
-                alt="npm-version"
+                alt="package-version"
                 className="md:hidden"
               />
             </CodeBlock>

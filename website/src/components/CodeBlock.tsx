@@ -1,7 +1,6 @@
 import { CSSProperties, PropsWithoutRef, forwardRef, ReactNode, Children } from 'react'
 import { materialDark as codeTheme } from 'react-syntax-highlighter/dist/cjs/styles/prism'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import classNames from 'classnames'
 import cx from 'classnames'
 
 import { CopyButton } from '~/components/CopyButton'
@@ -58,7 +57,7 @@ export const CodeBlock = forwardRef<
     ref
   ) => {
     return (
-      <div className={classNames('sm:text-[14px]', className)} ref={ref} style={style}>
+      <div className={cx('sm:text-[14px]', className)} ref={ref} style={style}>
         <SyntaxHighlighter
           language={language}
           style={override}
