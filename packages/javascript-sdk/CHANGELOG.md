@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.13.2
+
+### Patch Changes
+
+- 646101a: Update website blog
+
 ## 0.13.1
 
 ### Patch Changes
