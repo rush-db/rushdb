@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.13.2
+
+### Patch Changes
+
+- 646101a: Update website blog
+- Updated dependencies [646101a]
+  - @rushdb/javascript-sdk@0.13.2
+
 ## 0.13.1
 
 ### Patch Changes
