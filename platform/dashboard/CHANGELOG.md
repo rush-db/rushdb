@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.13.3
+
+### Patch Changes
+
+- 9919a34: chore: website sitemap.xml updated
+- Updated dependencies [9919a34]
+  - @rushdb/javascript-sdk@0.13.3
+
 ## 0.13.2
 
 ### Patch Changes

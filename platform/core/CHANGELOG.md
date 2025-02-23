@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 0.13.3
+
+### Patch Changes
+
+- 9919a34: chore: website sitemap.xml updated
+
 ## 0.13.2
 
 ### Patch Changes
