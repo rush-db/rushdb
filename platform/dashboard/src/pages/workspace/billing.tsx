@@ -22,13 +22,15 @@ const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>
   free: [{ title: '2 Projects' }, { title: '10,000 Records' }, { title: 'Community support' }],
   start: [
     { title: 'Unlimited Projects' },
-    { title: '400,000 Records', description: 'Next 400,000 Records for $9 per month' },
-    { title: 'Priority Support' }
+    { title: '100,000 Records' },
+    { title: '7-Day Backups', description: 'Coming soon' },
+    { title: '3 Team Members per Project', description: 'Coming soon' }
   ],
   pro: [
     { title: 'Unlimited Projects' },
-    { title: '1,000,000 Records', description: 'Next 1,000,000 Records for $19 per month' },
-    { title: 'Backups', description: 'Coming soon' },
+    { title: '1,000,000 Records' },
+    { title: '30-Day Backups', description: 'Coming soon' },
+    { title: '10 Team Members per Project', description: 'Coming soon' },
     { title: 'Priority Support' }
   ]
 }
