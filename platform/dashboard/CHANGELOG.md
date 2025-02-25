@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 0.14.0
+
+### Minor Changes
+
+- c7936fa: Update billing and limits
+
+### Patch Changes
+
+- Updated dependencies [c7936fa]
+  - @rushdb/javascript-sdk@0.14.0
+
 ## 0.13.3
 
 ### Patch Changes

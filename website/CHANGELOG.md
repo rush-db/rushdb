@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.14.0
+
+### Minor Changes
+
+- c7936fa: Update billing and limits
+
 ## 0.13.3
 
 ### Patch Changes
