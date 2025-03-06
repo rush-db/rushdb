@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.14.1
+
+### Patch Changes
+
+- 7bfd0aa: Make label field required in import modal in dashboard
+
 ## 0.14.0
 
 ### Minor Changes
