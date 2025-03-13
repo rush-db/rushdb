@@ -4,7 +4,8 @@ import type {
   FlattenTypes,
   InferSchemaTypesRead,
   InferSchemaTypesWrite,
-  MaybeArray
+  MaybeArray,
+  PropertyDraft
 } from '../types/index.js'
 import type {
   DBRecord,
@@ -17,22 +18,25 @@ import type {
 import type { Transaction } from './transaction.js'
 
 import { RestApiProxy } from '../api/rest-api-proxy.js'
-import { isEmptyObject } from '../common/utils.js'
+import { isArray, isEmptyObject } from '../common/utils.js'
 import { EmptyTargetError, UniquenessError } from './errors.js'
 import { mergeDefaultsWithPayload, pickUniqFieldsFromRecord, pickUniqFieldsFromRecords } from './utils.js'
 
 type RushDBInstance = {
   registerModel(model: Model): void
+  toInstance<S extends Schema = Schema>(record: DBRecord<S>): DBRecordInstance<S, SearchQuery<S>>
 }
 
 export class Model<S extends Schema = any> extends RestApiProxy {
   public readonly label: string
   public readonly schema: S
+  private readonly rushDBInstance?: RushDBInstance
 
   constructor(modelName: string, schema: S, RushDBInstance?: RushDBInstance) {
     super()
     this.label = modelName
     this.schema = schema
+    this.rushDBInstance = RushDBInstance
 
     RushDBInstance?.registerModel(this)
   }
@@ -67,8 +71,16 @@ export class Model<S extends Schema = any> extends RestApiProxy {
    */
   readonly recordsArrayInstance!: DBRecordsArrayInstance<S>
 
-  getLabel() {
+  public getLabel() {
     return this.label
+  }
+
+  public toInstance(record: DBRecord<S>) {
+    if (this.rushDBInstance) {
+      return this.rushDBInstance.toInstance(record)
+    } else {
+      throw new Error('No RushDB instance was provided during model initialization.')
+    }
   }
 
   async find<Q extends SearchQuery<S> = SearchQuery<S>>(
@@ -164,10 +176,15 @@ export class Model<S extends Schema = any> extends RestApiProxy {
 
   private async handleSetOrUpdate(
     id: string,
-    record: Partial<InferSchemaTypesWrite<S>>,
+    record: Partial<InferSchemaTypesWrite<S>> | PropertyDraft[],
     method: 'set' | 'update',
     transaction?: Transaction | string
   ) {
+    // Consider Array as PropertyDraft[]
+    if (isArray(record)) {
+      return // @TODO
+    }
+
     const data = await mergeDefaultsWithPayload<S>(this.schema, record)
     const uniqFields = pickUniqFieldsFromRecord(this.schema, data)
 
@@ -198,11 +215,19 @@ export class Model<S extends Schema = any> extends RestApiProxy {
     return await this.apiProxy.records[method]<S>(id, data, transaction)
   }
 
-  async set(id: string, record: InferSchemaTypesWrite<S>, transaction?: Transaction | string) {
+  async set(
+    id: string,
+    record: InferSchemaTypesWrite<S> | PropertyDraft[],
+    transaction?: Transaction | string
+  ) {
     return await this.handleSetOrUpdate(id, record, 'set', transaction)
   }
 
-  async update(id: string, record: Partial<InferSchemaTypesWrite<S>>, transaction?: Transaction | string) {
+  async update(
+    id: string,
+    record: Partial<InferSchemaTypesWrite<S>> | PropertyDraft[],
+    transaction?: Transaction | string
+  ) {
     return await this.handleSetOrUpdate(id, record, 'update', transaction)
   }
 

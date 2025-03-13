@@ -134,7 +134,7 @@ export class EntityService {
     })
 
     return {
-      message: `Record ${id} and all nested Records and Files were successfully deleted`
+      message: `Record ${id} was successfully deleted`
     }
   }
 
@@ -375,7 +375,7 @@ export class EntityService {
     })
 
     return {
-      message: `Record were successfully deleted`
+      message: `Records were successfully deleted`
     }
   }
 }

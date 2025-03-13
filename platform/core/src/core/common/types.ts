@@ -9,8 +9,6 @@ export type RequireAtLeastOne<T> = {
 
 export type MaybeArray<T> = Array<T> | T
 
-export type FlatObject = Record<string, boolean | null | number | string | undefined>
-
 export type Schema = Record<
   string,
   {
@@ -54,12 +52,28 @@ export type StringExpression =
     >
   | StringValue
 
+// VECTOR
+export type TVectorSearchFn = 'jaccard' | 'overlap' | 'cosine' | 'pearson' | 'euclideanDistance' | 'euclidean'
+// Value range                [0,1]     | [0,1]     | [-1,1]   | [-1,1]    | [0, Infinity)       | (0, 1]
+
+export type VectorExpression = RequireAtLeastOne<
+  Record<
+    '$vector',
+    {
+      fn: TVectorSearchFn
+      value: number[]
+      query: number | RequireAtLeastOne<Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number>>
+    }
+  >
+>
+
 export type PropertyExpression =
   | BooleanExpression
   | DatetimeExpression
   | NullExpression
   | NumberExpression
   | StringExpression
+  | VectorExpression
 
 export type PropertyExpressionByType = {
   boolean: BooleanExpression
@@ -67,6 +81,7 @@ export type PropertyExpressionByType = {
   null: NullExpression
   number: NumberExpression
   string: StringExpression
+  vector: VectorExpression
 }
 
 export type LogicalGrouping<T> = {
@@ -130,13 +145,13 @@ type ObjectBasedExpression<T> =
   : T extends null ? MaybeLogicalExpression<NullExpression>
   : LogicalExpression | Partial<PropertyExpression & Related>
 
-export type Condition<T extends FlatObject | Schema = Schema> =
+export type Condition<T extends Schema = Schema> =
   | {
       [K in keyof T]?: SchemaBasedExpression<T> | ObjectBasedExpression<T[K]>
     }
   | { $id?: MaybeLogicalExpression<StringExpression> }
 
-export type Where<T extends FlatObject | Schema = Schema> = (Condition<T> & Related) &
+export type Where<T extends Schema = Schema> = (Condition<T> & Related) &
   Partial<LogicalGrouping<Condition<T> & Related>>
 
 export type AggregateCollectFn = {

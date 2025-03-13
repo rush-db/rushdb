@@ -1,11 +1,10 @@
-import { TAnyObject, TReplace } from '@/common/types/utils'
-import { TPropertyProperties } from '@/core/property/model/property.interface'
 import {
   PROPERTY_TYPE_BOOLEAN,
   PROPERTY_TYPE_DATETIME,
   PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_STRING
+  PROPERTY_TYPE_STRING,
+  PROPERTY_TYPE_VECTOR
 } from '@/core/property/property.constants'
 
 export type TPropertyType =
@@ -14,6 +13,7 @@ export type TPropertyType =
   | typeof PROPERTY_TYPE_BOOLEAN
   | typeof PROPERTY_TYPE_NUMBER
   | typeof PROPERTY_TYPE_NULL
+  | typeof PROPERTY_TYPE_VECTOR
 
 export type DatetimeObject = {
   $day?: number
@@ -31,7 +31,9 @@ export type TPropertyPrimitiveValue = string | number | boolean | null
 export type TPropertyDatetimeValue = DatetimeObject | string
 
 export type TPropertySingleValue<TType extends TPropertyType = TPropertyType> =
-  TType extends typeof PROPERTY_TYPE_DATETIME ? TPropertyDatetimeValue : TPropertyPrimitiveValue
+  TType extends typeof PROPERTY_TYPE_DATETIME ? TPropertyDatetimeValue
+  : TType extends typeof PROPERTY_TYPE_VECTOR ? number[]
+  : TPropertyPrimitiveValue
 
 export type TPropertyMultipleValue<TType extends TPropertyType = TPropertyType> = Array<
   TPropertySingleValue<TType>
@@ -40,11 +42,3 @@ export type TPropertyMultipleValue<TType extends TPropertyType = TPropertyType> 
 export type TPropertyValue<TType extends TPropertyType = TPropertyType> =
   | TPropertySingleValue<TType>
   | TPropertyMultipleValue<TType>
-
-export type TFieldResponse = {
-  data: TReplace<
-    TPropertyProperties,
-    'metadata',
-    TAnyObject & { values: TPropertyMultipleValue; min: number; max: number }
-  >
-}

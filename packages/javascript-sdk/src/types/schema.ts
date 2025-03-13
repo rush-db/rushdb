@@ -20,6 +20,7 @@ type TypeMappingWrite = {
   null: null
   number: number
   string: string
+  vector: number[]
 }
 
 export type OptionalKeysWrite<S extends Schema = Schema> = {
@@ -51,6 +52,7 @@ type TypeMappingRead = {
   null: null
   number: number
   string: string
+  vector: number[]
 }
 
 export type OptionalKeysRead<S extends Schema = Schema> = {

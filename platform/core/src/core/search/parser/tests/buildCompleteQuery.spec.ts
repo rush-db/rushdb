@@ -273,7 +273,7 @@ const r3 = `MATCH (record:__RUSHDB__LABEL__RECORD__:COMPANY { __RUSHDB__KEY__PRO
 WHERE (any(value IN record.tag WHERE value = "top-sellers")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
 OPTIONAL MATCH (record)<-[:AUTHORED]-(record1:AUTHOR) WHERE ((any(value IN record1.name WHERE value STARTS WITH "Jack") AND any(value IN record1.name WHERE value ENDS WITH "Rooney") OR any(value IN record1.name WHERE apoc.convert.fromJsonMap(\`record1\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`name\` = "datetime" AND datetime(value) = datetime({year: 1984}))))
 OPTIONAL MATCH (record)--(record2:POST) WHERE (any(value IN record2.created WHERE apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`created\` = "datetime" AND datetime(value) = datetime({year: 2011, month: 11, day: 11}))) AND (((any(value IN record2.rating WHERE value > 4.5) AND any(value IN record2.rating WHERE value < 6)) OR any(value IN record2.rating WHERE value <> 3) OR (NOT(any(value IN record2.rating WHERE value >= 4))))) AND (any(value IN record2.title WHERE value <> "Forest"))
-OPTIONAL MATCH (record2)-[:COMMENT_TO_POST]->(record3:COMMENT) WHERE (any(value IN record3.authoredBy WHERE value =~ '(?i).*Sam.*'))
+OPTIONAL MATCH (record2)-[:COMMENT_TO_POST]->(record3:COMMENT) WHERE (any(value IN record3.authoredBy WHERE value =~ "(?i).*Sam.*"))
 OPTIONAL MATCH (record2)--(record4:CAR) WHERE (any(value IN record4.color WHERE value = "red"))
 OPTIONAL MATCH (record4)--(record5:SPOUSE) WHERE (any(value IN record5.gender WHERE value = "male"))
 OPTIONAL MATCH (record2)--(record6:JOB) WHERE (any(value IN record6.title WHERE value = "Manager"))
@@ -381,6 +381,29 @@ WITH record, record1
 WHERE record IS NOT NULL AND record1 IS NOT NULL
 RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departmentId\`: record1.\`__RUSHDB__KEY__ID__\`}) AS records`
 
+const q9 = {
+  where: {
+    emb: {
+      $vector: {
+        fn: 'cosine',
+        value: [1, 2, 3, 4, 5],
+        query: {
+          $gte: 0.5,
+          $lte: 0.8,
+          $ne: 0.75
+        }
+      }
+    }
+  }
+}
+
+const r9 = `MATCH (record:__RUSHDB__LABEL__RECORD__:COMPANY { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:departments)
+WITH record, record1
+WHERE record IS NOT NULL AND record1 IS NOT NULL
+RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departmentId\`: record1.\`__RUSHDB__KEY__ID__\`}) AS records`
+
 describe('build complete query', () => {
   it('0', () => {
     const result = buildQ({ searchParams: q0 })
@@ -434,5 +457,11 @@ describe('build complete query', () => {
     const result = buildQ({ searchParams: q8 })
 
     expect(result).toEqual(r8)
+  })
+
+  it('9', () => {
+    const result = buildQ({ searchParams: q9 })
+
+    expect(result).toEqual(r9)
   })
 })

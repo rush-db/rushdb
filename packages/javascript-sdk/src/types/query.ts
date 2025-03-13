@@ -97,6 +97,7 @@ export type AggregateCollectNestedFn = Omit<AggregateCollectFn, 'field'> & {
   aggregate?: { [field: string]: AggregateCollectNestedFn }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export type AggregateFn<S extends Schema = Schema> =
   | { alias: string; field: string; fn: 'avg'; precision?: number }
   | { alias: string; field: string; fn: 'max' }
@@ -153,5 +154,5 @@ export type SearchQuery<S extends Schema = any> = SearchQueryLabelsClause &
   AggregateClause
 
 /** Redeclare Models type in order to have suggestions over related records fields **/
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface Models {}

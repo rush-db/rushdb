@@ -1,3 +1,13 @@
-import { comparisonOperators, datetimeOperators, logicalOperators } from '@/core/search/search.constants'
+import {
+  comparisonOperators,
+  datetimeOperators,
+  logicalOperators,
+  vectorOperators
+} from '@/core/search/search.constants'
 
-export const allowedKeys = [...comparisonOperators, ...datetimeOperators, ...logicalOperators]
+export const allowedKeys = [
+  ...comparisonOperators,
+  ...datetimeOperators,
+  ...logicalOperators,
+  ...vectorOperators
+]

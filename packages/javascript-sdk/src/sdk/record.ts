@@ -6,9 +6,7 @@ import type {
   InferSchemaTypesWrite,
   MaybeArray,
   OptionalKeysRead,
-  PropertyType,
-  PropertyValue,
-  PropertyWithValue,
+  PropertyDraft,
   RequiredKeysRead,
   Schema,
   SearchQuery
@@ -107,25 +105,14 @@ export class DBRecordsBatchDraft {
 
 export class DBRecordDraft {
   label: string
-  properties?: Array<{
-    metadata?: string
-    name: string
-    type: PropertyType
-    value: PropertyValue
-    valueSeparator?: string
-  }>
+  properties?: PropertyDraft[]
 
   constructor({
     label,
     properties = []
   }: {
     label: string
-    properties?: Array<
-      PropertyWithValue & {
-        metadata?: string
-        valueSeparator?: string
-      }
-    >
+    properties?: PropertyDraft[]
     relation?: RelationOptions
   }) {
     this.label = label
