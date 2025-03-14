@@ -9,45 +9,52 @@ The `SearchQueryLogicalGrouping` type is used to define logical groupings for co
 ### Type Definition
 ```typescript
 type SearchQueryLogicalGrouping<T extends FlatObject | Schema = Schema> =
-  Record<'$AND' | '$NOT' | '$OR' | '$XOR', Enumerable<SearchQueryCondition<T>>>;
+  Record<'$and' | '$or' | "$not" | "$nor" |'$xor', Enumerable<SearchQueryCondition<T>>>;
 ```
 
 ### Properties
 
-#### $AND
+#### $and
 
 - **Type:** `SearchQueryCondition[]`
 - **Optional:** Yes
 
 Combines multiple conditions using a logical AND.
 
-#### $OR
+#### $or
 
 - **Type:** `SearchQueryCondition[]`
 - **Optional:** Yes
 
 Combines multiple conditions using a logical OR.
 
-#### $NOT
+#### $not
 
 - **Type:** `SearchQueryCondition[]`
 - **Optional:** Yes
 
 Negates the combined conditions.
 
-#### $XOR
+#### $xor
 
 - **Type:** `SearchQueryCondition[]`
 - **Optional:** Yes
 
 Combines multiple conditions using a logical XOR.
 
+#### $not
+
+- **Type**: `SearchQueryCondition[]`
+- **Optional**: Yes
+- 
+Combines multiple conditions using a logical NOR, meaning the results must not match any of the provided conditions.
+
 ### Example Usage
 
 Here is an example of how to use logical groupings in a query:
 ```typescript
 const queryWhere: SearchQueryWhere<typeof AuthorSchema> = {
-  $AND: [
+  $or: [
     { age: { $gt: 25 } },
     { name: { $startsWith: 'A' } }
   ]

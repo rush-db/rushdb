@@ -44,7 +44,7 @@ type CollectWhereValue = BooleanValue | DatetimeValue | NullValue | NumberValue 
 - **Type:** `SearchQueryLogicalGrouping`
 - **Optional:** Yes
 
-Defines logical groupings (`$AND`, `$OR`, `$NOT`, `$XOR`) for combining multiple conditions.
+Defines logical groupings (`$and`, `$or`, `$not`, `$nor`, `$xor`) for combining multiple conditions.
 
 #### Field Conditions
 
@@ -58,7 +58,7 @@ Defines the conditions for individual fields based on their types.
 Here is an example of how to define filtering conditions using `SearchQueryWhere`:
 ```typescript
 const queryWhere: SearchQueryWhere<typeof AuthorSchema> = {
-  $AND: [
+  $and: [
     { age: { $gt: 25 } },
     { name: { $startsWith: 'A' } }
   ]

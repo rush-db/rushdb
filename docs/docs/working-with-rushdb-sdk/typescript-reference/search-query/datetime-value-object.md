@@ -11,22 +11,22 @@ The `DatetimeValue` type is used to define conditions for datetime fields in a q
 type DatetimeValue =
   | DatetimeObject
   | RequireAtLeastOne<
-      Record<'$gt' | '$gte' | '$lt' | '$lte' | '$not', DatetimeObject | string> &
-        Record<'$in' | '$notIn', Array<DatetimeObject | string>>
+      Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', DatetimeObject | string> &
+        Record<'$in' | '$nin', Array<DatetimeObject | string>>
     >
   | string;
 ```
 
 ### Properties
 
-#### $gt, $gte, $lt, $lte, $not
+#### $gt, $gte, $lt, $lte, $ne
 
 - **Type:** `string | DatetimeObject`
 - **Optional:** Yes
 
 Defines greater than, greater than or equal to, less than, less than or equal to, and not conditions for datetime fields.
 
-#### $in, $notIn
+#### $in, $nin
 
 - **Type:** `Array<string | DatetimeObject>`
 - **Optional:** Yes

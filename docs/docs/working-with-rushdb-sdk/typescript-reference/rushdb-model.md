@@ -3,206 +3,194 @@ sidebar_position: 2
 ---
 # Model
 
-The `Model` class represents a data model in the RushDB SDK. It provides methods for performing CRUD operations, managing relationships, and validating records according to a defined schema.
+The `Model` class in the RushDB SDK represents a data model and provides methods for performing CRUD operations, managing relationships, and validating records based on a defined schema. It is a central component for interacting with records in RushDB.
 
-### Type Definition
+## Type Definition
 ```typescript
-class Model<S extends Schema = Schema, R extends Relations = Relations> extends RestApiProxy {
-  private readonly label: string;
-  public schema: S;
-  public relationships: R;
-  private validator?: Validator;
+class Model<S extends Schema = any> extends RestApiProxy {
+  public readonly label: string;
+  public readonly schema: S;
 
-  constructor(modelName: string, schema: S, relationships: R = {} as R) {
+  /** @description
+   * Type helper for a draft version of the schema.
+   */
+  readonly draft!: InferType<Model<S>>;
+
+  /** @description
+   * Type helper for a fully-defined record with database representation.
+   */
+  readonly record!: DBRecord<S>;
+
+  /** @description
+   * Type helper for a single record instance.
+   */
+  readonly recordInstance!: DBRecordInstance<S>;
+
+  /** @description
+   * Type helper for an array of record instances.
+   */
+  readonly recordsArrayInstance!: DBRecordsArrayInstance<S>;
+
+  constructor(modelName: string, schema: S, RushDBInstance?: RushDBInstance) {
     super();
     this.label = modelName;
     this.schema = schema;
-    this.relationships = relationships;
+
+    RushDBInstance?.registerModel(this);
   }
 }
 ```
 
-### Constructor Parameters
+## Constructor Parameters
 
-#### modelName
-
+### `modelName`
 - **Type:** `string`
 - **Required:** Yes
 
-A unique string identifier for the model. It's used to reference the model within the SDK and to associate records with their corresponding model type in the database.
+A unique string identifier for the model. It is used to reference the model within the SDK and associate records with their corresponding model type in the database.
 
-#### schema
-
+### `schema`
 - **Type:** `Schema`
 - **Required:** Yes
 
-The schema definition based on `Schema`, which dictates the structure and rules of the data stored.
+Defines the structure and rules of the data stored in the model. The schema ensures that records adhere to predefined constraints.
 
-#### relationships
-
-- **Type:** `Relations`
+### `RushDBInstance`
+- **Type:** `RushDBInstance`
 - **Optional:** Yes
 
-Defines how this model relates to other models, which is essential for establishing connections between different data types.
+An optional instance of `RushDBInstance`. If provided, the model will be automatically registered within the RushDB instance, enabling centralized model management.
 
-### Methods
+## Methods
 
-#### find
-
+### `find`
 Finds multiple records based on specified query parameters.
-
-**Signature:**
 ```typescript
 find(params?: SearchQuery<S> & { labels?: never }, transaction?: Transaction | string): Promise<DBRecordsArrayInstance<S>>;
 ```
 
-#### findOne
-
+### `findOne`
 Finds a single record based on specified query parameters.
-
-**Signature:**
 ```typescript
 findOne(params?: SearchQuery<S> & { labels?: never }, transaction?: Transaction | string): Promise<DBRecordInstance<S>>;
 ```
 
-#### findById
-
+### `findById`
 Finds a single record by its ID.
-
-**Signature:**
 ```typescript
 findById(id: string, transaction?: Transaction | string): Promise<DBRecordInstance<S>>;
 ```
 
-#### create
-
-Creates a single record.
-
-**Signature:**
+### `findUniq`
+Finds a unique record based on specified query parameters.
 ```typescript
-create(record: InferSchemaTypesWrite<S>, transaction?: Transaction | string, options?: { validate: boolean }): Promise<DBRecordInstance<InferSchemaTypesWrite<S>>>;
+findUniq(params?: SearchQuery<S> & { labels?: never }, transaction?: Transaction | string): Promise<DBRecordInstance<S>>;
 ```
 
-#### attach
+### `create`
+Creates a single record.
+```typescript
+create(record: InferSchemaTypesWrite<S>, transaction?: Transaction | string): Promise<DBRecordInstance<InferSchemaTypesWrite<S>>>;
+```
 
+### `set`
+Sets the fields of a record by its ID.
+```typescript
+set(id: string, record: InferSchemaTypesWrite<S>, transaction?: Transaction | string): Promise<DBRecordInstance<S>>;
+```
+
+### `update`
+Updates specific fields of a record by its ID.
+```typescript
+update(id: string, record: Partial<InferSchemaTypesWrite<S>>, transaction?: Transaction | string): Promise<DBRecordInstance<S>>;
+```
+
+### `attach`
 Attaches a target record to the source record.
-
-**Signature:**
 ```typescript
 attach(sourceId: string, target: RelationTarget, transaction?: Transaction | string): Promise<ApiResponse<{ message: string }>>;
 ```
 
-#### detach
-
+### `detach`
 Detaches a target record from the source record.
-
-**Signature:**
 ```typescript
 detach(sourceId: string, target: RelationTarget, transaction?: Transaction | string): Promise<ApiResponse<{ message: string }>>;
 ```
 
-#### updateById
-
-Updates a single record by its ID.
-
-**Signature:**
-```typescript
-updateById(id: string, record: InferSchemaTypesWrite<S>, transaction?: Transaction | string, options?: { validate: boolean }): Promise<DBRecordInstance<S>>;
-```
-
-#### createMany
-
+### `createMany`
 Creates multiple records in a single operation.
-
-**Signature:**
 ```typescript
-createMany(records: InferSchemaTypesWrite<S>[], transaction?: Transaction | string, options?: { validate: boolean }): Promise<DBRecordsArrayInstance<S>>;
+createMany(records: InferSchemaTypesWrite<S>[], transaction?: Transaction | string): Promise<DBRecordsArrayInstance<S>>;
 ```
 
-#### delete
-
+### `delete`
 Deletes multiple records based on specified query parameters.
-
-**Signature:**
 ```typescript
 delete<T extends InferSchemaTypesWrite<S> = InferSchemaTypesWrite<S>>(params?: Omit<SearchQuery<T>, 'labels'>, transaction?: Transaction | string): Promise<ApiResponse<{ message: string }>>;
 ```
 
-#### validate
-
-Validates a record according to the schema rules.
-
-**Signature:**
+### `deleteById`
+Deletes a single record or multiple records by their ID(s).
 ```typescript
-validate(data: InferSchemaTypesWrite<S>): Promise<unknown>;
+deleteById(idOrIds: MaybeArray<string>, transaction?: Transaction | string): Promise<ApiResponse<{ message: string }>>;
 ```
 
-### Example Usage
+## Example Usage
+
+Creating and Updating Records
 ```typescript
-const Author = new Model('author', {
-  name: { type: 'string' },
-  email: { type: 'string', uniq: true }
-});
+import RushDB, { Model } from '@rushdb/javascript-sdk'
 
-// Find multiple records
-Author.find({ where: { name: { $contains: 'Doe' } } }).then(records => {
-  console.log(records.data);
-  // Expected output: Array of authors with name containing 'Doe'
-});
+const db = new RushDB('API_TOKEN')
 
-// Find one record
-Author.findOne({ where: { email: 'john.doe@example.com' } }).then(record => {
-  console.log(record.data);
-  // Expected output: Single author record with email 'john.doe@example.com'
-});
+const Author = new Model(
+  'AUTHOR', 
+  {
+    name: { type: 'string' },
+    email: { type: 'string', uniq: true }
+  },
+  db
+);
 
-// Find by ID
-Author.findById('some-id').then(record => {
-  console.log(record.data);
-  // Expected output: Author record with the specified ID
-});
+// Create a new author
+const newAuthor = await Author.create({ name: 'John Doe', email: 'john.doe@example.com' });
+console.log(newAuthor.data);
 
-// Create a record
-Author.create({ name: 'John Doe', email: 'john.doe@example.com' }).then(record => {
-  console.log(record.data);
-  // Expected output: Newly created author record
-});
-
-// Attach a related record
-const Blog = new Model('blog', {
-  title: { type: 'string' },
-  description: { type: 'string' }
-});
-
-Author.attach('author-id', { model: 'blog', __id: 'blog-id' }).then(response => {
-  console.log(response.message);
-  // Expected output: "Attached successfully" or similar message
-});
-
-// Detach a related record
-Author.detach('author-id', { model: 'blog', __id: 'blog-id' }).then(response => {
-  console.log(response.message);
-  // Expected output: "Detached successfully" or similar message
-});
-
-// Update a record by ID
-Author.updateById('some-id', { name: 'John Smith' }).then(record => {
-  console.log(record.data);
-  // Expected output: Updated author record with name 'John Smith'
-});
-
-// Create multiple records
-Author.createMany([
-  { name: 'John Doe', email: 'john.doe@example.com' },
-  { name: 'Jane Doe', email: 'jane.doe@example.com' }
-]).then(records => {
-  console.log(records.data);
-  // Expected output: Array of newly created author records
-});
-
-// Delete records
-Author.delete({ where: { name: { $contains: 'Doe' } } }).then(response => {
-  console.log(response.message);
-  // Expected output: "Deleted successfully" or similar message
-});
+// Update the author's email
+await Author.update(newAuthor.id, { email: 'john.doe@newmail.com' })
 ```
+
+Attaching and Detaching Related Records
+```typescript
+const Blog = new Model(
+  'blog', 
+  {
+    title: { type: 'string' },
+    description: { type: 'string' }
+  },
+  db
+);
+
+// Create new Blog
+const newBlog = await Blog.create({ title: 'DS/ML Times', description: '...' });
+
+// Attach a blog to an author
+await Author.attach(newAuthor.id, newBlog);
+
+// Detach the blog from the author
+await Author.detach(newAuthor.id, newBlog);
+```
+
+Deleting Records
+```typescript
+// Delete an author by ID
+await Author.deleteById(newAuthor.id);
+```
+
+## Additional Notes
+
+- **Transaction Handling:** Many methods (e.g., `create`, `set`, `update`, `delete`) support transactions, allowing you to commit or roll back operations as needed.
+- **Schema Validation:** The schema is automatically validated when creating or updating records to ensure compliance with predefined rules.
+- **Error Handling:** Errors like `UniquenessError` are thrown when attempting to create or update records with duplicate values for unique fields.
+
+This documentation is generated based on the actual implementation in `model.ts`, ensuring accuracy and completeness.
