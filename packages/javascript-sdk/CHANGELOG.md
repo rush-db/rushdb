@@ -1,5 +1,12 @@
 # @rushdb/javascript-sdk
 
+## 0.15.0
+
+### Minor Changes
+
+- 6aa0dca: Update docs
+- bcdf10d: Add llms.txt and llms-full.txt to docs generation
+
 ## 0.14.1
 
 ### Patch Changes
