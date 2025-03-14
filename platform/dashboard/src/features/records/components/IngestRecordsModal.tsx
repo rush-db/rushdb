@@ -73,16 +73,22 @@ function EditorStep() {
   const [suggestTypes, setSuggestTypes] = useState(true)
   const label = useStore($label)
 
+  const [error, setError] = useState<string | undefined>()
+
   return (
     <>
       <TextField
         caption="Specify a Label for the top-level Record(s) parsed from this JSON"
         className="mt-5"
         required={true}
-        label="Label"
-        onChange={(event: { target: { value: string } }) => $label.set(event.target.value)}
+        label="Label *"
+        onChange={(event: { target: { value: string } }) => {
+          setError(undefined)
+          $label.set(event.target.value)
+        }}
         size="small"
         value={label}
+        error={error}
       />
       <div className="flex gap-5">
         <CheckboxField
@@ -126,6 +132,10 @@ function EditorStep() {
         </Button>
         <Button
           onClick={() => {
+            if (!label) {
+              setError('Label is required')
+              return
+            }
             mutate({
               payload: JSON.parse($editorData.get()),
               label,

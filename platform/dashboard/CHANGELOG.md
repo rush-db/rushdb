@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.14.1
+
+### Patch Changes
+
+- 7bfd0aa: Make label field required in import modal in dashboard
+- Updated dependencies [7bfd0aa]
+  - @rushdb/javascript-sdk@0.14.1
+
 ## 0.14.0
 
 ### Minor Changes
