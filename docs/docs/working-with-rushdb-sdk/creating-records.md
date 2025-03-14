@@ -29,8 +29,7 @@ The `create` method is used to create a single record.
 ```typescript
 create(
   record: InferSchemaTypesWrite<S>,
-  transaction?: Transaction | string,
-  options?: { validate: boolean }
+  transaction?: Transaction | string
 ): Promise<DBRecordInstance<InferSchemaTypesWrite<S>>>;
 ```
 
@@ -38,7 +37,6 @@ create(
 
 - `record`: An object that adheres to the schema defined for the model.
 - `transaction` (optional): A transaction object or string to include the operation within a transaction.
-- `options` (optional): An object to specify additional options, such as whether to validate the record before creating it.
 
 **Returns:**
 
@@ -106,8 +104,7 @@ The `createMany` method is used to create multiple records in a single operation
 ```typescript
 createMany(
   records: InferSchemaTypesWrite<S>[],
-  transaction?: Transaction | string,
-  options?: { validate: boolean }
+  transaction?: Transaction | string
 ): Promise<DBRecordsArrayInstance<S>>;
 ```
 
@@ -115,7 +112,6 @@ createMany(
 
 - `records`: An array of objects, each adhering to the schema defined for the model.
 - `transaction` (optional): A transaction object or string to include the operation within a transaction.
-- `options` (optional): An object to specify additional options, such as whether to validate the records before creating them.
 
 **Returns:**
 

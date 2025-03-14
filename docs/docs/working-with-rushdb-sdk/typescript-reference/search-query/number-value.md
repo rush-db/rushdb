@@ -10,21 +10,21 @@ The `NumberValue` type is used to define conditions for number fields in a query
 ```typescript
 type NumberValue =
   | RequireAtLeastOne<
-      Record<'$gt' | '$gte' | '$lt' | '$lte' | '$not', number> & Record<'$in' | '$notIn', Array<number>>
+      Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number> & Record<'$in' | '$nin', Array<number>>
     >
   | number;
 ```
 
 ### Properties
 
-#### $gt, $gte, $lt, $lte, $not
+#### $gt, $gte, $lt, $lte, $ne
 
 - **Type:** `number`
 - **Optional:** Yes
 
 Defines greater than, greater than or equal to, less than, less than or equal to, and not conditions for number fields.
 
-#### $in, $notIn
+#### $in, $nin
 
 - **Type:** `number[]`
 - **Optional:** Yes

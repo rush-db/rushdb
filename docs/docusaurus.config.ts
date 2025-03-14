@@ -156,7 +156,7 @@ const config: Config = {
 
           // for every single docs route we now parse a path (which is the key) and a title
           const docsRecords = Object.entries(currentVersionDocsRoutes).map(([path, record]) => {
-            return `- [${record.title}](${path}): ${record.description}`
+            return `- [${record.title}](https://docs.rushdb.com/${path}): ${record.description}`
           })
 
           // Build up llms.txt file

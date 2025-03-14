@@ -33,7 +33,7 @@ Finding labels with specific criteria:
 ```typescript
 const labelSearchCriteria = {
   where: {
-    $OR: [
+    $or: [
         {
             name: {
                 $startswith: 'author'
