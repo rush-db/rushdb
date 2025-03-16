@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common'
+import { Global, Module, DynamicModule, Provider } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { APP_INTERCEPTOR } from '@nestjs/core'
 import { ServeStaticModule } from '@nestjs/serve-static'
@@ -19,6 +19,24 @@ import { DatabaseModule } from '@/database/database.module'
 
 import { join } from 'path'
 
+let internalModule: DynamicModule | null = null
+let internalServiceProvider: Provider | null = null
+
+if (process.env.RUSHDB_SELF_HOSTED === 'false') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { InternalModule, InternalService } = require('@rush-db/core-internal-module')
+
+    internalModule = InternalModule
+    internalServiceProvider = {
+      provide: 'INTERNAL_SERVICE',
+      useClass: InternalService
+    }
+  } catch (error) {
+    console.warn('Warning: @rush-db/core-internal-module is not available. Running without it.')
+  }
+}
+
 @Global()
 @Module({
   imports: [
@@ -38,6 +56,7 @@ import { join } from 'path'
         })
       ]
     : []),
+    ...(internalModule ? [internalModule] : []),
     ConsoleModule,
     BackupModule
   ],
@@ -47,7 +66,8 @@ import { join } from 'path'
       provide: APP_INTERCEPTOR,
       useClass: ExcludeNullInterceptor
     },
-    CliService
+    CliService,
+    ...(internalServiceProvider ? [internalServiceProvider] : [])
   ],
   controllers: [
     ...(!toBoolean(process.env.RUSHDB_SERVE_STATIC) ? [AppController] : []),
