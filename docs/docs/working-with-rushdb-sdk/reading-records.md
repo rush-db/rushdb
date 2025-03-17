@@ -140,7 +140,7 @@ console.log(author);
 ```typescript
 const author = await Author.findOne({
   where: {
-    $AND: [{ name: { $startsWith: 'Jane' } }, { email: { $contains: '@example.com' } }]
+    $and: [{ name: { $startsWith: 'Jane' } }, { email: { $contains: '@example.com' } }]
   },
   transaction
 });
@@ -263,7 +263,7 @@ try {
   // Step 3: Find the created Post using a complex where condition
   const posts = await PostRepo.find({
     where: {
-      $AND: [
+      $and: [
         { created: { $gte: '2023-01-01T00:00:00Z' } },
         { rating: { $gte: 4 } }
       ]

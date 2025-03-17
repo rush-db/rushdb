@@ -9,21 +9,20 @@ Updating records is a crucial operation for maintaining and modifying data withi
 
 ## Table of Contents
 
-- [Updating a Single Record](#updatebyid)
+- [Updating a Single Record](#update)
 - [Updating Multiple Records](#updating-multiple-records)
 - [Updating Records in a Transaction](#complex-example-with-transactions)
 
-### `updateById`
+### `update`
 
-The `updateById` method is used to update a single record by its ID.
+The `update` method is used to update a single record by its ID.
 
 **Signature:**
 ```typescript
-updateById(
+update(
   id: string,
   record: InferSchemaTypesWrite<S>,
-  transaction?: Transaction | string,
-  options?: { validate: boolean }
+  transaction?: Transaction | string
 ): Promise<DBRecordInstance<S>>;
 ```
 
@@ -42,7 +41,7 @@ updateById(
 
 *Basic Example with Author:*
 ```typescript
-const updatedAuthor = await Author.updateById('author_id', {
+const updatedAuthor = await Author.update('author_id', {
   name: 'John Doe Updated'
 });
 console.log(updatedAuthor);
@@ -62,7 +61,7 @@ console.log(updatedAuthor);
 ```typescript
 const transaction = await db.tx.begin();
 try {
-  const updatedAuthor = await Author.updateById('author_id', {
+  const updatedAuthor = await Author.update('author_id', {
     name: 'Jane Doe Updated'
   }, transaction);
   await transaction.commit();
@@ -85,7 +84,7 @@ try {
 
 *Basic Example with Post:*
 ```typescript
-const updatedPost = await PostRepo.updateById('post_id', {
+const updatedPost = await PostRepo.update('post_id', {
   title: 'Updated Blog Post Title'
 });
 console.log(updatedPost);
@@ -107,7 +106,7 @@ console.log(updatedPost);
 ```typescript
 const transaction = await db.tx.begin();
 try {
-  const updatedPost = await PostRepo.updateById('post_id', {
+  const updatedPost = await PostRepo.update('post_id', {
     title: 'Updated Title in Transaction',
     rating: 5
   }, transaction);
@@ -133,7 +132,7 @@ try {
 
 ### Updating Multiple Records
 
-To update multiple records, you can use a combination of `find` and `updateById`. This involves retrieving the records you want to update, modifying them, and then saving the changes.
+To update multiple records, you can use a combination of `find` and `update`. This involves retrieving the records you want to update, modifying them, and then saving the changes.
 
 **Examples:**
 
@@ -141,7 +140,7 @@ To update multiple records, you can use a combination of `find` and `updateById`
 ```typescript
 const authorsToUpdate = await Author.find({ where: { name: 'John Doe' } });
 for (const author of authorsToUpdate.data) {
-  await Author.updateById(author.__id, { name: 'John Doe Updated' });
+  await Author.update(author.__id, { name: 'John Doe Updated' });
 }
 console.log(authorsToUpdate);
 /*
@@ -170,7 +169,7 @@ const postsToUpdate = await PostRepo.find({ where: { rating: { $lt: 5 } } });
 const transaction = await db.tx.begin();
 try {
   for (const post of postsToUpdate.data) {
-    await PostRepo.updateById(post.__id, { rating: 5 }, transaction);
+    await PostRepo.update(post.__id, { rating: 5 }, transaction);
   }
   await transaction.commit();
   console.log(postsToUpdate);
@@ -219,12 +218,12 @@ In this example, we'll update an `Author` and a `Post` within the same transacti
 const transaction = await db.tx.begin();
 try {
   // Update the author
-  const updatedAuthor = await Author.updateById('author_id', {
+  const updatedAuthor = await Author.update('author_id', {
     name: 'Updated Author Name'
   }, transaction);
 
   // Update the post
-  const updatedPost = await PostRepo.updateById('post_id', {
+  const updatedPost = await PostRepo.update('post_id', {
     title: 'Updated Post Title',
     content: 'Updated content for the post.',
     rating: 4.8

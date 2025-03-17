@@ -10,22 +10,22 @@ The `StringValue` type is used to define conditions for string fields in a query
 ```typescript
 type StringValue =
   | RequireAtLeastOne<
-      Record<'$contains' | '$endsWith' | '$not' | '$startsWith', string> &
-        Record<'$in' | '$notIn', Array<string>>
+      Record<'$contains' | '$endsWith' | '$ne' | '$startsWith', string> &
+        Record<'$in' | '$nin', Array<string>>
     >
   | string;
 ```
 
 ### Properties
 
-#### $contains, $endsWith, $not, $startsWith
+#### $contains, $endsWith, $ne, $startsWith
 
 - **Type:** `string`
 - **Optional:** Yes
 
 Defines contains, ends with, not, and starts with conditions for string fields.
 
-#### $in, $notIn
+#### $in, $nin
 
 - **Type:** `string[]`
 - **Optional:** Yes

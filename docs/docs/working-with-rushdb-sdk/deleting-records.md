@@ -96,11 +96,11 @@ try {
 }
 ```
 
-*Deleting Posts with `$OR` Operator:*
+*Deleting Posts with `$or` Operator:*
 ```typescript
 const deleteResponse = await Post.delete({
     where: {
-        $OR: [
+        $or: [
             { __id: 'post_id_1' },
             { __id: 'post_id_2' }
         ]
@@ -119,7 +119,7 @@ console.log(deleteResponse);
 ```typescript
 const deleteResponse = await Post.delete({
   where: {
-    $OR: [
+    $or: [
       { title: { $contains: 'Blog' } },
       { rating: { $gte: 4.5 } },
       { created: { $lt: '2023-01-01T00:00:00Z' } }

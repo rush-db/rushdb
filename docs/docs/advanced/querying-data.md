@@ -13,30 +13,31 @@ In previous sections, you have encountered the `where` condition and various log
     - [$and](#and)
     - [$or](#or)
     - [$not](#not)
+    - [$nor](#nor)
     - [$xor](#xor)
 - [Comparison Operators](#comparison-operators)
     - [Boolean Operators](#boolean-operators)
-        - [$not](#not-1)
+        - [$ne](#ne)
     - [Datetime Operators](#datetime-operators)
         - [$gt](#gt)
         - [$gte](#gte)
         - [$lt](#lt)
         - [$lte](#lte)
         - [$in](#in)
-        - [$notIn](#notin)
+        - [$nin](#nin)
     - [Number Operators](#number-operators)
         - [$gt](#gt-1)
         - [$gte](#gte-1)
         - [$lt](#lt-1)
         - [$lte](#lte-1)
         - [$in](#in-1)
-        - [$notIn](#notin-1)
+        - [$nin](#nin-1)
     - [String Operators](#string-operators)
         - [$contains](#contains)
         - [$endsWith](#endswith)
         - [$startsWith](#startswith)
         - [$in](#in-2)
-        - [$notIn](#notin-2)
+        - [$nin](#nin-2)
 - [Complex examples](#complex-examples)
 
 ## Logical Operators
@@ -121,6 +122,23 @@ const queryWithNot = await db.records.find('author', {
 });
 ```
 
+### $nor
+
+The `$nor` operator is used to combine multiple conditions and returns results that do not match any of the conditions.
+
+##### Examples:
+```typescript
+// Example using $nor
+const queryWithNor = await db.records.find('author', {
+  where: {
+    $nor: [
+      { name: { $startsWith: 'Jane' } },
+      { email: { $contains: '@example.com' } }
+    ]
+  }
+});
+```
+
 ### $xor
 
 The `$xor` operator (exclusive OR) combines multiple conditions and returns results that match one and only one of the conditions.
@@ -144,16 +162,16 @@ Comparison operators are used to filter records based on specific field values.
 
 ### Boolean Operators
 
-#### $not
+#### $ne
 
-The `$not` operator checks if a field is not equal to a specified value. This operator is implicitly used when specifying field values directly.
+The `$ne` operator checks if a field is not equal to a specified value. This operator is implicitly used when specifying field values directly.
 
 ##### Examples:
 ```typescript
 const queryNotFalse = await db.records.find('author', {
   where: {
     email: { $startsWith: '' },
-    married: { $not: false }
+    married: { $ne: false }
   }
 });
 ```
@@ -224,29 +242,29 @@ const queryWithLteDatetimeObject = await db.records.find('post', {
 });
 ```
 
-#### $not
+#### $ne
 
-The `$not` operator is used to find records where the datetime field does not match the specified value.
+The `$ne` operator is used to find records where the datetime field does not match the specified value.
 
 ##### Examples:
 ```typescript
 const queryNotDatetime = await db.records.find('post', {
   where: {
-    created: { $not: '2023-01-01T00:00:00Z' }
+    created: { $ne: '2023-01-01T00:00:00Z' }
   }
 });
 // Finds posts not created on January 1, 2023, 00:00:00 UTC
 ```
 
-#### $notIn
+#### $nin
 
-The `$notIn` operator is used to find records where the datetime field does not match any value in the specified array.
+The `$nin` operator is used to find records where the datetime field does not match any value in the specified array.
 
 ##### Examples:
 ```typescript
 const queryNotInDatetime = await db.records.find('post', {
   where: {
-    created: { $notIn: [
+    created: { $nin: [
       { $year: 2023, $month: 1, $day: 1 },
       { $year: 2023, $month: 2, $day: 1 }
     ]}
@@ -345,16 +363,16 @@ const queryWithInNumbers = await db.records.find('author', {
 });
 ```
 
-#### $notIn
+#### $nin
 
-The `$notIn` operator checks if a field's value is not within a specified array of values.
+The `$nin` operator checks if a field's value is not within a specified array of values.
 
 ##### Examples:
 ```typescript
-// Example using $notIn (numbers)
+// Example using $nin (numbers)
 const queryWithNotInNumbers = await db.records.find('author', {
   where: {
-    age: { $notIn: [25, 30, 35] }
+    age: { $nin: [25, 30, 35] }
   }
 });
 ```
@@ -430,16 +448,16 @@ const queryWithInStrings = await db.records.find('author', {
 });
 ```
 
-#### $notIn
+#### $nin
 
-The `$notIn` operator checks if a field's value is not within a specified array of values.
+The `$nin` operator checks if a field's value is not within a specified array of values.
 
 ##### Examples:
 ```typescript
-// Example using $notIn (strings)
+// Example using $nin (strings)
 const queryWithNotInStrings = await db.records.find('author', {
   where: {
-    name: { $notIn: ['Jane Doe', 'John Smith'] }
+    name: { $nin: ['Jane Doe', 'John Smith'] }
   }
 });
 ```
@@ -474,11 +492,11 @@ const nestedQuery = await db.records.find('author', {
 });
 ```
 ```typescript
-// Complex example with $not and $notIn
+// Complex example with $ne and $nin
 const queryWithEqAndNotIn = await db.records.find('author', {
   where: {
-    married: { $not: false },
-    age: { $notIn: [20, 25, 30] }
+    married: { $ne: false },
+    age: { $nin: [20, 25, 30] }
   }
 });
 ```
@@ -500,11 +518,11 @@ const queryWithGteDatetime = await db.records.find('post', {
 });
 ```
 ```typescript
-// Complex example with $notIn for string and number
+// Complex example with $nin for string and number
 const queryWithNotInStringNumber = await db.records.find('author', {
   where: {
-    name: { $notIn: ['Jane Doe', 'John Doe'] },
-    age: { $notIn: [30, 40, 50] }
+    name: { $nin: ['Jane Doe', 'John Doe'] },
+    age: { $nin: [30, 40, 50] }
   }
 });
 ```
@@ -518,11 +536,11 @@ const queryWithInStringNumber = await db.records.find('author', {
 });
 ```
 ```typescript
-// Complex example with $not and $notIn
+// Complex example with $ne and $nin
 const queryWithEqAndNotIn = await db.records.find('author', {
     where: {
-        married: { $not: false },
-        age: { $notIn: [20, 25, 30] }
+        married: { $ne: false },
+        age: { $nin: [20, 25, 30] }
     }
 });
 ```

@@ -8,12 +8,12 @@ The `BooleanValue` type is used to define conditions for boolean fields in a que
 
 ### Type Definition
 ```typescript
-type BooleanValue = RequireAtLeastOne<Record<'$not', boolean>> | boolean;
+type BooleanValue = RequireAtLeastOne<Record<'$ne', boolean>> | boolean;
 ```
 
 ### Properties
 
-#### $not
+#### $ne
 
 - **Type:** `boolean`
 - **Optional:** Yes
@@ -25,7 +25,7 @@ Negates the condition.
 Here is an example of how to define conditions for a boolean field:
 ```typescript
 const booleanCondition: BooleanValue = {
-  $not: true
+  $ne: true
 };
 ```
 
