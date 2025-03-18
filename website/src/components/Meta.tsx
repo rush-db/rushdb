@@ -2,9 +2,10 @@ import Head from 'next/head'
 import { useRouter } from 'next/router'
 import { getAbsoluteURL } from '~/utils'
 
-export const defaultTitle = 'Instant Database for Modern Apps'
+export const defaultTitle = 'RushDB – Instant Graph Database for AI & Modern Apps'
 
-export const defaultDescription = 'RushDB is an open-source, graph-powered zero-config database'
+export const defaultDescription =
+  'RushDB is a zero-config, graph-powered database built for AI, SaaS, and ML. Fast queries, seamless scaling, no setup. Try it now!'
 
 export const Meta = ({
   title = defaultTitle,
@@ -15,9 +16,9 @@ export const Meta = ({
   image?: string
   description?: string
 }) => {
-  const titleWithSuffix = `${title} • RushDB`
+  const titleWithSuffix = title === defaultTitle ? defaultTitle : `${title} • RushDB`
 
-  const route = useRouter()
+  const router = useRouter()
 
   return (
     <Head>
@@ -30,7 +31,7 @@ export const Meta = ({
       <meta name="description" content={description} />
 
       {/*Facebook Meta Tags */}
-      <meta property="og:url" content={getAbsoluteURL(route.asPath)} />
+      <meta property="og:url" content={getAbsoluteURL(router.asPath)} />
       <meta property="og:type" content="website" />
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
@@ -39,12 +40,12 @@ export const Meta = ({
       {/* Twitter  Meta Tags */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta property="twitter:domain" content="rushdb.com" />
-      <meta property="twitter:url" content={getAbsoluteURL(route.asPath)} />
+      <meta property="twitter:url" content={getAbsoluteURL(router.asPath)} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={image} />
 
-      <link rel="canonical" href={getAbsoluteURL(route.asPath)} />
+      <link rel="canonical" href={getAbsoluteURL(router.asPath)} />
     </Head>
   )
 }

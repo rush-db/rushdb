@@ -13,6 +13,8 @@ import { getAbsoluteURL } from '~/utils'
 import { Faq } from '~/components/Faq'
 import { CallToAction } from '~/components/CallToAction'
 import remarkGfm from 'remark-gfm'
+import { generateJsonLd } from '~/utils/jsonLd'
+import { useRouter } from 'next/router'
 
 type Props = {
   serializedPost: MDXRemoteSerializeResult
@@ -25,12 +27,22 @@ type Params = {
 }
 
 export default function PostPage({ serializedPost, data, morePosts }: Props) {
+  const router = useRouter()
+
+  const jsonLdData = generateJsonLd('blog', {
+    title: data.title,
+    description: data.description,
+    datePublished: data.date,
+    url: getAbsoluteURL(router.asPath)
+  })
+
   return (
     <Layout title={data.title} description={data.description} image={getAbsoluteURL(data.image)}>
       <Head>
         {data?.noindex ?
           <meta name="robots" content="noindex, nofollow" />
         : <meta name="robots" content="index, follow" />}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }} />
       </Head>
       <MDXRenderer {...serializedPost} data={data} showDate />
       <div className="container">

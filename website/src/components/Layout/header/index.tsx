@@ -116,8 +116,11 @@ function MobileMenu() {
 
 function Nav() {
   return (
-    <nav className="bg-fill/40 border-stroke-dark flex items-center justify-self-center rounded-full border p-2 shadow-2xl backdrop-blur-sm sm:justify-self-end">
-      <div className="mr-3 flex items-center gap-2 sm:hidden">
+    <nav
+      className="bg-fill/40 border-stroke-dark flex items-center justify-self-center rounded-full border p-2 shadow-2xl backdrop-blur-sm sm:justify-self-end"
+      aria-label="Main Navigation"
+    >
+      <ul className="mr-3 flex items-center gap-2 sm:hidden">
         <Button variant="primaryText" as={Link} size="small" href={links.docs} className="!rounded-full">
           Docs
         </Button>
@@ -130,7 +133,7 @@ function Nav() {
         <Button variant="primaryText" as={Link} size="small" href={links.pricing} className="!rounded-full">
           Pricing
         </Button>
-      </div>
+      </ul>
 
       <div
         key={'nav-socials'}
