@@ -10,7 +10,7 @@ import { ChangeProjectMenu } from '~/features/projects/components/ChangeProjectM
 import { $currentRecord } from '~/features/projects/stores/current-record'
 import { $currentProjectId } from '~/features/projects/stores/id'
 import { RecordTitle } from '~/features/records/components/RecordTitle'
-import { $router, isProjectPage, isProjectRecordPage } from '~/lib/router'
+import { $router, isProjectPage } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 
@@ -18,9 +18,7 @@ function ProjectNav() {
   const page = useStore($router)
   const currentProjectId = useStore($currentProjectId)
 
-  const projectId = isProjectPage(page)
-    ? page?.params.id
-    : currentProjectId ?? undefined
+  const projectId = isProjectPage(page) ? page?.params.id : (currentProjectId ?? undefined)
 
   if (!projectId) {
     return null
@@ -53,12 +51,8 @@ function Header() {
   const page = useStore($router)
 
   return (
-    <header
-      className={cn(
-        'flex items-center justify-between gap-2 bg-fill2 px-2 py-2 sm:px-5'
-      )}
-    >
-      <div className="flex items-center gap-inherit">
+    <header className={cn('bg-fill2 flex items-center justify-between gap-2 px-2 py-2 sm:px-5')}>
+      <div className="gap-inherit flex items-center">
         <Logo />
 
         <nav className="flex items-center overflow-auto text-sm">
@@ -86,8 +80,6 @@ function Header() {
               New Project
             </>
           )}
-
-          {isProjectRecordPage(page) && <CurrentRecordTitle />}
         </nav>
       </div>
 
@@ -120,11 +112,7 @@ function GlobalModals() {
   )
 }
 
-export function RootLayout({
-  children,
-  className,
-  ...props
-}: TPolymorphicComponentProps<'div'>) {
+export function RootLayout({ children, className, ...props }: TPolymorphicComponentProps<'div'>) {
   return (
     <div className={cn(className, 'flex min-h-screen flex-col')} {...props}>
       <GlobalNotifications />

@@ -69,9 +69,9 @@ export const Hero = () => {
           <div className="mb-4 mt-32 grid grow grid-cols-2 items-center gap-24 md:mt-0 md:grid-cols-1 md:gap-0 md:text-center">
             <div className="mb-8 items-center md:mt-24">
               <h1 role="heading" className="typography-4xl !font-extrabold sm:text-2xl">
-                Instant database
+                Instant Database
                 <br />
-                for modern apps<span className="hidden"> - RushDB</span>
+                for Modern Apps & AI<span className="hidden"> - RushDB</span>
               </h1>
               <h2 className="text-content3 text-md mb-8 mt-10 !font-medium !tracking-normal md:mt-0 md:text-base">
                 Focus on building features. RushDB handles the rest.

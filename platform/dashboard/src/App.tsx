@@ -1,7 +1,7 @@
 import { useStore } from '@nanostores/react'
 
 import { RootLayout } from '~/layout/RootLayout'
-import { $router, isProjectPage, isProjectRecordPage, isProtectedRoute } from '~/lib/router'
+import { $router, isProjectPage, isProtectedRoute } from '~/lib/router'
 import { NotFoundPage } from '~/pages/404'
 import { PasswordRecoveryPage } from '~/pages/forgot-password'
 import { NewProjectPage } from '~/pages/project/new'
@@ -17,7 +17,6 @@ import { ConfirmEmail } from '~/pages/auth/confirmEmail'
 import { Toaster } from './elements/Toast'
 import { LiveChat } from './features/auth/components/LiveChat'
 import { ProjectLayout } from './layout/ProjectLayout'
-import { ProjectRecordLayout } from './layout/ProjectRecordLayout'
 import { AuthGoogle } from './pages/auth/google'
 import { useEffect } from 'react'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
@@ -46,10 +45,6 @@ function PublicRoutes() {
 
 function ProtectedRoutes() {
   const page = useStore($router)
-
-  if (isProjectRecordPage(page)) {
-    return <ProjectRecordLayout />
-  }
 
   if (isProjectPage(page)) {
     return <ProjectLayout />

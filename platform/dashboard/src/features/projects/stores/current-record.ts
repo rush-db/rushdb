@@ -3,7 +3,7 @@ import { atom } from 'nanostores'
 import { DEFAULT_LIMIT } from '~/config'
 import { api } from '~/lib/api'
 import { createAsyncStore } from '~/lib/fetcher'
-import { $router, isProjectRecordPage } from '~/lib/router'
+import { $router } from '~/lib/router'
 
 import { $currentProjectId, $currentRecordId } from './id'
 import { $sheetRecordId } from './id'
@@ -77,8 +77,4 @@ export const $currentRecordFields = createAsyncStore({
 // Effects
 $router.subscribe((page) => {
   $sheetRecordId.set(undefined)
-  if (isProjectRecordPage(page)) {
-    $currentProjectId.set(page.params.id)
-    $currentRecordId.set(page.params.recordId)
-  }
 })

@@ -272,20 +272,26 @@ export class EntityQueryService {
     }
 
     if (!toBoolean(id)) {
-      queryBuilder.append(`MATCH (record)-[rel]-(target:${RUSHDB_LABEL_RECORD})`)
+      queryBuilder.append(`MATCH (record)-[rel]-(neighbor:${RUSHDB_LABEL_RECORD})`)
       queryBuilder.append(buildPagination(pagination))
-      queryBuilder.append(`RETURN DISTINCT {`)
-      queryBuilder.append(`sourceId: record.${RUSHDB_KEY_ID}, ${label('record', 'sourceLabel')},`)
-      queryBuilder.append(`targetId: target.${RUSHDB_KEY_ID}, ${label('target', 'targetLabel')},`)
-      queryBuilder.append(`type: type(rel)`)
-      queryBuilder.append(`} as relation`)
     } else {
-      queryBuilder.append(`RETURN DISTINCT {`)
-      queryBuilder.append(`sourceId: source.${RUSHDB_KEY_ID}, ${label('source', 'sourceLabel')},`)
-      queryBuilder.append(`targetId: record.${RUSHDB_KEY_ID}, ${label('record', 'targetLabel')},`)
-      queryBuilder.append(`type: type(rel)`)
-      queryBuilder.append(`} as relation`)
+      queryBuilder.append(`MATCH (neighbor:${RUSHDB_LABEL_RECORD})-[rel]-(record:${RUSHDB_LABEL_RECORD})`)
     }
+
+    queryBuilder.append(`RETURN DISTINCT `)
+    queryBuilder.append(`CASE`)
+    queryBuilder.append(`  WHEN startNode(rel) = record THEN {`)
+    queryBuilder.append(`    sourceId: record.${RUSHDB_KEY_ID}, ${label('record', 'sourceLabel')},`)
+    queryBuilder.append(`    targetId: neighbor.${RUSHDB_KEY_ID}, ${label('neighbor', 'targetLabel')},`)
+    queryBuilder.append(`    type: type(rel)`)
+    queryBuilder.append(`  }`)
+    queryBuilder.append(`  ELSE {`)
+    queryBuilder.append(`    sourceId: neighbor.${RUSHDB_KEY_ID}, ${label('neighbor', 'sourceLabel')},`)
+    queryBuilder.append(`    targetId: record.${RUSHDB_KEY_ID}, ${label('record', 'targetLabel')},`)
+    queryBuilder.append(`    type: type(rel)`)
+    queryBuilder.append(`  }`)
+    queryBuilder.append(`END AS relation`)
+
     return queryBuilder.getQuery()
   }
 

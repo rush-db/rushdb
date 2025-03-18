@@ -17,19 +17,12 @@ const publicRoutes = {
   githubAuth: '/auth/github/:token?'
 } as const
 
-const projectRecordRoutes = {
-  projectRecord: '/projects/:id/records/:recordId',
-  projectRecordRelations: '/projects/:id/records/:recordId/relations'
-} as const
-
 const projectRoutes = {
   project: '/projects/:id',
-  // projectRecords: '/projects/:id/records',
   projectSettings: '/projects/:id/settings',
   projectTokens: '/projects/:id/tokens',
   projectUsers: '/projects/:id/users',
-  projectHelp: '/projects/:id/help',
-  ...projectRecordRoutes
+  projectHelp: '/projects/:id/help'
 } as const
 
 const protectedRoutes = {
@@ -80,9 +73,6 @@ export const isUserLeaveConfirmationRoute = <PageName extends keyof typeof route
 export const isProjectRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
   Boolean(route && route in projectRoutes)
 
-export const isProjectRecordRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
-  Boolean(route && route in projectRecordRoutes)
-
 /** check for id param existance */
 export const isProjectPage = <Page extends ReturnType<typeof useStore<typeof $router>>>(
   page?: Page
@@ -90,13 +80,6 @@ export const isProjectPage = <Page extends ReturnType<typeof useStore<typeof $ro
   params: Record<'id', string>
   route: keyof typeof projectRoutes
 } & Page => Boolean(page && page.route in projectRoutes)
-
-export const isProjectRecordPage = <Page extends ReturnType<typeof useStore<typeof $router>>>(
-  page?: Page
-): page is {
-  params: Record<'id' | 'recordId', string>
-  route: keyof typeof projectRecordRoutes
-} & Page => Boolean(page && page.route in projectRecordRoutes)
 
 export const getRoutePath = <PageName extends keyof typeof routes>(
   route: PageName,
