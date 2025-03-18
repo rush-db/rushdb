@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 0.16.0
+
+### Minor Changes
+
+- 57a566b: Update LP & Relationships UI and Query
+
 ## 0.15.0
 
 ### Minor Changes

@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 0.16.0
+
+### Minor Changes
+
+- 57a566b: Update LP & Relationships UI and Query
+
+### Patch Changes
+
+- Updated dependencies [57a566b]
+  - @rushdb/javascript-sdk@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes
