@@ -337,9 +337,6 @@ importers:
 
   platform/dashboard:
     dependencies:
-      '@chatra/chatra':
-        specifier: ^1.0.3
-        version: 1.0.3
       '@floating-ui/react-dom':
         specifier: ^2.0.2
         version: 2.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -1507,9 +1504,6 @@ packages:
 
   '@changesets/write@0.3.2':
     resolution: {integrity: sha512-kDxDrPNpUgsjDbWBvUo27PzKX4gqeKOlhibaOXDJA6kuBisGqNHv/HwGJrAu8U/dSf8ZEFIeHIPtvSlZI1kULw==}
-
-  '@chatra/chatra@1.0.3':
-    resolution: {integrity: sha512-/XAKbm9M9q0hSuqssaPD09vTcdFzfbq8uPMBreKxgVujZAKjshmbd4KOsmctQzD+x0qYXlEU4hFVwFYId/GgJg==}
 
   '@chevrotain/cst-dts-gen@11.0.3':
     resolution: {integrity: sha512-BvIKpRLeS/8UbfxXxgC33xOumsacaeCKAjAeLyOn7Pcp95HiRbrpl14S+9vaZLolnbssPIUuiUd8IvgkRyt6NQ==}
@@ -14463,8 +14457,6 @@ snapshots:
       fs-extra: 7.0.1
       human-id: 1.0.2
       prettier: 2.8.8
-
-  '@chatra/chatra@1.0.3': {}
 
   '@chevrotain/cst-dts-gen@11.0.3':
     dependencies:
