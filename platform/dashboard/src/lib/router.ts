@@ -20,6 +20,7 @@ const publicRoutes = {
 const projectRoutes = {
   project: '/projects/:id',
   projectSettings: '/projects/:id/settings',
+  projectImportData: '/projects/:id/import',
   projectTokens: '/projects/:id/tokens',
   projectUsers: '/projects/:id/users',
   projectHelp: '/projects/:id/help'

@@ -100,7 +100,7 @@ const code2Py = `db.records.find(
         "where": {
             "stage": "seed",
             "address": {"$contains": "USA"},
-            "foundedAt": {"$year": {"$lte": 2000}},
+            "foundedAt": {"$lte": {"$year": 2000}},
             "rating": {
                 "$or": [{"$lt": 2.5}, {"$gte": 4.5}]
             },

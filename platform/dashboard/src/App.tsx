@@ -15,7 +15,6 @@ import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
 import { ConfirmEmail } from '~/pages/auth/confirmEmail'
 
 import { Toaster } from './elements/Toast'
-import { LiveChat } from './features/auth/components/LiveChat'
 import { ProjectLayout } from './layout/ProjectLayout'
 import { AuthGoogle } from './pages/auth/google'
 import { useEffect } from 'react'
@@ -121,7 +120,6 @@ function ProductionScripts() {
   if (!platformSettings.loading && !platformSettings.data?.selfHosted) {
     return (
       <>
-        <LiveChat />
         <Gtm />
       </>
     )

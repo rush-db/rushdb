@@ -1,10 +1,4 @@
-import {
-  ComponentPropsWithoutRef,
-  Suspense,
-  lazy,
-  useEffect,
-  useState
-} from 'react'
+import { ComponentPropsWithoutRef, Suspense, lazy, useEffect, useState } from 'react'
 import { Skeleton } from '~/elements/Skeleton'
 
 const MonacoEditor = lazy(() =>
@@ -19,15 +13,10 @@ type EditorProps = {
   minimap?: boolean
   readOnly?: boolean
   lineNumbers?: 'off' | 'on'
+  format?: boolean
 } & Pick<
   MonacoProps,
-  | 'height'
-  | 'className'
-  | 'defaultValue'
-  | 'onChange'
-  | 'value'
-  | 'defaultLanguage'
-  | 'theme'
+  'height' | 'className' | 'defaultValue' | 'onChange' | 'value' | 'defaultLanguage' | 'theme'
 >
 
 export const Editor = ({
@@ -40,27 +29,40 @@ export const Editor = ({
   minimap = false,
   readOnly = false,
   lineNumbers = 'on',
+  format = true,
   className
 }: EditorProps) => {
   const [editor, setEditor] = useState<any>(null)
 
   useEffect(() => {
-    let t = setTimeout(() => {
-      if (editor) {
-        editor?.getAction('editor.action.formatDocument')?.run()
+    if (!editor || !format) return
+
+    const formatDocument = async () => {
+      if (readOnly) {
+        editor.updateOptions({ readOnly: false }) // Disable readOnly before formatting
       }
-    }, 100)
+
+      const formatAction = editor.getAction('editor.action.formatDocument')
+      if (formatAction) {
+        await formatAction.run()
+      }
+
+      if (readOnly) {
+        editor.updateOptions({ readOnly: true }) // Re-enable readOnly after formatting
+      }
+    }
+
+    let t = setTimeout(formatDocument, 100)
 
     return () => clearTimeout(t)
-  }, [editor, value])
+  }, [editor, value, readOnly, format])
 
   return (
-    <Suspense
-      fallback={<Skeleton className="w-full" style={{ height }} enabled />}
-    >
+    <Suspense fallback={<Skeleton className="w-full" style={{ height }} enabled />}>
       <MonacoEditor
         onMount={(editor) => {
           setEditor(editor)
+          editor.getAction('editor.action.formatDocument')?.run()
         }}
         defaultLanguage={defaultLanguage}
         value={value}
@@ -74,6 +76,7 @@ export const Editor = ({
           minimap: {
             enabled: minimap
           },
+          maxTokenizationLineLength: 100000, // Increase the tokenization limit
           lineNumbers
         }}
       />
