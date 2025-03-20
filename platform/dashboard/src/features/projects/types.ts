@@ -14,10 +14,12 @@ export type Project = {
 export type WithProjectID = { projectId: Project['id'] }
 
 // TODO: MOVE TO SEARCHPARAMS
-export type RecordViewType = 'graph' | 'table'
+export type RecordViewType = 'graph' | 'table' | 'raw-api'
 
 export enum ERecordSheetTabs {
   api = 'API',
   data = 'DATA',
   relations = 'RELATIONS'
 }
+
+export type RawApiEntityType = 'records' | 'properties' | 'labels'

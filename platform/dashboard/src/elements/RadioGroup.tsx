@@ -7,21 +7,19 @@ import { Fragment } from 'react'
 import { cn } from '~/lib/utils'
 
 import { IconButton } from './IconButton'
+import { Button } from '~/elements/Button.tsx'
 
-const group = cva(
-  'border-input-stroke bg-input relative flex border items-center shrink-0',
-  {
-    variants: {
-      size: {
-        medium: 'h-11 px-1 gap-1 rounded',
-        small: 'h-9 px-1 gap-1 rounded'
-      }
-    },
-    defaultVariants: {
-      size: 'medium'
+const group = cva('border-input-stroke bg-input relative flex border items-center shrink-0', {
+  variants: {
+    size: {
+      medium: 'h-11 px-1 gap-1 rounded',
+      small: 'h-9 px-1 gap-1 rounded'
     }
+  },
+  defaultVariants: {
+    size: 'medium'
   }
-)
+})
 
 type RadioGroupProps<
   Value,
@@ -36,6 +34,7 @@ type RadioGroupProps<
     onChange: (newValue: Value) => void
     options: Array<Option>
     value: Value
+    useDefaultButton?: boolean
   } & VariantProps<typeof group>
 >
 
@@ -46,22 +45,26 @@ export function RadioGroup<Value>({
   options,
   size,
   divide,
+  useDefaultButton,
   ...props
 }: RadioGroupProps<Value>) {
   const activeIdx = options?.findIndex((o) => o.value === value)
 
-  const buttonSize = size === 'small' ? 28 : 36
+  const buttonSize =
+    useDefaultButton ? 106
+    : size === 'small' ? 28
+    : 36
 
   return (
     <ul className={group({ className, size })} role="radiogroup" {...props}>
       <div
         style={{
-          height: buttonSize,
+          height: useDefaultButton ? 28 : buttonSize,
           width: buttonSize,
           transform: `translate3d(calc((${activeIdx} * ${buttonSize}px) + (4px * ${activeIdx})),-50%,0)`
         }}
         aria-hidden
-        className="absolute start-1 top-1/2 h-[28px] w-[28px] shrink-0 rounded-sm bg-secondary transition-transform"
+        className="bg-secondary absolute start-1 top-1/2 h-[28px] w-[28px] shrink-0 rounded-sm transition-transform"
         // layoutId={id}
       />
       {options.map((o, idx) => {
@@ -75,20 +78,36 @@ export function RadioGroup<Value>({
                   layoutId={id}
                 />
               ) : null} */}
-              <IconButton
-                className={cn('relative z-10', {
-                  // 'text-content': active,
-                  'text-content2': !active
-                })}
-                aria-label={String(o.value)}
-                key={o.value as string}
-                onClick={() => onChange(o.value)}
-                role="radio"
-                size={size === 'small' ? 'xsmall' : 'small'}
-                variant="link"
-              >
-                {o.icon}
-              </IconButton>
+              {useDefaultButton ?
+                <Button
+                  className={cn('relative z-10 text-center !no-underline', {
+                    // 'text-content': active,
+                    'text-content2': !active
+                  })}
+                  aria-label={String(o.value)}
+                  key={o.value as string}
+                  onClick={() => onChange(o.value)}
+                  role="radio"
+                  size={size === 'small' ? 'xsmall' : 'small'}
+                  variant="link"
+                >
+                  {o.icon}
+                </Button>
+              : <IconButton
+                  className={cn('relative z-10', {
+                    // 'text-content': active,
+                    'text-content2': !active
+                  })}
+                  aria-label={String(o.value)}
+                  key={o.value as string}
+                  onClick={() => onChange(o.value)}
+                  role="radio"
+                  size={size === 'small' ? 'xsmall' : 'small'}
+                  variant="link"
+                >
+                  {o.icon}
+                </IconButton>
+              }
             </li>
           </Fragment>
         )

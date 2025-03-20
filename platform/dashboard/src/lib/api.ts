@@ -73,8 +73,8 @@ export const api = {
     }) {
       return sdk(init).records.relations(id)
     },
-    async labels({ init }: WithInit) {
-      return sdk(init).labels.find({})
+    async labels({ searchQuery = {}, init }: { searchQuery?: SearchQuery } & WithInit) {
+      return sdk(init).labels.find(searchQuery)
     },
     async properties(id: string, init: RequestInit) {
       return sdk(init).records.properties(id)

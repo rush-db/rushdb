@@ -8,17 +8,13 @@ import { NothingFound } from '~/elements/NothingFound'
 import { ProjectTabs } from '~/features/projects/components/ProjectTabs'
 import { $currentProject } from '~/features/projects/stores/current-project'
 import { PropertyValueTooltip } from '~/features/properties/components/PropertyValueTooltip'
-import {
-  $router,
-  getRoutePath,
-  isProjectPage,
-  redirectRoute
-} from '~/lib/router'
+import { $router, getRoutePath, isProjectPage, redirectRoute } from '~/lib/router'
 
 import { ProjectSettings } from '~/pages/project/settings'
 import { ProjectTokens } from '~/pages/project/tokens'
 import { ProjectRecordsPage } from '~/pages/project/records'
 import { ProjectHelpPage } from '~/pages/project/help'
+import { IngestRecords } from '~/features/records/components/IngestRecords.tsx'
 
 function ProjectRoutes({ id }: { id: Project['id'] }) {
   const page = useStore($router)
@@ -28,6 +24,8 @@ function ProjectRoutes({ id }: { id: Project['id'] }) {
       return <ProjectTokens projectId={id} />
     case 'projectSettings':
       return <ProjectSettings projectId={id} />
+    case 'projectImportData':
+      return <IngestRecords />
     case 'projectHelp':
       return <ProjectHelpPage />
     default:

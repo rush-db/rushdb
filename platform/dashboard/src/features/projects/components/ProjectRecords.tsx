@@ -17,6 +17,7 @@ import { $sheetRecordId } from '../stores/id'
 import { GraphView } from '~/features/projects/components/GraphView.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
 import React from 'react'
+import { RawApiView } from '~/features/projects/components/RawApiView.tsx'
 
 function View() {
   const { data: records, loading: loadingRecords, total = 0 } = useStore($filteredRecords)
@@ -70,6 +71,17 @@ function View() {
 }
 
 export function ProjectRecords() {
+  const view = useStore($recordView)
+
+  if (view === 'raw-api') {
+    return (
+      <>
+        <RecordsHeader />
+        <RawApiView />
+      </>
+    )
+  }
+
   return (
     <>
       <RecordsHeader />

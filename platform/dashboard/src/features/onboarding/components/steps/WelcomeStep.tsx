@@ -20,19 +20,14 @@ export function WelcomeStep({ loading }: { loading: boolean }) {
         <>
           <OnboardingStepTitle>
             <Skeleton enabled={loading}>
-              {isEmpty ? 'Welcome to your new project' : 'Help'}
+              <PageTitle> {isEmpty ? 'Welcome to your new project' : 'Help'}</PageTitle>
             </Skeleton>
           </OnboardingStepTitle>
 
           <OnboardingStepDescription>
-            {isEmpty ? (
-              <>
-                Your project is currently empty. Use any of the steps below to
-                get started.
-              </>
-            ) : (
-              <>Use any of the steps below to get started.</>
-            )}
+            {isEmpty ?
+              <>Your project is currently empty. Use steps below to get started.</>
+            : <>Use steps below to get started.</>}
           </OnboardingStepDescription>
         </>
       }

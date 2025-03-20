@@ -215,8 +215,10 @@ export class EntityQueryService {
     queryBuilder
       .append(`MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
       .append(queryClauses)
-      .append(`WITH ${parsedWhere.nodeAliases.join(', ')}  WHERE ${parsedWhere.where}`)
-      .append(`WITH *, [label IN labels(record) WHERE  label <> "${RUSHDB_LABEL_RECORD}"] as recordLabels`)
+      .append(`WITH ${parsedWhere.nodeAliases.join(', ')} WHERE ${parsedWhere.where}`)
+      .append(
+        `WITH DISTINCT record, [label IN labels(record) WHERE label <> "${RUSHDB_LABEL_RECORD}"] as recordLabels`
+      )
       .append(`RETURN count(recordLabels) as total, recordLabels[0] as label`)
 
     return queryBuilder.getQuery()

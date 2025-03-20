@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
-import { RUSHDB_KEY_ID, RUSHDB_KEY_ID_ALIAS } from '@/core/common/constants'
+import { RUSHDB_KEY_ID } from '@/core/common/constants'
 import { parse } from '@/core/search/parser/parse'
 import { ID_CLAUSE_OPERATOR } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
@@ -84,8 +84,7 @@ describe('parseQuery', () => {
           '((any(value IN record.name WHERE value STARTS WITH "Jack") AND any(value IN record.name WHERE value ENDS WITH "Rooney")) OR (any(value IN record.dateOfBirth WHERE apoc.convert.fromJsonMap(`record`.`__RUSHDB__KEY__PROPERTIES__META__`).`dateOfBirth` = "datetime" AND datetime(value) = datetime({year: 1984}))))',
         record1:
           'OPTIONAL MATCH (record)--(record1:POST) WHERE (any(value IN record1.created WHERE apoc.convert.fromJsonMap(`record1`.`__RUSHDB__KEY__PROPERTIES__META__`).`created` = "datetime" AND datetime(value) = datetime({year: 2011, month: 11, day: 11}))) AND (((any(value IN record1.rating WHERE value > 4.5) AND any(value IN record1.rating WHERE value < 6)) OR any(value IN record1.rating WHERE value <> 3) OR (NOT(any(value IN record1.rating WHERE value >= 4))))) AND (any(value IN record1.title WHERE value <> "Forest"))',
-        record2:
-          "OPTIONAL MATCH (record1)-[:COMMENT_TO_POST]->(record2:COMMENT) WHERE (any(value IN record2.authoredBy WHERE value =~ '(?i).*Sam.*'))"
+        record2: `OPTIONAL MATCH (record1)-[:COMMENT_TO_POST]->(record2:COMMENT) WHERE (any(value IN record2.authoredBy WHERE value =~ "(?i).*Sam.*"))`
       },
       where: 'record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)'
     })
@@ -125,7 +124,7 @@ describe('parseQuery', () => {
         record:
           '(any(value IN record.created WHERE apoc.convert.fromJsonMap(`record`.`__RUSHDB__KEY__PROPERTIES__META__`).`created` = "datetime" AND datetime(value) = datetime({year: 2011, month: 11, day: 11}))) AND (((any(value IN record.rating WHERE value > 4.5) AND any(value IN record.rating WHERE value < 6)) OR any(value IN record.rating WHERE value <> 3) OR (NOT(any(value IN record.rating WHERE value >= 4))))) AND (any(value IN record.title WHERE value <> "Forest"))',
         record1:
-          'OPTIONAL MATCH (record)-[:COMMENT_TO_POST]->(record1:COMMENT) WHERE (any(value IN record1.authoredBy WHERE value =~ \'(?i).*Sam.*\') AND any(value IN record1.authoredBy WHERE value ENDS WITH "Altman"))',
+          'OPTIONAL MATCH (record)-[:COMMENT_TO_POST]->(record1:COMMENT) WHERE (any(value IN record1.authoredBy WHERE value =~ "(?i).*Sam.*") AND any(value IN record1.authoredBy WHERE value ENDS WITH "Altman"))',
         record2:
           'OPTIONAL MATCH (record1)--(record2:POST) WHERE (any(value IN record2.title WHERE value = "Hey"))'
       },
@@ -180,13 +179,13 @@ describe('parseQuery', () => {
         record:
           '(any(value IN record.created WHERE value = true)) AND (any(value IN record.rating WHERE value = 5))',
         record1:
-          'OPTIONAL MATCH (record)-[:COMMENT_TO_POST]->(record1:COMMENT) WHERE (any(value IN record1.authoredBy WHERE value =~ \'(?i).*Sam.*\') AND any(value IN record1.authoredBy WHERE value ENDS WITH "Altman"))',
+          'OPTIONAL MATCH (record)-[:COMMENT_TO_POST]->(record1:COMMENT) WHERE (any(value IN record1.authoredBy WHERE value =~ "(?i).*Sam.*") AND any(value IN record1.authoredBy WHERE value ENDS WITH "Altman"))',
         record2:
           'OPTIONAL MATCH (record1)--(record2:POST) WHERE (any(value IN record2.title WHERE value = "Hey"))',
         record3:
           'OPTIONAL MATCH (record)--(record3:POST) WHERE (any(value IN record3.title WHERE value = "Hey"))',
         record4:
-          'OPTIONAL MATCH (record3)-[:COMMENT_TO_POST]->(record4:COMMENT) WHERE (any(value IN record4.authoredBy WHERE value =~ \'(?i).*Sam.*\') AND any(value IN record4.authoredBy WHERE value ENDS WITH "Altman"))'
+          'OPTIONAL MATCH (record3)-[:COMMENT_TO_POST]->(record4:COMMENT) WHERE (any(value IN record4.authoredBy WHERE value =~ "(?i).*Sam.*") AND any(value IN record4.authoredBy WHERE value ENDS WITH "Altman"))'
       },
       where:
         'record IS NOT NULL AND (NOT((record1 IS NOT NULL AND record2 IS NOT NULL) OR (any(value IN record.title WHERE value <> "Forest")) OR (record3 IS NOT NULL AND record4 IS NOT NULL)))'
@@ -214,7 +213,7 @@ describe('parseQuery', () => {
       queryParts: {
         record: '',
         record1:
-          'OPTIONAL MATCH (record)--(record1:COMMENT) WHERE (any(value IN record1.authoredBy WHERE value =~ \'(?i).*Sam.*\') AND any(value IN record1.authoredBy WHERE value ENDS WITH "Altman"))',
+          'OPTIONAL MATCH (record)--(record1:COMMENT) WHERE (any(value IN record1.authoredBy WHERE value =~ "(?i).*Sam.*") AND any(value IN record1.authoredBy WHERE value ENDS WITH "Altman"))',
         record2:
           'OPTIONAL MATCH (record1)--(record2:POST) WHERE (any(value IN record2.title WHERE value = "Hey"))'
       },
