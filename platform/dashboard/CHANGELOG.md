@@ -1,5 +1,18 @@
 # rushdb-dashboard
 
+## 0.17.0
+
+### Minor Changes
+
+- 1cdfbf7: Implemented RawApi mode for the dashboard and minor fixes
+
+### Patch Changes
+
+- 29940a0: Fix lock file
+- Updated dependencies [29940a0]
+- Updated dependencies [1cdfbf7]
+  - @rushdb/javascript-sdk@0.17.0
+
 ## 0.16.0
 
 ### Minor Changes
