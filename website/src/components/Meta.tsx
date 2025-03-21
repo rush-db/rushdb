@@ -1,11 +1,15 @@
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 import { getAbsoluteURL } from '~/utils'
+import { metaThemeColor } from '~/config/theme'
 
 export const defaultTitle = 'RushDB – Instant Graph Database for AI & Modern Apps'
 
 export const defaultDescription =
   'RushDB is a zero-config, graph-powered database built for AI, SaaS, and ML. Fast queries, seamless scaling, no setup. Try it now!'
+
+export const defaultKeywords =
+  'RushDB, Firebase alternative, Supabase alternative, Neo4j, AI database, graph database, vector database, knowledge graph, NoSQL database, scalable database, cloud database, open source database, serverless database, AI embeddings, vector search, time-series database, backend as a service, REST API, data-intensive apps, developer-friendly database'
 
 export const Meta = ({
   title = defaultTitle,
@@ -24,11 +28,13 @@ export const Meta = ({
     <Head>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta charSet="utf-8" />
-      <meta name="theme-color" content="hsl(223.81, 0%, 13.34%)" />
+      <meta name="theme-color" content={metaThemeColor} />
+      <link rel="icon" href="/favicon.ico" />
 
       {/* HTML Meta Tags */}
       <title>{titleWithSuffix}</title>
       <meta name="description" content={description} />
+      <meta name="keywords" content={defaultKeywords} />
 
       {/*Facebook Meta Tags */}
       <meta property="og:url" content={getAbsoluteURL(router.asPath)} />

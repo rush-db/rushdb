@@ -433,6 +433,9 @@ importers:
       react-force-graph:
         specifier: ^1.45.4
         version: 1.45.4(react@18.2.0)(three@0.171.0)
+      react-helmet-async:
+        specifier: ^2.0.5
+        version: 2.0.5(react@18.2.0)
       react-hook-form:
         specifier: ~7.41.0
         version: 7.41.5(react@18.2.0)
@@ -11113,6 +11116,11 @@ packages:
     engines: {node: '>=12'}
     peerDependencies:
       react: '*'
+
+  react-helmet-async@2.0.5:
+    resolution: {integrity: sha512-rYUYHeus+i27MvFE+Jaa4WsyBKGkL6qVgbJvSBoX8mbsWoABJXdEO0bZyi0F6i+4f0NuIb8AvqPMj3iXFHkMwg==}
+    peerDependencies:
+      react: ^16.6.0 || ^17.0.0 || ^18.0.0
 
   react-hook-form@7.41.5:
     resolution: {integrity: sha512-DAKjSJ7X9f16oQrP3TW2/eD9N6HOgrmIahP4LOdFphEWVfGZ2LulFd6f6AQ/YS/0cx/5oc4j8a1PXxuaurWp/Q==}
@@ -27203,6 +27211,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
       - three
+
+  react-helmet-async@2.0.5(react@18.2.0):
+    dependencies:
+      invariant: 2.2.4
+      react: 18.2.0
+      react-fast-compare: 3.2.2
+      shallowequal: 1.1.0
 
   react-hook-form@7.41.5(react@18.2.0):
     dependencies:
