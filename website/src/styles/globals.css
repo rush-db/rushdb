@@ -140,3 +140,7 @@ a {
   background-size: contain;
   background-position: center bottom;
 }
+
+b {
+  font-weight: inherit;
+}

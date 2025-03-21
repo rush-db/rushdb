@@ -69,12 +69,11 @@ export const Hero = () => {
           <div className="mb-4 mt-32 grid grow grid-cols-2 items-center gap-24 md:mt-0 md:grid-cols-1 md:gap-0 md:text-center">
             <div className="mb-8 items-center md:mt-24">
               <h1 role="heading" className="typography-4xl !font-extrabold sm:text-2xl">
-                Instant Database
-                <br />
+                Instant Database <br />
                 for Modern Apps & AI<span className="hidden"> - RushDB</span>
               </h1>
-              <h2 className="text-content3 text-md mb-8 mt-10 !font-medium !tracking-normal md:mt-0 md:text-base">
-                Focus on building features. RushDB handles the rest.
+              <h2 className="text-content3 text-md mb-8 mt-10 inline !font-medium !tracking-normal md:mt-0 md:text-base">
+                RushDB is an <b>open-source</b>, graph-powered <b>zero-config database</b>
               </h2>
 
               <Link href={socials.github} target="__blank" rel="noopener noreferrer" aria-label="Github">
@@ -106,7 +105,7 @@ export const Hero = () => {
           </div>
           <div className="w-full justify-center self-end pb-16 text-center align-bottom md:hidden md:flex-col md:pb-4">
             <p className="text-content3 text-md mb-4 text-center !font-medium md:text-lg">
-              RushDB is an open-source, graph-powered zero-config database
+              Focus on building features. RushDB handles the rest.
             </p>
             <CodeBlock
               code={language === 'typescript' ? 'pnpm add @rushdb/javascript-sdk' : 'pip install rushdb'}

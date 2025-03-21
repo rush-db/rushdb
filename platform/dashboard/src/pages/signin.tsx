@@ -94,7 +94,7 @@ export function SignInPage() {
 
   if (platformSettings.loading) {
     return (
-      <AuthLayout title={'Sign in to RushDB'}>
+      <AuthLayout title={'Sign in to RushDB'} type="signin">
         <div className="m-auto flex content-center items-center justify-between">
           <Spinner />
         </div>
@@ -103,7 +103,7 @@ export function SignInPage() {
   }
 
   return (
-    <AuthLayout title={'Sign in to RushDB'}>
+    <AuthLayout title={'Sign in to RushDB'} type="signin">
       {hasOauth ?
         <>
           <div className="flex w-full justify-between gap-2">

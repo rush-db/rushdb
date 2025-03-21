@@ -4,16 +4,11 @@ import { getRoutePath } from '~/lib/router'
 
 export function NotFoundPage() {
   return (
-    <AuthLayout>
+    <AuthLayout type="404">
       <div className="grid h-full place-content-center place-items-center gap-2">
         <h1 className="text-3xl font-bold">404</h1>
 
-        <Button
-          as="a"
-          href={getRoutePath('home')}
-          size="large"
-          variant="primary"
-        >
+        <Button as="a" href={getRoutePath('home')} size="large" variant="primary">
           Return to Sign In page
         </Button>
       </div>

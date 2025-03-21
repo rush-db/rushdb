@@ -1,4 +1,4 @@
-import { CSSProperties, PropsWithoutRef, forwardRef, ReactNode, Children } from 'react'
+import { CSSProperties, PropsWithoutRef, forwardRef, ReactNode, Children, useState, useEffect } from 'react'
 import { materialDark as codeTheme } from 'react-syntax-highlighter/dist/cjs/styles/prism'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import cx from 'classnames'
@@ -56,6 +56,17 @@ export const CodeBlock = forwardRef<
     },
     ref
   ) => {
+    const [isClient, setIsClient] = useState(false)
+
+    useEffect(() => {
+      // Ensures this runs only in the browser
+      setIsClient(true)
+    }, [])
+
+    if (!isClient) {
+      return <div className="text-content3 text-sm italic">Loading code snippet...</div>
+    }
+
     return (
       <div className={cx('sm:text-[14px]', className)} ref={ref} style={style}>
         <SyntaxHighlighter

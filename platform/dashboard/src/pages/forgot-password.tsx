@@ -137,7 +137,7 @@ export function PasswordRecoveryPage() {
   const { token } = searchParams
 
   return (
-    <AuthLayout title={'Recover your RushDB account'}>
+    <AuthLayout title={'Recover your RushDB account'} type="recover">
       {token ?
         <ChangePasswordForm token={token} />
       : <SendPasswordForm />}

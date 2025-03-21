@@ -274,9 +274,10 @@ export const HowItWorks = () => {
         <div className="container">
           <div className="outline-stroke rounded-tl-[150px] text-center outline outline-1 outline-offset-0 md:rounded-tl-[80px]">
             <h3 className="typography-2xl md:typography-xl text px-6 pt-20">Push any JSON or CSV data</h3>
-            <p className="text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base">
-              RushDB intelligently maps relationships, types,
-              <br className="md:hidden" /> and labels any input data, so you don’t have to.
+            <p className="text-content3 text-md px-6 pb-20 pt-8 !tracking-normal md:text-base">
+              RushDB, a high-performance <b>graph database</b>, built on top of <b>Neo4j</b>,{' '}
+              <br className="md:hidden" /> intelligently maps relationships, types, and labels any input data,
+              so you don’t have to.
             </p>
             <CodeBlock
               code={language === 'typescript' ? code1 : code1Py}
@@ -327,9 +328,12 @@ export const HowItWorks = () => {
       <section className="border-b">
         <div className="container text-center">
           <h3 className="typography-2xl md:typography-xl text px-6 pt-20">Automatic Data Normalization</h3>
-          <p className="text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base">
-            Records are created with appropriate types and relationships between them,{' '}
-            <br className="md:hidden" /> without any need for predefined models or schemas.
+          <p className="text-content3 text-md px-6 pb-20 pt-8 !tracking-normal md:text-base">
+            Built for <b>SaaS development</b>, <b>machine learning</b>, <b>AI-driven apps</b>,{' '}
+            <b>vector search</b>, <b>semi-structured</b> and <b>structured data</b> needs.{' '}
+            <br className="md:hidden" />
+            RushDB creates each <b>Record</b> with the proper relationships and types, so you don’t need
+            predefined schemas — ideal for fast-moving teams.
           </p>
           <div className="m-auto grid w-full max-w-3xl grid-flow-col grid-rows-2 gap-[1px] md:grid-rows-4">
             <div className="outline-stroke w-full rounded-bl-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
@@ -376,9 +380,11 @@ export const HowItWorks = () => {
         <div className="container text-center">
           <div className="outline-stroke rounded-t-[80px] py-20 outline outline-1 outline-offset-0 md:pb-8">
             <h3 className="typography-2xl md:typography-xl text px-6">Query Smarter, Not Harder</h3>
-            <p className="text-content3 text-md px-6 pb-20 pt-8 !font-medium !tracking-normal md:text-base">
-              Every Property gets its own "container," smartly linked to other matching Records
-              <br className="md:hidden" /> by name and type, making querying easy and performant.
+            <p className="text-content3 text-md px-6 pb-20 pt-8 !tracking-normal md:text-base">
+              Built for <b>interconnected data</b> and <b>high-speed queries</b>. Each Property lives in its
+              own container, linked by name and type to other <b>Records</b> — <br className="md:hidden" />{' '}
+              making retrieval fast and precise. Designed for <b>rapid development</b>, <b>AI workflows</b>,
+              and <b>data-intensive</b> use cases.
             </p>
 
             <div className="flex w-full flex-row items-center justify-center gap-4 md:gap-1">
@@ -408,9 +414,10 @@ export const HowItWorks = () => {
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-bl-[80px] rounded-tr-[80px] pt-12 outline outline-1 outline-offset-0">
             <div className="mx-auto mb-8 max-w-xl md:px-6 md:text-center">
               <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Complex Queries, Simple Syntax</h4>
-              <p className="text-content3 text-md !font-medium !tracking-normal md:text-base">
-                Find exactly what you need with ease. With automated on-the-fly data normalization, query
-                complex, deeply interconnected data without the acrobatics.
+              <p className="text-content3 text-md !tracking-normal md:text-base">
+                Query complex, deeply <b>connected data</b> without friction. RushDB’s <b>graph database</b>{' '}
+                engine and <b>REST API</b> make it easy to ask real questions — without writing verbose logic
+                or managing queries manually.
               </p>
             </div>
             <CodeBlockWithLanguageSelector
@@ -418,15 +425,16 @@ export const HowItWorks = () => {
               className="mx-auto w-full max-w-xl"
               preClassName="md:w-full"
               wrapperClassName="rounded-bl-none rounded-br-none pb-0"
-            ></CodeBlockWithLanguageSelector>
+            />
           </div>
 
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-br-[80px] pt-12 outline outline-1 outline-offset-0">
             <div className="mx-auto mb-8 max-w-xl md:px-6 md:text-center">
               <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Build Powerful Filters & Search</h4>
-              <p className="text-content3 text-md !font-medium !tracking-normal md:text-base">
-                List every variation. Filter with ease. Build catalogs and search experiences like a pro - no
-                backend, no fuss. All from a single API.
+              <p className="text-content3 text-md !tracking-normal md:text-base">
+                Create filters, lists, and <b>vector search</b> interfaces from a single <b>API</b>. No
+                backend boilerplate, just a clean <b>no-code</b> <b>graph database</b>, with structured access
+                to everything you store.
               </p>
             </div>
             <CodeBlockWithLanguageSelector
@@ -434,7 +442,7 @@ export const HowItWorks = () => {
               className="mx-auto w-full max-w-xl"
               preClassName="md:w-full"
               wrapperClassName="rounded-bl-none rounded-br-none pb-0"
-            ></CodeBlockWithLanguageSelector>
+            />
           </div>
         </div>
       </section>
@@ -445,7 +453,7 @@ export const HowItWorks = () => {
             <h3 className="typography-2xl md:typography-xl text mb-8 pt-16 text-center">
               Live Demo: See RushDB in Action
             </h3>
-            <p className="text-content3 text-md mb-8 text-center !font-medium !tracking-normal md:text-base">
+            <p className="text-content3 text-md mb-8 text-center !tracking-normal md:text-base">
               Experience the power of RushDB firsthand.
             </p>
 
@@ -474,25 +482,34 @@ export const HowItWorks = () => {
               <div className="outline-stroke row-end-1 w-full rounded-b-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:row-end-1 md:rounded-b-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">SaaS & Apps</h4>
                 <p className="text-content3 text-md md:text-base">
-                  Building the next big thing shouldn't start with battling clumsy databases and other stuff.
-                  Focus on delivering features - RushDB takes care of the rest.
+                  Power your <b>development</b> with a scalable <b>graph database</b>. RushDB is a{' '}
+                  <b>Firebase alternative</b>, <b>Supabase alternative</b>, and <b>cloud database</b> built
+                  for modern <b>NoSQL</b> needs. It offers high-speed <b>data ingestion</b>,
+                  <b>native graph storage</b>, and an unbeatable developer experience — ideal for{' '}
+                  <b>data-intensive apps</b> and teams seeking a <b>developer-friendly database</b>.
                 </p>
               </div>
               <div className="outline-stroke row-end-1 w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:row-end-2 md:rounded-r-[50px] md:p-6">
-                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">AI / ML & Research</h4>
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">AI & Machine Learning</h4>
                 <p className="text-content3 text-md md:text-base">
-                  Having fast and reliable data storage for AI is challenging yet rewarding. RushDB helps you
-                  store structured and semi-structured data at scale.
+                  Leverage RushDB as your <b>AI persistence</b> — perfect for <b>predictive analytics</b>,{' '}
+                  <b>AI embeddings</b>, <b>recommendation systems</b>, and <b>vector search</b>. With{' '}
+                  <b>low-latency</b> and <b>vector database</b> capabilities powered by a{' '}
+                  <b>knowledge graph</b> engine, it’s optimized for <b>AI-first applications</b> and works as
+                  a plug-and-play <b>backend as a service</b>.
                 </p>
               </div>
+
               <div className="col-span-2 row-span-1 grid grid-cols-2 items-center gap-24 md:mt-0 md:grid-cols-1 md:gap-0">
                 <div className="mb-8 items-center p-20 md:p-6 md:pb-0">
                   <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">
                     Persistence for AI Era: Smart and Simple
                   </h4>
                   <p className="text-content3 text-md md:text-base">
-                    RushDB handles the complexity - so you can focus on building. Just push JSON, query
-                    granularly, and let automatic labeling and type suggestions do the rest.
+                    RushDB handles the complexity – so you can focus on building. Just push JSON, query
+                    granularly via <b>JavaScript SDK</b>, <b>Python SDK</b>, or <b>REST API</b>, and let
+                    automatic labeling and type suggestions do the rest. Ideal for <b>cloud-first</b> use
+                    cases, <b>AI integrations</b>, and <b>GenAI</b> projects.
                   </p>
                 </div>
 
@@ -509,23 +526,28 @@ export const HowItWorks = () => {
               <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:rounded-t-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">IoT Projects</h4>
                 <p className="text-content3 text-md md:text-base">
-                  Don’t let infrastructure complexity slow down your IoT innovation. RushDB handles data
-                  ingestion and storage - so you can focus on building smarter solutions.
+                  Don’t let infrastructure complexity slow down your IoT innovation. RushDB is a{' '}
+                  <b>scalable database</b> that handles real-time data ingestion, <b>time-series database</b>{' '}
+                  workloads, and dynamic schemas – making it a go-to <b>NoSQL database</b> for connected
+                  devices.
                 </p>
               </div>
+
               <div className="outline-stroke w-full rounded-l-[80px] rounded-br-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:rounded-l-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Search Engines</h4>
                 <p className="text-content3 text-md md:text-base">
-                  RushDB makes filtering large datasets fast and efficient, handling data of any shape and
-                  complexity with search capabilities designed for performance.
+                  RushDB enables fast, flexible filtering of massive datasets — perfect for building custom{' '}
+                  <b>search engines</b> using a <b>vector database</b> with <b>knowledge graph</b> support.
+                  Optimized for performance and shape-agnostic queries.
                 </p>
               </div>
 
               <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:rounded-t-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Hobby Projects</h4>
                 <p className="text-content3 text-md md:text-base">
-                  What’s more frustrating than losing your spark of inspiration to infrastructure hassle?
-                  RushDB lets you skip the grind and get back to building.
+                  Don’t let infra kill your weekend flow. RushDB gives you an <b>open source database</b> with{' '}
+                  <b>zero config</b>, making it perfect for <b>developer-friendly</b> hacking. Push data,
+                  build ideas fast, and ship in hours — not weeks.
                 </p>
               </div>
 
@@ -533,7 +555,7 @@ export const HowItWorks = () => {
                 <p className="text-content3 text-md text-center md:text-base">
                   Create a project, grab your API token,
                   <br />
-                  and start building in less than 30 seconds
+                  and start building in less than 30 seconds.
                 </p>
                 <div className="m-auto flex w-full justify-center gap-4">
                   <MainCta size="small" variant="accent" text="Create Project" />
@@ -557,8 +579,9 @@ export const HowItWorks = () => {
         <div className="container text-center">
           <div className="outline-stroke outline outline-1 outline-offset-0">
             <h3 className="typography-2xl md:typography-xl text pt-20">Fully Featured Dashboard</h3>
-            <p className="text-content3 text-md pb-20 pt-8 !font-medium !tracking-normal md:pb-8 md:text-base">
-              That helps you navigate your data intuitively and fast
+            <p className="text-content3 text-md pb-20 pt-8 !tracking-normal md:pb-8 md:text-base">
+              Navigate your <b>data</b> quickly and clearly with an interface designed for <b>speed</b> and{' '}
+              <b>clarity</b>.
             </p>
             <Image
               priority
@@ -576,7 +599,7 @@ export const HowItWorks = () => {
         <div className="container text-center">
           <div className="outline-stroke rounded-b-full py-20 outline outline-1 outline-offset-0 md:rounded-b-[100px]">
             <h3 className="typography-2xl md:typography-xl text mb-8">Self-hosted? Simple.</h3>
-            <p className="text-content3 text-md !font-medium !tracking-normal md:text-base">
+            <p className="text-content3 text-md !tracking-normal md:text-base">
               1. Setup your Neo4j instance or use{' '}
               <Link
                 href="https://neo4j.com/product/auradb/"
@@ -586,7 +609,7 @@ export const HowItWorks = () => {
                 Neo4j Aura
               </Link>
             </p>
-            <p className="text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base">
+            <p className="text-content3 text-md mb-8 !tracking-normal md:text-base">
               2. Run RushDB container with Neo4j credentials
             </p>
             <CodeBlock
@@ -595,7 +618,7 @@ export const HowItWorks = () => {
               className="mb-8 grid place-content-center gap-[1px] md:w-full lg:w-full"
               preClassName="md:w-full"
             />
-            <p className="text-content3 text-md !font-medium !tracking-normal md:text-base">
+            <p className="text-content3 text-md !tracking-normal md:text-base">
               That's it. RushDB is ready at <br className="hidden md:block" />
               <span className="bold font-mono font-bold">localhost:3000</span> 🎉️
             </p>
@@ -620,7 +643,7 @@ export const HowItWorks = () => {
               Not an infra fan?
               <br className="hidden md:block" /> Opt for <span className="text-accent">RushDB Cloud</span>
             </h3>
-            <p className="text-content3 text-md mb-8 !font-medium !tracking-normal md:text-base">
+            <p className="text-content3 text-md mb-8 !tracking-normal md:text-base">
               2 Projects Free Forever. No Maintenance Required.
               <br className="md:hidden" />
               Focus on building apps, not on managing infrastructure.
