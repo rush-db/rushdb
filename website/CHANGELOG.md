@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 0.17.1
+
+### Patch Changes
+
+- f0a395c: SEO Optimizations
+
 ## 0.17.0
 
 ### Minor Changes
