@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 0.17.1
+
+### Patch Changes
+
+- f0a395c: SEO Optimizations
+- Updated dependencies [f0a395c]
+  - @rushdb/javascript-sdk@0.17.1
+
 ## 0.17.0
 
 ### Minor Changes
