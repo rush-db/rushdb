@@ -19,15 +19,14 @@ import {
   resetFilters
 } from '~/features/projects/stores/current-project'
 import { PropertyName } from '~/features/properties/components/PropertyName'
-import { ApiRecordsModal } from '~/features/records/components/ApiRecordsModal'
-import { IngestRecordsModal } from '~/features/records/components/IngestRecordsModal'
+
 import { FilterPopover } from '~/features/search/components/FilterPopover'
 import { cn } from '~/lib/utils'
 
 import { $hiddenFields, $toggleHiddenField, isFieldHidden } from '../stores/hidden-fields'
 import { SelectCombineFiltersMode } from './SelectCombineFiltersMode'
 import { Divider } from '~/elements/Divider.tsx'
-import { SwitchField } from '~/elements/Switch.tsx'
+import { SelectViewMode } from '~/features/projects/components/SelectViewMode.tsx'
 
 const useProjectFiltersState = () => {
   const activeFilters = useStore($currentProjectFilters)
@@ -75,7 +74,6 @@ function HiddenFieldsSelector() {
     type: 'string',
     name: '__id'
   }
-  const viewMode = useStore($recordView)
 
   const allFields = [internalIdField, ...(fields ?? [])]
 
@@ -101,15 +99,6 @@ function HiddenFieldsSelector() {
           </SelectItem>
         ))}
         <Divider />
-
-        <SwitchField
-          checked={viewMode === 'graph'}
-          className="flex flex-row justify-between p-4"
-          label="Graph view"
-          onCheckedChange={(checked) => {
-            $recordView.set(checked ? 'graph' : 'table')
-          }}
-        />
       </SearchSelect>
     </ButtonGroup>
   )
@@ -118,6 +107,7 @@ function HiddenFieldsSelector() {
 export function RecordsHeader() {
   const { data: labels, loading: loadingLabels } = useStore($currentProjectLabels)
   const { hasAnyFiltersApplied } = useProjectFiltersState()
+  const view = useStore($recordView)
 
   const activeLabels = useStore($activeLabels)
 
@@ -142,10 +132,14 @@ export function RecordsHeader() {
         <ResetFiltersButton />
         {hasAnyFiltersApplied && <Divider vertical />}
 
-        <ApiRecordsModal />
-        <IngestRecordsModal />
-        <Divider vertical />
-        <HiddenFieldsSelector />
+        {view === 'table' && (
+          <>
+            <HiddenFieldsSelector />
+            <Divider vertical />
+          </>
+        )}
+
+        <SelectViewMode />
       </div>
     </header>
   )

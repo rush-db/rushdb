@@ -1,16 +1,15 @@
 import { useStore } from '@nanostores/react'
-import { ArrowUpRight, Copy, MoreVertical, Trash, X } from 'lucide-react'
+import { Copy, MoreVertical, Trash, X } from 'lucide-react'
 
 import { IconButton } from '~/elements/IconButton'
-import { PageHeader, PageTitle } from '~/elements/PageHeader'
+import { PageHeader } from '~/elements/PageHeader'
 import { Close, Sheet } from '~/elements/Sheet'
 import { Tab, Tabs, TabsContent, TabsList } from '~/elements/Tabs'
 import { RecordTitle } from '~/features/records/components/RecordTitle'
 import { deleteRecordMutation } from '~/features/records/stores/mutations'
-import { getRoutePath } from '~/lib/router'
 
 import { $currentRecord, $currentRelatedRecords } from '../stores/current-record'
-import { $currentProjectId, $sheetRecordId } from '../stores/id'
+import { $sheetRecordId } from '../stores/id'
 import { RecordDataTab } from './RecordDataTab'
 import { RelatedRecordsTab } from './RelatedRecordsTab.tsx'
 import { ERecordSheetTabs } from '~/features/projects/types.ts'
@@ -30,7 +29,6 @@ export function RecordSheet() {
   const { data: record } = useStore($currentRecord)
   const { data: relations } = useStore($currentRelatedRecords)
   const { mutate: deleteRecord } = useStore(deleteRecordMutation)
-  const projectId = useStore($currentProjectId)
 
   return (
     <Sheet
@@ -61,17 +59,6 @@ export function RecordSheet() {
             }
             align="end"
           >
-            <MenuItem
-              icon={<ArrowUpRight />}
-              as="a"
-              asChild
-              href={getRoutePath('projectRecord', {
-                recordId: record.__id,
-                id: projectId as string
-              })}
-            >
-              Open Record
-            </MenuItem>
             <MenuItem
               icon={<Copy />}
               onClick={() => copyToClipboard(record.__id, { showSuccessToast: true })}

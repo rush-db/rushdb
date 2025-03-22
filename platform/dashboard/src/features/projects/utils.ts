@@ -1,10 +1,19 @@
 import type { PropertyWithValue, Where, DBRecord } from '@rushdb/javascript-sdk'
 
 import { getViableSearchOperations, type AnySearchOperation, type Filter } from '~/features/search/types'
-import type { AnyObject } from '~/types'
+import { AnyObject, Sort, SortDirection } from '~/types'
 
 import { SearchOperations } from '~/features/search/constants.ts'
 import { removeProperty } from '~/lib/utils'
+import {
+  $activeLabels,
+  $combineFilters,
+  $currentProjectFilters,
+  $currentProjectRecordsLimit,
+  $currentProjectRecordsSkip,
+  $recordsOrderBy
+} from '~/features/projects/stores/current-project.ts'
+import { useStore } from '@nanostores/react'
 
 export const decodeQuery = (query: string) => {
   return JSON.parse(decodeURIComponent(query))
@@ -69,4 +78,35 @@ export const isProjectEmpty = ({ loading, totalRecords }: { loading: boolean; to
   }
 
   return totalRecords < 1
+}
+
+export const useSearchQuery = () => {
+  const filters = useStore($currentProjectFilters)
+  const orderBy = useStore($recordsOrderBy)
+  const skip = useStore($currentProjectRecordsSkip)
+  const limit = useStore($currentProjectRecordsLimit)
+  const labels = useStore($activeLabels)
+  const combineMode = useStore($combineFilters)
+  const properties = filters.map(filterToSearchOperation)
+
+  const order = Object.entries(orderBy ?? {}).reduce<Sort>((acc, [key, direction]) => {
+    if (key === '__id') {
+      return direction as SortDirection
+    }
+
+    if (key && direction) {
+      // @ts-ignore
+      acc[key] = direction as SortDirection
+    }
+    return acc
+  }, {})
+
+  return {
+    where:
+      combineMode === 'or' ? { $or: convertToSearchQuery(properties) } : convertToSearchQuery(properties),
+    orderBy: order,
+    skip,
+    limit,
+    labels
+  }
 }

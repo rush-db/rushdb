@@ -1,5 +1,37 @@
 # rushdb-dashboard
 
+## 0.17.1
+
+### Patch Changes
+
+- f0a395c: SEO Optimizations
+- Updated dependencies [f0a395c]
+  - @rushdb/javascript-sdk@0.17.1
+
+## 0.17.0
+
+### Minor Changes
+
+- 1cdfbf7: Implemented RawApi mode for the dashboard and minor fixes
+
+### Patch Changes
+
+- 29940a0: Fix lock file
+- Updated dependencies [29940a0]
+- Updated dependencies [1cdfbf7]
+  - @rushdb/javascript-sdk@0.17.0
+
+## 0.16.0
+
+### Minor Changes
+
+- 57a566b: Update LP & Relationships UI and Query
+
+### Patch Changes
+
+- Updated dependencies [57a566b]
+  - @rushdb/javascript-sdk@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes

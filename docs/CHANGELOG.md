@@ -1,5 +1,27 @@
 # rushdb-docs
 
+## 0.17.1
+
+### Patch Changes
+
+- f0a395c: SEO Optimizations
+
+## 0.17.0
+
+### Minor Changes
+
+- 1cdfbf7: Implemented RawApi mode for the dashboard and minor fixes
+
+### Patch Changes
+
+- 29940a0: Fix lock file
+
+## 0.16.0
+
+### Minor Changes
+
+- 57a566b: Update LP & Relationships UI and Query
+
 ## 0.15.0
 
 ### Minor Changes
