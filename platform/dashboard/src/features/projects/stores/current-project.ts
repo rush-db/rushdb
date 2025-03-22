@@ -4,7 +4,7 @@ import { action, atom, computed } from 'nanostores'
 
 import type { AnySearchOperation, Filter } from '~/features/search/types'
 import type { SearchParams } from '~/lib/router'
-import { isAnyObject, type FiltersCombineMode, type Sort, type SortMap, SortDirection } from '~/types'
+import { type FiltersCombineMode, type Sort, SortDirection } from '~/types'
 
 import { DEFAULT_LIMIT } from '~/config'
 import { isViableSearchOperation } from '~/features/search/types'
@@ -14,7 +14,7 @@ import { $searchParams, changeSearchParam, removeSearchParam } from '~/lib/route
 import { $router, isProjectPage } from '~/lib/router'
 import { addOrRemove, clamp } from '~/lib/utils'
 
-import type { RecordViewType } from '../types'
+import { RawApiEntityType, RecordViewType } from '../types'
 
 import {
   convertToSearchQuery,
@@ -23,11 +23,11 @@ import {
   filterToSearchOperation,
   isProjectEmpty
 } from '../utils'
-import { $currentProjectId, $currentRecordId, $sheetRecordId } from './id'
-import { $selectedRecords } from '~/features/records/stores/actionbar.ts'
-import { $currentRecordChildrenSkip } from '~/features/projects/stores/current-record.ts'
+import { $currentProjectId } from './id'
 
 export const $recordView = persistentAtom<RecordViewType>('records:view', 'table')
+
+export const $recordRawApiEntity = persistentAtom<RawApiEntityType>('records:raw-api:entity', 'records')
 
 export const $recordsOrderBy = atom<Sort>()
 
@@ -93,9 +93,7 @@ export const $filteredRecords = createAsyncStore({
     const { data, total } = await api.records.find(
       {
         where:
-          combineMode === 'or' ?
-            { $or: convertToSearchQuery(properties) }
-          : convertToSearchQuery(properties),
+          combineMode === 'or' ? { $or: convertToSearchQuery(properties) } : convertToSearchQuery(properties),
         orderBy: order,
         skip,
         limit,
@@ -142,9 +140,7 @@ export const $filteredRecordsRelations = createAsyncStore({
     const { data, total } = await api.relations.find({
       searchQuery: {
         where:
-          combineMode === 'or' ?
-            { $or: convertToSearchQuery(properties) }
-          : convertToSearchQuery(properties),
+          combineMode === 'or' ? { $or: convertToSearchQuery(properties) } : convertToSearchQuery(properties),
         orderBy: order,
         skip,
         limit,
@@ -179,7 +175,7 @@ export const $currentProjectFields = createAsyncStore({
     let properties
 
     if (combineMode === 'and') {
-      // Мне нужны вэлью которых нет при and
+      // Fetch Properties that don't exist with $and grouping
       properties = $currentProjectFilters.get().map(filterToSearchOperation)
     }
 

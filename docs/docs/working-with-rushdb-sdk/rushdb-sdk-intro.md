@@ -66,8 +66,6 @@ export type UserProvidedConfig = CommonUserProvidedConfig;
 
 - `timeout` (`number`): Optional. Defines a timeout period for each request in milliseconds.
 
-- `validator` (`Validator`): Optional. Allows you to specify custom validation logic for outgoing data.
-
 ### When to Use Advanced Configuration
 
 While the simple URL configuration suffices for most applications, advanced configuration options come into play in specific scenarios:

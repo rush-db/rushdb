@@ -1,4 +1,4 @@
-import { Book, Database, Key, Settings } from 'lucide-react'
+import { Book, Database, Key, Settings, UploadIcon } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -22,7 +22,13 @@ const getTabs = (projectId: Project['id']) => {
     //   icon: <Users />,
     //   href: getRoutePath('projectUsers', { id: projectId })
     // }
-
+    {
+      href: getRoutePath('projectImportData', {
+        id: projectId
+      }),
+      icon: <UploadIcon />,
+      label: 'Import Data'
+    },
     {
       href: getRoutePath('projectTokens', {
         id: projectId

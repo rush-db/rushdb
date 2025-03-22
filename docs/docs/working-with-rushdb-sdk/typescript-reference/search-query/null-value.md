@@ -8,12 +8,12 @@ The `NullValue` type is used to define conditions for null fields in a query.
 
 ### Type Definition
 ```typescript
-type NullValue = RequireAtLeastOne<Record<'$not', null>> | null;
+type NullValue = RequireAtLeastOne<Record<'$ne', null>> | null;
 ```
 
 ### Properties
 
-#### $not
+#### $ne
 
 - **Type:** `null`
 - **Optional:** Yes
@@ -25,7 +25,7 @@ Negates the condition.
 Here is an example of how to define conditions for a null field:
 ```typescript
 const nullCondition: NullValue = {
-  $not: null
+  $ne: null
 };
 ```
 

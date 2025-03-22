@@ -1,4 +1,4 @@
-import { CSSProperties, PropsWithoutRef, forwardRef, ReactNode, useState } from 'react'
+import { CSSProperties, PropsWithoutRef, forwardRef, ReactNode, useState, useEffect } from 'react'
 
 import { CodeBlock } from '~/components/CodeBlock'
 
@@ -194,6 +194,13 @@ export const Demo = forwardRef<HTMLDivElement, PropsWithoutRef<DemoProps>>(
   ({ className, preClassName, wrapperClassName, children: extra, copyButton, style }, ref) => {
     const [tab, setTab] = useState<keyof typeof tabs>('Live Preview')
 
+    const [isClient, setIsClient] = useState(false)
+
+    useEffect(() => {
+      // Ensures this runs only in the browser
+      setIsClient(true)
+    }, [])
+
     return (
       <div className={cn(className, 'w-full rounded-xl bg-[#131313]')} ref={ref} style={style}>
         <div className="text-content-contrast border-b-content2 mb-2 flex w-full cursor-pointer justify-between rounded-t-xl border-b bg-[#131313] text-center font-mono font-bold">
@@ -211,18 +218,19 @@ export const Demo = forwardRef<HTMLDivElement, PropsWithoutRef<DemoProps>>(
             </div>
           ))}
         </div>
+        {isClient ?
+          tab === 'Live Preview' ?
+            <iframe src={'https://main.d2d2gymukglcvg.amplifyapp.com/'} className="h-[85vh] w-full" />
+          : <CodeBlock
+              code={code[tab]}
+              className={className}
+              preClassName={preClassName}
+              wrapperClassName={cn(wrapperClassName, 'rounded-xl rounded-t-none ')}
+              copyButton={copyButton}
+              showLineNumbers={true}
+            />
 
-        {tab === 'Live Preview' ?
-          <iframe src={'https://main.d2d2gymukglcvg.amplifyapp.com/'} className="h-[85vh] w-full" />
-        : <CodeBlock
-            code={code[tab]}
-            className={className}
-            preClassName={preClassName}
-            wrapperClassName={cn(wrapperClassName, 'rounded-xl rounded-t-none ')}
-            copyButton={copyButton}
-            showLineNumbers={true}
-          />
-        }
+        : null}
       </div>
     )
   }

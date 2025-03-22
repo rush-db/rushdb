@@ -25,9 +25,9 @@ export function PostCard({ post, className }: { post: Post; className?: string }
       <div className="bg-fill/5 relative z-10 flex h-full w-full flex-col justify-end p-6">
         <p className="mb-auto">{post.data.date}</p>
 
-        <LetterTypingText as="h4" className="text-md max-w-sm font-bold leading-none drop-shadow-lg">
+        <h4 className="text-md max-w-sm font-bold leading-none drop-shadow-lg">
           {post.data.title as string}
-        </LetterTypingText>
+        </h4>
       </div>
     </Link>
   )

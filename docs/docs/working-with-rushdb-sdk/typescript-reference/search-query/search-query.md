@@ -73,7 +73,7 @@ const query: SearchQuery<typeof AuthorSchema> = {
   orderBy: { createdAt: 'desc' },
   skip: 5,
   where: {
-    $AND: [
+    $and: [
       { age: { $gt: 25 } },
       { name: { $startsWith: 'A' } }
     ]

@@ -4,12 +4,15 @@ import { atom, onSet } from 'nanostores'
 import { type ReactNode, Suspense, lazy, useState, ChangeEvent } from 'react'
 
 import { Button } from '~/elements/Button'
-import { Dialog, DialogFooter, DialogLoadingOverlay, DialogTitle } from '~/elements/Dialog'
+import { DialogFooter, DialogLoadingOverlay } from '~/elements/Dialog'
 import { TextField } from '~/elements/Input'
 import { cn } from '~/lib/utils'
 
 import { batchUpload } from '../stores/batch'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
+import { $router, getRoutePath } from '~/lib/router.ts'
+import { $currentProjectId } from '~/features/projects/stores/id.ts'
+import { PageHeader, PageTitle } from '~/elements/PageHeader.tsx'
 
 function RadioGroup({ className, ...props }: TInheritableElementProps<'div', {}>) {
   return <div className={cn(className, 'flex flex-col gap-5')} {...props} />
@@ -52,7 +55,6 @@ const Editor = lazy(() =>
   }))
 )
 
-const $open = atom<boolean>(false)
 const $step = atom<IngestModalSteps>('method')
 const $editorData = atom<string>('')
 const $label = atom<string>('')
@@ -69,9 +71,12 @@ function EditorStep() {
   const [loading, setLoading] = useState(true)
   const defaultValue = useStore($editorData)
   const { mutate, loading: submitting } = useStore(batchUpload)
+  const projectId = useStore($currentProjectId)
 
   const [suggestTypes, setSuggestTypes] = useState(true)
   const label = useStore($label)
+
+  const [error, setError] = useState<string | undefined>()
 
   return (
     <>
@@ -79,10 +84,14 @@ function EditorStep() {
         caption="Specify a Label for the top-level Record(s) parsed from this JSON"
         className="mt-5"
         required={true}
-        label="Label"
-        onChange={(event: { target: { value: string } }) => $label.set(event.target.value)}
+        label="Label *"
+        onChange={(event: { target: { value: string } }) => {
+          setError(undefined)
+          $label.set(event.target.value)
+        }}
         size="small"
         value={label}
+        error={error}
       />
       <div className="flex gap-5">
         <CheckboxField
@@ -126,6 +135,10 @@ function EditorStep() {
         </Button>
         <Button
           onClick={() => {
+            if (!label) {
+              setError('Label is required')
+              return
+            }
             mutate({
               payload: JSON.parse($editorData.get()),
               label,
@@ -133,7 +146,7 @@ function EditorStep() {
                 suggestTypes
               }
             }).then(() => {
-              $open.set(false)
+              $router.open(getRoutePath('project', { id: projectId! }))
               $step.set('method')
             })
           }}
@@ -170,8 +183,7 @@ function isNDJSONorJSON(input: string): 'NDJSON' | 'JSON' | 'Unknown' {
   }
 }
 
-export function IngestRecordsModal() {
-  const open = useStore($open)
+export function IngestRecords() {
   const step = useStore($step)
 
   const handleJsonUploadChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -211,68 +223,61 @@ export function IngestRecordsModal() {
   }
 
   return (
-    <Dialog
-      trigger={
-        <Button size="small" variant="secondary">
-          <Upload className="text-green-400" /> Import
-          {/*<DatabaseZap />*/}
-        </Button>
-      }
-      className={cn({ 'sm:max-w-none': step === 'editor' })}
-      onOpenChange={$open.set}
-      open={open}
-    >
-      <div className="flex gap-3">
-        <DatabaseZap />
-        <DialogTitle>Import data</DialogTitle>
-      </div>
-
-      {step === 'method' && (
-        <RadioGroup className="mt-5">
-          <RadioButton
-            onClick={async () => {
-              try {
-                const data = await import('../batchData.json').then((mod) => mod.default)
-                $editorData.set(JSON.stringify(data))
-                $label.set('COMPANY')
-              } catch (error) {}
-            }}
-            description="We'll upload a test dataset for you to explore."
-            icon={<TestTube2 />}
-            title="Use test dataset"
-          />
-          <RadioButton
-            description="Create a new json from scratch"
-            icon={<Edit />}
-            onClick={() => {
-              $editorData.set(`{}`)
-              $label.set('')
-            }}
-            title="Write from scratch"
-          />
-          <div className="group relative flex">
+    <div className={cn({ 'sm:max-w-none': step === 'editor' })}>
+      <PageHeader contained>
+        <div className="flex gap-3">
+          <DatabaseZap />
+          <PageTitle>Import data</PageTitle>
+        </div>
+      </PageHeader>
+      <div className="container">
+        {step === 'method' && (
+          <RadioGroup className="mt-5">
             <RadioButton
-              description={
-                <>
-                  Upload your own JSON or NDJSON file of any structure.
-                  <br /> You will get a chance to edit it.
-                </>
-              }
-              icon={<Braces />}
-              title="Upload .json or .ndjson file"
+              onClick={async () => {
+                try {
+                  const data = await import('../batchData.json').then((mod) => mod.default)
+                  $editorData.set(JSON.stringify(data))
+                  $label.set('COMPANY')
+                } catch (error) {}
+              }}
+              description="We'll upload a test dataset for you to explore."
+              icon={<TestTube2 />}
+              title="Use test dataset"
             />
-            <input
-              onChange={handleJsonUploadChange}
-              accept=".json,.ndjson"
-              className="absolute left-0 top-0 h-full w-full cursor-pointer appearance-none opacity-0"
-              multiple={false}
-              type="file"
+            <RadioButton
+              description="Create a new json from scratch"
+              icon={<Edit />}
+              onClick={() => {
+                $editorData.set(`{}`)
+                $label.set('')
+              }}
+              title="Write from scratch"
             />
-          </div>
-        </RadioGroup>
-      )}
+            <div className="group relative flex">
+              <RadioButton
+                description={
+                  <>
+                    Upload your own JSON or NDJSON file of any structure.
+                    <br /> You will get a chance to edit it.
+                  </>
+                }
+                icon={<Braces />}
+                title="Upload .json or .ndjson file"
+              />
+              <input
+                onChange={handleJsonUploadChange}
+                accept=".json,.ndjson"
+                className="absolute left-0 top-0 h-full w-full cursor-pointer appearance-none opacity-0"
+                multiple={false}
+                type="file"
+              />
+            </div>
+          </RadioGroup>
+        )}
 
-      {step === 'editor' && <EditorStep />}
-    </Dialog>
+        {step === 'editor' && <EditorStep />}
+      </div>
+    </div>
   )
 }
