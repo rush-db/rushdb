@@ -11,6 +11,7 @@ type TProjectProperties = {
   deleted?: string
   description?: string
   stats?: string
+  customDb?: string
 }
 
 interface IProjectProperties extends TProjectProperties {}

@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  forwardRef,
-  Inject,
-  Injectable,
-  ServiceUnavailableException
-} from '@nestjs/common'
+import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
@@ -19,10 +13,11 @@ import { ProjectEntity } from '@/dashboard/project/entity/project.entity'
 import { IProjectProperties, TProjectInstance } from '@/dashboard/project/model/project.interface'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { ProjectQueryService } from '@/dashboard/project/project-query.service'
-import { TProjectStats } from '@/dashboard/project/project.types'
+import { TProjectCustomDbPayload, TProjectStats } from '@/dashboard/project/project.types'
 import { USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { toNative } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import * as crypto from 'node:crypto'
 
 @Injectable()
 export class ProjectService {
@@ -39,7 +34,7 @@ export class ProjectService {
   ) {}
 
   normalize(node: TProjectInstance) {
-    return new ProjectEntity(node.id, node.name, node.created, node.description, node.edited)
+    return new ProjectEntity(node.id, node.name, node.created, node.description, node.edited, node.customDb)
   }
 
   async createProject(
@@ -51,11 +46,16 @@ export class ProjectService {
     const currentTime = getCurrentISO()
     const id = uuidv7()
     const { name, description = '' } = properties
+
+    // add check for plan here and selfhosted prop.
+    const customDb = this.attachCustomDb(properties.customDb)
+
     const projectNode = await this.projectRepository.model.createOne(
       {
         id,
         name,
         description,
+        ...(customDb && { customDb }),
         created: currentTime
       },
       { session: transaction }
@@ -77,6 +77,37 @@ export class ProjectService {
     await projectNode.save({ session: transaction })
 
     return this.normalize(projectNode)
+  }
+
+  attachCustomDb(payload?: TProjectCustomDbPayload): string | null {
+    // add test connection here like ping-pong to the db
+    if (!payload || !payload.url || !payload.username || !payload.password) {
+      return null
+    }
+
+    return this.encryptCustomDb(payload)
+  }
+
+  encryptCustomDb(payload: TProjectCustomDbPayload): string {
+    const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
+    const iv = crypto.randomBytes(16)
+    const customDbString = JSON.stringify(payload)
+
+    const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
+
+    return iv.toString('hex') + cipher.update(customDbString, 'utf8', 'base64') + cipher.final('base64')
+  }
+
+  decryptCustomDb(encrypted: string): TProjectCustomDbPayload {
+    const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
+    const iv = encrypted.substring(0, 32)
+    const cipherText = encrypted.substring(32)
+
+    const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey, Buffer.from(iv, 'hex'))
+    const decrypted = decipher.update(cipherText, 'base64', 'utf8')
+    const resultString = decrypted + decipher.final('utf8')
+
+    return JSON.parse(resultString) as TProjectCustomDbPayload
   }
 
   async deleteProject(id: string, transaction: Transaction): Promise<boolean> {

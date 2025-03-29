@@ -17,10 +17,12 @@ import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import { CreateEntityDto } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 @Injectable()
 export class EntityService {
   constructor(
+    private readonly compositeNeogmaService: CompositeNeogmaService,
     private readonly neogmaService: NeogmaService,
     private readonly entityQueryService: EntityQueryService,
     @Inject(forwardRef(() => PropertyService))
@@ -38,8 +40,7 @@ export class EntityService {
     transaction: Transaction
     queryRunner?: QueryRunner
   }): Promise<TEntityPropertiesNormalized> {
-    const runner = queryRunner || this.neogmaService.createRunner()
-
+    const runner = queryRunner || this.compositeNeogmaService.createRunner()
     const { properties, label, id }: CreateEntityDto & { id?: string } = entity
     const entityId = id ?? uuidv7()
 

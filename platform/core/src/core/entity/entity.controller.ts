@@ -64,6 +64,8 @@ import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 import { CreateEntityDto, CreateEntityDtoSimple } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
 import { EntityService } from './entity.service'
+import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
+import { CustomTransactionDecorator } from '@/database/neogma-dynamic/custom-transaction.decorator'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // RECORDS CRUD
@@ -102,7 +104,8 @@ type BulkUpdateRecords = {
   TransformResponseInterceptor,
   NotFoundInterceptor,
   NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor
+  NeogmaTransactionInterceptor,
+  CustomTransactionInterceptor
 )
 export class EntityController {
   constructor(
@@ -141,6 +144,7 @@ export class EntityController {
   async createEntity(
     @Body() entity: CreateEntityDto | CreateEntityDtoSimple,
     @TransactionDecorator() transaction: Transaction,
+    @CustomTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<TEntityPropertiesNormalized> {
     const projectId = request.projectId
@@ -148,12 +152,13 @@ export class EntityController {
     const result = await this.entityService.createEntity({
       entity,
       projectId,
-      transaction
+      // we need smart switcher between customTx and default service tx, maybe new decorator
+      transaction: customTx
     })
 
     await this.propertyService.deleteOrphanProps({
       projectId,
-      transaction
+      transaction: customTx
     })
 
     return result

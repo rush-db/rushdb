@@ -14,13 +14,15 @@ import { NeogmaService } from '@/database/neogma/neogma.service'
 import { PropertyDto } from './dto/property.dto'
 import { TPropertyInstance, TPropertyProperties } from './model/property.interface'
 import { PropertyRepository } from './model/property.repository'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 @Injectable()
 export class PropertyService {
   constructor(
     private readonly neogmaService: NeogmaService,
     private readonly propertyRepository: PropertyRepository,
-    private readonly propertyQueryService: PropertyQueryService
+    private readonly propertyQueryService: PropertyQueryService,
+    private readonly compositeNeogmaService: CompositeNeogmaService
   ) {}
 
   async getPropertyValues({
@@ -110,7 +112,7 @@ export class PropertyService {
     transaction: Transaction
     queryRunner?: QueryRunner
   }): Promise<void> {
-    const runner = queryRunner || this.neogmaService.createRunner()
+    const runner = queryRunner || this.compositeNeogmaService.createRunner()
 
     await runner.run(
       this.propertyQueryService.cleanUpAfterProcessing(),
