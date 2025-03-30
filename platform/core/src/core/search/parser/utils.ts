@@ -23,6 +23,7 @@ export const isSubQuery = (input: Where) => {
       RELATION_CLAUSE_OPERATOR in input ||
       // has `$alias` in query object behind property
       ALIAS_CLAUSE_OPERATOR in input ||
+      // Input object is current level criteria (like date-related operators or comparison)
       !isPropertyCriteria(input) ||
       !containsAllowedKeys(input, allowedKeys)
     )
@@ -33,14 +34,16 @@ export function splitCriteria(input: Where) {
   const currentLevel: Where = {}
   const subQueries: Where = {}
 
+  // !containsAllowedKeys(value, allowedKeys)
   const split = (v: Where) =>
     Object.entries(v).forEach(([key, value]) => {
-      if (isObject(value) && isSubQuery(value as Where)) {
+      if (isObject(value) && isSubQuery(value as Where) && key !== '$vector') {
         subQueries[key] = value
       } else {
         currentLevel[key] = value
       }
     })
+
   if (isArray(input)) {
     input.forEach(split)
   } else if (isObject(input)) {

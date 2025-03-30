@@ -21,7 +21,7 @@ export const getValueParameters = (value: TPropertyValue) => {
   if (Array.isArray(value)) {
     return {
       isEmptyArray: value.length === 0,
-      isEmptyStringsArray: value.every((v) => v === ''),
+      isEmptyStringsArray: value.every((v: any) => v === ''),
       isInconsistentArray: !arrayIsConsistent(value)
     }
   } else {

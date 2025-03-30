@@ -71,6 +71,8 @@ export class DBRecordsBatchDraft {
   options?: {
     returnResult?: boolean
     suggestTypes?: boolean
+    castNumberArraysAsVector?: boolean
+    castNumericValuesAsNumber?: boolean
   }
   payload: MaybeArray<AnyObject>
 
@@ -86,6 +88,8 @@ export class DBRecordsBatchDraft {
     options?: {
       returnResult?: boolean
       suggestTypes?: boolean
+      castNumberArraysAsVector?: boolean
+      castNumericValuesAsNumber?: boolean
     }
     payload: AnyObject
   }) {

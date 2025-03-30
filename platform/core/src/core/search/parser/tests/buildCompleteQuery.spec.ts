@@ -5,6 +5,7 @@ import { RUSHDB_LABEL_RECORD } from '@/core/common/constants'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { buildAggregation, buildQuery } from '@/core/search/parser'
 import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQueryPart'
+import { parse } from '@/core/search/parser/parse'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 
 const buildQ = ({ id, searchParams }: { searchParams?: SearchDto; id?: string }) => {
@@ -397,12 +398,63 @@ const q9 = {
   }
 }
 
-const r9 = `MATCH (record:__RUSHDB__LABEL__RECORD__:COMPANY { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+const r9 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE ((apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`emb\` = "vector" AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <> 0.75)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+WITH record
+WHERE record IS NOT NULL
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
+const q10 = {
+  where: {
+    DOCUMENT: {
+      CHUNK: {
+        embedding: {
+          $vector: {
+            fn: 'cosine',
+            value: [1, 2, 3, 4, 5],
+            query: {
+              $gte: 0.5,
+              $lte: 0.8,
+              $ne: 0.75
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+const r10 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:departments)
-WITH record, record1
-WHERE record IS NOT NULL AND record1 IS NOT NULL
-RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departmentId\`: record1.\`__RUSHDB__KEY__ID__\`}) AS records`
+OPTIONAL MATCH (record)--(record1:DOCUMENT)
+OPTIONAL MATCH (record1)--(record2:CHUNK) WHERE ((apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) <> 0.75))
+WITH record, record1, record2
+WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
+const q11 = {
+  where: {
+    DOCUMENT: {
+      CHUNK: {
+        embedding: {
+          $vector: {
+            fn: 'cosine',
+            value: [1, 2, 3, 4, 5],
+            query: 0.75
+          }
+        }
+      }
+    }
+  }
+}
+
+const r11 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:DOCUMENT)
+OPTIONAL MATCH (record1)--(record2:CHUNK) WHERE ((apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) >= 0.75))
+WITH record, record1, record2
+WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
 
 describe('build complete query', () => {
   it('0', () => {
@@ -463,5 +515,23 @@ describe('build complete query', () => {
     const result = buildQ({ searchParams: q9 })
 
     expect(result).toEqual(r9)
+  })
+
+  it('10', () => {
+    const result = buildQ({ searchParams: q10 })
+
+    expect(result).toEqual(r10)
+  })
+
+  it('10', () => {
+    const result = buildQ({ searchParams: q10 })
+
+    expect(result).toEqual(r10)
+  })
+
+  it('11', () => {
+    const result = buildQ({ searchParams: q11 })
+
+    expect(result).toEqual(r11)
   })
 })

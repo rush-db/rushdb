@@ -8,7 +8,7 @@ import { DialogFooter, DialogLoadingOverlay } from '~/elements/Dialog'
 import { TextField } from '~/elements/Input'
 import { cn } from '~/lib/utils'
 
-import { batchUpload } from '../stores/batch'
+import { createMany } from '../stores/batch'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
 import { $router, getRoutePath } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
@@ -70,10 +70,12 @@ onSet($editorData, ({ newValue }) => {
 function EditorStep() {
   const [loading, setLoading] = useState(true)
   const defaultValue = useStore($editorData)
-  const { mutate, loading: submitting } = useStore(batchUpload)
+  const { mutate, loading: submitting } = useStore(createMany)
   const projectId = useStore($currentProjectId)
 
   const [suggestTypes, setSuggestTypes] = useState(true)
+  const [castNumberArraysAsVector, setCastNumberArraysAsVector] = useState(false)
+  const [castNumericValuesAsNumber, setCastNumericValuesAsNumber] = useState(false)
   const label = useStore($label)
 
   const [error, setError] = useState<string | undefined>()
@@ -101,6 +103,22 @@ function EditorStep() {
             setSuggestTypes(!suggestTypes)
           }}
           checked={suggestTypes}
+        />
+        <CheckboxField
+          className="mb-5 mt-5"
+          label="Cast Number Arrays as Vector"
+          onCheckedChange={() => {
+            setCastNumberArraysAsVector(!castNumberArraysAsVector)
+          }}
+          checked={castNumberArraysAsVector}
+        />
+        <CheckboxField
+          className="mb-5 mt-5"
+          label="Cast Numeric Values as Number"
+          onCheckedChange={() => {
+            setCastNumericValuesAsNumber(!castNumericValuesAsNumber)
+          }}
+          checked={castNumericValuesAsNumber}
         />
       </div>
 
@@ -143,7 +161,9 @@ function EditorStep() {
               payload: JSON.parse($editorData.get()),
               label,
               options: {
-                suggestTypes
+                suggestTypes,
+                castNumberArraysAsVector,
+                castNumericValuesAsNumber
               }
             }).then(() => {
               $router.open(getRoutePath('project', { id: projectId! }))

@@ -167,6 +167,7 @@ export class PropertyQueryService {
   }: {
     sort?: TSearchSortDirection
     query?: string
+    searchQuery?: SearchDto
     paginationParams?: Pick<SearchDto, 'skip' | 'limit'>
   }) {
     const sortPart = sort ? `record[property.name] ${sort}` : `record.${RUSHDB_KEY_ID}`
@@ -177,7 +178,7 @@ export class PropertyQueryService {
       .append(
         `MATCH (record:${RUSHDB_LABEL_RECORD})<-[value:${RUSHDB_RELATION_VALUE}]-(property:${RUSHDB_LABEL_PROPERTY} { id: $id })`
       )
-      .append(`WHERE record[property.name] IS NOT NULL`)
+      .append(`WHERE record[property.name] IS NOT NULL AND property.type <> 'vector'`)
 
     if (query) {
       queryBuilder.append(`AND any(value IN record[property.name] WHERE value  =~ "(?i).*${query}.*")`)

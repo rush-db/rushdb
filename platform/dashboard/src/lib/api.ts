@@ -1,7 +1,18 @@
 /**
  * This file is responsible for all api calls and data normalization
  */
-import type { AnyObject, Property, SearchQuery, DBRecord, MaybeArray } from '@rushdb/javascript-sdk'
+import type {
+  AnyObject,
+  Property,
+  SearchQuery,
+  DBRecord,
+  MaybeArray,
+  DBRecordTarget,
+  DBRecordDraft,
+  InferSchemaTypesWrite,
+  RelationTarget,
+  RelationOptions
+} from '@rushdb/javascript-sdk'
 
 import { DBRecordsBatchDraft } from '@rushdb/javascript-sdk'
 
@@ -32,14 +43,18 @@ export type ApiResult<Method extends AnyFunction> = Awaited<ReturnType<Method>>
 
 export const api = {
   records: {
-    async batchUpload({
+    async createMany({
       init,
       payload,
       label,
       options = {}
     }: WithInit & {
       label: string
-      options?: { suggestTypes?: boolean }
+      options?: {
+        suggestTypes?: boolean
+        castNumberArraysAsVector?: boolean
+        castNumericValuesAsNumber?: boolean
+      }
       payload: MaybeArray<AnyObject>
     }) {
       const data = new DBRecordsBatchDraft({ label, options, payload })
@@ -52,7 +67,7 @@ export const api = {
         return {}
       }
     },
-    async batchDelete({ init, ...payload }: WithInit & ({ ids: string[] } | SearchQuery)) {
+    async delete({ init, ...payload }: WithInit & ({ ids: string[] } | SearchQuery)) {
       if ('ids' in payload && payload.ids) {
         return sdk(init).records.deleteById(payload.ids)
       } else {
@@ -73,17 +88,60 @@ export const api = {
     }) {
       return sdk(init).records.relations(id)
     },
-    async labels({ searchQuery = {}, init }: { searchQuery?: SearchQuery } & WithInit) {
-      return sdk(init).labels.find(searchQuery)
-    },
+
     async properties(id: string, init: RequestInit) {
       return sdk(init).records.properties(id)
     },
     async find(queryOdId: SearchQuery | string, init: RequestInit) {
       return sdk(init).records.find(queryOdId)
     },
-    async exportCsv(query: SearchQuery, init: RequestInit) {
+    async findOne(queryOdId: Omit<SearchQuery, 'skip' | 'limit'> | string, init: RequestInit) {
+      return sdk(init).records.findOne(queryOdId)
+    },
+    async findUniq(queryOdId: Omit<SearchQuery, 'skip' | 'limit'> | string, init: RequestInit) {
+      return sdk(init).records.findUniq(queryOdId)
+    },
+    async set(target: DBRecordTarget, data: DBRecordDraft | InferSchemaTypesWrite<any>, init: RequestInit) {
+      return sdk(init).records.set(target, data)
+    },
+    async update(
+      target: DBRecordTarget,
+      data: DBRecordDraft | Partial<InferSchemaTypesWrite<any>>,
+      init: RequestInit
+    ) {
+      return sdk(init).records.update(target, data)
+    },
+    async export(query: SearchQuery, init: RequestInit) {
       return sdk(init).records.export(query)
+    },
+    async attach({
+      source,
+      target,
+      options,
+      init
+    }: {
+      source: DBRecordTarget
+      target: RelationTarget
+      options?: RelationOptions
+    } & WithInit) {
+      return sdk(init).records.attach(source, target, options)
+    },
+    async detach({
+      source,
+      target,
+      options,
+      init
+    }: {
+      source: DBRecordTarget
+      target: RelationTarget
+      options?: RelationOptions
+    } & WithInit) {
+      return sdk(init).records.detach(source, target, options)
+    }
+  },
+  labels: {
+    async find({ searchQuery = {}, init }: { searchQuery?: SearchQuery } & WithInit) {
+      return sdk(init).labels.find(searchQuery)
     }
   },
   relations: {

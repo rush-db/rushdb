@@ -104,7 +104,7 @@ export const batchDeleteSelected = createMutator({
     //   }
     // }
 
-    return await api.records.batchDelete({
+    return await api.records.delete({
       init,
       ...body
       // where: ('where' in body && convertToSearchQuery(body?.where)) || {}

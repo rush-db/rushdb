@@ -60,7 +60,7 @@ export const $currentProjectFilters = computed([$searchParams], (params: SearchP
 export const $currentProjectLabels = createAsyncStore({
   key: '$currentProject',
   async fetcher(init) {
-    return await api.records.labels({ init })
+    return await api.labels.find({ init })
   },
   deps: [$currentProjectId]
 })
@@ -343,7 +343,7 @@ export const toggleLabel = action($activeLabels, 'toggleLabel', (store, labelVal
 })
 
 // @TODO: Consider refactoring here
-export const $exportCsv = createMutator({
+export const $export = createMutator({
   async fetcher({ init }) {
     const projectId = $currentProjectId.get()
 
@@ -360,7 +360,7 @@ export const $exportCsv = createMutator({
       properties = $currentProjectFilters.get().map(filterToSearchOperation)
     }
 
-    return await api.records.exportCsv(
+    return await api.records.export(
       {
         labels,
         where: convertToSearchQuery(properties),
