@@ -32,6 +32,8 @@ import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { CustomTransactionDecorator } from '@/database/neogma-dynamic/custom-transaction.decorator'
+import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // POST     /import/json           ✅ INGEST DATA
@@ -42,7 +44,12 @@ import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 @Controller('')
 @ApiTags('Records')
-@UseInterceptors(NotFoundInterceptor, NeogmaDataInterceptor, NeogmaTransactionInterceptor)
+@UseInterceptors(
+  NotFoundInterceptor,
+  NeogmaDataInterceptor,
+  NeogmaTransactionInterceptor,
+  CustomTransactionInterceptor
+)
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
 
@@ -59,11 +66,12 @@ export class ImportController {
   async collectJson(
     @Body() body: ImportJsonDto,
     @TransactionDecorator() transaction: Transaction,
+    @CustomTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId
 
-    return await this.importService.importRecords(body, projectId, transaction)
+    return await this.importService.importRecords(body, projectId, transaction, customTx)
   }
 
   @Post('/records/import/csv')
@@ -79,6 +87,7 @@ export class ImportController {
   async collectCsv(
     @Body() body: ImportCsvDto,
     @TransactionDecorator() transaction: Transaction,
+    @CustomTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId
@@ -96,7 +105,8 @@ export class ImportController {
         label: body.label
       },
       projectId,
-      transaction
+      transaction,
+      customTx
     )
   }
 }
