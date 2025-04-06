@@ -16,6 +16,7 @@ import { UserService } from '@/dashboard/user/user.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import { EncryptionService } from './encryption/encryption.service'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 @Injectable()
 export class AuthService {
@@ -23,7 +24,8 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly encryptionService: EncryptionService,
     private readonly jwtService: JwtService,
-    private readonly neogmaService: NeogmaService
+    private readonly neogmaService: NeogmaService,
+    private readonly compositeNeogmaService: CompositeNeogmaService
   ) {}
 
   createToken(user: User): string {
@@ -103,7 +105,7 @@ export class AuthService {
     projectId: string,
     transaction: Transaction
   ): Promise<boolean> {
-    const queryRunner = this.neogmaService.createRunner()
+    const queryRunner = this.compositeNeogmaService.createRunner()
 
     const queryBuilder = new QueryBuilder()
 
@@ -135,7 +137,7 @@ export class AuthService {
     config: TVerifyOwnershipConfig,
     transaction: Transaction
   ): Promise<boolean> {
-    const queryRunner = this.neogmaService.createRunner()
+    const queryRunner = this.compositeNeogmaService.createRunner()
     const { nodeProperty, projectIdProperty } = config ?? {
       nodeProperty: 'id',
       projectIdProperty: 'projectId'
