@@ -20,7 +20,7 @@ export class NeogmaDynamicService {
     let entry = this.connections.get(projectId)
 
     if (entry) {
-      clearTimeout(entry.timeout as number)
+      clearTimeout(entry.timeout)
       entry.lastUsed = now
       entry.timeout = this.scheduleCleanup(projectId)
       isDevMode(() => Logger.log(`Reusing dynamic connection for project ${projectId}`))
@@ -76,6 +76,7 @@ export class NeogmaDynamicService {
         await transaction.run(index)
       }
 
+      isDevMode(() => Logger.log('Initializing RushDB custom db finished...'))
       await transaction.commit()
     } catch (error) {
       isDevMode(() => Logger.error('Error initializing custom DB schema', error))

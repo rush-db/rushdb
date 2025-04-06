@@ -2,6 +2,7 @@ import { ModelRelatedNodesI, NeogmaInstance, NeogmaModel } from 'neogma'
 
 import { TUserFactory, TUserInstance } from '@/dashboard/user/model/user.interface'
 import { TWorkspaceInstance, TWorkspaceModel } from '@/dashboard/workspace/model/workspace.interface'
+import { TProjectCustomDbPayload } from '@/dashboard/project/project.types'
 
 type TProjectProperties = {
   id: string
@@ -15,6 +16,10 @@ type TProjectProperties = {
 }
 
 interface IProjectProperties extends TProjectProperties {}
+
+interface IRawProjectProperties extends Omit<TProjectProperties, 'customDb'> {
+  customDb: TProjectCustomDbPayload
+}
 
 interface IProjectRelatedNodes {
   Users: ModelRelatedNodesI<
@@ -39,4 +44,11 @@ type TProjectInstance = NeogmaInstance<TProjectProperties, IProjectRelatedNodes>
 
 type TProjectModel = NeogmaModel<TProjectProperties, IProjectRelatedNodes, IProjectStatics>
 
-export { TProjectInstance, TProjectProperties, IProjectRelatedNodes, TProjectModel, IProjectProperties }
+export {
+  TProjectInstance,
+  TProjectProperties,
+  IProjectRelatedNodes,
+  TProjectModel,
+  IProjectProperties,
+  IRawProjectProperties
+}

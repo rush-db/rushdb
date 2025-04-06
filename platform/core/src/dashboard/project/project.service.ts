@@ -10,7 +10,11 @@ import { PropertyService } from '@/core/property/property.service'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { CreateProjectDto } from '@/dashboard/project/dto/create-project.dto'
 import { ProjectEntity } from '@/dashboard/project/entity/project.entity'
-import { IProjectProperties, TProjectInstance } from '@/dashboard/project/model/project.interface'
+import {
+  IProjectProperties,
+  IRawProjectProperties,
+  TProjectInstance
+} from '@/dashboard/project/model/project.interface'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { ProjectQueryService } from '@/dashboard/project/project-query.service'
 import { TProjectCustomDbPayload, TProjectStats } from '@/dashboard/project/project.types'
@@ -173,7 +177,7 @@ export class ProjectService {
 
   async updateProject(
     id: string,
-    projectProperties: Partial<IProjectProperties>,
+    projectProperties: Partial<IRawProjectProperties>,
     transaction: Transaction
   ): Promise<ProjectEntity> {
     const projectNode = await this.getProjectNode(id, transaction)
@@ -185,17 +189,27 @@ export class ProjectService {
     const { created, edited, ...restProperties } = projectProperties
     const fieldsToUpdate = removeUndefinedKeys(restProperties)
 
-    const updateField = async (key: string, value: IProjectProperties[keyof IProjectProperties]) => {
-      if (projectNode[key] !== value) {
+    const updateField = async (key: string, value: IRawProjectProperties[keyof IRawProjectProperties]) => {
+      if (key === 'customDb' && typeof value === 'string') {
+        // do nothing for updating hash of customDb
+        return
+      } else if (key === 'customDb' && typeof value === 'object') {
+        const customDb = this.attachCustomDb(value)
+
+        if (customDb) {
+          projectNode[key] = customDb
+        }
+      } else if (projectNode[key] !== value) {
         projectNode[key] = value
       }
     }
 
     await Promise.all(
-      Object.entries<IProjectProperties[keyof IProjectProperties]>(fieldsToUpdate).map(
+      Object.entries<IRawProjectProperties[keyof IRawProjectProperties]>(fieldsToUpdate).map(
         async ([key, value]) => await updateField(key, value)
       )
     )
+
     projectNode['edited'] = getCurrentISO()
     await projectNode.save()
 
