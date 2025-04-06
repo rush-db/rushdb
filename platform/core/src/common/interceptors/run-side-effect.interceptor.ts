@@ -1,9 +1,12 @@
-import { CallHandler, ExecutionContext, Injectable, mixin, NestInterceptor } from '@nestjs/common'
+import { CallHandler, ExecutionContext, Injectable, Logger, mixin, NestInterceptor } from '@nestjs/common'
 import { Observable } from 'rxjs'
 import { catchError, tap } from 'rxjs/operators'
 
 import { ProjectService } from '@/dashboard/project/project.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { dbContextStorage } from '@/database/db-context'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
+import { isDevMode } from '@/common/utils/isDevMode'
 
 export enum ESideEffectType {
   RECOUNT_PROJECT_STRUCTURE = 'recountProjectNodes'
@@ -14,13 +17,30 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
   class RunSideEffectInterceptor implements NestInterceptor {
     constructor(
       readonly neogmaService: NeogmaService,
+      readonly compositeNeogmaService: CompositeNeogmaService,
       readonly projectService: ProjectService
     ) {}
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
       const { projectId } = context.switchToHttp().getRequest()
+      const dbContext = dbContextStorage.getStore()
+      const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== 'default'
 
       const session = this.neogmaService.createSession()
       const transaction = session.beginTransaction()
+
+      let customSession
+      let customTransaction
+
+      // @TODO: It's an optimistic way to recompute project with external neo4j.
+      // Source controller should use db-context.middleware, bc project controller doesn't use db context
+      if (hasCustomDbContext) {
+        isDevMode(() =>
+          Logger.debug(`Custom transaction created for project ${projectId} side effect runner`)
+        )
+        customSession = this.compositeNeogmaService.createSession()
+        customTransaction = customSession.beginTransaction()
+      }
+
       return next.handle().pipe(
         tap(async () => {
           // @TODO: Figure out how to run all of this after previous transaction is closed and successfully written
@@ -30,7 +50,7 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
 
             const recountProjectStructureSideEffect = () => {
               const init = async () => {
-                return this.projectService.recomputeProjectNodes(projectId, transaction)
+                return this.projectService.recomputeProjectNodes(projectId, transaction, customTransaction)
               }
 
               return {
@@ -54,12 +74,28 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
               await transaction.commit()
               await this.neogmaService.closeSession(session, 'run-side-effect-interceptor')
             }
+
+            if (hasCustomDbContext && customTransaction?.isOpen()) {
+              isDevMode(() =>
+                Logger.log(`[COMMIT CUSTOM TRANSACTION]: Side effect runner for project ${projectId}`)
+              )
+              await customTransaction.commit()
+              await this.compositeNeogmaService.closeSession(customSession)
+            }
           }, 1000)
         }),
         catchError(async (error) => {
-          console.log('[ROLLBACK TRANSACTION]: Side effect runner')
+          isDevMode(() => Logger.log(`[ROLLBACK TRANSACTION]: Side effect runner for project ${projectId}`))
           await transaction.rollback()
           await this.neogmaService.closeSession(session, 'run-side-effect-interceptor')
+
+          if (hasCustomDbContext) {
+            isDevMode(() =>
+              Logger.log(`[ROLLBACK CUSTOM TRANSACTION]: Side effect runner for project ${projectId}`)
+            )
+            await customTransaction.rollback()
+            await this.compositeNeogmaService.closeSession(customSession)
+          }
           throw error
         })
       )

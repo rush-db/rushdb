@@ -10,21 +10,24 @@ export class DbContextMiddleware implements NestMiddleware {
 
   async use(req: Request, res: Response, next: NextFunction) {
     const projectId = req.headers['x-project-id'] as string
-    let connection
+    let connectionConfig
 
     if (projectId) {
       try {
-        connection = await this.dbConnectionService.getConnection(projectId)
+        connectionConfig = await this.dbConnectionService.getConnection(projectId)
       } catch (e) {
         isDevMode(() => Logger.error(`Error obtaining connection for project ${projectId}`, e))
       }
     }
 
-    if (!connection) {
-      connection = await this.dbConnectionService.getConnection('default')
+    if (!connectionConfig) {
+      connectionConfig = await this.dbConnectionService.getConnection('default')
     }
 
-    const context: DbContext = { projectId: projectId || 'default', connection }
+    const context: DbContext = {
+      projectId: connectionConfig.projectId,
+      connection: connectionConfig.connection
+    }
     dbContextStorage.run(context, () => next())
   }
 }

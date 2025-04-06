@@ -22,12 +22,14 @@ import { USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { toNative } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import * as crypto from 'node:crypto'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 @Injectable()
 export class ProjectService {
   constructor(
     private readonly configService: ConfigService,
     private readonly neogmaService: NeogmaService,
+    private readonly compositeNeogmaService: CompositeNeogmaService,
     private readonly projectRepository: ProjectRepository,
     private readonly entityRepository: EntityRepository,
     private readonly projectQueryService: ProjectQueryService,
@@ -166,9 +168,13 @@ export class ProjectService {
     }
   }
 
-  async recomputeProjectNodes(projectId: string, transaction: Transaction): Promise<string> {
+  async recomputeProjectNodes(
+    projectId: string,
+    transaction: Transaction,
+    customTx: Transaction = transaction
+  ): Promise<string> {
     const projectNode = await this.getProjectNode(projectId, transaction)
-    const projectNodePayload = JSON.stringify(await this.getNodesCount(projectId, transaction))
+    const projectNodePayload = JSON.stringify(await this.getNodesCount(projectId, customTx))
     projectNode.stats = projectNodePayload
 
     await projectNode.save()
@@ -354,7 +360,7 @@ export class ProjectService {
   }
 
   async getNodesCount(projectId: string, transaction: Transaction): Promise<TProjectStats> {
-    const queryRunner = this.neogmaService.createRunner()
+    const queryRunner = this.compositeNeogmaService.createRunner()
 
     return await queryRunner
       .run(

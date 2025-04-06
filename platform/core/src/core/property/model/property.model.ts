@@ -7,15 +7,17 @@ import {
   IPropertyStatics,
   TPropertyProperties
 } from '@/core/property/model/property.interface'
-import { TModelName } from '@/database/neogma/repository/types'
+import { TModelName, TModelSourceType } from '@/database/neogma/repository/types'
 
 type TPropertyParams = TGetFirstArgument<
   typeof ModelFactory<TPropertyProperties, IPropertiesRelatedNodes, IPropertyStatics>
 > &
-  TModelName
+  TModelName &
+  TModelSourceType
 
 export const Property: TPropertyParams = {
   name: 'Property',
+  canUseExternalSource: true,
   label: RUSHDB_LABEL_PROPERTY,
   schema: {
     id: {

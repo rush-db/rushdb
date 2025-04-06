@@ -8,6 +8,11 @@ import { Transaction } from 'neo4j-driver'
 import { transactionStorage } from '@/core/transactions/transaction-context'
 import { isDevMode } from '@/common/utils/isDevMode'
 
+export interface ConnectionResult {
+  connection: Neogma
+  projectId: string | 'default'
+}
+
 @Injectable()
 export class DbConnectionService {
   constructor(
@@ -16,14 +21,14 @@ export class DbConnectionService {
     private readonly projectService: ProjectService
   ) {}
 
-  async getConnection(projectId: string): Promise<Neogma> {
+  async getConnection(projectId: string): Promise<ConnectionResult> {
     const context = transactionStorage.getStore()
     const tx: Transaction | undefined = context?.transaction
 
     if (projectId === 'default') {
       isDevMode(() => Logger.debug(`Using default connection for project`))
 
-      return this.neogmaService.getInstance()
+      return { connection: this.neogmaService.getInstance(), projectId: 'default' }
     }
 
     const projectNode = await this.projectService.getProject(projectId, tx)
@@ -41,7 +46,9 @@ export class DbConnectionService {
 
         isDevMode(() => Logger.debug(`Using dynamic connection for project ${projectId}`))
 
-        return await this.neogmaDynamicService.getConnection(projectId, config)
+        const dynamicConnection = await this.neogmaDynamicService.getConnection(projectId, config)
+
+        return { connection: dynamicConnection, projectId }
       } catch (error) {
         isDevMode(() =>
           Logger.error(
@@ -51,11 +58,11 @@ export class DbConnectionService {
           )
         )
 
-        return this.neogmaService.getInstance()
+        throw new Error(`Dynamic connection failed for project ${projectId}: ${error}`)
       }
     }
 
     isDevMode(() => Logger.debug(`Using default connection for project ${projectId}`))
-    return this.neogmaService.getInstance()
+    return { connection: this.neogmaService.getInstance(), projectId: 'default' }
   }
 }
