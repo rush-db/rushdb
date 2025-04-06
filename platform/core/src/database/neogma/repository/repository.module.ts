@@ -1,4 +1,4 @@
-import { Module, OnApplicationBootstrap } from '@nestjs/common'
+import { forwardRef, Module, OnApplicationBootstrap } from '@nestjs/common'
 
 import { Entity } from '@/core/entity/model/entity.model'
 import { Property } from '@/core/property/model/property.model'
@@ -7,8 +7,11 @@ import { Token } from '@/dashboard/token/model/token.model'
 import { User } from '@/dashboard/user/model/user.model'
 import { Workspace } from '@/dashboard/workspace/model/workspace.model'
 import { RepositoryService } from '@/database/neogma/repository/repository.service'
+import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
 
 @Module({
+  // Maybe move repository module to another dir...
+  imports: [forwardRef(() => NeogmaDynamicModule)],
   providers: [RepositoryService],
   exports: [RepositoryService]
 })

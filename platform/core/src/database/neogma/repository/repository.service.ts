@@ -3,12 +3,12 @@ import { ModelFactory } from 'neogma'
 import { NeogmaModel, RelationshipsI } from 'neogma/dist/ModelOps/ModelOps'
 
 import { TAnyObject, TGetFirstArgument } from '@/common/types/utils'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 import { TModelName } from '@/database/neogma/repository/types'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 @Injectable()
 export class RepositoryService {
-  constructor(private readonly neogmaService: NeogmaService) {}
+  constructor(private readonly compositeNeogmaService: CompositeNeogmaService) {}
 
   private storage: Record<string, NeogmaModel<any, any>> = {}
 
@@ -26,7 +26,7 @@ export class RepositoryService {
     models.forEach((model) => {
       const { relationships, ...rest } = model
 
-      const Model = ModelFactory<any, any>(rest, this.neogmaService.getInstance())
+      const Model = ModelFactory<any, any>(rest, this.compositeNeogmaService.getInstance())
 
       if (relationships) {
         this.relationshipCreationQuery[model.name] = relationships

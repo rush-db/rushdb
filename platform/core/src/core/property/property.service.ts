@@ -40,7 +40,7 @@ export class PropertyService {
     transaction: Transaction
     queryRunner?: QueryRunner
   }) {
-    const runner = queryRunner || this.neogmaService.createRunner()
+    const runner = queryRunner || this.compositeNeogmaService.createRunner()
 
     return await runner
       .run(
@@ -66,7 +66,7 @@ export class PropertyService {
     transaction: Transaction
     queryRunner?: QueryRunner
   }): Promise<TPropertyProperties[]> {
-    const runner = queryRunner || this.neogmaService.createRunner()
+    const runner = queryRunner || this.compositeNeogmaService.createRunner()
 
     return await runner
       .run(this.propertyQueryService.getProjectProperties(), { id: projectId }, transaction)
@@ -84,7 +84,7 @@ export class PropertyService {
     searchParams?: SearchDto
     queryRunner?: QueryRunner
   }): Promise<TPropertyProperties[]> {
-    const runner = queryRunner || this.neogmaService.createRunner()
+    const runner = queryRunner || this.compositeNeogmaService.createRunner()
 
     return await runner
       .run(this.propertyQueryService.getProjectProperties(), { id: projectId }, transaction)
@@ -134,7 +134,7 @@ export class PropertyService {
     projectId: string
     transaction: Transaction
   }): Promise<boolean> {
-    const runner = this.neogmaService.createRunner()
+    const runner = this.compositeNeogmaService.createRunner()
 
     await runner.run(
       this.propertyQueryService.deletePropertyQuery(),
@@ -162,7 +162,7 @@ export class PropertyService {
     updateParams: UpdatePropertyValueDto
     transaction: Transaction
   }): Promise<boolean> {
-    const runner = this.neogmaService.createRunner()
+    const runner = this.compositeNeogmaService.createRunner()
 
     await runner.run(
       this.propertyQueryService.updateField(),
@@ -204,7 +204,7 @@ export class PropertyService {
     transaction: Transaction
     projectId: string
   }): Promise<boolean> {
-    const runner = this.neogmaService.createRunner()
+    const runner = this.compositeNeogmaService.createRunner()
 
     const currentNode = await this.propertyRepository.model.findOne({
       where: { id: propertyId },

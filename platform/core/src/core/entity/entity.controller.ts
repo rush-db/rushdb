@@ -59,13 +59,12 @@ import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-p
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 import { CreateEntityDto, CreateEntityDtoSimple } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
 import { EntityService } from './entity.service'
 import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
-import { CustomTransactionDecorator } from '@/database/neogma-dynamic/custom-transaction.decorator'
+import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // RECORDS CRUD
@@ -126,7 +125,7 @@ export class EntityController {
   @AuthGuard('project')
   async getEntity(
     @Param('entityId') entityId: string,
-    @TransactionDecorator() transaction: Transaction
+    @PreferredTransactionDecorator() transaction: Transaction
   ): Promise<TEntityPropertiesNormalized> {
     return await this.entityService.getEntity({
       id: entityId,
@@ -143,8 +142,7 @@ export class EntityController {
   @AuthGuard('project')
   async createEntity(
     @Body() entity: CreateEntityDto | CreateEntityDtoSimple,
-    @TransactionDecorator() transaction: Transaction,
-    @CustomTransactionDecorator() customTx: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<TEntityPropertiesNormalized> {
     const projectId = request.projectId
@@ -153,12 +151,12 @@ export class EntityController {
       entity,
       projectId,
       // we need smart switcher between customTx and default service tx, maybe new decorator
-      transaction: customTx
+      transaction
     })
 
     await this.propertyService.deleteOrphanProps({
       projectId,
-      transaction: customTx
+      transaction
     })
 
     return result
@@ -180,7 +178,7 @@ export class EntityController {
   async updateEntity(
     @Param('entityId') entityId: string,
     @Body() entity: EditEntityDto,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<TEntityPropertiesNormalized> {
     const projectId = request.projectId
@@ -231,7 +229,7 @@ export class EntityController {
   async setEntity(
     @Param('entityId') entityId: string,
     @Body() entity: EditEntityDto,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<TEntityPropertiesNormalized> {
     const projectId = request.projectId
@@ -257,7 +255,7 @@ export class EntityController {
   @AuthGuard('project')
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
   async deleteBulk(
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchParams: SearchDto = {},
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
@@ -283,7 +281,7 @@ export class EntityController {
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
   async deleteEntity(
     @Param('entityId') entityId: string,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
@@ -297,7 +295,7 @@ export class EntityController {
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
   async searchFromRoot(
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchParams: SearchDto,
     @Request() request: PlatformRequest
   ): Promise<TRecordSearchResult> {
@@ -338,7 +336,7 @@ export class EntityController {
   @HttpCode(HttpStatus.OK)
   async levelSearch(
     @Param('entityId') entityId: string,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchParams: SearchDto = {},
     @Request() request: PlatformRequest
   ): Promise<TRecordSearchResult> {
@@ -379,7 +377,7 @@ export class EntityController {
   @HttpCode(HttpStatus.OK)
   async getEntityFields(
     @Param('entityId') entityId: string,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<{ data: TPropertyProperties[] }> {
     const projectId = request.projectId
@@ -405,7 +403,7 @@ export class EntityController {
   @HttpCode(HttpStatus.OK)
   async getRecordRelations(
     @Param('entityId') entityId: string,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest,
     @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
     @Query('limit', new DefaultValuePipe(1000), ParseIntPipe) limit?: number
@@ -453,7 +451,7 @@ export class EntityController {
   async linkEntity(
     @Param('entityId') entityId: string,
     @Body() linkEntity: LinkEntityDto,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
@@ -480,7 +478,7 @@ export class EntityController {
   async deleteRecordRelations(
     @Param('entityId') entityId: string,
     @Body() unlinkEntityDto: UnlinkEntityDto,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
@@ -493,7 +491,7 @@ export class EntityController {
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async searchRecordRelations(
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchParams: SearchDto = {},
     @Request() request: PlatformRequest,
     @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
