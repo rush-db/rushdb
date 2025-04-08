@@ -123,10 +123,10 @@ Creates multiple records in a single operation.
 createMany(records: InferSchemaTypesWrite<S>[], transaction?: Transaction | string): Promise<DBRecordsArrayInstance<S>>;
 ```
 
-### `deleteById`
+### `delete`
 Deletes multiple records based on specified query parameters.
 ```typescript
-deleteById<T extends InferSchemaTypesWrite<S> = InferSchemaTypesWrite<S>>(params?: Omit<SearchQuery<T>, 'labels'>, transaction?: Transaction | string): Promise<ApiResponse<{ message: string }>>;
+delete<T extends InferSchemaTypesWrite<S> = InferSchemaTypesWrite<S>>(params?: Omit<SearchQuery<T>, 'labels'>, transaction?: Transaction | string): Promise<ApiResponse<{ message: string }>>;
 ```
 
 ### `deleteById`
@@ -189,7 +189,7 @@ await Author.deleteById(newAuthor.id);
 
 ## Additional Notes
 
-- **Transaction Handling:** Many methods (e.g., `create`, `set`, `update`, `deleteById`) support transactions, allowing you to commit or roll back operations as needed.
+- **Transaction Handling:** Many methods (e.g., `create`, `set`, `update`, `delete`) support transactions, allowing you to commit or roll back operations as needed.
 - **Schema Validation:** The schema is automatically validated when creating or updating records to ensure compliance with predefined rules.
 - **Error Handling:** Errors like `UniquenessError` are thrown when attempting to create or update records with duplicate values for unique fields.
 

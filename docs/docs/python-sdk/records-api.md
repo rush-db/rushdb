@@ -218,13 +218,13 @@ query = {
 records = client.records.find(query=query)
 ```
 
-### deleteById()
+### delete()
 
 Deletes records matching a query.
 
 **Signature:**
 ```python
-def deleteById(
+def delete(
     self,
     query: SearchQuery,
     transaction: Optional[Transaction] = None
@@ -248,7 +248,7 @@ query = {
     }
 }
 
-response = client.records.deleteById(query)
+response = client.records.delete(query)
 ```
 
 ### delete_by_id()
@@ -265,7 +265,7 @@ def delete_by_id(
 ```
 
 **Arguments:**
-- `id_or_ids` (Union[str, List[str]]): Single ID or list of IDs to deleteById
+- `id_or_ids` (Union[str, List[str]]): Single ID or list of IDs to delete
 - `transaction` (Optional[Transaction]): Optional transaction object
 
 **Returns:**

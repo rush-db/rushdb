@@ -130,8 +130,8 @@
 
 ### Patch Changes
 
-- 633047a: Fix missign return in get transaction method
-- b4599fc: Fix missing label criteria in deleteById request
+- 633047a: Fix missing return in get transaction method
+- b4599fc: Fix missing label criteria in delete request
 - 837f17a: Extended logger for SDK
 - Updated dependencies [633047a]
 - Updated dependencies [b4599fc]

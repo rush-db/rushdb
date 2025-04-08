@@ -76,13 +76,13 @@ def find_by_id(
 property_details = client.properties.find_by_id("prop_123456")
 ```
 
-### deleteById()
+### delete()
 
 Deletes a property by its ID.
 
 **Signature:**
 ```python
-def deleteById(
+def delete(
     self,
     property_id: str,
     transaction: Optional[Transaction] = None
@@ -90,7 +90,7 @@ def deleteById(
 ```
 
 **Arguments:**
-- `property_id` (str): Unique identifier of the property to deleteById
+- `property_id` (str): Unique identifier of the property to delete
 - `transaction` (Optional[Transaction]): Optional transaction object
 
 **Returns:**
@@ -99,7 +99,7 @@ def deleteById(
 **Example:**
 ```python
 # Delete a property
-client.properties.deleteById("prop_123456")
+client.properties.delete("prop_123456")
 ```
 
 ### values()
@@ -222,7 +222,7 @@ with client.transactions.begin() as transaction:
         transaction=transaction
     )[0]
     
-    client.properties.deleteById(
+    client.properties.delete(
         property_id=property_to_delete['id'],
         transaction=transaction
     )
@@ -235,7 +235,7 @@ When working with the PropertiesAPI, be prepared to handle potential errors:
 
 ```python
 try:
-    # Attempt to find or deleteById a property
+    # Attempt to find or delete a property
     property_details = client.properties.find_by_id("non_existent_prop")
 except RushDBError as e:
     print(f"Error: {e}")
