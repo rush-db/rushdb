@@ -103,7 +103,7 @@ export class ImportService {
       if (isArray(value)) {
         if (options.suggestTypes) {
           const { isEmptyArray, isInconsistentArray } = valueParameters
-
+          console.log('!!!', options.castNumberArraysAsVector, value.every(isNumeric))
           if (isEmptyArray) {
             property.value = RUSHDB_VALUE_EMPTY_ARRAY
           } else if (options.castNumberArraysAsVector && value.every(isNumeric)) {
@@ -298,7 +298,7 @@ export class ImportService {
 
     for (let i = 0; i < relations.length; i += CHUNK_SIZE) {
       const relationsChunk = relations.slice(i, i + CHUNK_SIZE)
-      await this.processRelationshipsChunk({ relationsChunk, transaction, queryRunner: runner })
+      await this.processRelationshipsChunk({ relationsChunk, transaction, projectId, queryRunner: runner })
     }
 
     return options.returnResult ? result : true
@@ -332,8 +332,10 @@ export class ImportService {
   async processRelationshipsChunk({
     relationsChunk,
     transaction,
+    projectId,
     queryRunner
   }: {
+    projectId: string
     relationsChunk: TImportRecordsRelation[]
     transaction: Transaction
     queryRunner?: QueryRunner
@@ -343,7 +345,8 @@ export class ImportService {
     await runner.run(
       this.entityQueryService.linkRecords(),
       {
-        relations: relationsChunk
+        relations: relationsChunk,
+        projectId
       },
       transaction
     )

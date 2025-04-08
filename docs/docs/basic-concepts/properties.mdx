@@ -376,11 +376,11 @@ This part of the documentation is actively in development.
     DELETE /api/v1/properties/:propertyId
     ```
     :::info
-    **Note:** Replace `:propertyId` with the actual ID of the property you want to delete.
+    **Note:** Replace `:propertyId` with the actual ID of the property you want to deleteById.
     :::
   </div>
   <div className="col-span-3">
-    To completely remove a property and all its values, simply call the `.delete` method with the property ID.
+    To completely remove a property and all its values, simply call the `.deleteById` method with the property ID.
 
     ### Request
 
@@ -391,7 +391,7 @@ This part of the documentation is actively in development.
       </TabsList>
       <TabsContent value="sdk">
         ```typescript
-        await db.properties.delete("019239e7-d33a-7b31-933d-680df398a4d1");
+        await db.properties.deleteById("019239e7-d33a-7b31-933d-680df398a4d1");
         ```
       </TabsContent>
       <TabsContent value="api">

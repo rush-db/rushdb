@@ -34,7 +34,7 @@ export class ExportService {
       const remainingRecords = total - skip
       const limit = remainingRecords < batchSize ? remainingRecords : batchSize
 
-      const batchData = await this.entityService.findRecords({
+      const batchData = await this.entityService.find({
         id,
         projectId,
         searchParams: {
@@ -80,7 +80,7 @@ export class ExportService {
     searchParams?: SearchDto
     transaction: Transaction
   }) {
-    const total = await this.entityService.getRecordsTotalCount({
+    const total = await this.entityService.getCount({
       id,
       projectId,
       searchParams,

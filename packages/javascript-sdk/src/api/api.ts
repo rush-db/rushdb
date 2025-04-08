@@ -1,5 +1,11 @@
 import type { HttpClient } from '../network/HttpClient.js'
-import type { DBRecord, RelationDetachOptions, RelationOptions, RelationTarget } from '../sdk/record.js'
+import type {
+  DBRecord,
+  DBRecordTarget,
+  RelationDetachOptions,
+  RelationOptions,
+  RelationTarget
+} from '../sdk/record.js'
 import type { SDKConfig } from '../sdk/types.js'
 import type {
   PropertyValue,
@@ -12,7 +18,7 @@ import type {
 } from '../types/index.js'
 import type { ApiResponse, RecordsApi } from './types.js'
 
-import { isArray, isEmptyObject, isObject, isObjectFlat, isString, toBoolean } from '../common/utils.js'
+import { isArray, isEmptyObject, isObject, isFlatObject, isString, toBoolean } from '../common/utils.js'
 import { createFetcher } from '../network/index.js'
 import { EmptyTargetError } from '../sdk/errors.js'
 import {
@@ -28,12 +34,13 @@ import {
   createSearchParams,
   isTransaction,
   normalizeRecord,
+  pickRecordId,
   pickTransaction,
   prepareProperties
 } from './utils.js'
 
 export class RestAPI {
-  public api: ReturnType<typeof createApi>
+  private api: ReturnType<typeof createApi>
   public fetcher: ReturnType<typeof createFetcher>
 
   public records: RecordsApi
@@ -54,23 +61,23 @@ export class RestAPI {
 
     this.records = {
       attach: async (
-        sourceId: string,
+        source: DBRecordTarget,
         target: RelationTarget,
         options?: RelationOptions,
         transaction?: Transaction | string
       ) => {
         // target is MaybeArray<DBRecordInstance>
         if (target instanceof DBRecordInstance) {
-          const id = target.data?.__id
+          const id = pickRecordId(target)
           if (id) {
-            return await this.api.records.attach(sourceId, id, options, transaction)
+            return await this.api.records.attach(source, id, options, transaction)
           } else {
             throw new EmptyTargetError('Attach error: Target id is empty')
           }
         } else if (isArray(target) && target.every((r) => r instanceof DBRecordInstance)) {
-          const ids = target.map((r) => (r as DBRecordInstance).data?.__id).filter(toBoolean)
+          const ids = target.map(pickRecordId).filter(toBoolean)
           if (ids.length) {
-            return await this.api.records.attach(sourceId, ids as string[], options, transaction)
+            return await this.api.records.attach(source, ids as Array<string>, options, transaction)
           } else {
             throw new EmptyTargetError('Attach error: Target ids are empty')
           }
@@ -80,7 +87,7 @@ export class RestAPI {
         else if (target instanceof DBRecordsArrayInstance) {
           const ids = target.data?.map((r) => r.__id).filter(Boolean)
           if (ids?.length) {
-            return await this.api.records.attach(sourceId, ids, options, transaction)
+            return await this.api.records.attach(source, ids, options, transaction)
           } else {
             throw new EmptyTargetError('Attach error: Target ids are empty')
           }
@@ -88,11 +95,11 @@ export class RestAPI {
 
         // target is MaybeArray<DBRecord>
         else if (isObject(target) && '__id' in target) {
-          return await this.api.records.attach(sourceId, target.__id, options, transaction)
+          return await this.api.records.attach(source, target.__id, options, transaction)
         } else if (isArray(target) && target.every((r) => isObject(r) && '__id' in r)) {
           const ids = target?.map((r) => (r as DBRecord).__id).filter(Boolean)
           if (ids?.length) {
-            return await this.api.records.attach(sourceId, ids, options, transaction)
+            return await this.api.records.attach(source, ids, options, transaction)
           } else {
             throw new EmptyTargetError('Attach error: Target ids are empty')
           }
@@ -100,7 +107,7 @@ export class RestAPI {
 
         // target is MaybeArray<string>
         else {
-          return await this.api.records.attach(sourceId, target as MaybeArray<string>, options, transaction)
+          return await this.api.records.attach(source, target as MaybeArray<string>, options, transaction)
         }
       },
 
@@ -116,14 +123,14 @@ export class RestAPI {
         }
 
         if (!response && isString(labelOrData)) {
-          if (isObjectFlat(maybeDataOrTransaction)) {
+          if (isFlatObject(maybeDataOrTransaction)) {
             const normalizedRecord = normalizeRecord({
               label: labelOrData,
               payload: maybeDataOrTransaction as Record<string, PropertyValue>
             })
 
             response = await this.api?.records.create<S>(
-              new DBRecordDraft(normalizedRecord as { label: string; properties: PropertyWithValue[] }),
+              new DBRecordDraft(normalizedRecord as { label: string; properties: Array<PropertyWithValue> }),
               transaction
             )
           } else if (isObject(maybeDataOrTransaction)) {
@@ -200,16 +207,16 @@ export class RestAPI {
       ) => {
         // target is MaybeArray<DBRecordInstance>
         if (target instanceof DBRecordInstance) {
-          const id = target.data?.__id
+          const id = pickRecordId(target)
           if (id) {
             return await this.api.records.detach(sourceId, id, options, transaction)
           } else {
             throw new EmptyTargetError('Detach error: Target id is empty')
           }
         } else if (isArray(target) && target.every((r) => r instanceof DBRecordInstance)) {
-          const ids = target.map((r) => (r as DBRecordInstance).data?.__id).filter(Boolean)
+          const ids = target.map(pickRecordId).filter(Boolean)
           if (ids.length) {
-            return await this.api.records.detach(sourceId, ids as string[], options, transaction)
+            return await this.api.records.detach(sourceId, ids as Array<string>, options, transaction)
           } else {
             throw new EmptyTargetError('Detach error: Target ids are empty')
           }
@@ -272,14 +279,14 @@ export class RestAPI {
       findById: async <
         S extends Schema = Schema,
         Arg extends MaybeArray<string> = MaybeArray<string>,
-        Result = Arg extends string[] ? DBRecordsArrayInstance<S> : DBRecordInstance<S>
+        Result = Arg extends Array<string> ? DBRecordsArrayInstance<S> : DBRecordInstance<S>
       >(
         idOrIds: Arg,
         transaction?: Transaction | string
       ): Promise<Result> => {
         if (isArray(idOrIds)) {
           const response = (await this.api?.records.findById<S>(idOrIds, transaction)) as ApiResponse<
-            DBRecord<S>[]
+            Array<DBRecord<S>>
           >
           const result = new DBRecordsArrayInstance<S>(response.data, response.total)
           result.init(this)
@@ -341,14 +348,14 @@ export class RestAPI {
 
         if (data instanceof DBRecordDraft) {
           response = await this.api?.records.set<S>(id, data, transaction)
-        } else if (isObjectFlat(data)) {
+        } else if (isFlatObject(data)) {
           const properties = prepareProperties(data)
 
           response = await this.api?.records.set<S>(
             id,
             new DBRecordDraft({ properties } as {
               label: string
-              properties: PropertyWithValue[]
+              properties: Array<PropertyWithValue>
             }),
             transaction
           )
@@ -374,17 +381,54 @@ export class RestAPI {
 
         if (data instanceof DBRecordDraft) {
           response = await this.api?.records.update<S>(id, data, transaction)
-        } else if (isObjectFlat(data)) {
+        } else if (isFlatObject(data)) {
           const properties = prepareProperties(data)
 
           const recordDraft = new DBRecordDraft({ properties } as {
             label: string
-            properties: PropertyWithValue[]
+            properties: Array<PropertyWithValue>
           })
 
           response = await this.api?.records.update<S>(id, recordDraft, transaction)
         } else if (isObject(data)) {
           throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
+        }
+
+        if (response?.success && response?.data) {
+          const result = new DBRecordInstance<S>(response.data)
+          result.init(this)
+          return result
+        }
+
+        return new DBRecordInstance<S>()
+      },
+
+      upsert: async <S extends Schema = any>(
+        labelOrData: DBRecordDraft<true> | string,
+        maybeDataOrTransaction?: Transaction | InferSchemaTypesWrite<S> | string,
+        matchBy?: Array<string>,
+        transaction?: Transaction | string
+      ): Promise<DBRecordInstance<S>> => {
+        let response
+
+        if (labelOrData instanceof DBRecordDraft) {
+          response = await this.api?.records.upsert<S>(labelOrData, pickTransaction(maybeDataOrTransaction))
+        }
+
+        if (!response && isString(labelOrData)) {
+          if (isFlatObject(maybeDataOrTransaction)) {
+            const normalizedRecord = normalizeRecord({
+              label: labelOrData,
+              payload: maybeDataOrTransaction as Record<string, PropertyValue>
+            })
+
+            response = await this.api?.records.upsert<S>(
+              new DBRecordDraft(normalizedRecord as { label: string; properties: Array<PropertyWithValue> }),
+              transaction
+            )
+          } else if (isObject(maybeDataOrTransaction)) {
+            throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
+          }
         }
 
         if (response?.success && response?.data) {

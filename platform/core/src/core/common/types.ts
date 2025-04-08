@@ -176,6 +176,7 @@ export type AggregateFn<S extends Schema = Schema> =
   | { field: string; fn: 'max'; alias: string }
   | { field: string; fn: 'min'; alias: string }
   | { field: string; fn: 'sum'; alias: string }
+  | { field: string; fn: `gds.similarity.${TVectorSearchFn}`; alias: string; vector: number }
   | AggregateCollectFn
 
 export type Aggregate =

@@ -90,7 +90,7 @@ export class PropertyController {
   ): Promise<TPropertyProperties[]> {
     const projectId = request.projectId
 
-    return this.entityService.getEntityFields({
+    return this.entityService.findProperties({
       projectId,
       searchParams,
       transaction

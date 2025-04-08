@@ -1,10 +1,9 @@
-import type { ComponentPropsWithoutRef } from 'react'
+import { ComponentProps, forwardRef } from 'react'
 
-export const GraphIcon = ({
-  height = 44,
-  width = 44,
-  ...props
-}: ComponentPropsWithoutRef<'svg'> & { height?: number; width?: number }) => {
+export const GraphIcon = forwardRef<
+  SVGSVGElement,
+  ComponentProps<'svg'> & { height?: number; width?: number }
+>(({ height, width, ...props }, ref) => {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -14,6 +13,7 @@ export const GraphIcon = ({
       viewBox="0 0 512.000000 512.000000"
       preserveAspectRatio="xMidYMid meet"
       {...props}
+      ref={ref}
     >
       <g
         transform="translate(0.000000,512.000000) scale(0.100000,-0.100000)"
@@ -24,4 +24,4 @@ export const GraphIcon = ({
       </g>
     </svg>
   )
-}
+})

@@ -20,7 +20,7 @@ type TypeMappingWrite = {
   null: null
   number: number
   string: string
-  vector: number[]
+  vector: Array<number>
 }
 
 export type OptionalKeysWrite<S extends Schema = Schema> = {
@@ -37,10 +37,10 @@ export type RequiredKeysWrite<S extends Schema = Schema> = {
 
 export type InferSchemaTypesWrite<S extends Schema = Schema> = FlattenTypes<
   {
-    [Key in RequiredKeysWrite<S>]: S[Key]['multiple'] extends true ? TypeMappingWrite[S[Key]['type']][]
+    [Key in RequiredKeysWrite<S>]: S[Key]['multiple'] extends true ? Array<TypeMappingWrite[S[Key]['type']]>
     : TypeMappingWrite[S[Key]['type']]
   } & {
-    [Key in OptionalKeysWrite<S>]?: S[Key]['multiple'] extends true ? TypeMappingWrite[S[Key]['type']][]
+    [Key in OptionalKeysWrite<S>]?: S[Key]['multiple'] extends true ? Array<TypeMappingWrite[S[Key]['type']]>
     : TypeMappingWrite[S[Key]['type']]
   }
 >
@@ -52,7 +52,7 @@ type TypeMappingRead = {
   null: null
   number: number
   string: string
-  vector: number[]
+  vector: Array<number>
 }
 
 export type OptionalKeysRead<S extends Schema = Schema> = {
@@ -65,10 +65,10 @@ export type RequiredKeysRead<S extends Schema = Schema> = {
 
 export type InferSchemaTypesRead<S extends Schema = Schema> = FlattenTypes<
   {
-    [Key in RequiredKeysRead<S>]: S[Key]['multiple'] extends true ? TypeMappingRead[S[Key]['type']][]
+    [Key in RequiredKeysRead<S>]: S[Key]['multiple'] extends true ? Array<TypeMappingRead[S[Key]['type']]>
     : TypeMappingRead[S[Key]['type']]
   } & {
-    [Key in OptionalKeysRead<S>]?: S[Key]['multiple'] extends true ? TypeMappingRead[S[Key]['type']][]
+    [Key in OptionalKeysRead<S>]?: S[Key]['multiple'] extends true ? Array<TypeMappingRead[S[Key]['type']]>
     : TypeMappingRead[S[Key]['type']]
   }
 >

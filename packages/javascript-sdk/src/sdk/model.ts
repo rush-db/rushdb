@@ -176,11 +176,11 @@ export class Model<S extends Schema = any> extends RestApiProxy {
 
   private async handleSetOrUpdate(
     id: string,
-    record: Partial<InferSchemaTypesWrite<S>> | PropertyDraft[],
+    record: Partial<InferSchemaTypesWrite<S>> | Array<PropertyDraft>,
     method: 'set' | 'update',
     transaction?: Transaction | string
   ) {
-    // Consider Array as PropertyDraft[]
+    // Consider Array as Array<PropertyDraft>
     if (isArray(record)) {
       return // @TODO
     }
@@ -217,7 +217,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
 
   async set(
     id: string,
-    record: InferSchemaTypesWrite<S> | PropertyDraft[],
+    record: InferSchemaTypesWrite<S> | Array<PropertyDraft>,
     transaction?: Transaction | string
   ) {
     return await this.handleSetOrUpdate(id, record, 'set', transaction)
@@ -225,13 +225,13 @@ export class Model<S extends Schema = any> extends RestApiProxy {
 
   async update(
     id: string,
-    record: Partial<InferSchemaTypesWrite<S>> | PropertyDraft[],
+    record: Partial<InferSchemaTypesWrite<S>> | Array<PropertyDraft>,
     transaction?: Transaction | string
   ) {
     return await this.handleSetOrUpdate(id, record, 'update', transaction)
   }
 
-  async createMany(records: InferSchemaTypesWrite<S>[], transaction?: Transaction | string) {
+  async createMany(records: Array<InferSchemaTypesWrite<S>>, transaction?: Transaction | string) {
     // Begin a transaction if one isn't provided.
     const hasOwnTransaction = typeof transaction !== 'undefined'
     const tx = transaction ?? (await this.apiProxy.tx.begin())
@@ -246,7 +246,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
 
       // Check uniqueness
       const uniqProperties = pickUniqFieldsFromRecords(
-        recordsToStore as Partial<InferSchemaTypesWrite<S>>[],
+        recordsToStore as Array<Partial<InferSchemaTypesWrite<S>>>,
         this.schema,
         this.label
       )

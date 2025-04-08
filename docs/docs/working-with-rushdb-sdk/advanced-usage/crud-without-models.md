@@ -74,13 +74,13 @@ await db.records.update(author.data.__id, {
 
 ## Deleting Records without Model Registration
 
-The `delete` and `deleteById` methods enable you to remove records from the database without using registered models.
+The `deleteById` and `deleteById` methods enable you to remove records from the database without using registered models.
 
 ### Example
 
 Deleting records with specific criteria:
 ```typescript
-await db.records.delete('author', {
+await db.records.deleteById('author', {
   where: {
     jobTitle: { $contains: 'writer' }
   }

@@ -89,17 +89,17 @@ export const api = {
       return sdk(init).records.relations(id)
     },
 
-    async properties(id: string, init: RequestInit) {
+    async properties({ id, init }: { id: DBRecord['__id']; init: RequestInit }) {
       return sdk(init).records.properties(id)
     },
-    async find(queryOdId: SearchQuery | string, init: RequestInit) {
-      return sdk(init).records.find(queryOdId)
+    async find(searchQuery: SearchQuery | string, init: RequestInit) {
+      return sdk(init).records.find(searchQuery)
     },
-    async findOne(queryOdId: Omit<SearchQuery, 'skip' | 'limit'> | string, init: RequestInit) {
-      return sdk(init).records.findOne(queryOdId)
+    async findOne(searchQuery: Omit<SearchQuery, 'skip' | 'limit'> | string, init: RequestInit) {
+      return sdk(init).records.findOne(searchQuery)
     },
-    async findUniq(queryOdId: Omit<SearchQuery, 'skip' | 'limit'> | string, init: RequestInit) {
-      return sdk(init).records.findUniq(queryOdId)
+    async findUniq(searchQuery: Omit<SearchQuery, 'skip' | 'limit'> | string, init: RequestInit) {
+      return sdk(init).records.findUniq(searchQuery)
     },
     async set(target: DBRecordTarget, data: DBRecordDraft | InferSchemaTypesWrite<any>, init: RequestInit) {
       return sdk(init).records.set(target, data)
@@ -291,8 +291,8 @@ export const api = {
     async list(query: SearchQuery, init: RequestInit) {
       return sdk(init).properties.find(query)
     },
-    async values({ init, propertyId }: WithInit & { propertyId: Property['id'] }) {
-      return sdk(init).properties.values(propertyId)
+    async values({ id, init }: { id: Property['id']; init: RequestInit }) {
+      return sdk(init).properties.values(id)
     }
   },
   auth: {

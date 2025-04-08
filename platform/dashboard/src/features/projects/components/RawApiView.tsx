@@ -334,47 +334,6 @@ const OperationSelector = () => {
       options={options}
     />
   )
-
-  // <Menu
-  //   trigger={
-  //     <IconButton aria-label="examples" title="Examples" variant="secondary" size="small">
-  //       <LightbulbIcon />
-  //     </IconButton>
-  //   }
-  //   align="end"
-  // >
-  //   <MenuTitle className="mb-2">Record Operations</MenuTitle>
-  //   <Divider />
-  //
-  //   <MenuItem
-  //     inset={operation === 'records.find'}
-  //     className="h-[64px]"
-  //     icon={<ClipboardPaste />}
-  //     onClick={() => $selectedOperation.set('records.find')}
-  //   >
-  //     <div className="text-left">records.find</div>
-  //   </MenuItem>
-  //   <Divider />
-  //   <MenuItem
-  //     inset={operation === 'records.find'}
-  //     className="h-[64px]"
-  //     icon={<ClipboardPaste />}
-  //     onClick={() => $selectedOperation.set('records.findOne')}
-  //   >
-  //     <div className="text-left">records.findOne</div>
-  //   </MenuItem>
-  //   <Divider />
-  //   <MenuTitle className="mb-2">Properties Operations</MenuTitle>
-  //   <Divider />
-  //   <MenuItem
-  //     inset={operation === 'records.find'}
-  //     className="h-[64px]"
-  //     icon={<ClipboardPaste />}
-  //     onClick={() => $selectedOperation.set('properties.find')}
-  //   >
-  //     <div className="text-left">properties.find</div>
-  //   </MenuItem>
-  // </Menu>
 }
 
 export function RawApiView() {
@@ -445,7 +404,7 @@ export function RawApiView() {
         <div className="row-span-2 flex h-full min-h-[80vh] flex-col">
           <div className="border-r pr-5">
             <div className="my-5 flex w-full items-center justify-between">
-              <div className="flex w-full items-end gap-5">
+              <div className="flex w-full items-end gap-3">
                 <div className="flex w-full flex-col">
                   <p className="text-content2 mb-2 text-lg">Method</p>
                   <OperationSelector />

@@ -78,7 +78,7 @@ const $currentFieldValues = createAsyncStore({
 
     return await api.properties.values({
       init,
-      propertyId: fieldId
+      id: fieldId
     })
 
     // as unknown as Array<

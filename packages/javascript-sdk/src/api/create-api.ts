@@ -74,7 +74,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       const requestId = typeof logger === 'function' ? generateRandomId() : ''
       logger?.({ requestId, path, ...payload })
 
-      const response = await fetcher<ApiResponse<Property[]>>(path, payload)
+      const response = await fetcher<ApiResponse<Array<Property>>>(path, payload)
       logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response
@@ -177,9 +177,9 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
     },
 
     async createMany<S extends Schema = any>(
-      data: DBRecordsBatchDraft | S[],
+      data: DBRecordsBatchDraft | Array<S>,
       transaction?: Transaction | string
-    ): Promise<ApiResponse<DBRecord<S>[]>> {
+    ): Promise<ApiResponse<Array<DBRecord<S>>>> {
       const txId = pickTransactionId(transaction)
       const path = `/records/import/json`
       const payload = {
@@ -190,7 +190,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       const requestId = typeof logger === 'function' ? generateRandomId() : ''
       logger?.({ requestId, path, ...payload })
 
-      const response = await fetcher<ApiResponse<DBRecord<S>[]>>(path, payload)
+      const response = await fetcher<ApiResponse<Array<DBRecord<S>>>>(path, payload)
       logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response
@@ -275,7 +275,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
     async find<S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
       params?: { id?: string; searchParams: Q },
       transaction?: Transaction | string
-    ): Promise<ApiResponse<DBRecordInferred<S, Q>[]>> {
+    ): Promise<ApiResponse<Array<DBRecordInferred<S, Q>>>> {
       const txId = pickTransactionId(transaction)
       const path = params?.id ? `/records/${params.id}/search` : `/records/search`
       const payload = {
@@ -286,7 +286,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       const requestId = typeof logger === 'function' ? generateRandomId() : ''
       logger?.({ requestId, path, ...payload })
 
-      const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
+      const response = await fetcher<ApiResponse<Array<DBRecordInferred<S, Q>>>>(path, payload)
       logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response
@@ -302,7 +302,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       const requestId = typeof logger === 'function' ? generateRandomId() : ''
       logger?.({ requestId, path, ...payload })
 
-      const response = await fetcher<ApiResponse<DBRecord<S>[] | DBRecord<S>>>(path, payload)
+      const response = await fetcher<ApiResponse<Array<DBRecord<S>> | DBRecord<S>>>(path, payload)
       logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response
@@ -321,7 +321,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       const requestId = typeof logger === 'function' ? generateRandomId() : ''
       logger?.({ requestId, path, ...payload })
 
-      const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
+      const response = await fetcher<ApiResponse<Array<DBRecordInferred<S, Q>>>>(path, payload)
       logger?.({ requestId, path, ...payload, responseData: response.data })
       const [record] = response.data
       return { ...response, data: record } as ApiResponse<DBRecordInferred<S, Q>>
@@ -340,7 +340,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       const requestId = typeof logger === 'function' ? generateRandomId() : ''
       logger?.({ requestId, path, ...payload })
 
-      const response = await fetcher<ApiResponse<DBRecordInferred<S, Q>[]>>(path, payload)
+      const response = await fetcher<ApiResponse<Array<DBRecordInferred<S, Q>>>>(path, payload)
       logger?.({ requestId, path, ...payload, responseData: response.data })
 
       if (typeof response.total !== 'undefined' && response.total > 1) {
@@ -361,7 +361,7 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
       const requestId = typeof logger === 'function' ? generateRandomId() : ''
       logger?.({ requestId, path, ...payload })
 
-      const response = await fetcher<ApiResponse<Property[]>>(path, payload)
+      const response = await fetcher<ApiResponse<Array<Property>>>(path, payload)
       logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response
@@ -382,9 +382,25 @@ export const createApi = (fetcher: ReturnType<typeof createFetcher>, logger?: Lo
 
       return response
     },
-    // upsert() {
-    //   // @TODO
-    // }
+    async upsert<S extends Schema = any>(
+      data: DBRecordDraft<true> | S,
+      transaction?: Transaction | string
+    ): Promise<ApiResponse<DBRecord<S> | undefined>> {
+      const txId = pickTransactionId(transaction)
+      const path = `/records`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'PUT',
+        requestData: data instanceof DBRecordDraft ? data.toJson() : data
+      }
+      const requestId = typeof logger === 'function' ? generateRandomId() : ''
+      logger?.({ requestId, path, ...payload })
+
+      const response = await fetcher<ApiResponse<DBRecord<S> | undefined>>(path, payload)
+      logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
 
     async set<S extends Schema = any>(
       target: DBRecordTarget,

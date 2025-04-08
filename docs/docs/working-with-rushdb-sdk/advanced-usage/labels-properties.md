@@ -121,13 +121,13 @@ const propertyValues = await db.properties.values('property_id');
 
 ### Deleting Properties
 
-The `delete` method removes properties from a record.
+The `deleteById` method removes properties from a record.
 
 #### Example
 
 Deleting a property from a record:
 ```typescript
-await db.properties.delete('property_id');
+await db.properties.deleteById('property_id');
 ```
 
 ## Conclusion

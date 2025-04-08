@@ -1,4 +1,3 @@
-// only Record property (key) + criteria (input)
 import { arrayIsConsistent } from '@/common/utils/arrayIsConsistent'
 import { containsAllowedKeys } from '@/common/utils/containsAllowedKeys'
 import { isArray } from '@/common/utils/isArray'
@@ -32,7 +31,7 @@ const formatField = (field: string, options: TSearchQueryBuilderOptions) => {
 }
 
 const vectorConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {
-  return `apoc.convert.fromJsonMap(\`${options.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "vector"`
+  return `\`${options.nodeAlias}\`.\`${field}\` IS NOT NULL AND apoc.convert.fromJsonMap(\`${options.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "vector"`
 }
 
 const formatVectorForQuery = (

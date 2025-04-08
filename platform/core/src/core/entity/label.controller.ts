@@ -56,7 +56,7 @@ export class LabelController {
   ): Promise<Record<string, number>> {
     const projectId = request.projectId
 
-    return await this.entityService.getRecordLabels({
+    return await this.entityService.getLabels({
       projectId,
       searchParams,
       transaction

@@ -111,7 +111,7 @@ export const suggestPropertyType = (value: PropertyValue): PropertyType => {
   }
 }
 
-const processArrayValue = (value: any[], suggestTypes: boolean) => {
+const processArrayValue = (value: Array<any>, suggestTypes: boolean) => {
   const { isEmptyArray, isInconsistentArray } = getValueParameters(value)
   if (isEmptyArray) {
     return { type: PROPERTY_TYPE_STRING, value: [] }
@@ -141,7 +141,7 @@ export const prepareProperties = (
       : processNonArrayValue(value, options.suggestTypes)
 
     return { name, type, value: processedValue }
-  }) as PropertyWithValue[]
+  }) as Array<PropertyWithValue>
 
 export const normalizeRecord = ({
   label,

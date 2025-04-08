@@ -606,11 +606,11 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
     DELETE /api/v1/records/:id
     ```
     :::info
-    Note: Replace `:id` with the actual ID of the Record you want to delete.
+    Note: Replace `:id` with the actual ID of the Record you want to deleteById.
     :::
   </div>
   <div className="col-span-3">
-    To delete a Record in RushDB, use the `.delete` method or make a DELETE request to the REST API endpoint.
+    To deleteById a Record in RushDB, use the `.deleteById` method or make a DELETE request to the REST API endpoint.
 
     ### Request
 
@@ -621,7 +621,7 @@ it as a "dictionary", "map", "hash table", or "associative array" depending on y
       </TabsList>
       <TabsContent value="sdk">
         ```typescript
-        await db.records.delete("0191b44a-c815-7d40-bf48-b2d1727670d7")
+        await db.records.deleteById("0191b44a-c815-7d40-bf48-b2d1727670d7")
         ```
       </TabsContent>
       <TabsContent value="api">
@@ -655,8 +655,8 @@ The Records API provides several endpoints for managing and interacting with Rec
 | <Method method="POST" color="#2e8555" />   | `/api/v1/records/search`           | Search for Records from the root (all data in the project)    |
 | <Method method="POST" color="#2e8555" />   | `/api/v1/records/:id/search`       | Search for Records from a specific Record to its nested children |
 | <Method method="PUT" color="#f5a742" />    | `/api/v1/records/:id`              | Update a single Record                                        |
-| <Method method="PUT" color="#f5a742" />    | `/api/v1/records/delete`           | Delete Records by criteria                                  |
+| <Method method="PUT" color="#f5a742" />    | `/api/v1/records/deleteById`           | Delete Records by criteria                                  |
 | <Method method="DELETE" color="#f54242" /> | `/api/v1/records/:id`              | Delete a single Record                                        |
 | <Method method="POST" color="#2e8555" />   | `/api/v1/records/:id/properties`   | Get detailed list of Record's Properties                    |
 
-Each endpoint is designed to perform specific operations on Records, allowing you to create, read, update, delete, and search for Records within your project. The following sections provide more detailed information about each operation.
+Each endpoint is designed to perform specific operations on Records, allowing you to create, read, update, deleteById, and search for Records within your project. The following sections provide more detailed information about each operation.

@@ -39,7 +39,7 @@ export type RecordsApi = {
 
   createMany<S extends Schema = any>(
     label: string,
-    data: InferSchemaTypesWrite<S>[],
+    data: Array<InferSchemaTypesWrite<S>>,
     transaction?: Transaction | string
   ): Promise<DBRecordsArrayInstance<S>>
   createMany<S extends Schema = any>(
@@ -89,7 +89,7 @@ export type RecordsApi = {
     transaction?: Transaction | string
   ): Promise<DBRecordInstance<S>>
   findById<S extends Schema = any>(
-    ids: string[],
+    ids: Array<string>,
     transaction?: Transaction | string
   ): Promise<DBRecordsArrayInstance<S>>
 
@@ -121,7 +121,10 @@ export type RecordsApi = {
     transaction?: Transaction | string
   ): Promise<DBRecordInstance<S, Q>>
 
-  properties(target: DBRecordTarget, transaction?: Transaction | string): Promise<ApiResponse<Property[]>>
+  properties(
+    target: DBRecordTarget,
+    transaction?: Transaction | string
+  ): Promise<ApiResponse<Array<Property>>>
 
   relations(target: DBRecordTarget, transaction?: Transaction | string): Promise<ApiResponse<Array<Relation>>>
 
@@ -136,6 +139,19 @@ export type RecordsApi = {
   update<S extends Schema = any>(
     target: DBRecordTarget,
     data: DBRecordDraft | Partial<InferSchemaTypesWrite<S>>,
+    transaction?: Transaction | string
+  ): Promise<DBRecordInstance<S>>
+
+  upsert<S extends Schema = any>(
+    label: string,
+    data: InferSchemaTypesWrite<S>,
+    matchBy?: Array<string>,
+    transaction?: Transaction | string
+  ): Promise<DBRecordInstance<S>>
+  upsert<S extends Schema = any>(
+    labelOrData: DBRecordDraft<true> | string,
+    maybeDataOrTransaction?: Transaction | InferSchemaTypesWrite<S> | string,
+    matchBy?: Array<string>,
     transaction?: Transaction | string
   ): Promise<DBRecordInstance<S>>
 }

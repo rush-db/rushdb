@@ -80,4 +80,4 @@ const AuthorRepo = db.registerModel(Author);
 
 ### Conclusion
 
-Defining models with `Model` and `Schema` sets a robust foundation for your application's data architecture. It enables strong type-checking, validation, and inter-model relationships, enhancing the robustness and scalability of your applications. In subsequent sections, we will explore how to interact with these models to create, retrieve, update, and delete records.
+Defining models with `Model` and `Schema` sets a robust foundation for your application's data architecture. It enables strong type-checking, validation, and inter-model relationships, enhancing the robustness and scalability of your applications. In subsequent sections, we will explore how to interact with these models to create, retrieve, update, and deleteById records.

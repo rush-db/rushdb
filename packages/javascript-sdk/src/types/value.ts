@@ -57,7 +57,7 @@ export type PropertyWithValue = WithValue<Property>
 export type PropertyValuesData = {
   max?: number
   min?: number
-  values: PropertyValue[]
+  values: Array<PropertyValue>
 }
 
 export type PropertyDraft = Omit<PropertyWithValue, 'id'> & {
@@ -72,8 +72,8 @@ export type PropertySingleValue<TType extends PropertyType = PropertyType> =
   : TType extends typeof PROPERTY_TYPE_STRING ? StringValue
   : TType extends typeof PROPERTY_TYPE_NULL ? NullValue
   : TType extends typeof PROPERTY_TYPE_BOOLEAN ? BooleanValue
-  : TType extends typeof PROPERTY_TYPE_VECTOR ? number[]
+  : TType extends typeof PROPERTY_TYPE_VECTOR ? Array<number>
   : StringValue
 
 export type PropertyValue<TType extends PropertyType = PropertyType> =
-  TType extends typeof PROPERTY_TYPE_VECTOR ? number[] : MaybeArray<PropertySingleValue<TType>>
+  TType extends typeof PROPERTY_TYPE_VECTOR ? Array<number> : MaybeArray<PropertySingleValue<TType>>

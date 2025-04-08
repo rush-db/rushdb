@@ -69,7 +69,7 @@ export const $currentRecordFields = createAsyncStore({
       return
     }
 
-    return await api.records.properties(id, init)
+    return await api.records.properties({ id, init })
   },
   deps: [$sheetRecordId, $currentRecordId]
 })

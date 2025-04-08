@@ -1,6 +1,6 @@
 import type { PropertyType } from '@rushdb/javascript-sdk'
 
-import { Calendar, CircleSlash2, Hash, ToggleRight, Type } from 'lucide-react'
+import { Calendar, CircleSlash2, Code2, Hash, ToggleRight, Type } from 'lucide-react'
 
 export function PropertyTypeIcon({ size, type }: { size?: number | string; type: PropertyType }) {
   switch (type) {
@@ -8,6 +8,8 @@ export function PropertyTypeIcon({ size, type }: { size?: number | string; type:
       return <ToggleRight size={size} />
     case 'number':
       return <Hash size={size} />
+    case 'vector':
+      return <Code2 size={size} />
     case 'string':
       return <Type size={size} />
     case 'datetime':

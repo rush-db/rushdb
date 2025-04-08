@@ -24,7 +24,7 @@ export interface HttpClientResponseInterface {
 }
 
 export class HttpClient implements HttpClientInterface {
-  static CONNECTION_CLOSED_ERROR_CODES: string[]
+  static CONNECTION_CLOSED_ERROR_CODES: Array<string>
   static TIMEOUT_ERROR_CODE: string
 
   makeRequest(

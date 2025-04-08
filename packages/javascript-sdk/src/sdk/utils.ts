@@ -57,11 +57,11 @@ export const pickUniqFieldsFromRecord = <S extends Schema = Schema>(
 }
 
 export const pickUniqFieldsFromRecords = <S extends Schema = Schema>(
-  data: Partial<InferSchemaTypesWrite<S>>[],
+  data: Array<Partial<InferSchemaTypesWrite<S>>>,
   schema: S,
   label: string
 ) => {
-  const properties = {} as Record<string, PropertyValue[]>
+  const properties = {} as Record<string, Array<PropertyValue>>
 
   const uniqFields = Object.entries(schema)
     .filter(([_, config]) => config.uniq)
@@ -81,9 +81,9 @@ export const pickUniqFieldsFromRecords = <S extends Schema = Schema>(
           if (properties[key].includes(value as PropertyValue)) {
             throw new UniquenessError(label, { [key]: value })
           }
-          properties[key] = [...properties[key], value] as PropertyValue[]
+          properties[key] = [...properties[key], value] as Array<PropertyValue>
         } else {
-          properties[key] = [value] as PropertyValue[]
+          properties[key] = [value] as Array<PropertyValue>
         }
       }
     })

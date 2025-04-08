@@ -214,13 +214,13 @@ response = user.detach(
 )
 ```
 
-### delete()
+### deleteById()
 
 Deletes the record.
 
 **Signature:**
 ```python
-def delete(
+def deleteById(
     self,
     transaction: Optional[Transaction] = None
 ) -> Dict[str, str]
@@ -235,7 +235,7 @@ def delete(
 **Example:**
 ```python
 user = client.records.create("USER", {"name": "John"})
-response = user.delete()
+response = user.deleteById()
 ```
 
 ## Complete Usage Example
@@ -297,7 +297,7 @@ user.detach(
 )
 
 # Delete record
-user.delete()
+user.deleteById()
 ```
 
 ## Working with Transactions

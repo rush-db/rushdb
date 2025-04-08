@@ -7,7 +7,8 @@ import type {
   NumberExpression,
   PropertyExpression,
   PropertyExpressionByType,
-  StringExpression
+  StringExpression,
+  VectorSearchFn
 } from './expressions.js'
 import type { Schema } from './schema.js'
 import type { AnyObject, MaybeArray, RequireAtLeastOne } from './utils.js'
@@ -104,6 +105,7 @@ export type AggregateFn<S extends Schema = Schema> =
   | { alias: string; field: string; fn: 'min' }
   | { alias: string; field: string; fn: 'sum' }
   | { alias: string; field?: string; fn: 'count'; uniq?: boolean }
+  | { field: string; fn: `gds.similarity.${VectorSearchFn}`; alias: string; vector: number }
   | AggregateCollectFn
 
 export type Aggregate =
@@ -117,7 +119,7 @@ export type Aggregate =
 type InferAggregateType<T extends AggregateFn | string> =
   T extends string ? any
   : T extends { fn: 'sum' | 'avg' | 'min' | 'max' | 'count' } ? number
-  : T extends { fn: 'collect' } ? any[]
+  : T extends { fn: 'collect' } ? Array<any>
   : never
 
 // Helper type to extract aggregated fields
@@ -136,7 +138,7 @@ export type PaginationClause = {
 }
 
 export type SearchQueryLabelsClause = {
-  labels?: string[]
+  labels?: Array<string>
 }
 
 export type OrderClause<S extends Schema = Schema> = {

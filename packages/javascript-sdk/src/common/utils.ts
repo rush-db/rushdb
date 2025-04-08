@@ -1,6 +1,6 @@
 import type { PropertyValue } from '../types/index.js'
 
-export const isArray = (item: any): item is any[] =>
+export const isArray = (item: any): item is Array<any> =>
   typeof item === 'object' && Array.isArray(item) && item !== null
 
 export const isObject = (input: unknown): input is object =>
@@ -8,7 +8,7 @@ export const isObject = (input: unknown): input is object =>
 
 export const isEmptyObject = (input: unknown): boolean => isObject(input) && Object.keys(input).length === 0
 
-export const isObjectFlat = (input: any): input is Record<string, PropertyValue> => {
+export const isFlatObject = (input: any): input is Record<string, PropertyValue> => {
   return (
     isObject(input) &&
     Object.keys(input).every((key) => {

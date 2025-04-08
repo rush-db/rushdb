@@ -5,8 +5,10 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
+import { toBoolean } from '@/common/utils/toBolean'
 import { LinkEntityDto } from '@/core/entity/dto/link-entity.dto'
 import { UnlinkEntityDto } from '@/core/entity/dto/unlink-entity.dto'
+import { UpsertEntityDto } from '@/core/entity/dto/upsert-entity.dto'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import { TRecordRelationsResponse } from '@/core/entity/entity.types'
 import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
@@ -15,8 +17,8 @@ import { PropertyService } from '@/core/property/property.service'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
-import { CreateEntityDto } from './dto/create-entity.dto'
-import { EditEntityDto } from './dto/edit-entity.dto'
+import { CreateEntityDto, CreateEntityDtoSimple } from './dto/create-entity.dto'
+import { EditEntityDto, EditEntityDtoSimple } from './dto/edit-entity.dto'
 
 @Injectable()
 export class EntityService {
@@ -27,7 +29,7 @@ export class EntityService {
     private readonly propertyService: PropertyService
   ) {}
 
-  async createEntity({
+  async create({
     entity,
     projectId,
     transaction,
@@ -62,11 +64,60 @@ export class EntityService {
       .then((result) => result.records[0]?.get('data'))
   }
 
-  async getEntity({
+  async upsert({
+    entity,
+    projectId,
+    transaction,
+    queryRunner
+  }: {
+    entity: UpsertEntityDto
+    projectId: string
+    transaction: Transaction
+    queryRunner?: QueryRunner
+  }): Promise<TEntityPropertiesNormalized> {
+    const runner = queryRunner || this.neogmaService.createRunner()
+
+    const { properties, label, id, matchBy }: UpsertEntityDto & { id?: string } = entity
+    const entityId = id ?? uuidv7()
+
+    let existingRecordsByCriteria: TEntityPropertiesNormalized[]
+    if (toBoolean(matchBy)) {
+      const where: SearchDto['where'] = Object.entries(entity.properties).reduce((acc, [key, value]) => {
+        if (matchBy.includes(key)) {
+          acc[key] = value.value
+        }
+        return acc
+      }, {})
+
+      existingRecordsByCriteria = await this.find({ searchParams: { where }, projectId, transaction })
+    }
+
+    const record: UpsertEntityDto & { id?: string; created: string } = {
+      id: entityId,
+      created: getCurrentISO(),
+      label,
+      properties
+    }
+
+    return await runner
+      .run(
+        this.entityQueryService.upsert(),
+        {
+          record,
+          projectId
+        },
+        transaction
+      )
+      .then((result) => result.records[0]?.get('data'))
+  }
+
+  async getById({
     id,
+    projectId,
     transaction
   }: {
     id: string
+    projectId: string
     transaction: Transaction
   }): Promise<TEntityPropertiesNormalized> {
     const queryRunner = this.neogmaService.createRunner()
@@ -74,14 +125,15 @@ export class EntityService {
     const result = await queryRunner.run(
       this.entityQueryService.getEntity(),
       {
-        id
+        id,
+        projectId
       },
       transaction
     )
     return result.records[0]?.get('data')
   }
 
-  async editEntity({
+  async edit({
     entity,
     entityId,
     projectId,
@@ -113,16 +165,25 @@ export class EntityService {
       transaction
     )
 
-    return this.getEntity({ id: entityId, transaction })
+    return this.getById({ id: entityId, projectId, transaction })
   }
 
-  async deleteEntity(id: string, projectId: string, transaction: Transaction): Promise<{ message: string }> {
+  async deleteById({
+    id,
+    projectId,
+    transaction
+  }: {
+    id: string
+    projectId: string
+    transaction: Transaction
+  }): Promise<{ message: string }> {
     const queryRunner = this.neogmaService.createRunner()
 
     await queryRunner.run(
       this.entityQueryService.deleteRecord(),
       {
-        id
+        id,
+        projectId
       },
       transaction
     )
@@ -138,7 +199,7 @@ export class EntityService {
     }
   }
 
-  async findRecords({
+  async find({
     id,
     projectId,
     searchParams,
@@ -160,7 +221,7 @@ export class EntityService {
     return (queryResponse.records[0]?.get('records') ?? []) as TEntityPropertiesNormalized[]
   }
 
-  async getRecordsTotalCount({
+  async getCount({
     id,
     projectId,
     searchParams,
@@ -184,7 +245,7 @@ export class EntityService {
     return result.records[0]?.get('total') ?? 0
   }
 
-  async getRecordLabels({
+  async getLabels({
     id,
     projectId,
     searchParams,
@@ -217,7 +278,7 @@ export class EntityService {
       )
   }
 
-  async getEntityFields({
+  async findProperties({
     id,
     projectId,
     searchParams,
@@ -246,7 +307,7 @@ export class EntityService {
     return allProjectProperties.filter((property) => filteredFields.includes(property.name))
   }
 
-  async getRecordRelations({
+  async findRelations({
     id,
     searchParams,
     pagination,
@@ -274,7 +335,7 @@ export class EntityService {
     return result.records.map((r) => r.get('relation'))
   }
 
-  async getRecordRelationsCount({
+  async findRelationsCount({
     id,
     searchParams,
     projectId,
@@ -299,7 +360,7 @@ export class EntityService {
     return result.records[0]?.get('total') ?? 0
   }
 
-  async attachRecords(
+  async attach(
     entityId: string,
     linkingOptions: LinkEntityDto,
     projectId: string,
@@ -323,7 +384,7 @@ export class EntityService {
     }
   }
 
-  async detachRecords(
+  async detach(
     entityId: string,
     unlinkOptions: UnlinkEntityDto,
     projectId: string,
@@ -346,7 +407,7 @@ export class EntityService {
     }
   }
 
-  async deleteRecords({
+  async delete({
     id,
     projectId,
     searchParams,

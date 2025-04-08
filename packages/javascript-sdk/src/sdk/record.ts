@@ -63,7 +63,7 @@ export type RelationDirection = 'in' | 'out'
 export type RelationOptions = { direction?: RelationDirection; type?: string }
 export type RelationDetachOptions = {
   direction?: RelationDirection
-  typeOrTypes?: string | string[]
+  typeOrTypes?: MaybeArray<string>
 }
 
 export class DBRecordsBatchDraft {
@@ -107,18 +107,26 @@ export class DBRecordsBatchDraft {
   }
 }
 
-export class DBRecordDraft {
+export class DBRecordDraft<WithMatchBy extends boolean = false> {
   label: string
-  properties?: PropertyDraft[]
+  properties?: Array<PropertyDraft>
+  matchBy?: WithMatchBy extends true ? Array<string> : never
 
   constructor({
     label,
     properties = []
-  }: {
-    label: string
-    properties?: PropertyDraft[]
-    relation?: RelationOptions
-  }) {
+  }: WithMatchBy extends true ?
+    {
+      label: string
+      properties?: Array<PropertyDraft>
+      relation?: RelationOptions
+      matchBy?: Array<string>
+    }
+  : {
+      label: string
+      properties?: Array<PropertyDraft>
+      relation?: RelationOptions
+    }) {
     this.label = label
     this.properties = properties
   }
@@ -126,7 +134,8 @@ export class DBRecordDraft {
   public toJson() {
     return {
       label: this.label,
-      properties: this.properties
+      properties: this.properties,
+      matchBy: this.matchBy
     }
   }
 }
@@ -233,11 +242,11 @@ export class DBRecordsArrayInstance<
   S extends Schema = Schema,
   Q extends SearchQuery<S> = SearchQuery<S>
 > extends RestApiProxy {
-  data?: DBRecordInferred<S, Q>[]
+  data?: Array<DBRecordInferred<S, Q>>
   total: number | undefined
   searchParams?: SearchQuery<S>
 
-  constructor(data?: DBRecordInferred<S, Q>[], total?: number, searchParams?: SearchQuery<S>) {
+  constructor(data?: Array<DBRecordInferred<S, Q>>, total?: number, searchParams?: SearchQuery<S>) {
     super()
     this.data = data
     this.total = total
