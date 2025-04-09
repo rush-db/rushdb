@@ -1,16 +1,9 @@
 import type { DBRecordTarget } from '../sdk'
 import type { SDKConfig } from '../sdk/types.js'
-import type { PropertyType, PropertyValue, PropertyWithValue, SearchQuery, Schema } from '../types/index.js'
+import type { PropertyDraft, PropertyType } from '../types/index.js'
 
-import {
-  ISO_8601_FULL,
-  PROPERTY_TYPE_BOOLEAN,
-  PROPERTY_TYPE_DATETIME,
-  PROPERTY_TYPE_NULL,
-  PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_STRING
-} from '../common/constants.js'
-import { isArray, isObject, isString } from '../common/utils.js'
+import { PROPERTY_TYPES } from '../common/constants.js'
+import { isObject, isPropertyValue, isString } from '../common/utils.js'
 import { DBRecordInstance } from '../sdk'
 import { Transaction } from '../sdk/transaction.js'
 import { DEFAULT_BASE_PATH, DEFAULT_HOST, DEFAULT_PORT, DEFAULT_PROTOCOL } from './constants.js'
@@ -25,8 +18,6 @@ export const buildTransactionHeader = (txId?: string) =>
 export const isTransaction = (input: any): input is Transaction | string =>
   isString(input) || input instanceof Transaction
 
-export const pickTransaction = (input: any) => (isTransaction(input) ? input : undefined)
-
 export const pickTransactionId = (input: any) =>
   isTransaction(input) ?
     input instanceof Transaction ?
@@ -34,127 +25,53 @@ export const pickTransactionId = (input: any) =>
     : input
   : undefined
 
-export const pickRecordId = (input: DBRecordTarget) => {
-  if (isString(input)) {
-    return input
-  } else if (input instanceof DBRecordInstance && input.data) {
-    return input.data.__id
-  } else if ('__id' in input) {
-    return input.__id
-  }
-  return undefined
-}
-
-export const createSearchParams = <S extends Schema = Schema>(
-  labelOrSearchParams?: SearchQuery<S> | string,
-  searchParamsOrTransaction?: SearchQuery<S> | Transaction | string
-): { id?: string; searchParams: SearchQuery<S> } => {
-  const isFirstArgString = isString(labelOrSearchParams)
-  const isFirstArgUUID = isUUID(labelOrSearchParams)
-  const isSecondArgTransaction = isTransaction(searchParamsOrTransaction)
-  const isEmptySearchParams = isSecondArgTransaction || !isObject(searchParamsOrTransaction)
-
-  if (isFirstArgString) {
-    const baseParams =
-      isFirstArgUUID ?
-        { id: labelOrSearchParams }
-      : { searchParams: { labels: [labelOrSearchParams as string] } as SearchQuery<S> }
-
-    return isEmptySearchParams ?
-        { ...baseParams, searchParams: { ...baseParams.searchParams } }
-      : {
-          ...baseParams,
-          searchParams: {
-            ...searchParamsOrTransaction,
-            labels: [
-              ...(baseParams.searchParams?.labels ?? []),
-              ...((searchParamsOrTransaction as SearchQuery<S>).labels ?? [])
-            ]
-          }
-        }
-  } else {
-    return { searchParams: labelOrSearchParams ?? {} }
-  }
-}
-
 export const isUUID = (value: any) => {
   const regex = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/
   return regex.test(value)
 }
 
-export const arrayIsConsistent = (arr: Array<unknown>): boolean =>
-  arr.every((item) => typeof item === typeof arr[0])
-
-export const getValueParameters = (value: PropertyValue) => {
-  if (Array.isArray(value)) {
-    return {
-      isEmptyArray: value.length === 0,
-      isEmptyStringsArray: value.every((v) => v === ''),
-      isInconsistentArray: !arrayIsConsistent(value)
-    }
-  } else {
-    return { isEmptyString: value === '' }
+export const pickRecordId = (input: DBRecordTarget) => {
+  if (isString(input) && isUUID(input)) {
+    return input
+  } else if (input instanceof DBRecordInstance && input.data) {
+    return input.data.__id
+  } else if (isObject(input) && '__id' in input && isUUID(input.__id)) {
+    return input.__id
   }
+  return undefined
 }
 
-export const suggestPropertyType = (value: PropertyValue): PropertyType => {
-  if (typeof value === PROPERTY_TYPE_STRING) {
-    return ISO_8601_FULL.test(value as string) ? PROPERTY_TYPE_DATETIME : PROPERTY_TYPE_STRING
-  } else if (typeof value === PROPERTY_TYPE_NUMBER) {
-    return PROPERTY_TYPE_NUMBER
-  } else if (typeof value === PROPERTY_TYPE_BOOLEAN) {
-    return PROPERTY_TYPE_BOOLEAN
-  } else if (value === null) {
-    return PROPERTY_TYPE_NULL
-  } else {
-    return PROPERTY_TYPE_STRING
+export const isPropertyDraft = (obj: any): obj is PropertyDraft => {
+  if (!isObject(obj)) {
+    return false
   }
+
+  if (isObject(obj) && 'name' in obj && !isString(obj.name)) {
+    return false
+  }
+
+  if (
+    isObject(obj) &&
+    'type' in obj &&
+    (!isString(obj.type) || !PROPERTY_TYPES.includes(obj.type as PropertyType))
+  ) {
+    return false
+  }
+
+  if (!('value' in obj) || !isPropertyValue(obj.value)) {
+    return false
+  }
+
+  if ('metadata' in obj && !isString(obj.metadata)) {
+    return false
+  }
+
+  if ('valueSeparator' in obj && !isString(obj.valueSeparator)) {
+    return false
+  }
+
+  return true
 }
-
-const processArrayValue = (value: Array<any>, suggestTypes: boolean) => {
-  const { isEmptyArray, isInconsistentArray } = getValueParameters(value)
-  if (isEmptyArray) {
-    return { type: PROPERTY_TYPE_STRING, value: [] }
-  }
-  if (isInconsistentArray || !suggestTypes) {
-    return { type: PROPERTY_TYPE_STRING, value: value.map(String) }
-  }
-  return { type: suggestPropertyType(value[0]), value }
-}
-
-const processNonArrayValue = (value: PropertyValue, suggestTypes: boolean) => {
-  if (!suggestTypes) {
-    return { type: PROPERTY_TYPE_STRING, value: String(value) }
-  }
-  const type = suggestPropertyType(value)
-  return { type, value: type === PROPERTY_TYPE_NULL ? null : value }
-}
-
-export const prepareProperties = (
-  data: Record<string, PropertyValue>,
-  options: { suggestTypes: boolean } = { suggestTypes: true }
-) =>
-  Object.entries(data).map(([name, value]) => {
-    const { type, value: processedValue } =
-      isArray(value) ?
-        processArrayValue(value, options.suggestTypes)
-      : processNonArrayValue(value, options.suggestTypes)
-
-    return { name, type, value: processedValue }
-  }) as Array<PropertyWithValue>
-
-export const normalizeRecord = ({
-  label,
-  options = { suggestTypes: true },
-  payload
-}: {
-  label: string
-  options?: { suggestTypes: boolean }
-  payload: Record<string, PropertyValue>
-}) => ({
-  label,
-  properties: prepareProperties(payload, options)
-})
 
 export const buildUrl = (props: SDKConfig): string => {
   let protocol = DEFAULT_PROTOCOL

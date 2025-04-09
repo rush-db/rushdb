@@ -1,5 +1,4 @@
 import type {
-  AnyObject,
   ExtractAggregateFields,
   FlattenTypes,
   InferSchemaTypesRead,
@@ -66,78 +65,11 @@ export type RelationDetachOptions = {
   typeOrTypes?: MaybeArray<string>
 }
 
-export class DBRecordsBatchDraft {
-  label: string
-  options?: {
-    returnResult?: boolean
-    suggestTypes?: boolean
-    castNumberArraysAsVector?: boolean
-    castNumericValuesAsNumber?: boolean
-  }
-  payload: MaybeArray<AnyObject>
-
-  constructor({
-    label,
-    options = {
-      returnResult: true,
-      suggestTypes: true
-    },
-    payload
-  }: {
-    label: string
-    options?: {
-      returnResult?: boolean
-      suggestTypes?: boolean
-      castNumberArraysAsVector?: boolean
-      castNumericValuesAsNumber?: boolean
-    }
-    payload: AnyObject
-  }) {
-    this.label = label
-    this.options = options
-    this.payload = payload
-  }
-
-  public toJson() {
-    return {
-      label: this.label,
-      options: this.options,
-      payload: this.payload
-    }
-  }
-}
-
-export class DBRecordDraft<WithMatchBy extends boolean = false> {
-  label: string
-  properties?: Array<PropertyDraft>
-  matchBy?: WithMatchBy extends true ? Array<string> : never
-
-  constructor({
-    label,
-    properties = []
-  }: WithMatchBy extends true ?
-    {
-      label: string
-      properties?: Array<PropertyDraft>
-      relation?: RelationOptions
-      matchBy?: Array<string>
-    }
-  : {
-      label: string
-      properties?: Array<PropertyDraft>
-      relation?: RelationOptions
-    }) {
-    this.label = label
-    this.properties = properties
-  }
-
-  public toJson() {
-    return {
-      label: this.label,
-      properties: this.properties,
-      matchBy: this.matchBy
-    }
-  }
+export type DBRecordWriteOptions = {
+  returnResult?: boolean
+  suggestTypes?: boolean
+  castNumberArraysAsVector?: boolean
+  castNumericValuesAsNumber?: boolean
 }
 
 export class DBRecordInstance<
@@ -151,43 +83,53 @@ export class DBRecordInstance<
     this.data = data
   }
 
-  get id() {
+  id() {
     try {
       return this.data!.__id
     } catch {
-      throw new Error(`DBRecordInstance: Unable to access 'id'. The Record data is undefined.`)
+      throw new Error(
+        `DBRecordInstance: Unable to access 'id'. The Record's \`data.__id\` is missing or incorrect.`
+      )
     }
   }
 
-  get label() {
+  label() {
     try {
       return this.data!.__label
     } catch {
-      throw new Error(`DBRecordInstance: Unable to access 'label'. The Record data is undefined.`)
+      throw new Error(
+        `DBRecordInstance: Unable to access 'label'. The Record's \`data.__label\` is missing or incorrect.`
+      )
     }
   }
 
-  get proptypes() {
+  proptypes() {
     try {
       return this.data!.__proptypes
     } catch {
-      throw new Error(`DBRecordInstance: Unable to access 'proptypes'. The Record data' is undefined.`)
+      throw new Error(
+        `DBRecordInstance: Unable to access 'proptypes'. The Record's \`data.__proptypes\` is missing or incorrect.`
+      )
     }
   }
 
-  get date() {
+  date() {
     try {
-      return idToDate(this.data!.__id)
+      return idToDate(this.id())
     } catch {
-      throw new Error(`DBRecordInstance: Unable to access 'date'. The Record data is undefined.`)
+      throw new Error(
+        `DBRecordInstance: Unable to access 'date'. The Record's \`data.__id\` is missing or incorrect.`
+      )
     }
   }
 
-  get timestamp() {
+  timestamp() {
     try {
-      return idToTimestamp(this.data!.__id)
+      return idToTimestamp(this.id())
     } catch {
-      throw new Error(`DBRecordInstance: Unable to access 'timestamp'. The Record data is undefined.`)
+      throw new Error(
+        `DBRecordInstance: Unable to access 'timestamp'. The Record's \`data.__id\` is missing or incorrect.`
+      )
     }
   }
 
@@ -196,29 +138,29 @@ export class DBRecordInstance<
       throw new Error('DBRecordInstance: Unable to delete Record. The Record data is undefined.')
     }
 
-    return await this.apiProxy.records.deleteById(this.data.__id, transaction)
+    return await this.apiProxy.records.deleteById(this.id(), transaction)
   }
 
   async update<S extends Schema = Schema>(
-    partialData: DBRecordDraft | Partial<InferSchemaTypesWrite<S>>,
+    data: Partial<InferSchemaTypesWrite<S>> | Array<PropertyDraft>,
     transaction?: Transaction | string
   ) {
     if (!this.data) {
       throw new Error('DBRecordInstance: Unable to update Record. The Record data is undefined.')
     }
 
-    return this.apiProxy.records.update(this.data.__id, partialData, transaction)
+    return this.apiProxy.records.update({ label: this.label(), target: this.id(), data }, transaction)
   }
 
   async set<S extends Schema = Schema>(
-    data: DBRecordDraft | InferSchemaTypesWrite<S>,
+    data: InferSchemaTypesWrite<S> | Array<PropertyDraft>,
     transaction?: Transaction | string
   ) {
     if (!this.data) {
       throw new Error('DBRecordInstance: Unable to set. The Record data is undefined.')
     }
 
-    return this.apiProxy.records.set(this.data.__id, data, transaction)
+    return this.apiProxy.records.set({ label: this.label(), target: this.id(), data }, transaction)
   }
 
   async attach(target: RelationTarget, options?: RelationOptions, transaction?: Transaction | string) {
@@ -226,7 +168,7 @@ export class DBRecordInstance<
       throw new Error('DBRecordInstance: Unable to attach Record. The Record data is undefined.')
     }
 
-    return this.apiProxy.records.attach(this.data.__id, target, options, transaction)
+    return this.apiProxy.records.attach({ source: this.id(), target, options }, transaction)
   }
 
   async detach(target: RelationTarget, options?: RelationDetachOptions, transaction?: Transaction | string) {
@@ -234,7 +176,7 @@ export class DBRecordInstance<
       throw new Error('DBRecordInstance: Unable to detach Record. The Record data is undefined.')
     }
 
-    return this.apiProxy.records.detach(this.data.__id, target, options, transaction)
+    return this.apiProxy.records.detach({ source: this.id(), target, options }, transaction)
   }
 }
 

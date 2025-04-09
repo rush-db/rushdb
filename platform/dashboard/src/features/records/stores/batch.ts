@@ -7,14 +7,11 @@ import {
 } from '~/features/projects/stores/current-project'
 import { api } from '~/lib/api'
 import { createMutator } from '~/lib/fetcher'
+import { DBRecordWriteOptions } from '@rushdb/javascript-sdk'
 
 export const createMany = createMutator<{
   label: string
-  options?: {
-    suggestTypes?: boolean
-    castNumberArraysAsVector?: boolean
-    castNumericValuesAsNumber?: boolean
-  }
+  options?: DBRecordWriteOptions
   payload: AnyRecord | Array<unknown>
 }>({
   async fetcher({ init, payload, label, options }) {

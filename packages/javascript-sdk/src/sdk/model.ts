@@ -11,6 +11,7 @@ import type {
   DBRecord,
   DBRecordInstance,
   DBRecordsArrayInstance,
+  DBRecordTarget,
   RelationDetachOptions,
   RelationOptions,
   RelationTarget
@@ -21,6 +22,7 @@ import { RestApiProxy } from '../api/rest-api-proxy.js'
 import { isArray, isEmptyObject } from '../common/utils.js'
 import { EmptyTargetError, UniquenessError } from './errors.js'
 import { mergeDefaultsWithPayload, pickUniqFieldsFromRecord, pickUniqFieldsFromRecords } from './utils.js'
+import { isPropertyDraft, pickRecordId } from '../api/utils'
 
 type RushDBInstance = {
   registerModel(model: Model): void
@@ -84,27 +86,27 @@ export class Model<S extends Schema = any> extends RestApiProxy {
   }
 
   async find<Q extends SearchQuery<S> = SearchQuery<S>>(
-    params?: Q & { labels?: never },
+    searchQuery?: Q & { labels?: never },
     transaction?: Transaction | string
   ) {
-    const query = (params ?? {}) as Q
-    return this.apiProxy?.records.find<S, Q>(this.label, query, transaction)
+    const query = (searchQuery ?? {}) as Q
+    return this.apiProxy?.records.find<S, Q>({ ...query, labels: [this.label] }, transaction)
   }
 
   async findOne<Q extends SearchQuery<S> = SearchQuery<S>>(
-    params?: Q & {
+    searchQuery?: Q & {
       labels?: never
       limit?: never
       skip?: never
     },
     transaction?: Transaction | string
   ) {
-    const query = (params ?? {}) as Q & {
+    const query = (searchQuery ?? {}) as Q & {
       labels?: never
       limit?: never
       skip?: never
     }
-    return this.apiProxy?.records.findOne<S, Q>(this.label, query, transaction)
+    return this.apiProxy?.records.findOne<S, Q>({ ...query, labels: [this.label] }, transaction)
   }
 
   async findById(id: string, transaction?: Transaction | string) {
@@ -112,19 +114,19 @@ export class Model<S extends Schema = any> extends RestApiProxy {
   }
 
   async findUniq<Q extends SearchQuery<S> = SearchQuery<S>>(
-    params?: Q & {
+    searchQuery?: Q & {
       labels?: never
       limit?: never
       skip?: never
     },
     transaction?: Transaction | string
   ) {
-    const query = (params ?? {}) as Q & {
+    const query = (searchQuery ?? {}) as Q & {
       labels?: never
       limit?: never
       skip?: never
     }
-    return this.apiProxy?.records.findUniq<S, Q>(this.label, query, transaction)
+    return this.apiProxy?.records.findUniq<S, Q>({ ...query, labels: [this.label] }, transaction)
   }
 
   async create(record: InferSchemaTypesWrite<S>, transaction?: Transaction | string) {
@@ -139,7 +141,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
       const canCreate = !matchingRecords?.data?.length
 
       if (canCreate) {
-        const result = await this.apiProxy.records.create<S>(this.label, data, tx)
+        const result = await this.apiProxy.records.create<S>({ label: this.label, data }, tx)
         if (!hasOwnTransaction) {
           await (tx as Transaction).commit()
         }
@@ -153,36 +155,49 @@ export class Model<S extends Schema = any> extends RestApiProxy {
         throw new UniquenessError(this.label, uniqFields)
       }
     }
-    return await this.apiProxy.records.create<S>(this.label, data, transaction)
+    return await this.apiProxy.records.create<S>({ label: this.label, data }, transaction)
   }
 
   attach(
-    sourceId: string,
-    target: RelationTarget,
-    options?: RelationOptions,
+    {
+      source,
+      target,
+      options
+    }: {
+      source: DBRecordTarget
+      target: RelationTarget
+      options?: RelationOptions
+    },
     transaction?: Transaction | string
   ) {
-    return this.apiProxy.records.attach(sourceId, target, options, transaction)
+    return this.apiProxy.records.attach({ source, target, options }, transaction)
   }
 
   detach(
-    sourceId: string,
-    target: RelationTarget,
-    options?: RelationDetachOptions,
+    {
+      source,
+      target,
+      options
+    }: {
+      source: DBRecordTarget
+      target: RelationTarget
+      options?: RelationDetachOptions
+    },
     transaction?: Transaction | string
   ) {
-    return this.apiProxy.records.detach(sourceId, target, options, transaction)
+    return this.apiProxy.records.detach({ source, target, options }, transaction)
   }
 
   private async handleSetOrUpdate(
-    id: string,
+    target: DBRecordTarget,
     record: Partial<InferSchemaTypesWrite<S>> | Array<PropertyDraft>,
     method: 'set' | 'update',
     transaction?: Transaction | string
   ) {
     // Consider Array as Array<PropertyDraft>
-    if (isArray(record)) {
-      return // @TODO
+    if (isArray(record) && record.every(isPropertyDraft)) {
+      // @TODO
+      throw new Error(`Model.${method} with Array<PropertyDraft> as payload is not implemented yet.`)
     }
 
     const data = await mergeDefaultsWithPayload<S>(this.schema, record)
@@ -195,10 +210,10 @@ export class Model<S extends Schema = any> extends RestApiProxy {
 
       const canUpdate =
         !matchingRecords?.data?.length ||
-        (matchingRecords.data.length === 1 && matchingRecords.data[0].__id === id)
+        (matchingRecords.data.length === 1 && matchingRecords.data[0].__id === pickRecordId(target)!)
 
       if (canUpdate) {
-        const result = await this.apiProxy.records[method]<S>(id, data, tx)
+        const result = await this.apiProxy.records[method]<S>({ target, label: this.label, data }, tx)
 
         if (!hasOwnTransaction) {
           await (tx as Transaction).commit()
@@ -212,23 +227,25 @@ export class Model<S extends Schema = any> extends RestApiProxy {
       }
     }
 
-    return await this.apiProxy.records[method]<S>(id, data, transaction)
+    return await this.apiProxy.records[method]<S>({ label: this.label, target, data }, transaction)
   }
 
   async set(
-    id: string,
-    record: InferSchemaTypesWrite<S> | Array<PropertyDraft>,
+    // @TODO: Check target to match Model type
+    target: DBRecordTarget,
+    record: InferSchemaTypesWrite<S>,
     transaction?: Transaction | string
   ) {
-    return await this.handleSetOrUpdate(id, record, 'set', transaction)
+    return await this.handleSetOrUpdate(target, record, 'set', transaction)
   }
 
   async update(
-    id: string,
-    record: Partial<InferSchemaTypesWrite<S>> | Array<PropertyDraft>,
+    // @TODO: Check target to match Model type
+    target: DBRecordTarget,
+    record: Partial<InferSchemaTypesWrite<S>>,
     transaction?: Transaction | string
   ) {
-    return await this.handleSetOrUpdate(id, record, 'update', transaction)
+    return await this.handleSetOrUpdate(target, record, 'update', transaction)
   }
 
   async createMany(records: Array<InferSchemaTypesWrite<S>>, transaction?: Transaction | string) {
@@ -268,7 +285,10 @@ export class Model<S extends Schema = any> extends RestApiProxy {
       }
 
       // Create records in the database
-      const createdRecords = await this.apiProxy.records.createMany<S>(this.label, recordsToStore, tx)
+      const createdRecords = await this.apiProxy.records.createMany<S>(
+        { label: this.label, payload: recordsToStore },
+        tx
+      )
 
       // Commit the transaction if it was created internally
       if (!hasOwnTransaction) {
@@ -284,14 +304,14 @@ export class Model<S extends Schema = any> extends RestApiProxy {
     }
   }
 
-  async delete(searchParams: Omit<SearchQuery<S>, 'labels'>, transaction?: Transaction | string) {
-    if (isEmptyObject(searchParams.where)) {
+  async delete(searchQuery: Omit<SearchQuery<S>, 'labels'>, transaction?: Transaction | string) {
+    if (isEmptyObject(searchQuery.where)) {
       throw new EmptyTargetError(
         `You must specify criteria to delete records of type '${this.label}'. Empty criteria are not allowed. If this was intentional, use the Dashboard instead.`
       )
     }
 
-    return await this.apiProxy.records.delete({ ...searchParams, labels: [this.label] }, transaction)
+    return await this.apiProxy.records.delete({ ...searchQuery, labels: [this.label] }, transaction)
   }
 
   async deleteById(idOrIds: MaybeArray<string>, transaction?: Transaction | string) {

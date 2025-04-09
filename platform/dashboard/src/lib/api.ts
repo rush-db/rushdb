@@ -8,13 +8,12 @@ import type {
   DBRecord,
   MaybeArray,
   DBRecordTarget,
-  DBRecordDraft,
   InferSchemaTypesWrite,
   RelationTarget,
-  RelationOptions
+  RelationOptions,
+  PropertyDraft,
+  DBRecordWriteOptions
 } from '@rushdb/javascript-sdk'
-
-import { DBRecordsBatchDraft } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
 import type { PlanId, PlanPeriod } from '~/features/billing/types'
@@ -50,16 +49,11 @@ export const api = {
       options = {}
     }: WithInit & {
       label: string
-      options?: {
-        suggestTypes?: boolean
-        castNumberArraysAsVector?: boolean
-        castNumericValuesAsNumber?: boolean
-      }
+      options?: DBRecordWriteOptions
       payload: MaybeArray<AnyObject>
     }) {
-      const data = new DBRecordsBatchDraft({ label, options, payload })
       try {
-        return await sdk(init).records.createMany(data)
+        return await sdk(init).records.createMany({ label, options, payload })
       } catch (e: any) {
         if (e.message === BillingErrorCodes.PaymentRequired.toString()) {
           $limitReachModalOpen.set(true)
@@ -92,24 +86,30 @@ export const api = {
     async properties({ id, init }: { id: DBRecord['__id']; init: RequestInit }) {
       return sdk(init).records.properties(id)
     },
-    async find(searchQuery: SearchQuery | string, init: RequestInit) {
+    async find(searchQuery: SearchQuery, init: RequestInit) {
       return sdk(init).records.find(searchQuery)
     },
-    async findOne(searchQuery: Omit<SearchQuery, 'skip' | 'limit'> | string, init: RequestInit) {
+    async findOne(searchQuery: Omit<SearchQuery, 'skip' | 'limit'>, init: RequestInit) {
       return sdk(init).records.findOne(searchQuery)
     },
-    async findUniq(searchQuery: Omit<SearchQuery, 'skip' | 'limit'> | string, init: RequestInit) {
+    async findUniq(searchQuery: Omit<SearchQuery, 'skip' | 'limit'>, init: RequestInit) {
       return sdk(init).records.findUniq(searchQuery)
     },
-    async set(target: DBRecordTarget, data: DBRecordDraft | InferSchemaTypesWrite<any>, init: RequestInit) {
-      return sdk(init).records.set(target, data)
+    async set(
+      target: DBRecordTarget,
+      label: string,
+      data: InferSchemaTypesWrite<any> | Array<PropertyDraft>,
+      init: RequestInit
+    ) {
+      return sdk(init).records.set({ target, label, data })
     },
     async update(
       target: DBRecordTarget,
-      data: DBRecordDraft | Partial<InferSchemaTypesWrite<any>>,
+      label: string,
+      data: Partial<InferSchemaTypesWrite<any>> | Array<PropertyDraft>,
       init: RequestInit
     ) {
-      return sdk(init).records.update(target, data)
+      return sdk(init).records.update({ target, label, data })
     },
     async export(query: SearchQuery, init: RequestInit) {
       return sdk(init).records.export(query)
@@ -124,7 +124,7 @@ export const api = {
       target: RelationTarget
       options?: RelationOptions
     } & WithInit) {
-      return sdk(init).records.attach(source, target, options)
+      return sdk(init).records.attach({ source, target, options })
     },
     async detach({
       source,
@@ -136,7 +136,7 @@ export const api = {
       target: RelationTarget
       options?: RelationOptions
     } & WithInit) {
-      return sdk(init).records.detach(source, target, options)
+      return sdk(init).records.detach({ source, target, options })
     }
   },
   labels: {
@@ -153,7 +153,7 @@ export const api = {
       searchQuery: SearchQuery
       pagination?: Pick<SearchQuery, 'limit' | 'skip'>
     } & WithInit) {
-      return sdk(init).relations.find({ pagination, search: searchQuery })
+      return sdk(init).relations.find({ ...searchQuery, ...pagination })
     }
   },
   workspaces: {
