@@ -23,7 +23,7 @@ import type {
 } from '../types/index.js'
 import type { ApiResponse } from './types.js'
 
-import { isArray, isEmptyObject, isObject, isFlatObject, toBoolean } from '../common/utils.js'
+import { isArray, isEmptyObject, isObject, isFlatObject, toBoolean, isString } from '../common/utils.js'
 import { createFetcher } from '../network/index.js'
 import { EmptyTargetError, NonUniqueResultError } from '../sdk/errors.js'
 import { DBRecordInstance, DBRecordsArrayInstance } from '../sdk/record.js'
@@ -64,79 +64,45 @@ export class RestAPI {
   }
 
   _extractTargetIds(target: RelationTarget, operation: string): Array<string> {
-    // target is MaybeArray<DBRecordInstance>
-    // if (target instanceof DBRecordInstance) {
-    //   const id = pickRecordId(target)
-    //   if (id) {
-    //     return await this.api.records.attach(source, id, options, transaction)
-    //   } else {
-    //     throw new EmptyTargetError('Attach error: Target id is empty')
-    //   }
-    // } else if (isArray(target) && target.every((r) => r instanceof DBRecordInstance)) {
-    //   const ids = target.map(pickRecordId).filter(toBoolean)
-    //   if (ids.length) {
-    //     return await this.api.records.attach(source, ids as Array<string>, options, transaction)
-    //   } else {
-    //     throw new EmptyTargetError('Attach error: Target ids are empty')
-    //   }
-    // }
-    //
-    // // target is DBRecordsArrayInstance
-    // else if (target instanceof DBRecordsArrayInstance) {
-    //   const ids = target.data?.map(pickRecordId).filter(Boolean)
-    //   if (ids?.length) {
-    //     return await this.api.records.attach(source, ids, options, transaction)
-    //   } else {
-    //     throw new EmptyTargetError('Attach error: Target ids are empty')
-    //   }
-    // }
-    //
-    // // target is MaybeArray<DBRecord>
-    // else if (isObject(target) && '__id' in target) {
-    //   return await this.api.records.attach(source, target.__id, options, transaction)
-    // } else if (isArray(target) && target.every((r) => isObject(r) && '__id' in r)) {
-    //   const ids = target?.map(pickRecordId).filter(Boolean)
-    //   if (ids?.length) {
-    //     return await this.api.records.attach(source, ids, options, transaction)
-    //   } else {
-    //     throw new EmptyTargetError('Attach error: Target ids are empty')
-    //   }
-    // }
-    //
-    // // target is MaybeArray<string>
-    // else {
-    //   return await this.api.records.attach(source, target as MaybeArray<string>, options, transaction)
-    // }
-
+    // target is DBRecordInstance
     if (target instanceof DBRecordInstance) {
       const id = pickRecordId(target)
       if (!id) throw new EmptyTargetError(`${operation} error: Target id is empty`)
       return [id]
     }
 
-    if (Array.isArray(target) && target.every((r) => r instanceof DBRecordInstance)) {
+    // target is Array<DBRecordInstance>
+    if (isArray(target) && target.every((r) => r instanceof DBRecordInstance)) {
       const ids = target.map(pickRecordId).filter(toBoolean)
       if (!ids.length) throw new EmptyTargetError(`${operation} error: Target ids are empty`)
       return ids as Array<string>
     }
 
+    // target is DBRecordsArrayInstance
     if (target instanceof DBRecordsArrayInstance) {
       const ids = target.data?.map(pickRecordId).filter(toBoolean)
       if (!ids?.length) throw new EmptyTargetError(`${operation} error: Target ids are empty`)
       return ids as Array<string>
     }
 
+    // target is DBRecord
     if (isObject(target) && '__id' in target) {
       return [target.__id]
     }
 
-    if (Array.isArray(target) && target.every((r) => isObject(r) && '__id' in r)) {
+    // target is Array<DBRecord>
+    if (isArray(target) && target.every((r) => isObject(r) && '__id' in r)) {
       const ids = target.map(pickRecordId).filter(toBoolean)
       if (!ids.length) throw new EmptyTargetError(`${operation} error: Target ids are empty`)
       return ids as Array<string>
     }
 
-    return target as Array<string>
+    // target is MaybeArray<string>
+    return (
+      isArray(target) ? target
+      : isString(target) ? [target]
+      : []
+    )
   }
 
   public records = {
