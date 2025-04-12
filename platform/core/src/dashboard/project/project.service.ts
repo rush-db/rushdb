@@ -23,6 +23,8 @@ import { toNative } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import * as crypto from 'node:crypto'
 import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
+import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
+import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
 
 @Injectable()
 export class ProjectService {
@@ -30,6 +32,7 @@ export class ProjectService {
     private readonly configService: ConfigService,
     private readonly neogmaService: NeogmaService,
     private readonly compositeNeogmaService: CompositeNeogmaService,
+    private readonly neogmaDynamicService: NeogmaDynamicService,
     private readonly projectRepository: ProjectRepository,
     private readonly entityRepository: EntityRepository,
     private readonly projectQueryService: ProjectQueryService,
@@ -54,7 +57,7 @@ export class ProjectService {
     const { name, description = '' } = properties
 
     // add check for plan here and selfhosted prop.
-    const customDb = this.attachCustomDb(properties.customDb)
+    const customDb = await this.attachCustomDb(properties.customDb)
 
     const projectNode = await this.projectRepository.model.createOne(
       {
@@ -85,11 +88,18 @@ export class ProjectService {
     return this.normalize(projectNode)
   }
 
-  attachCustomDb(payload?: TProjectCustomDbPayload): string | null {
-    // add test connection here like ping-pong to the db
+  async attachCustomDb(payload?: TProjectCustomDbPayload): Promise<string | null> {
     if (!payload || !payload.url || !payload.username || !payload.password) {
       return null
     }
+
+    const config: INeogmaConfig = {
+      url: payload.url,
+      username: payload.username,
+      password: payload.password
+    }
+
+    await this.neogmaDynamicService.validateConnection(config)
 
     return this.encryptCustomDb(payload)
   }
@@ -200,7 +210,7 @@ export class ProjectService {
         // do nothing for updating hash of customDb
         return
       } else if (key === 'customDb' && typeof value === 'object') {
-        const customDb = this.attachCustomDb(value)
+        const customDb = await this.attachCustomDb(value)
 
         if (customDb) {
           projectNode[key] = customDb

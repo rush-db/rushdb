@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { Neogma } from 'neogma'
 import { INeogmaConfig } from '../neogma/neogma-config.interface'
 import { createInstance } from '../neogma/neogma.util'
@@ -9,12 +9,6 @@ import {
   RUSHDB_LABEL_PROPERTY,
   RUSHDB_LABEL_RECORD
 } from '@/core/common/constants'
-import {
-  RUSHDB_LABEL_PROJECT,
-  RUSHDB_LABEL_TOKEN,
-  RUSHDB_LABEL_USER,
-  RUSHDB_LABEL_WORKSPACE
-} from '@/dashboard/common/constants'
 
 interface ConnectionEntry {
   connection: Neogma
@@ -41,7 +35,6 @@ export class NeogmaDynamicService {
 
     isDevMode(() => Logger.log(`Creating new dynamic connection for project ${projectId}`))
     const connection = await createInstance(config)
-    await this.initializeSchema(connection)
     const timeout = this.scheduleCleanup(projectId)
     entry = { connection, lastUsed: now, timeout }
     this.connections.set(projectId, entry)
@@ -60,6 +53,30 @@ export class NeogmaDynamicService {
         isDevMode(() => Logger.log(`Dynamic connection for project ${projectId} closed due to inactivity`))
       }
     }, this.inactivityTimeout)
+  }
+
+  async validateConnection(config: INeogmaConfig): Promise<void> {
+    isDevMode(() =>
+      Logger.log(
+        `Validating custom DB connection with config: ${JSON.stringify({ url: config.url, username: config.username })}`
+      )
+    )
+    let testConnection: Neogma | null = null
+    try {
+      testConnection = await createInstance(config)
+      isDevMode(() => Logger.log(`Test connection established successfully.`))
+
+      await this.initializeSchema(testConnection)
+      isDevMode(() => Logger.log(`Schema initialization on test connection succeeded.`))
+    } catch (error) {
+      isDevMode(() => Logger.error(`Custom DB connection test failed: ${error.message}`, error.stack))
+      throw new ServiceUnavailableException(`Custom DB connection test failed: ${error.message}`)
+    } finally {
+      if (testConnection && typeof testConnection.driver.close === 'function') {
+        await testConnection.driver.close()
+        isDevMode(() => Logger.log(`Test connection closed.`))
+      }
+    }
   }
 
   private async initializeSchema(connection: Neogma): Promise<void> {
