@@ -3,6 +3,18 @@ import { Neogma } from 'neogma'
 import { INeogmaConfig } from '../neogma/neogma-config.interface'
 import { createInstance } from '../neogma/neogma.util'
 import { isDevMode } from '@/common/utils/isDevMode'
+import {
+  RUSHDB_KEY_ID,
+  RUSHDB_KEY_PROJECT_ID,
+  RUSHDB_LABEL_PROPERTY,
+  RUSHDB_LABEL_RECORD
+} from '@/core/common/constants'
+import {
+  RUSHDB_LABEL_PROJECT,
+  RUSHDB_LABEL_TOKEN,
+  RUSHDB_LABEL_USER,
+  RUSHDB_LABEL_WORKSPACE
+} from '@/dashboard/common/constants'
 
 interface ConnectionEntry {
   connection: Neogma
@@ -55,15 +67,14 @@ export class NeogmaDynamicService {
     const transaction = session.beginTransaction()
     try {
       const constraints = [
-        `CREATE CONSTRAINT constraint_user_login IF NOT EXISTS FOR (user:User) REQUIRE user.login IS UNIQUE`,
-        `CREATE CONSTRAINT constraint_record_id IF NOT EXISTS FOR (record:Record) REQUIRE record.id IS UNIQUE`,
-        `CREATE CONSTRAINT constraint_property_id IF NOT EXISTS FOR (property:Property) REQUIRE property.id IS UNIQUE`
+        `CREATE CONSTRAINT constraint_record_id IF NOT EXISTS FOR (record:${RUSHDB_LABEL_RECORD}) REQUIRE record.${RUSHDB_KEY_ID} IS UNIQUE`,
+        `CREATE CONSTRAINT constraint_property_id IF NOT EXISTS FOR (property:${RUSHDB_LABEL_PROPERTY}) REQUIRE property.id IS UNIQUE`
       ]
       const indexes = [
-        `CREATE INDEX index_record_id IF NOT EXISTS FOR (n:Record) ON (n.id)`,
-        `CREATE INDEX index_record_projectid IF NOT EXISTS FOR (n:Record) ON (n.projectId)`,
-        `CREATE INDEX index_property_name IF NOT EXISTS FOR (n:Property) ON (n.name)`,
-        `CREATE INDEX index_property_mergerer IF NOT EXISTS FOR (n:Property) ON (n.name, n.type, n.projectId, n.metadata)`
+        `CREATE INDEX index_record_id IF NOT EXISTS FOR (n:${RUSHDB_LABEL_RECORD}) ON (n.${RUSHDB_KEY_ID})`,
+        `CREATE INDEX index_record_projectid IF NOT EXISTS FOR (n:${RUSHDB_LABEL_RECORD}) ON (n.${RUSHDB_KEY_PROJECT_ID})`,
+        `CREATE INDEX index_property_name IF NOT EXISTS FOR (n:${RUSHDB_LABEL_PROPERTY}) ON (n.name)`,
+        `CREATE INDEX index_property_mergerer IF NOT EXISTS FOR (n:${RUSHDB_LABEL_PROPERTY}) ON (n.name, n.type, n.projectId, n.metadata)`
       ]
 
       isDevMode(() => Logger.log('Initializing custom database schema: creating constraints...'))
