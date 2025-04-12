@@ -1,5 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
-import { Neogma } from 'neogma'
+import { Neogma, QueryRunner } from 'neogma'
 import { INeogmaConfig } from '../neogma/neogma-config.interface'
 import { createInstance } from '../neogma/neogma.util'
 import { isDevMode } from '@/common/utils/isDevMode'
@@ -9,6 +9,7 @@ import {
   RUSHDB_LABEL_PROPERTY,
   RUSHDB_LABEL_RECORD
 } from '@/core/common/constants'
+import { Session, Transaction } from 'neo4j-driver'
 
 interface ConnectionEntry {
   connection: Neogma
@@ -79,6 +80,27 @@ export class NeogmaDynamicService {
     }
   }
 
+  // Just hacky way to use in services which controllers don't have customDb support
+  // Main use case is to batch update/delete custom db data from workspace/organization/project
+  async getTempRunner(
+    projectId: string,
+    config: INeogmaConfig
+  ): Promise<{
+    runner: QueryRunner
+    session: Session
+    transaction: Transaction
+  }> {
+    const connection = await this.getConnection(projectId, config)
+    const session = connection.driver.session()
+    const transaction = session.beginTransaction()
+
+    const runner = new QueryRunner({
+      driver: connection.driver
+    })
+
+    return { runner, session, transaction }
+  }
+
   private async initializeSchema(connection: Neogma): Promise<void> {
     const session = connection.driver.session()
     const transaction = session.beginTransaction()
@@ -109,6 +131,8 @@ export class NeogmaDynamicService {
     } catch (error) {
       isDevMode(() => Logger.error('Error initializing custom DB schema', error))
       await transaction.rollback()
+
+      throw new ServiceUnavailableException(`Error initializing custom DB schema: ${error.message}`)
     } finally {
       await session.close()
     }

@@ -10,7 +10,8 @@ import {
   Post,
   UseGuards,
   UseInterceptors,
-  Headers
+  Headers,
+  Query
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiExcludeController, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
@@ -92,9 +93,10 @@ export class ProjectController {
   @AuthGuard('project')
   async deleteProject(
     @Param('projectId') id: string,
+    @Query('shouldStoreCustomDbData') shouldStoreCustomDbData: boolean,
     @TransactionDecorator() transaction: Transaction
   ): Promise<boolean> {
-    return await this.projectService.deleteProject(id, transaction)
+    return await this.projectService.deleteProject(id, transaction, shouldStoreCustomDbData)
   }
 
   @Patch(':projectId')
