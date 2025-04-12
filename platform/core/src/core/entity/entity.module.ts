@@ -36,6 +36,6 @@ import { DbContextMiddleware } from '@/common/middlewares/db-context.middleware'
 })
 export class EntityModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(DbContextMiddleware).forRoutes(EntityController)
+    consumer.apply(DbContextMiddleware).forRoutes(EntityController, LabelController)
   }
 }

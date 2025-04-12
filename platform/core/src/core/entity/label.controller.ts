@@ -25,6 +25,7 @@ import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transacti
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 import { EntityService } from './entity.service'
+import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // LABELS
@@ -38,7 +39,8 @@ import { EntityService } from './entity.service'
   TransformResponseInterceptor,
   NotFoundInterceptor,
   NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor
+  NeogmaTransactionInterceptor,
+  CustomTransactionInterceptor
 )
 export class LabelController {
   constructor(private readonly entityService: EntityService) {}
