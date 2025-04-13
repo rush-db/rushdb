@@ -57,7 +57,6 @@ export class ProjectService {
     const id = uuidv7()
     const { name, description = '' } = properties
 
-    // add check for plan here and selfhosted prop.
     const customDb = await this.attachCustomDb(properties.customDb)
 
     const projectNode = await this.projectRepository.model.createOne(
