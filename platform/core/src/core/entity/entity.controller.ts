@@ -65,6 +65,7 @@ import { EditEntityDto } from './dto/edit-entity.dto'
 import { EntityService } from './entity.service'
 import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
 import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // RECORDS CRUD
@@ -135,7 +136,7 @@ export class EntityController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard, CustomDbWriteRestrictionGuard)
   @UsePipes(ValidationPipe(createEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
   @HttpCode(HttpStatus.CREATED)
@@ -443,7 +444,8 @@ export class EntityController {
     IsRelatedToProjectGuard(['targetIds'], {
       nodeProperty: RUSHDB_KEY_ID,
       projectIdProperty: RUSHDB_KEY_PROJECT_ID
-    })
+    }),
+    CustomDbWriteRestrictionGuard
   )
   @UsePipes(ValidationPipe(createRelationSchema, 'body'))
   @AuthGuard('project')
@@ -470,7 +472,8 @@ export class EntityController {
     IsRelatedToProjectGuard(['targetIds'], {
       nodeProperty: RUSHDB_KEY_ID,
       projectIdProperty: RUSHDB_KEY_PROJECT_ID
-    })
+    }),
+    CustomDbWriteRestrictionGuard
   )
   @UsePipes(ValidationPipe(deleteRelationsSchema, 'body'))
   @AuthGuard('project')

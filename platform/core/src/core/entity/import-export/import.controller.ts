@@ -34,6 +34,7 @@ import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transacti
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 import { CustomTransactionDecorator } from '@/database/neogma-dynamic/custom-transaction.decorator'
 import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
+import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // POST     /import/json           ✅ INGEST DATA
@@ -55,7 +56,7 @@ export class ImportController {
 
   @Post('/records/import/json')
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard, CustomDbWriteRestrictionGuard)
   @UseInterceptors(
     RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]),
     TransformResponseInterceptor
@@ -83,7 +84,7 @@ export class ImportController {
   )
   @UsePipes(ValidationPipe(importCsvSchema, 'body'))
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard, CustomDbWriteRestrictionGuard)
   async collectCsv(
     @Body() body: ImportCsvDto,
     @TransactionDecorator() transaction: Transaction,
