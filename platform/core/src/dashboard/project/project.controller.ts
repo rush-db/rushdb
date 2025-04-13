@@ -31,6 +31,7 @@ import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { CustomDbAvailabilityGuard } from '@/dashboard/billing/guards/custom-db-availability.guard'
 
 @Controller('projects')
 @ApiExcludeController()
@@ -49,7 +50,7 @@ export class ProjectController {
   @ApiBearerAuth()
   @AuthGuard()
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(PlanLimitsGuard)
+  @UseGuards(PlanLimitsGuard, CustomDbAvailabilityGuard)
   async createProject(
     @Body() project: CreateProjectDto,
     @AuthUser() { id: userId }: IUserClaims,
@@ -110,6 +111,7 @@ export class ProjectController {
   @ApiBearerAuth()
   @AuthGuard('project')
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(CustomDbAvailabilityGuard)
   async updateProject(
     @Param('projectId') id: string,
     @Body() editProjectProperties: UpdateProjectDto,
