@@ -11,12 +11,14 @@ import { PropertyRepository } from './model/property.repository'
 import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
 import { DbConnectionModule } from '@/database/db-connection/db-connection.module'
 import { DbContextMiddleware } from '@/common/middlewares/db-context.middleware'
+import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
 
 @Module({
   imports: [
     forwardRef(() => EntityModule),
     forwardRef(() => TokenModule),
     forwardRef(() => ProjectModule),
+    forwardRef(() => WorkspaceModule),
 
     //db modules
     forwardRef(() => NeogmaDynamicModule),
