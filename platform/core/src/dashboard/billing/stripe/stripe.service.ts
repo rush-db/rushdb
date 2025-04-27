@@ -193,7 +193,10 @@ export class StripeService {
       currency: 'usd',
       mode: 'subscription',
       success_url: `${returnUrl}?payment_successful=true`,
-      cancel_url: `${returnUrl}?payment_successful=false`
+      cancel_url: `${returnUrl}?payment_successful=false`,
+      subscription_data: {
+        trial_period_days: 14
+      }
     })
   }
 
