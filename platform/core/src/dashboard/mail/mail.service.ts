@@ -26,6 +26,23 @@ export class MailService {
     }
   }
 
+  async sendUserInvite(login: string, token: string, senderName?: string, workspaceName?: string) {
+    if (isEmail(login)) {
+      const url = `${this.configService.get('RUSHDB_DASHBOARD_URL')}/signup?invite=${token}`
+
+      await this.mailerService.sendMail({
+        to: login,
+        subject: `You’re invited to join "${workspaceName}" on RushDB`,
+        template: 'accept-invite',
+        context: {
+          senderUserName: senderName,
+          senderUserWorkspace: workspaceName,
+          url
+        }
+      })
+    }
+  }
+
   async sendUserForgotPasswordLink(login: string, token: string) {
     if (isEmail(login)) {
       const url = `${this.configService.get('RUSHDB_DASHBOARD_URL')}/forgot-password?token=${token}`
