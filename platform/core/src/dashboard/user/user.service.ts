@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common'
+import { BadRequestException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
@@ -26,6 +26,9 @@ import { NeogmaService } from '@/database/neogma/neogma.service'
 import { TUserInstance, TUserProperties } from './model/user.interface'
 import { UserRepository } from './model/user.repository'
 import { User } from './user.entity'
+import { isDevMode } from '@/common/utils/isDevMode'
+import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
+import * as crypto from 'node:crypto'
 
 @Injectable()
 export class UserService {
@@ -112,33 +115,9 @@ export class UserService {
     const allowedLogins = JSON.parse(this.configService.get('RUSHDB_ALLOWED_LOGINS') || '[]') ?? []
 
     if (allowedLogins.length === 0 || (allowedLogins.length && allowedLogins.includes(properties.login))) {
-      let userSettings = {}
-      const currentTime = getCurrentISO()
-      const userId = uuidv7()
-      const userPassword = await this.encryptionService.hash(properties.password)
-
-      //  process settings only if they're present
-      if (properties.settings) {
-        userSettings = sanitizeSettings(properties.settings)
-      }
-
-      const isEmail = toBoolean(validateEmail(properties.login || ''))
-
-      const userNode = await this.userRepository.model.createOne(
-        {
-          ...properties,
-          isEmail,
-          password: userPassword,
-          confirmed: properties.confirmed ?? false,
-          created: currentTime,
-          id: userId,
-          settings: JSON.stringify(userSettings)
-        },
-        { session: transaction }
-      )
-
+      const userNode = await this.createUserNode(properties, transaction)
       // Add Default Workspace on registration
-      await this.workspaceService.createWorkspace({ name: 'Default Workspace' }, userId, transaction)
+      await this.workspaceService.createWorkspace({ name: 'Default Workspace' }, userNode.id, transaction)
 
       if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
         await this.stripeService.createCustomer(properties.login)
@@ -150,6 +129,84 @@ export class UserService {
     } else {
       throw new BadRequestException('Provided login is not allowed')
     }
+  }
+
+  async acceptWorkspaceInvitation(
+    properties: Omit<TUserProperties, 'id' | 'isEmail'>,
+    inviteToken: string,
+    transaction: Transaction
+  ): Promise<ICreatedUserData> {
+    const allowedLogins = JSON.parse(this.configService.get('RUSHDB_ALLOWED_LOGINS') || '[]') ?? []
+
+    if (allowedLogins.length === 0 || (allowedLogins.length && allowedLogins.includes(properties.login))) {
+      const userNode = await this.createUserNode(properties, transaction)
+      const { workspaceId, email, projectIds } = this.decryptInvite(inviteToken)
+
+      if (!workspaceId || !email) {
+        throw new BadRequestException('Malformed invite provided')
+      }
+
+      if (email !== properties.login) {
+        throw new BadRequestException("Provided email doesn't match invitee's email")
+      }
+
+      // @TODO pass projectIds to the workspace
+      await this.workspaceService.attachUserToWorkspace(workspaceId, userNode.id, transaction)
+
+      if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
+        await this.stripeService.createCustomer(properties.login)
+      }
+
+      return {
+        userData: this.normalize(userNode)
+      }
+    } else {
+      throw new BadRequestException('Provided login is not allowed')
+    }
+  }
+
+  decryptInvite(encrypted: string): TWorkSpaceInviteToken {
+    const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
+    const iv = encrypted.substring(0, 32)
+    const cipherText = encrypted.substring(32)
+
+    const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey, Buffer.from(iv, 'hex'))
+    const decrypted = decipher.update(cipherText, 'base64', 'utf8')
+    const resultString = decrypted + decipher.final('utf8')
+
+    return JSON.parse(resultString) as TWorkSpaceInviteToken
+  }
+
+  async createUserNode(properties: Omit<TUserProperties, 'id' | 'isEmail'>, transaction: Transaction) {
+    let userSettings = {}
+    const currentTime = getCurrentISO()
+    const userId = uuidv7()
+    const userPassword = await this.encryptionService.hash(properties.password)
+
+    //  process settings only if they're present
+    if (properties.settings) {
+      userSettings = sanitizeSettings(properties.settings)
+    }
+
+    const isEmail = toBoolean(validateEmail(properties.login || ''))
+
+    if (!isEmail) {
+      isDevMode(() => Logger.error('[Create user ERROR]: Bad email provided'))
+      throw new BadRequestException('Bad email data provided')
+    }
+
+    return await this.userRepository.model.createOne(
+      {
+        ...properties,
+        isEmail,
+        password: userPassword,
+        confirmed: properties.confirmed ?? false,
+        created: currentTime,
+        id: userId,
+        settings: JSON.stringify(userSettings)
+      },
+      { session: transaction }
+    )
   }
 
   async update(

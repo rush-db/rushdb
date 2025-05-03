@@ -94,6 +94,42 @@ export class AuthController {
     }
   }
 
+  @Post('accept-invitation')
+  @ApiTags('Auth')
+  @ApiQuery({
+    name: 'invite',
+    required: true,
+    description: "invite to verify user's email && workspace",
+    type: 'string'
+  })
+  @CommonResponseDecorator(GetUserDto)
+  async acceptInvitation(
+    @Body() user: CreateUserDto,
+    @Query('invite') token: string,
+    @TransactionDecorator() transaction: Transaction
+  ): Promise<IAuthenticatedUser> {
+    try {
+      return this.userService
+        .acceptWorkspaceInvitation(
+          {
+            ...user,
+            confirmed: true
+          },
+          token,
+          transaction
+        )
+        .then(async ({ userData }) => {
+          const createdUserData = userData.toJson()
+          return {
+            ...createdUserData,
+            token: this.authService.createToken(userData)
+          }
+        })
+    } catch (e) {
+      throw new BadRequestException('Provided email is not allowed')
+    }
+  }
+
   @Get('confirm')
   @ApiTags('Auth')
   @ApiQuery({

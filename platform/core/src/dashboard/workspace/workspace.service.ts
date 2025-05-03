@@ -28,7 +28,7 @@ import {
 } from '@/dashboard/workspace/workspace.constants'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
-import { TWorkspaceInvitation } from '@/dashboard/workspace/workspace.types'
+import { TWorkspaceInvitation, TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { MailService } from '@/dashboard/mail/mail.service'
 import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception'
@@ -215,6 +215,23 @@ export class WorkspaceService {
     return this.normalize(workspaceNode)
   }
 
+  async attachUserToWorkspace(
+    workspaceId: string,
+    userId: string,
+    transaction: Transaction
+  ): Promise<Workspace> {
+    const workspaceNode = await this.getWorkspaceNode(workspaceId, transaction)
+
+    await workspaceNode.relateTo({
+      alias: 'Users',
+      where: { id: userId },
+      properties: { Since: workspaceNode.created, Role: USER_ROLE_OWNER },
+      session: transaction
+    })
+
+    return this.normalize(workspaceNode)
+  }
+
   async patchWorkspace(
     id: string,
     workspaceProperties: Partial<TWorkspaceProperties>,
@@ -283,6 +300,23 @@ export class WorkspaceService {
     }
   }
 
+  encryptMemberToken(payload: TWorkSpaceInviteToken) {
+    const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
+    const iv = crypto.randomBytes(16)
+    const invitationString = JSON.stringify({
+      workspaceId: payload.workspaceId,
+      projectIds: payload.projectIds,
+      email: payload.email
+    })
+
+    const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
+
+    const targetString =
+      iv.toString('hex') + cipher.update(invitationString, 'utf8', 'base64') + cipher.final('base64')
+
+    return iv.toString('hex') + targetString
+  }
+
   async inviteMember(payload: TWorkspaceInvitation, transaction: Transaction): Promise<{ message: string }> {
     if (!payload.workspaceId || !payload.email) {
       isDevMode(() => Logger.error('[Invite member ERROR]: No required data provided'))
@@ -290,17 +324,11 @@ export class WorkspaceService {
     }
 
     const { workspaceId, projectIds, email, ...rest } = payload
-
-    const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
-    const iv = crypto.randomBytes(16)
-    const invitationString = JSON.stringify({ workspaceId, projectIds, email })
-
-    const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
-
-    const targetString =
-      iv.toString('hex') + cipher.update(invitationString, 'utf8', 'base64') + cipher.final('base64')
-
-    const token = iv.toString('hex') + targetString
+    const token = this.encryptMemberToken({
+      workspaceId,
+      projectIds,
+      email
+    })
 
     try {
       await this.mailService.sendUserInvite(email, token, rest.senderEmail, rest.workspaceName)
