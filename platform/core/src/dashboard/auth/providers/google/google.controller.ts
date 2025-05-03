@@ -25,6 +25,7 @@ export class GoogleOAuthController {
     private readonly emailConfirmationService: EmailConfirmationService
   ) {}
 
+  // @TODO: later add google invitation accept with state prop in v2 oauth
   @Get('google')
   @ApiTags('Auth')
   @CommonResponseDecorator(GetOauthDto)
