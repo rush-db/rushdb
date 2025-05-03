@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common'
+import { BadRequestException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
@@ -13,6 +13,7 @@ import { UserRepository } from '@/dashboard/user/model/user.repository'
 import { UserService } from '@/dashboard/user/user.service'
 import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
 import { Workspace } from '@/dashboard/workspace/entity/workspace.entity'
+import * as crypto from 'node:crypto'
 import {
   TWorkspaceInstance,
   TWorkspaceLimits,
@@ -27,6 +28,10 @@ import {
 } from '@/dashboard/workspace/workspace.constants'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
+import { TWorkspaceInvitation } from '@/dashboard/workspace/workspace.types'
+import { isDevMode } from '@/common/utils/isDevMode'
+import { MailService } from '@/dashboard/mail/mail.service'
+import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -51,7 +56,9 @@ export class WorkspaceService {
     @Inject(forwardRef(() => UserRepository))
     private readonly userRepository: UserRepository,
     @Inject(forwardRef(() => UserService))
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    @Inject(forwardRef(() => MailService))
+    private readonly mailService: MailService
   ) {}
 
   normalize(node: TWorkspaceInstance) {
@@ -273,6 +280,38 @@ export class WorkspaceService {
 
     return {
       message: `Workspace ${id} successfully deleted`
+    }
+  }
+
+  async inviteMember(payload: TWorkspaceInvitation, transaction: Transaction): Promise<{ message: string }> {
+    if (!payload.workspaceId || !payload.email) {
+      isDevMode(() => Logger.error('[Invite member ERROR]: No required data provided'))
+      throw new BadRequestException('No required data provided')
+    }
+
+    const { workspaceId, projectIds, email, ...rest } = payload
+
+    const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
+    const iv = crypto.randomBytes(16)
+    const invitationString = JSON.stringify({ workspaceId, projectIds, email })
+
+    const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
+
+    const targetString =
+      iv.toString('hex') + cipher.update(invitationString, 'utf8', 'base64') + cipher.final('base64')
+
+    const token = iv.toString('hex') + targetString
+
+    try {
+      await this.mailService.sendUserInvite(email, token, rest.senderEmail, rest.workspaceName)
+      isDevMode(() => Logger.log(`[Invite member LOG]: Invitation sent to the ${email}`))
+    } catch (e) {
+      isDevMode(() => Logger.error('[Invite member ERROR]: Error sending an email', e))
+      throw new InternalServerErrorException('Error while sending email')
+    }
+
+    return {
+      message: `Invite for ${email} successfully sent`
     }
   }
 }

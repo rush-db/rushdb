@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Patch,
+  Post,
   UseGuards,
   UseInterceptors
 } from '@nestjs/common'
@@ -25,6 +26,7 @@ import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { InviteToWorkspaceDto } from '@/dashboard/workspace/dto/invite-to-workspace.dto'
 
 @Controller('workspaces')
 @ApiExcludeController()
@@ -123,5 +125,33 @@ export class WorkspaceController {
     @TransactionDecorator() transaction: Transaction
   ): Promise<{ message: string }> {
     return await this.workspaceService.deleteWorkspace(id, transaction)
+  }
+
+  @Post(':id/invite')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard()
+  @HttpCode(HttpStatus.OK)
+  async inviteToWorkspace(
+    @AuthUser() user: IUserClaims,
+    @Param('id') id: string,
+    @Body() workspacePayload: InviteToWorkspaceDto,
+    @TransactionDecorator() transaction: Transaction
+  ): Promise<{ message: string }> {
+    const { name } = await this.workspaceService.getWorkspaceInstance(id, transaction)
+
+    const payload = {
+      workspaceId: id,
+      workspaceName: name,
+      senderEmail: user.login,
+      ...workspacePayload
+    }
+    return await this.workspaceService.inviteMember(payload, transaction)
   }
 }
