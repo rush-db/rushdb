@@ -76,6 +76,7 @@ export class StripeService {
       const planId = subscription.items.data[0].plan.id
       const validTill = new Date(subscription.current_period_end * 1000)
 
+      //@TODO: CHECK OWNERSHIP FOR WORKSPACE
       const targetId = await this.workspaceService.findUserWorkspace(userEmail, transaction)
       const plan = getPlanKeyByPriceId(planId, data)
 
