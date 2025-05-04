@@ -33,6 +33,7 @@ import { isDevMode } from '@/common/utils/isDevMode'
 import { MailService } from '@/dashboard/mail/mail.service'
 import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
+import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -344,5 +345,17 @@ export class WorkspaceService {
     return {
       message: `Invite for ${email} successfully sent`
     }
+  }
+
+  async recomputeProjectsAccessList(id: string, payload: RecomputeAccessListDto, transaction: Transaction) {
+    for (const [projectId, userIds] of Object.entries(payload)) {
+      await this.projectService.processUserAccess({
+        projectId,
+        userIdsToVerify: userIds,
+        transaction
+      })
+    }
+
+    return { message: 'Access lists recomputed' }
   }
 }

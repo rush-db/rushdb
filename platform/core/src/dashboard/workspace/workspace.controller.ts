@@ -27,6 +27,7 @@ import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 import { InviteToWorkspaceDto } from '@/dashboard/workspace/dto/invite-to-workspace.dto'
+import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 
 @Controller('workspaces')
 @ApiExcludeController()
@@ -153,5 +154,24 @@ export class WorkspaceController {
       ...workspacePayload
     }
     return await this.workspaceService.inviteMember(payload, transaction)
+  }
+
+  @Post(':id/recompute-access-list')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard()
+  @HttpCode(HttpStatus.OK)
+  async recomputeAccessList(
+    @Param('id') id: string,
+    @Body() accessMap: RecomputeAccessListDto,
+    @TransactionDecorator() transaction: Transaction
+  ): Promise<{ message: string }> {
+    return await this.workspaceService.recomputeProjectsAccessList(id, accessMap, transaction)
   }
 }

@@ -46,7 +46,7 @@ export class ProjectQueryService {
 
     queryBuilder
       .append(
-        `MATCH (project:${RUSHDB_LABEL_PROJECT} {id: $projectId})<-[:${RUSHDB_RELATION_HAS_ACCESS}]-(relatedUser:${RUSHDB_LABEL_USER})`
+        `MATCH (project:${RUSHDB_LABEL_PROJECT} {id: $projectId})<-[:${RUSHDB_RELATION_HAS_ACCESS} { role: $role }]-(relatedUser:${RUSHDB_LABEL_USER})`
       )
       .append(`WITH relatedUser, collect(DISTINCT relatedUser.id) as usersId`)
       .append(`RETURN usersId`)
@@ -61,7 +61,7 @@ export class ProjectQueryService {
       .append(`MATCH (user:${RUSHDB_LABEL_USER} { id: $userId })`)
       .append(`MATCH (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })`)
       .append(
-        `CREATE (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })<-[newRel:${RUSHDB_RELATION_HAS_ACCESS} { since: $since, role: $role }]-(user)`
+        `CREATE (project)<-[newRel:${RUSHDB_RELATION_HAS_ACCESS} { since: $since, role: $role }]-(user)`
       )
 
     return queryBuilder.getQuery()

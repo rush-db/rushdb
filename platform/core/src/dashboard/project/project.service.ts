@@ -3,6 +3,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  Logger,
   ServiceUnavailableException
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
@@ -20,9 +21,11 @@ import { IProjectProperties, TProjectInstance } from '@/dashboard/project/model/
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { ProjectQueryService } from '@/dashboard/project/project-query.service'
 import { TProjectStats } from '@/dashboard/project/project.types'
-import { USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
+import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { toNative } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { TUserRoles } from '@/dashboard/user/model/user.interface'
+import { isDevMode } from '@/common/utils/isDevMode'
 
 @Injectable()
 export class ProjectService {
@@ -174,15 +177,21 @@ export class ProjectService {
   async grantUserAccessToProject({
     projectId,
     userId,
+    role,
     transaction
   }: {
     projectId: string
     userId: string
+    role: TUserRoles
     transaction: Transaction
   }) {
+    const since = getCurrentISO()
+
     await transaction.run(this.projectQueryService.grantUserAccessQuery(), {
       projectId,
-      userId
+      userId,
+      role,
+      since
     })
   }
 
@@ -211,11 +220,13 @@ export class ProjectService {
     transaction: Transaction
   }): Promise<string[]> {
     const queryRunner = this.neogmaService.createRunner()
+    const role = USER_ROLE_EDITOR
 
     const result = await queryRunner.run(
       this.projectQueryService.projectRelatedUserIdsQuery(),
       {
-        projectId
+        projectId,
+        role
       },
       transaction
     )
@@ -224,38 +235,55 @@ export class ProjectService {
     const usersToAddAccess: Set<string> = new Set()
     const usersToRevokeAccess: Set<string> = new Set()
 
-    userIdsToVerify.forEach((incomeUserId) =>
+    if (!userIdsToVerify.length) {
       actualAccessList.forEach((actualUserId) => {
-        if (!actualAccessList.includes(incomeUserId)) {
+        usersToRevokeAccess.add(actualUserId)
+      })
+    } else {
+      userIdsToVerify.forEach((incomeUserId) => {
+        if (!actualAccessList.length) {
           usersToAddAccess.add(incomeUserId)
         }
 
-        if (!userIdsToVerify.includes(actualUserId)) {
-          usersToRevokeAccess.add(actualUserId)
-        }
+        actualAccessList.forEach((actualUserId) => {
+          if (!actualAccessList.includes(incomeUserId)) {
+            usersToAddAccess.add(incomeUserId)
+          }
+
+          if (!userIdsToVerify.includes(actualUserId)) {
+            usersToRevokeAccess.add(actualUserId)
+          }
+        })
       })
-    )
+    }
 
     const grantAccessList = [...usersToAddAccess]
     const revokeAccessList = [...usersToRevokeAccess]
 
     await Promise.all([
-      grantAccessList.map(
-        async (userId) =>
-          await this.grantUserAccessToProject({
-            projectId,
-            userId,
-            transaction
-          })
-      ),
-      revokeAccessList.map(
-        async (userId) =>
-          await this.revokeUserAccessToProject({
-            projectId,
-            userId,
-            transaction
-          })
-      )
+      grantAccessList.map(async (userId) => {
+        isDevMode(() =>
+          Logger.log(`[Add user access LOG]: Add user ${userId} access to the project ${projectId}`)
+        )
+
+        return await this.grantUserAccessToProject({
+          projectId,
+          userId,
+          role,
+          transaction
+        })
+      }),
+      revokeAccessList.map(async (userId) => {
+        isDevMode(() =>
+          Logger.log(`[Revoke user access LOG]: Revoke user ${userId} access to the project ${projectId}`)
+        )
+
+        return await this.revokeUserAccessToProject({
+          projectId,
+          userId,
+          transaction
+        })
+      })
     ])
 
     return userIdsToVerify
