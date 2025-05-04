@@ -159,6 +159,16 @@ export class UserService {
         transaction
       )
 
+      isDevMode(() =>
+        Logger.log(`[Accept user invitation LOG]: User accepted invitation and created ${userNode.id}`)
+      )
+
+      if (Array.isArray(projectIds) && projectIds.length > 0) {
+        for (const projectId of projectIds) {
+          await this.linkUser(userNode.id, projectId, transaction)
+        }
+      }
+
       if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
         await this.stripeService.createCustomer(properties.login)
       }
@@ -383,19 +393,40 @@ export class UserService {
     return true
   }
 
-  // async linkUser(id: string, projectId: string, transaction: Transaction): Promise<boolean> {
-  //     const userNode = await this.findUserNodeById(id, transaction);
-  //
-  //     try {
-  //         await userNode.relateTo({
-  //             alias: 'Projects',
-  //             where: { id: projectId },
-  //             session: transaction,
-  //         });
-  //     } catch (e) {
-  //         throw new BadRequestException('Cant link user');
-  //     }
-  //
-  //     return true;
-  // }
+  async linkUser(id: string, projectId: string, transaction: Transaction): Promise<boolean> {
+    const userNode = await this.findUserNodeById(id, transaction)
+    const currentTime = getCurrentISO()
+
+    try {
+      const projectNode = await this.projectService.getProjectNode(projectId, transaction)
+
+      if (!projectNode) {
+        return false
+      }
+    } catch (e) {
+      isDevMode(() =>
+        Logger.warn(`[Link user to the project WARN]: Incorrect project id provided ${projectId}`, e)
+      )
+
+      return false
+    }
+
+    try {
+      await userNode.relateTo({
+        alias: 'Projects',
+        where: { id: projectId },
+        properties: { Since: currentTime, Role: USER_ROLE_EDITOR },
+        session: transaction
+      })
+
+      isDevMode(() =>
+        Logger.log(`[Link user ${id} to the project LOG]: User linked to the project ${projectId}`)
+      )
+    } catch (e) {
+      isDevMode(() => Logger.error('[Link user to the project ERROR]: Error while linking user', e))
+      throw new BadRequestException('Cant link user to project')
+    }
+
+    return true
+  }
 }

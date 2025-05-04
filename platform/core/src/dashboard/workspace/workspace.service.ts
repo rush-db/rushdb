@@ -231,6 +231,10 @@ export class WorkspaceService {
       session: transaction
     })
 
+    isDevMode(() =>
+      Logger.log(`[Link user ${userId} to the workspace LOG]: User linked to the workspace ${workspaceId}`)
+    )
+
     return this.normalize(workspaceNode)
   }
 
