@@ -32,6 +32,7 @@ import { TWorkspaceInvitation, TWorkSpaceInviteToken } from '@/dashboard/workspa
 import { isDevMode } from '@/common/utils/isDevMode'
 import { MailService } from '@/dashboard/mail/mail.service'
 import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception'
+import { TUserRoles } from '@/dashboard/user/model/user.interface'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -218,6 +219,7 @@ export class WorkspaceService {
   async attachUserToWorkspace(
     workspaceId: string,
     userId: string,
+    preferredRole: TUserRoles,
     transaction: Transaction
   ): Promise<Workspace> {
     const workspaceNode = await this.getWorkspaceNode(workspaceId, transaction)
@@ -225,7 +227,7 @@ export class WorkspaceService {
     await workspaceNode.relateTo({
       alias: 'Users',
       where: { id: userId },
-      properties: { Since: workspaceNode.created, Role: USER_ROLE_OWNER },
+      properties: { Since: workspaceNode.created, Role: preferredRole },
       session: transaction
     })
 
@@ -311,10 +313,7 @@ export class WorkspaceService {
 
     const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
 
-    const targetString =
-      iv.toString('hex') + cipher.update(invitationString, 'utf8', 'base64') + cipher.final('base64')
-
-    return iv.toString('hex') + targetString
+    return iv.toString('hex') + cipher.update(invitationString, 'utf8', 'base64') + cipher.final('base64')
   }
 
   async inviteMember(payload: TWorkspaceInvitation, transaction: Transaction): Promise<{ message: string }> {

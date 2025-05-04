@@ -29,6 +29,7 @@ import { User } from './user.entity'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
 import * as crypto from 'node:crypto'
+import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
 
 @Injectable()
 export class UserService {
@@ -151,7 +152,12 @@ export class UserService {
       }
 
       // @TODO pass projectIds to the workspace
-      await this.workspaceService.attachUserToWorkspace(workspaceId, userNode.id, transaction)
+      await this.workspaceService.attachUserToWorkspace(
+        workspaceId,
+        userNode.id,
+        USER_ROLE_EDITOR,
+        transaction
+      )
 
       if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
         await this.stripeService.createCustomer(properties.login)
@@ -166,15 +172,24 @@ export class UserService {
   }
 
   decryptInvite(encrypted: string): TWorkSpaceInviteToken {
+    const tokenNormalized = decodeURIComponent(encrypted)
+
     const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
-    const iv = encrypted.substring(0, 32)
-    const cipherText = encrypted.substring(32)
+    const iv = tokenNormalized.substring(0, 32)
+    const cipherText = tokenNormalized.substring(32)
 
     const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey, Buffer.from(iv, 'hex'))
-    const decrypted = decipher.update(cipherText, 'base64', 'utf8')
-    const resultString = decrypted + decipher.final('utf8')
 
-    return JSON.parse(resultString) as TWorkSpaceInviteToken
+    let decrypted: string
+
+    try {
+      decrypted = decipher.update(cipherText, 'base64', 'utf8')
+      decrypted = decrypted + decipher.final('utf8')
+    } catch {
+      throw new BadRequestException('Invalid invitation token')
+    }
+
+    return JSON.parse(decrypted) as TWorkSpaceInviteToken
   }
 
   async createUserNode(properties: Omit<TUserProperties, 'id' | 'isEmail'>, transaction: Transaction) {

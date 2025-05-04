@@ -28,7 +28,7 @@ export class MailService {
 
   async sendUserInvite(login: string, token: string, senderName?: string, workspaceName?: string) {
     if (isEmail(login)) {
-      const url = `${this.configService.get('RUSHDB_DASHBOARD_URL')}/signup?invite=${token}`
+      const url = `${this.configService.get('RUSHDB_DASHBOARD_URL')}/signup?invite=${encodeURIComponent(token)}`
 
       await this.mailerService.sendMail({
         to: login,
