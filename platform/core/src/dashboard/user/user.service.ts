@@ -30,6 +30,7 @@ import { isDevMode } from '@/common/utils/isDevMode'
 import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
 import * as crypto from 'node:crypto'
 import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
+import { AcceptWorkspaceInvitationParams } from '@/dashboard/user/interfaces/user-properties.interface'
 
 @Injectable()
 export class UserService {
@@ -92,6 +93,28 @@ export class UserService {
     return this.userRepository.model.buildFromRecord(user)
   }
 
+  async findUserNodeByLogin(login: string, transaction: Transaction) {
+    const queryRunner = this.neogmaService.createRunner()
+
+    const findUser = await this.neogmaService
+      .createBuilder()
+      .match({
+        model: this.userRepository.model,
+        where: { login },
+        identifier: 'i'
+      })
+      .return('i')
+      .run(queryRunner, transaction)
+
+    const user = findUser.records[0]?.get('i')
+
+    if (!user) {
+      return
+    }
+
+    return this.userRepository.model.buildFromRecord(user)
+  }
+
   async markEmailAsConfirmed(login: string, transaction: Transaction): Promise<User> {
     const queryRunner = this.neogmaService.createRunner()
 
@@ -132,26 +155,43 @@ export class UserService {
     }
   }
 
-  async acceptWorkspaceInvitation(
-    properties: Omit<TUserProperties, 'id' | 'isEmail'>,
-    inviteToken: string,
+  async acceptWorkspaceInvitation<T extends boolean = boolean>(
+    params: AcceptWorkspaceInvitationParams<T>,
     transaction: Transaction
   ): Promise<ICreatedUserData> {
     const allowedLogins = JSON.parse(this.configService.get('RUSHDB_ALLOWED_LOGINS') || '[]') ?? []
+    const { inviteToken, forceUserSignUp } = params
+    const { workspaceId, email, projectIds, isUserRegistered } = this.decryptInvite(inviteToken)
 
-    if (allowedLogins.length === 0 || (allowedLogins.length && allowedLogins.includes(properties.login))) {
-      const userNode = await this.createUserNode(properties, transaction)
-      const { workspaceId, email, projectIds } = this.decryptInvite(inviteToken)
+    const login = forceUserSignUp === true ? params.userData.login : email
+
+    if (allowedLogins.length === 0 || (allowedLogins.length && allowedLogins.includes(login))) {
+      if (forceUserSignUp && isUserRegistered) {
+        throw new BadRequestException('Invitation was provided to a new RushDB user')
+      }
+
+      if (!forceUserSignUp && !isUserRegistered) {
+        throw new BadRequestException(
+          'Invitation was provided to a user who was already registered in RushDB'
+        )
+      }
+
+      let userNode
+
+      if (forceUserSignUp) {
+        userNode = await this.createUserNode(params.userData, transaction)
+      } else {
+        userNode = await this.findUserNodeByLogin(login, transaction)
+      }
 
       if (!workspaceId || !email) {
         throw new BadRequestException('Malformed invite provided')
       }
 
-      if (email !== properties.login) {
+      if (email !== login) {
         throw new BadRequestException("Provided email doesn't match invitee's email")
       }
 
-      // @TODO pass projectIds to the workspace
       await this.workspaceService.attachUserToWorkspace(
         workspaceId,
         userNode.id,
@@ -169,8 +209,8 @@ export class UserService {
         }
       }
 
-      if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-        await this.stripeService.createCustomer(properties.login)
+      if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED')) && forceUserSignUp) {
+        await this.stripeService.createCustomer(login)
       }
 
       return {

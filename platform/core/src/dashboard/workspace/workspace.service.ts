@@ -316,7 +316,8 @@ export class WorkspaceService {
     const invitationString = JSON.stringify({
       workspaceId: payload.workspaceId,
       projectIds: payload.projectIds,
-      email: payload.email
+      email: payload.email,
+      isUserRegistered: payload.isUserRegistered
     })
 
     const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
@@ -331,14 +332,32 @@ export class WorkspaceService {
     }
 
     const { workspaceId, projectIds, email, ...rest } = payload
+
+    let shouldOnlyNotify = false
+    const userNode = await this.userService.find(email, transaction)
+
+    if (userNode?.getId()) {
+      isDevMode(() =>
+        Logger.log(`[Invite member LOG]: Invitation will be send to the already registered user ${email}`)
+      )
+      shouldOnlyNotify = true
+    }
+
     const token = this.encryptMemberToken({
       workspaceId,
       projectIds,
-      email
+      email,
+      isUserRegistered: shouldOnlyNotify
     })
 
     try {
-      await this.mailService.sendUserInvite(email, token, rest.senderEmail, rest.workspaceName)
+      await this.mailService.sendUserInvite(
+        email,
+        token,
+        shouldOnlyNotify,
+        rest.senderEmail,
+        rest.workspaceName
+      )
       isDevMode(() => Logger.log(`[Invite member LOG]: Invitation sent to the ${email}`))
     } catch (e) {
       isDevMode(() => Logger.error('[Invite member ERROR]: Error sending an email', e))

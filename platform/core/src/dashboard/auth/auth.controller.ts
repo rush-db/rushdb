@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UnauthorizedException,
@@ -94,7 +95,7 @@ export class AuthController {
     }
   }
 
-  @Post('accept-invitation')
+  @Post('register-via-invite')
   @ApiTags('Auth')
   @ApiQuery({
     name: 'invite',
@@ -110,12 +111,15 @@ export class AuthController {
   ): Promise<IAuthenticatedUser> {
     try {
       return this.userService
-        .acceptWorkspaceInvitation(
+        .acceptWorkspaceInvitation<true>(
           {
-            ...user,
-            confirmed: true
+            forceUserSignUp: true,
+            userData: {
+              ...user,
+              confirmed: true
+            },
+            inviteToken: token
           },
-          token,
           transaction
         )
         .then(async ({ userData }) => {
@@ -128,6 +132,27 @@ export class AuthController {
     } catch (e) {
       throw new BadRequestException('Provided email is not allowed')
     }
+  }
+
+  @Patch('join-workspace')
+  @ApiTags('Auth')
+  @ApiQuery({
+    name: 'invite',
+    required: true,
+    description: "invite to verify user's email && workspace",
+    type: 'string'
+  })
+  @CommonResponseDecorator(GetUserDto)
+  async joinWorkspace(@Query('invite') token: string, @TransactionDecorator() transaction: Transaction) {
+    const user = await this.userService.acceptWorkspaceInvitation<false>(
+      {
+        inviteToken: token,
+        forceUserSignUp: false
+      },
+      transaction
+    )
+
+    return user.userData.toJson()
   }
 
   @Get('confirm')
