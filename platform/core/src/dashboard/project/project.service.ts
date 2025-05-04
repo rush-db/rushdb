@@ -346,26 +346,4 @@ export class ProjectService {
         properties: toNative(record.get('properties'))
       }))
   }
-
-  async getProjectsAccessList(workspaceId: string, transaction: Transaction) {
-    const runner = this.neogmaService.createRunner()
-
-    const result = await runner.run(
-      this.projectQueryService.getWorkspaceAccessListQuery(),
-      {
-        workspaceId,
-        role: USER_ROLE_EDITOR
-      },
-      transaction
-    )
-
-    const accessMap: Record<string, string[]> = {}
-
-    for (const record of result.records) {
-      const projectId = record.get('projectId')
-      accessMap[projectId] = record.get('userIds') || []
-    }
-
-    return accessMap
-  }
 }

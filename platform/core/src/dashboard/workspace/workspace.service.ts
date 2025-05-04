@@ -8,7 +8,7 @@ import { toBoolean } from '@/common/utils/toBolean'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { TProjectStats } from '@/dashboard/project/project.types'
-import { USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
+import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { UserRepository } from '@/dashboard/user/model/user.repository'
 import { UserService } from '@/dashboard/user/user.service'
 import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
@@ -34,6 +34,8 @@ import { MailService } from '@/dashboard/mail/mail.service'
 import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
+import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
+import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -53,6 +55,7 @@ export class WorkspaceService {
     private readonly configService: ConfigService,
     private readonly neogmaService: NeogmaService,
     private readonly workspaceRepository: WorkspaceRepository,
+    private readonly workspaceQueryService: WorkspaceQueryService,
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService,
     @Inject(forwardRef(() => UserRepository))
@@ -359,7 +362,49 @@ export class WorkspaceService {
     return { message: 'Access lists recomputed' }
   }
 
-  async getAccessList(workspaceId: string, transaction: Transaction): Promise<Record<string, string[]>> {
-    return this.projectService.getProjectsAccessList(workspaceId, transaction)
+  async getAccessListByProjects(
+    workspaceId: string,
+    transaction: Transaction
+  ): Promise<Record<string, string[]>> {
+    const runner = this.neogmaService.createRunner()
+
+    const result = await runner.run(
+      this.workspaceQueryService.getWorkspaceAccessListQuery(),
+      {
+        workspaceId,
+        role: USER_ROLE_EDITOR
+      },
+      transaction
+    )
+
+    const accessMap: Record<string, string[]> = {}
+
+    for (const record of result.records) {
+      const projectId = record.get('projectId')
+      accessMap[projectId] = record.get('userIds') || []
+    }
+
+    return accessMap
+  }
+
+  async getInvitedUserList(
+    workspaceId: string,
+    transaction: Transaction
+  ): Promise<{ id: string; login: string }[]> {
+    const runner = this.neogmaService.createRunner()
+
+    const result = await runner.run(
+      this.workspaceQueryService.getWorkspaceUserListQuery(),
+      {
+        workspaceId,
+        role: USER_ROLE_EDITOR
+      },
+      transaction
+    )
+
+    return result.records.map((record) => ({
+      id: record.get('id'),
+      login: record.get('login')
+    })) as IUserClaims[]
   }
 }

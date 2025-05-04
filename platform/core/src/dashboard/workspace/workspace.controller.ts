@@ -187,6 +187,21 @@ export class WorkspaceController {
   @AuthGuard()
   @HttpCode(HttpStatus.OK)
   async getAccessList(@Param('id') id: string, @TransactionDecorator() transaction: Transaction) {
-    return this.workspaceService.getAccessList(id, transaction)
+    return this.workspaceService.getAccessListByProjects(id, transaction)
+  }
+
+  @Get(':id/user-list')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard()
+  @HttpCode(HttpStatus.OK)
+  async getDeveloperUserList(@Param('id') id: string, @TransactionDecorator() transaction: Transaction) {
+    return this.workspaceService.getInvitedUserList(id, transaction)
   }
 }
