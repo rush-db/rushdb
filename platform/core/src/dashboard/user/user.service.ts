@@ -366,6 +366,7 @@ export class UserService {
     try {
       const userNode = await this.findUserNodeById(userId, transaction)
       if (userNode) {
+        // @TODO: SCIP PROJECT/WP DELETION FOR DEVELOPERS
         const relatedProjects = await userNode.findRelationships({
           alias: 'Projects',
           session: transaction
