@@ -387,10 +387,7 @@ export class WorkspaceService {
     return accessMap
   }
 
-  async getInvitedUserList(
-    workspaceId: string,
-    transaction: Transaction
-  ): Promise<{ id: string; login: string }[]> {
+  async getInvitedUserList(workspaceId: string, transaction: Transaction): Promise<IUserClaims[]> {
     const runner = this.neogmaService.createRunner()
 
     const result = await runner.run(
