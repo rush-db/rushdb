@@ -156,7 +156,7 @@ export class WorkspaceController {
     return await this.workspaceService.inviteMember(payload, transaction)
   }
 
-  @Post(':id/recompute-access-list')
+  @Post(':id/access-list')
   @ApiParam({
     name: 'id',
     required: true,
