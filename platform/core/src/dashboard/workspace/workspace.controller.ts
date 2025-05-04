@@ -174,4 +174,19 @@ export class WorkspaceController {
   ): Promise<{ message: string }> {
     return await this.workspaceService.recomputeProjectsAccessList(id, accessMap, transaction)
   }
+
+  @Get(':id/access-list')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard()
+  @HttpCode(HttpStatus.OK)
+  async getAccessList(@Param('id') id: string, @TransactionDecorator() transaction: Transaction) {
+    return this.workspaceService.getAccessList(id, transaction)
+  }
 }

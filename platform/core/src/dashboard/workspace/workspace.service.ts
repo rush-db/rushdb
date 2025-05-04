@@ -358,4 +358,8 @@ export class WorkspaceService {
 
     return { message: 'Access lists recomputed' }
   }
+
+  async getAccessList(workspaceId: string, transaction: Transaction): Promise<Record<string, string[]>> {
+    return this.projectService.getProjectsAccessList(workspaceId, transaction)
+  }
 }
