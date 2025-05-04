@@ -93,6 +93,20 @@ export class ProjectQueryService {
     return queryBuilder.getQuery()
   }
 
+  getUserRelatedProjects() {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(
+        `MATCH (w:${RUSHDB_LABEL_WORKSPACE} { id: $id })-[:${RUSHDB_RELATION_CONTAINS}]->(p:${RUSHDB_LABEL_PROJECT})`
+      )
+      .append(`WHERE p.deleted IS null`)
+      .append(`MATCH (u:${RUSHDB_LABEL_USER} { id: $userId })-[:${RUSHDB_RELATION_HAS_ACCESS}]->(p)`)
+      .append(`RETURN collect(DISTINCT p) as projects`)
+
+    return queryBuilder.getQuery()
+  }
+
   getProjectStatsById() {
     const queryBuilder = new QueryBuilder()
 

@@ -72,11 +72,12 @@ export class ProjectController {
   @AuthGuard()
   @HttpCode(HttpStatus.OK)
   async getProjectsList(
+    @AuthUser() { id: userId }: IUserClaims,
     @Headers() headers,
     @TransactionDecorator() transaction: Transaction
   ): Promise<ProjectEntity[]> {
     const workspaceId = headers['x-workspace-id']
-    return await this.projectService.getProjectsByWorkspaceId(workspaceId, transaction)
+    return await this.projectService.getProjectsByWorkspaceId(workspaceId, userId, transaction)
   }
 
   @Delete(':projectId')

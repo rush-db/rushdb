@@ -313,10 +313,14 @@ export class ProjectService {
     return this.normalize(projectNode)
   }
 
-  async getProjectsByWorkspaceId(id: string, transaction: Transaction): Promise<ProjectEntity[]> {
+  async getProjectsByWorkspaceId(
+    id: string,
+    userId: string,
+    transaction: Transaction
+  ): Promise<ProjectEntity[]> {
     const queryRunner = this.neogmaService.createRunner()
     return await queryRunner
-      .run(this.projectQueryService.getProjectsByWorkspaceId(), { id }, transaction)
+      .run(this.projectQueryService.getUserRelatedProjects(), { id, userId }, transaction)
       .then(({ records }) => records[0].get('projects'))
   }
 
