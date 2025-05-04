@@ -59,8 +59,9 @@ export class ProjectQueryService {
 
     queryBuilder
       .append(`MATCH (user:${RUSHDB_LABEL_USER} { id: $userId })`)
+      .append(`MATCH (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })`)
       .append(
-        `CREATE (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })<-[newRel:${RUSHDB_RELATION_HAS_ACCESS}]-(user)`
+        `CREATE (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })<-[newRel:${RUSHDB_RELATION_HAS_ACCESS} { since: $since, role: $role }]-(user)`
       )
 
     return queryBuilder.getQuery()
