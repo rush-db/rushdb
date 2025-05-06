@@ -105,7 +105,20 @@ export class RestAPI {
     )
   }
 
+  /**
+   * API methods for managing database records
+   */
   public records = {
+    /**
+     * Attaches a relation between records
+     * @param source - The source record to create relation from
+     * @param target - The target record(s) to create relation to
+     * @param options - Optional relation configuration
+     * @param options.type - The type of relation to create
+     * @param options.direction - The direction of the relation
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response
+     */
     attach: async (
       {
         source,
@@ -139,6 +152,16 @@ export class RestAPI {
       return response
     },
 
+    /**
+     * Detaches (removes) a relation between records
+     * @param source - The source record to remove relation from
+     * @param target - The target record(s) to remove relation to
+     * @param options - Optional detach configuration
+     * @param options.typeOrTypes - The type(s) of relations to remove
+     * @param options.direction - The direction of relations to remove
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response
+     */
     detach: async (
       {
         source,
@@ -172,6 +195,15 @@ export class RestAPI {
       return response
     },
 
+    /**
+     * Creates a new record in the database
+     * @param label - The label/type of the record
+     * @param data - The record data, either as a flat object or array of property drafts
+     * @param options - Optional write configuration
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to the created DBRecordInstance
+     * @throws Error if data is not a flat object and createMany should be used instead
+     */
     create: async <S extends Schema = any>(
       {
         label,
@@ -214,6 +246,15 @@ export class RestAPI {
       return new DBRecordInstance<S>()
     },
 
+    /**
+     * Creates multiple records in a single operation
+     * @param data - Object containing label, options and payload array for multiple records
+     * @param data.label - The label/type for all records
+     * @param data.options - Optional write configuration
+     * @param data.payload - Array of record data to create
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordsArrayInstance containing created records
+     */
     createMany: async <S extends Schema = any>(
       data: {
         label: string
@@ -244,6 +285,13 @@ export class RestAPI {
       return new DBRecordsArrayInstance<S>([])
     },
 
+    /**
+     * Deletes records matching the search query
+     * @param searchQuery - Query to identify records to delete
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response
+     * @throws EmptyTargetError if query is empty and force delete is not allowed
+     */
     delete: async <S extends Schema = any>(
       searchQuery: SearchQuery<S>,
       transaction?: Transaction | string
@@ -270,6 +318,12 @@ export class RestAPI {
       return response
     },
 
+    /**
+     * Deletes record(s) by ID
+     * @param idOrIds - Single ID or array of IDs to delete
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response
+     */
     deleteById: async (idOrIds: MaybeArray<string>, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
       const multipleTargets = isArray(idOrIds)
@@ -288,6 +342,12 @@ export class RestAPI {
       return response
     },
 
+    /**
+     * Exports records matching the search query to CSV format
+     * @param searchQuery - Query to identify records to export
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing CSV data
+     */
     export: async <S extends Schema = any>(
       searchQuery: SearchQuery<S>,
       transaction?: Transaction | string
@@ -311,6 +371,12 @@ export class RestAPI {
       return response
     },
 
+    /**
+     * Searches for records matching the query criteria
+     * @param searchQueryWithEntryPoint - Search query with optional entry point ID
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordsArrayInstance containing matched records
+     */
     find: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
       searchQueryWithEntryPoint: Q & { id?: string },
       transaction?: Transaction | string
@@ -340,6 +406,12 @@ export class RestAPI {
       return result
     },
 
+    /**
+     * Retrieves record(s) by ID
+     * @param idOrIds - Single ID or array of IDs to retrieve
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordInstance or DBRecordsArrayInstance depending on input
+     */
     findById: async <
       S extends Schema = Schema,
       Arg extends MaybeArray<string> = MaybeArray<string>,
@@ -372,6 +444,12 @@ export class RestAPI {
       }
     },
 
+    /**
+     * Finds a single record matching the search query
+     * @param searchQuery - Query to identify the record
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordInstance
+     */
     findOne: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
       searchQuery: Q,
       transaction?: Transaction | string
@@ -395,6 +473,13 @@ export class RestAPI {
       return result
     },
 
+    /**
+     * Finds a unique record matching the search query
+     * @param searchQuery - Query to identify the record
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordInstance
+     * @throws NonUniqueResultError if multiple records match the query
+     */
     findUniq: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
       searchQuery: Q,
       transaction?: Transaction | string
@@ -423,6 +508,12 @@ export class RestAPI {
       return result
     },
 
+    /**
+     * Gets properties of a specific record
+     * @param target - The record to get properties from
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing record properties
+     */
     properties: async (target: DBRecordTarget, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
       const recordId = pickRecordId(target)!
@@ -440,6 +531,12 @@ export class RestAPI {
       return response
     },
 
+    /**
+     * Gets relations of a specific record
+     * @param target - The record to get relations from
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing record relations
+     */
     relations: async (target: DBRecordTarget, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
       const recordId = pickRecordId(target)!
@@ -457,6 +554,16 @@ export class RestAPI {
       return response
     },
 
+    /**
+     * Sets (overwrites) record data
+     * @param target - The record to update
+     * @param label - The label/type of the record
+     * @param data - The new record data
+     * @param options - Optional write configuration
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to updated DBRecordInstance
+     * @throws Error if data is not a flat object
+     */
     set: async <S extends Schema = any>(
       {
         target,
@@ -502,6 +609,16 @@ export class RestAPI {
       return new DBRecordInstance<S>()
     },
 
+    /**
+     * Updates record data (partial update)
+     * @param target - The record to update
+     * @param label - The label/type of the record
+     * @param data - The partial record data to update
+     * @param options - Optional write configuration
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to updated DBRecordInstance
+     * @throws Error if data is not a flat object
+     */
     update: async <S extends Schema = any>(
       {
         target,
@@ -547,6 +664,16 @@ export class RestAPI {
       return new DBRecordInstance<S>()
     },
 
+    /**
+     * Creates or updates a record based on matching criteria
+     * @param label - The label/type of the record
+     * @param data - The record data to upsert
+     * @param matchBy - Optional array of property names to match existing records
+     * @param options - Optional write configuration
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordInstance
+     * @throws Error if data is not a flat object
+     */
     upsert: async <S extends Schema = any>(
       {
         label,
@@ -591,7 +718,17 @@ export class RestAPI {
       return new DBRecordInstance<S>()
     }
   }
+
+  /**
+   * API methods for managing relations between records
+   */
   public relations = {
+    /**
+     * Searches for relations matching the query criteria
+     * @param searchQuery - Query to identify relations
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing matched relations
+     */
     find: async <S extends Schema = any>(searchQuery: SearchQuery<S>, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
       const queryParams = new URLSearchParams()
@@ -619,7 +756,17 @@ export class RestAPI {
       return response
     }
   }
+
+  /**
+   * API methods for managing properties in the database
+   */
   public properties = {
+    /**
+     * Deletes a property by its ID
+     * @param id - The unique identifier of the property to delete
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing the deleted property
+     */
     delete: async (id: string, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
       const path = `/properties/${id}`
@@ -635,6 +782,13 @@ export class RestAPI {
 
       return response
     },
+
+    /**
+     * Searches for properties based on the provided query
+     * @param searchQuery - Query parameters to filter properties
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing an array of matching properties
+     */
     find: async <S extends Schema = any>(searchQuery: SearchQuery<S>, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
       const path = `/properties`
@@ -651,6 +805,13 @@ export class RestAPI {
 
       return response
     },
+
+    /**
+     * Retrieves a specific property by its ID
+     * @param id - The unique identifier of the property to retrieve
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing the requested property
+     */
     findById: async (id: string, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
       const path = `/properties/${id}`
@@ -666,6 +827,18 @@ export class RestAPI {
 
       return response
     },
+
+    /**
+     * Retrieves values for a specific property
+     * @param id - The unique identifier of the property
+     * @param options - Optional parameters for pagination, sorting, and filtering
+     * @param options.sort - Sort direction for values ('asc' or 'desc')
+     * @param options.skip - Number of values to skip
+     * @param options.limit - Maximum number of values to return
+     * @param options.query - Filter query for values
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing the property and its values
+     */
     values: async (id: string, options?: PropertyValuesOptions, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
       const path = `/properties/${id}/values`
@@ -700,7 +873,17 @@ export class RestAPI {
     //   // @TODO
     // },
   }
+
+  /**
+   * API methods for managing labels in the database
+   */
   public labels = {
+    /**
+     * Searches for labels based on the provided query
+     * @param searchQuery - Query parameters to filter labels
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing a record of label names and their counts
+     */
     find: async <S extends Schema = any>(searchQuery: SearchQuery<S>, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
 
@@ -719,7 +902,18 @@ export class RestAPI {
       return response
     }
   }
+
+  /**
+   * API methods for managing database transactions
+   */
   public tx = {
+    /**
+     * Begins a new database transaction
+     * @param config - Optional configuration object for the transaction
+     * @param config.ttl - Time-to-live in milliseconds for the transaction
+     * @returns A new Transaction instance that can be used for subsequent operations
+     * @throws If the transaction cannot be started
+     */
     begin: async (config?: Partial<{ ttl: number }>) => {
       const path = `/tx`
       const payload = {
@@ -736,7 +930,15 @@ export class RestAPI {
       result.init(this)
       return result
     },
-    commit: async (id: string) => {
+
+    /**
+     * Commits a transaction, making its changes permanent
+     * @param tx - The ID of the transaction or Transaction instance to commit
+     * @returns An ApiResponse indicating success or failure of the commit
+     * @throws If the transaction cannot be committed or doesn't exist
+     */
+    commit: async (tx: string | Transaction) => {
+      const id = pickTransactionId(tx)!
       const path = `/tx/${id}/commit`
       const payload = {
         method: 'POST',
@@ -750,7 +952,15 @@ export class RestAPI {
 
       return response
     },
-    get: async (id: string) => {
+
+    /**
+     * Retrieves an existing transaction by its ID
+     * @param tx - The ID of the transaction or Transaction instance to retrieve
+     * @returns A Transaction instance representing the retrieved transaction
+     * @throws If the transaction doesn't exist or cannot be retrieved
+     */
+    get: async (tx: string | Transaction) => {
+      const id = pickTransactionId(tx)!
       const path = `/tx/${id}`
       const payload = {
         method: 'GET'
@@ -765,7 +975,15 @@ export class RestAPI {
       result.init(this)
       return result
     },
-    rollback: async (id: string) => {
+
+    /**
+     * Rolls back a transaction, undoing all changes made within it
+     * @param tx - The ID of the transaction or Transaction instance to roll back
+     * @returns An ApiResponse indicating success or failure of the rollback
+     * @throws If the transaction cannot be rolled back or doesn't exist
+     */
+    rollback: async (tx: string | Transaction) => {
+      const id = pickTransactionId(tx)!
       const path = `/tx/${id}/rollback`
       const payload = {
         method: 'POST',

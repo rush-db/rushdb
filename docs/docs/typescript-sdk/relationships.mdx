@@ -1,0 +1,298 @@
+---
+sidebar_position: 4
+---
+
+import { Method } from '@site/src/components/ui/method';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@site/src/components/ui/tabs';
+
+# Relationships
+
+Relationships in RushDB allow you to create links between [records](/basic-concepts/records), simplifying the modeling of complex data interactions and enhancing relationships between different Records in your application.
+
+<div className="grid xl:grid-cols-5 grid-cols-1 gap-8">
+  <div className="col-span-5">
+    ### TypeScript Definitions
+
+    ```typescript
+    // Target types for relationship operations
+    export type RelationTarget = DBRecordsArrayInstance<any> | // Array of records from query
+                                MaybeArray<DBRecord<any>> |     // Raw record(s)
+                                MaybeArray<DBRecordInstance<any>> | // Record instance(s)
+                                MaybeArray<string>;              // Record ID(s)
+
+    // Options when creating relationships
+    export type RelationOptions = {
+      direction?: 'in' | 'out';  // Direction of relationship
+      type?: string;             // Type of relationship
+    };
+
+    // Options when removing relationships
+    export type RelationDetachOptions = {
+      direction?: 'in' | 'out';
+      typeOrTypes?: string | string[]; // Single type or array of types
+    };
+    ```
+
+  </div>
+</div>
+
+## Creating Relationships
+
+<div className="grid xl:grid-cols-5 grid-cols-1 gap-8">
+  <div className="xl:order-last col-span-2">
+    ### Endpoint
+    Create a new relationship between records
+    ```ts
+    POST /api/v1/records/:entityId/relations
+    ```
+  </div>
+  <div className="col-span-3">
+    Creates a new relationship between [Records](/basic-concepts/records). You can provide relationship type and direction options.
+
+    <Tabs defaultValue="sdk">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="sdk">SDK</TabsTrigger>
+        <TabsTrigger value="api">API</TabsTrigger>
+      </TabsList>
+      <TabsContent value="sdk">
+        ### By Record ID
+        ```typescript
+        await db.records.attach({
+          source: sourceRecordId,
+          target: targetRecordId,
+          options: {
+            type: "FOLLOWS",
+            direction: "out"
+          }
+        });
+        ```
+
+        ### By Record Instance
+        ```typescript
+        const product = await db.records.create("Product", {
+          title: "Nike Air Max 270",
+          price: 150,
+          description: "Nike's stylish and comfortable sneakers",
+          category: "Footwear",
+          stock: 50,
+        });
+
+        const owner = await db.records.create("Client", {
+          name: "Jane Smith",
+          username: "janesmith99",
+          email: "janesmith@example.com",
+        });
+
+        // Attach directly with record instances
+        await db.records.attach({
+          source: owner,
+          target: product,
+          options: {
+            type: "OWNS",
+            direction: "out"
+          }
+        });
+        ```
+
+        ### Multiple Relationships
+        ```typescript
+        // Create relationships to multiple targets
+        await db.records.attach({
+          source: companyId,
+          target: [employee1Id, employee2Id],
+          options: {
+            type: "EMPLOYS",
+            direction: "out"
+          }
+        });
+        ```
+      </TabsContent>
+      <TabsContent value="api">
+        ### Request
+        ```javascript
+        {
+          "targetIds": ["019214ab-ed65-7ce8-9c54-51cdb9b7f662"],
+          "type": "FOLLOWS",
+          "direction": "out"
+        }
+        ```
+      </TabsContent>
+    </Tabs>
+  </div>
+</div>
+
+## Getting Relationships
+
+<div className="grid xl:grid-cols-5 grid-cols-1 gap-8">
+  <div className="xl:order-last col-span-2">
+    ### Endpoint
+    Get relationships for a record
+    ```ts
+    GET /api/v1/records/:entityId/relations
+    ```
+  </div>
+  <div className="col-span-3">
+    Retrieves relationships for a record. Results are paginated by default.
+
+    <Tabs defaultValue="sdk">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="sdk">SDK</TabsTrigger>
+        <TabsTrigger value="api">API</TabsTrigger>
+      </TabsList>
+      <TabsContent value="sdk">
+        ### List Relationships
+        ```typescript
+        // Get all relationships
+        const relations = await db.records.relations(recordId);
+
+        // With pagination
+        const relations = await db.records.relations(recordId, {
+          skip: 0,
+          limit: 10
+        });
+
+        // Search relationships
+        const relations = await db.relations.find({
+          where: {
+            type: "FOLLOWS",
+            sourceLabel: "Person"
+          },
+          orderBy: {
+            type: "ASC"
+          },
+          limit: 10
+        });
+        ```
+      </TabsContent>
+      <TabsContent value="api">
+        ### Response
+        ```javascript
+        {
+          "data": [
+            {
+              "sourceId": "019214e7-6421-790f-b164-24bd73d239f0",
+              "sourceLabel": "Person",
+              "targetId": "019214e7-647b-7e37-8aaa-b3f1444a2de8",
+              "targetLabel": "Person",
+              "type": "FOLLOWS"
+            }
+          ],
+          "total": 1
+        }
+        ```
+      </TabsContent>
+    </Tabs>
+  </div>
+</div>
+
+## Removing Relationships
+
+<div className="grid xl:grid-cols-5 grid-cols-1 gap-8">
+  <div className="xl:order-last col-span-2">
+    ### Endpoint
+    Remove relationships between records
+    ```ts
+    PUT /api/v1/records/:entityId/relations
+    ```
+  </div>
+  <div className="col-span-3">
+    Remove relationships between records. You can remove specific types or all relationships.
+
+    <Tabs defaultValue="sdk">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="sdk">SDK</TabsTrigger>
+        <TabsTrigger value="api">API</TabsTrigger>
+      </TabsList>
+      <TabsContent value="sdk">
+        ### Remove All Relationships
+        ```typescript
+        await db.records.detach({
+          source: recordId,
+          target: targetId
+        });
+        ```
+
+        ### Remove Specific Types
+        ```typescript
+        // Remove single type
+        await db.records.detach({
+          source: recordId,
+          target: targetId,
+          options: {
+            typeOrTypes: "FOLLOWS",
+            direction: "out"
+          }
+        });
+
+        // Remove multiple types
+        await db.records.detach({
+          source: recordId,
+          target: targetIds,
+          options: {
+            typeOrTypes: ["FOLLOWS", "LIKES"],
+            direction: "out"
+          }
+        });
+        ```
+      </TabsContent>
+      <TabsContent value="api">
+        ### Request
+        ```javascript
+        {
+          "targetIds": ["019214e7-64c6-7a89-8d27-1441b54c4967"],
+          "typeOrTypes": ["FOLLOWS", "LIKES"],
+          "direction": "out"
+        }
+        ```
+      </TabsContent>
+    </Tabs>
+  </div>
+</div>
+
+## Using Transactions
+
+All relationship operations support transactions to ensure data consistency:
+
+```typescript
+// Start a transaction
+const tx = await db.tx.begin();
+
+try {
+  // Create records
+  const user = await db.records.create("USER", {
+    name: "John Doe"
+  }, tx);
+
+  const group = await db.records.create("GROUP", {
+    name: "Admins"
+  }, tx);
+
+  // Create relationship
+  await db.records.attach({
+    source: user.id,
+    target: group.id,
+    options: {
+      type: "BELONGS_TO",
+      direction: "out"
+    }
+  }, tx);
+
+  // Commit if all operations succeed
+  await tx.commit();
+} catch (e) {
+  // Rollback on any error
+  await tx.rollback();
+  throw e;
+}
+```
+
+## Endpoints Overview
+
+The Relations API provides several endpoints to work with relations:
+
+| Method | Endpoint | Description |
+| -------- | ----------------------------------- | --------------------------------------------------------------- |
+| <Method method="POST" color="#2e8555"/> | `/api/v1/records/:entityId/relations` | Create new relationship(s) |
+| <Method method="GET" color="#4287f5"/> | `/api/v1/records/:entityId/relations` | List relationships for a record |
+| <Method method="PUT" color="#f5a742"/> | `/api/v1/records/:entityId/relations` | Remove relationship(s) |
+| <Method method="POST" color="#2e8555"/> | `/api/v1/records/relations/search` | Search across all relationships |

@@ -55,7 +55,7 @@ const processArrayValue = (value: any[], options: Omit<TImportOptions, 'returnRe
 
   if (
     options.suggestTypes &&
-    options.castNumberArraysAsVector &&
+    options.castNumberArraysToVectors &&
     suggestPropertyType(value[0]) === PROPERTY_TYPE_NUMBER
   ) {
     return { type: PROPERTY_TYPE_VECTOR, value }

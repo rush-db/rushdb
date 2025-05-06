@@ -1,0 +1,364 @@
+---
+sidebar_position: 3
+---
+
+# Properties API
+
+RushDB provides a powerful Properties API that enables you to manage the properties associated with your records. This API allows you to list, retrieve, create, update, and delete properties, as well as manage property values.
+
+## Overview
+
+The Properties API allows you to:
+- List all properties in your project
+- Get details about a specific property
+- Get distinct values for a property
+- Update a property's name or type
+- Update property values across records
+- Delete properties
+
+All properties endpoints require authentication using a token header.
+
+## Property Types
+
+RushDB supports the following property types:
+
+| Type | Description |
+|------|-------------|
+| `string` | Text values |
+| `number` | Numeric values |
+| `boolean` | True/false values |
+| `null` | Null values |
+| `datetime` | ISO8601 format datetime values |
+| `vector` | Arrays of numbers (for embeddings/vector search) |
+
+## List Properties
+
+```http
+POST /properties
+```
+
+Returns a list of all properties in the current project, with filtering options.
+
+### Request Body
+
+| Field     | Type   | Description |
+|-----------|--------|-------------|
+| `where`   | Object | Optional filter criteria |
+
+### Example Request
+
+```json
+{
+  "where": {
+    "type": "string"
+  }
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "018dfc84-d6cb-7000-89cd-850db63a1e78",
+      "name": "name",
+      "type": "string",
+      "projectId": "018dfc84-d6cb-7000-89cd-850db63a1e76",
+      "metadata": ""
+    },
+    {
+      "id": "018dfc84-d6cb-7000-89cd-850db63a1e79",
+      "name": "email",
+      "type": "string",
+      "projectId": "018dfc84-d6cb-7000-89cd-850db63a1e76",
+      "metadata": ""
+    }
+  ]
+}
+```
+
+## Get Property
+
+```http
+GET /properties/:propertyId
+```
+
+Retrieve detailed information about a specific property by its ID.
+
+### Parameters
+
+| Parameter   | Type   | Description |
+|-------------|--------|-------------|
+| `propertyId` | String | The ID of the property to retrieve |
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "018dfc84-d6cb-7000-89cd-850db63a1e78",
+    "name": "name",
+    "type": "string",
+    "projectId": "018dfc84-d6cb-7000-89cd-850db63a1e76",
+    "metadata": ""
+  }
+}
+```
+
+## Get Property Values
+
+```http
+GET /properties/:propertyId/values
+```
+
+Retrieves distinct values for a specific property across all records.
+
+### Parameters
+
+| Parameter   | Type   | Description |
+|-------------|--------|-------------|
+| `propertyId` | String | The ID of the property |
+| `sort` | String | Optional. Sort direction (`asc` or `desc`) |
+| `query` | String | Optional. Filter values by this string |
+| `skip` | Number | Optional. Number of values to skip (default: 0) |
+| `limit` | Number | Optional. Maximum number of values to return (default: 100) |
+
+### Example Request
+
+```http
+GET /properties/018dfc84-d6cb-7000-89cd-850db63a1e78/values?sort=asc&query=jo&skip=0&limit=10
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "values": ["John", "Johnny", "Jon"],
+    "min": null,
+    "max": null,
+    "type": "string"
+  }
+}
+```
+
+For numeric properties, the response includes minimum and maximum values:
+
+```json
+{
+  "success": true,
+  "data": {
+    "values": [18, 19, 20, 21],
+    "min": 18,
+    "max": 21,
+    "type": "number"
+  }
+}
+```
+
+## Update Property
+
+```http
+PATCH /properties/:propertyId
+```
+
+Updates a property's name or type.
+
+### Parameters
+
+| Parameter   | Type   | Description |
+|-------------|--------|-------------|
+| `propertyId` | String | The ID of the property to update |
+
+### Request Body
+
+| Field  | Type   | Description |
+|--------|--------|-------------|
+| `name` | String | Optional. New name for the property |
+| `type` | String | Optional. New type for the property |
+
+### Example Request
+
+```json
+{
+  "name": "fullName",
+  "type": "string"
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": true
+}
+```
+
+### Notes on Type Conversion
+
+When changing property types:
+- Converting to string type is generally safe
+- Converting between other types may cause data loss if values are incompatible
+- If merging properties with conflicting types, an error will be thrown
+
+## Update Property Values
+
+```http
+PATCH /properties/:propertyId/values
+```
+
+Updates the values of a property across multiple records.
+
+### Parameters
+
+| Parameter   | Type   | Description |
+|-------------|--------|-------------|
+| `propertyId` | String | The ID of the property to update |
+
+### Request Body
+
+| Field      | Type   | Description |
+|------------|--------|-------------|
+| `entityIds` | Array  | Optional. Array of record IDs to update. If not provided, all records with this property are updated |
+| `newValue` | Any    | The new value to set for the property |
+
+### Example Request
+
+```json
+{
+  "entityIds": ["018dfc84-d6cb-7000-89cd-850db63a1e80", "018dfc84-d6cb-7000-89cd-850db63a1e81"],
+  "newValue": "Unknown"
+}
+```
+
+For array values:
+
+```json
+{
+  "entityIds": ["018dfc84-d6cb-7000-89cd-850db63a1e80"],
+  "newValue": ["tag1", "tag2", "tag3"]
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": true
+}
+```
+
+## Delete Property
+
+```http
+DELETE /properties/:propertyId
+```
+
+Deletes a property from all records.
+
+### Parameters
+
+| Parameter   | Type   | Description |
+|-------------|--------|-------------|
+| `propertyId` | String | The ID of the property to delete |
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Property (018dfc84-d6cb-7000-89cd-850db63a1e78) has been successfully deleted."
+  }
+}
+```
+
+## Value Handling
+
+### Single Values
+
+Single values are stored directly:
+
+```json
+{
+  "name": "John Doe",
+  "age": 30,
+  "active": true
+}
+```
+
+### Multiple Values
+
+Arrays can store multiple values of the same type:
+
+```json
+{
+  "tags": ["important", "urgent", "follow-up"],
+  "scores": [85, 90, 95]
+}
+```
+
+### Value Separators
+
+When updating properties, you can use value separators to split a string into multiple values:
+
+```json
+{
+  "name": "tags",
+  "type": "string",
+  "value": "important,urgent,follow-up",
+  "valueSeparator": ","
+}
+```
+
+This will result in an array of values: `["important", "urgent", "follow-up"]`.
+
+## Error Handling
+
+The Properties API may return the following error responses:
+
+| Status Code | Description |
+|-------------|-------------|
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Authentication required |
+| 403 | Forbidden - Insufficient permissions |
+| 404 | Not Found - Property with the specified ID doesn't exist |
+| 500 | Server Error - Processing failed |
+
+### Example Error Response
+
+```json
+{
+  "success": false,
+  "message": "Property with ID 018dfc84-d6cb-7000-89cd-850db63a1e99 not found",
+  "statusCode": 404
+}
+```
+
+## Property Metadata
+
+Properties can have optional metadata, which can be used to store additional information about the property. This is useful for storing things like property descriptions, validation rules, or display preferences.
+
+```json
+{
+  "name": "email",
+  "type": "string",
+  "metadata": "{\"description\":\"User's email address\",\"required\":true,\"unique\":true}"
+}
+```
+
+Metadata is stored as a JSON string and can contain any valid JSON data.
+
+## Best Practices
+
+1. **Use consistent naming**: Follow a consistent naming convention for property names
+2. **Set appropriate types**: Use the correct type for each property to facilitate operations like sorting and filtering
+3. **Use metadata**: Leverage the metadata field to add useful information about your properties
+4. **Batch updates**: When updating property values across many records, use the batch update endpoint
+5. **Consider relationships**: For complex data models, consider using relationships between records instead of deeply nested property structures

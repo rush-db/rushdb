@@ -1,49 +1,30 @@
-const { fontFamily } = require("tailwindcss/defaultTheme");
-
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   corePlugins: {
     preflight: false,
-    container: false,
+    container: false
   },
-  darkMode: ["class", '[data-theme="dark"]'],
-  content: ["./src/**/*.{jsx,tsx,html}", "./docs/**/*.{md,mdx}"],
+  darkMode: ['class', '[data-theme="dark"]'],
+  content: ['./src/**/*.{jsx,tsx,html}', './docs/**/*.{md,mdx}'],
   theme: {
     extend: {
-      fontFamily: {
-        sans: ['"Inter"', ...fontFamily.sans],
-        jakarta: ['"Plus Jakarta Sans"', ...fontFamily.sans],
-        mono: ['"Fira Code"', ...fontFamily.mono],
-      },
       borderRadius: {
-        sm: "4px",
+        sm: '4px'
       },
       screens: {
-        sm: "0px",
-        lg: "997px",
+        sm: '0px',
+        lg: '997px'
       },
-      colors: {},
-    },
+      colors: {
+        accent: {
+          DEFAULT: '#3f81ff', // Base color
+          contrast: 'hsl(0, 0%, 100%)', // White for contrast on buttons, etc.
+          hover: '#3c78ef', // Slightly darker for hover state
+          focus: '#346ccd', // Same as hover for consistency
+          ring: 'rgba(63, 129, 255, 0.24)' // Transparent version of base for focus ring
+        }
+      }
+    }
   },
-  plugins: [],
-};
-
-// module.exports = {
-//   content: ["./src/**/*.{js,jsx,ts,tsx,md,mdx}", "./docs/**/*.{md,mdx}"],
-//   theme: {
-//     extend: {},
-//   },
-//   plugins: [
-//     async function myPlugin(context, options) {
-//       return {
-//         name: "docusaurus-tailwindcss",
-//         configurePostCss(postcssOptions) {
-//           // Appends TailwindCSS and AutoPrefixer.
-//           postcssOptions.plugins.push(require("tailwindcss"));
-//           postcssOptions.plugins.push(require("autoprefixer"));
-//           return postcssOptions;
-//         },
-//       };
-//     },
-//   ],
-// };
+  plugins: []
+}

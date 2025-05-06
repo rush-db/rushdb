@@ -68,8 +68,10 @@ export type RelationDetachOptions = {
 export type DBRecordWriteOptions = {
   returnResult?: boolean
   suggestTypes?: boolean
-  castNumberArraysAsVector?: boolean
-  castNumericValuesAsNumber?: boolean
+  castNumberArraysToVectors?: boolean
+  convertNumericValuesToNumbers?: boolean
+  capitalizeLabels?: boolean
+  relationshipType?: string
 }
 
 export class DBRecordInstance<

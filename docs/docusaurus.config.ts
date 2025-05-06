@@ -74,10 +74,10 @@ const config: Config = {
     mermaid: true
   },
   themes: ['@docusaurus/theme-mermaid'],
-  title: 'RushDB',
+  title: 'RushDB Docs',
   organizationName: 'Collect Software Inc',
   projectName: 'RushDB Docs',
-  tagline: 'Instant Database for Modern Apps',
+  tagline: 'Instant Database for Modern Apps & AI Era',
   favicon: 'img/favicon.svg',
 
   // Set the production url of your site here
@@ -181,7 +181,9 @@ const config: Config = {
       {
         docs: {
           routeBasePath: '/',
-          sidebarPath: './sidebars.ts'
+          sidebarPath: './sidebars.ts',
+          sidebarCollapsed: false,
+          sidebarCollapsible: false
         },
         blog: false,
         pages: false,
@@ -197,7 +199,8 @@ const config: Config = {
     {
       docs: {
         sidebar: {
-          hideable: true
+          hideable: false,
+          autoCollapseCategories: false
         }
       },
       themeConfig: {
@@ -210,37 +213,92 @@ const config: Config = {
       },
       image: 'img/og.png',
       navbar: {
-        title: 'RushDB Docs',
+        title: '',
         logo: {
           alt: 'RushDB Logo',
           src: 'img/logo.svg'
         },
         items: [
           {
+            href: '/',
+            label: 'RushDB Docs',
+            position: 'left',
+            sidebarId: 'docs'
+          },
+          {
+            label: 'Python SDK',
+            href: '/python-sdk/introduction',
+            className: 'python-sdk',
+            position: 'left',
+            activeBaseRegex: '/python-sdk/'
+          },
+          {
+            label: 'TypeScript SDK',
+            href: '/typescript-sdk/introduction',
+            className: 'typescript-sdk',
+            position: 'left',
+            activeBaseRegex: '/typescript-sdk/'
+          },
+          {
+            label: 'REST API',
+            href: '/rest-api/introduction',
+            className: 'rest-api',
+            position: 'left',
+            activeBaseRegex: '/rest-api/'
+          },
+          {
             href: 'https://github.com/rush-db/rushdb',
-            label: 'GitHub',
+            // label: 'GitHub',
+            position: 'right',
+            className: 'github header-github-link',
+            'aria-label': 'GitHub repository'
+          },
+          {
+            href: 'https://rushdb.com',
+            label: 'Website',
             position: 'right'
           },
           {
-            href: 'https://www.npmjs.com/package/@rushdb/javascript-sdk',
-            label: `NPM v${version}`,
-            position: 'right'
+            href: 'https://app.rushdb.com',
+            label: 'Dashboard',
+            position: 'right',
+            className: 'cta-button'
           }
         ]
       },
       footer: {
-        style: 'dark',
         links: [
           {
-            title: 'Docs',
+            title: 'Documentation',
             items: [
               {
-                label: 'Quick start',
-                to: '/quick-start/installation'
+                label: 'Getting Started',
+                to: '/getting-started/quick-tutorial'
               },
               {
-                label: 'Working with RushDB SDK',
-                to: '/working-with-rushdb-sdk/rushdb-sdk-intro'
+                label: 'Basic Concepts',
+                to: '/basic-concepts/records'
+              },
+              {
+                label: 'Operations',
+                to: '/operations/importing-data'
+              }
+            ]
+          },
+          {
+            title: 'SDKs',
+            items: [
+              {
+                label: 'REST API',
+                to: '/rest-api/introduction'
+              },
+              {
+                label: 'Python SDK',
+                to: '/python-sdk/introduction'
+              },
+              {
+                label: 'TypeScript SDK',
+                to: '/typescript-sdk/introduction'
               }
             ]
           },
@@ -254,17 +312,13 @@ const config: Config = {
               {
                 label: 'LinkedIn',
                 href: 'https://www.linkedin.com/company/rushdb'
-              }
-            ]
-          },
-          {
-            title: 'More',
-            items: [
+              },
               {
                 label: 'GitHub',
                 href: 'https://github.com/rush-db/rushdb'
               }
-            ]
+            ],
+            className: 'text-right'
           }
         ],
         copyright: `© ${new Date().getFullYear()}, Collect Software Inc.`
@@ -272,7 +326,8 @@ const config: Config = {
       prism: {
         theme: themes.oneLight,
         darkTheme: atomTheme,
-        fontStyle: 'italic'
+        fontFamily: 'JetBrains Mono',
+        additionalLanguages: ['python', 'javascript', 'typescript', 'bash', 'json']
       }
     }
 }
