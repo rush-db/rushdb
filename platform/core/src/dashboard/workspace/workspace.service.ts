@@ -83,14 +83,24 @@ export class WorkspaceService {
     return this.normalize(workspaceInstance)
   }
 
-  async findUserWorkspace(login: string, transaction: Transaction): Promise<string> {
-    const userNode = await this.userService.find(login, transaction)
-    const userId = userNode.getId()
+  async findUserBillingWorkspace(userId: string, transaction: Transaction): Promise<string> {
+    const related = await this.userRepository.model.findRelationships({
+      alias: 'Workspaces',
+      where: {
+        source: {
+          id: userId
+        },
+        relationship: {
+          role: USER_ROLE_OWNER
+        }
+      },
+      session: transaction
+    })
 
-    const workspaceList = await this.getWorkspacesList(userId, transaction)
+    const result = related.map(({ target }) => this.normalize(target).toJson())
 
-    // @TODO: Improve for multiple workspaces support
-    return workspaceList[0].id
+    // @TODO: Improve for multiple workspaces owner support
+    return result[0].id
   }
 
   async getWorkspaceNode(id: string, transaction: Transaction) {
