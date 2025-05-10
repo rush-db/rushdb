@@ -8,7 +8,6 @@ import {
   Param,
   Patch,
   Post,
-  UseGuards,
   UseInterceptors
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiExcludeController, ApiParam, ApiTags } from '@nestjs/swagger'
@@ -28,6 +27,7 @@ import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transacti
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 import { InviteToWorkspaceDto } from '@/dashboard/workspace/dto/invite-to-workspace.dto'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
+import { RevokeAccessDto } from '@/dashboard/workspace/dto/revoke-access.dto'
 
 @Controller('workspaces')
 @ApiExcludeController()
@@ -203,5 +203,24 @@ export class WorkspaceController {
   @HttpCode(HttpStatus.OK)
   async getDeveloperUserList(@Param('id') id: string, @TransactionDecorator() transaction: Transaction) {
     return this.workspaceService.getInvitedUserList(id, transaction)
+  }
+
+  @Post(':id/revoke-access')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard()
+  @HttpCode(HttpStatus.OK)
+  async revokeAccess(
+    @Param('id') id: string,
+    @Body() { userIds }: RevokeAccessDto,
+    @TransactionDecorator() transaction: Transaction
+  ): Promise<{ message: string }> {
+    return await this.workspaceService.revokeAccessList(id, userIds, transaction)
   }
 }

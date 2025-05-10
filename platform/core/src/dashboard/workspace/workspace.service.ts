@@ -433,4 +433,49 @@ export class WorkspaceService {
       login: record.get('login')
     })) as IUserClaims[]
   }
+
+  async revokeAccessList(workspaceId: string, userIds: string[], transaction: Transaction) {
+    const runner = this.neogmaService.createRunner()
+
+    for (const userId of userIds) {
+      isDevMode(() => Logger.log(`[Revoke access LOG]: Check other workspaces for user ${userId}`))
+      const countsResult = await runner.run(
+        this.workspaceQueryService.getUserRoleCountsOutsideWorkspaceQuery(),
+        { userId, workspaceId },
+        transaction
+      )
+
+      const record = countsResult.records[0]
+      const ownerOther =
+        record.get('ownerOther').toNumber ? record.get('ownerOther').toNumber() : record.get('ownerOther')
+      const developerOther =
+        record.get('developerOther').toNumber ?
+          record.get('developerOther').toNumber()
+        : record.get('developerOther')
+
+      if (ownerOther > 0 || developerOther > 0) {
+        isDevMode(() => Logger.log(`[Revoke access LOG]: Remove ws relation for user ${userId}`))
+        // @TODO: must be tested
+        await runner.run(
+          this.workspaceQueryService.getRemoveWorkspaceRelationQuery(),
+          { userId, workspaceId },
+          transaction
+        )
+        // @TODO: must be tested
+        isDevMode(() => Logger.log(`[Revoke access LOG]: Remove project relation for user ${userId}`))
+        await runner.run(
+          this.workspaceQueryService.getRemoveProjectRelationsQuery(),
+          { userId, workspaceId },
+          transaction
+        )
+      } else {
+        isDevMode(() =>
+          Logger.log(`[Revoke access LOG]: No other entities found for user ${userId}, delete user data`)
+        )
+        await this.userService.delete({ userId, transaction })
+      }
+    }
+
+    return { message: 'Access revoked where appropriate' }
+  }
 }
