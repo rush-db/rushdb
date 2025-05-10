@@ -11,7 +11,7 @@ import {
   UseInterceptors
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { ApiExcludeController, ApiQuery, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiExcludeController, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
 import { CommonResponseDecorator } from '@/common/decorators/common-response.decorator'
@@ -142,11 +142,19 @@ export class AuthController {
     description: "invite to verify user's email && workspace",
     type: 'string'
   })
+  @ApiBearerAuth()
+  @AuthGuard()
   @CommonResponseDecorator(GetUserDto)
-  async joinWorkspace(@Query('invite') token: string, @TransactionDecorator() transaction: Transaction) {
+  async joinWorkspace(
+    @Query('invite') token: string,
+    // @TODO: discuss about frontend flow: should user be authorized or not
+    @AuthUser() authUser: IUserClaims,
+    @TransactionDecorator() transaction: Transaction
+  ) {
     const user = await this.userService.acceptWorkspaceInvitation<false>(
       {
         inviteToken: token,
+        authUserLogin: authUser.login,
         forceUserSignUp: false
       },
       transaction

@@ -164,6 +164,12 @@ export class UserService {
     const { workspaceId, email, projectIds, isUserRegistered } = this.decryptInvite(inviteToken)
 
     const login = forceUserSignUp === true ? params.userData.login : email
+    const providedUserLogin = forceUserSignUp === false ? params.authUserLogin : null
+
+    // @TODO: discuss about frontend flow: should user be authorized or not
+    if (!forceUserSignUp && email !== providedUserLogin) {
+      throw new BadRequestException('Invitation was provided to another RushDB user')
+    }
 
     if (allowedLogins.length === 0 || (allowedLogins.length && allowedLogins.includes(login))) {
       if (forceUserSignUp && isUserRegistered) {
