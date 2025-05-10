@@ -29,7 +29,7 @@ import { User } from './user.entity'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
 import * as crypto from 'node:crypto'
-import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
+import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { AcceptWorkspaceInvitationParams } from '@/dashboard/user/interfaces/user-properties.interface'
 
 @Injectable()
@@ -406,21 +406,18 @@ export class UserService {
     try {
       const userNode = await this.findUserNodeById(userId, transaction)
       if (userNode) {
-        // @TODO: SCIP PROJECT/WP DELETION FOR DEVELOPERS
-        const relatedProjects = await userNode.findRelationships({
-          alias: 'Projects',
-          session: transaction
-        })
-
         const relatedWorkspaces = await userNode.findRelationships({
           alias: 'Workspaces',
+          where: {
+            relationship: {
+              role: USER_ROLE_OWNER
+            },
+            target: {}
+          },
           session: transaction
         })
 
         await Promise.all([
-          ...relatedProjects.map(
-            async (rp) => await this.projectService.deleteProject(rp.target.dataValues.id, transaction)
-          ),
           ...relatedWorkspaces.map(
             async (rws) => await this.workspaceService.deleteWorkspace(rws.target.dataValues.id, transaction)
           ),

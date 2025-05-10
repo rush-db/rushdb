@@ -312,7 +312,7 @@ export class WorkspaceService {
       )
       .filter(Boolean)
 
-    await workspace.delete({ detach: true })
+    await workspace.delete({ detach: true, session: transaction })
     await Promise.all(projectsToDelete)
 
     return {
