@@ -1,4 +1,12 @@
-import { Controller, Get, Query, Redirect, UnauthorizedException, UseInterceptors } from '@nestjs/common'
+import {
+  Controller,
+  Get,
+  Logger,
+  Query,
+  Redirect,
+  UnauthorizedException,
+  UseInterceptors
+} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
@@ -15,6 +23,7 @@ import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { isDevMode } from '@/common/utils/isDevMode'
 
 @Controller('auth')
 export class GoogleOAuthController {
@@ -25,11 +34,14 @@ export class GoogleOAuthController {
     private readonly emailConfirmationService: EmailConfirmationService
   ) {}
 
+  // @TODO: later add google invitation accept with state prop in v2 oauth
   @Get('google')
   @ApiTags('Auth')
   @CommonResponseDecorator(GetOauthDto)
   @Redirect('https://accounts.google.com/o/oauth2/v2/auth', 302)
-  async googleAuth(@Query() query: { redirectUrl: string }): Promise<IOauthUrl> {
+  async googleAuth(@Query() query: { redirectUrl: string; invite?: string }): Promise<IOauthUrl> {
+    const state = JSON.stringify({ redirectUrl: query.redirectUrl, invite: query.invite })
+
     const params = queryString.stringify({
       client_id: this.configService.get('GOOGLE_CLIENT_ID'),
       redirect_uri: `${this.configService.get('RUSHDB_DASHBOARD_URL')}/auth/google`,
@@ -39,7 +51,8 @@ export class GoogleOAuthController {
       ].join(' '),
       response_type: 'code',
       access_type: 'offline',
-      prompt: 'consent'
+      prompt: 'consent',
+      state
     })
 
     return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` }
@@ -51,11 +64,23 @@ export class GoogleOAuthController {
   @UseInterceptors(NeogmaTransactionInterceptor, NeogmaDataInterceptor, ChangeCorsInterceptor)
   async googleAuthRedirect(
     @TransactionDecorator() transaction: Transaction,
-    @Query()
-    params: { code: string; scope: string; authuser: string; prompt: string }
+    @Query('code') code: string,
+    @Query('state') state: string
   ) {
     try {
-      const user = await this.googleOAuthService.googleLogin(params.code, transaction)
+      let parsed: { redirectUrl?: string; invite?: string }
+
+      try {
+        parsed = JSON.parse(state)
+
+        if (parsed.invite) {
+          isDevMode(() => Logger.log(`[Google OAUTH LOG]: Has user invitation`))
+        }
+      } catch {
+        throw new UnauthorizedException('Invalid OAuth state')
+      }
+
+      const user = await this.googleOAuthService.googleLogin(code, transaction)
 
       if (!user) {
         throw new UnauthorizedException()
@@ -69,7 +94,8 @@ export class GoogleOAuthController {
 
       return {
         ...userData,
-        token: this.authService.createToken(user)
+        token: this.authService.createToken(user),
+        inviteQuery: parsed.invite
       }
     } catch (e) {
       throw new UnauthorizedException(e)

@@ -1,4 +1,11 @@
-import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common'
+import {
+  BadRequestException,
+  ForbiddenException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger
+} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
@@ -8,11 +15,12 @@ import { toBoolean } from '@/common/utils/toBolean'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { TProjectStats } from '@/dashboard/project/project.types'
-import { USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
+import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { UserRepository } from '@/dashboard/user/model/user.repository'
 import { UserService } from '@/dashboard/user/user.service'
 import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
 import { Workspace } from '@/dashboard/workspace/entity/workspace.entity'
+import * as crypto from 'node:crypto'
 import {
   TWorkspaceInstance,
   TWorkspaceLimits,
@@ -27,6 +35,18 @@ import {
 } from '@/dashboard/workspace/workspace.constants'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
+import {
+  TExtendedWorkspaceProperties,
+  TWorkspaceInvitation,
+  TWorkSpaceInviteToken
+} from '@/dashboard/workspace/workspace.types'
+import { isDevMode } from '@/common/utils/isDevMode'
+import { MailService } from '@/dashboard/mail/mail.service'
+import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception'
+import { TUserRoles } from '@/dashboard/user/model/user.interface'
+import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
+import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
+import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -46,12 +66,15 @@ export class WorkspaceService {
     private readonly configService: ConfigService,
     private readonly neogmaService: NeogmaService,
     private readonly workspaceRepository: WorkspaceRepository,
+    private readonly workspaceQueryService: WorkspaceQueryService,
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService,
     @Inject(forwardRef(() => UserRepository))
     private readonly userRepository: UserRepository,
     @Inject(forwardRef(() => UserService))
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    @Inject(forwardRef(() => MailService))
+    private readonly mailService: MailService
   ) {}
 
   normalize(node: TWorkspaceInstance) {
@@ -71,14 +94,24 @@ export class WorkspaceService {
     return this.normalize(workspaceInstance)
   }
 
-  async findUserWorkspace(login: string, transaction: Transaction): Promise<string> {
-    const userNode = await this.userService.find(login, transaction)
-    const userId = userNode.getId()
+  async findUserBillingWorkspace(userId: string, transaction: Transaction): Promise<string> {
+    const related = await this.userRepository.model.findRelationships({
+      alias: 'Workspaces',
+      where: {
+        source: {
+          id: userId
+        },
+        relationship: {
+          role: USER_ROLE_OWNER
+        }
+      },
+      session: transaction
+    })
 
-    const workspaceList = await this.getWorkspacesList(userId, transaction)
+    const result = related.map(({ target }) => this.normalize(target).toJson())
 
-    // @TODO: Improve for multiple workspaces support
-    return workspaceList[0].id
+    // @TODO: Improve for multiple workspaces owner support
+    return result[0].id
   }
 
   async getWorkspaceNode(id: string, transaction: Transaction) {
@@ -103,7 +136,7 @@ export class WorkspaceService {
     return this.workspaceRepository.model.buildFromRecord(workspaceRecord)
   }
 
-  async getWorkspacesList(userId: string, transaction: Transaction): Promise<TWorkspaceProperties[]> {
+  async getWorkspacesList(userId: string, transaction: Transaction): Promise<TExtendedWorkspaceProperties[]> {
     const related = await this.userRepository.model.findRelationships({
       alias: 'Workspaces',
       where: {
@@ -114,7 +147,12 @@ export class WorkspaceService {
       session: transaction
     })
 
-    return related.map(({ target }) => this.normalize(target).toJson())
+    return related.map(({ target, relationship }) => {
+      return {
+        ...this.normalize(target).toJson(),
+        role: relationship.role
+      }
+    })
   }
 
   async getWorkspaceByProject(projectId: string, transaction: Transaction) {
@@ -208,6 +246,28 @@ export class WorkspaceService {
     return this.normalize(workspaceNode)
   }
 
+  async attachUserToWorkspace(
+    workspaceId: string,
+    userId: string,
+    preferredRole: TUserRoles,
+    transaction: Transaction
+  ): Promise<Workspace> {
+    const workspaceNode = await this.getWorkspaceNode(workspaceId, transaction)
+
+    await workspaceNode.relateTo({
+      alias: 'Users',
+      where: { id: userId },
+      properties: { Since: workspaceNode.created, Role: preferredRole },
+      session: transaction
+    })
+
+    isDevMode(() =>
+      Logger.log(`[Link user ${userId} to the workspace LOG]: User linked to the workspace ${workspaceId}`)
+    )
+
+    return this.normalize(workspaceNode)
+  }
+
   async patchWorkspace(
     id: string,
     workspaceProperties: Partial<TWorkspaceProperties>,
@@ -268,11 +328,193 @@ export class WorkspaceService {
       )
       .filter(Boolean)
 
-    await workspace.delete({ detach: true })
+    await workspace.delete({ detach: true, session: transaction })
     await Promise.all(projectsToDelete)
 
     return {
       message: `Workspace ${id} successfully deleted`
     }
+  }
+
+  encryptMemberToken(payload: TWorkSpaceInviteToken) {
+    const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
+    const iv = crypto.randomBytes(16)
+    const invitationString = JSON.stringify({
+      workspaceId: payload.workspaceId,
+      projectIds: payload.projectIds,
+      email: payload.email,
+      isUserRegistered: payload.isUserRegistered
+    })
+
+    const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
+
+    return iv.toString('hex') + cipher.update(invitationString, 'utf8', 'base64') + cipher.final('base64')
+  }
+
+  async inviteMember(payload: TWorkspaceInvitation, transaction: Transaction): Promise<{ message: string }> {
+    if (!payload.workspaceId || !payload.email) {
+      isDevMode(() => Logger.error('[Invite member ERROR]: No required data provided'))
+      throw new BadRequestException('No required data provided')
+    }
+
+    const { workspaceId, projectIds, email, ...rest } = payload
+
+    let shouldOnlyNotify = false
+    const userNode = await this.userService.find(email, transaction)
+
+    if (userNode?.getId()) {
+      isDevMode(() =>
+        Logger.log(`[Invite member LOG]: Invitation will be send to the already registered user ${email}`)
+      )
+      shouldOnlyNotify = true
+    }
+
+    const token = this.encryptMemberToken({
+      workspaceId,
+      projectIds,
+      email,
+      isUserRegistered: shouldOnlyNotify
+    })
+
+    try {
+      await this.mailService.sendUserInvite(
+        email,
+        token,
+        shouldOnlyNotify,
+        rest.senderEmail,
+        rest.workspaceName
+      )
+      isDevMode(() => Logger.log(`[Invite member LOG]: Invitation sent to the ${email}`))
+    } catch (e) {
+      isDevMode(() => Logger.error('[Invite member ERROR]: Error sending an email', e))
+      throw new InternalServerErrorException('Error while sending email')
+    }
+
+    return {
+      message: `Invite for ${email} successfully sent`
+    }
+  }
+
+  async recomputeProjectsAccessList(id: string, payload: RecomputeAccessListDto, transaction: Transaction) {
+    for (const [projectId, userIds] of Object.entries(payload)) {
+      await this.projectService.processUserAccess({
+        projectId,
+        userIdsToVerify: userIds,
+        transaction
+      })
+    }
+
+    return { message: 'Access lists recomputed' }
+  }
+
+  async getAccessListByProjects(
+    workspaceId: string,
+    transaction: Transaction
+  ): Promise<Record<string, string[]>> {
+    const runner = this.neogmaService.createRunner()
+
+    const result = await runner.run(
+      this.workspaceQueryService.getWorkspaceAccessListQuery(),
+      {
+        workspaceId,
+        role: USER_ROLE_EDITOR
+      },
+      transaction
+    )
+
+    const accessMap: Record<string, string[]> = {}
+
+    for (const record of result.records) {
+      const projectId = record.get('projectId')
+      accessMap[projectId] = record.get('userIds') || []
+    }
+
+    return accessMap
+  }
+
+  async getInvitedUserList(workspaceId: string, transaction: Transaction): Promise<IUserClaims[]> {
+    const runner = this.neogmaService.createRunner()
+
+    const result = await runner.run(
+      this.workspaceQueryService.getWorkspaceUserListQuery(),
+      {
+        workspaceId,
+        role: USER_ROLE_EDITOR
+      },
+      transaction
+    )
+
+    return result.records.map((record) => ({
+      id: record.get('id'),
+      login: record.get('login')
+    })) as IUserClaims[]
+  }
+
+  async revokeAccessList(workspaceId: string, userIds: string[], transaction: Transaction) {
+    const runner = this.neogmaService.createRunner()
+
+    for (const userId of userIds) {
+      isDevMode(() => Logger.log(`[Revoke access LOG]: Check other workspaces for user ${userId}`))
+      const countsResult = await runner.run(
+        this.workspaceQueryService.getUserRoleCountsOutsideWorkspaceQuery(),
+        { userId, workspaceId },
+        transaction
+      )
+
+      const record = countsResult.records[0]
+      const ownerOther =
+        record.get('ownerOther').toNumber ? record.get('ownerOther').toNumber() : record.get('ownerOther')
+      const developerOther =
+        record.get('developerOther').toNumber ?
+          record.get('developerOther').toNumber()
+        : record.get('developerOther')
+
+      if (ownerOther > 0 || developerOther > 0) {
+        isDevMode(() => Logger.log(`[Revoke access LOG]: Remove ws relation for user ${userId}`))
+        await runner.run(
+          this.workspaceQueryService.getRemoveWorkspaceRelationQuery(),
+          { userId, workspaceId },
+          transaction
+        )
+
+        isDevMode(() => Logger.log(`[Revoke access LOG]: Remove project relation for user ${userId}`))
+        await runner.run(
+          this.workspaceQueryService.getRemoveProjectRelationsQuery(),
+          { userId, workspaceId },
+          transaction
+        )
+      } else {
+        isDevMode(() =>
+          Logger.log(`[Revoke access LOG]: No other entities found for user ${userId}, delete user data`)
+        )
+        await this.userService.delete({ userId, transaction })
+      }
+    }
+
+    return { message: 'Access revoked where appropriate' }
+  }
+
+  async getUserRoleInWorkspace(
+    login: string,
+    workspaceId: string,
+    transaction: Transaction
+  ): Promise<TUserRoles> {
+    const runner = this.neogmaService.createRunner()
+
+    const result = await runner.run(
+      this.workspaceQueryService.getUserWorkspaceRoleQuery(),
+      { login, workspaceId },
+      transaction
+    )
+
+    const rec = result.records[0]
+
+    if (!rec) {
+      isDevMode(() => Logger.error('[Get User Role ERROR]: No role found'))
+
+      throw new ForbiddenException('No user role for workspace found')
+    }
+
+    return rec.get('role') as TUserRoles
   }
 }

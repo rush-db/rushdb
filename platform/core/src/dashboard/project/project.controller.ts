@@ -48,7 +48,7 @@ export class ProjectController {
   @Post()
   @ApiTags('Projects')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(PlanLimitsGuard, CustomDbAvailabilityGuard)
   async createProject(
@@ -74,11 +74,12 @@ export class ProjectController {
   @AuthGuard()
   @HttpCode(HttpStatus.OK)
   async getProjectsList(
+    @AuthUser() { id: userId }: IUserClaims,
     @Headers() headers,
     @TransactionDecorator() transaction: Transaction
   ): Promise<ProjectEntity[]> {
     const workspaceId = headers['x-workspace-id']
-    return await this.projectService.getProjectsByWorkspaceId(workspaceId, transaction)
+    return await this.projectService.getProjectsByWorkspaceId(workspaceId, userId, transaction)
   }
 
   @Delete(':projectId')
@@ -91,7 +92,7 @@ export class ProjectController {
   @ApiTags('Projects')
   @ApiBearerAuth()
   // @UseInterceptors(RunSideEffectMixin([ESideEffectType.DELETE_PROJECT]))
-  @AuthGuard('project')
+  @AuthGuard('project', 'owner')
   async deleteProject(
     @Param('projectId') id: string,
     @Query('shouldStoreCustomDbData') shouldStoreCustomDbData: boolean,
@@ -109,7 +110,7 @@ export class ProjectController {
   })
   @ApiTags('Projects')
   @ApiBearerAuth()
-  @AuthGuard('project')
+  @AuthGuard('project', 'owner')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(CustomDbAvailabilityGuard)
   async updateProject(

@@ -76,7 +76,7 @@ export class StripeService {
       const planId = subscription.items.data[0].plan.id
       const validTill = new Date(subscription.current_period_end * 1000)
 
-      const targetId = await this.workspaceService.findUserWorkspace(userEmail, transaction)
+      const targetId = await this.workspaceService.findUserBillingWorkspace(userEmail, transaction)
       const plan = getPlanKeyByPriceId(planId, data)
 
       await this.workspaceService.patchWorkspace(
@@ -106,7 +106,7 @@ export class StripeService {
     const updateStatus = updatedSubscription.status
     const updatedValidTill = new Date(updatedSubscription.current_period_end * 1000)
 
-    const targetId = await this.workspaceService.findUserWorkspace(userEmail, transaction)
+    const targetId = await this.workspaceService.findUserBillingWorkspace(userEmail, transaction)
     const plan = getPlanKeyByPriceId(updatedPlanId, data)
 
     if ('cancel_at_period_end' in payload.data.object && payload.data.object.cancel_at_period_end === true) {
@@ -137,7 +137,7 @@ export class StripeService {
     const customer = await this.stripe.customers.retrieve(deletedSubscription.customer as string)
     const userEmail = customer.email
 
-    const targetId = await this.workspaceService.findUserWorkspace(userEmail, transaction)
+    const targetId = await this.workspaceService.findUserBillingWorkspace(userEmail, transaction)
     await this.workspaceService.dropWorkspaceSubscription(targetId, transaction)
   }
 

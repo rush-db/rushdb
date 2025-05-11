@@ -77,7 +77,7 @@ export class ProjectQueryService {
 
     queryBuilder
       .append(
-        `MATCH (project:${RUSHDB_LABEL_PROJECT} {id: $projectId})<-[:${RUSHDB_RELATION_HAS_ACCESS}]-(relatedUser:${RUSHDB_LABEL_USER})`
+        `MATCH (project:${RUSHDB_LABEL_PROJECT} {id: $projectId})<-[:${RUSHDB_RELATION_HAS_ACCESS} { role: $role }]-(relatedUser:${RUSHDB_LABEL_USER})`
       )
       .append(`WITH relatedUser, collect(DISTINCT relatedUser.id) as usersId`)
       .append(`RETURN usersId`)
@@ -90,8 +90,9 @@ export class ProjectQueryService {
 
     queryBuilder
       .append(`MATCH (user:${RUSHDB_LABEL_USER} { id: $userId })`)
+      .append(`MATCH (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })`)
       .append(
-        `CREATE (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })<-[newRel:${RUSHDB_RELATION_HAS_ACCESS}]-(user)`
+        `CREATE (project)<-[newRel:${RUSHDB_RELATION_HAS_ACCESS} { since: $since, role: $role }]-(user)`
       )
 
     return queryBuilder.getQuery()
@@ -118,6 +119,20 @@ export class ProjectQueryService {
         `MATCH (o:${RUSHDB_LABEL_WORKSPACE} { id: $id })-[:${RUSHDB_RELATION_CONTAINS}]->(p:${RUSHDB_LABEL_PROJECT})`
       )
       .append(`WHERE p.deleted IS null`)
+      .append(`RETURN collect(DISTINCT p) as projects`)
+
+    return queryBuilder.getQuery()
+  }
+
+  getUserRelatedProjects() {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(
+        `MATCH (w:${RUSHDB_LABEL_WORKSPACE} { id: $id })-[:${RUSHDB_RELATION_CONTAINS}]->(p:${RUSHDB_LABEL_PROJECT})`
+      )
+      .append(`WHERE p.deleted IS null`)
+      .append(`MATCH (u:${RUSHDB_LABEL_USER} { id: $userId })-[:${RUSHDB_RELATION_HAS_ACCESS}]->(p)`)
       .append(`RETURN collect(DISTINCT p) as projects`)
 
     return queryBuilder.getQuery()

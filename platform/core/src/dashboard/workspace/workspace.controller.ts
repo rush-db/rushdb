@@ -7,7 +7,7 @@ import {
   HttpStatus,
   Param,
   Patch,
-  UseGuards,
+  Post,
   UseInterceptors
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiExcludeController, ApiParam, ApiTags } from '@nestjs/swagger'
@@ -25,6 +25,10 @@ import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { InviteToWorkspaceDto } from '@/dashboard/workspace/dto/invite-to-workspace.dto'
+import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
+import { RevokeAccessDto } from '@/dashboard/workspace/dto/revoke-access.dto'
+import { TExtendedWorkspaceProperties } from '@/dashboard/workspace/workspace.types'
 
 @Controller('workspaces')
 @ApiExcludeController()
@@ -83,7 +87,7 @@ export class WorkspaceController {
   async getWorkspacesList(
     @AuthUser() { id }: IUserClaims,
     @TransactionDecorator() transaction: Transaction
-  ): Promise<IWorkspaceProperties[]> {
+  ): Promise<TExtendedWorkspaceProperties[]> {
     return await this.workspaceService.getWorkspacesList(id, transaction)
   }
 
@@ -96,7 +100,7 @@ export class WorkspaceController {
   })
   @ApiTags('Workspaces')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.CREATED)
   async editWorkspace(
     @Param('id') id: string,
@@ -116,12 +120,108 @@ export class WorkspaceController {
   })
   @ApiTags('Workspaces')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.OK)
   async deleteWorkspace(
     @Param('id') id: string,
     @TransactionDecorator() transaction: Transaction
   ): Promise<{ message: string }> {
     return await this.workspaceService.deleteWorkspace(id, transaction)
+  }
+
+  @Post(':id/invite')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard('workspace', 'owner')
+  @HttpCode(HttpStatus.OK)
+  async inviteToWorkspace(
+    @AuthUser() user: IUserClaims,
+    @Param('id') id: string,
+    @Body() workspacePayload: InviteToWorkspaceDto,
+    @TransactionDecorator() transaction: Transaction
+  ): Promise<{ message: string }> {
+    const { name } = await this.workspaceService.getWorkspaceInstance(id, transaction)
+
+    const payload = {
+      workspaceId: id,
+      workspaceName: name,
+      senderEmail: user.login,
+      ...workspacePayload
+    }
+    return await this.workspaceService.inviteMember(payload, transaction)
+  }
+
+  @Patch(':id/access-list')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard('workspace', 'owner')
+  @HttpCode(HttpStatus.OK)
+  async recomputeAccessList(
+    @Param('id') id: string,
+    @Body() accessMap: RecomputeAccessListDto,
+    @TransactionDecorator() transaction: Transaction
+  ): Promise<{ message: string }> {
+    return await this.workspaceService.recomputeProjectsAccessList(id, accessMap, transaction)
+  }
+
+  @Get(':id/access-list')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard('workspace', 'owner')
+  @HttpCode(HttpStatus.OK)
+  async getAccessList(@Param('id') id: string, @TransactionDecorator() transaction: Transaction) {
+    return this.workspaceService.getAccessListByProjects(id, transaction)
+  }
+
+  @Get(':id/user-list')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard('workspace', 'owner')
+  @HttpCode(HttpStatus.OK)
+  async getDeveloperUserList(@Param('id') id: string, @TransactionDecorator() transaction: Transaction) {
+    return this.workspaceService.getInvitedUserList(id, transaction)
+  }
+
+  @Patch(':id/revoke-access')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard('workspace', 'owner')
+  @HttpCode(HttpStatus.OK)
+  async revokeAccess(
+    @Param('id') id: string,
+    @Body() { userIds }: RevokeAccessDto,
+    @TransactionDecorator() transaction: Transaction
+  ): Promise<{ message: string }> {
+    return await this.workspaceService.revokeAccessList(id, userIds, transaction)
   }
 }

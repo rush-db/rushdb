@@ -7,6 +7,7 @@ import { TokenModule } from '@/dashboard/token/token.module'
 import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
 import { WorkspaceController } from '@/dashboard/workspace/workspace.controller'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
+import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
 
 @Module({
   imports: [
@@ -15,8 +16,8 @@ import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
     forwardRef(() => TokenModule),
     forwardRef(() => EntityModule)
   ],
-  providers: [WorkspaceRepository, WorkspaceService],
-  exports: [WorkspaceRepository, WorkspaceService],
+  providers: [WorkspaceRepository, WorkspaceService, WorkspaceQueryService],
+  exports: [WorkspaceRepository, WorkspaceService, WorkspaceQueryService],
   controllers: [WorkspaceController]
 })
 export class WorkspaceModule {}

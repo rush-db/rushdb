@@ -10,9 +10,11 @@ import { ChangeProjectMenu } from '~/features/projects/components/ChangeProjectM
 import { $currentRecord } from '~/features/projects/stores/current-record'
 import { $currentProjectId } from '~/features/projects/stores/id'
 import { RecordTitle } from '~/features/records/components/RecordTitle'
-import { $router, isProjectPage } from '~/lib/router'
+import { $router, getRoutePath, isProjectPage } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { ChangeWorkspaceMenu } from '~/features/workspaces/components/ChangeWorkspaceMenu.tsx'
+import { Button } from '~/elements/Button'
 
 function ProjectNav() {
   const page = useStore($router)
@@ -56,21 +58,16 @@ function Header() {
         <Logo />
 
         <nav className="flex items-center overflow-auto text-sm">
-          {/* <ChangeWorkspaceMenu /> */}
+          <ChangeWorkspaceMenu />
 
-          {/* {isProjectPage(page) && (
+          {isProjectPage(page) && (
             <>
               <AngledSeparator />
-              <Button
-                as="a"
-                href={getRoutePath('projects')}
-                size="small"
-                variant="link"
-              >
+              <Button as="a" href={getRoutePath('projects')} size="small" variant="link">
                 Projects
               </Button>
             </>
-          )} */}
+          )}
 
           {isProjectPage(page) && <ProjectNav />}
 
