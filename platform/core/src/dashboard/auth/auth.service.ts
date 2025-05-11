@@ -115,7 +115,7 @@ export class AuthService {
         `MATCH (n) WHERE n.${RUSHDB_KEY_ID} = entityId RETURN collect(n.${RUSHDB_KEY_PROJECT_ID}) as projectIdsList`
       )
 
-    const projectIdsList = await queryRunner
+    const projectIdsList = (await queryRunner
       .run(
         queryBuilder.getQuery(),
         {
@@ -123,7 +123,7 @@ export class AuthService {
         },
         transaction
       )
-      .then((result) => result.records[0].get('projectIdsList'))
+      .then((result) => result.records[0].get('projectIdsList'))) as string[]
 
     const result =
       projectIdsList.length === idsToVerify.length && projectIdsList.every((pid) => pid === projectId)
@@ -151,7 +151,7 @@ export class AuthService {
         `MATCH (n) WHERE n.${nodeProperty} = entityId RETURN collect(n.${projectIdProperty}) as projectIdsList`
       )
 
-    const projectIdsList = await queryRunner
+    const projectIdsList = (await queryRunner
       .run(
         queryBuilder.getQuery(),
         {
@@ -159,7 +159,7 @@ export class AuthService {
         },
         transaction
       )
-      .then((result) => result.records[0].get('projectIdsList'))
+      .then((result) => result.records[0].get('projectIdsList'))) as string[]
 
     const result =
       projectIdsList.length === idsToVerify.length && projectIdsList.every((pid) => pid === projectId)
