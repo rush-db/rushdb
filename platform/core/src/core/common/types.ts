@@ -60,7 +60,7 @@ export type VectorExpression = RequireAtLeastOne<
   Record<
     '$vector',
     {
-      fn: TVectorSearchFn
+      fn: `gds.similarity.${TVectorSearchFn}`
       query: number[]
       threshold: number | RequireAtLeastOne<Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number>>
     }

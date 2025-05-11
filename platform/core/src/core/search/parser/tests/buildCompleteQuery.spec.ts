@@ -385,7 +385,7 @@ const q9 = {
   where: {
     emb: {
       $vector: {
-        fn: 'cosine',
+        fn: 'gds.similarity.cosine',
         query: [1, 2, 3, 4, 5],
         threshold: {
           $gte: 0.5,
@@ -409,7 +409,7 @@ const q10 = {
       CHUNK: {
         embedding: {
           $vector: {
-            fn: 'cosine',
+            fn: 'gds.similarity.cosine',
             query: [1, 2, 3, 4, 5],
             threshold: {
               $gte: 0.5,
@@ -437,7 +437,7 @@ const q11 = {
       CHUNK: {
         embedding: {
           $vector: {
-            fn: 'cosine',
+            fn: 'gds.similarity.cosine',
             query: [1, 2, 3, 4, 5],
             threshold: 0.75
           }
@@ -459,7 +459,7 @@ const q12 = {
   where: {
     embedding: {
       $vector: {
-        fn: 'euclidean',
+        fn: 'gds.similarity.euclidean',
         query: [
           0.0123, -0.4421, 0.9372, 0.1284, -0.3349, 0.7821, -0.2843, 0.1634, 0.4372, -0.219, 0.6612, 0.0841,
           -0.3312, 0.9123, -0.1055, 0.0041, 0.4388, -0.7881, 0.5523, 0.0011, 0.7342, -0.2284, 0.1156, -0.5472,

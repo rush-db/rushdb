@@ -6,7 +6,7 @@ describe('splitCriteria', () => {
   it('isSubQuery correctly 1', () => {
     const q1 = {
       $vector: {
-        fn: 'cosine',
+        fn: 'gds.similarity.cosine',
         query: [1, 2, 3, 4, 5],
         threshold: {
           $gte: 0.5,
@@ -25,7 +25,7 @@ describe('splitCriteria', () => {
     const q2 = {
       emb: {
         $vector: {
-          fn: 'cosine',
+          fn: 'gds.similarity.cosine',
           query: [1, 2, 3, 4, 5],
           threshold: {
             $gte: 0.5,
@@ -46,7 +46,7 @@ describe('splitCriteria', () => {
       emb: {
         $contains: '1',
         $vector: {
-          fn: 'cosine',
+          fn: 'gds.similarity.cosine',
           query: [1, 2, 3, 4, 5],
           threshold: {
             $gte: 0.5,
@@ -64,7 +64,7 @@ describe('splitCriteria', () => {
         emb: {
           $contains: '1',
           $vector: {
-            fn: 'cosine',
+            fn: 'gds.similarity.cosine',
             query: [1, 2, 3, 4, 5],
             threshold: {
               $gte: 0.5,

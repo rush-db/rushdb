@@ -332,7 +332,7 @@ RushDB supports vector similarity searches through the `$vector` operator, which
   where: {
     embedding: {
       $vector: {
-        fn: "cosine",                     // Similarity function
+        fn: "gds.similarity.cosine",      // Similarity function
         query: [1, 2, 3, 4, 5],           // Query vector
         threshold: 0.75                   // Minimum similarity threshold
       }
@@ -358,7 +358,7 @@ The `query` parameter can be:
   where: {
     embedding: {
       $vector: {
-        fn: "cosine",
+        fn: "gds.similarity.cosine",
         query: [1, 2, 3, 4, 5],
         threshold: {
           $gte: 0.5,  // Similarity >= 0.5
@@ -800,7 +800,7 @@ This query uses nested logical operators to find records that either have a high
         content: { $contains: "embedding" },
         embedding: {
           $vector: {
-            fn: "cosine", 
+            fn: "gds.similarity.cosine", 
             query: [0.1, 0.2, 0.3, 0.4, 0.5],
             threshold: {
               $gte: 0.75

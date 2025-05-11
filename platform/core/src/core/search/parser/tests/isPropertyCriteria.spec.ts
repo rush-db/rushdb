@@ -40,7 +40,7 @@ describe('isPropertyCriteria', () => {
   it('identifies isPropertyCriteria correctly 3', () => {
     const result1 = isPropertyCriteria({
       $vector: {
-        fn: 'cosine',
+        fn: 'gds.similarity.cosine',
         query: [1, 2, 3, 4, 5],
         threshold: {
           $gte: 0.5,

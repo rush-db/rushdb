@@ -46,7 +46,7 @@ export type VectorSearchFn = 'jaccard' | 'overlap' | 'cosine' | 'pearson' | 'euc
 
 export type VectorExpression = {
   $vector: {
-    fn: VectorSearchFn
+    fn: `gds.similarity.${VectorSearchFn}`
     query: Array<number>
     threshold: number | RequireAtLeastOne<Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number>>
   }

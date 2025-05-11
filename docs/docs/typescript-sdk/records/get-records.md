@@ -306,9 +306,9 @@ const similarDocuments = await db.records.find({
   where: {
     embedding: {
       $vector: {
-        fn: "cosine",                     // Similarity function
+        fn: "gds.similarity.cosine",      // Similarity function
         query: queryEmbedding,            // Your vector embedding
-        threshold: { $gte: 0.75 }             // Minimum similarity threshold
+        threshold: { $gte: 0.75 }         // Minimum similarity threshold
       }
     }
   },

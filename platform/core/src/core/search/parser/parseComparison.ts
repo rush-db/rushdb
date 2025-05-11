@@ -39,7 +39,7 @@ const formatVectorForQuery = (
   field: string,
   options: TSearchQueryBuilderOptions
 ) => {
-  const criteria = `gds.similarity.${value.fn}(\`${options.nodeAlias}\`.\`${field}\`, [${value.query}])`
+  const criteria = `${value.fn}(\`${options.nodeAlias}\`.\`${field}\`, [${value.query}])`
   const isComplexQuery =
     isObject(value.threshold) && containsAllowedKeys(value.threshold, Object.keys(COMPARISON_OPERATORS_MAP))
 
