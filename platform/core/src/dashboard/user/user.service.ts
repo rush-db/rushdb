@@ -170,20 +170,27 @@ export class UserService {
     const login = forceUserSignUp === true ? params.userData.login : email
     const providedUserLogin = forceUserSignUp === false ? params.authUserLogin : null
 
-    // @TODO: discuss about frontend flow: should user be authorized or not
     if (!forceUserSignUp && email !== providedUserLogin) {
       throw new BadRequestException('Invitation was provided to another RushDB user')
     }
 
     if (allowedLogins.length === 0 || (allowedLogins.length && allowedLogins.includes(login))) {
-      if (forceUserSignUp && isUserRegistered) {
-        throw new BadRequestException('Invitation was provided to a new RushDB user')
-      }
+      // For OAuth we don't abort request early bc we want to check google oauth first
+      let shouldReCheckUser = false
 
-      if (!forceUserSignUp && !isUserRegistered) {
+      if (forceUserSignUp && isUserRegistered) {
+        // Drop all potentially malformed requests when invitation was created for registered user,
+        // but request was send from sign-up invitation flow
         throw new BadRequestException(
           'Invitation was provided to a user who was already registered in RushDB'
         )
+      }
+
+      if (!forceUserSignUp && !isUserRegistered) {
+        isDevMode(() => Logger.warn(`[Accept user invitation WARN]: User with potentially malformed request`))
+
+        // Mark user with potentially malformed data or user with google oauth
+        shouldReCheckUser = true
       }
 
       let userNode
@@ -192,6 +199,14 @@ export class UserService {
         userNode = await this.createUserNode(params.userData, transaction)
       } else {
         userNode = await this.findUserNodeByLogin(login, transaction)
+
+        if (shouldReCheckUser && !userNode.googleAuth) {
+          throw new BadRequestException('Invitation was provided to a new RushDB user')
+        } else if (shouldReCheckUser) {
+          isDevMode(() =>
+            Logger.log(`[Accept user invitation WARN]: User ${userNode.id} registered before with oauth`)
+          )
+        }
       }
 
       if (!workspaceId || !email) {
@@ -473,5 +488,9 @@ export class UserService {
     }
 
     return true
+  }
+
+  async getUserWorkspaceRole(login: string, workspaceId: string, transaction: Transaction) {
+    return await this.workspaceService.getUserRoleInWorkspace(login, workspaceId, transaction)
   }
 }

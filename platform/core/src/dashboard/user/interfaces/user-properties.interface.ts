@@ -12,7 +12,6 @@ export type AcceptWorkspaceInvitationParams<T extends boolean = boolean> =
   : {
       forceUserSignUp?: false
       inviteToken: string
-      // @TODO: discuss about frontend flow: should user be authorized or not
       authUserLogin: string
     }
 export interface IUserProperties extends Omit<TUserProperties, TIUserAuthProperties> {}

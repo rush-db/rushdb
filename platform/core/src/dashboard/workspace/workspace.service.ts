@@ -1,4 +1,11 @@
-import { BadRequestException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common'
+import {
+  BadRequestException,
+  ForbiddenException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger
+} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
@@ -476,5 +483,29 @@ export class WorkspaceService {
     }
 
     return { message: 'Access revoked where appropriate' }
+  }
+
+  async getUserRoleInWorkspace(
+    login: string,
+    workspaceId: string,
+    transaction: Transaction
+  ): Promise<TUserRoles> {
+    const runner = this.neogmaService.createRunner()
+
+    const result = await runner.run(
+      this.workspaceQueryService.getUserWorkspaceRoleQuery(),
+      { login, workspaceId },
+      transaction
+    )
+
+    const rec = result.records[0]
+
+    if (!rec) {
+      isDevMode(() => Logger.error('[Get User Role ERROR]: No role found'))
+
+      throw new ForbiddenException('No user role for workspace found')
+    }
+
+    return rec.get('role') as TUserRoles
   }
 }

@@ -147,7 +147,6 @@ export class AuthController {
   @CommonResponseDecorator(GetUserDto)
   async joinWorkspace(
     @Query('invite') token: string,
-    // @TODO: discuss about frontend flow: should user be authorized or not
     @AuthUser() authUser: IUserClaims,
     @TransactionDecorator() transaction: Transaction
   ) {
