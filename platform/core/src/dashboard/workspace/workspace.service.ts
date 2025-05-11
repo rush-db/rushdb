@@ -323,7 +323,7 @@ export class WorkspaceService {
     const projectsToDelete = projects
       .map(async (project) =>
         project.target.id ?
-          await this.projectService.deleteProject(project.target.id, transaction)
+          await this.projectService.deleteProject(project.target.id, transaction, true)
         : undefined
       )
       .filter(Boolean)
