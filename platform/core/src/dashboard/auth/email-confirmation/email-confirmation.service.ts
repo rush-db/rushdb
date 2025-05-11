@@ -40,9 +40,10 @@ export class EmailConfirmationService {
         secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
       })
 
-      if (typeof payload === 'object' && 'email' in payload) {
-        return payload.email
+      if (typeof payload === 'object' && 'login' in payload) {
+        return payload.login
       }
+
       throw new BadRequestException()
     } catch (error) {
       if (error?.name === 'TokenExpiredError') {
