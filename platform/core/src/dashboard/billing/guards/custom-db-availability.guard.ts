@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
-  PayloadTooLargeException
+  Logger
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { FastifyRequest } from 'fastify'
@@ -14,12 +14,12 @@ import { Transaction } from 'neo4j-driver'
 
 import { toBoolean } from '@/common/utils/toBolean'
 import { ProjectService } from '@/dashboard/project/project.service'
-import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { isDevMode } from '@/common/utils/isDevMode'
 
 @Injectable()
-export class PlanLimitsGuard implements CanActivate {
+export class CustomDbAvailabilityGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => WorkspaceService))
@@ -29,38 +29,14 @@ export class PlanLimitsGuard implements CanActivate {
     private readonly neogmaService: NeogmaService
   ) {}
 
-  async checkLimits(
+  async isCustomDbOptionEnabled(
     workspaceId: string,
     request: FastifyRequest,
     transaction: Transaction
   ): Promise<boolean> {
     const workspaceInstance = await this.workspaceService.getWorkspaceInstance(workspaceId, transaction)
-
-    if (!workspaceInstance) {
-      throw new HttpException('No workspace ID provided', HttpStatus.BAD_REQUEST)
-    }
-
     const properties = workspaceInstance.dataValues
-    const limits = JSON.parse(properties.limits) as TWorkspaceLimits
-
-    const requestSize = Number(
-      request?.raw?.headers?.['content-length'] ??
-        request?.raw?.headers?.['Content-Length'] ??
-        request?.headers?.['Content-Length'] ??
-        request?.headers?.['content-length'] ??
-        request?.socket?.bytesRead
-    )
-
-    // By default, we check import size limits
-    // For binary data uploads we must check formdata and compare its size against limits.fileSize
-    const targetLimit = limits.importSize
-
-    // Check body size limits
-    if (requestSize > targetLimit) {
-      throw new PayloadTooLargeException(
-        `Reduce size to ${targetLimit / 1024}KB. Got ${requestSize / 1024}KB`
-      )
-    }
+    const hasCustomDbProperty = Boolean(request.body?.['customDb'])
 
     // Check premium plan expiration (if exists)
     if (properties.planId) {
@@ -77,24 +53,7 @@ export class PlanLimitsGuard implements CanActivate {
       return !(currentDate > increasedValidTillDate)
     }
 
-    const workspaceSummaryState = await this.projectService.getProjectsProperties(workspaceId, transaction)
-    const projectsCount = workspaceSummaryState.length
-
-    const accumulatedWorkspaceStats = await this.workspaceService.getAccumulatedWorkspaceStats(
-      workspaceInstance,
-      transaction
-    )
-
-    // Check project count limits
-    if (!accumulatedWorkspaceStats.records) {
-      return !(limits.projects && projectsCount > limits.projects)
-    }
-
-    // Check Records limits
-    return !(
-      accumulatedWorkspaceStats.records >= limits.records ||
-      (limits.projects && projectsCount > limits.projects)
-    )
+    return !hasCustomDbProperty
   }
 
   async canActivate(context: ExecutionContext) {
@@ -109,15 +68,20 @@ export class PlanLimitsGuard implements CanActivate {
       return false
     }
 
+    isDevMode(() => Logger.log(`[CDA GUARD]: Transaction created for CDA guard`))
+
     const session = this.neogmaService.createSession()
     const transaction = session.beginTransaction()
 
-    const canProcessRequest = await this.checkLimits(workspaceId, request, transaction)
+    const canProcessRequest = await this.isCustomDbOptionEnabled(workspaceId, request, transaction)
 
     if (!canProcessRequest) {
       transaction.close().then(() => session.close())
-      throw new HttpException('Excess records or projects', HttpStatus.PAYMENT_REQUIRED)
+      isDevMode(() => Logger.log(`[CDA GUARD]: Close transaction and request due to billing settings`))
+      throw new HttpException('Cannot attach custom db to the project', HttpStatus.PAYMENT_REQUIRED)
     }
+
+    isDevMode(() => Logger.log(`[CDA GUARD]: Close transaction and process request`))
     transaction.close().then(() => session.close())
 
     return true

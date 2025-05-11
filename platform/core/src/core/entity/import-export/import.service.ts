@@ -37,13 +37,13 @@ import { PROPERTY_TYPE_NULL, PROPERTY_TYPE_STRING } from '@/core/property/proper
 import { TPropertyPrimitiveValue } from '@/core/property/property.types'
 import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 @Injectable()
 export class ImportService {
   constructor(
     private readonly configService: ConfigService,
-    private readonly neogmaService: NeogmaService,
+    private readonly compositeNeogmaService: CompositeNeogmaService,
     private readonly entityQueryService: EntityQueryService,
 
     @Inject(forwardRef(() => WorkspaceService))
@@ -248,9 +248,10 @@ export class ImportService {
     }: ImportJsonDto,
     projectId: string,
     transaction: Transaction,
+    customTransaction: Transaction = transaction,
     queryRunner?: QueryRunner
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
-    const runner = queryRunner || this.neogmaService.createRunner()
+    const runner = queryRunner || this.compositeNeogmaService.createRunner()
 
     // @FYI: Approximate time for 25MB JSON: 2.5s. RUST WASM?))))))
     const [records, relations] = this.serializeBFS(payload, label, options)
@@ -266,7 +267,7 @@ export class ImportService {
       const recordsChunk = records.slice(i, i + CHUNK_SIZE)
 
       const data = await this.processRecordsChunk({
-        transaction,
+        transaction: customTransaction,
         options,
         recordsChunk,
         projectId,
@@ -280,7 +281,11 @@ export class ImportService {
 
     for (let i = 0; i < relations.length; i += CHUNK_SIZE) {
       const relationsChunk = relations.slice(i, i + CHUNK_SIZE)
-      await this.processRelationshipsChunk({ relationsChunk, transaction, queryRunner: runner })
+      await this.processRelationshipsChunk({
+        relationsChunk,
+        transaction: customTransaction,
+        queryRunner: runner
+      })
     }
 
     return options.returnResult ? result : true
@@ -299,7 +304,7 @@ export class ImportService {
     queryRunner?: QueryRunner
     options: TImportOptions
   }) {
-    const runner = queryRunner || this.neogmaService.createRunner()
+    const runner = queryRunner || this.compositeNeogmaService.createRunner()
 
     return await runner.run(
       this.entityQueryService.importRecords(options.returnResult),
@@ -320,7 +325,7 @@ export class ImportService {
     transaction: Transaction
     queryRunner?: QueryRunner
   }) {
-    const runner = queryRunner || this.neogmaService.createRunner()
+    const runner = queryRunner || this.compositeNeogmaService.createRunner()
 
     await runner.run(
       this.entityQueryService.linkRecords(),

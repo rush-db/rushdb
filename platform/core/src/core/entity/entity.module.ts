@@ -1,4 +1,4 @@
-import { forwardRef, Module } from '@nestjs/common'
+import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import { EntityController } from '@/core/entity/entity.controller'
@@ -11,6 +11,9 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
 
 import { EntityService } from './entity.service'
 import { EntityRepository } from './model/entity.repository'
+import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
+import { DbConnectionModule } from '@/database/db-connection/db-connection.module'
+import { DbContextMiddleware } from '@/common/middlewares/db-context.middleware'
 
 @Module({
   imports: [
@@ -21,10 +24,18 @@ import { EntityRepository } from './model/entity.repository'
 
     // Core modules
     forwardRef(() => PropertyModule),
-    forwardRef(() => TransactionModule)
+    forwardRef(() => TransactionModule),
+
+    //db modules
+    forwardRef(() => NeogmaDynamicModule),
+    forwardRef(() => DbConnectionModule)
   ],
   providers: [EntityRepository, EntityService, EntityQueryService],
   exports: [EntityRepository, EntityService, EntityQueryService],
   controllers: [EntityController, LabelController]
 })
-export class EntityModule {}
+export class EntityModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(DbContextMiddleware).forRoutes(EntityController, LabelController)
+  }
+}

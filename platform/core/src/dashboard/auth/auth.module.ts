@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common'
+import { forwardRef, Global, Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { JwtModule } from '@nestjs/jwt'
 
@@ -17,6 +17,7 @@ import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { EmailConfirmationService } from './email-confirmation/email-confirmation.service'
 import { EncryptionService } from './encryption/encryption.service'
+import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
 
 @Global()
 @Module({
@@ -35,7 +36,10 @@ import { EncryptionService } from './encryption/encryption.service'
     ProjectModule,
     UserModule,
     EntityModule,
-    CaptchaModule
+    CaptchaModule,
+
+    //db modules
+    forwardRef(() => NeogmaDynamicModule)
   ],
   providers: [
     EncryptionService,

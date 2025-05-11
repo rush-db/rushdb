@@ -39,6 +39,7 @@ import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-p
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 
 // FIELDS CRUD
 
@@ -169,7 +170,7 @@ export class PropertyController {
   // @TODO: Move to bulk patch operation to Entity Scope
   @Patch(':propertyId/values')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(IsRelatedToProjectGuard(), CustomDbWriteRestrictionGuard)
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async updateFieldValues(
@@ -208,7 +209,7 @@ export class PropertyController {
   // a part this API.
   @Patch(':propertyId')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(IsRelatedToProjectGuard(), CustomDbWriteRestrictionGuard)
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async updateField(

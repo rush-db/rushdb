@@ -10,7 +10,8 @@ import {
   Post,
   UseGuards,
   UseInterceptors,
-  Headers
+  Headers,
+  Query
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiExcludeController, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
@@ -30,6 +31,7 @@ import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { CustomDbAvailabilityGuard } from '@/dashboard/billing/guards/custom-db-availability.guard'
 
 @Controller('projects')
 @ApiExcludeController()
@@ -48,7 +50,7 @@ export class ProjectController {
   @ApiBearerAuth()
   @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(PlanLimitsGuard)
+  @UseGuards(PlanLimitsGuard, CustomDbAvailabilityGuard)
   async createProject(
     @Body() project: CreateProjectDto,
     @AuthUser() { id: userId }: IUserClaims,
@@ -93,9 +95,10 @@ export class ProjectController {
   @AuthGuard('project', 'owner')
   async deleteProject(
     @Param('projectId') id: string,
+    @Query('shouldStoreCustomDbData') shouldStoreCustomDbData: boolean,
     @TransactionDecorator() transaction: Transaction
   ): Promise<boolean> {
-    return await this.projectService.deleteProject(id, transaction)
+    return await this.projectService.deleteProject(id, transaction, shouldStoreCustomDbData)
   }
 
   @Patch(':projectId')
@@ -109,6 +112,7 @@ export class ProjectController {
   @ApiBearerAuth()
   @AuthGuard('project', 'owner')
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(CustomDbAvailabilityGuard)
   async updateProject(
     @Param('projectId') id: string,
     @Body() editProjectProperties: UpdateProjectDto,

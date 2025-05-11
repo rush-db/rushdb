@@ -32,11 +32,42 @@ export class ProjectQueryService {
       .append(`"WITH property DETACH DELETE property",`)
       .append(batchConfig)
       .append(`) YIELD batch as b2, operations as o2`)
+      .append(this.removeProjectNodeQuery())
+      .append(`RETURN b1,b2,o1,o2`)
+
+    return queryBuilder.getQuery()
+  }
+
+  removeRemoteDbDataQuery() {
+    const batchConfig = `{ batchSize: 5000, concurrency: 10, parallel: true, params: { projectId: $projectId }, batchMode: "BATCH", retries: 5 }`
+    // @FYI: deletion process is intentionally separated to ensure that every distinctively deletable
+    // entity (record, property, project, token, meta) is deleted properly and there is no orphans
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(`CALL apoc.periodic.iterate(`)
+      .append(`"MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} }) RETURN record",`)
+      .append(`"WITH record DETACH DELETE record",`)
+      .append(batchConfig)
+      .append(`) YIELD batch as b1, operations as o1`)
       //
+      .append(`CALL apoc.periodic.iterate(`)
+      .append(`"MATCH (property:${RUSHDB_LABEL_PROPERTY} { ${projectIdInline()} }) RETURN property",`)
+      .append(`"WITH property DETACH DELETE property",`)
+      .append(batchConfig)
+      .append(`) YIELD batch as b2, operations as o2`)
+      .append(`RETURN b1,b2,o1,o2`)
+
+    return queryBuilder.getQuery()
+  }
+
+  removeProjectNodeQuery() {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
       .append(`MATCH (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })`)
       .append(`OPTIONAL MATCH (project)<-[:${RUSHDB_RELATION_HAS_ACCESS}]-(token:${RUSHDB_LABEL_TOKEN})`)
       .append(`DETACH DELETE project, token`)
-      .append(`RETURN b1,b2,o1,o2`)
 
     return queryBuilder.getQuery()
   }

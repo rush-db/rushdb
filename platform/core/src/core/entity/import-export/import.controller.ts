@@ -32,6 +32,9 @@ import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { CustomTransactionDecorator } from '@/database/neogma-dynamic/custom-transaction.decorator'
+import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
+import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // POST     /import/json           ✅ INGEST DATA
@@ -42,13 +45,18 @@ import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 @Controller('')
 @ApiTags('Records')
-@UseInterceptors(NotFoundInterceptor, NeogmaDataInterceptor, NeogmaTransactionInterceptor)
+@UseInterceptors(
+  NotFoundInterceptor,
+  NeogmaDataInterceptor,
+  NeogmaTransactionInterceptor,
+  CustomTransactionInterceptor
+)
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
 
   @Post('/records/import/json')
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard, CustomDbWriteRestrictionGuard)
   @UseInterceptors(
     RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]),
     TransformResponseInterceptor
@@ -59,11 +67,12 @@ export class ImportController {
   async collectJson(
     @Body() body: ImportJsonDto,
     @TransactionDecorator() transaction: Transaction,
+    @CustomTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId
 
-    return await this.importService.importRecords(body, projectId, transaction)
+    return await this.importService.importRecords(body, projectId, transaction, customTx)
   }
 
   @Post('/records/import/csv')
@@ -75,10 +84,11 @@ export class ImportController {
   )
   @UsePipes(ValidationPipe(importCsvSchema, 'body'))
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard, CustomDbWriteRestrictionGuard)
   async collectCsv(
     @Body() body: ImportCsvDto,
     @TransactionDecorator() transaction: Transaction,
+    @CustomTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId
@@ -96,7 +106,8 @@ export class ImportController {
         label: body.label
       },
       projectId,
-      transaction
+      transaction,
+      customTx
     )
   }
 }

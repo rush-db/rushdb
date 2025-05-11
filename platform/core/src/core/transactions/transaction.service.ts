@@ -4,17 +4,17 @@ import { uuidv7 } from 'uuidv7'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { TTransactionObject } from '@/core/transactions/transaction.types'
-import { NeogmaService } from '@/database/neogma/neogma.service'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 @Injectable()
 export class TransactionService {
-  constructor(private readonly neogmaService: NeogmaService) {}
+  constructor(private readonly compositeNeogmaService: CompositeNeogmaService) {}
   private transactions: Map<string, TTransactionObject> = new Map()
 
   createTransaction(projectId: string, config?: { ttl?: number }): TTransactionObject {
     const id = uuidv7()
 
-    const session = this.neogmaService.createSession()
+    const session = this.compositeNeogmaService.createSession()
     const rushDBTransaction: TTransactionObject = {
       id,
       projectId,
@@ -43,7 +43,7 @@ export class TransactionService {
       const rushDBTransaction = this.transactions.get(id)
 
       await rushDBTransaction.transaction.close()
-      await this.neogmaService.closeSession(rushDBTransaction.session, 'transaction-service')
+      await this.compositeNeogmaService.closeSession(rushDBTransaction.session)
 
       this.transactions.delete(id)
     }

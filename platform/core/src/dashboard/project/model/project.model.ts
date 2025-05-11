@@ -45,6 +45,9 @@ export const Project: TProjectParams = {
     },
     stats: {
       type: 'string'
+    },
+    customDb: {
+      type: 'string'
     }
   },
   primaryKeyField: 'id',

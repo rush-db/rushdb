@@ -8,13 +8,17 @@ import { ProjectController } from '@/dashboard/project/project.controller'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
+import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
 
 @Module({
   imports: [
     forwardRef(() => WorkspaceModule),
     forwardRef(() => EntityModule),
     forwardRef(() => PropertyModule),
-    forwardRef(() => TokenModule)
+    forwardRef(() => TokenModule),
+
+    //db modules
+    forwardRef(() => NeogmaDynamicModule)
   ],
   providers: [ProjectRepository, ProjectService, ProjectQueryService],
   exports: [ProjectRepository, ProjectService, ProjectQueryService],

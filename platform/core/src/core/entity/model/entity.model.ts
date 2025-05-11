@@ -9,13 +9,15 @@ import {
   RUSHDB_RELATION_VALUE
 } from '@/core/common/constants'
 import { IEntitiesRelatedNodes, TEntityProperties } from '@/core/entity/model/entity.interface'
-import { TModelName } from '@/database/neogma/repository/types'
+import { TModelName, TModelSourceType } from '@/database/neogma/repository/types'
 
 type TEntityParams = TGetFirstArgument<typeof ModelFactory<TEntityProperties, IEntitiesRelatedNodes>> &
-  TModelName
+  TModelName &
+  TModelSourceType
 
 export const Entity: TEntityParams = {
   name: 'Entity',
+  canUseExternalSource: true,
   label: RUSHDB_LABEL_RECORD,
   schema: {
     [RUSHDB_KEY_ID]: {
