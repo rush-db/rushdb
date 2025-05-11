@@ -3,185 +3,219 @@ sidebar_position: 7
 ---
 
 # Delete Records
-:::note
-Deleting records is a fundamental operation to manage the lifecycle of data within your application. The `Model` class provides methods to delete multiple records. We will use the `Author` and `Post` models defined earlier to demonstrate these operations.
-:::
 
-## Table of Contents
+RushDB provides flexible APIs for deleting records from your database. This capability lets you remove individual records by ID or delete multiple records at once using search query filters.
 
-- [Deleting Records](#delete)
-- [Handling Related Records](#handling-related-records)
+## Overview
 
-### `delete`
+The delete endpoints allow you to:
+- Delete a single record or multiple records by ID using `deleteById`
+- Delete records using search queries with the `delete` method
+- Delete records directly from record instances
+- Perform atomic deletions using transactions
+- Safely remove records with proper authentication
 
-The `delete` method is used to remove multiple records based on specified criteria.
+All delete operations require authentication using a bearer token and handle relationships appropriately. Deletion operations can also be performed within transactions for atomic operations.
 
-**Signature:**
+## Delete a Single Record by ID
+
 ```typescript
-delete(
-  params?: Omit<SearchQuery<S>, 'labels'>,
-  transaction?: Transaction | string
-): Promise<ApiResponse<{ message: string }>>;
-```
-**Parameters:**
-
-- `params` (optional): An object specifying query parameters such as filters.
-- `transaction` (optional): A transaction object or string to include the operation within a transaction.
-
-**Returns:**
-
-- A promise that resolves to a `ApiResponse` containing the result of the `delete` operation.
-
-**Examples:**
-
-*Basic Example with Author:*
-```typescript
-const deleteResponse = await Author.delete({ where: { name: 'John Doe' } });
-console.log(deleteResponse);
-/*
-{
-  success: true,
-  message: 'Records deleted successfully.'
-}
-*/
+// Delete a single record by ID
+await db.records.deleteById('record-id-here');
 ```
 
-*Complex Example with Author:*
+This method deletes a single record identified by its unique ID.
+
+### Parameters
+
+| Parameter | Type   | Description |
+|-----------|--------|-------------|
+| `idOrIds` | `String` or `Array<String>` | The unique identifier of the record to delete, or an array of IDs |
+| `transaction` | `Transaction` or `String` | Optional transaction for atomic operations |
+
+### Example
+
 ```typescript
-const transaction = await db.tx.begin();
+// Delete a specific record
 try {
-  const deleteResponse = await Author.delete({ where: { name: { $contains: 'Jane' } } }, transaction);
-  await transaction.commit();
-  console.log(deleteResponse);
-  /*
+  const response = await db.records.deleteById('018e4c71-5f20-7db2-b0b1-e7e681542af9');
+  if (response.success) {
+    console.log('Record deleted successfully');
+  }
+} catch (error) {
+  console.error('Failed to delete record:', error);
+}
+
+// Delete multiple records by their IDs
+try {
+  const response = await db.records.deleteById([
+    '018e4c71-5f20-7db2-b0b1-e7e681542af9',
+    '018e4c71-5f20-7db2-b0b1-e7e681542af8'
+  ]);
+  if (response.success) {
+    console.log('Records deleted successfully');
+  }
+} catch (error) {
+  console.error('Failed to delete records:', error);
+}
+
+// Delete within a transaction
+const tx = await db.tx.begin();
+try {
+  await db.records.deleteById('018e4c71-5f20-7db2-b0b1-e7e681542af9', tx);
+  await db.tx.commit(tx);
+  console.log('Record deleted successfully in transaction');
+} catch (error) {
+  await db.tx.rollback(tx);
+  console.error('Transaction failed:', error);
+}
+```
+
+## Delete Records Using a Search Query
+
+```typescript
+// Delete records using search query
+await db.records.delete(
   {
-    success: true,
-    message: 'Records deleted successfully.'
-  }
-  */
-} catch (error) {
-  await transaction.rollback();
-  throw error;
-}
+    where: { /* search conditions */ }
+  },
+  transaction // optional
+);
 ```
 
-*Basic Example with Post:*
-```typescript
-const deleteResponse = await Post.delete({ where: { title: 'Old Blog Post' } });
-console.log(deleteResponse);
-/*
-{
-  success: true,
-  message: 'Records deleted successfully.'
-}
-*/
-```
+This method deletes records that match the specified search criteria.
 
-*Complex Example with Post:*
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `searchQuery` | `SearchQuery<S>` | Query to identify records to delete |
+| `transaction` | `Transaction` or `String` | Optional transaction for atomic operations |
+
+Note: Using an empty `where` clause without allowing force delete will throw an `EmptyTargetError`.
+
+You can use search parameters to define which records to delete:
+
+| SearchQuery Field | Type   | Description |
+|-----------|--------|-------------|
+| `where`   | `Object` | Filter conditions for records to delete ([learn more](/concepts/search/where)) |
+| `labels`  | `Array`  | Optional array of labels to filter records by ([learn more](/concepts/search/labels)) |
+| `limit`   | `Number` | Maximum number of records to delete (optional) |
+
+### Example
+
 ```typescript
-const transaction = await db.tx.begin();
+// Delete all users with age under 18
 try {
-  const deleteResponse = await Post.delete({ where: { rating: { $lt: 3 } } }, transaction);
-  await transaction.commit();
-  console.log(deleteResponse);
-/*
-{
-  success: true,
-  message: 'Records deleted successfully.'
-}
-*/
-} catch (error) {
-  await transaction.rollback();
-  throw error;
-}
-```
-
-*Deleting Posts with `$or` Operator:*
-```typescript
-const deleteResponse = await Post.delete({
+  const response = await db.records.delete({
     where: {
-        $or: [
-            { $id: 'post_id_1' },
-            { $id: 'post_id_2' }
-        ]
+      label: 'USER',
+      age: { $lt: 18 }
     }
-});
-console.log(deleteResponse);
-/*
-{
-  success: true,
-  message: 'Records deleted successfully.'
-}
-*/
-```
-
-*Complex Deletion with Multiple Operators:*
-```typescript
-const deleteResponse = await Post.delete({
-  where: {
-    $or: [
-      { title: { $contains: 'Blog' } },
-      { rating: { $gte: 4.5 } },
-      { created: { $lt: '2023-01-01T00:00:00Z' } }
-    ]
+  });
+  if (response.success) {
+    console.log(response.data.message); // Displays success message with deletion count
   }
-});
-console.log(deleteResponse);
-/*
-{
-  success: true,
-  message: 'Records deleted successfully.'
-}
-*/
-```
-
-### Handling Related Records
-
-When you delete a record that is attached to another record, the relationship is automatically removed. This ensures data integrity and consistency.
-
-**Complex Example with Transactions:**
-
-In this example, we'll delete an `Author` and ensure that any `Post` attached to this `Author` is also handled appropriately.
-
-**Steps:**
-
-1. Begin a transaction.
-2. Delete the `Author`.
-3. Verify that the related `Post` is updated accordingly.
-4. Commit the transaction if the delete operation succeeds.
-5. Rollback the transaction if any operation fails.
-```typescript
-const transaction = await db.tx.begin();
-try {
-  // Step 1: Delete the author
-  const deleteAuthorResponse = await Author.delete({ where: { $id: 'author_id' } }, transaction);
-  
-  // Step 2: Ensure related Post records are updated
-  const relatedPosts = await Post.find({ where: { authorId: 'author_id' } }, transaction);
-  for (const post of relatedPosts.data) {
-    await Post.delete({ where: { $d: post.__id } }, transaction);
-  }
-
-  await transaction.commit();
-  console.log(deleteAuthorResponse);
-  console.log(relatedPosts);
-/*
-{
-  success: true,
-  message: 'Records deleted successfully.'
-}
-{
-  data: [],
-  total: 0
-}
-*/
 } catch (error) {
-  await transaction.rollback();
-  throw error;
+  console.error('Failed to delete records:', error);
+}
+
+// Delete inactive products in a specific category
+try {
+  const response = await db.records.delete({
+    where: {
+      label: 'PRODUCT',
+      category: 'electronics',
+      isActive: false
+    }
+  });
+  if (response.success) {
+    console.log(response.data.message);
+  }
+} catch (error) {
+  console.error('Failed to delete records:', error);
 }
 ```
-This complex example demonstrates how to manage related records within a transaction during delete operations.
 
-### Conclusion
+## Bulk Deletion with Complex Queries
 
-This section covered how to delete records using the `Model` class. By understanding these methods and their parameters, you can effectively manage your application's data lifecycle with the RushDB SDK. The next sections will delve into other advanced operations and best practices.
+For more advanced deletion scenarios, you can use the full power of RushDB's search query system:
+
+```typescript
+// Delete records with complex criteria
+try {
+  const response = await db.records.delete({
+    where: {
+      $or: [
+        { status: 'archived', lastModified: { $lt: '2024-01-01' } },
+        { status: 'deleted', isTemporary: true }
+    ]
+    },
+    labels: ['DOCUMENT', 'ATTACHMENT'],
+    limit: 1000 // Optional: limit the number of records deleted
+  });
+  console.log(`${response.data.message}`);
+} catch (error) {
+  console.error('Bulk deletion failed:', error);
+}
+```
+
+## Deleting Records from a Record Instance
+
+If you already have a record instance, you can delete it directly:
+
+```typescript
+// Find a record first
+const record = await db.records.findById('018e4c71-5f20-7db2-b0b1-e7e681542af9');
+
+// Then delete it
+try {
+  const response = await record.delete();
+  if (response.success) {
+    console.log('Record deleted successfully');
+  }
+} catch (error) {
+  console.error('Failed to delete record:', error);
+}
+
+// With a transaction
+const tx = await db.tx.begin();
+try {
+  await record.delete(tx);
+  await db.tx.commit(tx);
+  console.log('Record deleted successfully within transaction');
+} catch (error) {
+  await db.tx.rollback(tx);
+  console.error('Transaction failed:', error);
+}
+```
+
+## Handling Relationships
+
+When deleting records, all relationships associated with those records are automatically deleted. This ensures database integrity and prevents orphaned relationships.
+
+## Safety Features and Transactions
+
+RushDB implements several safeguards for delete operations:
+
+1. **Authentication**: All delete operations require a valid authentication token
+2. **Authorization**: Users can only delete records in projects they have access to
+3. **Validation**: Input data is validated before processing
+4. **Transactions**: Delete operations can be wrapped in transactions for data consistency
+5. **Partial Failure Handling**: If a deletion affects multiple records and some operations fail, all changes are rolled back when using transactions
+6. **Empty Query Protection**: The API prevents accidental deletion of all records by requiring explicit configuration to allow force deletion with empty `where` clauses
+
+## Performance Considerations
+
+- For large-scale deletions, RushDB processes operations in batches
+- Complex query conditions may increase processing time
+- Consider using [label filtering](/concepts/search/labels) to narrow down records before deletion
+- For very large datasets, use pagination in combination with delete operations
+
+## Related Documentation
+
+- [Search Introduction](/concepts/search/introduction)
+- [Where Clause](/concepts/search/where)
+- [Labels](/concepts/search/labels)
+- [Record Relationships](/concepts/relationships)
+- [Transactions](/concepts/transactions)

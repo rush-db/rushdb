@@ -127,6 +127,107 @@ Payload contains inconsistent values but cannot be converted to desired _number_
 
 Will be saved as distinct properties (size:string and size:number) connecting to their respective records.
 
+## Supported Data Types
+
+RushDB supports a variety of data types to accommodate diverse data needs in your applications:
+
+### `string`
+Used for any textual information with virtually unlimited length.
+
+```js
+{
+    name: "productName",
+    type: "string",
+    value: "Premium Leather Jacket"
+}
+```
+
+### `number`
+Accommodates both floating-point numbers and integers.
+
+```js
+{
+    name: "price",
+    type: "number",
+    value: 129.99
+}
+```
+
+### `boolean`
+Represents true or false values.
+
+```js
+{
+    name: "inStock",
+    type: "boolean",
+    value: true
+}
+```
+
+### `datetime`
+Follows ISO 8601 format, including timezone information.
+
+```js
+{
+    name: "manufacturedAt",
+    type: "datetime",
+    value: "2025-03-15T14:30:00Z"
+}
+```
+
+### `null`
+Represents the absence of a value.
+
+```js
+{
+    name: "discount",
+    type: "null",
+    value: null
+}
+```
+
+### `vector`
+Arrays of floating-point numbers or integers, particularly useful for vector similarity searches and machine learning operations.
+
+```js
+{
+    name: "imageEmbedding",
+    type: "vector",
+    value: [0.99070, 0.78912, 1.0, 0.0]
+}
+```
+
+### Arrays
+
+RushDB also supports arrays as property values, but they must contain consistent value types:
+
+> **Note:** Every data type mentioned above (except `vector`, since it's already an array by default) supports an array representation.
+
+```js
+// String array
+{
+    name: "categories",
+    type: "string",
+    value: ["outerwear", "winter", "premium"]
+}
+
+// Number array
+{
+    name: "availableSizes",
+    type: "number",
+    value: [36, 38, 40, 42, 44]
+}
+
+// Boolean array
+{
+    name: "features",
+    type: "boolean",
+    value: [true, false, true, true]
+}
+```
+
+RushDB automatically handles type inference during data import, ensuring optimal storage and retrieval of your property values. If there are mixed types within an array that can be consistently converted (like strings to numbers), RushDB will attempt the conversion. However, if conversion isn't possible, it will default to the most accommodating type (usually string).
+
 ## Multi-tenant Isolation
 
 Properties are not shared amongst projects (database instances), ensuring complete isolation in multi-tenant environments. Each project has its own set of property nodes, maintaining data security and isolation.

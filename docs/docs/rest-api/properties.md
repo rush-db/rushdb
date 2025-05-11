@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Properties API
 
-RushDB provides a powerful Properties API that enables you to manage the properties associated with your records. This API allows you to list, retrieve, create, update, and delete properties, as well as manage property values.
+RushDB provides a powerful Properties API that enables you to manage the properties associated with your records. This API allows you to find, retrieve, create, update, and delete properties, as well as manage property values.
 
 ## Overview
 
@@ -34,10 +34,10 @@ RushDB supports the following property types:
 ## List Properties
 
 ```http
-POST /properties
+POST /api/v1/properties
 ```
 
-Returns a list of all properties in the current project, with filtering options.
+Returns a find of all properties in the current project, with filtering options.
 
 ### Request Body
 
@@ -82,7 +82,7 @@ Returns a list of all properties in the current project, with filtering options.
 ## Get Property
 
 ```http
-GET /properties/:propertyId
+GET /api/v1/properties/:propertyId
 ```
 
 Retrieve detailed information about a specific property by its ID.
@@ -111,7 +111,7 @@ Retrieve detailed information about a specific property by its ID.
 ## Get Property Values
 
 ```http
-GET /properties/:propertyId/values
+GET /api/v1/properties/:propertyId/values
 ```
 
 Retrieves distinct values for a specific property across all records.
@@ -129,7 +129,7 @@ Retrieves distinct values for a specific property across all records.
 ### Example Request
 
 ```http
-GET /properties/018dfc84-d6cb-7000-89cd-850db63a1e78/values?sort=asc&query=jo&skip=0&limit=10
+GET /api/v1/properties/018dfc84-d6cb-7000-89cd-850db63a1e78/values?sort=asc&query=jo&skip=0&limit=10
 ```
 
 ### Response
@@ -163,7 +163,7 @@ For numeric properties, the response includes minimum and maximum values:
 ## Update Property
 
 ```http
-PATCH /properties/:propertyId
+PATCH /api/v1/properties/:propertyId
 ```
 
 Updates a property's name or type.
@@ -209,7 +209,7 @@ When changing property types:
 ## Update Property Values
 
 ```http
-PATCH /properties/:propertyId/values
+PATCH /api/v1/properties/:propertyId/values
 ```
 
 Updates the values of a property across multiple records.
@@ -257,7 +257,7 @@ For array values:
 ## Delete Property
 
 ```http
-DELETE /properties/:propertyId
+DELETE /api/v1/properties/:propertyId
 ```
 
 Deletes a property from all records.
@@ -318,28 +318,6 @@ When updating properties, you can use value separators to split a string into mu
 ```
 
 This will result in an array of values: `["important", "urgent", "follow-up"]`.
-
-## Error Handling
-
-The Properties API may return the following error responses:
-
-| Status Code | Description |
-|-------------|-------------|
-| 400 | Bad Request - Invalid parameters |
-| 401 | Unauthorized - Authentication required |
-| 403 | Forbidden - Insufficient permissions |
-| 404 | Not Found - Property with the specified ID doesn't exist |
-| 500 | Server Error - Processing failed |
-
-### Example Error Response
-
-```json
-{
-  "success": false,
-  "message": "Property with ID 018dfc84-d6cb-7000-89cd-850db63a1e99 not found",
-  "statusCode": 404
-}
-```
 
 ## Property Metadata
 

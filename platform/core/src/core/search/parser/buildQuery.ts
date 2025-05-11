@@ -123,20 +123,20 @@ export const parseLevel = (
   return result
 }
 
-export const buildQuery = (searchParams: SearchDto) => {
-  const parsedWhere = parse(searchParams.where)
+export const buildQuery = (searchQuery: SearchDto) => {
+  const parsedWhere = parse(searchQuery.where)
 
   // Sort query parts in ascending order
   const sortedQueryParts = sortQueryParts(parsedWhere.queryParts)
 
-  const pagination = buildPagination(searchParams)
-  const sortParams = sort(searchParams.orderBy)
+  const pagination = buildPagination(searchQuery)
+  const sortParams = sort(searchQuery.orderBy)
 
   const queryClauses = buildQueryClause({
     queryParts: sortedQueryParts,
     pagination,
     sortParams,
-    labelClause: buildLabelsClause(searchParams.labels)
+    labelClause: buildLabelsClause(searchQuery.labels)
   })
 
   return {

@@ -37,7 +37,7 @@ export class ExportController {
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async exportCsv(
-    @Body() searchParams: SearchDto = {},
+    @Body() searchQuery: SearchDto = {},
     @TransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ) {
@@ -45,7 +45,7 @@ export class ExportController {
 
     const data = await this.exportService.exportRecords({
       projectId,
-      searchParams,
+      searchQuery,
       transaction
     })
 

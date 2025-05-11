@@ -19,7 +19,7 @@ All update endpoints require authentication using a token header.
 The PATCH method allows you to update specific properties of a record while preserving other existing properties.
 
 ```http
-PATCH /records/{entityId}
+PATCH /api/v1/records/{entityId}
 ```
 
 ### Path Parameters
@@ -98,7 +98,7 @@ This makes PATCH ideal for updating specific fields without having to resend all
 The PUT method allows you to completely replace a record's data.
 
 ```http
-PUT /records/{entityId}
+PUT /api/v1/records/{entityId}
 ```
 
 ### Path Parameters
@@ -151,40 +151,6 @@ When you use PUT to update a record:
 3. The operation returns the new state of the record
 
 This makes PUT ideal when you want to ensure the record only has the exact properties you specify.
-
-## Get Record Properties
-
-You can retrieve all properties of a specific record:
-
-```http
-GET /records/{entityId}/properties
-```
-
-### Path Parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `entityId` | String | The unique identifier of the record |
-
-### Response
-
-```json
-{
-  "data": [
-    {
-      "key": "name",
-      "value": "John Smith",
-      "type": "string"
-    },
-    {
-      "key": "age",
-      "value": 32,
-      "type": "number"
-    },
-    // Additional properties...
-  ]
-}
-```
 
 ## Error Handling
 

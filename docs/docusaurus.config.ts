@@ -222,8 +222,7 @@ const config: Config = {
           {
             href: '/',
             label: 'RushDB Docs',
-            position: 'left',
-            sidebarId: 'docs'
+            position: 'left'
           },
           {
             label: 'Python SDK',

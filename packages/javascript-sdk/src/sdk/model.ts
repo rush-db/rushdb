@@ -46,7 +46,9 @@ export class Model<S extends Schema = any> extends RestApiProxy {
    *
    * @param modelName - The name/label of the model in the database
    * @param schema - The schema definition that describes the model's structure
-   * @param RushDBInstance - Optional RushDB instance for model registration
+   * @param RushDBInstance - Optional RushDB instance for model registration.
+   *                        This is the recommended way to register models as it automatically
+   *                        registers the model with the RushDB instance during creation.
    */
   constructor(modelName: string, schema: S, RushDBInstance?: RushDBInstance) {
     super()
@@ -297,7 +299,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
 
       const canUpdate =
         !matchingRecords?.data?.length ||
-        (matchingRecords.data.length === 1 && matchingRecords.data[0].__id === pickRecordId(target)!)
+        (matchingRecords.data.length === 1 && matchingRecords.data[0]?.id() === pickRecordId(target)!)
 
       if (canUpdate) {
         const result = await this.apiProxy.records[method]<S>({ target, label: this.label, data }, tx)

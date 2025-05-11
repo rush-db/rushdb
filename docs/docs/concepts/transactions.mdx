@@ -148,6 +148,8 @@ Internally, RushDB maintains a transaction registry that:
 3. Maps transaction IDs to internal Neo4j transaction objects
 4. Manages transaction cleanup and resource release
 
+For more information about the underlying storage system, see [Storage](/concepts/storage).
+
 ## Use Cases
 
 Transactions are particularly valuable in several scenarios:
@@ -168,6 +170,8 @@ graph TD
     C -->|Failure| F
     D -->|Failure| F
 ```
+
+This approach ensures that complex data structures are properly maintained, with [Records](/concepts/records) and their [Relationships](/concepts/relationships) remaining consistent.
 
 ### Concurrent Operations
 
@@ -232,6 +236,8 @@ When multiple users or services access the same data simultaneously, transaction
   </TabItem>
 </Tabs>
 
+Transactions help prevent race conditions when multiple operations might affect the same [Records](/concepts/records) or [Properties](/concepts/properties).
+
 ### Data Migrations
 
 When upgrading data structures or transforming records, transactions ensure that data integrity is maintained:
@@ -290,6 +296,8 @@ When upgrading data structures or transforming records, transactions ensure that
   </TabItem>
 </Tabs>
 
+During migrations, transactions ensure that [Labels](/concepts/labels) and [Properties](/concepts/properties) are consistently updated across related records.
+
 ## Time-To-Live (TTL)
 
 RushDB transactions include a configurable TTL mechanism to prevent hanging transactions:
@@ -308,6 +316,8 @@ While transactions provide powerful data consistency guarantees, they come with 
 3. **TTL Constraints**: Maximum TTL is capped at 30 seconds to prevent resource exhaustion
 4. **Isolation Level**: RushDB uses Neo4j's default read-committed isolation level
 
+See [Storage](/concepts/storage) for more details on how database resources are managed.
+
 ## Best Practices
 
 To effectively use transactions in RushDB:
@@ -318,6 +328,8 @@ To effectively use transactions in RushDB:
 4. **Error handling**: Implement proper error handling with rollback in catch blocks
 5. **Avoid nested transactions**: Instead of nesting transactions, design workflows to use a single transaction level
 6. **Batch operations**: For bulk operations, consider batching changes into multiple smaller transactions
+
+When working with complex data models, refer to [Records](/concepts/records) and [Relationships](/concepts/relationships) documentation to understand how transactions affect your data structures.
 
 ## Integration with Neo4j
 

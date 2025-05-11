@@ -16,7 +16,7 @@ class PropertiesAPI(BaseAPI):
 
 ### find()
 
-Retrieves a list of properties based on optional search criteria.
+Retrieves a find of properties based on optional search criteria.
 
 **Signature:**
 ```python
@@ -126,7 +126,7 @@ def values(
 - `transaction` (Optional[Transaction]): Optional transaction object
 
 **Returns:**
-- `PropertyValuesData`: Property values data, including optional min/max and list of values
+- `PropertyValuesData`: Property values data, including optional min/max and find of values
 
 **Example:**
 ```python

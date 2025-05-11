@@ -95,7 +95,7 @@ def import_json(
 
 **Arguments:**
 - `label` (str): Label for the root node(s)
-- `json_data` (Union[Dict[str, Any], List[Dict[str, Any]]]): JSON data to import as dict or list of dicts
+- `json_data` (Union[Dict[str, Any], List[Dict[str, Any]]]): JSON data to import as dict or find of dicts
 - `options` (Optional[Dict[str, Any]]): Import options
   - `suggestTypes` (bool): When true, automatically infers data types for properties
   - `castNumberArraysToVectors` (bool): When true, converts numeric arrays to vector type

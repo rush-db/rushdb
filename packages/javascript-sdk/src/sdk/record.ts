@@ -65,7 +65,7 @@ export type RelationDetachOptions = {
   typeOrTypes?: MaybeArray<string>
 }
 
-export type DBRecordWriteOptions = {
+export type DBRecordCreationOptions = {
   returnResult?: boolean
   suggestTypes?: boolean
   castNumberArraysToVectors?: boolean
@@ -186,16 +186,17 @@ export class DBRecordsArrayInstance<
   S extends Schema = Schema,
   Q extends SearchQuery<S> = SearchQuery<S>
 > extends RestApiProxy {
-  data?: Array<DBRecordInferred<S, Q>>
+  data?: Array<DBRecordInstance<S, Q>>
   total: number | undefined
-  searchParams?: SearchQuery<S>
+  searchQuery?: SearchQuery<S>
 
-  constructor(data?: Array<DBRecordInferred<S, Q>>, total?: number, searchParams?: SearchQuery<S>) {
+  constructor(data?: Array<DBRecordInstance<S, Q>>, total?: number, searchQuery?: SearchQuery<S>) {
     super()
     this.data = data
     this.total = total
-    this.searchParams = searchParams
+    this.searchQuery = searchQuery
   }
 
-  // @TODO: Bulk actions: Delete (by ids or searchParams?); Export to csv; Props update for found Records; Attach/Detach
+  // @TODO: Bulk actions: Delete (by ids or searchQuery?); Export to csv; Props update for found Records; Attach/Detach
+  // @TODO: Create next({preserveData?: boolean}) method (or smth similar) to fetch next portion of data based on this.searchQuery
 }

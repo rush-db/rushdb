@@ -24,8 +24,21 @@ RushDB is an instant, cloud-native database built on top of Neo4j, designed for 
 ## How to Use the API
 
 - **Base URL**: The API is available at `https://api.rushdb.com` for cloud users, or your custom URL for self-hosted deployments.
-- **Authentication**: All endpoints require authentication via a token header. Obtain your API token from the [RushDB dashboard](https://app.rushdb.com).
+- **Authentication**: All endpoints require authentication via a token header. Get your API token from the [RushDB dashboard](https://app.rushdb.com).
 - **Content-Type**: All requests and responses use JSON unless otherwise specified.
+
+## API Specifications
+
+The RushDB API is documented using OpenAPI (Swagger) specification for easy integration and exploration:
+
+- **Swagger UI**: [Interactive API Documentation](https://api.rushdb.com/api)
+- **OpenAPI JSON**: [JSON Schema Specification](https://api.rushdb.com/api-json)
+- **OpenAPI YAML**: [YAML Specification](https://api.rushdb.com/api-yaml)
+
+You can use these specifications to:
+- Generate client libraries in your preferred programming language
+- Import the API into tools like Postman, Insomnia, or SwaggerHub
+- Understand request/response formats with machine-readable schemas
 
 ## Common Use Cases
 
@@ -38,14 +51,14 @@ RushDB is an instant, cloud-native database built on top of Neo4j, designed for 
 
 ## Getting Started
 
-1. **Obtain an API Token**: Sign up at [app.rushdb.com](https://app.rushdb.com) or set up a self-hosted instance.
+1. **Get an API Token**: Sign up at [app.rushdb.com](https://app.rushdb.com) or set up a self-hosted instance.
 2. **Read the Endpoint Docs**: Explore the sidebar for detailed documentation on each API endpoint, including request/response formats and examples.
 3. **Try It Out**: Use cURL, Postman, or your favorite HTTP client to interact with the API.
 
 ## Example: Create a Record
 
 ```http
-POST /records
+POST /api/v1/records
 Content-Type: application/json
 token: YOUR_API_TOKEN
 

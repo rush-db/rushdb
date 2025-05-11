@@ -17,10 +17,27 @@ The import endpoints allow you to:
 
 All import endpoints require authentication using a token header.
 
+## Nested Data Processing
+
+When importing nested JSON data structures, RushDB automatically processes and organizes your data using a breadth-first search (BFS) algorithm. This approach efficiently:
+
+1. **Traverses hierarchical structures**: Processes your JSON tree level by level, ensuring proper parent-child relationships
+2. **Optimizes object normalization**: Converts nested objects into separate records with appropriate relationships
+3. **Preserves data integrity**: Maintains the original structure and relationships between your data elements
+
+For example, when importing a nested object like a person with embedded address information, the BFS algorithm will:
+- Create a separate record for the person
+- Create separate records for embedded objects (addresses)
+- Establish relationships between parent and child records
+- Apply proper labels derived from the JSON structure
+- Set up property nodes with appropriate type inference
+
+For more details on how RushDB manages data storage and the underlying data import mechanism, see [Storage - Data Import Mechanism](/concepts/storage#data-import-mechanism).
+
 ## Import JSON Data
 
 ```http
-POST /records/import/json
+POST /api/v1/records/import/json
 ```
 
 ### Request Body
@@ -89,8 +106,9 @@ If `returnResult: true` is specified in options, the response will include the i
   "success": true,
   "data": [
     {
-      "id": "018dfc84-d6cb-7000-89cd-850db63a1e77",
-      "label": "Person",
+      "__id": "018dfc84-d6cb-7000-89cd-850db63a1e77",
+      "__label": "Person",
+      "__proptypes": { ... },
       "name": "John Doe",
       "age": 30,
       // Additional properties...
@@ -103,7 +121,7 @@ If `returnResult: true` is specified in options, the response will include the i
 ## Import CSV Data
 
 ```http
-POST /records/import/csv
+POST /api/v1/records/import/csv
 ```
 
 ### Request Body
@@ -157,28 +175,6 @@ When `suggestTypes` is enabled, RushDB will infer the following types:
 When `convertNumericValuesToNumbers` is enabled, string values that represent numbers (e.g., '123') will be automatically converted to their numeric equivalents (e.g., 123).
 
 Arrays with consistent data types (e.g., all numbers, all strings) will be handled seamlessly according to their type. However, for inconsistent arrays (e.g., `[1, 'two', null, false]`), all values will be automatically converted to strings to mitigate data loss, and the property type will be stored as `string`.
-
-## Error Handling
-
-The import API may return the following error responses:
-
-| Status Code | Description |
-|-------------|-------------|
-| 400 | Bad Request - Invalid payload format |
-| 401 | Unauthorized - Authentication required |
-| 402 | Payment Required - Import would exceed plan limits |
-| 403 | Forbidden - Insufficient permissions |
-| 500 | Server Error - Processing failed |
-
-### Example Error Response
-
-```json
-{
-  "success": false,
-  "message": "The number of items you are trying to send exceeds your limits.",
-  "statusCode": 402
-}
-```
 
 ## Performance Considerations
 

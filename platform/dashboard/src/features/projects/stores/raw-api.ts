@@ -11,7 +11,7 @@ export const $selectedOperation = atom<
   | `records.${keyof (typeof api)['records']}`
   | `labels.${keyof (typeof api)['labels']}`
   | `properties.${keyof (typeof api)['properties']}`
-  | `relations.${keyof (typeof api)['relations']}`
+  | `relations.${keyof (typeof api)['relationships']}`
 >('records.find')
 
 export const rawRecords = createMutator<{
@@ -53,7 +53,7 @@ export const rawProperties = createMutator<{
   searchQuery: SearchQuery
 }>({
   async fetcher({ init, searchQuery }) {
-    return await api.properties.list(searchQuery, init)
+    return await api.properties.find({ searchQuery, init })
   },
   throwError: true,
   onError: (error: unknown) => console.log({ error }),

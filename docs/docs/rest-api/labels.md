@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Labels API
 
-RushDB provides a Labels API that allows you to retrieve information about the labels used in your records. Labels are a powerful way to categorize and organize records in your database.
+RushDB provides a Labels API that allows you to retrieve information about the [labels](../concepts/labels.md) used in your records. Labels are a powerful way to categorize and organize [records](../concepts/records.md) in your database.
 
 ## Overview
 
@@ -18,10 +18,10 @@ All labels endpoints require authentication using a token header.
 ## List Labels
 
 ```http
-POST /labels
+POST /api/v1/labels
 ```
 
-Returns a list of all labels in the current project along with the count of records having each label. You can filter the results using the `where` clause.
+Returns a find of all [labels](../concepts/labels.md) in the current project along with the count of records having each label. You can filter the results using the `where` clause.
 
 ### Request Body
 
@@ -94,7 +94,7 @@ This will return labels for records where `country` is either "USA" OR "Canada".
 
 ### Best Practices
 
-1. **Consistent naming conventions**: Use a consistent pattern for label names (e.g., singular nouns, PascalCase)
+1. **Consistent naming conventions**: Use a consistent pattern for [label](../concepts/labels.md) names (e.g., singular nouns, PascalCase)
 2. **Meaningful labels**: Choose labels that describe what the record represents, not just its attributes
 3. **Hierarchical labeling**: Consider using more specific labels for specialized record types (e.g., "Employee" and "Manager" instead of just "Person")
 4. **Multiple labels**: Remember that records can have multiple labels in RushDB, allowing for flexible classification
@@ -105,24 +105,3 @@ This will return labels for records where `country` is either "USA" OR "Canada".
 - **Access control**: Set permissions based on record labels
 - **Conditional processing**: Apply different business logic depending on record types
 - **Schema validation**: Enforce data structure based on record labels
-
-## Error Handling
-
-The Labels API may return the following error responses:
-
-| Status Code | Description |
-|-------------|-------------|
-| 400 | Bad Request - Invalid query format |
-| 401 | Unauthorized - Authentication required |
-| 403 | Forbidden - Insufficient permissions |
-| 500 | Server Error - Processing failed |
-
-### Example Error Response
-
-```json
-{
-  "success": false,
-  "message": "Invalid query format in 'where' clause",
-  "statusCode": 400
-}
-```

@@ -4,40 +4,108 @@ sidebar_position: 1
 
 # Create Records
 
-RushDB provides multiple ways to create records via its REST API. You can create single records, batch create multiple records, and even control how your data is processed and stored.
+RushDB provides multiple ways to create records via its REST API. You can create single [records](/concepts/records.md), control how your data is processed, and work with transactions for data consistency.
 
 ## Overview
 
 The create records endpoints allow you to:
 - Create a single record with properties and a label
-- Create multiple records in a batch operation
 - Control data type inference and other formatting options
 - Create records within transactions for data consistency
 
 All create record endpoints require authentication using a token header.
 
-## Create a Single Record
+## Create a Record
 
 ```http
-POST /records
+POST /api/v1/records
 ```
 
-This endpoint creates a single record with the provided label and properties.
+This endpoint creates a record with the provided label and payload.
 
 ### Request Body
 
 | Field       | Type   | Description |
 |-------------|--------|-------------|
 | `label`     | String | Label for the new record |
-| `properties` | Array  | Array of property objects defining record data |
+| `payload`   | Object | Object containing property name/value pairs |
+| `options`   | Object | Optional configuration parameters |
+
+#### Options Object
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `suggestTypes` | Boolean | `true` | When true, automatically infers data types for properties |
+| `castNumberArraysToVectors` | Boolean | `false` | When true, converts numeric arrays to vector type |
+| `convertNumericValuesToNumbers` | Boolean | `false` | When true, converts string numbers to number type |
+| `capitalizeLabels` | Boolean | `false` | When true, converts all labels to uppercase |
+
+### Example Request
+
+```json
+{
+  "label": "Person",
+  "payload": {
+    "name": "John Doe",
+    "age": "30",
+    "isActive": true,
+    "skills": ["JavaScript", "Python", "SQL"],
+    "joinDate": "2025-04-23T10:30:00Z",
+    "score": 92.5
+  },
+  "options": {
+    "suggestTypes": true,
+    "convertNumericValuesToNumbers": true
+  }
+}
+```
+
+### Response
+
+```json
+{
+  "__id": "018e4c71-f35a-7000-89cd-850db63a1e77",
+  "__label": "Person",
+  "__proptypes": {
+    "name": "string",
+    "age": "number",
+    "isActive": "boolean",
+    "skills": "string",
+    "joinDate": "datetime",
+    "score": "number"
+  },
+  "name": "John Doe",
+  "age": 30,
+  "isActive": true,
+  "skills": ["JavaScript", "Python", "SQL"],
+  "joinDate": "2025-04-23T10:30:00Z",
+  "score": 92.5
+}
+```
+
+## Property-Based Approach
+
+If you need precise control over property types and values, you can use the property-based approach:
+
+```http
+POST /api/v1/records
+```
+
+### Request Body
+
+| Field       | Type   | Description |
+|-------------|--------|-------------|
+| `label`     | String | Label for the new record |
+| `properties` | Array  | Array of property objects defining record data with explicit types |
 
 #### Property Object
 
 | Field     | Type   | Description |
 |-----------|--------|-------------|
 | `name`    | String | The property name |
-| `type`    | String | The data type for the property ('string', 'number', 'boolean', etc.) |
+| `type`    | String | The data type for the property ('string', 'number', 'boolean', 'datetime', etc.) |
 | `value`   | Any    | The value of the property |
+| `valueSeparator` | String | Optional separator to split string values into arrays |
 
 ### Example Request
 
@@ -59,6 +127,23 @@ This endpoint creates a single record with the provided label and properties.
       "name": "isActive",
       "type": "boolean",
       "value": true
+    },
+    {
+      "name": "skills",
+      "type": "string",
+      "value": "JavaScript,Python,SQL",
+      "valueSeparator": ","
+    },
+    {
+      "name": "joinDate",
+      "type": "datetime",
+      "value": "2025-04-23T10:30:00Z"
+    },
+    {
+      "name": "scores",
+      "type": "number",
+      "value": "85,90,95",
+      "valueSeparator": ","
     }
   ]
 }
@@ -73,212 +158,37 @@ This endpoint creates a single record with the provided label and properties.
   "__proptypes": {
     "name": "string",
     "age": "number",
-    "isActive": "boolean"
-  },
-  "name": "John Doe",
-  "age": 30,
-  "isActive": true
-}
-```
-
-## Create Records with Simplified Payload
-
-You can also create records using a simplified approach with a flat object.
-
-### Request Body
-
-| Field       | Type   | Description |
-|-------------|--------|-------------|
-| `label`     | String | Label for the new record |
-| `payload`   | Object | Flat object containing property name/value pairs |
-| `options`   | Object | Optional configuration parameters |
-
-#### Options Object
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `suggestTypes` | Boolean | `true` | When true, automatically infers data types for properties |
-| `castNumberArraysToVectors` | Boolean | `false` | When true, converts numeric arrays to vector type |
-| `convertNumericValuesToNumbers` | Boolean | `false` | When true, converts string numbers to number type |
-| `capitalizeLabels` | Boolean | `false` | When true, converts all labels to uppercase |
-| `returnResult` | Boolean | `true` | When true, returns created record in response |
-
-### Example Request
-
-```json
-{
-  "label": "Person",
-  "payload": {
-    "name": "John Doe",
-    "age": "30",
-    "isActive": true,
-    "skills": ["JavaScript", "Python", "SQL"]
-  },
-  "options": {
-    "suggestTypes": true,
-    "convertNumericValuesToNumbers": true
-  }
-}
-```
-
-### Response
-
-```json
-{
-  "__id": "018e4c71-f35a-7000-89cd-850db63a1e77",
-  "__label": "Person",
-  "__proptypes": {
-    "name": "string",
-    "age": "number",
     "isActive": "boolean",
-    "skills": "string[]"
+    "skills": "string",
+    "joinDate": "datetime",
+    "scores": "number"
   },
   "name": "John Doe",
   "age": 30,
   "isActive": true,
-  "skills": ["JavaScript", "Python", "SQL"]
+  "skills": ["JavaScript", "Python", "SQL"],
+  "joinDate": "2025-04-23T10:30:00Z",
+  "scores": [85, 90, 95]
 }
 ```
 
-## Create Multiple Records (Batch)
+## Working with Multiple Records and Complex Data
 
-```http
-POST /records/import/json
-```
+For batch operations and working with multiple records or complex data structures, please refer to the [Import Data documentation](./import-data.md). The Import Data API provides dedicated endpoints for:
 
-This endpoint allows you to create multiple records in a single request, which is more efficient than making separate requests.
+- Batch creation of multiple records in a single request
+- Importing JSON or CSV data
+- Creating nested record hierarchies
+- Handling arrays of objects as linked records
+- Setting relationship types between records
+- Processing complex object graphs with automatic type inference
 
-### Request Body
-
-| Field     | Type   | Description |
-|-----------|--------|-------------|
-| `label`   | String | Base label for all records |
-| `payload` | Array  | Array of objects, each representing a record to create |
-| `options` | Object | Optional configuration parameters (same as single record creation) |
-
-### Example Request
-
-```json
-{
-  "label": "Product",
-  "payload": [
-    {
-      "name": "Laptop",
-      "price": 1200,
-      "inStock": true
-    },
-    {
-      "name": "Smartphone",
-      "price": 800,
-      "inStock": false
-    },
-    {
-      "name": "Headphones",
-      "price": 150,
-      "inStock": true
-    }
-  ],
-  "options": {
-    "suggestTypes": true,
-    "returnResult": true
-  }
-}
-```
-
-### Response
-
-```json
-[
-  {
-    "__id": "018e4c71-f35a-7000-89cd-850db63a1e77",
-    "__label": "Product",
-    "__proptypes": {
-      "name": "string",
-      "price": "number",
-      "inStock": "boolean"
-    },
-    "name": "Laptop",
-    "price": 1200,
-    "inStock": true
-  },
-  {
-    "__id": "018e4c71-f35a-7000-89cd-850db63a1e78",
-    "__label": "Product",
-    "__proptypes": {
-      "name": "string",
-      "price": "number",
-      "inStock": "boolean"
-    },
-    "name": "Smartphone",
-    "price": 800,
-    "inStock": false
-  },
-  {
-    "__id": "018e4c71-f35a-7000-89cd-850db63a1e79",
-    "__label": "Product",
-    "__proptypes": {
-      "name": "string",
-      "price": "number",
-      "inStock": "boolean"
-    },
-    "name": "Headphones",
-    "price": 150,
-    "inStock": true
-  }
-]
-```
-
-## Create Nested Records
-
-The batch creation API also supports nested records. Records will be created for each nested object with appropriate relationships.
-
-### Example Request with Nested Records
-
-```json
-{
-  "label": "Order",
-  "payload": {
-    "orderNumber": "ORD-12345",
-    "total": 1350,
-    "customer": {
-      "name": "Jane Smith",
-      "email": "jane@example.com",
-      "address": {
-        "street": "123 Main St",
-        "city": "New York",
-        "zipcode": "10001"
-      }
-    },
-    "items": [
-      {
-        "productName": "Laptop",
-        "quantity": 1,
-        "price": 1200
-      },
-      {
-        "productName": "Mouse",
-        "quantity": 1,
-        "price": 150
-      }
-    ]
-  },
-  "options": {
-    "suggestTypes": true,
-    "relationshipType": "HAS"
-  }
-}
-```
-
-In this example:
-- A main "Order" record will be created
-- A "customer" record with nested "address" record will be created
-- Two "items" records will be created
-- All will be linked with the relationship type "HAS"
+The Import Data API is optimized for performance when working with large datasets or complex structures. It offers additional configuration options and better throughput for batch operations.
 
 ## Upsert Records
 
 ```http
-PUT /records
+PUT /api/v1/records
 ```
 
 This endpoint creates a new record if it doesn't exist or updates an existing one if it matches specified criteria.
@@ -321,68 +231,49 @@ This creates a User record if no record with email "john@example.com" exists, or
 
 ## Creating Records in Transactions
 
-To ensure data consistency when creating multiple related records, you can use transactions:
+To ensure data consistency when creating multiple related [records](/concepts/records.md), you can use [transactions](/concepts/transactions.mdx):
 
 1. Create a transaction:
 ```http
-POST /tx
+POST /api/v1/tx
 ```
 
 2. Use the returned transaction ID in your create record requests:
 ```http
-POST /records
+POST /api/v1/records
 Authorization: Bearer YOUR_TOKEN
 X-Transaction-Id: YOUR_TRANSACTION_ID
 ```
 
 3. Commit the transaction when all operations are successful:
 ```http
-POST /tx/YOUR_TRANSACTION_ID/commit
+POST /api/v1/tx/YOUR_TRANSACTION_ID/commit
 ```
 
 Or roll back if there's an error:
 ```http
-POST /tx/YOUR_TRANSACTION_ID/rollback
+POST /api/v1/tx/YOUR_TRANSACTION_ID/rollback
 ```
 
 ## Data Type Handling
 
-When `suggestTypes` is enabled, RushDB will infer the following types:
+RushDB supports the following [property](/concepts/properties.md) types:
 
 - `string`: Text values
-- `number`: Number values (& numeric values when `convertNumericValuesToNumbers` is true)
+- `number`: Numeric values
 - `boolean`: True/false values
 - `null`: Null values
-- `vector`: Arrays of numbers (when `castNumberArraysToVectors` is true)
 - `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
-- Arrays: Supported as `string[]`, `number[]`, etc.
+- `vector`: Arrays of numbers (when `castNumberArraysToVectors` is true)
 
-## Error Handling
+When `suggestTypes` is enabled (default in the simplified approach), RushDB automatically infers these types from your data.
 
-The create API may return the following error responses:
-
-| Status Code | Description |
-|-------------|-------------|
-| 400 | Bad Request - Invalid payload structure |
-| 401 | Unauthorized - Authentication required |
-| 402 | Payment Required - Create would exceed plan limits |
-| 403 | Forbidden - Insufficient permissions |
-| 500 | Server Error - Processing failed |
-
-### Example Error Response
-
-```json
-{
-  "success": false,
-  "message": "Invalid property type provided for field 'age'",
-  "statusCode": 400
-}
-```
+When `convertNumericValuesToNumbers` is enabled, string values that represent numbers (e.g., '30') will be converted to their numeric equivalents (e.g., 30).
 
 ## Best Practices
 
-- Use batch operations when creating multiple records for better performance
-- Set appropriate labels to help organize and query records
-- Use transactions when creating related records to ensure data consistency
+- Use the default approach for typical use cases and when automatic type inference is desired
+- Use the property-based approach when precise control over [property](/concepts/properties.md) types is required
+- Use the [Import Data API](./import-data.md) for batch operations and creating multiple records
+- Use [transactions](/concepts/transactions.mdx) when creating related records to ensure data consistency
 - Validate data on the client side before sending it to the API
-- Handle errors gracefully in your application

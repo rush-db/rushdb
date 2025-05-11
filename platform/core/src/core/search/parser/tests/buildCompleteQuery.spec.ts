@@ -8,18 +8,17 @@ import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQu
 import { parse } from '@/core/search/parser/parse'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 
-const buildQ = ({ id, searchParams }: { searchParams?: SearchDto; id?: string }) => {
+const buildQ = ({ id, searchQuery }: { searchQuery?: SearchDto; id?: string }) => {
   const relatedQueryPart = buildRelatedQueryPart(id)
 
-  const { queryClauses, parsedWhere, aliasesMap } = buildQuery(searchParams)
+  const { queryClauses, parsedWhere, aliasesMap } = buildQuery(searchQuery)
 
   const { withPart: aggregateProjections, recordPart: returnPart } = buildAggregation(
-    searchParams.aggregate,
+    searchQuery.aggregate,
     aliasesMap
   )
 
-  const labelPart =
-    searchParams.labels && searchParams.labels.length === 1 ? `:${searchParams.labels?.[0]}` : ''
+  const labelPart = searchQuery.labels && searchQuery.labels.length === 1 ? `:${searchQuery.labels?.[0]}` : ''
 
   const queryBuilder = new QueryBuilder()
 
@@ -496,85 +495,85 @@ RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__,
 
 describe('build complete query', () => {
   it('0', () => {
-    const result = buildQ({ searchParams: q0 })
+    const result = buildQ({ searchQuery: q0 })
 
     expect(result).toEqual(r0)
   })
 
   it('1', () => {
-    const result = buildQ({ searchParams: q1 })
+    const result = buildQ({ searchQuery: q1 })
 
     expect(result).toEqual(r1)
   })
 
   it('2', () => {
-    const result = buildQ({ searchParams: q2 })
+    const result = buildQ({ searchQuery: q2 })
 
     expect(result).toEqual(r2)
   })
 
   it('3', () => {
-    const result = buildQ({ searchParams: q3 })
+    const result = buildQ({ searchQuery: q3 })
 
     expect(result).toEqual(r3)
   })
 
   it('4', () => {
-    const result = buildQ({ searchParams: q4 })
+    const result = buildQ({ searchQuery: q4 })
 
     expect(result).toEqual(r4)
   })
 
   it('5', () => {
-    const result = buildQ({ searchParams: q5 })
+    const result = buildQ({ searchQuery: q5 })
 
     expect(result).toEqual(r5)
   })
 
   it('6', () => {
-    const result = buildQ({ searchParams: q6 })
+    const result = buildQ({ searchQuery: q6 })
 
     expect(result).toEqual(r6)
   })
 
   it('7', () => {
-    const result = buildQ({ searchParams: q7 })
+    const result = buildQ({ searchQuery: q7 })
 
     expect(result).toEqual(r7)
   })
 
   it('8', () => {
-    const result = buildQ({ searchParams: q8 })
+    const result = buildQ({ searchQuery: q8 })
 
     expect(result).toEqual(r8)
   })
 
   it('9', () => {
-    const result = buildQ({ searchParams: q9 })
+    const result = buildQ({ searchQuery: q9 })
 
     expect(result).toEqual(r9)
   })
 
   it('10', () => {
-    const result = buildQ({ searchParams: q10 })
+    const result = buildQ({ searchQuery: q10 })
 
     expect(result).toEqual(r10)
   })
 
   it('10', () => {
-    const result = buildQ({ searchParams: q10 })
+    const result = buildQ({ searchQuery: q10 })
 
     expect(result).toEqual(r10)
   })
 
   it('11', () => {
-    const result = buildQ({ searchParams: q11 })
+    const result = buildQ({ searchQuery: q11 })
 
     expect(result).toEqual(r11)
   })
 
   it('12', () => {
-    const result = buildQ({ searchParams: q12 })
+    const result = buildQ({ searchQuery: q12 })
 
     expect(result).toEqual(r12)
   })

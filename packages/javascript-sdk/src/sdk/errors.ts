@@ -1,3 +1,5 @@
+import type { SearchQuery } from '../types'
+
 export class UniquenessError extends Error {
   constructor(label: string, properties: any) {
     super(`Record with label "${label}" and properties ${JSON.stringify(properties)} already exists`)
@@ -15,10 +17,10 @@ export class EmptyTargetError extends Error {
 }
 
 export class NonUniqueResultError extends Error {
-  constructor(duplicateCount: number, searchParams: Record<string, any>) {
+  constructor(duplicateCount: number, searchQuery: SearchQuery) {
     super(
-      `Expected a unique result but found ${duplicateCount} matches for the provided search parameters: ${JSON.stringify(
-        searchParams
+      `Expected a unique result but found ${duplicateCount} matches for the provided SearchQuery: ${JSON.stringify(
+        searchQuery
       )}. Ensure your search parameters uniquely identify a single result.`
     )
     this.name = 'NonUniqueResultError'

@@ -29,7 +29,7 @@ The easiest way to start using RushDB is through the managed cloud service.
 ### Getting Started with RushDB Cloud
 1. Sign up at [app.rushdb.com](https://app.rushdb.com)
 2. Create a new project
-3. Obtain your API token from the dashboard
+3. Get your API token from the dashboard
 4. Start using RushDB APIs via SDKs or REST
 
 ## Option 2: Self-Hosted RushDB
@@ -99,6 +99,8 @@ docker-compose up -d
 #### All-in-One Docker Compose Deployment (with Neo4j)
 
 For development or testing environments, you can run both RushDB and Neo4j together:
+<details>
+<summary>docker-compose.yml</summary>
 
 ```yaml
 version: '3.8'
@@ -142,6 +144,7 @@ volumes:
   neo4j-logs:
   neo4j-conf:
 ```
+</details>
 
 ### Option 2B: AWS Deployment with Terraform
 
@@ -156,6 +159,9 @@ For production-grade deployments, RushDB can be deployed to AWS using Terraform.
 2. **Create Terraform Configuration File**
 
    Create a `main.tf` file with the following content (adjust as needed):
+
+<details>
+<summary>rushdb-terraform.tf</summary>
 
 ```hcl
 terraform {
@@ -295,6 +301,8 @@ output "rushdb_url" {
 }
 ```
 
+</details>
+
 3. **Initialize Terraform**
 
 ```bash
@@ -341,13 +349,13 @@ The following environment variables can be used to configure your RushDB deploym
 
 ### Core Application Settings
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `RUSHDB_PORT` | Port for the application server | `3000` | No |
-| `RUSHDB_AES_256_ENCRYPTION_KEY` | 32-character key for token encryption | `32SymbolStringForTokenEncryption` | Yes, for production |
-| `RUSHDB_DASHBOARD_URL` | URL for dashboard access | `/` | No |
-| `RUSHDB_SELF_HOSTED` | Whether running in self-hosted mode | `true` | No |
-| `RUSHDB_SERVE_STATIC` | Whether to serve static files | `true` | No |
+| Variable | Description                                  | Default | Required |
+|----------|----------------------------------------------|---------|----------|
+| `RUSHDB_PORT` | Port for the application server              | `3000` | No |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | 32-character key for token encryption        | `32SymbolStringForTokenEncryption` | Yes, for production |
+| `RUSHDB_DASHBOARD_URL` | URL for dashboard access                     | `/` | No |
+| `RUSHDB_SELF_HOSTED` | Whether running in self-hosted mode          | `true` | No |
+| `RUSHDB_SERVE_STATIC` | Whether to serve static files (Dashboard UI) | `true` | No |
 
 ### Authentication Settings
 

@@ -137,7 +137,7 @@ export const $filteredRecordsRelations = createAsyncStore({
       return acc
     }, {})
 
-    const { data, total } = await api.relations.find({
+    const { data, total } = await api.relationships.find({
       searchQuery: {
         where:
           combineMode === 'or' ? { $or: convertToSearchQuery(properties) } : convertToSearchQuery(properties),
@@ -179,13 +179,13 @@ export const $currentProjectFields = createAsyncStore({
       properties = $currentProjectFilters.get().map(filterToSearchOperation)
     }
 
-    return await api.properties.list(
-      {
+    return await api.properties.find({
+      searchQuery: {
         labels,
         where: convertToSearchQuery(properties)
       },
       init
-    )
+    })
   },
   deps: [$combineFilters, $currentProjectId, $activeLabels, $currentProjectFilters]
 })
@@ -203,13 +203,13 @@ export const $currentProjectSuggestedFields = createAsyncStore({
 
     let properties
 
-    return await api.properties.list(
-      {
+    return await api.properties.find({
+      searchQuery: {
         labels,
         where: properties
       },
       init
-    )
+    })
   },
   deps: [$currentProjectId, $activeLabels, $currentProjectFilters]
 })

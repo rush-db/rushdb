@@ -7,7 +7,7 @@ import type {
   RelationTarget,
   Relation,
   DBRecordInferred,
-  DBRecordWriteOptions
+  DBRecordCreationOptions
 } from '../sdk/record.js'
 import type { SDKConfig } from '../sdk/types.js'
 import type {
@@ -133,7 +133,7 @@ export class RestAPI {
     ) => {
       const txId = pickTransactionId(transaction)
       const recordId = pickRecordId(source)!
-      const path = `/records/${recordId}/relations`
+      const path = `/relationships/${recordId}`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
@@ -176,7 +176,7 @@ export class RestAPI {
     ) => {
       const txId = pickTransactionId(transaction)
       const recordId = pickRecordId(source)!
-      const path = `/records/${recordId}/relations`
+      const path = `/relationships/${recordId}`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'PUT',
@@ -212,7 +212,7 @@ export class RestAPI {
       }: {
         label: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
-        options?: DBRecordWriteOptions
+        options?: DBRecordCreationOptions
       },
       transaction?: Transaction | string
     ): Promise<DBRecordInstance<S>> => {
@@ -258,7 +258,7 @@ export class RestAPI {
     createMany: async <S extends Schema = any>(
       data: {
         label: string
-        options?: DBRecordWriteOptions
+        options?: DBRecordCreationOptions
         payload: MaybeArray<AnyObject>
       },
       transaction?: Transaction | string
@@ -277,7 +277,13 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       if (response?.success && response?.data) {
-        const result = new DBRecordsArrayInstance<S>(response.data, response.total)
+        const dbRecordInstances = (response.data as Array<DBRecord<S>>).map((r) => {
+          const instance = new DBRecordInstance<S>(r)
+          instance.init(this)
+          return instance
+        })
+
+        const result = new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
         result.init(this)
         return result
       }
@@ -397,8 +403,14 @@ export class RestAPI {
       const response = await this.fetcher<ApiResponse<Array<DBRecordInferred<S, Q>>>>(path, payload)
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
+      const dbRecordInstances = (response.data as Array<DBRecord<S>>).map((r) => {
+        const instance = new DBRecordInstance<S>(r)
+        instance.init(this)
+        return instance
+      })
+
       const result = new DBRecordsArrayInstance<S, Q>(
-        response.data,
+        dbRecordInstances,
         response.total,
         searchQueryWithEntryPoint
       )
@@ -434,7 +446,13 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       if (isArray(idOrIds)) {
-        const result = new DBRecordsArrayInstance<S>(response.data as Array<DBRecord<S>>, response.total)
+        const dbRecordInstances = (response.data as Array<DBRecord<S>>).map((r) => {
+          const instance = new DBRecordInstance<S>(r)
+          instance.init(this)
+          return instance
+        })
+
+        const result = new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
         result.init(this)
         return result as Result
       } else {
@@ -509,52 +527,6 @@ export class RestAPI {
     },
 
     /**
-     * Gets properties of a specific record
-     * @param target - The record to get properties from
-     * @param transaction - Optional transaction for atomic operations
-     * @returns Promise with the API response containing record properties
-     */
-    properties: async (target: DBRecordTarget, transaction?: Transaction | string) => {
-      const txId = pickTransactionId(transaction)
-      const recordId = pickRecordId(target)!
-      const path = `/records/${recordId}/properties`
-      const payload = {
-        headers: Object.assign({}, buildTransactionHeader(txId)),
-        method: 'GET'
-      }
-      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
-      this.logger?.({ requestId, path, ...payload })
-
-      const response = await this.fetcher<ApiResponse<Array<Property>>>(path, payload)
-      this.logger?.({ requestId, path, ...payload, responseData: response.data })
-
-      return response
-    },
-
-    /**
-     * Gets relations of a specific record
-     * @param target - The record to get relations from
-     * @param transaction - Optional transaction for atomic operations
-     * @returns Promise with the API response containing record relations
-     */
-    relations: async (target: DBRecordTarget, transaction?: Transaction | string) => {
-      const txId = pickTransactionId(transaction)
-      const recordId = pickRecordId(target)!
-      const path = `/records/${recordId}/relations`
-      const payload = {
-        headers: Object.assign({}, buildTransactionHeader(txId)),
-        method: 'GET'
-      }
-      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
-      this.logger?.({ requestId, path, ...payload })
-
-      const response = await this.fetcher<ApiResponse<Array<Relation>>>(path, payload)
-      this.logger?.({ requestId, path, ...payload, responseData: response.data })
-
-      return response
-    },
-
-    /**
      * Sets (overwrites) record data
      * @param target - The record to update
      * @param label - The label/type of the record
@@ -574,7 +546,7 @@ export class RestAPI {
         target: DBRecordTarget
         label: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
-        options?: DBRecordWriteOptions
+        options?: DBRecordCreationOptions
       },
       transaction?: Transaction | string
     ) => {
@@ -629,7 +601,7 @@ export class RestAPI {
         target: DBRecordTarget
         label: string
         data: Partial<InferSchemaTypesWrite<S>> | Array<PropertyDraft>
-        options?: DBRecordWriteOptions
+        options?: DBRecordCreationOptions
       },
       transaction?: Transaction | string
     ) => {
@@ -684,7 +656,7 @@ export class RestAPI {
         label: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
         matchBy?: Array<string>
-        options?: DBRecordWriteOptions
+        options?: DBRecordCreationOptions
       },
       transaction?: Transaction | string
     ): Promise<DBRecordInstance<S>> => {
@@ -722,7 +694,7 @@ export class RestAPI {
   /**
    * API methods for managing relations between records
    */
-  public relations = {
+  public relationships = {
     /**
      * Searches for relations matching the query criteria
      * @param searchQuery - Query to identify relations
@@ -741,7 +713,7 @@ export class RestAPI {
       }
 
       const queryString = queryParams.toString() ? '?' + queryParams.toString() : ''
-      const path = `/records/relations/search${queryString}`
+      const path = `/relationships/search${queryString}`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
@@ -791,7 +763,7 @@ export class RestAPI {
      */
     find: async <S extends Schema = any>(searchQuery: SearchQuery<S>, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
-      const path = `/properties`
+      const path = `/properties/search`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
@@ -887,7 +859,7 @@ export class RestAPI {
     find: async <S extends Schema = any>(searchQuery: SearchQuery<S>, transaction?: Transaction | string) => {
       const txId = pickTransactionId(transaction)
 
-      const path = '/labels'
+      const path = '/labels/search'
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',

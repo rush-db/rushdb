@@ -16,13 +16,13 @@ export class ExportService {
   async collectAllDataFromDB({
     id,
     projectId,
-    searchParams,
+    searchQuery,
     transaction,
     total
   }: {
     id: string
     projectId: string
-    searchParams?: SearchDto
+    searchQuery?: SearchDto
     transaction: Transaction
     total: number
   }): Promise<any[]> {
@@ -37,9 +37,9 @@ export class ExportService {
       const batchData = await this.entityService.find({
         id,
         projectId,
-        searchParams: {
-          where: searchParams.where,
-          orderBy: searchParams.orderBy,
+        searchQuery: {
+          where: searchQuery.where,
+          orderBy: searchQuery.orderBy,
           skip,
           limit
         },
@@ -72,25 +72,25 @@ export class ExportService {
   async exportRecords({
     id,
     projectId,
-    searchParams,
+    searchQuery,
     transaction
   }: {
     id?: string
     projectId: string
-    searchParams?: SearchDto
+    searchQuery?: SearchDto
     transaction: Transaction
   }) {
     const total = await this.entityService.getCount({
       id,
       projectId,
-      searchParams,
+      searchQuery,
       transaction
     })
 
     return await this.collectAllDataFromDB({
       id,
       projectId,
-      searchParams,
+      searchQuery,
       transaction,
       total
     })

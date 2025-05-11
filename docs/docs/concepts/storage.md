@@ -36,7 +36,7 @@ Each record in RushDB (a meaningful key-value data piece) is extended with sever
 
 | Internal Key | Client Representation | Description |
 |--------------|----------------------|-------------|
-| `__RUSHDB__KEY__ID__` | `__id` | UUIDv7 that enables lexicographic ordering without relying on user-defined fields like `createdAt`. RushDB SDKs support converting `__id` to timestamp and ISO8601 date. |
+| `__RUSHDB__KEY__ID__` | `__id` | UUIDv7 that enables lexicographic ordering without relying on user-defined fields like `createdAt`. RushDB SDKs support converting `__id` to timestamp and ISO8601 date. For more details, see [UUIDv7 specification](https://www.ietf.org/archive/id/draft-peabody-uuid-v7-01.html). |
 | `__RUSHDB__KEY__PROPERTIES__META__` | `__proptypes` | Stringified meta-object holding the types of data in the current record, e.g., `{ name: "string", active: "boolean", ... }` |
 | `__RUSHDB__KEY__LABEL__` | `__label` | Record Label identifier. Every record has two labels: a default one (`__RUSHDB__LABEL__RECORD__`) and a user-defined one that is searchable. Currently, RushDB allows only one custom label per record, and it is required by default. For more details about labels, see [Labels](/concepts/labels). |
 | `__RUSHDB__KEY__PROJECT__ID__` | `__projectId` | Project identifier for multitenancy isolation. This property is never exposed to clients via UI or API. |
@@ -108,7 +108,7 @@ Properties are not shared amongst projects (database instances), ensuring comple
 
 ## Data Types
 
-RushDB supports a wide range of data types to accommodate diverse data needs and provide a flexible environment for your applications. Below is a comprehensive list of the supported data types along with their descriptions:
+RushDB supports a wide range of data types to accommodate diverse data needs and provide a flexible environment for your applications. Below is a comprehensive find of the supported data types along with their descriptions:
 
 ### `string`
 This data type is used for any textual information and can hold text of unlimited length.
@@ -137,6 +137,8 @@ This data type accommodates arrays of both floating-point numbers and integers. 
 In essence, RushDB supports all the data types that JSON does. However, when it comes to arrays (or Lists), RushDB can indeed
 hold them as **Property** values, but it's important to note that it can only store <u>consistent values</u> within those
 arrays. To learn more, check out the [Properties](/concepts/properties) section.
+
+> **Note:** Every data type mentioned above (except `vector`, since it's already an array by default) supports an array representation.
 
 Here some valid examples:
 - `["apple", "banana", "carrot"]` - good

@@ -28,7 +28,7 @@ Transactions in RushDB:
 Creates a new transaction and returns a transaction ID.
 
 ```http
-POST /tx
+POST /api/v1/tx
 ```
 
 #### Request Body
@@ -61,7 +61,7 @@ POST /tx
 Check if a transaction exists.
 
 ```http
-GET /tx/:txId
+GET /api/v1/tx/:txId
 ```
 
 #### Parameters
@@ -86,7 +86,7 @@ GET /tx/:txId
 Commits all changes made within the transaction, making them permanent in the database.
 
 ```http
-POST /tx/:txId/commit
+POST /api/v1/tx/:txId/commit
 ```
 
 #### Parameters
@@ -111,7 +111,7 @@ POST /tx/:txId/commit
 Discards all changes made within the transaction.
 
 ```http
-POST /tx/:txId/rollback
+POST /api/v1/tx/:txId/rollback
 ```
 
 #### Parameters
@@ -138,7 +138,7 @@ To use a transaction with other API endpoints, include the transaction ID in the
 ### Example
 
 ```http
-POST /records
+POST /api/v1/records
 Content-Type: application/json
 token: YOUR_API_TOKEN
 X-Transaction-Id: 018e5c31-f35a-7000-89cd-850db63a1e77
@@ -162,27 +162,6 @@ Transactions have a timeout mechanism to prevent hanging transactions:
 - Default timeout: 5 seconds (5000ms)
 - Maximum timeout: 30 seconds (30000ms)
 - If a transaction isn't committed or rolled back within its TTL, it will be automatically rolled back
-
-## Error Handling
-
-The Transaction API may return the following error responses:
-
-| Status Code | Description |
-|-------------|-------------|
-| 401 | Unauthorized - Authentication required |
-| 403 | Forbidden - Insufficient permissions |
-| 404 | Not Found - Transaction with the specified ID doesn't exist |
-| 500 | Server Error - Processing failed |
-
-### Example Error Response
-
-```json
-{
-  "success": false,
-  "message": "Transaction with ID 018e5c31-f35a-7000-89cd-850db63a1e77 not found",
-  "statusCode": 404
-}
-```
 
 ## Best Practices
 

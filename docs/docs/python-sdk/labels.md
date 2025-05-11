@@ -16,7 +16,7 @@ class LabelsAPI(BaseAPI):
 
 ### find()
 
-Retrieves a list of properties based on optional search criteria.
+Retrieves a find of properties based on optional search criteria.
 
 **Signature:**
 ```python

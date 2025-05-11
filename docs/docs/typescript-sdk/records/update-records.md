@@ -3,9 +3,8 @@ sidebar_position: 6
 ---
 
 # Update Records
-:::note
+
 Updating records is a crucial operation for maintaining and modifying data within your application. The `Model` class provides methods to update single or multiple records. We will use the `Author` and `Post` models defined earlier to demonstrate these operations.
-:::
 
 ## Table of Contents
 

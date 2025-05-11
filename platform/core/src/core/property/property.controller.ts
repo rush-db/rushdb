@@ -77,14 +77,14 @@ export class PropertyController {
     private readonly entityService: EntityService
   ) {}
 
-  @Post()
+  @Post('/search')
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
   async listProperties(
-    @Body() searchParams: Omit<SearchDto, 'sort' | 'skip' | 'limit'>,
+    @Body() searchQuery: Omit<SearchDto, 'sort' | 'skip' | 'limit'>,
     @TransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<TPropertyProperties[]> {
@@ -92,7 +92,7 @@ export class PropertyController {
 
     return this.entityService.findProperties({
       projectId,
-      searchParams,
+      searchQuery,
       transaction
     })
   }
@@ -167,41 +167,41 @@ export class PropertyController {
   }
 
   // @TODO: Move to bulk patch operation to Entity Scope
-  @Patch(':propertyId/values')
-  @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
-  @AuthGuard('project')
-  @HttpCode(HttpStatus.OK)
-  async updateFieldValues(
-    @Param('propertyId') propertyId: string,
-    @Body() updateParams: UpdatePropertyValueDto,
-    @TransactionDecorator() transaction: Transaction,
-    @Request() request: PlatformRequest
-  ): Promise<boolean> {
-    const projectId = request.projectId
-
-    if (updateParams.newValue === null) {
-      const deleteParams = {
-        entityIds: updateParams.entityIds
-      }
-
-      await this.propertyService.deleteProperty({
-        propertyId,
-        deleteParams,
-        projectId,
-        transaction
-      })
-
-      return true
-    }
-
-    await this.propertyService.updateField({
-      propertyId,
-      updateParams,
-      transaction
-    })
-    return true
-  }
+  // @Patch(':propertyId/values')
+  // @ApiBearerAuth()
+  // @UseGuards(IsRelatedToProjectGuard())
+  // @AuthGuard('project')
+  // @HttpCode(HttpStatus.OK)
+  // async updateFieldValues(
+  //   @Param('propertyId') propertyId: string,
+  //   @Body() updateParams: UpdatePropertyValueDto,
+  //   @TransactionDecorator() transaction: Transaction,
+  //   @Request() request: PlatformRequest
+  // ): Promise<boolean> {
+  //   const projectId = request.projectId
+  //
+  //   if (updateParams.newValue === null) {
+  //     const deleteParams = {
+  //       entityIds: updateParams.entityIds
+  //     }
+  //
+  //     await this.propertyService.deleteProperty({
+  //       propertyId,
+  //       deleteParams,
+  //       projectId,
+  //       transaction
+  //     })
+  //
+  //     return true
+  //   }
+  //
+  //   await this.propertyService.updateField({
+  //     propertyId,
+  //     updateParams,
+  //     transaction
+  //   })
+  //   return true
+  // }
 
   // @TODO: Rename operation here is ok too. But maybe it would be better to achieve the same more flexible
   // by putting Rename method as a part of Bulk Operation to Entity Scope. It will be cool to have SearchDTO as

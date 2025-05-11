@@ -4,240 +4,258 @@ sidebar_position: 5
 
 # Transactions
 
-The `PropertiesAPI` class provides methods for managing and querying properties in RushDB.
+The RushDB TypeScript SDK provides a simple but powerful interface for working with database transactions. Transactions allow you to perform multiple database operations atomically, ensuring that either all operations succeed or none do, which helps maintain data consistency.
 
-## Class Definition
+## Transaction Overview
 
-```python
-class PropertiesAPI(BaseAPI):
+Transactions in RushDB TypeScript SDK:
+- Enable multiple database operations to be executed as a single atomic unit
+- Provide ACID (Atomicity, Consistency, Isolation, Durability) guarantees
+- Automatically roll back after a timeout to prevent hanging transactions
+- Can be explicitly committed or rolled back
+
+## Transaction API
+
+The SDK provides transaction-related methods through the `tx` object:
+
+```typescript
+// Access the transaction API
+const tx = db.tx;
 ```
 
-## Methods
+### Begin a Transaction
 
-### find
+Creates a new transaction and returns a transaction object:
 
-Retrieves a list of properties based on optional search criteria.
+```typescript
+const transaction = await db.tx.begin({
+  ttl: 10000 // Optional: Time to live in milliseconds (default: 5000ms, max: 30000ms)
+});
 
-**Signature:**
-```python
-def find(
-    self,
-    query: Optional[SearchQuery] = None,
-    transaction: Optional[Transaction] = None
-) -> List[Property]
+// transaction object contains the transaction ID
+console.log(transaction.id); // e.g., "018e5c31-f35a-7000-89cd-850db63a1e77"
 ```
 
-**Arguments:**
-- `query` (Optional[SearchQuery]): Search query parameters for filtering properties
-- `transaction` (Optional[Transaction]): Optional transaction object
+### Get a Transaction
 
-**Returns:**
-- `List[Property]`: List of properties matching the search criteria
+Checks if a transaction exists and retrieves its information:
 
-**Example:**
-```python
-# Find all properties
-properties = client.properties.find()
-
-# Find properties with specific criteria
-query = {
-    "where": {
-        "name": {"$startsWith": "user_"},  # Properties starting with 'user_'
-        "type": "string"  # Only string type properties
-    },
-    "limit": 10  # Limit to 10 results
-}
-filtered_properties = client.properties.find(query)
+```typescript
+// You can pass either a transaction object or a transaction ID string
+const txInfo = await db.tx.get(transaction);
+// or
+const txInfo = await db.tx.get("018e5c31-f35a-7000-89cd-850db63a1e77");
 ```
 
-### find_by_id
+### Commit a Transaction
 
-Retrieves a specific property by its ID.
+Commits all changes made within the transaction, making them permanent in the database:
 
-**Signature:**
-```python
-def find_by_id(
-    self,
-    property_id: str,
-    transaction: Optional[Transaction] = None
-) -> Property
+```typescript
+// You can pass either a transaction object or a transaction ID string
+await transaction.commit()
+// or
+await db.tx.commit(transaction);
+// or
+await db.tx.commit("018e5c31-f35a-7000-89cd-850db63a1e77");
 ```
 
-**Arguments:**
-- `property_id` (str): Unique identifier of the property
-- `transaction` (Optional[Transaction]): Optional transaction object
+### Rollback a Transaction
 
-**Returns:**
-- `Property`: Property details
+Discards all changes made within the transaction:
 
-**Example:**
-```python
-# Retrieve a specific property by ID
-property_details = client.properties.find_by_id("prop_123456")
+```typescript
+// You can pass either a transaction object or a transaction ID string
+await transaction.rollback()
+// or
+await db.tx.rollback(transaction);
+// or
+await db.tx.rollback("018e5c31-f35a-7000-89cd-850db63a1e77");
 ```
 
-### delete
+## Using Transactions with API Methods
 
-Deletes a property by its ID.
+Most API methods in the RushDB TypeScript SDK accept an optional transaction parameter that allows you to include the operation in a transaction:
 
-**Signature:**
-```python
-def delete(
-    self,
-    property_id: str,
-    transaction: Optional[Transaction] = None
-) -> None
-```
+```typescript
+// Create a transaction
+const transaction = await db.tx.begin({ ttl: 10000 });
 
-**Arguments:**
-- `property_id` (str): Unique identifier of the property to delete
-- `transaction` (Optional[Transaction]): Optional transaction object
+try {
+  // Perform operations as part of the transaction
+  const person = await db.records.create({
+    label: "Person",
+    data: { name: "John Doe", age: 30 }
+  }, transaction); // Pass the transaction as the second parameter
 
-**Returns:**
-- `None`
+  const address = await db.records.create({
+    label: "Address",
+    data: { street: "123 Main St", city: "New York" }
+  }, transaction);
 
-**Example:**
-```python
-# Delete a property
-client.properties.delete("prop_123456")
-```
+  // Create a relationship between the person and address
+  await db.records.attach({
+    source: person,
+    target: address,
+    options: {
+      type: "LIVES_AT",
+      direction: "out"
+    }
+  }, transaction);
 
-### values
+  // Commit the transaction if all operations succeeded
+  await transaction.commit()
+  // or
+  // await db.tx.commit(transaction);
 
-Retrieves values for a specific property with optional sorting and pagination.
-
-**Signature:**
-```python
-def values(
-    self,
-    property_id: str,
-    sort: Optional[Literal["asc", "desc"]] = None,
-    skip: Optional[int] = None,
-    limit: Optional[int] = None,
-    transaction: Optional[Transaction] = None
-) -> PropertyValuesData
-```
-
-**Arguments:**
-- `property_id` (str): Unique identifier of the property
-- `sort` (Optional[Literal["asc", "desc"]]): Sort order of values
-- `skip` (Optional[int]): Number of values to skip (for pagination)
-- `limit` (Optional[int]): Maximum number of values to return
-- `transaction` (Optional[Transaction]): Optional transaction object
-
-**Returns:**
-- `PropertyValuesData`: Property values data, including optional min/max and list of values
-
-**Example:**
-```python
-# Get property values
-values_data = client.properties.values(
-    property_id="prop_age",
-    sort="desc",  # Sort values in descending order
-    skip=0,       # Start from the first value
-    limit=100     # Return up to 100 values
-)
-
-# Access values
-print(values_data.get('values', []))  # List of property values
-print(values_data.get('min'))         # Minimum value (for numeric properties)
-print(values_data.get('max'))         # Maximum value (for numeric properties)
-```
-
-## Comprehensive Usage Example
-
-```python
-# Find all properties
-all_properties = client.properties.find()
-for prop in all_properties:
-    print(f"Property ID: {prop['id']}")
-    print(f"Name: {prop['name']}")
-    print(f"Type: {prop['type']}")
-    print(f"Metadata: {prop.get('metadata', 'No metadata')}")
-    print("---")
-
-# Detailed property search
-query = {
-    "where": {
-        "type": "number",             # Only numeric properties
-        "name": {"$contains": "score"}  # Properties with 'score' in name
-    },
-    "limit": 5  # Limit to 5 results
-}
-numeric_score_properties = client.properties.find(query)
-
-# Get values for a specific property
-if numeric_score_properties:
-    first_prop = numeric_score_properties[0]
-    prop_values = client.properties.values(
-        property_id=first_prop['id'],
-        sort="desc",
-        limit=50
-    )
-    print(f"Values for {first_prop['name']}:")
-    print(f"Min: {prop_values.get('min')}")
-    print(f"Max: {prop_values.get('max')}")
-    
-    # Detailed property examination
-    detailed_prop = client.properties.find_by_id(first_prop['id'])
-    print("Detailed Property Info:", detailed_prop)
-```
-
-## Property Types and Structures
-
-RushDB supports the following property types:
-- `"boolean"`: True/False values
-- `"datetime"`: Date and time values
-- `"null"`: Null/empty values
-- `"number"`: Numeric values
-- `"string"`: Text values
-
-### Property Structure Example
-```python
-property = {
-    "id": "prop_unique_id",
-    "name": "user_score",
-    "type": "number",
-    "metadata": Optional[str]  # Optional additional information
-}
-
-property_with_value = {
-    "id": "prop_unique_id",
-    "name": "user_score",
-    "type": "number",
-    "value": 95.5  # Actual property value
+  console.log("All operations completed successfully!");
+} catch (error) {
+  // Rollback the transaction if any operation failed
+  await transaction.rollback()
+  // or
+  // await db.tx.rollback(transaction);
+  console.error("Transaction failed:", error);
 }
 ```
 
-## Transactions
+## Transaction Timeout
 
-Properties API methods support optional transactions for atomic operations:
+Transactions in RushDB have a timeout mechanism to prevent hanging transactions:
 
-```python
-# Using a transaction
-with client.transactions.begin() as transaction:
-    # Perform multiple property-related operations
-    property_to_delete = client.properties.find(
-        {"where": {"name": "temp_property"}},
-        transaction=transaction
-    )[0]
-    
-    client.properties.delete(
-        property_id=property_to_delete['id'],
-        transaction=transaction
-    )
-    # Transaction will automatically commit if no errors occur
+- Default timeout: 5 seconds (5000ms)
+- Maximum timeout: 30 seconds (30000ms)
+- If a transaction is not committed or rolled back within its TTL, it will be automatically rolled back
+
+## Best Practices
+
+1. **Keep transactions short and focused**
+
+   Long-running transactions can lead to resource contention and reduce overall system performance.
+
+2. **Set appropriate TTL**
+
+   Choose a TTL that gives your operations enough time to complete, but not so long that resources are unnecessarily tied up.
+
+3. **Always commit or rollback explicitly**
+
+   Explicitly commit or rollback transactions rather than relying on automatic timeout.
+
+4. **Implement proper error handling**
+
+   Always use try/catch blocks when working with transactions to ensure proper rollback in case of errors.
+
+5. **Use transactions only when necessary**
+
+   For single operations, you don't need to use transactions. Only use transactions when multiple operations need to be atomic.
+
+6. **Be aware of transaction scope**
+
+   Transactions in RushDB are tied to your API token and will affect only the operations performed with that token.
+
+## Example: Complete Transaction Workflow
+
+Here's a complete example showing a transaction workflow for creating a user profile with multiple related records:
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk';
+
+// Initialize SDK
+const db = new RushDB('YOUR_API_TOKEN');
+
+async function createUserProfile(userData) {
+  // Begin a transaction with 15-second TTL
+  const transaction = await db.tx.begin({ ttl: 15000 });
+
+  try {
+    // Create user record
+    const user = await db.records.create({
+      label: "User",
+      data: {
+        username: userData.username,
+        email: userData.email
+      }
+    }, transaction);
+
+    // Create profile record
+    const profile = await db.records.create({
+      label: "Profile",
+      data: {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        birthDate: userData.birthDate
+      }
+    }, transaction);
+
+    // Create address record
+    const address = await db.records.create({
+      label: "Address",
+      data: {
+        street: userData.street,
+        city: userData.city,
+        postalCode: userData.postalCode,
+        country: userData.country
+      }
+    }, transaction);
+
+    // Create relationships
+    await db.records.attach({
+      source: user,
+      target: profile,
+      options: {
+        type: "HAS_PROFILE",
+        direction: "out"
+      }
+    }, transaction);
+
+    await db.records.attach({
+      source: profile,
+      target: address,
+      options: {
+        type: "HAS_ADDRESS",
+        direction: "out"
+      }
+    }, transaction);
+
+    // Commit the transaction
+    await transaction.commit()
+    // or
+    // await db.tx.commit(transaction);
+
+    return {
+      success: true,
+      user
+    };
+
+  } catch (error) {
+    // Rollback the transaction on any error
+    await transaction.rollback()
+    // or
+    // await db.tx.rollback(transaction);
+
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// Usage
+createUserProfile({
+  username: "johndoe",
+  email: "john@example.com",
+  firstName: "John",
+  lastName: "Doe",
+  birthDate: "1990-01-01",
+  street: "123 Main St",
+  city: "New York",
+  postalCode: "10001",
+  country: "USA"
+}).then(result => {
+  if (result.success) {
+    console.log("User profile created successfully:", result.user);
+  } else {
+    console.error("Failed to create user profile:", result.error);
+  }
+});
 ```
 
-## Error Handling
-
-When working with the PropertiesAPI, be prepared to handle potential errors:
-
-```python
-try:
-    # Attempt to find or delete a property
-    property_details = client.properties.find_by_id("non_existent_prop")
-except RushDBError as e:
-    print(f"Error: {e}")
-    print(f"Error Details: {e.details}")
-```

@@ -68,6 +68,9 @@ For a fully self-contained development environment with both RushDB and Neo4j:
 
 1. Create a `docker-compose.yml` file with the following content:
 
+<details>
+<summary>docker-compose.yml</summary>
+
 ```yaml
 version: '3.8'
 services:
@@ -109,6 +112,7 @@ volumes:
   neo4j-logs:
   neo4j-conf:
 ```
+</details>
 
 2. Start the environment:
 

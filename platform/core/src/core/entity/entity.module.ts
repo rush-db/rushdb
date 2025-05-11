@@ -2,8 +2,9 @@ import { forwardRef, Module } from '@nestjs/common'
 
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import { EntityController } from '@/core/entity/entity.controller'
-import { LabelController } from '@/core/entity/label.controller'
+import { LabelsController } from '@/core/labels/controller'
 import { PropertyModule } from '@/core/property/property.module'
+import { RelationshipsController } from '@/core/relationships/controller'
 import { TransactionModule } from '@/core/transactions/transaction.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
@@ -25,6 +26,6 @@ import { EntityRepository } from './model/entity.repository'
   ],
   providers: [EntityRepository, EntityService, EntityQueryService],
   exports: [EntityRepository, EntityService, EntityQueryService],
-  controllers: [EntityController, LabelController]
+  controllers: [EntityController, LabelsController, RelationshipsController]
 })
 export class EntityModule {}

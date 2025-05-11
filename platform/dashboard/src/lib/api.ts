@@ -12,7 +12,7 @@ import type {
   RelationTarget,
   RelationOptions,
   PropertyDraft,
-  DBRecordWriteOptions
+  DBRecordCreationOptions
 } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
@@ -49,7 +49,7 @@ export const api = {
       options = {}
     }: WithInit & {
       label: string
-      options?: DBRecordWriteOptions
+      options?: DBRecordCreationOptions
       payload: MaybeArray<AnyObject>
     }) {
       try {
@@ -73,18 +73,6 @@ export const api = {
     },
     async deleteById({ id, init }: { id: DBRecord['__id']; init?: RequestInit }) {
       return sdk(init).records.deleteById(id)
-    },
-    async relations({
-      id,
-      init
-    }: WithInit & {
-      id: DBRecord['__id']
-    }) {
-      return sdk(init).records.relations(id)
-    },
-
-    async properties({ id, init }: { id: DBRecord['__id']; init: RequestInit }) {
-      return sdk(init).records.properties(id)
     },
     async find(searchQuery: SearchQuery, init: RequestInit) {
       return sdk(init).records.find(searchQuery)
@@ -144,7 +132,7 @@ export const api = {
       return sdk(init).labels.find(searchQuery)
     }
   },
-  relations: {
+  relationships: {
     async find({
       init,
       pagination,
@@ -153,7 +141,7 @@ export const api = {
       searchQuery: SearchQuery
       pagination?: Pick<SearchQuery, 'limit' | 'skip'>
     } & WithInit) {
-      return sdk(init).relations.find({ ...searchQuery, ...pagination })
+      return sdk(init).relationships.find({ ...searchQuery, ...pagination })
     }
   },
   workspaces: {
@@ -288,8 +276,8 @@ export const api = {
     }
   },
   properties: {
-    async list(query: SearchQuery, init: RequestInit) {
-      return sdk(init).properties.find(query)
+    async find({ searchQuery, init }: { searchQuery: SearchQuery; init: RequestInit }) {
+      return sdk(init).properties.find(searchQuery)
     },
     async values({ id, init }: { id: Property['id']; init: RequestInit }) {
       return sdk(init).properties.values(id)

@@ -308,9 +308,6 @@ const OperationSelector = () => {
     { value: 'records.findOne', label: 'records.findOne' },
     { value: 'records.findById', label: 'records.findById' },
     { value: 'records.findUniq', label: 'records.findUniq' },
-    { value: 'records.properties', label: 'records.properties' },
-    { value: 'labels.find', label: 'labels.find' },
-    { value: 'records.relations', label: 'records.relations' },
     { value: 'records.deleteById', label: 'records.deleteById' },
     { value: 'records.delete', label: 'records.delete' },
     { value: 'records.createMany', label: 'records.createMany' },
@@ -319,8 +316,9 @@ const OperationSelector = () => {
     { value: 'records.update', label: 'records.update' },
     { value: 'records.attach', label: 'records.attach' },
     { value: 'records.detach', label: 'records.detach' },
+    { value: 'labels.find', label: 'labels.find' },
     { value: 'properties.values', label: 'properties.values' },
-    { value: 'properties.list', label: 'properties.list' },
+    { value: 'properties.find', label: 'properties.list' },
     { value: 'relations.find', label: 'relations.find' }
   ]
 

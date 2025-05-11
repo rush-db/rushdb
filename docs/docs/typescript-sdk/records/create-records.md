@@ -3,27 +3,29 @@ sidebar_position: 1
 ---
 
 # Create Records
-:::note
-Creating records is a fundamental operation when working with any data-driven application. The `Model` class provides methods to create single or multiple records in the database. 
-:::
 
-## Table of Contents
+Creating records is a fundamental operation when working with any data-driven application. The `Model` class provides methods to create single or multiple records in the database.
 
-- [Creating a Single Record](#create)
-- [Creating Multiple Records](#createmany)
+We will use the following model definitions to demonstrate these operations:
 
-We will use the `Author` model defined earlier to demonstrate these operations.
 ```typescript
-const Author = new Model('author', {
+// Using the recommended approach with RushDB instance in constructor
+const AuthorRepo = new Model('author', {
+  name: { type: 'string' },
+  email: { type: 'string', uniq: true }
+}, db);
+
+// Alternative approach without RushDB instance
+const AuthorModel = new Model('author', {
   name: { type: 'string' },
   email: { type: 'string', uniq: true }
 });
+const AuthorRepo = db.registerModel(AuthorModel);
 ```
 
 ### `create`
 
 The `create` method is used to create a single record.
-
 
 **Signature:**
 ```typescript
@@ -51,7 +53,7 @@ const newAuthor = {
   email: 'john.doe@example.com'
 };
 
-const createdAuthor = await Author.create(newAuthor);
+const createdAuthor = await AuthorRepo.create(newAuthor);
 console.log(createdAuthor);
 
 /*
@@ -75,7 +77,7 @@ const newAuthor = {
 
 const transaction = await db.tx.begin();
 try {
-  const createdAuthor = await Author.create(newAuthor, transaction);
+  const createdAuthor = await AuthorRepo.create(newAuthor, transaction);
   await transaction.commit();
   console.log(createdAuthor);
 
@@ -126,7 +128,7 @@ const authors = [
   { name: 'Bob Brown', email: 'bob.brown@example.com' }
 ];
 
-const createdAuthors = await Author.createMany(authors);
+const createdAuthors = await AuthorRepo.createMany(authors);
 console.log(createdAuthors);
 /*
 {
@@ -158,7 +160,7 @@ const authors = [
 
 const transaction = await db.tx.begin();
 try {
-  const createdAuthors = await Author.createMany(authors, transaction);
+  const createdAuthors = await AuthorRepo.createMany(authors, transaction);
   await transaction.commit();
   console.log(createdAuthors);
   /*
@@ -184,6 +186,5 @@ try {
   await transaction.rollback();
   throw error;
 }
-
 ```
 
