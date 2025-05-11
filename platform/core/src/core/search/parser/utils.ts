@@ -57,7 +57,7 @@ export const isPropertyCriteria = (input: MaybeArray<Where<any>>) => {
   if (isObject(input)) {
     return Object.entries(input).every(([key, value]) => {
       if (key === '$vector' && isObject(value)) {
-        return 'fn' in value && 'value' in value && 'query' in value
+        return 'fn' in value && 'threshold' in value && 'query' in value
       } else {
         return allowedKeys.includes(key) && isPropertyCriteria(value as Where)
       }

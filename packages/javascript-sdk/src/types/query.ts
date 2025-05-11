@@ -105,7 +105,7 @@ export type AggregateFn<S extends Schema = Schema> =
   | { alias: string; field: string; fn: 'min' }
   | { alias: string; field: string; fn: 'sum' }
   | { alias: string; field?: string; fn: 'count'; uniq?: boolean }
-  | { field: string; fn: `gds.similarity.${VectorSearchFn}`; alias: string; vector: number }
+  | { field: string; fn: `gds.similarity.${VectorSearchFn}`; alias: string; query: number[] }
   | AggregateCollectFn
 
 export type Aggregate =

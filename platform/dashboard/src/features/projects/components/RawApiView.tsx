@@ -314,6 +314,7 @@ const OperationSelector = () => {
     { value: 'records.export', label: 'records.export' },
     { value: 'records.set', label: 'records.set' },
     { value: 'records.update', label: 'records.update' },
+    { value: 'records.upsert', label: 'records.upsert' },
     { value: 'records.attach', label: 'records.attach' },
     { value: 'records.detach', label: 'records.detach' },
     { value: 'labels.find', label: 'labels.find' },
@@ -364,7 +365,7 @@ export function RawApiView() {
       searchQuery: JSON.parse(editorData ?? '{}')
     }).then((response) => {
       const { data, total } = response as DBRecordsArrayInstance<any>
-      $recordsData.set(JSON.stringify({ data, total }))
+      $recordsData.set(JSON.stringify({ data: data?.map((d) => d.data), total }))
     })
 
     findLabels({

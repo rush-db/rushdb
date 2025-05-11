@@ -13,7 +13,7 @@ export const upsertEntitySchema = Joi.alternatives().try(
   Joi.object({
     label: Joi.string(),
     properties: Joi.array().items(propertySchema).optional(),
-    matchBy: Joi.array().items(Joi.string()).optional()
+    mergeBy: Joi.array().items(Joi.string()).optional()
   }),
   Joi.object({
     label: Joi.string(),

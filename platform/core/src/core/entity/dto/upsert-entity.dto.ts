@@ -13,7 +13,7 @@ export class UpsertEntityDto {
   properties?: Array<PropertyDto>
 
   @ApiPropertyOptional()
-  matchBy?: Array<string>
+  mergeBy?: Array<string>
 }
 
 export class UpsertEntityDtoSimple {
@@ -30,5 +30,5 @@ export class UpsertEntityDtoSimple {
   schema?: TCreateRecordSchema
 
   @ApiPropertyOptional()
-  matchBy?: Array<string>
+  mergeBy?: Array<string>
 }

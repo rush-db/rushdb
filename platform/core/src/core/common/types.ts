@@ -61,8 +61,8 @@ export type VectorExpression = RequireAtLeastOne<
     '$vector',
     {
       fn: TVectorSearchFn
-      value: number[]
-      query: number | RequireAtLeastOne<Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number>>
+      query: number[]
+      threshold: number | RequireAtLeastOne<Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number>>
     }
   >
 >
@@ -176,7 +176,7 @@ export type AggregateFn<S extends Schema = Schema> =
   | { field: string; fn: 'max'; alias: string }
   | { field: string; fn: 'min'; alias: string }
   | { field: string; fn: 'sum'; alias: string }
-  | { field: string; fn: `gds.similarity.${TVectorSearchFn}`; alias: string; vector: number }
+  | { field: string; fn: `gds.similarity.${TVectorSearchFn}`; alias: string; query: number[] }
   | AggregateCollectFn
 
 export type Aggregate =

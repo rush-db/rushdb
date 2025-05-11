@@ -199,7 +199,7 @@ This endpoint creates a new record if it doesn't exist or updates an existing on
 |-----------|--------|-------------|
 | `label`   | String | Label for the record |
 | `properties` | Array  | Array of property objects defining record data |
-| `matchBy` | Array  | Array of property names to match for upserting |
+| `mergeBy` | Array  | Array of property names to match for upserting |
 
 ### Example Request
 
@@ -223,7 +223,7 @@ This endpoint creates a new record if it doesn't exist or updates an existing on
       "value": "2025-04-23T10:30:00Z"
     }
   ],
-  "matchBy": ["email"]
+  "mergeBy": ["email"]
 }
 ```
 

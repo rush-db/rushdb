@@ -386,8 +386,8 @@ const q9 = {
     emb: {
       $vector: {
         fn: 'cosine',
-        value: [1, 2, 3, 4, 5],
-        query: {
+        query: [1, 2, 3, 4, 5],
+        threshold: {
           $gte: 0.5,
           $lte: 0.8,
           $ne: 0.75
@@ -398,7 +398,7 @@ const q9 = {
 }
 
 const r9 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`emb\` = "vector" AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <> 0.75)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+WHERE ((\`record\`.\`emb\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`emb\` = "vector" AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <> 0.75)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
 WITH record
 WHERE record IS NOT NULL
 RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
@@ -410,8 +410,8 @@ const q10 = {
         embedding: {
           $vector: {
             fn: 'cosine',
-            value: [1, 2, 3, 4, 5],
-            query: {
+            query: [1, 2, 3, 4, 5],
+            threshold: {
               $gte: 0.5,
               $lte: 0.8,
               $ne: 0.75
@@ -426,7 +426,7 @@ const q10 = {
 const r10 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
 OPTIONAL MATCH (record)--(record1:DOCUMENT)
-OPTIONAL MATCH (record1)--(record2:CHUNK) WHERE ((apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) <> 0.75))
+OPTIONAL MATCH (record1)--(record2:CHUNK) WHERE ((\`record2\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) <> 0.75))
 WITH record, record1, record2
 WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
 RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
@@ -438,8 +438,8 @@ const q11 = {
         embedding: {
           $vector: {
             fn: 'cosine',
-            value: [1, 2, 3, 4, 5],
-            query: 0.75
+            query: [1, 2, 3, 4, 5],
+            threshold: 0.75
           }
         }
       }
@@ -450,7 +450,7 @@ const q11 = {
 const r11 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
 OPTIONAL MATCH (record)--(record1:DOCUMENT)
-OPTIONAL MATCH (record1)--(record2:CHUNK) WHERE ((apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) >= 0.75))
+OPTIONAL MATCH (record1)--(record2:CHUNK) WHERE ((\`record2\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) >= 0.75))
 WITH record, record1, record2
 WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
 RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
@@ -460,12 +460,12 @@ const q12 = {
     embedding: {
       $vector: {
         fn: 'euclidean',
-        value: [
+        query: [
           0.0123, -0.4421, 0.9372, 0.1284, -0.3349, 0.7821, -0.2843, 0.1634, 0.4372, -0.219, 0.6612, 0.0841,
           -0.3312, 0.9123, -0.1055, 0.0041, 0.4388, -0.7881, 0.5523, 0.0011, 0.7342, -0.2284, 0.1156, -0.5472,
           0.3328, 0.9811, -0.1112, 0.0045, 0.6233, -0.7
         ],
-        query: 0.93
+        threshold: 0.93
       }
     }
   },
@@ -473,7 +473,7 @@ const q12 = {
     similarity: {
       fn: 'gds.similarity.euclidean',
       field: 'embedding',
-      vector: [
+      query: [
         0.0123, -0.4421, 0.9372, 0.1284, -0.3349, 0.7821, -0.2843, 0.1634, 0.4372, -0.219, 0.6612, 0.0841,
         -0.3312, 0.9123, -0.1055, 0.0041, 0.4388, -0.7881, 0.5523, 0.0011, 0.7342, -0.2284, 0.1156, -0.5472,
         0.3328, 0.9811, -0.1112, 0.0045, 0.6233, -0.7
@@ -552,12 +552,6 @@ describe('build complete query', () => {
     const result = buildQ({ searchQuery: q9 })
 
     expect(result).toEqual(r9)
-  })
-
-  it('10', () => {
-    const result = buildQ({ searchQuery: q10 })
-
-    expect(result).toEqual(r10)
   })
 
   it('10', () => {

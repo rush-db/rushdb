@@ -99,6 +99,22 @@ export const api = {
     ) {
       return sdk(init).records.update({ target, label, data })
     },
+    async upsert(
+      {
+        label,
+        data,
+        mergeBy,
+        options
+      }: {
+        label: string
+        data: InferSchemaTypesWrite<any> | Array<PropertyDraft>
+        mergeBy: Array<string>
+        options: DBRecordCreationOptions
+      },
+      init: RequestInit
+    ) {
+      return sdk(init).records.upsert({ label, data, mergeBy, options })
+    },
     async export(query: SearchQuery, init: RequestInit) {
       return sdk(init).records.export(query)
     },

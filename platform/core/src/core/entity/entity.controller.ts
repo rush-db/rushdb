@@ -40,6 +40,7 @@ import { TRecordSearchResult } from '@/core/entity/entity.types'
 import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
 import { createEntitySchema } from '@/core/entity/validation/schemas/create-entity.schema'
 import { editEntitySchema } from '@/core/entity/validation/schemas/edit-entity.schema'
+import { upsertEntitySchema } from '@/core/entity/validation/schemas/upsert-entity.schema'
 import { PropertyService } from '@/core/property/property.service'
 import { PropertyValuesPipe } from '@/core/property/validation/property-values.pipe'
 import { SearchDto } from '@/core/search/dto/search.dto'
@@ -124,7 +125,7 @@ export class EntityController {
   @Put()
   @ApiBearerAuth()
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
-  @UsePipes(ValidationPipe(createEntitySchema, 'body'), PropertyValuesPipe)
+  @UsePipes(ValidationPipe(upsertEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
   @HttpCode(HttpStatus.CREATED)
   @AuthGuard('project')

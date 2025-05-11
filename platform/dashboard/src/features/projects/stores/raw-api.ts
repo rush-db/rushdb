@@ -19,6 +19,9 @@ export const rawRecords = createMutator<{
 }>({
   async fetcher({ init, searchQuery }) {
     const operation = $selectedOperation.get().split('.')
+
+    console.log(searchQuery)
+
     // @ts-ignore
     return await (api?.[operation?.[0]]?.[operation?.[1]] ?? api.records.find)(searchQuery, init)
   },

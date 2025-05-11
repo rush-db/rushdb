@@ -48,48 +48,36 @@ export class EntityQueryService {
     return queryBuilder.getQuery()
   }
 
-  upsert() {
+  upsert(record: UpsertEntityDto & { id?: string; created: string }, mergeBy?: Array<string>) {
     const queryBuilder = new QueryBuilder()
 
-    // queryBuilder
-    //   .append(`WITH $record as r, datetime() as time`)
-    //   .append(`MERGE (record:${RUSHDB_LABEL_RECORD} {${RUSHDB_KEY_ID}: r.id, ${projectIdInline()}})`)
-    //   .append(`WITH *`)
-    //   .append(
-    //     `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as labelCreationResult`
-    //   )
-    //   .append(this.processProps())
-    //   .append(`RETURN record {.*, ${label()}} as data`)
+    // Build the match criteria dynamically based on mergeBy or all properties
+    const propertiesCriteria = record.properties
+      .map((property) => {
+        if ((toBoolean(mergeBy?.length) && mergeBy?.includes(property.name)) || !toBoolean(mergeBy)) {
+          return `${property.name}: ${property.value}`
+        }
+      })
+      .filter(toBoolean)
+      .join(', ')
 
-    queryBuilder
-      .append(`WITH $record as r, datetime() as time`)
-
-      .append(`WITH r, time, r.properties as properties, r.label as entityLabel,`)
-      .append(`CASE`)
-      .append(`  WHEN r.matchBy IS NOT NULL THEN [key IN r.matchBy]`)
-      .append(`  WHEN r.properties IS NOT NULL THEN [prop IN r.properties | prop.name]`)
-      .append(`  ELSE []`)
-      .append(`END as matchKeys,`)
-      // Convert properties to maps
-      .append(`apoc.map.fromPairs([property IN r.properties | [property.name, property.value]]) AS propsMap`)
-
-    // Build the match criteria dynamically based on matchBy or all properties
-    queryBuilder
-      .append(`WITH r, time, properties, entityLabel, matchKeys, propsMap,`)
-      .append(`apoc.map.fromPairs([key IN matchKeys | [key, propsMap[key]]]) as matchMap`)
-
+    queryBuilder.append(`WITH $record as r, datetime() as time`)
+    console.log(propertiesCriteria)
     // Merge based on match criteria - use id if provided, otherwise use dynamic matching
-    queryBuilder.append(
-      `MERGE (record:${RUSHDB_LABEL_RECORD} { apoc.map.merge({ ${projectIdInline()} }, matchMap) })`
-    )
+    if (propertiesCriteria) {
+      queryBuilder.append(
+        `MERGE (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()}, ${propertiesCriteria} })`
+      )
+    } else {
+      queryBuilder.append(`MERGE (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
+    }
 
     // Handle ON CREATE - set the ID if not already set
     queryBuilder
-      .append(`ON CREATE`)
-      .append(` CREATE SET record.${RUSHDB_KEY_ID} = r.id`)
+      .append(`ON CREATE SET record.${RUSHDB_KEY_ID} = r.id`)
       .append(`WITH *`)
       .append(
-        `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(entityLabel, "${RUSHDB_LABEL_RECORD}")]) YIELD node as labelCreationResult`
+        `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as labelCreationResult`
       )
       .append(this.processProps())
       .append(`RETURN record {.*, ${label()}} as data`)
@@ -515,109 +503,6 @@ export class EntityQueryService {
       .append(`UNWIND $targetIds AS targetId`)
       .append(`OPTIONAL MATCH ${matchClauses.join(' OPTIONAL MATCH ')}`)
       .append(`DELETE ${deleteClauses.join(', ')}`)
-
-    return queryBuilder.getQuery()
-  }
-}
-
-export class UpsertService {
-  upsert(dto: UpsertEntityDto) {
-    const queryBuilder = new QueryBuilder()
-    const { label, properties, matchBy } = dto
-
-    queryBuilder
-      .append(`WITH $dto as dto, datetime() as time`)
-      // Determine what to match by
-      .append(`WITH dto, time,`)
-      .append(`  dto.properties as properties,`)
-      .append(`  dto.label as entityLabel,`)
-      .append(`  CASE`)
-      .append(`    WHEN dto.matchBy IS NOT NULL THEN [key IN dto.matchBy]`)
-      .append(`    WHEN dto.properties IS NOT NULL THEN [prop IN dto.properties | prop.name]`)
-      .append(`    ELSE []`)
-      .append(`  END as matchKeys,`)
-      // Convert properties to maps
-      .append(
-        `  apoc.map.fromPairs([property IN dto.properties | [property.name, property.value]]) AS propsMap`
-      )
-
-    // Build the match criteria dynamically based on matchBy or all properties
-    queryBuilder
-      .append(`WITH dto, time, properties, entityLabel, matchKeys, propsMap,`)
-      .append(`  apoc.map.fromPairs([key IN matchKeys | [key, propsMap[key]]]) as matchMap`)
-
-    // Merge based on match criteria - use id if provided, otherwise use dynamic matching
-    queryBuilder
-      .append(`MERGE (record:${RUSHDB_LABEL_RECORD} {`)
-      .append(`  // If no matchKeys, match by ID (if provided) or create new`)
-      .append(`  CASE`)
-      .append(`    WHEN size(matchKeys) > 0 THEN`)
-      .append(`      apoc.map.merge({ ${projectIdInline()} }, matchMap)`)
-      .append(`    WHEN propsMap.id IS NOT NULL THEN`)
-      .append(`      { ${RUSHDB_KEY_ID}: propsMap.id, ${projectIdInline()} }`)
-      .append(`    ELSE`)
-      .append(`      { ${projectIdInline()} }`)
-      .append(`  END`)
-      .append(`})`)
-
-    // Handle ON CREATE - set the ID if not already set
-    queryBuilder
-      .append(`ON CREATE`)
-      .append(`  SET record.${RUSHDB_KEY_ID} = CASE`)
-      .append(`    WHEN propsMap.id IS NOT NULL THEN propsMap.id`)
-      .append(`    ELSE randomUUID()`)
-      .append(`  END,`)
-      .append(`  record.created = time`)
-
-    // Process labels and properties
-    queryBuilder
-      .append(`WITH record, dto, time, properties, entityLabel, propsMap,`)
-      .append(
-        `  [existingLabel IN labels(record) WHERE existingLabel <> "${RUSHDB_LABEL_RECORD}"] as existingLabels,`
-      )
-      .append(
-        `  [existingKey IN keys(record) WHERE existingKey <> "${RUSHDB_KEY_ID}" AND existingKey <> "${RUSHDB_KEY_PROJECT_ID}" AND existingKey <> "created"] as existingProps`
-      )
-
-    // Remove existing custom labels and set new label
-    queryBuilder
-      .append(`CALL apoc.create.removeLabels(record, existingLabels) YIELD node as labelRemoveResult`)
-      .append(
-        `CALL apoc.create.addLabels(record, [coalesce(entityLabel, "${RUSHDB_LABEL_RECORD}")]) YIELD node as labelAddResult`
-      )
-
-    // Remove existing properties and set new ones
-    queryBuilder.append(
-      `CALL apoc.create.removeProperties(record, existingProps) YIELD node as propsRemoveResult`
-    )
-
-    // Create types map
-    queryBuilder
-      .append(`WITH record, dto, time, properties, propsMap,`)
-      .append(`  apoc.map.fromPairs([property IN properties | [property.name, property.type]]) AS typesMap`)
-
-    // Set properties metadata and values
-    queryBuilder
-      .append(`SET record.${RUSHDB_KEY_PROPERTIES_META} = apoc.convert.toJson(typesMap),`)
-      .append(`    record += propsMap,`)
-      .append(`    record.updated = time`)
-
-    // Property nodes creation
-    queryBuilder
-      .append(`WITH record, dto, time, properties`)
-      .append(`UNWIND properties as prop`)
-      .append(
-        `MERGE (p:${RUSHDB_LABEL_PROPERTY} { name: prop.name, type: prop.type, projectId: $projectId, metadata: coalesce(prop.metadata, "") })`
-      )
-      .append(
-        `ON CREATE SET p.created = coalesce(prop.created, time), p.id = coalesce(prop.id, randomUUID()), p.metadata = coalesce(prop.metadata, "")`
-      )
-      .append(`MERGE (p)-[rel:${RUSHDB_RELATION_VALUE}]->(record)`)
-
-    // Return the result
-    queryBuilder.append(
-      `RETURN record {.*, label: head([label IN labels(record) WHERE label <> "${RUSHDB_LABEL_RECORD}"])} as data`
-    )
 
     return queryBuilder.getQuery()
   }

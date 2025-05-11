@@ -47,8 +47,8 @@ export type VectorSearchFn = 'jaccard' | 'overlap' | 'cosine' | 'pearson' | 'euc
 export type VectorExpression = {
   $vector: {
     fn: VectorSearchFn
-    value: Array<number>
-    query: number | RequireAtLeastOne<Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number>>
+    query: Array<number>
+    threshold: number | RequireAtLeastOne<Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number>>
   }
 }
 

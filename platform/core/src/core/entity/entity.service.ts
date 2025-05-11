@@ -1,4 +1,5 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common'
+import Joi from 'joi'
 import { Transaction } from 'neo4j-driver'
 import { QueryRunner } from 'neogma'
 import { uuidv7 } from 'uuidv7'
@@ -77,20 +78,17 @@ export class EntityService {
   }): Promise<TEntityPropertiesNormalized> {
     const runner = queryRunner || this.neogmaService.createRunner()
 
-    const { properties, label, id, matchBy }: UpsertEntityDto & { id?: string } = entity
+    const { properties, label, id, mergeBy }: UpsertEntityDto & { id?: string } = entity
     const entityId = id ?? uuidv7()
 
-    let existingRecordsByCriteria: TEntityPropertiesNormalized[]
-    if (toBoolean(matchBy)) {
-      const where: SearchDto['where'] = Object.entries(entity.properties).reduce((acc, [key, value]) => {
-        if (matchBy.includes(key)) {
-          acc[key] = value.value
-        }
-        return acc
-      }, {})
+    const where: SearchDto['where'] = Object.entries(entity.properties).reduce((acc, [key, value]) => {
+      if (typeof mergeBy === 'undefined' || (toBoolean(mergeBy) && mergeBy.includes(key))) {
+        acc[key] = value.value
+      }
+      return acc
+    }, {})
 
-      existingRecordsByCriteria = await this.find({ searchQuery: { where }, projectId, transaction })
-    }
+    const existingRecordsByCriteria = await this.find({ searchQuery: { where }, projectId, transaction })
 
     const record: UpsertEntityDto & { id?: string; created: string } = {
       id: entityId,
@@ -99,9 +97,15 @@ export class EntityService {
       properties
     }
 
+    console.log({
+      where,
+      mergeBy,
+      upsert: JSON.stringify({ existingRecordsByCriteria }, null, 2)
+    })
+
     return await runner
       .run(
-        this.entityQueryService.upsert(),
+        this.entityQueryService.upsert(record, mergeBy),
         {
           record,
           projectId

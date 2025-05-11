@@ -25,7 +25,7 @@ import {
 } from '../utils'
 import { $currentProjectId } from './id'
 
-export const $recordView = persistentAtom<RecordViewType>('records:view', 'table')
+export const $recordView = atom<RecordViewType>('table')
 
 export const $recordRawApiEntity = persistentAtom<RawApiEntityType>('records:raw-api:entity', 'records')
 

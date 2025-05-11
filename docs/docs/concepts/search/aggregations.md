@@ -712,7 +712,7 @@ graph LR
   - `pearson` - Pearson correlation [-1,1]
 - `field`: string - The vector field to compare
 - `alias`: string - The record alias to use
-- `vector`: number[] - The query vector to calculate similarity against
+- `query`: number[] - The query vector to calculate similarity against
 
 
 Example showing vector search with where clause and similarity aggregation:
@@ -726,7 +726,7 @@ Example showing vector search with where clause and similarity aggregation:
     similarity: {
       fn: 'gds.similarity.cosine',
       field: 'embedding',
-      vector: [1, 2, 3, 4, 5],
+      query: [1, 2, 3, 4, 5],
       alias: '$record'
     }
   }

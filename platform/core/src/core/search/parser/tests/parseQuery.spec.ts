@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
 import { RUSHDB_KEY_ID } from '@/core/common/constants'
-import { parse } from '@/core/search/parser/parse'
+import { parse } from '@/core/search/parser/buildQuery'
 import { ID_CLAUSE_OPERATOR } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 

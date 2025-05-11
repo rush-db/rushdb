@@ -21,7 +21,6 @@ export const comparisonOperators = [
   '$contains',
   '$startsWith',
   '$endsWith'
-  // '$vector'
 ]
 
 export const datetimeOperators = [

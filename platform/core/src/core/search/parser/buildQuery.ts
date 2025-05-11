@@ -74,7 +74,10 @@ export const buildQueryClause = ({
     .join('\n')
 }
 
-const parse = (input: Where, options: TSearchQueryBuilderOptions = { nodeAlias: DEFAULT_RECORD_ALIAS }) => {
+export const parse = (
+  input: Where,
+  options: TSearchQueryBuilderOptions = { nodeAlias: DEFAULT_RECORD_ALIAS }
+) => {
   const normalizedInput = processCriteria(input)
 
   const nodeAliases = [options.nodeAlias]

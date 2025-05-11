@@ -26,12 +26,6 @@ import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
-// ---------------------------------------------------------------------------------------------------------------------
-// LABELS
-
-// POST     /labels                      ✅ LABELS LIST SearchDto
-// ---------------------------------------------------------------------------------------------------------------------
-
 @Controller('labels')
 @ApiTags('Labels')
 @UseInterceptors(
@@ -63,23 +57,5 @@ export class LabelsController {
     })
   }
 
-  @Put()
-  @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
-  @AuthGuard('project')
-  @UsePipes(ValidationPipe(searchSchema, 'body'))
-  @HttpCode(HttpStatus.OK)
-  async updateLabels(
-    @TransactionDecorator() transaction: Transaction,
-    @Body() searchQuery: Pick<SearchDto, 'where'>,
-    @Request() request: PlatformRequest
-  ): Promise<Record<string, number>> {
-    const projectId = request.projectId
-
-    return await this.entityService.getLabels({
-      projectId,
-      searchQuery,
-      transaction
-    })
-  }
+  // @TODO: Add SearchQuery based PUT method to bulk update labels based on criteria
 }

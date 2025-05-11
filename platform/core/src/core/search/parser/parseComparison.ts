@@ -39,12 +39,12 @@ const formatVectorForQuery = (
   field: string,
   options: TSearchQueryBuilderOptions
 ) => {
-  const criteria = `gds.similarity.${value.fn}(\`${options.nodeAlias}\`.\`${field}\`, [${value.value}])`
+  const criteria = `gds.similarity.${value.fn}(\`${options.nodeAlias}\`.\`${field}\`, [${value.query}])`
   const isComplexQuery =
-    isObject(value.query) && containsAllowedKeys(value.query, Object.keys(COMPARISON_OPERATORS_MAP))
+    isObject(value.threshold) && containsAllowedKeys(value.threshold, Object.keys(COMPARISON_OPERATORS_MAP))
 
   if (isComplexQuery) {
-    return Object.entries(value.query)
+    return Object.entries(value.threshold)
       .reduce((acc, [key, value]) => {
         if (COMPARISON_OPERATORS_MAP[key]) {
           acc.push(`${criteria} ${COMPARISON_OPERATORS_MAP[key]} ${value}`)
@@ -55,7 +55,7 @@ const formatVectorForQuery = (
   }
 
   // By default `query: number` will do `$gte` (`>= ${n}`) comparison
-  return `${criteria} ${COMPARISON_OPERATORS_MAP.$gte} ${value.query}`
+  return `${criteria} ${COMPARISON_OPERATORS_MAP.$gte} ${value.threshold}`
 }
 
 const datetimeConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {

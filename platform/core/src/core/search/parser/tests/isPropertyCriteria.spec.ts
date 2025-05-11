@@ -41,8 +41,8 @@ describe('isPropertyCriteria', () => {
     const result1 = isPropertyCriteria({
       $vector: {
         fn: 'cosine',
-        value: [1, 2, 3, 4, 5],
-        query: {
+        query: [1, 2, 3, 4, 5],
+        threshold: {
           $gte: 0.5,
           $lte: 0.8,
           $ne: 0.75

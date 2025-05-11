@@ -97,8 +97,8 @@ similar_documents = db.records.find({
         "embedding": {
             "$vector": {
                 "fn": "cosine",                     # Similarity function
-                "value": query_embedding,           # Your vector embedding
-                "query": {"$gte": 0.75}             # Minimum similarity threshold
+                "query": query_embedding,           # Your vector embedding
+                "threshold": {"$gte": 0.75}         # Minimum similarity threshold
             }
         }
     },

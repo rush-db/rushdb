@@ -640,7 +640,7 @@ export class RestAPI {
      * Creates or updates a record based on matching criteria
      * @param label - The label/type of the record
      * @param data - The record data to upsert
-     * @param matchBy - Optional array of property names to match existing records
+     * @param mergeBy - Optional array of property names to match existing records
      * @param options - Optional write configuration
      * @param transaction - Optional transaction for atomic operations
      * @returns Promise resolving to DBRecordInstance
@@ -650,12 +650,12 @@ export class RestAPI {
       {
         label,
         data,
-        matchBy,
+        mergeBy,
         options
       }: {
         label: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
-        matchBy?: Array<string>
+        mergeBy?: Array<string>
         options?: DBRecordCreationOptions
       },
       transaction?: Transaction | string
@@ -668,11 +668,11 @@ export class RestAPI {
         requestData: {}
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
-
+      console.log('upsert', data)
       if (isArray(data) && data.every(isPropertyDraft)) {
-        payload.requestData = { matchBy, properties: data, label }
+        payload.requestData = { mergeBy, properties: data, label }
       } else if (isFlatObject(data)) {
-        payload.requestData = { matchBy, payload: data, label, options }
+        payload.requestData = { mergeBy, payload: data, label, options }
       } else if (isObject(data)) {
         throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
       }
