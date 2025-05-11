@@ -88,6 +88,9 @@ export class StripeController {
       const event = this.paymentService.constructEvent(rawBody, signature)
 
       switch (event.type) {
+        case 'customer.subscription.created':
+          await this.paymentService.createCustomerPlan(event, transaction)
+          return response.status(HttpStatus.OK).send({ received: true })
         case 'customer.subscription.updated':
           await this.paymentService.updateCustomerPlan(event, transaction)
           return response.status(HttpStatus.OK).send({ received: true })

@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common'
+import { forwardRef, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import Stripe from 'stripe'
@@ -62,12 +62,29 @@ export class StripeService {
   }
 
   async createCustomerPlan(payload: Stripe.Event, transaction: Transaction) {
-    const session = payload.data.object as Stripe.Checkout.Session
-    const subscriptionId = session.subscription
+    const stripePayload = payload.data.object
 
-    const userEmail = session.customer_email || (await this.stripe.customers.retrieve(session.customer)).email
+    const isCheckoutSession = 'object' in stripePayload && stripePayload.object === 'checkout.session'
+    const isSubscription = 'object' in stripePayload && stripePayload.object === 'subscription'
 
-    if (subscriptionId) {
+    let subscriptionId: string
+    let userEmail: string
+
+    if (isCheckoutSession) {
+      const session = stripePayload as Stripe.Checkout.Session
+      subscriptionId = session.subscription as string
+      userEmail = session.customer_email || (await this.stripe.customers.retrieve(session.customer)).email
+    } else if (isSubscription) {
+      const subscription = stripePayload as Stripe.Subscription
+      subscriptionId = subscription.id
+
+      const customer = await this.stripe.customers.retrieve(subscription.customer as string)
+      userEmail = customer.email
+    } else {
+      throw new HttpException('Unsupported event payload.', HttpStatus.BAD_REQUEST)
+    }
+
+    if (subscriptionId && userEmail) {
       const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
         ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
       } as AxiosRequestConfig)
@@ -176,7 +193,10 @@ export class StripeService {
       currency: 'usd',
       mode: 'subscription',
       success_url: `${returnUrl}?payment_successful=true`,
-      cancel_url: `${returnUrl}?payment_successful=false`
+      cancel_url: `${returnUrl}?payment_successful=false`,
+      subscription_data: {
+        trial_period_days: 14
+      }
     })
   }
 
