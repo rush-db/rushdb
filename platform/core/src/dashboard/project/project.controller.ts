@@ -46,7 +46,7 @@ export class ProjectController {
   @Post()
   @ApiTags('Projects')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(PlanLimitsGuard)
   async createProject(
@@ -90,7 +90,7 @@ export class ProjectController {
   @ApiTags('Projects')
   @ApiBearerAuth()
   // @UseInterceptors(RunSideEffectMixin([ESideEffectType.DELETE_PROJECT]))
-  @AuthGuard('project')
+  @AuthGuard('project', 'owner')
   async deleteProject(
     @Param('projectId') id: string,
     @TransactionDecorator() transaction: Transaction
@@ -107,7 +107,7 @@ export class ProjectController {
   })
   @ApiTags('Projects')
   @ApiBearerAuth()
-  @AuthGuard('project')
+  @AuthGuard('project', 'owner')
   @HttpCode(HttpStatus.CREATED)
   async updateProject(
     @Param('projectId') id: string,

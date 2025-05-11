@@ -99,7 +99,7 @@ export class WorkspaceController {
   })
   @ApiTags('Workspaces')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.CREATED)
   async editWorkspace(
     @Param('id') id: string,
@@ -119,7 +119,7 @@ export class WorkspaceController {
   })
   @ApiTags('Workspaces')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.OK)
   async deleteWorkspace(
     @Param('id') id: string,
@@ -137,7 +137,7 @@ export class WorkspaceController {
   })
   @ApiTags('Workspaces')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.OK)
   async inviteToWorkspace(
     @AuthUser() user: IUserClaims,
@@ -165,7 +165,7 @@ export class WorkspaceController {
   })
   @ApiTags('Workspaces')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.OK)
   async recomputeAccessList(
     @Param('id') id: string,
@@ -184,7 +184,7 @@ export class WorkspaceController {
   })
   @ApiTags('Workspaces')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.OK)
   async getAccessList(@Param('id') id: string, @TransactionDecorator() transaction: Transaction) {
     return this.workspaceService.getAccessListByProjects(id, transaction)
@@ -199,7 +199,7 @@ export class WorkspaceController {
   })
   @ApiTags('Workspaces')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.OK)
   async getDeveloperUserList(@Param('id') id: string, @TransactionDecorator() transaction: Transaction) {
     return this.workspaceService.getInvitedUserList(id, transaction)
@@ -214,7 +214,7 @@ export class WorkspaceController {
   })
   @ApiTags('Workspaces')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.OK)
   async revokeAccess(
     @Param('id') id: string,

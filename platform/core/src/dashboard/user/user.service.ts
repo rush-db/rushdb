@@ -23,13 +23,17 @@ import { sanitizeSettings, validateEmail } from '@/dashboard/user/user.utils'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
-import { TUserInstance, TUserProperties } from './model/user.interface'
+import { TUserInstance, TUserProperties, TUserRoles } from './model/user.interface'
 import { UserRepository } from './model/user.repository'
 import { User } from './user.entity'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
 import * as crypto from 'node:crypto'
-import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
+import {
+  USER_ROLE_EDITOR,
+  USER_ROLE_OWNER,
+  USER_ROLE_WEIGHT
+} from '@/dashboard/user/interfaces/user.constants'
 import { AcceptWorkspaceInvitationParams } from '@/dashboard/user/interfaces/user-properties.interface'
 
 @Injectable()
@@ -364,11 +368,13 @@ export class UserService {
     userId,
     targetId,
     targetType = 'workspace',
+    accessLevel,
     transaction
   }: {
     userId: string
     targetId: string
     targetType?: 'project' | 'workspace'
+    accessLevel?: TUserRoles
     transaction: Transaction
   }): Promise<boolean> {
     const queryRunner = this.neogmaService.createRunner()
@@ -396,16 +402,11 @@ export class UserService {
       return false
     }
 
-    // if (!currentUserRole) {
-    //     return false;
-    // }
-    //
-    // const currentUserRoleWeight = USER_ROLE_WEIGHT[currentUserRole];
-    // const minimalAccessLevel = USER_ROLE_WEIGHT[accessLevel];
-    //
-    // return currentUserRoleWeight >= minimalAccessLevel;
+    const currentRole: TUserRoles = result.records[0].get('accessRole')
+    const requiredWeight = USER_ROLE_WEIGHT[accessLevel] ?? 0
+    const currentWeight = USER_ROLE_WEIGHT[currentRole] ?? 0
 
-    return Boolean(result.records[0].get('accessRole') as string)
+    return currentWeight >= requiredWeight
   }
 
   async delete({ userId, transaction }: { userId: string; transaction: Transaction }) {

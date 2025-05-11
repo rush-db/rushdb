@@ -14,6 +14,8 @@ import { ThrottleByTokenGuard } from '@/dashboard/throttle/guards/throttle-by-to
 import { TokenService } from '@/dashboard/token/token.service'
 import { UserService } from '@/dashboard/user/user.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
+import { TUserRoles } from '@/dashboard/user/model/user.interface'
 
 type TDashboardTargetType = 'project' | 'workspace'
 
@@ -34,6 +36,9 @@ class GlobalAuthGuard implements CanActivate {
       'dashboardTargetType',
       context.getHandler()
     )
+
+    const minimalRole =
+      this.reflector.get<TUserRoles>('minimalRole', context.getHandler()) ?? USER_ROLE_EDITOR
 
     const session = this.neogmaService.createSession()
     const transaction = session.beginTransaction()
@@ -96,12 +101,14 @@ class GlobalAuthGuard implements CanActivate {
           userId,
           targetId,
           targetType: dashboardTargetType,
+          accessLevel: minimalRole,
           transaction
         })
 
         if (hasAccess && dashboardTargetType === 'project') {
           request.projectId = targetId
         }
+
         return hasAccess
       } catch (e) {
         return false
@@ -114,8 +121,12 @@ class GlobalAuthGuard implements CanActivate {
   }
 }
 
-export const AuthGuard = (dashboardTargetType: TDashboardTargetType | null = 'workspace') =>
+export const AuthGuard = (
+  dashboardTargetType: TDashboardTargetType | null = 'workspace',
+  minimalRole: TUserRoles = USER_ROLE_EDITOR
+) =>
   applyDecorators(
     UseGuards(GlobalAuthGuard, ThrottleByTokenGuard),
-    SetMetadata('dashboardTargetType', dashboardTargetType)
+    SetMetadata('dashboardTargetType', dashboardTargetType),
+    SetMetadata('minimalRole', minimalRole)
   )
