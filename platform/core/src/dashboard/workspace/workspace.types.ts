@@ -1,3 +1,6 @@
+import { TWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
+import { TUserRoles } from '@/dashboard/user/model/user.interface'
+
 export type TWorkSpaceInviteToken = {
   workspaceId: string
   email: string
@@ -8,4 +11,8 @@ export type TWorkSpaceInviteToken = {
 export type TWorkspaceInvitation = TWorkSpaceInviteToken & {
   workspaceName: string
   senderEmail: string
+}
+
+export type TExtendedWorkspaceProperties = TWorkspaceProperties & {
+  role: TUserRoles
 }

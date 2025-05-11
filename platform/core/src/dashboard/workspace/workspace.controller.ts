@@ -28,6 +28,7 @@ import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 import { InviteToWorkspaceDto } from '@/dashboard/workspace/dto/invite-to-workspace.dto'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 import { RevokeAccessDto } from '@/dashboard/workspace/dto/revoke-access.dto'
+import { TExtendedWorkspaceProperties } from '@/dashboard/workspace/workspace.types'
 
 @Controller('workspaces')
 @ApiExcludeController()
@@ -86,7 +87,7 @@ export class WorkspaceController {
   async getWorkspacesList(
     @AuthUser() { id }: IUserClaims,
     @TransactionDecorator() transaction: Transaction
-  ): Promise<IWorkspaceProperties[]> {
+  ): Promise<TExtendedWorkspaceProperties[]> {
     return await this.workspaceService.getWorkspacesList(id, transaction)
   }
 

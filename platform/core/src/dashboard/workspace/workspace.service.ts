@@ -35,7 +35,11 @@ import {
 } from '@/dashboard/workspace/workspace.constants'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
-import { TWorkspaceInvitation, TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
+import {
+  TExtendedWorkspaceProperties,
+  TWorkspaceInvitation,
+  TWorkSpaceInviteToken
+} from '@/dashboard/workspace/workspace.types'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { MailService } from '@/dashboard/mail/mail.service'
 import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception'
@@ -132,7 +136,7 @@ export class WorkspaceService {
     return this.workspaceRepository.model.buildFromRecord(workspaceRecord)
   }
 
-  async getWorkspacesList(userId: string, transaction: Transaction): Promise<TWorkspaceProperties[]> {
+  async getWorkspacesList(userId: string, transaction: Transaction): Promise<TExtendedWorkspaceProperties[]> {
     const related = await this.userRepository.model.findRelationships({
       alias: 'Workspaces',
       where: {
@@ -143,7 +147,12 @@ export class WorkspaceService {
       session: transaction
     })
 
-    return related.map(({ target }) => this.normalize(target).toJson())
+    return related.map(({ target, relationship }) => {
+      return {
+        ...this.normalize(target).toJson(),
+        role: relationship.role
+      }
+    })
   }
 
   async getWorkspaceByProject(projectId: string, transaction: Transaction) {
