@@ -6,7 +6,8 @@ import {
   RUSHDB_LABEL_USER,
   RUSHDB_LABEL_WORKSPACE,
   RUSHDB_RELATION_CONTAINS,
-  RUSHDB_RELATION_HAS_ACCESS
+  RUSHDB_RELATION_HAS_ACCESS,
+  RUSHDB_RELATION_MEMBER_OF
 } from '@/dashboard/common/constants'
 import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 
@@ -51,11 +52,11 @@ export class WorkspaceQueryService {
     queryBuilder
       .append(`MATCH (u:${RUSHDB_LABEL_USER} {id: $userId})`)
       .append(
-        `OPTIONAL MATCH (u)-[:${RUSHDB_RELATION_HAS_ACCESS} { role: '${USER_ROLE_OWNER}' }]->(w1:${RUSHDB_LABEL_WORKSPACE})`
+        `OPTIONAL MATCH (u)-[:${RUSHDB_RELATION_MEMBER_OF} { role: '${USER_ROLE_OWNER}' }]->(w1:${RUSHDB_LABEL_WORKSPACE})`
       )
       .append(`WHERE w1.id <> $workspaceId`)
       .append(
-        `OPTIONAL MATCH (u)-[:${RUSHDB_RELATION_HAS_ACCESS} { role: '${USER_ROLE_EDITOR}' }]->(w2:${RUSHDB_LABEL_WORKSPACE})`
+        `OPTIONAL MATCH (u)-[:${RUSHDB_RELATION_MEMBER_OF} { role: '${USER_ROLE_EDITOR}' }]->(w2:${RUSHDB_LABEL_WORKSPACE})`
       )
       .append(`WHERE w2.id <> $workspaceId`)
       .append(`RETURN count(DISTINCT w1) AS ownerOther, count(DISTINCT w2) AS developerOther`)
@@ -68,7 +69,7 @@ export class WorkspaceQueryService {
 
     queryBuilder
       .append(
-        `MATCH (u:${RUSHDB_LABEL_USER} {id: $userId})-[r:${RUSHDB_RELATION_HAS_ACCESS}]->(w:${RUSHDB_LABEL_WORKSPACE} {id: $workspaceId})`
+        `MATCH (u:${RUSHDB_LABEL_USER} {id: $userId})-[r:${RUSHDB_RELATION_MEMBER_OF}]->(w:${RUSHDB_LABEL_WORKSPACE} {id: $workspaceId})`
       )
       .append(`DELETE r`)
 
@@ -82,7 +83,7 @@ export class WorkspaceQueryService {
       .append(
         `MATCH (u:${RUSHDB_LABEL_USER} {id: $userId})-[r:${RUSHDB_RELATION_HAS_ACCESS}]->(p:${RUSHDB_LABEL_PROJECT})`
       )
-      .append(`WHERE (p)-[:${RUSHDB_RELATION_CONTAINS}]->(:${RUSHDB_LABEL_WORKSPACE} {id: $workspaceId})`)
+      .append(`WHERE (:${RUSHDB_LABEL_WORKSPACE} {id: $workspaceId})-[:${RUSHDB_RELATION_CONTAINS}]->(p)`)
       .append(`DELETE r`)
 
     return queryBuilder.getQuery()

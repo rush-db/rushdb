@@ -455,13 +455,12 @@ export class WorkspaceService {
 
       if (ownerOther > 0 || developerOther > 0) {
         isDevMode(() => Logger.log(`[Revoke access LOG]: Remove ws relation for user ${userId}`))
-        // @TODO: must be tested
         await runner.run(
           this.workspaceQueryService.getRemoveWorkspaceRelationQuery(),
           { userId, workspaceId },
           transaction
         )
-        // @TODO: must be tested
+
         isDevMode(() => Logger.log(`[Revoke access LOG]: Remove project relation for user ${userId}`))
         await runner.run(
           this.workspaceQueryService.getRemoveProjectRelationsQuery(),

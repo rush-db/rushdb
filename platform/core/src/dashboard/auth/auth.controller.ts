@@ -143,7 +143,7 @@ export class AuthController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard(null)
   @CommonResponseDecorator(GetUserDto)
   async joinWorkspace(
     @Query('invite') token: string,

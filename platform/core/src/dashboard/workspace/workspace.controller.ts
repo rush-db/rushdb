@@ -205,7 +205,7 @@ export class WorkspaceController {
     return this.workspaceService.getInvitedUserList(id, transaction)
   }
 
-  @Post(':id/revoke-access')
+  @Patch(':id/revoke-access')
   @ApiParam({
     name: 'id',
     required: true,
