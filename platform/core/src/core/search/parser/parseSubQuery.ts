@@ -3,7 +3,7 @@ import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
 import { DEFAULT_RECORD_ALIAS } from '@/core/common/constants'
 import { Relation, Where } from '@/core/common/types'
-import { parseLevel } from '@/core/search/parser/parseLevel'
+import { parseLevel } from '@/core/search/parser/buildQuery'
 import { ParseContext } from '@/core/search/parser/types'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 

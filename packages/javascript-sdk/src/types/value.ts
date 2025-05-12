@@ -3,10 +3,11 @@ import type {
   PROPERTY_TYPE_DATETIME,
   PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_STRING
+  PROPERTY_TYPE_STRING,
+  PROPERTY_TYPE_VECTOR
 } from '../common/constants.js'
 import type { MaybeArray } from './utils.js'
-import type { OrderDirection } from './query'
+import type { OrderDirection } from './query.js'
 
 // DATETIME
 export type DatetimeObject = {
@@ -40,22 +41,27 @@ export type PropertyType =
   | typeof PROPERTY_TYPE_NULL
   | typeof PROPERTY_TYPE_NUMBER
   | typeof PROPERTY_TYPE_STRING
+  | typeof PROPERTY_TYPE_VECTOR
 
-export type Property = {
-  id: string
+type WithId<T> = T & { id: string }
+type WithValue<T> = T & { value: PropertyValue }
+
+export type Property = WithId<{
   metadata?: string
   name: string
   type: PropertyType
-}
+}>
 
-export type PropertyWithValue = Property & {
-  value: PropertyValue
-}
+export type PropertyWithValue = WithValue<Property>
 
 export type PropertyValuesData = {
   max?: number
   min?: number
-  values: PropertyValue[]
+  values: Array<PropertyValue>
+}
+
+export type PropertyDraft = Omit<PropertyWithValue, 'id'> & {
+  valueSeparator?: string
 }
 
 export type PropertyValuesOptions = { sort?: OrderDirection; skip?: number; limit?: number; query?: string }
@@ -66,6 +72,8 @@ export type PropertySingleValue<TType extends PropertyType = PropertyType> =
   : TType extends typeof PROPERTY_TYPE_STRING ? StringValue
   : TType extends typeof PROPERTY_TYPE_NULL ? NullValue
   : TType extends typeof PROPERTY_TYPE_BOOLEAN ? BooleanValue
+  : TType extends typeof PROPERTY_TYPE_VECTOR ? Array<number>
   : StringValue
 
-export type PropertyValue<TType extends PropertyType = PropertyType> = MaybeArray<PropertySingleValue<TType>>
+export type PropertyValue<TType extends PropertyType = PropertyType> =
+  TType extends typeof PROPERTY_TYPE_VECTOR ? Array<number> : MaybeArray<PropertySingleValue<TType>>

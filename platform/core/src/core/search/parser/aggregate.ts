@@ -193,6 +193,21 @@ export function buildAggregationFunction(
         return `min(${recordAlias}.${fieldAlias}) AS ${asPart}`
       case 'max':
         return `max(${recordAlias}.${fieldAlias}) AS ${asPart}`
+
+      // gds
+      case 'gds.similarity.cosine':
+        return `gds.similarity.cosine(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
+      case 'gds.similarity.jaccard':
+        return `gds.similarity.jaccard(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
+      case 'gds.similarity.euclidean':
+        return `gds.similarity.euclidean(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
+      case 'gds.similarity.euclideanDistance':
+        return `gds.similarity.euclideanDistance(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
+      case 'gds.similarity.overlap':
+        return `gds.similarity.overlap(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
+      case 'gds.similarity.pearson':
+        return `gds.similarity.pearson(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
+
       default:
         throw new Error(`Unsupported aggregation function: ${JSON.stringify(instruction)}`)
     }

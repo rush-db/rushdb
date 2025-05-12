@@ -6,7 +6,7 @@ import { checkTypeAndNameUniqueness } from '@/common/utils/checkTypeAndNameUniqu
 import { formatErrorMessage } from '@/common/validation/utils'
 import { normalizeRecord } from '@/core/common/normalizeRecord'
 import { CreateEntityDto, CreateEntityDtoSimple } from '@/core/entity/dto/create-entity.dto'
-import { EditEntityDto } from '@/core/entity/dto/edit-entity.dto'
+import { EditEntityDto, EditEntityDtoSimple } from '@/core/entity/dto/edit-entity.dto'
 import { TPropertySingleValue } from '@/core/property/property.types'
 import { normalizeProperties, splitValueBySeparator } from '@/core/property/property.utils'
 import {
@@ -32,7 +32,10 @@ export class PropertyValuesPipe implements PipeTransform {
       throw new BadRequestException(error)
     }
   }
-  transform(value: CreateEntityDto | CreateEntityDtoSimple | EditEntityDto, metadata: ArgumentMetadata) {
+  transform(
+    value: CreateEntityDto | CreateEntityDtoSimple | EditEntityDto | EditEntityDtoSimple,
+    metadata: ArgumentMetadata
+  ) {
     if (metadata.type === 'body' && 'properties' in value) {
       if (!checkTypeAndNameUniqueness(value.properties)) {
         throw new BadRequestException(`Duplicate name found with different types.`)
@@ -53,6 +56,8 @@ export class PropertyValuesPipe implements PipeTransform {
 
       return { ...value, properties: normalizeProperties(value.properties) }
     } else if (metadata.type === 'body' && 'payload' in value) {
+      // @TODO: Implement schema schema validation https://github.com/rush-db/rushdb/issues/43
+
       return normalizeRecord(value as CreateEntityDtoSimple)
     }
     return value

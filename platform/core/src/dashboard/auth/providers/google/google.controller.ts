@@ -8,7 +8,7 @@ import {
   UseInterceptors
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { ApiTags } from '@nestjs/swagger'
+import { ApiExcludeController, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 import * as queryString from 'query-string'
 
@@ -26,6 +26,7 @@ import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 import { isDevMode } from '@/common/utils/isDevMode'
 
 @Controller('auth')
+@ApiExcludeController()
 export class GoogleOAuthController {
   constructor(
     private readonly authService: AuthService,

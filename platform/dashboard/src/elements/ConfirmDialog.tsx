@@ -2,8 +2,6 @@ import type { ReactNode } from 'react'
 
 import { useRef, useState } from 'react'
 
-import alert from '~/assets/Alert.png'
-
 import { DialogTitle, TDialogProps } from './Dialog'
 
 import { Button } from './Button'
@@ -36,7 +34,6 @@ export function ConfirmDialog({
       open={open}
       trigger={trigger}
     >
-      <img alt="alert" className="mx-auto h-[100px] w-[100px] sm:h-[160px] sm:w-[160px]" src={alert} />
       <DialogTitle className="text-base font-bold">{title}</DialogTitle>
 
       {description && (

@@ -46,7 +46,7 @@ const $fieldValues = createAsyncStore({
     if (!fieldId) {
       return
     }
-    return await api.properties.values({ init, propertyId: fieldId })
+    return await api.properties.values({ init, id: fieldId })
   }
 })
 

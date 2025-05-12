@@ -7,18 +7,17 @@ import { buildAggregation, buildQuery } from '@/core/search/parser'
 import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQueryPart'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 
-const buildQ = ({ id, searchParams }: { searchParams?: SearchDto; id?: string }) => {
+const buildQ = ({ id, searchQuery }: { searchQuery?: SearchDto; id?: string }) => {
   const relatedQueryPart = buildRelatedQueryPart(id)
 
-  const { queryClauses, parsedWhere, aliasesMap } = buildQuery(searchParams)
+  const { queryClauses, parsedWhere, aliasesMap } = buildQuery(searchQuery)
 
   const { withPart: aggregateProjections, recordPart: returnPart } = buildAggregation(
-    searchParams.aggregate,
+    searchQuery.aggregate,
     aliasesMap
   )
 
-  const labelPart =
-    searchParams.labels && searchParams.labels.length === 1 ? `:${searchParams.labels?.[0]}` : ''
+  const labelPart = searchQuery.labels && searchQuery.labels.length === 1 ? `:${searchQuery.labels?.[0]}` : ''
 
   const queryBuilder = new QueryBuilder()
 
@@ -381,58 +380,194 @@ WITH record, record1
 WHERE record IS NOT NULL AND record1 IS NOT NULL
 RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departmentId\`: record1.\`__RUSHDB__KEY__ID__\`}) AS records`
 
+const q9 = {
+  where: {
+    emb: {
+      $vector: {
+        fn: 'gds.similarity.cosine',
+        query: [1, 2, 3, 4, 5],
+        threshold: {
+          $gte: 0.5,
+          $lte: 0.8,
+          $ne: 0.75
+        }
+      }
+    }
+  }
+}
+
+const r9 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE ((\`record\`.\`emb\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`emb\` = "vector" AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <> 0.75)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+WITH record
+WHERE record IS NOT NULL
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
+const q10 = {
+  where: {
+    DOCUMENT: {
+      CHUNK: {
+        embedding: {
+          $vector: {
+            fn: 'gds.similarity.cosine',
+            query: [1, 2, 3, 4, 5],
+            threshold: {
+              $gte: 0.5,
+              $lte: 0.8,
+              $ne: 0.75
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+const r10 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:DOCUMENT)
+OPTIONAL MATCH (record1)--(record2:CHUNK) WHERE ((\`record2\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) <> 0.75))
+WITH record, record1, record2
+WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
+const q11 = {
+  where: {
+    DOCUMENT: {
+      CHUNK: {
+        embedding: {
+          $vector: {
+            fn: 'gds.similarity.cosine',
+            query: [1, 2, 3, 4, 5],
+            threshold: 0.75
+          }
+        }
+      }
+    }
+  }
+}
+
+const r11 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:DOCUMENT)
+OPTIONAL MATCH (record1)--(record2:CHUNK) WHERE ((\`record2\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) >= 0.75))
+WITH record, record1, record2
+WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
+const q12 = {
+  where: {
+    embedding: {
+      $vector: {
+        fn: 'gds.similarity.euclidean',
+        query: [
+          0.0123, -0.4421, 0.9372, 0.1284, -0.3349, 0.7821, -0.2843, 0.1634, 0.4372, -0.219, 0.6612, 0.0841,
+          -0.3312, 0.9123, -0.1055, 0.0041, 0.4388, -0.7881, 0.5523, 0.0011, 0.7342, -0.2284, 0.1156, -0.5472,
+          0.3328, 0.9811, -0.1112, 0.0045, 0.6233, -0.7
+        ],
+        threshold: 0.93
+      }
+    }
+  },
+  aggregate: {
+    similarity: {
+      fn: 'gds.similarity.euclidean',
+      field: 'embedding',
+      query: [
+        0.0123, -0.4421, 0.9372, 0.1284, -0.3349, 0.7821, -0.2843, 0.1634, 0.4372, -0.219, 0.6612, 0.0841,
+        -0.3312, 0.9123, -0.1055, 0.0041, 0.4388, -0.7881, 0.5523, 0.0011, 0.7342, -0.2284, 0.1156, -0.5472,
+        0.3328, 0.9811, -0.1112, 0.0045, 0.6233, -0.7
+      ],
+      alias: '$record'
+    }
+  },
+  orderBy: 'asc',
+  skip: 0,
+  limit: 1000
+}
+
+const r12 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE ((\`record\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) >= 0.93)) ORDER BY record.\`__RUSHDB__KEY__ID__\` ASC SKIP 0 LIMIT 1000
+WITH record
+WHERE record IS NOT NULL
+WITH record, gds.similarity.euclidean(record.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) AS \`similarity\`
+RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`}) AS records`
+
 describe('build complete query', () => {
   it('0', () => {
-    const result = buildQ({ searchParams: q0 })
+    const result = buildQ({ searchQuery: q0 })
 
     expect(result).toEqual(r0)
   })
 
   it('1', () => {
-    const result = buildQ({ searchParams: q1 })
+    const result = buildQ({ searchQuery: q1 })
 
     expect(result).toEqual(r1)
   })
 
   it('2', () => {
-    const result = buildQ({ searchParams: q2 })
+    const result = buildQ({ searchQuery: q2 })
 
     expect(result).toEqual(r2)
   })
 
   it('3', () => {
-    const result = buildQ({ searchParams: q3 })
+    const result = buildQ({ searchQuery: q3 })
 
     expect(result).toEqual(r3)
   })
 
   it('4', () => {
-    const result = buildQ({ searchParams: q4 })
+    const result = buildQ({ searchQuery: q4 })
 
     expect(result).toEqual(r4)
   })
 
   it('5', () => {
-    const result = buildQ({ searchParams: q5 })
+    const result = buildQ({ searchQuery: q5 })
 
     expect(result).toEqual(r5)
   })
 
   it('6', () => {
-    const result = buildQ({ searchParams: q6 })
+    const result = buildQ({ searchQuery: q6 })
 
     expect(result).toEqual(r6)
   })
 
   it('7', () => {
-    const result = buildQ({ searchParams: q7 })
+    const result = buildQ({ searchQuery: q7 })
 
     expect(result).toEqual(r7)
   })
 
   it('8', () => {
-    const result = buildQ({ searchParams: q8 })
+    const result = buildQ({ searchQuery: q8 })
 
     expect(result).toEqual(r8)
+  })
+
+  it('9', () => {
+    const result = buildQ({ searchQuery: q9 })
+
+    expect(result).toEqual(r9)
+  })
+
+  it('10', () => {
+    const result = buildQ({ searchQuery: q10 })
+
+    expect(result).toEqual(r10)
+  })
+
+  it('11', () => {
+    const result = buildQ({ searchQuery: q11 })
+
+    expect(result).toEqual(r11)
+  })
+
+  it('12', () => {
+    const result = buildQ({ searchQuery: q12 })
+
+    expect(result).toEqual(r12)
   })
 })

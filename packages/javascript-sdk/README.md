@@ -20,14 +20,11 @@
 ## Highlights
 
 ---
-> **✨ No Configuration Needed**: Plug-and-play design requires no setup or configuration.
 
-> **🤖 Automatic Type Inference**: Enjoy seamless type safety with automatic TypeScript inference.
-
-> **↔️ Isomorphic Architecture**: Fully compatible with both server and browser environments.
-
-> **🏋️ Zero Dependencies**: Lightweight and efficient with no external dependencies.
-
+✨ No Configuration Needed: Plug-and-play design requires minimal setup to get started
+🤖 Automatic Type Inference: Enjoy seamless type safety with automatic TypeScript inference
+↔️ Isomorphic Architecture: Fully compatible with both server and browser environments
+🏋️ Zero Dependencies: Lightweight (just 6.9KB gzipped) and efficient with no external dependencies
 
 
 ## Installation
@@ -58,15 +55,13 @@ pnmp add @rushdb/javascript-sdk
 
 ### TLDR;
 ```ts
-import RushDB, { Model } from '@rushdb/javascript-sdk'
+import RushDB from '@rushdb/javascript-sdk'
 
 // Setup SDK
-const db = new RushDB("API_TOKEN", {
-  // This is the default URL; no need to provide it unless overriding.
-  url: "https://api.rushdb.com", 
-});
+const db = new RushDB("API_TOKEN");
+// Default URL is "https://api.rushdb.com". See SDK Configuration for more options.
 
-// Push any data, and RushDB will automatically flatten it into Records 
+// Push any data, and RushDB will automatically flatten it into Records
 // and establish relationships between them accordingly.
 await db.records.createMany("COMPANY", {
   name: 'Google LLC',
@@ -119,6 +114,29 @@ const company = await db.records.findUniq('COMPANY', {
 // Manage relationships
 await company.attach(matchedEmployees, { type: "WORKING_AT" })
 ```
+
+## SDK Configuration
+---
+The SDK is designed to be flexible. You can provide configuration options when initializing `RushDB` to customize its behavior, such as the API endpoint or request timeouts.
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk';
+
+// Example: Initialize with a custom URL and timeout
+const db = new RushDB('API_TOKEN', {
+  url: 'http://your-custom-rushdb-server.com', // Default is 'https://api.rushdb.com'
+});
+```
+
+The `RushDB` constructor accepts an optional second argument for configuration. Key options include:
+- `url`: The complete URL to the RushDB API.
+- Alternatively, `host`, `port`, and `protocol` can be specified individually.
+- `timeout`: Request timeout in milliseconds.
+- `httpClient`: For advanced use cases, provide a custom HTTP client implementation.
+- `logger`: Implement a custom logger.
+- `options.allowForceDelete`: Set to `true` to enable deleting all records without specifying criteria (defaults to `false` for safety).
+
+For a comprehensive guide on all available configuration options, please refer to the [SDK Configuration Documentation](https://docs.rushdb.com/typescript-sdk/introduction#sdk-configuration-options).
 
 <div align="center">
 <b>You're Awesome!</b>  🚀

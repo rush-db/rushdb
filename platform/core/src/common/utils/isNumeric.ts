@@ -1,6 +1,4 @@
-export const isNumeric = (value: string) => {
-  if (typeof value !== 'string') {
-    return false
-  }
-  return !isNaN(Number(value)) && !isNaN(parseFloat(value))
-}
+export const isNumeric = (value: unknown): value is number =>
+  typeof value === 'number' ?
+    Number.isFinite(value)
+  : typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))

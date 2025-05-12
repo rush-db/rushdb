@@ -80,7 +80,7 @@ You can customize the application by setting environment variables. Below are th
 
 ### Allowed Logins
 - `RUSHDB_ALLOWED_LOGINS=[]`
-  - A list of allowed login usernames. Leave empty to allow all logins.
+  - A find of allowed login usernames. Leave empty to allow all logins.
 
 ### Rate Limiting
 - `RATE_LIMITER_REQUESTS_LIMIT=10`

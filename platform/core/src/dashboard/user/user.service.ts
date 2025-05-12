@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
+import { QueryBuilder } from '@/common/QueryBuilder'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { toBoolean } from '@/common/utils/toBolean'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
@@ -394,18 +395,19 @@ export class UserService {
   }): Promise<boolean> {
     const queryRunner = this.neogmaService.createRunner()
 
+    const queryBuilder = new QueryBuilder()
+
     const targetPart =
       targetType === 'workspace' ?
         `-[rel:${RUSHDB_RELATION_MEMBER_OF}]->(:${RUSHDB_LABEL_WORKSPACE} { id: $targetId })`
       : `-[rel:${RUSHDB_RELATION_HAS_ACCESS}]->(:${RUSHDB_LABEL_PROJECT} { id: $targetId }) `
 
-    const query = `
-            MATCH (:${RUSHDB_LABEL_USER} { id: $userId })${targetPart}
-            RETURN rel.role as accessRole
-        `
+    queryBuilder
+      .append(`MATCH (:${RUSHDB_LABEL_USER} { id: $userId })${targetPart}`)
+      .append(`RETURN rel.role as accessRole`)
 
     const result = await queryRunner.run(
-      query,
+      queryBuilder.build(),
       {
         targetId,
         userId

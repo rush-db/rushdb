@@ -3,17 +3,38 @@ import { api } from '~/lib/api.ts'
 
 import { SearchQuery } from '@rushdb/javascript-sdk'
 import { atom } from 'nanostores'
+import { toast } from '~/elements/Toast.tsx'
 
 export const $editorData = atom<string | undefined>('')
+
+export const $selectedOperation = atom<
+  | `records.${keyof (typeof api)['records']}`
+  | `labels.${keyof (typeof api)['labels']}`
+  | `properties.${keyof (typeof api)['properties']}`
+  | `relations.${keyof (typeof api)['relationships']}`
+>('records.find')
 
 export const rawRecords = createMutator<{
   searchQuery: SearchQuery
 }>({
   async fetcher({ init, searchQuery }) {
-    return await api.records.find(searchQuery, init)
+    const operation = $selectedOperation.get().split('.')
+
+    // @ts-ignore
+    return await (api?.[operation?.[0]]?.[operation?.[1]] ?? api.records.find)(searchQuery, init)
   },
   throwError: true,
-  onError: (error: unknown) => console.log({ error }),
+  onError: (error: unknown) => {
+    // @ts-ignore
+    if (error?.message) {
+      toast({
+        // @ts-ignore
+        title: error?.name as string,
+        // @ts-ignore
+        description: error?.message as string
+      })
+    }
+  },
   invalidates: []
 })
 
@@ -21,7 +42,7 @@ export const rawLabels = createMutator<{
   searchQuery: SearchQuery
 }>({
   async fetcher({ init, searchQuery }) {
-    return await api.records.labels({ searchQuery, init })
+    return await api.labels.find({ searchQuery, init })
   },
   throwError: true,
   onError: (error: unknown) => console.log({ error }),
@@ -32,7 +53,7 @@ export const rawProperties = createMutator<{
   searchQuery: SearchQuery
 }>({
   async fetcher({ init, searchQuery }) {
-    return await api.properties.list(searchQuery, init)
+    return await api.properties.find({ searchQuery, init })
   },
   throwError: true,
   onError: (error: unknown) => console.log({ error }),

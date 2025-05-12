@@ -37,7 +37,7 @@ export const FormField: TPolymorphicComponent<FormFieldProps, 'label'> = forward
           : null}
           {children}
           {caption && !error ?
-            <span className="text-content-secondary text-xs">{caption}</span>
+            <span className="text-content-secondary text-content2 text-xs">{caption}</span>
           : null}
         </Wrapper>
         {error ?

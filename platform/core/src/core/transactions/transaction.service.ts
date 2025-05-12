@@ -1,10 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { TTransactionObject } from '@/core/transactions/transaction.types'
 import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
+
+const MAX_TTL = 30000 // 30s
+const DEFAULT_TTL = 5000 // 5s
 
 @Injectable()
 export class TransactionService {
@@ -66,17 +69,19 @@ export class TransactionService {
 
   getTransaction(id: string): TTransactionObject {
     if (!this.transactions.has(id)) {
-      return
-      // throw new NotFoundException(`Transaction with ID ${id} not found`);
+      throw new NotFoundException(`Transaction with ID ${id} not found`)
     }
     return this.transactions.get(id)
   }
 
-  private setTransactionTimeout(id: string, ttl = 5000) {
-    setTimeout(() => {
-      if (this.transactions.has(id)) {
-        this.rollbackTransaction(id)
-      }
-    }, ttl)
+  private setTransactionTimeout(id: string, ttl = DEFAULT_TTL) {
+    setTimeout(
+      () => {
+        if (this.transactions.has(id)) {
+          this.rollbackTransaction(id)
+        }
+      },
+      ttl >= MAX_TTL ? MAX_TTL : ttl
+    )
   }
 }

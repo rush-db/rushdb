@@ -7,14 +7,15 @@ import {
 } from '~/features/projects/stores/current-project'
 import { api } from '~/lib/api'
 import { createMutator } from '~/lib/fetcher'
+import { DBRecordCreationOptions } from '@rushdb/javascript-sdk'
 
-export const batchUpload = createMutator<{
+export const createMany = createMutator<{
   label: string
-  options?: { suggestTypes?: boolean }
+  options?: DBRecordCreationOptions
   payload: AnyRecord | Array<unknown>
 }>({
   async fetcher({ init, payload, label, options }) {
-    return await api.records.batchUpload({ init, payload, label, options })
+    return await api.records.createMany({ init, payload, label, options })
   },
   throwError: true,
   onError: (error: unknown) => console.log({ error }),

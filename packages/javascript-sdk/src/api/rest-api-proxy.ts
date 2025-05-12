@@ -16,7 +16,8 @@ export class RestApiProxy {
     })
   }
 
-  init(api: RestAPI, methodsWhiteList?: []) {
+  // @TODO: Probably we want add allowList for some methods to be exposed explicitly (or blockList?)
+  init(api: RestAPI) {
     this.apiProxy = api
   }
 }

@@ -1,6 +1,6 @@
 import type { PropertyValue } from '../types/index.js'
 
-export const isArray = (item: any): item is any[] =>
+export const isArray = (item: any): item is Array<any> =>
   typeof item === 'object' && Array.isArray(item) && item !== null
 
 export const isObject = (input: unknown): input is object =>
@@ -8,26 +8,18 @@ export const isObject = (input: unknown): input is object =>
 
 export const isEmptyObject = (input: unknown): boolean => isObject(input) && Object.keys(input).length === 0
 
-export const isObjectFlat = (input: any): input is Record<string, PropertyValue> => {
+export const isPrimitive = (value: unknown) => {
   return (
-    isObject(input) &&
-    Object.keys(input).every((key) => {
-      const value = (input as Record<string, any>)[key]
-      // Check if the value is an array
-      if (isArray(value)) {
-        // Check if every element in the array is of an allowed type (string, number, boolean, or null)
-        return value.every(
-          (element) =>
-            typeof element === 'string' ||
-            typeof element === 'number' ||
-            typeof element === 'boolean' ||
-            element === null
-        )
-      }
-      // Check if the value is a non-null object (excluding arrays, which are also typeof 'object')
-      return !(value && typeof value === 'object')
-    })
+    typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean' || value === null
   )
+}
+
+export const isPropertyValue = (value: any): value is PropertyValue => {
+  return isArray(value) ? value.every(isPrimitive) : isPrimitive(value)
+}
+
+export const isFlatObject = (input: any): input is Record<string, PropertyValue> => {
+  return isObject(input) && Object.values(input).every(isPropertyValue)
 }
 
 export const isString = (input: any): input is string => typeof input === 'string'

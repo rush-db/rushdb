@@ -76,12 +76,12 @@ export class PropertyService {
   async find({
     projectId,
     transaction,
-    searchParams,
+    searchQuery,
     queryRunner
   }: {
     projectId: string
     transaction: Transaction
-    searchParams?: SearchDto
+    searchQuery?: SearchDto
     queryRunner?: QueryRunner
   }): Promise<TPropertyProperties[]> {
     const runner = queryRunner || this.compositeNeogmaService.createRunner()

@@ -137,7 +137,7 @@ options = RelationshipOptions(type="HAS_EMPLOYEE")
 # create Relationship
 project.attach(employee, options)
 
-# delete Relationship
+# deleteById Relationship
 project.detach(employee)
 ___SPLIT___
 const project = await db.records.create('PROJECT', {
@@ -152,7 +152,7 @@ const employee = await db.records.create('EMPLOYEE', {
 // create Relationship
 await project.attach(employee, { type: 'HAS_EMPLOYEE' })
 
-// delete Relationship
+// deleteById Relationship
 await project.detach(employee)
 ```
 

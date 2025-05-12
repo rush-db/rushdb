@@ -9,6 +9,7 @@ export const COMPARISON_OPERATORS_MAP = {
   $lte: '<=',
   $ne: '<>'
 } as const
+
 export const comparisonOperators = [
   '$in',
   '$ne',
@@ -21,6 +22,7 @@ export const comparisonOperators = [
   '$startsWith',
   '$endsWith'
 ]
+
 export const datetimeOperators = [
   '$day',
   '$hour',
@@ -32,6 +34,8 @@ export const datetimeOperators = [
   '$second',
   '$year'
 ]
+export const vectorOperators = ['$vector']
+
 export const logicalOperators = ['$and', '$or', '$xor', '$nor', '$not']
 export const RELATION_CLAUSE_OPERATOR = '$relation'
 export const ALIAS_CLAUSE_OPERATOR = '$alias'

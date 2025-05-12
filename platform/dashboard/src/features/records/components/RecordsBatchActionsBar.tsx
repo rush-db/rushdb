@@ -4,13 +4,9 @@ import { Download, Trash } from 'lucide-react'
 import { Button } from '~/elements/Button'
 import { ConfirmDialog } from '~/elements/ConfirmDialog'
 import { Divider } from '~/elements/Divider'
-import { $exportCsv } from '~/features/projects/stores/current-project'
+import { $export } from '~/features/projects/stores/current-project'
 
-import {
-  $hasRecordsSelection,
-  $selectionLength,
-  batchDeleteSelected
-} from '../stores/actionbar'
+import { $hasRecordsSelection, $selectionLength, batchDeleteSelected } from '../stores/actionbar'
 import {
   $hasRelatedRecordsSelection,
   $selectionRelatedLength,
@@ -18,17 +14,11 @@ import {
 } from '~/features/records/stores/related-actionbar.ts'
 
 function DeleteSelected({ view = 'main' }: { view?: 'related' | 'main' }) {
-  const { mutate, loading } = useStore(
-    view === 'main' ? batchDeleteSelected : batchDeleteRelatedSelected
-  )
+  const { mutate, loading } = useStore(view === 'main' ? batchDeleteSelected : batchDeleteRelatedSelected)
   return (
     <ConfirmDialog
       trigger={
-        <Button
-          className="rounded-none text-danger hover:bg-danger/20"
-          size="small"
-          variant="inverse"
-        >
+        <Button className="text-danger hover:bg-danger/20 rounded-none" size="small" variant="inverse">
           <Trash />
           Delete
         </Button>
@@ -42,11 +32,11 @@ function DeleteSelected({ view = 'main' }: { view?: 'related' | 'main' }) {
 
 function ExportRecords({ view = 'main' }: { view?: 'related' | 'main' }) {
   // @TODO: Related records export
-  const { loading: exportInProgress, mutate } = useStore($exportCsv)
+  const { loading: exportInProgress, mutate } = useStore($export)
 
   return (
     <Button
-      className="rounded-none text-green-700 hover:bg-danger/20"
+      className="hover:bg-danger/20 rounded-none text-green-700"
       disabled={exportInProgress}
       onClick={mutate}
       size="small"
@@ -58,11 +48,7 @@ function ExportRecords({ view = 'main' }: { view?: 'related' | 'main' }) {
   )
 }
 
-export function RecordsBatchActionsBar({
-  view = 'main'
-}: {
-  view?: 'related' | 'main'
-}) {
+export function RecordsBatchActionsBar({ view = 'main' }: { view?: 'related' | 'main' }) {
   const hasSelection = useStore($hasRecordsSelection)
   const selectionLength = useStore($selectionLength)
 
@@ -76,8 +62,8 @@ export function RecordsBatchActionsBar({
   }
 
   return (
-    <div className="fixed bottom-24 left-1/2 z-10 flex -translate-x-1/2 items-center overflow-clip rounded-2xl  border-content/30 bg-content text-fill shadow-2xl ring animate-in">
-      <span className="px-3 font-mono text-sm font-medium text-fill/70">
+    <div className="border-content/30 bg-content text-fill animate-in fixed bottom-24 left-1/2 z-10 flex -translate-x-1/2 items-center overflow-clip rounded-2xl shadow-2xl ring">
+      <span className="text-fill/70 px-3 font-mono text-sm font-medium">
         {selectionLength || selectionRelatedLength} selected
       </span>
       <Divider className="bg-fill2/30" vertical />

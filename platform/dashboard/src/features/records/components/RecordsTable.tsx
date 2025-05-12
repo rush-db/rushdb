@@ -1,4 +1,4 @@
-import type { Property, DBRecord } from '@rushdb/javascript-sdk'
+import { Property, DBRecord, DBRecordInstance } from '@rushdb/javascript-sdk'
 import type { ReactElement, ReactNode, UIEventHandler } from 'react'
 
 import { useStore } from '@nanostores/react'
@@ -229,7 +229,7 @@ export function RecordsTable({
     fields?: Property[]
     loading?: boolean
     onRecordClick?: (record: DBRecord) => void
-    records?: DBRecord[]
+    records?: DBRecordInstance[]
     view?: 'related' | 'main'
   } & PaginatorProps
 >) {
@@ -272,24 +272,24 @@ export function RecordsTable({
     if (view === 'main') {
       if (hasSelection) {
         if (mixedSelection) {
-          $selectedRecords.set(records?.map((r) => r.__id) as string[])
+          $selectedRecords.set(records?.map((r) => r.id()) as string[])
         } else {
           resetRecordsSelection()
         }
       } else {
-        $selectedRecords.set(records?.map((r) => r.__id) as string[])
+        $selectedRecords.set(records?.map((r) => r.id()) as string[])
       }
     }
 
     if (view === 'related') {
       if (hasRelatedSelection) {
         if (mixedRelatedSelection) {
-          $selectedRelatedRecords.set(records?.map((r) => r.__id) as string[])
+          $selectedRelatedRecords.set(records?.map((r) => r.id()) as string[])
         } else {
           resetRelatedRecordsSelection()
         }
       } else {
-        $selectedRelatedRecords.set(records?.map((r) => r.__id) as string[])
+        $selectedRelatedRecords.set(records?.map((r) => r.id()) as string[])
       }
     }
   }
@@ -342,15 +342,15 @@ export function RecordsTable({
                     return null
                   }
 
-                  const selected = getSelectedState(record.__id)
+                  const selected = getSelectedState(record.id())
 
                   return (
                     <TableRow
                       className={cn('group cursor-pointer transition-colors', {
                         'bg-fill2': index % 2 === 0
                       })}
-                      onClick={onRecordClick ? () => onRecordClick(record) : undefined}
-                      key={record.__id}
+                      onClick={onRecordClick ? () => onRecordClick(record.data as DBRecord) : undefined}
+                      key={record.id()}
                       style={{ height: 52.5 }}
                       tabIndex={0}
                     >
@@ -362,11 +362,11 @@ export function RecordsTable({
                           onCheckedChange={() =>
                             view === 'main' ?
                               toggleRecordSelection({
-                                recordId: record.__id,
+                                recordId: record.id(),
                                 selected
                               })
                             : toggleRelatedRecordSelection({
-                                recordId: record.__id,
+                                recordId: record.id(),
                                 selected
                               })
                           }
@@ -386,25 +386,25 @@ export function RecordsTable({
                             property: {
                               name: '__id',
                               type: 'string',
-                              value: record.__id
+                              value: record.id()
                             },
                             showOperations: false
                           })}
                           className="py-1"
-                          key={`${record.__id}-${index}`}
+                          key={record.id()}
                           onPointerLeave={handlePointerLeave}
                         >
                           <Skeleton enabled={loading}>
-                            <Label>{record.__label}</Label>
+                            <Label>{record.label()}</Label>
 
-                            <PropertyValue className="text-content2" type={'string'} value={record.__id} />
+                            <PropertyValue className="text-content2" type={'string'} value={record.id()} />
                           </Skeleton>
                         </DataCell>
                       )}
 
                       {/* account for missing values */}
                       {fields?.map((field) => {
-                        const property = collectPropertiesFromRecord(record as DBRecord)?.find(
+                        const property = collectPropertiesFromRecord(record.data as DBRecord)?.find(
                           (p) => p.type === field.type && p.name === field.name
                         )
 
@@ -413,7 +413,7 @@ export function RecordsTable({
                           return (
                             <DataCell
                               className="text-content3"
-                              key={`${record.__id}-${field.id}-${field.name}`}
+                              key={`${record.id()}-${field.id}-${field.name}`}
                             >
                               —
                             </DataCell>
@@ -422,7 +422,7 @@ export function RecordsTable({
 
                         return (
                           <DataCell
-                            key={`${record.__id}-${property.name}`}
+                            key={`${record.id()}-${property.name}`}
                             onPointerEnter={handlePointerEnter({ property })}
                             onPointerLeave={handlePointerLeave}
                           >
