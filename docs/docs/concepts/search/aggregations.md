@@ -704,12 +704,12 @@ graph LR
 ###  gds.similarity.*
 **Parameters:**
 - `fn`: 'gds.similarity.[algorithm]' - The similarity algorithm to use
-  - `cosine` - Cosine similarity [-1,1]
-  - `euclidean` - Euclidean distance normalized to (0,1]
-  - `euclideanDistance` - Raw euclidean distance [0,∞)
-  - `jaccard` - Jaccard similarity [0,1]
-  - `overlap` - Overlap coefficient [0,1]
-  - `pearson` - Pearson correlation [-1,1]
+  - `gds.similarity.cosine` - Cosine similarity [-1,1]
+  - `gds.similarity.euclidean` - Euclidean distance normalized to (0,1]
+  - `gds.similarity.euclideanDistance` - Raw euclidean distance [0,∞)
+  - `gds.similarity.jaccard` - Jaccard similarity [0,1]
+  - `gds.similarity.overlap` - Overlap coefficient [0,1]
+  - `gds.similarity.pearson` - Pearson correlation [-1,1]
 - `field`: string - The vector field to compare
 - `alias`: string - The record alias to use
 - `query`: number[] - The query vector to calculate similarity against

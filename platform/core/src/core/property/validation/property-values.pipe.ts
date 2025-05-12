@@ -7,7 +7,6 @@ import { formatErrorMessage } from '@/common/validation/utils'
 import { normalizeRecord } from '@/core/common/normalizeRecord'
 import { CreateEntityDto, CreateEntityDtoSimple } from '@/core/entity/dto/create-entity.dto'
 import { EditEntityDto, EditEntityDtoSimple } from '@/core/entity/dto/edit-entity.dto'
-import { UpsertEntityDto, UpsertEntityDtoSimple } from '@/core/entity/dto/upsert-entity.dto'
 import { TPropertySingleValue } from '@/core/property/property.types'
 import { normalizeProperties, splitValueBySeparator } from '@/core/property/property.utils'
 import {
@@ -34,13 +33,7 @@ export class PropertyValuesPipe implements PipeTransform {
     }
   }
   transform(
-    value:
-      | CreateEntityDto
-      | CreateEntityDtoSimple
-      | EditEntityDto
-      | EditEntityDtoSimple
-      | UpsertEntityDto
-      | UpsertEntityDtoSimple,
+    value: CreateEntityDto | CreateEntityDtoSimple | EditEntityDto | EditEntityDtoSimple,
     metadata: ArgumentMetadata
   ) {
     if (metadata.type === 'body' && 'properties' in value) {
@@ -65,10 +58,7 @@ export class PropertyValuesPipe implements PipeTransform {
     } else if (metadata.type === 'body' && 'payload' in value) {
       // @TODO: Implement schema schema validation https://github.com/rush-db/rushdb/issues/43
 
-      return {
-        mergeBy: 'mergeBy' in value ? value.mergeBy : undefined,
-        ...normalizeRecord(value as CreateEntityDtoSimple)
-      }
+      return normalizeRecord(value as CreateEntityDtoSimple)
     }
     return value
   }

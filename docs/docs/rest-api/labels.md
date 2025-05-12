@@ -18,7 +18,7 @@ All labels endpoints require authentication using a token header.
 ## List Labels
 
 ```http
-POST /api/v1/labels
+POST /api/v1/labels/search
 ```
 
 Returns a find of all [labels](../concepts/labels.md) in the current project along with the count of records having each label. You can filter the results using the `where` clause.
@@ -27,7 +27,7 @@ Returns a find of all [labels](../concepts/labels.md) in the current project alo
 
 | Field     | Type   | Description |
 |-----------|--------|-------------|
-| `where`   | Object | Optional filter criteria to narrow down which labeled records to include |
+| `where`   | Object | Optional [filter criteria](../concepts/search/introduction.md) to narrow down which labeled records to include |
 
 ### Example Request
 
@@ -58,17 +58,15 @@ The response is a map where each key is a label name and each value is the count
 
 ## Filtering Labels
 
-You can use complex queries to filter which labeled records to include:
+You can use [complex queries](../concepts/search/introduction.md) to filter which labeled records to include:
 
 ### Example with Multiple Conditions
 
 ```json
 {
   "where": {
-    "$and": [
-      { "age": { "$gt": 30 } },
-      { "active": true }
-    ]
+    "age": { "$gt": 30 },
+    "active": true
   }
 }
 ```

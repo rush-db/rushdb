@@ -66,7 +66,6 @@ export class GithubOAuthController {
         token: this.authService.createToken(user)
       }
     } catch (e) {
-      // console.log(e)
       throw new UnauthorizedException()
     }
   }

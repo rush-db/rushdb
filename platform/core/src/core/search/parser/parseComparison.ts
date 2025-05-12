@@ -35,16 +35,17 @@ const vectorConditionQueryPrefix = (field: string, options: TSearchQueryBuilderO
 }
 
 const formatVectorForQuery = (
-  value: VectorExpression['$vector'],
+  expression: VectorExpression['$vector'],
   field: string,
   options: TSearchQueryBuilderOptions
 ) => {
-  const criteria = `${value.fn}(\`${options.nodeAlias}\`.\`${field}\`, [${value.query}])`
+  const criteria = `${expression.fn}(\`${options.nodeAlias}\`.\`${field}\`, [${expression.query}])`
   const isComplexQuery =
-    isObject(value.threshold) && containsAllowedKeys(value.threshold, Object.keys(COMPARISON_OPERATORS_MAP))
+    isObject(expression.threshold) &&
+    containsAllowedKeys(expression.threshold, Object.keys(COMPARISON_OPERATORS_MAP))
 
   if (isComplexQuery) {
-    return Object.entries(value.threshold)
+    return Object.entries(expression.threshold)
       .reduce((acc, [key, value]) => {
         if (COMPARISON_OPERATORS_MAP[key]) {
           acc.push(`${criteria} ${COMPARISON_OPERATORS_MAP[key]} ${value}`)
@@ -54,8 +55,13 @@ const formatVectorForQuery = (
       .join(' AND ')
   }
 
-  // By default `query: number` will do `$gte` (`>= ${n}`) comparison
-  return `${criteria} ${COMPARISON_OPERATORS_MAP.$gte} ${value.threshold}`
+  if (expression.fn === 'gds.similarity.euclidean' || expression.fn === 'gds.similarity.euclideanDistance') {
+    // For `euclidean` && `euclideanDistance` `threshold: number` will do `$lte` (`<= ${threshold}`) comparison
+    return `${criteria} ${COMPARISON_OPERATORS_MAP.$lte} ${expression.threshold}`
+  }
+
+  // By default `threshold: number` will do `$gte` (`>= ${threshold}`) comparison
+  return `${criteria} ${COMPARISON_OPERATORS_MAP.$gte} ${expression.threshold}`
 }
 
 const datetimeConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {

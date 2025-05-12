@@ -391,7 +391,7 @@ export function RecordsTable({
                             showOperations: false
                           })}
                           className="py-1"
-                          key={`${record.id()}-${index}`}
+                          key={record.id()}
                           onPointerLeave={handlePointerLeave}
                         >
                           <Skeleton enabled={loading}>

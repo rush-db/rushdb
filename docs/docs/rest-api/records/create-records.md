@@ -185,50 +185,6 @@ For batch operations and working with multiple records or complex data structure
 
 The Import Data API is optimized for performance when working with large datasets or complex structures. It offers additional configuration options and better throughput for batch operations.
 
-## Upsert Records
-
-```http
-PUT /api/v1/records
-```
-
-This endpoint creates a new record if it doesn't exist or updates an existing one if it matches specified criteria.
-
-### Request Body
-
-| Field     | Type   | Description |
-|-----------|--------|-------------|
-| `label`   | String | Label for the record |
-| `properties` | Array  | Array of property objects defining record data |
-| `mergeBy` | Array  | Array of property names to match for upserting |
-
-### Example Request
-
-```json
-{
-  "label": "User",
-  "properties": [
-    {
-      "name": "email",
-      "type": "string",
-      "value": "john@example.com"
-    },
-    {
-      "name": "name",
-      "type": "string",
-      "value": "John Doe"
-    },
-    {
-      "name": "lastLogin",
-      "type": "datetime",
-      "value": "2025-04-23T10:30:00Z"
-    }
-  ],
-  "mergeBy": ["email"]
-}
-```
-
-This creates a User record if no record with email "john@example.com" exists, or updates the matching record.
-
 ## Creating Records in Transactions
 
 To ensure data consistency when creating multiple related [records](/concepts/records.md), you can use [transactions](/concepts/transactions.mdx):

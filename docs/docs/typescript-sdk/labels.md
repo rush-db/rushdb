@@ -4,132 +4,155 @@ sidebar_position: 2
 
 # Labels
 
-:::note
-In RushDB, labels and properties are crucial for defining and organizing your data models. Labels act as categories or tags for your records, while properties define the structure and data types of the records themselves. This section covers how to manage labels and properties using the RushDB SDK.
-:::
+The RushDB TypeScript SDK provides a simple interface for working with [labels](../concepts/labels.md) in your database. Labels in RushDB help categorize and organize [records](../concepts/records.md), functioning similarly to table names in relational databases but with the flexibility of graph databases.
 
-## Understanding Labels and Properties
+## Labels Overview
 
-### Labels
+Labels in RushDB:
+- Provide a way to categorize and organize records
+- Enable efficient querying across similar types of records
+- Each record has exactly one user-defined label (e.g., `User`, `Product`, `Car`)
+- Are case-sensitive (e.g., "User" and "user" are treated as different labels)
+- Function similarly to table names in relational databases but with graph database flexibility
 
-Labels are used to categorize Records in RushDB. Each model or record type is associated with a label, which helps in organizing and querying the data.
+## Labels API
 
-### Properties
-
-Properties are the individual fields within a record. Each property has a type, such as string, number, or datetime, and can have additional attributes like `required`, `unique`, and `default`.
-
-## Managing Labels
-
-You can manage labels using the `labels` property in the `RestAPI` class. This allows you to find labels associated with your records.
-
-### Finding Labels
-
-The `find` method under `labels` allows you to search for labels based on specific criteria.
-
-#### Example
-
-Finding labels with specific criteria:
+The SDK provides label-related methods through the `labels` object:
 
 ```typescript
-const labelSearchCriteria = {
+// Access the labels API
+const labels = db.labels;
+```
+
+The Labels API is built on the powerful [SearchQuery](/concepts/search/introduction.md) interface, which enables you to use the same querying capabilities that are available throughout the RushDB search API. This means you can leverage complex filters, logical operators, and comparison operators when working with labels.
+
+### Find Labels
+
+Searches for labels based on the provided query parameters and returns label names with their record counts:
+
+```typescript
+const response = await db.labels.find({
+  // Optional: Any search parameters to filter labels
+  // Similar to record search queries
+  where: {
+    // You can filter by record properties that have specific labels
+    name:  "John"
+  },
+  // Other search parameters like skip, limit, etc.
+});
+
+// Response contains labels with their counts
+console.log(response.data);
+/* Example output:
+{
+  "User": 125
+}
+*/
+```
+
+## Using Labels with Records
+
+When creating or updating records, you need to specify a label:
+
+```typescript
+// Create a record with the "User" label
+const user = await db.records.create({
+  label: "User",
+  data: {
+    name: "John Doe",
+    email: "john.doe@example.com"
+  }
+});
+
+// Find all records with the "User" label
+const users = await db.records.find({
+  labels: ["User"]
+});
+```
+
+## Filtering Labels
+
+The labels API leverages the powerful [`SearchQuery`](/concepts/search/introduction.md) interface, allowing you to use the same advanced querying capabilities that are available throughout the RushDB search API. You can use complex queries to filter which labeled records to include:
+
+### Example with Multiple Conditions
+
+```typescript
+const response = await db.labels.find({
+  where: {
+    age: { $gt: 30 },
+    active: true
+  }
+});
+```
+
+This will return labels for records where `age` is greater than 30 AND `active` is true.
+
+### Example with OR Logic
+
+```typescript
+const response = await db.labels.find({
   where: {
     $or: [
-        {
-            name: {
-                $startswith: 'author'
-            }
-        },
-        {
-            title: { 
-                $contains: 'Guide' 
-            } 
-        }
+      { country: "USA" },
+      { country: "Canada" }
     ]
   }
-};
-
-const labels = await db.labels.find(labelSearchCriteria);
-// Expected output:
-// {
-//   success: true,
-//   data: {
-//     author: 12,
-//     post: 14
-//   }
-// }
+});
 ```
 
-## Managing Properties
+This will return labels for records where `country` is either "USA" OR "Canada".
 
-Properties of records can be managed using the `properties` property in the `RestAPI` class. This includes actions like finding properties and their values, deleting properties, and updating property values.
+### Advanced Query Operators
 
-### Finding Properties
+Since the Labels API uses the [`SearchQuery`](/concepts/search/introduction.md) interface, you can use all the query operators available in the [RushDB search API](/concepts/search/introduction.md):
 
-The `find` method under `properties` allows you to retrieve properties of records based on specified criteria.
-
-#### Example
-
-Finding properties of a record:
 ```typescript
-const propertySearchCriteria = {
+const response = await db.labels.find({
   where: {
-    model: 'author'
+    // String operators
+    name: { $contains: "Smith" },
+    email: { $endsWith: "@example.com" },
+
+    // Numeric operators
+    age: { $gt: 18, $lt: 65 },
+    score: { $gte: 4.5 },
+
+    // Array operators
+    tags: { $in: ["premium", "verified"] },
+
+    // Negation
+    status: { $ne: "inactive" }
   }
-};
-
-const properties = await db.properties.find(propertySearchCriteria);
-// Expected output:
-// {
-//   success: true,
-//   data: [
-//     {
-//       id: 'property_id_1',
-//       name: 'name',
-//       type: 'string',
-//     },
-//     {
-//       id: 'property_id_2',
-//       name: 'email',
-//       type: 'string',
-//     }
-//   ]
-// }
+});
 ```
 
-### Finding Property Values
+## Label Requirements and Limitations
 
-The `values` method retrieves the values of properties for a specific record.
+- **Single Custom Label**: Each record can have only one custom label at a time
+- **Required Field**: A custom label is required for each record
+- **Case-Sensitive**: Labels are case-sensitive ("User" ≠ "user")
 
-#### Example
+## Working with Labels
 
-Retrieving property values for a property:
-```typescript
-const propertyValues = await db.properties.values('property_id');
-// Expected output:
-// {
-//   success: true,
-//   data: {
-//     id: 'property_id',
-//     name: 'age',
-//     type: 'number',
-//     values: [25, 30, 35, 40],
-//     max: 40,
-//     min: 25
-//   }
-// }
-```
+### Best Practices
 
-### Deleting Properties
+1. **Consistent naming conventions**: Use a consistent pattern for [label](../concepts/labels.md) names (e.g., singular nouns, PascalCase)
+2. **Meaningful labels**: Choose labels that describe what the record represents, not just its attributes
+3. **Hierarchical labeling**: Consider using more specific labels for specialized record types (e.g., "Employee" and "Manager" instead of just "Person")
 
-The `deleteById` method removes properties from a record.
+### Common Use Cases
 
-#### Example
+- **Data organization**: Group related records for easier querying and visualization
+- **Access control**: Set permissions based on record labels
+- **Conditional processing**: Apply different business logic depending on record types
+- **Schema validation**: Enforce data structure based on record labels
 
-Deleting a property from a record:
-```typescript
-await db.properties.deleteById('property_id');
-```
+## Internal Representation
 
-## Conclusion
+Internally, labels are stored as the `__RUSHDB__KEY__LABEL__` property and exposed to clients as `__label`. This property is essential for organizing records and enabling efficient queries across similar types of data.
 
-Managing labels and properties effectively allows for better organization and retrieval of your data in RushDB. This section covered the fundamental operations for handling labels and properties, providing you with the tools to maintain a well-structured and searchable data environment.
+## Additional Resources
+
+- [Labels Concept Documentation](../concepts/labels.md) - Learn more about labels and their role in the RushDB data model
+- [Search API Documentation](/concepts/search/introduction.md) - Explore the powerful search capabilities available in RushDB
+

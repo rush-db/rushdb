@@ -349,8 +349,10 @@ Available similarity functions:
 - `overlap`: Overlap coefficient [0,1]
 - `pearson`: Pearson correlation [-1,1]
 
-The `query` parameter can be:
-- A simple number (treated as `$gte` threshold)
+The `threshold` parameter can be:
+- A simple number (with different default behaviors):
+  - For `euclidean` and `euclideanDistance` functions, a simple threshold is treated as `$lte` (less than or equal to)
+  - For all other functions (`cosine`, `jaccard`, `overlap`, `pearson`), a simple threshold is treated as `$gte` (greater than or equal to)
 - An object with comparison operators for more precise filtering:
 
 ```typescript
@@ -370,6 +372,39 @@ The `query` parameter can be:
   }
 }
 ```
+
+#### Default Threshold Behavior
+
+When providing a simple number as threshold, the comparison differs by function type:
+
+```typescript
+// For cosine similarity, higher values mean more similar
+// So threshold: 0.75 means "find vectors with similarity >= 0.75"
+{
+  where: {
+    embedding: {
+      $vector: {
+        fn: "gds.similarity.cosine",
+        query: [1, 2, 3, 4, 5],
+        threshold: 0.75  // Interpreted as $gte: 0.75
+      }
+    }
+  }
+}
+
+// For euclidean distance, lower values mean more similar
+// So threshold: 0.5 means "find vectors with distance <= 0.5"
+{
+  where: {
+    embedding: {
+      $vector: {
+        fn: "gds.similarity.euclidean",
+        query: [1, 2, 3, 4, 5],
+        threshold: 0.5  // Interpreted as $lte: 0.5
+      }
+    }
+  }
+}
 
 ## Logical Grouping Operators
 
@@ -800,7 +835,7 @@ This query uses nested logical operators to find records that either have a high
         content: { $contains: "embedding" },
         embedding: {
           $vector: {
-            fn: "gds.similarity.cosine", 
+            fn: "gds.similarity.cosine",
             query: [0.1, 0.2, 0.3, 0.4, 0.5],
             threshold: {
               $gte: 0.75

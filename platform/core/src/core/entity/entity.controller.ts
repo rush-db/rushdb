@@ -34,13 +34,11 @@ import {
   RUSHDB_KEY_PROPERTIES_META
 } from '@/core/common/constants'
 import { prepareProperties } from '@/core/common/normalizeRecord'
-import { UpsertEntityDto } from '@/core/entity/dto/upsert-entity.dto'
 import { EntityWriteGuard } from '@/core/entity/entity-write.guard'
 import { TRecordSearchResult } from '@/core/entity/entity.types'
 import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
 import { createEntitySchema } from '@/core/entity/validation/schemas/create-entity.schema'
 import { editEntitySchema } from '@/core/entity/validation/schemas/edit-entity.schema'
-import { upsertEntitySchema } from '@/core/entity/validation/schemas/upsert-entity.schema'
 import { PropertyService } from '@/core/property/property.service'
 import { PropertyValuesPipe } from '@/core/property/validation/property-values.pipe'
 import { SearchDto } from '@/core/search/dto/search.dto'
@@ -109,34 +107,6 @@ export class EntityController {
     const projectId = request.projectId
 
     const result = await this.entityService.create({
-      entity,
-      projectId,
-      transaction
-    })
-
-    await this.propertyService.deleteOrphanProps({
-      projectId,
-      transaction
-    })
-
-    return result
-  }
-
-  @Put()
-  @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
-  @UsePipes(ValidationPipe(upsertEntitySchema, 'body'), PropertyValuesPipe)
-  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
-  @HttpCode(HttpStatus.CREATED)
-  @AuthGuard('project')
-  async upsert(
-    @Body() entity: UpsertEntityDto,
-    @TransactionDecorator() transaction: Transaction,
-    @Request() request: PlatformRequest
-  ): Promise<TEntityPropertiesNormalized> {
-    const projectId = request.projectId
-
-    const result = await this.entityService.upsert({
       entity,
       projectId,
       transaction

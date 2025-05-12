@@ -20,14 +20,11 @@ export const rawRecords = createMutator<{
   async fetcher({ init, searchQuery }) {
     const operation = $selectedOperation.get().split('.')
 
-    console.log(searchQuery)
-
     // @ts-ignore
     return await (api?.[operation?.[0]]?.[operation?.[1]] ?? api.records.find)(searchQuery, init)
   },
   throwError: true,
   onError: (error: unknown) => {
-    console.log({ error, op: $selectedOperation.get() })
     // @ts-ignore
     if (error?.message) {
       toast({

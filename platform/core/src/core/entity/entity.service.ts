@@ -6,8 +6,6 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
-import { toBoolean } from '@/common/utils/toBolean'
-import { UpsertEntityDto } from '@/core/entity/dto/upsert-entity.dto'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import { TRecordRelationsResponse } from '@/core/entity/entity.types'
 import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
@@ -56,56 +54,6 @@ export class EntityService {
     return await runner
       .run(
         this.entityQueryService.createRecord(),
-        {
-          record,
-          projectId
-        },
-        transaction
-      )
-      .then((result) => result.records[0]?.get('data'))
-  }
-
-  async upsert({
-    entity,
-    projectId,
-    transaction,
-    queryRunner
-  }: {
-    entity: UpsertEntityDto
-    projectId: string
-    transaction: Transaction
-    queryRunner?: QueryRunner
-  }): Promise<TEntityPropertiesNormalized> {
-    const runner = queryRunner || this.neogmaService.createRunner()
-
-    const { properties, label, id, mergeBy }: UpsertEntityDto & { id?: string } = entity
-    const entityId = id ?? uuidv7()
-
-    const where: SearchDto['where'] = Object.entries(entity.properties).reduce((acc, [key, value]) => {
-      if (typeof mergeBy === 'undefined' || (toBoolean(mergeBy) && mergeBy.includes(key))) {
-        acc[key] = value.value
-      }
-      return acc
-    }, {})
-
-    const existingRecordsByCriteria = await this.find({ searchQuery: { where }, projectId, transaction })
-
-    const record: UpsertEntityDto & { id?: string; created: string } = {
-      id: entityId,
-      created: getCurrentISO(),
-      label,
-      properties
-    }
-
-    console.log({
-      where,
-      mergeBy,
-      upsert: JSON.stringify({ existingRecordsByCriteria }, null, 2)
-    })
-
-    return await runner
-      .run(
-        this.entityQueryService.upsert(record, mergeBy),
         {
           record,
           projectId

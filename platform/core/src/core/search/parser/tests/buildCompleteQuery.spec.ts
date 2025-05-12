@@ -5,7 +5,6 @@ import { RUSHDB_LABEL_RECORD } from '@/core/common/constants'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { buildAggregation, buildQuery } from '@/core/search/parser'
 import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQueryPart'
-import { parse } from '@/core/search/parser/parse'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 
 const buildQ = ({ id, searchQuery }: { searchQuery?: SearchDto; id?: string }) => {

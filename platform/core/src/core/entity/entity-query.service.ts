@@ -13,7 +13,6 @@ import {
   RUSHDB_RELATION_DEFAULT
 } from '@/core/common/constants'
 import { MaybeArray } from '@/core/common/types'
-import { UpsertEntityDto } from '@/core/entity/dto/upsert-entity.dto'
 import { RELATION_DIRECTION_IN, RELATION_DIRECTION_OUT } from '@/core/entity/entity.constants'
 import { TRelationDirection } from '@/core/entity/entity.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
@@ -38,43 +37,6 @@ export class EntityQueryService {
     queryBuilder
       .append(`WITH $record as r, datetime() as time`)
       .append(`CREATE (record:${RUSHDB_LABEL_RECORD} {${RUSHDB_KEY_ID}: r.id, ${projectIdInline()}})`)
-      .append(`WITH *`)
-      .append(
-        `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as labelCreationResult`
-      )
-      .append(this.processProps())
-      .append(`RETURN record {.*, ${label()}} as data`)
-
-    return queryBuilder.getQuery()
-  }
-
-  upsert(record: UpsertEntityDto & { id?: string; created: string }, mergeBy?: Array<string>) {
-    const queryBuilder = new QueryBuilder()
-
-    // Build the match criteria dynamically based on mergeBy or all properties
-    const propertiesCriteria = record.properties
-      .map((property) => {
-        if ((toBoolean(mergeBy?.length) && mergeBy?.includes(property.name)) || !toBoolean(mergeBy)) {
-          return `${property.name}: ${property.value}`
-        }
-      })
-      .filter(toBoolean)
-      .join(', ')
-
-    queryBuilder.append(`WITH $record as r, datetime() as time`)
-    console.log(propertiesCriteria)
-    // Merge based on match criteria - use id if provided, otherwise use dynamic matching
-    if (propertiesCriteria) {
-      queryBuilder.append(
-        `MERGE (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()}, ${propertiesCriteria} })`
-      )
-    } else {
-      queryBuilder.append(`MERGE (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
-    }
-
-    // Handle ON CREATE - set the ID if not already set
-    queryBuilder
-      .append(`ON CREATE SET record.${RUSHDB_KEY_ID} = r.id`)
       .append(`WITH *`)
       .append(
         `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as labelCreationResult`
@@ -168,7 +130,6 @@ export class EntityQueryService {
 
     queryBuilder.append(aggregateProjections).append(`RETURN ${returnPart}`)
 
-    console.log(queryBuilder.getQuery())
     return queryBuilder.getQuery()
   }
 

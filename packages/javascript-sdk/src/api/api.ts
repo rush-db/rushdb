@@ -636,61 +636,6 @@ export class RestAPI {
       return new DBRecordInstance<S>()
     },
 
-    /**
-     * Creates or updates a record based on matching criteria
-     * @param label - The label/type of the record
-     * @param data - The record data to upsert
-     * @param mergeBy - Optional array of property names to match existing records
-     * @param options - Optional write configuration
-     * @param transaction - Optional transaction for atomic operations
-     * @returns Promise resolving to DBRecordInstance
-     * @throws Error if data is not a flat object
-     */
-    upsert: async <S extends Schema = any>(
-      {
-        label,
-        data,
-        mergeBy,
-        options
-      }: {
-        label: string
-        data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
-        mergeBy?: Array<string>
-        options?: DBRecordCreationOptions
-      },
-      transaction?: Transaction | string
-    ): Promise<DBRecordInstance<S>> => {
-      const txId = pickTransactionId(transaction)
-      const path = `/records`
-      const payload = {
-        headers: Object.assign({}, buildTransactionHeader(txId)),
-        method: 'PUT',
-        requestData: {}
-      }
-      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
-      console.log('upsert', data)
-      if (isArray(data) && data.every(isPropertyDraft)) {
-        payload.requestData = { mergeBy, properties: data, label }
-      } else if (isFlatObject(data)) {
-        payload.requestData = { mergeBy, payload: data, label, options }
-      } else if (isObject(data)) {
-        throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
-      }
-
-      this.logger?.({ requestId, path, ...payload })
-      const response = await this.fetcher<ApiResponse<DBRecord<S> | undefined>>(path, payload)
-      this.logger?.({ requestId, path, ...payload, responseData: response.data })
-
-      if (response?.success && response?.data) {
-        const result = new DBRecordInstance<S>(response.data)
-        result.init(this)
-        return result
-      }
-
-      return new DBRecordInstance<S>()
-    }
-  }
-
   /**
    * API methods for managing relations between records
    */
