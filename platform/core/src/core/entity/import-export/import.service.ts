@@ -306,6 +306,7 @@ export class ImportService {
       const relationsChunk = relations.slice(i, i + CHUNK_SIZE)
       await this.processRelationshipsChunk({
         relationsChunk,
+        projectId,
         transaction: customTransaction,
         queryRunner: runner
       })

@@ -1,8 +1,9 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common'
 import { Request, Response, NextFunction } from 'express'
-import { dbContextStorage, DbContext } from '@/database/db-context'
-import { DbConnectionService } from '@/database/db-connection/db-connection.service'
+
 import { isDevMode } from '@/common/utils/isDevMode'
+import { ConnectionResult, DbConnectionService } from '@/database/db-connection/db-connection.service'
+import { dbContextStorage, DbContext } from '@/database/db-context'
 
 @Injectable()
 export class DbContextMiddleware implements NestMiddleware {
@@ -10,7 +11,7 @@ export class DbContextMiddleware implements NestMiddleware {
 
   async use(req: Request, res: Response, next: NextFunction) {
     const projectId = req.headers['x-project-id'] as string
-    let connectionConfig
+    let connectionConfig: ConnectionResult
 
     if (projectId) {
       try {

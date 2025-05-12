@@ -36,10 +36,11 @@ import { TSearchSortDirection } from '@/core/search/search.types'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
+import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
-import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
+import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 // FIELDS CRUD
 
@@ -86,7 +87,7 @@ export class PropertyController {
   @HttpCode(HttpStatus.OK)
   async listProperties(
     @Body() searchQuery: Omit<SearchDto, 'sort' | 'skip' | 'limit'>,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<TPropertyProperties[]> {
     const projectId = request.projectId
@@ -106,7 +107,7 @@ export class PropertyController {
   @HttpCode(HttpStatus.OK)
   async getPropertyValues(
     @Param('propertyId') propertyId: string,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Query('sort') sort?: TSearchSortDirection,
     @Query('query') query?: string,
     @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
@@ -129,7 +130,7 @@ export class PropertyController {
   @HttpCode(HttpStatus.OK)
   async findById(
     @Param('propertyId') propertyId: string,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<unknown> {
     const projectId = request.projectId
@@ -153,7 +154,7 @@ export class PropertyController {
     @Param('propertyId') propertyId: string,
     // @TODO: Revamp it with put/post to meed HTTP Spec (no body in DELETE)
     // @Body() deleteParams: DeletePropertyDto,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
@@ -215,7 +216,7 @@ export class PropertyController {
   async updateField(
     @Param('propertyId') propertyId: string,
     @Body() updateParams: UpdatePropertyDto,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean> {
     const projectId = request.projectId

@@ -24,8 +24,8 @@ import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-p
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
-
 import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
+import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 @Controller('labels')
 @ApiTags('Labels')
@@ -46,7 +46,7 @@ export class LabelsController {
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
   async labelsSearch(
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchQuery: Pick<SearchDto, 'where'>,
     @Request() request: PlatformRequest
   ): Promise<Record<string, number>> {

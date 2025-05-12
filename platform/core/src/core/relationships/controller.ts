@@ -37,6 +37,7 @@ import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-p
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 // @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach
 // for example: { source: { where: { $id: ... } }, target: { where: { $id: ... } }, type?: string }
@@ -73,7 +74,7 @@ export class RelationshipsController {
   async attach(
     @Param('entityId') entityId: string,
     @Body() attachDto: AttachDto,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
@@ -100,7 +101,7 @@ export class RelationshipsController {
   async detach(
     @Param('entityId') entityId: string,
     @Body() detachDto: DetachDto,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
@@ -114,7 +115,7 @@ export class RelationshipsController {
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async findRelations(
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchQuery: SearchDto = {},
     @Request() request: PlatformRequest,
     @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
