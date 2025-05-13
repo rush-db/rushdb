@@ -57,19 +57,6 @@ export class GoogleOAuthController {
       state
     })
 
-    console.log({
-      client_id: this.configService.get('GOOGLE_CLIENT_ID'),
-      redirect_uri: `${this.configService.get('RUSHDB_DASHBOARD_URL')}/auth/google`,
-      scope: [
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile'
-      ].join(' '),
-      response_type: 'code',
-      access_type: 'offline',
-      prompt: 'consent',
-      state
-    })
-
     return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` }
   }
 
@@ -95,13 +82,7 @@ export class GoogleOAuthController {
         throw new UnauthorizedException('Invalid OAuth state')
       }
 
-      let user: User
-      try {
-        user = await this.googleOAuthService.googleLogin(params.code, transaction)
-      } catch (error) {
-        console.log('NOT A USER', error)
-        throw new UnauthorizedException('Invalid OAuth state')
-      }
+      const user: User = await this.googleOAuthService.googleLogin(params.code, transaction)
 
       if (!user) {
         throw new UnauthorizedException()
@@ -115,8 +96,8 @@ export class GoogleOAuthController {
 
       return {
         ...userData,
-        token: this.authService.createToken(user)
-        // inviteQuery: parsed.invite
+        token: this.authService.createToken(user),
+        inviteQuery: parsed.invite
       }
     } catch (e) {
       isDevMode(() => Logger.log(`[Google OAUTH ERROR]: `, e))
