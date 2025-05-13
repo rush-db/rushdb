@@ -134,34 +134,6 @@ export class AuthController {
     }
   }
 
-  @Patch('join-workspace')
-  @ApiTags('Auth')
-  @ApiQuery({
-    name: 'invite',
-    required: true,
-    description: "invite to verify user's email && workspace",
-    type: 'string'
-  })
-  @ApiBearerAuth()
-  @AuthGuard(null)
-  @CommonResponseDecorator(GetUserDto)
-  async joinWorkspace(
-    @Query('invite') token: string,
-    @AuthUser() authUser: IUserClaims,
-    @TransactionDecorator() transaction: Transaction
-  ) {
-    const user = await this.userService.acceptWorkspaceInvitation<false>(
-      {
-        inviteToken: token,
-        authUserLogin: authUser.login,
-        forceUserSignUp: false
-      },
-      transaction
-    )
-
-    return user.userData.toJson()
-  }
-
   @Get('confirm')
   @ApiTags('Auth')
   @ApiQuery({

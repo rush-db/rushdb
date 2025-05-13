@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wallet2 } from 'lucide-react'
+import { LayoutDashboard, SettingsIcon, Wallet2, Users } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -13,6 +13,16 @@ export function WorkspacesLayout({ children, className }: TPolymorphicComponentP
       href: getRoutePath('home'),
       icon: <LayoutDashboard />,
       label: 'Projects'
+    },
+    {
+      href: getRoutePath('workspaceUsers'),
+      icon: <Users />,
+      label: 'Users'
+    },
+    {
+      href: getRoutePath('workspaceSettings'),
+      icon: <SettingsIcon />,
+      label: 'Settings'
     }
   ])
 

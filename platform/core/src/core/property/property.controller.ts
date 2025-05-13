@@ -26,7 +26,6 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { EntityService } from '@/core/entity/entity.service'
-import { UpdatePropertyValueDto } from '@/core/property/dto/update-property-value.dto'
 import { UpdatePropertyDto } from '@/core/property/dto/update-property.dto'
 import { TPropertyProperties } from '@/core/property/model/property.interface'
 import { PropertyService } from '@/core/property/property.service'
@@ -39,30 +38,8 @@ import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-p
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
 import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
-
-// FIELDS CRUD
-
-// POST     /field                      ✅ SEARCH Fields SearchDto
-
-// GET      /field                      ✅ READ ALL
-// GET      /field/:id                  ✅ READ
-// PATCH    /field/:id                  ✅ UPDATE DTO?: { name?: string, type?: 'string' }
-// PATCH    /field/:id/values           ✅ UPDATE DTO?: { newValue?: undefined | ... } & { SearchDTO | { entityIds?: string[] | "*", depth: number = 1 | full } }
-// DELETE   /field/:id                  ✅ DELETE DTO?: { SearchDTO // 2nd stage | { entityIds?: string[] | "*", depth: number = 0 | full } // 1st stage }
-
-// type TUpdateProp | TCopyProp = {
-//     id?: string;
-//     target: SearchDto | { entityIds?: string[] | '*'; depth: TSearchDepth };
-//     name?: string;
-//     newValue?: TPropertyValueRaw;
-//     valueMatcher: 'value - {OPERATION} - critera';
-// };
-
-// 1. Don't know how to merge similar properties (if name and type are matched)
-// 2. Don't know how to change prop type // we are ok with it because thinking of it causes pain in the ass
-// 3. Move prop values partially to new/existing prop (for normalization purposes) (Copying, Backuping)
 
 @Controller('properties')
 @ApiTags('Properties')
@@ -70,7 +47,8 @@ import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferr
   TransformResponseInterceptor,
   NotFoundInterceptor,
   NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor
+  NeogmaTransactionInterceptor,
+  CustomTransactionInterceptor
 )
 export class PropertyController {
   constructor(

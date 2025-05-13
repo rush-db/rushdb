@@ -19,7 +19,13 @@ import type { GetUserResponse, User } from '~/features/auth/types'
 import type { PlanId, PlanPeriod } from '~/features/billing/types'
 import type { Project, ProjectStats, WithProjectID } from '~/features/projects/types'
 import type { ProjectToken } from '~/features/tokens/types'
-import type { Workspace } from '~/features/workspaces/types'
+import type {
+  Workspace,
+  WorkspaceUser,
+  WorkspaceAccessList,
+  InviteToWorkspaceDto,
+  RevokeAccessDto
+} from '~/features/workspaces/types'
 import type { GenericApiResponse, Override } from '~/types'
 
 import { sdk } from '~/lib/sdk.ts'
@@ -163,12 +169,12 @@ export const api = {
       })
     },
     update(params: Partial<Omit<Workspace, 'id'> & Pick<Workspace, 'id'>>, init: RequestInit) {
-      const { id, ...body } = params
+      const { id, name, ...body } = params
 
       return fetcher<Workspace>(`/api/v1/workspaces/${id}`, {
         ...init,
         method: 'PATCH',
-        body: JSON.stringify(body)
+        body: JSON.stringify({ name })
       })
     },
     delete(params: Pick<Workspace, 'id'>, init: RequestInit) {
@@ -177,6 +183,55 @@ export const api = {
       return fetcher<Workspace>(`/api/v1/workspaces/${id}`, {
         ...init,
         method: 'DELETE'
+      })
+    },
+    async inviteUser({
+      id,
+      email,
+      projectIds,
+      init
+    }: WithInit & Pick<Workspace, 'id'> & InviteToWorkspaceDto) {
+      return fetcher<{ message: string }>(`/api/v1/workspaces/${id}/invite`, {
+        ...init,
+        method: 'POST',
+        body: JSON.stringify({ email, projectIds })
+      })
+    },
+    async getAccessList({ id, init }: WithInit & Pick<Workspace, 'id'>) {
+      return fetcher<WorkspaceAccessList>(`/api/v1/workspaces/${id}/access-list`, {
+        ...init,
+        method: 'GET'
+      })
+    },
+    async getUserList({ id, init }: WithInit & Pick<Workspace, 'id'>) {
+      return fetcher<WorkspaceUser[]>(`/api/v1/workspaces/${id}/user-list`, {
+        ...init,
+        method: 'GET'
+      })
+    },
+    async revokeAccess({ id, userIds, init }: WithInit & Pick<Workspace, 'id'> & RevokeAccessDto) {
+      return fetcher<{ message: string }>(`/api/v1/workspaces/${id}/revoke-access`, {
+        ...init,
+        method: 'PATCH',
+        body: JSON.stringify({ userIds })
+      })
+    },
+    async updateAccessList({
+      id,
+      accessMap,
+      init
+    }: WithInit & Pick<Workspace, 'id'> & { accessMap: WorkspaceAccessList }) {
+      return fetcher<{ message: string }>(`/api/v1/workspaces/${id}/access-list`, {
+        ...init,
+        method: 'PATCH',
+        body: JSON.stringify(accessMap)
+      })
+    },
+    async acceptInvitation({ token, init }: WithInit & { token: string }) {
+      return fetcher<Workspace>(`/api/v1/workspaces/join-workspace`, {
+        ...init,
+        method: 'POST',
+        body: JSON.stringify({ token })
       })
     }
   },

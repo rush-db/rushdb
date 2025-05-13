@@ -51,8 +51,12 @@ export class GoogleOAuthService {
         grant_type: 'authorization_code',
         code
       })
+
+      console.log(data)
+
       return data.access_token
     } catch (e) {
+      console.log('getAccessTokenFromCode', e)
       return undefined
     }
   }

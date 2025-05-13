@@ -31,6 +31,8 @@ const protectedRoutes = {
   newWorkspace: '/new-workspace',
   newProject: '/projects/new',
   workspaceSettings: '/workspace-settings',
+  workspaceUsers: '/workspace-users',
+  joinWorkspace: '/join-workspace',
   projects: '/',
   workspaceBilling: !$platformSettings.get().data?.selfHosted ? '/billing' : '/',
   profile: '/profile',

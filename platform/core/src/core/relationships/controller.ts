@@ -37,6 +37,7 @@ import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-p
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
 import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 // @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach
@@ -49,7 +50,8 @@ import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferr
   TransformResponseInterceptor,
   NotFoundInterceptor,
   NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor
+  NeogmaTransactionInterceptor,
+  CustomTransactionInterceptor
 )
 export class RelationshipsController {
   constructor(private readonly entityService: EntityService) {}

@@ -12,6 +12,8 @@ import { WorkspaceBillingPage } from '~/pages/workspace/billing'
 import { NewWorkspacePage } from '~/pages/workspace/new'
 import { WorkspaceProjectsPage } from '~/pages/workspace/projects'
 import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
+import { WorkspaceUsersPage } from '~/pages/workspace/users'
+import { JoinWorkspacePage } from '~/pages/workspace/join'
 import { ConfirmEmail } from '~/pages/auth/confirmEmail'
 
 import { Toaster } from './elements/Toast'
@@ -54,6 +56,10 @@ function ProtectedRoutes() {
       return <ProfilePage />
     case 'workspaceSettings':
       return <WorkspaceSettingsPage />
+    case 'workspaceUsers':
+      return <WorkspaceUsersPage />
+    case 'joinWorkspace':
+      return <JoinWorkspacePage />
     case 'workspaceBilling':
       if ($platformSettings.get().data?.selfHosted) {
         return null
@@ -129,6 +135,18 @@ function ProductionScripts() {
 }
 
 export function App() {
+  // Check for workspace invitation links when the app initializes
+  useEffect(() => {
+    // We import this dynamically to avoid circular dependencies
+    import('~/features/workspaces/utils/handleInvitation')
+      .then(({ checkForWorkspaceInvitation }) => {
+        checkForWorkspaceInvitation()
+      })
+      .catch((err) => {
+        console.error('Failed to check for workspace invitation:', err)
+      })
+  }, [])
+
   return (
     <>
       <Routes />

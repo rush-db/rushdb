@@ -13,22 +13,25 @@ import {
 import { ApiBearerAuth, ApiExcludeController, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
+import { CommonResponseDecorator } from '@/common/decorators/common-response.decorator'
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
 import { AuthUser } from '@/dashboard/user/decorators/user.decorator'
+import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
+import { UserService } from '@/dashboard/user/user.service'
 import { EditWorkspaceDto } from '@/dashboard/workspace/dto/edit-workspace.dto'
-import { IWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
-import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 import { InviteToWorkspaceDto } from '@/dashboard/workspace/dto/invite-to-workspace.dto'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 import { RevokeAccessDto } from '@/dashboard/workspace/dto/revoke-access.dto'
+import { IWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
+import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { TExtendedWorkspaceProperties } from '@/dashboard/workspace/workspace.types'
+import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
+import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
+import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 @Controller('workspaces')
 @ApiExcludeController()
@@ -40,7 +43,10 @@ import { TExtendedWorkspaceProperties } from '@/dashboard/workspace/workspace.ty
   ChangeCorsInterceptor
 )
 export class WorkspaceController {
-  constructor(private readonly workspaceService: WorkspaceService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly workspaceService: WorkspaceService
+  ) {}
 
   // Don't allow to create more than 1 org. Temporary disabled (!)
   // @Post()
@@ -223,5 +229,27 @@ export class WorkspaceController {
     @TransactionDecorator() transaction: Transaction
   ): Promise<{ message: string }> {
     return await this.workspaceService.revokeAccessList(id, userIds, transaction)
+  }
+
+  @Post('join-workspace')
+  @ApiTags('Auth')
+  @ApiBearerAuth()
+  @AuthGuard(null)
+  @CommonResponseDecorator(GetUserDto)
+  async joinWorkspace(
+    @Body() { token }: { token: string },
+    @AuthUser() authUser: IUserClaims,
+    @TransactionDecorator() transaction: Transaction
+  ) {
+    const user = await this.userService.acceptWorkspaceInvitation<false>(
+      {
+        inviteToken: token,
+        authUserLogin: authUser.login,
+        forceUserSignUp: false
+      },
+      transaction
+    )
+
+    return user.userData.toJson()
   }
 }

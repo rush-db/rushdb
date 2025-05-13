@@ -1,15 +1,15 @@
 import { forwardRef, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import axios, { AxiosRequestConfig } from 'axios'
 import { Transaction } from 'neo4j-driver'
 import Stripe from 'stripe'
 
+import { isProductionMode } from '@/common/utils/isProductionMode'
 import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
+import { TPlan } from '@/dashboard/billing/stripe/interfaces/stripe.types'
 import { PlansDto } from '@/dashboard/billing/stripe/plans.dto'
 import { getPlanKeyByPriceId } from '@/dashboard/billing/stripe/stripe.utils'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import axios, { AxiosRequestConfig } from 'axios'
-import { TPlan } from '@/dashboard/billing/stripe/interfaces/stripe.types'
-import { isProductionMode } from '@/common/utils/isProductionMode'
 
 @Injectable()
 export class StripeService {
@@ -61,6 +61,14 @@ export class StripeService {
     await this.stripe.customers.update(customerId, updates)
   }
 
+  async getPrices() {
+    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
+      ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
+    } as AxiosRequestConfig)
+
+    return data
+  }
+
   async createCustomerPlan(payload: Stripe.Event, transaction: Transaction) {
     const stripePayload = payload.data.object
 
@@ -85,16 +93,14 @@ export class StripeService {
     }
 
     if (subscriptionId && userEmail) {
-      const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
-        ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
-      } as AxiosRequestConfig)
+      const prices = await this.getPrices()
 
       const subscription = await this.stripe.subscriptions.retrieve(subscriptionId)
       const planId = subscription.items.data[0].plan.id
       const validTill = new Date(subscription.current_period_end * 1000)
 
       const targetId = await this.workspaceService.findUserBillingWorkspace(userEmail, transaction)
-      const plan = getPlanKeyByPriceId(planId, data)
+      const plan = getPlanKeyByPriceId(planId, prices)
 
       await this.workspaceService.patchWorkspace(
         targetId,
@@ -112,9 +118,7 @@ export class StripeService {
   async updateCustomerPlan(payload: Stripe.Event, transaction: Transaction) {
     const updatedSubscription = payload.data.object as Stripe.Subscription
 
-    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
-      ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
-    } as AxiosRequestConfig)
+    const prices = await this.getPrices()
 
     const customer = await this.stripe.customers.retrieve(updatedSubscription.customer as string)
     const userEmail = customer.email
@@ -124,7 +128,7 @@ export class StripeService {
     const updatedValidTill = new Date(updatedSubscription.current_period_end * 1000)
 
     const targetId = await this.workspaceService.findUserBillingWorkspace(userEmail, transaction)
-    const plan = getPlanKeyByPriceId(updatedPlanId, data)
+    const plan = getPlanKeyByPriceId(updatedPlanId, prices)
 
     if ('cancel_at_period_end' in payload.data.object && payload.data.object.cancel_at_period_end === true) {
       await this.workspaceService.patchWorkspace(
@@ -175,10 +179,8 @@ export class StripeService {
     { id, period, returnUrl }: PlansDto,
     email: string
   ): Promise<Stripe.Checkout.Session> {
-    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
-      ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
-    } as AxiosRequestConfig)
-    const { priceId } = data[id][period]
+    const prices = await this.getPrices()
+    const { priceId } = prices[id][period]
 
     const customer: Stripe.Customer = await this.getCustomerByEmail(email)
 

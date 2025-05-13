@@ -6,9 +6,28 @@ export type Workspace = {
   id: string
   limits: {
     projects: number
+    users?: number
   }
   name: string
   planId?: PlanId
   validTill?: ISO8601
   isSubscriptionCancelled?: boolean
+}
+
+export interface WorkspaceUser {
+  id: string
+  login: string
+}
+
+export interface WorkspaceAccessList {
+  [projectId: string]: string[]
+}
+
+export interface InviteToWorkspaceDto {
+  email: string
+  projectIds?: string[]
+}
+
+export interface RevokeAccessDto {
+  userIds: string[]
 }

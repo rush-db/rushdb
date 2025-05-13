@@ -13,6 +13,7 @@ import { Transaction } from 'neo4j-driver'
 import * as queryString from 'query-string'
 
 import { CommonResponseDecorator } from '@/common/decorators/common-response.decorator'
+import { isDevMode } from '@/common/utils/isDevMode'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { IOauthUrl } from '@/dashboard/auth/auth.types'
 import { GetOauthDto } from '@/dashboard/auth/dto/get-oauth.dto'
@@ -20,10 +21,10 @@ import { EmailConfirmationService } from '@/dashboard/auth/email-confirmation/em
 import { GoogleOAuthService } from '@/dashboard/auth/providers/google/google.service'
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
 import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
+import { User } from '@/dashboard/user/user.entity'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
-import { isDevMode } from '@/common/utils/isDevMode'
 
 @Controller('auth')
 @ApiExcludeController()
@@ -56,6 +57,19 @@ export class GoogleOAuthController {
       state
     })
 
+    console.log({
+      client_id: this.configService.get('GOOGLE_CLIENT_ID'),
+      redirect_uri: `${this.configService.get('RUSHDB_DASHBOARD_URL')}/auth/google`,
+      scope: [
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile'
+      ].join(' '),
+      response_type: 'code',
+      access_type: 'offline',
+      prompt: 'consent',
+      state
+    })
+
     return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` }
   }
 
@@ -65,14 +79,14 @@ export class GoogleOAuthController {
   @UseInterceptors(NeogmaTransactionInterceptor, NeogmaDataInterceptor, ChangeCorsInterceptor)
   async googleAuthRedirect(
     @TransactionDecorator() transaction: Transaction,
-    @Query('code') code: string,
-    @Query('state') state: string
+    @Query()
+    params: { code: string; scope: string; authuser: string; prompt: string; state?: string }
   ) {
     try {
       let parsed: { redirectUrl?: string; invite?: string }
 
       try {
-        parsed = JSON.parse(state)
+        parsed = JSON.parse(params.state ?? '{}')
 
         if (parsed.invite) {
           isDevMode(() => Logger.log(`[Google OAUTH LOG]: Has user invitation`))
@@ -81,7 +95,13 @@ export class GoogleOAuthController {
         throw new UnauthorizedException('Invalid OAuth state')
       }
 
-      const user = await this.googleOAuthService.googleLogin(code, transaction)
+      let user: User
+      try {
+        user = await this.googleOAuthService.googleLogin(params.code, transaction)
+      } catch (error) {
+        console.log('NOT A USER', error)
+        throw new UnauthorizedException('Invalid OAuth state')
+      }
 
       if (!user) {
         throw new UnauthorizedException()
@@ -95,10 +115,12 @@ export class GoogleOAuthController {
 
       return {
         ...userData,
-        token: this.authService.createToken(user),
-        inviteQuery: parsed.invite
+        token: this.authService.createToken(user)
+        // inviteQuery: parsed.invite
       }
     } catch (e) {
+      isDevMode(() => Logger.log(`[Google OAUTH ERROR]: `, e))
+
       throw new UnauthorizedException(e)
     }
   }
