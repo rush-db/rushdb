@@ -34,6 +34,16 @@ export const $workspaceAccessList = createAsyncStore({
   deps: [$currentWorkspaceId]
 })
 
+export const $workspacePendingInvites = createAsyncStore({
+  key: '$workspacePendingInvites',
+  async fetcher(init) {
+    const id = $currentWorkspaceId.get()
+    if (!id) return
+    return await api.workspaces.getPendingInvites({ id, init })
+  },
+  deps: [$currentWorkspaceId]
+})
+
 // Mutator for inviting a user to the workspace
 export const inviteUser = createMutator({
   async fetcher({ init, email, projectIds }: ApiParams<typeof api.workspaces.inviteUser>) {
@@ -44,7 +54,7 @@ export const inviteUser = createMutator({
 
     return await api.workspaces.inviteUser({ id, email, projectIds, init })
   },
-  invalidates: [$workspaceUsers]
+  invalidates: [$workspaceUsers, $workspacePendingInvites]
 })
 
 // Mutator for revoking user access
@@ -71,4 +81,13 @@ export const updateAccessList = createMutator({
     return await api.workspaces.updateAccessList({ id, accessMap, init })
   },
   invalidates: [$workspaceAccessList]
+})
+
+export const removePendingInvite = createMutator({
+  async fetcher({ init, email }: ApiParams<typeof api.workspaces.removePendingInvite>) {
+    const id = $currentWorkspaceId.get()
+    if (!id) throw new Error('No workspace selected')
+    return await api.workspaces.removePendingInvite({ id, email, init })
+  },
+  invalidates: [$workspacePendingInvites]
 })

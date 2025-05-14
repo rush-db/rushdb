@@ -21,9 +21,12 @@ import {
   $workspaceUsers,
   $workspaceAccessList,
   inviteUser,
-  revokeAccess
+  revokeAccess,
+  $workspacePendingInvites,
+  removePendingInvite
 } from '~/features/workspaces/stores/users'
 import { object, string, useForm } from '~/lib/form'
+import { PendingInvite } from '~/features/workspaces/types.ts'
 
 // Custom table components
 function Table({ children, className, ...props }: HTMLAttributes<HTMLTableElement>) {
@@ -264,6 +267,76 @@ function UserTable() {
   )
 }
 
+export function PendingInvitesTable() {
+  const { data: invites, loading } = useStore($workspacePendingInvites)
+  const { data: workspace } = useStore($currentWorkspace)
+  const { mutate: removeInvite } = useStore(removePendingInvite)
+
+  const handleRemoveInvite = (email: string): Promise<unknown> => {
+    if (!workspace) return Promise.resolve(undefined)
+
+    return removeInvite({
+      id: workspace.id,
+      email
+    })
+  }
+
+  if (loading) {
+    return <div className="mt-6">Loading pending invites…</div>
+  }
+  if (!invites || invites.length === 0) {
+    return (
+      <div>
+        <div className="text-content mb-4 text-lg font-medium">Pending Invites</div>
+        <div className="text-content2 mt-6 italic">No pending invites.</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-8">
+      <div className="text-content mb-4 text-lg font-medium">Pending Invites</div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Email</TableHead>
+            <TableHead>Date Sent</TableHead>
+            <TableHead className="w-[100px]">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {invites.map((invite: PendingInvite) => (
+            <TableRow key={invite.email}>
+              <TableCell className="font-medium">{invite.email}</TableCell>
+              <TableCell>
+                {new Date(invite.createdAt).toLocaleString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </TableCell>
+              <TableCell>
+                <ConfirmDialog
+                  title="Remove Pending Invite"
+                  description={`Remove invitation for ${invite.email}?`}
+                  handler={() => handleRemoveInvite(invite.email)}
+                  trigger={
+                    <button className="hover:bg-fill2 rounded p-1">
+                      <X className="text-content2 h-5 w-5" />
+                    </button>
+                  }
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
 export function WorkspaceUsersPage() {
   const { data: workspace } = useStore($currentWorkspace)
   const userLimit = workspace?.limits?.users || 3 // Default limit if not specified
@@ -294,6 +367,7 @@ export function WorkspaceUsersPage() {
         </SettingsList>
 
         <UserTable />
+        <PendingInvitesTable />
       </div>
     </WorkspacesLayout>
   )

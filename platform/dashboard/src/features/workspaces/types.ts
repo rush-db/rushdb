@@ -31,3 +31,8 @@ export interface InviteToWorkspaceDto {
 export interface RevokeAccessDto {
   userIds: string[]
 }
+
+export interface PendingInvite {
+  email: string
+  createdAt: string
+}

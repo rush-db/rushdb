@@ -24,7 +24,8 @@ import type {
   WorkspaceUser,
   WorkspaceAccessList,
   InviteToWorkspaceDto,
-  RevokeAccessDto
+  RevokeAccessDto,
+  PendingInvite
 } from '~/features/workspaces/types'
 import type { GenericApiResponse, Override } from '~/types'
 
@@ -232,6 +233,24 @@ export const api = {
         ...init,
         method: 'POST',
         body: JSON.stringify({ token })
+      })
+    },
+    async getPendingInvites({ init, id }: WithInit & Pick<Workspace, 'id'>): Promise<PendingInvite[]> {
+      return fetcher<PendingInvite[]>(`/api/v1/workspaces/${id}/pending-invites`, {
+        ...init,
+        method: 'GET'
+      })
+    },
+
+    async removePendingInvite({
+      init,
+      id,
+      email
+    }: WithInit & Pick<Workspace, 'id'> & { email: string }): Promise<{ message: string }> {
+      return fetcher<{ message: string }>(`/api/v1/workspaces/${id}/pending-invites`, {
+        ...init,
+        method: 'PATCH',
+        body: JSON.stringify({ email })
       })
     }
   },
