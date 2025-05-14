@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { Transaction } from 'neo4j-driver'
 import { Neogma } from 'neogma'
+
+import { isDevMode } from '@/common/utils/isDevMode'
+import { transactionStorage } from '@/core/transactions/transaction-context'
+import { ProjectService } from '@/dashboard/project/project.service'
+
+import { INeogmaConfig } from '../neogma/neogma-config.interface'
 import { NeogmaService } from '../neogma/neogma.service'
 import { NeogmaDynamicService } from '../neogma-dynamic/neogma-dynamic.service'
-import { INeogmaConfig } from '../neogma/neogma-config.interface'
-import { ProjectService } from '@/dashboard/project/project.service'
-import { Transaction } from 'neo4j-driver'
-import { transactionStorage } from '@/core/transactions/transaction-context'
-import { isDevMode } from '@/common/utils/isDevMode'
 
 export interface ConnectionResult {
   connection: Neogma
