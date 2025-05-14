@@ -12,7 +12,7 @@ services:
             - "7687:7687"
         environment:
             - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
-            - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}`
+            - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
 #            Uncomment line below to fetch plugins from the internet instead of local volume
 #            - NEO4J_PLUGINS=["apoc", "graph-data-science"]
         volumes:
