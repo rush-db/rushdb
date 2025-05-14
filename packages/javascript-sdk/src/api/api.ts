@@ -634,7 +634,8 @@ export class RestAPI {
       }
 
       return new DBRecordInstance<S>()
-    },
+    }
+  }
 
   /**
    * API methods for managing relations between records
