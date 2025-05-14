@@ -37,6 +37,7 @@ import { NeogmaService } from '@/database/neogma/neogma.service'
 import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
 import {
   TExtendedWorkspaceProperties,
+  TNormalizedPendingInvite,
   TWorkspaceInvitation,
   TWorkSpaceInviteToken
 } from '@/dashboard/workspace/workspace.types'
@@ -352,6 +353,8 @@ export class WorkspaceService {
   }
 
   async inviteMember(payload: TWorkspaceInvitation, transaction: Transaction): Promise<{ message: string }> {
+    const runner = this.neogmaService.createRunner()
+
     if (!payload.workspaceId || !payload.email) {
       isDevMode(() => Logger.error('[Invite member ERROR]: No required data provided'))
       throw new BadRequestException('No required data provided')
@@ -377,6 +380,32 @@ export class WorkspaceService {
     })
 
     try {
+      const pendingList = await this.getPendingInvites(workspaceId, transaction)
+      const isInviteAlreadySent = pendingList.find(({ email }) => email === payload.email)
+
+      if (!isInviteAlreadySent) {
+        pendingList.push({
+          email: payload.email,
+          createdAt: getCurrentISO()
+        })
+
+        await runner.run(
+          this.workspaceQueryService.setPendingInvitesQuery(),
+          {
+            workspaceId: payload.workspaceId,
+            invites: JSON.stringify(pendingList)
+          },
+          transaction
+        )
+
+        isDevMode(() => Logger.log(`[Invite member LOG]: Invitation ${email} added for user workspace`))
+      }
+    } catch (e) {
+      isDevMode(() => Logger.error('[Invite member ERROR]: Error updating invitation list', e))
+      throw new InternalServerErrorException('Error updating invitation list')
+    }
+
+    try {
       await this.mailService.sendUserInvite(
         email,
         token,
@@ -392,6 +421,57 @@ export class WorkspaceService {
 
     return {
       message: `Invite for ${email} successfully sent`
+    }
+  }
+
+  async getPendingInvites(
+    workspaceId: string,
+    transaction: Transaction
+  ): Promise<TNormalizedPendingInvite[]> {
+    const runner = this.neogmaService.createRunner()
+
+    const currentPendingInvites = await runner.run(
+      this.workspaceQueryService.getPendingInvitesQuery(),
+      { workspaceId },
+      transaction
+    )
+    const result = currentPendingInvites.records[0]?.get('invites')
+
+    if (!result) {
+      return []
+    }
+
+    try {
+      return JSON.parse(result)
+    } catch {
+      return []
+    }
+  }
+
+  async removePendingInvite(
+    workspaceId: string,
+    email: string,
+    transaction: Transaction
+  ): Promise<{ message: string }> {
+    const runner = this.neogmaService.createRunner()
+
+    const currentPendingInvites = await this.getPendingInvites(workspaceId, transaction)
+
+    const filtered = currentPendingInvites.filter((item) => item.email !== email)
+
+    await runner.run(
+      this.workspaceQueryService.setPendingInvitesQuery(),
+      {
+        workspaceId,
+        invites: JSON.stringify(filtered)
+      },
+      transaction
+    )
+
+    isDevMode(() => Logger.log(`[Invite member LOG]: Invitation revoke from the ${email}`))
+
+    return {
+      message: 'Invitation revoked'
     }
   }
 

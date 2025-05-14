@@ -100,4 +100,22 @@ export class WorkspaceQueryService {
 
     return queryBuilder.getQuery()
   }
+
+  getPendingInvitesQuery(): string {
+    const queryBuilder = new QueryBuilder()
+
+    return queryBuilder
+      .append(`MATCH (w:${RUSHDB_LABEL_WORKSPACE} {id: $workspaceId})`)
+      .append(`RETURN w.pendingInvites AS invites`)
+      .getQuery()
+  }
+
+  setPendingInvitesQuery(): string {
+    const queryBuilder = new QueryBuilder()
+
+    return queryBuilder
+      .append(`MATCH (w:${RUSHDB_LABEL_WORKSPACE} {id: $workspaceId})`)
+      .append(`SET w.pendingInvites = $invites`)
+      .getQuery()
+  }
 }

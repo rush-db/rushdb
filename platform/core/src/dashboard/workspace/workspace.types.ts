@@ -16,3 +16,8 @@ export type TWorkspaceInvitation = TWorkSpaceInviteToken & {
 export type TExtendedWorkspaceProperties = TWorkspaceProperties & {
   role: TUserRoles
 }
+
+export type TNormalizedPendingInvite = {
+  email: string
+  createdAt: string
+}

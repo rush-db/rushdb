@@ -64,6 +64,9 @@ export const Workspace: TWorkspaceParams = {
     },
     isSubscriptionCancelled: {
       type: 'boolean'
+    },
+    pendingInvites: {
+      type: 'string'
     }
   },
   primaryKeyField: 'id',

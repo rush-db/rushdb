@@ -32,6 +32,7 @@ import { TExtendedWorkspaceProperties } from '@/dashboard/workspace/workspace.ty
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { RemovePendingInviteDto } from '@/dashboard/workspace/dto/remove-pending-invite.dto'
 
 @Controller('workspaces')
 @ApiExcludeController()
@@ -232,7 +233,7 @@ export class WorkspaceController {
   }
 
   @Post('join-workspace')
-  @ApiTags('Auth')
+  @ApiTags('Workspaces')
   @ApiBearerAuth()
   @AuthGuard(null)
   @CommonResponseDecorator(GetUserDto)
@@ -251,5 +252,40 @@ export class WorkspaceController {
     )
 
     return user.userData.toJson()
+  }
+
+  @Get(':id/pending-invites')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard('workspace', 'owner')
+  async getPendingInvites(
+    @Param('id') workspaceId: string,
+    @TransactionDecorator() transaction: Transaction
+  ) {
+    return await this.workspaceService.getPendingInvites(workspaceId, transaction)
+  }
+
+  @Patch(':id/pending-invites')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard('workspace', 'owner')
+  async removePendingInvite(
+    @Param('id') workspaceId: string,
+    @Body() { email }: RemovePendingInviteDto,
+    @TransactionDecorator() transaction: Transaction
+  ) {
+    return await this.workspaceService.removePendingInvite(workspaceId, email, transaction)
   }
 }
