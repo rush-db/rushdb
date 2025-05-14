@@ -161,8 +161,8 @@ export class ProjectQueryService {
         `MATCH (u:${RUSHDB_LABEL_USER} { id: $userId }), (p:${RUSHDB_LABEL_PROJECT} { id: $projectId })`
       )
       .append(`MERGE (u)-[r:${RUSHDB_RELATION_HAS_ACCESS}]->(p)`)
-      .append(`ON CREATE SET r.Since = $since, r.Role = $role`)
-      .append(`ON MATCH  SET r.Since = $since, r.Role = $role`)
+      .append(`ON CREATE SET r.since = $since, r.role = $role`)
+      .append(`ON MATCH  SET r.since = $since, r.role = $role`)
 
     return queryBuilder.getQuery()
   }
