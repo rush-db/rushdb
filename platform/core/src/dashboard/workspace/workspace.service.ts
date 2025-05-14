@@ -252,21 +252,23 @@ export class WorkspaceService {
     userId: string,
     preferredRole: TUserRoles,
     transaction: Transaction
-  ): Promise<Workspace> {
-    const workspaceNode = await this.getWorkspaceNode(workspaceId, transaction)
+  ): Promise<void> {
+    const runner = this.neogmaService.createRunner()
 
-    await workspaceNode.relateTo({
-      alias: 'Users',
-      where: { id: userId },
-      properties: { Since: workspaceNode.created, Role: preferredRole },
-      session: transaction
-    })
+    await runner.run(
+      this.workspaceQueryService.attachUserToWorkspaceQuery(),
+      {
+        workspaceId,
+        userId,
+        since: getCurrentISO(),
+        role: preferredRole
+      },
+      transaction
+    )
 
     isDevMode(() =>
       Logger.log(`[Link user ${userId} to the workspace LOG]: User linked to the workspace ${workspaceId}`)
     )
-
-    return this.normalize(workspaceNode)
   }
 
   async patchWorkspace(

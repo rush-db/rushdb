@@ -175,6 +175,17 @@ export class UserService {
       throw new BadRequestException('Invitation was provided to another RushDB user')
     }
 
+    isDevMode(() => Logger.log(`[Accept invite LOG]: Fetching pending invites for workspace ${workspaceId}`))
+    const pending = await this.workspaceService.getPendingInvites(workspaceId, transaction)
+
+    if (!pending.some((inv) => inv.email === login)) {
+      isDevMode(() =>
+        Logger.warn(`[Accept invite WARN]: No pending invite for ${login} in workspace ${workspaceId}`)
+      )
+
+      throw new BadRequestException('No pending invitation found for this email')
+    }
+
     if (allowedLogins.length === 0 || (allowedLogins.length && allowedLogins.includes(login))) {
       // For OAuth we don't abort request early bc we want to check google oauth first
       let shouldReCheckUser = false
@@ -238,6 +249,9 @@ export class UserService {
       if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED')) && forceUserSignUp) {
         await this.stripeService.createCustomer(login)
       }
+
+      await this.workspaceService.removePendingInvite(workspaceId, login, transaction)
+      isDevMode(() => Logger.log(`[Accept invite LOG] removed pending invite for ${login}`))
 
       return {
         userData: this.normalize(userNode)
@@ -456,7 +470,6 @@ export class UserService {
   }
 
   async linkUser(id: string, projectId: string, transaction: Transaction): Promise<boolean> {
-    const userNode = await this.findUserNodeById(id, transaction)
     const currentTime = getCurrentISO()
 
     try {
@@ -474,12 +487,7 @@ export class UserService {
     }
 
     try {
-      await userNode.relateTo({
-        alias: 'Projects',
-        where: { id: projectId },
-        properties: { Since: currentTime, Role: USER_ROLE_EDITOR },
-        session: transaction
-      })
+      await this.projectService.linkUserToProject(id, projectId, currentTime, transaction)
 
       isDevMode(() =>
         Logger.log(`[Link user ${id} to the project LOG]: User linked to the project ${projectId}`)

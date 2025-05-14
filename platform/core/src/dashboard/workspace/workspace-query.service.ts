@@ -118,4 +118,18 @@ export class WorkspaceQueryService {
       .append(`SET w.pendingInvites = $invites`)
       .getQuery()
   }
+
+  attachUserToWorkspaceQuery(): string {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(
+        `MATCH (u:${RUSHDB_LABEL_USER} { id: $userId }), (w:${RUSHDB_LABEL_WORKSPACE} { id: $workspaceId })`
+      )
+      .append(`MERGE (u)-[r:${RUSHDB_RELATION_MEMBER_OF}]->(w)`)
+      .append(`ON CREATE SET r.Since = $since, r.Role = $role`)
+      .append(`ON MATCH SET r.Since = $since, r.Role = $role`)
+
+    return queryBuilder.getQuery()
+  }
 }

@@ -508,4 +508,19 @@ export class ProjectService {
         properties: toNative(record.get('properties'))
       }))
   }
+
+  async linkUserToProject(userId: string, projectId: string, since: string, transaction: Transaction) {
+    const runner = this.neogmaService.createRunner()
+
+    await runner.run(
+      this.projectQueryService.getAttachUserToProjectQuery(),
+      {
+        userId,
+        projectId,
+        since,
+        role: USER_ROLE_EDITOR
+      },
+      transaction
+    )
+  }
 }

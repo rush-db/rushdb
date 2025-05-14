@@ -152,4 +152,18 @@ export class ProjectQueryService {
 
     return queryBuilder.getQuery()
   }
+
+  getAttachUserToProjectQuery(): string {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(
+        `MATCH (u:${RUSHDB_LABEL_USER} { id: $userId }), (p:${RUSHDB_LABEL_PROJECT} { id: $projectId })`
+      )
+      .append(`MERGE (u)-[r:${RUSHDB_RELATION_HAS_ACCESS}]->(p)`)
+      .append(`ON CREATE SET r.Since = $since, r.Role = $role`)
+      .append(`ON MATCH  SET r.Since = $since, r.Role = $role`)
+
+    return queryBuilder.getQuery()
+  }
 }
