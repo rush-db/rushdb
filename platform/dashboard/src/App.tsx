@@ -9,7 +9,6 @@ import { ProfilePage } from '~/pages/profile.tsx'
 import { SignInPage } from '~/pages/signin'
 import { SignUpPage } from '~/pages/signup'
 import { WorkspaceBillingPage } from '~/pages/workspace/billing'
-import { NewWorkspacePage } from '~/pages/workspace/new'
 import { WorkspaceProjectsPage } from '~/pages/workspace/projects'
 import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
 import { WorkspaceUsersPage } from '~/pages/workspace/users'
@@ -22,6 +21,7 @@ import { AuthGoogle } from './pages/auth/google'
 import { useEffect } from 'react'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { AuthGitHub } from '~/pages/auth/github.tsx'
+import SignupViaInvitePage from '~/pages/signup-via-invite.tsx'
 
 function PublicRoutes() {
   const page = useStore($router)
@@ -31,6 +31,8 @@ function PublicRoutes() {
       return <SignInPage />
     case 'signup':
       return <SignUpPage />
+    case 'signupViaInvite':
+      return <SignupViaInvitePage />
     case 'passwordRecovery':
       return <PasswordRecoveryPage />
     case 'googleAuth':
@@ -135,18 +137,6 @@ function ProductionScripts() {
 }
 
 export function App() {
-  // Check for workspace invitation links when the app initializes
-  useEffect(() => {
-    // We import this dynamically to avoid circular dependencies
-    import('~/features/workspaces/utils/handleInvitation')
-      .then(({ checkForWorkspaceInvitation }) => {
-        checkForWorkspaceInvitation()
-      })
-      .catch((err) => {
-        console.error('Failed to check for workspace invitation:', err)
-      })
-  }, [])
-
   return (
     <>
       <Routes />

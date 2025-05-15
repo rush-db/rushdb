@@ -98,6 +98,15 @@ export const createUser = action($user, 'createUser', (store, params: ApiParams<
   })
 )
 
+export const createUserViaInvite = action(
+  $user,
+  'createUserViaInvite',
+  (store, params: ApiParams<typeof api.auth.registerViaInvite>) =>
+    api.auth.registerViaInvite(params).then((user) => {
+      store.set({ ...user, isLoggedIn: true })
+    })
+)
+
 export const $sendRecoveryLink = createMutator({
   async fetcher({ init, email }: ApiParams<typeof api.auth.sendRecoveryLink>) {
     return await api.auth.sendRecoveryLink({ init, email })

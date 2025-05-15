@@ -384,6 +384,21 @@ export const api = {
         body: JSON.stringify({ login, password }),
         method: 'POST'
       })
+    },
+    async registerViaInvite({
+      init,
+      invite,
+      login,
+      password
+    }: WithInit & { invite: string; login: string; password: string }): Promise<GetUserResponse['data']> {
+      return fetcher<GetUserResponse['data']>(
+        `/api/v1/auth/register-via-invite?invite=${encodeURIComponent(invite)}`,
+        {
+          ...init,
+          method: 'POST',
+          body: JSON.stringify({ login, password })
+        }
+      )
     }
   },
   billing: {

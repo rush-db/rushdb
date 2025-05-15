@@ -13,6 +13,7 @@ const publicRoutes = {
   passwordRecovery: '/forgot-password/:token?',
   signin: '/signin',
   signup: '/signup',
+  signupViaInvite: '/signup-via-invite',
   googleAuth: '/auth/google/:token?',
   githubAuth: '/auth/github/:token?'
 } as const

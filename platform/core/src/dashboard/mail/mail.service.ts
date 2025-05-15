@@ -34,9 +34,10 @@ export class MailService {
     workspaceName?: string
   ) {
     if (isEmail(login)) {
-      const frontendRoute = isRegistered ? 'join-workspace' : 'signup'
+      const frontendRoute = isRegistered ? 'join-workspace' : 'signup-via-invite'
+      const emailPart = isRegistered ? '' : `email=${login}&`
 
-      const url = `${this.configService.get('RUSHDB_DASHBOARD_URL')}/${frontendRoute}?invite=${encodeURIComponent(token)}`
+      const url = `${this.configService.get('RUSHDB_DASHBOARD_URL')}/${frontendRoute}?${emailPart}invite=${encodeURIComponent(token)}`
 
       await this.mailerService.sendMail({
         to: login,
