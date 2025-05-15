@@ -14,6 +14,7 @@ import { useStore } from '@nanostores/react'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { useMemo } from 'react'
 import { Spinner } from '~/elements/Spinner.tsx'
+import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
 
 const schema = object({
   login: string().required(),
@@ -78,6 +79,7 @@ function SignInForm() {
 }
 
 export function SignInPage() {
+  const invite = useStore($inviteToken)
   const platformSettings = useStore($platformSettings)
 
   const hasGoogleOAuth = useMemo(
@@ -108,7 +110,7 @@ export function SignInPage() {
         <>
           <div className="flex w-full justify-between gap-2">
             {hasGoogleOAuth ?
-              <GoogleButton />
+              <GoogleButton invite={invite ?? undefined} />
             : null}
             {hasGithubOAuth ?
               <GithubButton />
@@ -120,9 +122,11 @@ export function SignInPage() {
 
       <SignInForm />
       <Divider />
-      <Button as="a" href={getRoutePath('signup')} size="large" variant="ghost">
-        Don&apos;t have an account?
-      </Button>
+      {invite ? null : (
+        <Button as="a" href={getRoutePath('signup')} size="large" variant="ghost">
+          Don&apos;t have an account?
+        </Button>
+      )}
     </AuthLayout>
   )
 }

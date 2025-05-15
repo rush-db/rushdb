@@ -6,14 +6,16 @@ import { Button } from '~/elements/Button'
 
 import { acceptInvitation, getInviteTokenFromURL } from '~/features/workspaces/stores/invitation'
 import { openRoute } from '~/lib/router'
+import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
 
 export function JoinWorkspacePage() {
+  const inviteFromStore = useStore($inviteToken)
   const [token, setToken] = useState<string | null>(null)
   const { loading, data, error, mutate } = useStore(acceptInvitation)
   const [processingInvite, setProcessingInvite] = useState(false)
 
   useEffect(() => {
-    const token = getInviteTokenFromURL()
+    const token = getInviteTokenFromURL() ?? inviteFromStore
 
     setToken(token)
 
@@ -25,6 +27,7 @@ export function JoinWorkspacePage() {
       } catch {
       } finally {
         setProcessingInvite(false)
+        $inviteToken.set(null)
       }
     })()
   }, [mutate])
