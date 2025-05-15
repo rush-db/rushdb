@@ -219,6 +219,7 @@ function UserTable() {
         <TableHeader>
           <TableRow>
             <TableHead>Email</TableHead>
+            <TableHead>Workspace Role</TableHead>
             <TableHead>Project Access</TableHead>
             <TableHead className="w-[100px]">Actions</TableHead>
           </TableRow>
@@ -227,8 +228,9 @@ function UserTable() {
           {users.map((user) => (
             <TableRow key={user.id}>
               <TableCell className="font-medium">{user.login}</TableCell>
+              <TableCell className="font-medium">{user.role}</TableCell>
               <TableCell>
-                {projects && accessList && (
+                {projects && user.role !== 'owner' && accessList && (
                   <div className="flex flex-wrap gap-1">
                     {projects
                       .filter((project) => {
@@ -253,9 +255,11 @@ function UserTable() {
                   handler={() => handleRevoke(user.id)}
                   title="Revoke User Access"
                   trigger={
-                    <Button size="small" variant="danger">
-                      <X className="h-4 w-4" />
-                    </Button>
+                    user.role !== 'owner' && (
+                      <Button size="small" variant="danger">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )
                   }
                 />
               </TableCell>

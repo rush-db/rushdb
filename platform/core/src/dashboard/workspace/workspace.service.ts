@@ -47,7 +47,7 @@ import { InternalServerErrorException } from '@nestjs/common/exceptions/internal
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
-import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
+import { TShortUserDataWithRole } from '@/dashboard/user/interfaces/authenticated-user.interface'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -514,22 +514,22 @@ export class WorkspaceService {
     return accessMap
   }
 
-  async getInvitedUserList(workspaceId: string, transaction: Transaction): Promise<IUserClaims[]> {
+  async getUserList(workspaceId: string, transaction: Transaction): Promise<TShortUserDataWithRole[]> {
     const runner = this.neogmaService.createRunner()
 
     const result = await runner.run(
       this.workspaceQueryService.getWorkspaceUserListQuery(),
       {
-        workspaceId,
-        role: USER_ROLE_EDITOR
+        workspaceId
       },
       transaction
     )
 
     return result.records.map((record) => ({
       id: record.get('id'),
-      login: record.get('login')
-    })) as IUserClaims[]
+      login: record.get('login'),
+      role: record.get('role')
+    })) as TShortUserDataWithRole[]
   }
 
   async revokeAccessList(workspaceId: string, userIds: string[], transaction: Transaction) {

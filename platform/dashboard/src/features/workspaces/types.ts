@@ -17,6 +17,7 @@ export type Workspace = {
 export interface WorkspaceUser {
   id: string
   login: string
+  role: string
 }
 
 export interface WorkspaceAccessList {

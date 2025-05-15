@@ -210,7 +210,7 @@ export class WorkspaceController {
   @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.OK)
   async getDeveloperUserList(@Param('id') id: string, @TransactionDecorator() transaction: Transaction) {
-    return this.workspaceService.getInvitedUserList(id, transaction)
+    return this.workspaceService.getUserList(id, transaction)
   }
 
   @Patch(':id/revoke-access')
