@@ -290,9 +290,9 @@ export function PendingInvitesTable() {
   }
   if (!invites || invites.length === 0) {
     return (
-      <div>
+      <div className="mt-8">
         <div className="text-content mb-4 text-lg font-medium">Pending Invites</div>
-        <div className="text-content2 mt-6 italic">No pending invites.</div>
+        <div className="text-content2 mt-4 italic">No pending invites.</div>
       </div>
     )
   }
@@ -346,6 +346,8 @@ export function WorkspaceUsersPage() {
   const userLimit = workspace?.limits?.users || 3 // Default limit if not specified
   const { data: users } = useStore($workspaceUsers)
   const usersCount = users?.length || 0
+  // remove owner from userCount
+  const resultUsersCount = usersCount === 0 ? 0 : usersCount - 1
 
   return (
     <WorkspacesLayout>
@@ -354,16 +356,17 @@ export function WorkspaceUsersPage() {
         <div className="text-content2 flex items-center gap-1">
           <UsersIcon className="h-4 w-4" />
           <span>
-            {usersCount} / {userLimit} users
+            {resultUsersCount} / {userLimit} users
           </span>
         </div>
       </PageHeader>
 
       <div className="flex flex-1 flex-col p-6">
-        {usersCount >= userLimit ?
-          <Banner variant="warning" className="mb-6">
-            You've reached your user limit of {userLimit}. To add more users, please upgrade your plan.
-          </Banner>
+        {resultUsersCount >= userLimit ?
+          <Banner
+            className="mb-6 min-h-[150px]"
+            title={`You've reached your user limit of ${userLimit}. To add more users, please upgrade your plan.`}
+          />
         : null}
 
         <SettingsList>

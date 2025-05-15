@@ -13,14 +13,20 @@ export function JoinWorkspacePage() {
   const [processingInvite, setProcessingInvite] = useState(false)
 
   useEffect(() => {
-    const inviteToken = getInviteTokenFromURL()
-    setToken(inviteToken)
+    const token = getInviteTokenFromURL()
 
-    // Auto-process invitation on page load if token exists
-    if (inviteToken) {
+    setToken(token)
+
+    if (!token) return
+    ;(async () => {
       setProcessingInvite(true)
-      mutate({ token: inviteToken })
-    }
+      try {
+        await mutate({ token })
+      } catch {
+      } finally {
+        setProcessingInvite(false)
+      }
+    })()
   }, [mutate])
 
   // User landed on this page without an invite token

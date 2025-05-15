@@ -20,4 +20,5 @@ export type TShortUserDataWithRole = Pick<IUserClaims, 'id' | 'login'> & {
 
 export interface ICreatedUserData {
   userData: User
+  workspaceId?: string
 }

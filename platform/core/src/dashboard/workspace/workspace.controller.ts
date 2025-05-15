@@ -242,7 +242,7 @@ export class WorkspaceController {
     @AuthUser() authUser: IUserClaims,
     @TransactionDecorator() transaction: Transaction
   ) {
-    const user = await this.userService.acceptWorkspaceInvitation<false>(
+    const { userData, workspaceId } = await this.userService.acceptWorkspaceInvitation<false>(
       {
         inviteToken: token,
         authUserLogin: authUser.login,
@@ -251,7 +251,10 @@ export class WorkspaceController {
       transaction
     )
 
-    return user.userData.toJson()
+    return {
+      userData: userData.toJson(),
+      workspaceId: workspaceId
+    }
   }
 
   @Get(':id/pending-invites')

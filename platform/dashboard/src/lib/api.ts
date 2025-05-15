@@ -35,6 +35,7 @@ import { fetcher } from './fetcher'
 import { BillingErrorCodes } from '~/features/billing/constants.ts'
 import { $limitReachModalOpen } from '~/features/billing/components/LimitReachedDialog.tsx'
 import { IncomingBillingData } from '~/features/billing/types'
+import { AcceptedUserInviteDto } from '~/features/workspaces/types'
 
 type WithInit = {
   init?: RequestInit
@@ -229,7 +230,7 @@ export const api = {
       })
     },
     async acceptInvitation({ token, init }: WithInit & { token: string }) {
-      return fetcher<Workspace>(`/api/v1/workspaces/join-workspace`, {
+      return fetcher<AcceptedUserInviteDto>(`/api/v1/workspaces/join-workspace`, {
         ...init,
         method: 'POST',
         body: JSON.stringify({ token })

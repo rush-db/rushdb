@@ -11,15 +11,15 @@ export const acceptInvitation = createMutator({
   async fetcher({ token, init }: ApiParams<typeof api.workspaces.acceptInvitation>) {
     return await api.workspaces.acceptInvitation({ token, init })
   },
-  onSuccess(workspace) {
-    if (workspace && workspace.id) {
+  onSuccess({ userData, workspaceId }) {
+    if (workspaceId) {
       // Set the new workspace as current
-      setCurrentWorkspace(workspace.id)
+      setCurrentWorkspace(workspaceId)
 
       // Show success toast
       toast({
         title: 'Invitation accepted',
-        description: `You've been added to ${workspace.name} workspace`,
+        description: `You've been added workspace`,
         duration: 5000
       })
 

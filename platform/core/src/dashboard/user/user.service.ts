@@ -258,7 +258,8 @@ export class UserService {
       isDevMode(() => Logger.log(`[Accept invite LOG] removed pending invite for ${login}`))
 
       return {
-        userData: this.normalize(userNode)
+        userData: this.normalize(userNode),
+        workspaceId
       }
     } else {
       throw new BadRequestException('Provided login is not allowed')

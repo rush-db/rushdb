@@ -1,5 +1,6 @@
 import type { PlanId } from '~/features/billing/types'
 import type { ISO8601 } from '~/types'
+import { GetUserResponse } from '~/features/auth/types.ts'
 
 export type Workspace = {
   created: ISO8601
@@ -27,6 +28,11 @@ export interface WorkspaceAccessList {
 export interface InviteToWorkspaceDto {
   email: string
   projectIds?: string[]
+}
+
+export interface AcceptedUserInviteDto {
+  userData: GetUserResponse
+  workspaceId: string
 }
 
 export interface RevokeAccessDto {
