@@ -22,15 +22,17 @@ const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>
   free: [{ title: '2 Projects' }, { title: '10,000 Records' }, { title: 'Community support' }],
   start: [
     { title: 'Unlimited Projects' },
-    { title: '100,000 Records' },
+    { title: 'Connect Your Own Neo4j Instance' },
+    { title: '100,000 Records', description: '* Unlimited with own Neo4j Instance' },
     { title: '7-Day Backups', description: 'Coming soon' },
-    { title: '3 Team Members per Project', description: 'Coming soon' }
+    { title: '3 Team Members per Project' }
   ],
   pro: [
     { title: 'Unlimited Projects' },
-    { title: '1,000,000 Records' },
+    { title: 'Connect Your Own Neo4j Instance' },
+    { title: '1,000,000 Records', description: '* Unlimited with own Neo4j Instance' },
     { title: '30-Day Backups', description: 'Coming soon' },
-    { title: '10 Team Members per Project', description: 'Coming soon' },
+    { title: '10 Team Members per Project' },
     { title: 'Priority Support' }
   ]
 }
@@ -98,7 +100,6 @@ function PlanCard({
             </span>
           )}
         </div>
-
         <div className="flex w-full justify-between">
           {(currentPeriod === 'month' || free) && (
             <div className="block">
@@ -134,9 +135,10 @@ function PlanCard({
               'Current Plan'
             : free ?
               'Free'
-            : 'Upgrade'}
+            : 'Upgrade Plan'}
             {!free && <SparklesIcon />}
           </CheckoutButton>
+
           {paidUser && active && (
             <form
               onSubmit={async (event) => {
@@ -155,6 +157,12 @@ function PlanCard({
             </form>
           )}
         </div>
+        {free ?
+          <p className={'mb-5'}> </p>
+        : <p className={'text-content-secondary'}>
+            Free trial period for <strong>14 days</strong> - no payment required
+          </p>
+        }
 
         <Divider className="-mx-5 w-[stretch]" />
 

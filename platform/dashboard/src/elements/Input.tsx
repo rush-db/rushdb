@@ -23,7 +23,8 @@ export const inputWrapper = cva(
       variant: {
         primary:
           'bg-input focus-within:ring border border-transparent bg-secondary ring-interaction-ring focus-within:border-interaction-focus focus-within:ring [&:hover:not(:focus-within)]:bg-secondary-hover',
-        ghost: 'bg-transpart border-b',
+        ghost: 'bg-transparent border-b',
+        disabled: 'bg-[#222] border text-content-secondary ',
         error:
           'bg-input focus-within:ring border border-danger bg-secondary ring-danger-ring focus-within:border-danger-focus focus-within:ring [&:hover:not(:focus-within)]:bg-secondary-hover'
       }
@@ -46,7 +47,8 @@ export const input = cva(
       variant: {
         primary: 'placeholder:text-content3',
         ghost: 'placeholder:text-content3',
-        error: 'placeholder:text-content3'
+        error: 'placeholder:text-content3',
+        disabled: 'placeholder:text-content2'
       }
     },
     defaultVariants: {
@@ -76,7 +78,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <Element
         className={cn(
-          inputWrapper({ size, variant }),
+          inputWrapper({ size, variant: props.disabled ? 'disabled' : variant }),
           {
             'cursor-pointer': readOnly
           },
