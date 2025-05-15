@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, object, string } from '~/lib/form'
 import { AuthLayout } from '~/layout/AuthLayout'
 import { TextField } from '~/elements/Input'
@@ -9,6 +9,9 @@ import { AlertTriangle } from 'lucide-react'
 import { createUserViaInvite } from '~/features/auth/stores/auth'
 import { $searchParams, redirectRoute, getRoutePath } from '~/lib/router'
 import { DialogContent } from '@radix-ui/react-dialog'
+import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { GoogleButton } from '~/features/auth/components/GoogleButton.tsx'
+import { Divider } from '~/elements/Divider.tsx'
 
 const schema = object({
   login: string().required(),
@@ -19,10 +22,16 @@ const schema = object({
 })
 
 export default function SignupViaInvitePage() {
+  const platformSettings = useStore($platformSettings)
   const search = useStore($searchParams)
   const invite = search.invite
   const email = search.email
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  const hasGoogleOAuth = useMemo(
+    () => platformSettings.data?.googleOAuthEnabled,
+    [platformSettings.data?.googleOAuthEnabled]
+  )
 
   const {
     register,
@@ -63,28 +72,43 @@ export default function SignupViaInvitePage() {
       </Dialog>
 
       {!dialogOpen && (
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-          <TextField label="Email" {...register('login')} disabled error={errors.login?.message as string} />
-          <TextField
-            autoComplete="new-password"
-            label="Password"
-            type="password"
-            autoFocus
-            placeholder="8-24 Characters"
-            {...register('password')}
-            error={errors.password?.message as string}
-          />
-          <TextField
-            autoComplete="new-password"
-            label="Confirm Password"
-            type="password"
-            {...register('passwordConfirmation')}
-            error={errors.passwordConfirmation?.message as string}
-          />
-          <Button className="mt-2" size="large" variant="secondary" type="submit" loading={isSubmitting}>
-            Create Account
-          </Button>
-        </form>
+        <>
+          {hasGoogleOAuth ?
+            <>
+              <div className="flex w-full justify-between gap-2">
+                <GoogleButton invite={invite} />
+              </div>
+              <Divider />
+            </>
+          : null}
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+            <TextField
+              label="Email"
+              {...register('login')}
+              disabled
+              error={errors.login?.message as string}
+            />
+            <TextField
+              autoComplete="new-password"
+              label="Password"
+              type="password"
+              autoFocus
+              placeholder="8-24 Characters"
+              {...register('password')}
+              error={errors.password?.message as string}
+            />
+            <TextField
+              autoComplete="new-password"
+              label="Confirm Password"
+              type="password"
+              {...register('passwordConfirmation')}
+              error={errors.passwordConfirmation?.message as string}
+            />
+            <Button className="mt-2" size="large" variant="secondary" type="submit" loading={isSubmitting}>
+              Create Account
+            </Button>
+          </form>
+        </>
       )}
     </AuthLayout>
   )

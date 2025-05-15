@@ -1,9 +1,7 @@
 import { BASE_URL } from '~/config'
 import { Button } from '~/elements/Button'
 
-const GOOGLE_URL = `${BASE_URL}/api/v1/auth/google`
-
-const Google = () => (
+const GoogleIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="24"
@@ -16,16 +14,30 @@ const Google = () => (
   </svg>
 )
 
-export function GoogleButton() {
+export interface GoogleButtonProps {
+  invite?: string
+  redirectUrl?: string
+}
+
+export function GoogleButton({ invite, redirectUrl }: GoogleButtonProps) {
+  const params = new URLSearchParams()
+  if (redirectUrl) params.set('redirectUrl', redirectUrl)
+  if (invite) params.set('invite', invite)
+
+  const href =
+    params.toString() ?
+      `${BASE_URL}/api/v1/auth/google?${params.toString()}`
+    : `${BASE_URL}/api/v1/auth/google`
+
   return (
     <Button
       as="a"
-      href={GOOGLE_URL}
+      href={href}
       size="large"
       variant="primary"
       className="flex grow items-center justify-center"
     >
-      <Google /> Google
+      <GoogleIcon /> Google
     </Button>
   )
 }

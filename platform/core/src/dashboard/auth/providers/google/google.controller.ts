@@ -25,6 +25,7 @@ import { User } from '@/dashboard/user/user.entity'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { UserService } from '@/dashboard/user/user.service'
 
 @Controller('auth')
 @ApiExcludeController()
@@ -33,7 +34,8 @@ export class GoogleOAuthController {
     private readonly authService: AuthService,
     private readonly googleOAuthService: GoogleOAuthService,
     private readonly configService: ConfigService,
-    private readonly emailConfirmationService: EmailConfirmationService
+    private readonly emailConfirmationService: EmailConfirmationService,
+    private readonly userService: UserService
   ) {}
 
   // @TODO: later add google invitation accept with state prop in v2 oauth
@@ -92,6 +94,18 @@ export class GoogleOAuthController {
 
       if (!userData.confirmed) {
         await this.emailConfirmationService.sendVerificationLink(userData.login, userData.firstName)
+      }
+
+      if (parsed.invite) {
+        isDevMode(() => Logger.log(`[Google OAUTH LOG]: Accept user invitation`))
+        await this.userService.acceptWorkspaceInvitation<false>(
+          {
+            authUserLogin: userData.login,
+            inviteToken: parsed.invite,
+            forceUserSignUp: false
+          },
+          transaction
+        )
       }
 
       return {
