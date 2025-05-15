@@ -208,7 +208,11 @@ export class UserService {
       let userNode
 
       if (forceUserSignUp) {
+        isDevMode(() => Logger.log(`[Accept user invitation LOG]: Create user node for ${login}`))
         userNode = await this.createUserNode(params.userData, transaction)
+
+        isDevMode(() => Logger.log(`[Accept user invitation LOG]: Create default workspace for ${login}`))
+        await this.workspaceService.createWorkspace({ name: 'Default Workspace' }, userNode.id, transaction)
       } else {
         userNode = await this.findUserNodeByLogin(login, transaction)
 
@@ -216,7 +220,7 @@ export class UserService {
           throw new BadRequestException('Invitation was provided to a new RushDB user')
         } else if (shouldReCheckUser) {
           isDevMode(() =>
-            Logger.log(`[Accept user invitation WARN]: User ${userNode.id} registered before with oauth`)
+            Logger.log(`[Accept user invitation LOG]: User ${userNode.id} registered before with oauth`)
           )
         }
       }
