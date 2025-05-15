@@ -12,12 +12,12 @@ import { ConfigService } from '@nestjs/config'
 import { FastifyRequest } from 'fastify'
 import { Transaction } from 'neo4j-driver'
 
+import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
-import { isDevMode } from '@/common/utils/isDevMode'
 import { dbContextStorage } from '@/database/db-context'
+import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
 export class CustomDbWriteRestrictionGuard implements CanActivate {

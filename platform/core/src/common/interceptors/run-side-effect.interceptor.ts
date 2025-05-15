@@ -2,11 +2,11 @@ import { CallHandler, ExecutionContext, Injectable, Logger, mixin, NestIntercept
 import { Observable } from 'rxjs'
 import { catchError, tap } from 'rxjs/operators'
 
-import { ProjectService } from '@/dashboard/project/project.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
-import { dbContextStorage } from '@/database/db-context'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 import { isDevMode } from '@/common/utils/isDevMode'
+import { ProjectService } from '@/dashboard/project/project.service'
+import { dbContextStorage } from '@/database/db-context'
+import { NeogmaService } from '@/database/neogma/neogma.service'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 export enum ESideEffectType {
   RECOUNT_PROJECT_STRUCTURE = 'recountProjectNodes'
