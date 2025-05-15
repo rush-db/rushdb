@@ -19,6 +19,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   constructor(private readonly neogmaService: NeogmaService) {}
 
   async catch(exception: HttpException, host: ArgumentsHost) {
+    Logger.error('Global Exception Filter', exception)
     const ctx = host.switchToHttp()
     const response = ctx.getResponse<FastifyReply>()
     const request = ctx.getRequest<FastifyRequest>()
@@ -26,8 +27,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const status = isHttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR
 
-    const { transaction, session } = request as unknown as {
+    const { transaction, session, customTransaction } = request as unknown as {
       transaction: Transaction
+      customTransaction: Transaction
       session: Session
     }
     isDevMode(() => {
@@ -35,6 +37,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     })
 
     await transaction?.close()
+    await customTransaction?.close()
     await this.neogmaService.closeSession(session, 'global-exception-filter')
 
     response.status(status).send(isHttpException ? exception.getResponse() : {})

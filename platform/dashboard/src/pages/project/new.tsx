@@ -5,19 +5,13 @@ import { Card, CardBody, CardFooter, CardHeader } from '~/elements/Card'
 import { TextField } from '~/elements/Input'
 import { FormField } from '~/elements/FormField'
 import { createProject } from '~/features/projects/stores/project'
-import { Banner } from '~/elements/Banner'
 import { ArrowRight, SparklesIcon, ZapIcon } from 'lucide-react'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace'
-import type { PlanId } from '~/features/billing/types'
-import { CheckoutButton } from '~/features/billing/components/CheckoutButton.tsx'
-// import { ArrowsGrid } from '~/elements/ArrowsGrid'
 
 import ArrowsGrid from '~/assets/icons/arrows-grid.svg'
-import deleteVideo from '~/assets/videos/delete.mp4'
-import searchVideo from '~/assets/videos/search.mp4'
 
 // Type for form values
 type ProjectFormValues = {
@@ -54,9 +48,9 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
   // Check if user has a subscription
   const hasPaidPlan = workspace?.planId && workspace.planId !== 'free'
   const isSubscriptionActive = hasPaidPlan && !workspace?.isSubscriptionCancelled
-  const hasValidSubscription =
-    isSubscriptionActive ||
-    (hasPaidPlan && workspace?.validTill && new Date(workspace.validTill) > new Date())
+  const hasValidSubscription = true // ||
+  // isSubscriptionActive ||
+  // (hasPaidPlan && workspace?.validTill && new Date(workspace.validTill) > new Date())
 
   // Use appropriate schema based on subscription status
   const schema = hasValidSubscription ? premiumSchema : baseSchema
@@ -95,11 +89,13 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
         </CardBody>
 
         <div className="relative">
-          <div className="blur-10 absolute top-0 z-0 h-full rounded-t-lg bg-gradient-to-b from-[#3f82ff] to-transparent to-50% opacity-20">
-            <img src={ArrowsGrid} alt="Arrows Grid" className="" />
-          </div>
-          <div className="relative z-10 p-4">
-            <div className="mt-2">
+          {!hasValidSubscription ?
+            <div className="blur-10 absolute top-0 z-0 h-full rounded-t-lg bg-gradient-to-b from-[#3f82ff] to-transparent to-50% opacity-20">
+              <img src={ArrowsGrid} alt="Arrows Grid" className="" />
+            </div>
+          : null}
+          <div className="relative z-10 p-5">
+            <div className={cn({ 'mt-2': !hasValidSubscription })}>
               <h3 className="mb-2 px-1 font-semibold">Connect Your Own Neo4j Instance</h3>
               <div className="mb-4 space-y-3 px-1 text-sm">
                 <p className={'text-content-secondary text-sm'}>

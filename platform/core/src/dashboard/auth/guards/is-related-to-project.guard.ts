@@ -7,8 +7,8 @@ import { TransactionService } from '@/core/transactions/transaction.service'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
 import { TokenService } from '@/dashboard/token/token.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 import { dbContextStorage } from '@/database/db-context'
+import { NeogmaService } from '@/database/neogma/neogma.service'
 import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerifyOwnershipConfig) => {

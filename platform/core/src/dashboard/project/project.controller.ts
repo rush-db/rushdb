@@ -19,6 +19,7 @@ import { Transaction } from 'neo4j-driver'
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
+import { CustomDbAvailabilityGuard } from '@/dashboard/billing/guards/custom-db-availability.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
 import { CreateProjectDto } from '@/dashboard/project/dto/create-project.dto'
@@ -31,7 +32,6 @@ import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
-import { CustomDbAvailabilityGuard } from '@/dashboard/billing/guards/custom-db-availability.guard'
 
 @Controller('projects')
 @ApiExcludeController()
