@@ -16,14 +16,9 @@ export class WorkspaceQueryService {
   getWorkspaceUserListQuery() {
     const queryBuilder = new QueryBuilder()
 
-    queryBuilder.append(
-      `MATCH (w:${RUSHDB_LABEL_WORKSPACE} {id: $workspaceId})-[:${RUSHDB_RELATION_CONTAINS}]->(p:${RUSHDB_LABEL_PROJECT})`
-    )
-    queryBuilder.append(`WHERE p.deleted IS NULL`)
-    queryBuilder.append(
-      `MATCH (u:${RUSHDB_LABEL_USER})-[:${RUSHDB_RELATION_HAS_ACCESS} { role: $role }]->(p)`
-    )
-    queryBuilder.append(`RETURN DISTINCT u.id AS id, u.login AS login`)
+    queryBuilder.append(`MATCH (w:${RUSHDB_LABEL_WORKSPACE} {id: $workspaceId})`)
+    queryBuilder.append(`MATCH (u:${RUSHDB_LABEL_USER})-[rel:${RUSHDB_RELATION_MEMBER_OF}]->(w)`)
+    queryBuilder.append(`RETURN DISTINCT u.id AS id, u.login AS login, rel.role AS role`)
 
     return queryBuilder.getQuery()
   }
