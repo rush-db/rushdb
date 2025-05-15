@@ -95,12 +95,12 @@ export class WorkspaceService {
     return this.normalize(workspaceInstance)
   }
 
-  async findUserBillingWorkspace(userId: string, transaction: Transaction): Promise<string> {
+  async findUserBillingWorkspace(userEmail: string, transaction: Transaction): Promise<string> {
     const related = await this.userRepository.model.findRelationships({
       alias: 'Workspaces',
       where: {
         source: {
-          id: userId
+          login: userEmail
         },
         relationship: {
           role: USER_ROLE_OWNER
