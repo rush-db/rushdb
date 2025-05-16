@@ -17,7 +17,7 @@ const code1 = `import RushDB from '@rushdb/javascript-sdk'
 const db = new RushDB('rushdb-api-key')
 
 await db.records.createMany({
-  label: "COMPANY", 
+  label: "COMPANY",
   payload: {
     name: 'Google LLC',
     address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
@@ -107,7 +107,7 @@ const code2Py = `db.records.find(
                 "$or": [{"$lt": 2.5}, {"$gte": 4.5}]
             },
             "EMPLOYEE": {
-                "$alias": "$employee", 
+                "$alias": "$employee",
                 "salary": {
                     "$gte": 500_000
                 }
@@ -275,7 +275,9 @@ export const HowItWorks = () => {
       <section className="mt-[1px]">
         <div className="container">
           <div className="outline-stroke rounded-tl-[150px] text-center outline outline-1 outline-offset-0 md:rounded-tl-[80px]">
-            <h3 className="typography-2xl md:typography-xl text px-6 pt-20">Push any JSON or CSV data</h3>
+            <h3 className="typography-2xl md:typography-xl text px-6 pt-20">
+              RushDB turns any JSON or CSV into graph
+            </h3>
             <p className="text-content3 text-md px-6 pb-20 pt-8 !tracking-normal md:text-base">
               RushDB, a high-performance <b>graph database</b>, built on top of <b>Neo4j</b>,{' '}
               <br className="md:hidden" /> intelligently maps relationships, types, and labels any input data,
@@ -596,7 +598,25 @@ export const HowItWorks = () => {
           </div>
         </div>
       </section>
-
+      <section className="outline-stroke outline outline-1 outline-offset-0">
+        <div className="container text-center">
+          <div className="outline-stroke rounded-t-full py-20 outline outline-1 outline-offset-0 md:rounded-t-[100px]">
+            <h3 className="typography-2xl md:typography-xl text mb-8">
+              Bring your own <span className="text-accent">Neo4j</span> instance
+            </h3>
+            <p className="text-content3 text-md mb-8 !tracking-normal md:text-base">
+              <br className="md:hidden" />
+              Scale your high-demand workloads with full data ownership.
+            </p>
+            <div className="m-auto flex w-full justify-center gap-4">
+              <MainCta size="small" variant="accent" text="Create Project" />
+              <Button as={Link} href={links.pricing} size="small" variant="outline" className="bg-fill">
+                Explore Plans
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
       <section className="border-b">
         <div className="container text-center">
           <div className="outline-stroke rounded-b-full py-20 outline outline-1 outline-offset-0 md:rounded-b-[100px]">
@@ -643,7 +663,7 @@ export const HowItWorks = () => {
           <div className="outline-stroke rounded-full py-20 outline outline-1 outline-offset-0 md:rounded-[100px]">
             <h3 className="typography-2xl md:typography-xl text mb-8">
               Not an infra fan?
-              <br className="hidden md:block" /> Opt for <span className="text-accent">RushDB Cloud</span>
+              <br className="hidden md:block" /> Try <span className="text-accent">RushDB Cloud</span>
             </h3>
             <p className="text-content3 text-md mb-8 !tracking-normal md:text-base">
               2 Projects Free Forever. No Maintenance Required.
