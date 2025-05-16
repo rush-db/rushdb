@@ -22,17 +22,17 @@ const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>
   free: [{ title: '2 Projects' }, { title: '10,000 Records' }, { title: 'Community support' }],
   start: [
     { title: 'Unlimited Projects' },
-    { title: 'Connect Your Own Neo4j Instance' },
-    { title: '100,000 Records', description: '* Unlimited with own Neo4j Instance' },
+    { title: 'Bring Your Own Neo4j Database' },
+    { title: '100 000 Records', description: 'No limits with your own Neo4j instance' },
     { title: '7-Day Backups', description: 'Coming soon' },
-    { title: '3 Team Members per Project' }
+    { title: '3 Team Members', description: 'Additional seats $5/month each' }
   ],
   pro: [
     { title: 'Unlimited Projects' },
-    { title: 'Connect Your Own Neo4j Instance' },
-    { title: '1,000,000 Records', description: '* Unlimited with own Neo4j Instance' },
+    { title: 'Bring Your Own Neo4j Database' },
+    { title: '1 000 000 Records', description: 'No limits with your own Neo4j instance' },
     { title: '30-Day Backups', description: 'Coming soon' },
-    { title: '10 Team Members per Project' },
+    { title: '10 Team Members', description: 'Additional seats $5/month each' },
     { title: 'Priority Support' }
   ]
 }
