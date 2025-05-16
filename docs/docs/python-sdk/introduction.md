@@ -112,7 +112,7 @@ with client.transactions.begin() as transaction:
 
 Explore the detailed documentation for each component of the SDK:
 
-- [Records](./records/records.md) - Create, read, update, and delete record operations
+- [Records](./records/create-records.md) - Create, read, update, and delete record operations
 - [Properties](./properties.md) - Manage data properties
 - [Labels](./labels.md) - Work with node labels
 - [Relationships](./relationships.md) - Handle connections between records

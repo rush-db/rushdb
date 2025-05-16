@@ -177,7 +177,7 @@ if numeric_score_properties:
     print(f"Values for {first_prop['name']}:")
     print(f"Min: {prop_values.get('min')}")
     print(f"Max: {prop_values.get('max')}")
-    
+
     # Detailed property examination
     detailed_prop = client.properties.find_by_id(first_prop['id'])
     print("Detailed Property Info:", detailed_prop)
@@ -221,7 +221,7 @@ with client.transactions.begin() as transaction:
         {"where": {"name": "temp_property"}},
         transaction=transaction
     )[0]
-    
+
     client.properties.delete(
         property_id=property_to_delete['id'],
         transaction=transaction

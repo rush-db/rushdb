@@ -27,17 +27,17 @@ Creates one or more [relationships](../concepts/relationships.md) from a source 
 
 ### Parameters
 
-| Parameter | Type   | Description |
-|-----------|--------|-------------|
+| Parameter  | Type   | Description                 |
+|------------|--------|-----------------------------|
 | `entityId` | String | The ID of the source record |
 
 ### Request Body
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `targetIds` | String or Array | ID(s) of target record(s) to create relationship(s) with |
-| `type` | String | Optional. The type of relationship to create. Defaults to `__RUSHDB__RELATION__DEFAULT__` |
-| `direction` | String | Optional. Direction of the relationship: `in` or `out`. Defaults to `out` |
+| Field       | Type            | Description                                                                               |
+|-------------|-----------------|-------------------------------------------------------------------------------------------|
+| `targetIds` | String or Array | ID(s) of target record(s) to create relationship(s) with                                  |
+| `type`      | String          | Optional. The type of relationship to create. Defaults to `__RUSHDB__RELATION__DEFAULT__` |
+| `direction` | String          | Optional. Direction of the relationship: `in` or `out`. Defaults to `out`                 |
 
 ### Example Request - Single Target
 
@@ -82,11 +82,11 @@ Retrieves all relationships for a specific [record](../concepts/records.md).
 
 ### Parameters
 
-| Parameter | Type   | Description |
-|-----------|--------|-------------|
-| `entityId` | String | The ID of the record |
-| `skip` | Number | Optional. Number of relationships to skip (default: 0) |
-| `limit` | Number | Optional. Maximum number of relationships to return (default: 1000) |
+| Parameter  | Type   | Description                                                         |
+|------------|--------|---------------------------------------------------------------------|
+| `entityId` | String | The ID of the record                                                |
+| `skip`     | Number | Optional. Number of relationships to skip (default: 0)              |
+| `limit`    | Number | Optional. Maximum number of relationships to return (default: 1000) |
 
 ### Response
 
@@ -132,17 +132,17 @@ Deletes one or more relationships from a source record to one or more target rec
 
 ### Parameters
 
-| Parameter | Type   | Description |
-|-----------|--------|-------------|
+| Parameter  | Type   | Description                 |
+|------------|--------|-----------------------------|
 | `entityId` | String | The ID of the source record |
 
 ### Request Body
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `targetIds` | String or Array | ID(s) of target record(s) to delete relationship(s) with |
-| `typeOrTypes` | String or Array | Optional. Type(s) of relationships to delete. If omitted, deletes relationships of any type |
-| `direction` | String | Optional. Direction of the relationship: `in` or `out`. If omitted, deletes relationships in both directions |
+| Field         | Type            | Description                                                                                                  |
+|---------------|-----------------|--------------------------------------------------------------------------------------------------------------|
+| `targetIds`   | String or Array | ID(s) of target record(s) to delete relationship(s) with                                                     |
+| `typeOrTypes` | String or Array | Optional. Type(s) of relationships to delete. If omitted, deletes relationships of any type                  |
+| `direction`   | String          | Optional. Direction of the relationship: `in` or `out`. If omitted, deletes relationships in both directions |
 
 ### Example Request - Delete All Relationship Types
 
@@ -182,20 +182,20 @@ Deletes one or more relationships from a source record to one or more target rec
 POST /api/v1/records/relationships/search
 ```
 
-Searches for relationships across your database with optional filtering.
+Searches for [relationships](../concepts/relationships.md) across your database with optional filtering.
 
 ### Request Body
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `where` | Object | Optional filter criteria to search for specific relationships |
+| Field   | Type   | Description                                                                                  |
+|---------|--------|----------------------------------------------------------------------------------------------|
+| `where` | Object | Optional [filter criteria](../concepts/search/where.md) to search for specific relationships |
 
 ### Query Parameters
 
-| Parameter | Type   | Description |
-|-----------|--------|-------------|
-| `skip` | Number | Optional. Number of relationships to skip (default: 0) |
-| `limit` | Number | Optional. Maximum number of relationships to return (default: 1000) |
+| Parameter | Type   | Description                                                                                                     |
+|-----------|--------|-----------------------------------------------------------------------------------------------------------------|
+| `skip`    | Number | Optional. Number of relationships to skip for [pagination](../concepts/search/pagination-order.md) (default: 0) |
+| `limit`   | Number | Optional. Maximum number of relationships to return (default: 1000)                                             |
 
 ### Example Request - Filter by Record Properties
 
@@ -282,17 +282,17 @@ POST /api/v1/records/{entityId}/relationships
 
 ### Path Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter  | Type   | Description                       |
+|------------|--------|-----------------------------------|
 | `entityId` | String | Source record identifier (UUIDv7) |
 
 ### Request Body
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `targetIds` | String or Array | Target record identifier(s). Cannot be empty or contain empty strings |
-| `type` | String | (Optional) Relationship type. Cannot be an empty string |
-| `direction` | String | (Optional) Relationship direction. Must be either "in" or "out". Defaults to "out" |
+| Field       | Type            | Description                                                                        |
+|-------------|-----------------|------------------------------------------------------------------------------------|
+| `targetIds` | String or Array | Target record identifier(s). Cannot be empty or contain empty strings              |
+| `type`      | String          | (Optional) Relationship type. Cannot be an empty string                            |
+| `direction` | String          | (Optional) Relationship direction. Must be either "in" or "out". Defaults to "out" |
 
 ### Example Request
 
@@ -337,16 +337,16 @@ GET /api/v1/records/{entityId}/relationships
 
 ### Path Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter  | Type   | Description                |
+|------------|--------|----------------------------|
 | `entityId` | String | Record identifier (UUIDv7) |
 
 ### Query Parameters
 
-| Parameter | Type | Description | Default |
-|-----------|------|-------------|---------|
-| `skip` | Number | (Optional) Number of relationships to skip | 0 |
-| `limit` | Number | (Optional) Maximum number of relationships to return | 1000 |
+| Parameter | Type   | Description                                          | Default |
+|-----------|--------|------------------------------------------------------|---------|
+| `skip`    | Number | (Optional) Number of relationships to skip           | 0       |
+| `limit`   | Number | (Optional) Maximum number of relationships to return | 1000    |
 
 ### Example Response
 
@@ -375,17 +375,17 @@ PUT /api/v1/records/{entityId}/relationships
 
 ### Path Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter  | Type   | Description                       |
+|------------|--------|-----------------------------------|
 | `entityId` | String | Source record identifier (UUIDv7) |
 
 ### Request Body
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `targetIds` | String or Array | Target record identifier(s). Cannot be empty or contain empty strings |
+| Field         | Type            | Description                                                                    |
+|---------------|-----------------|--------------------------------------------------------------------------------|
+| `targetIds`   | String or Array | Target record identifier(s). Cannot be empty or contain empty strings          |
 | `typeOrTypes` | String or Array | (Optional) One or more relationship type(s) to remove. Cannot be empty strings |
-| `direction` | String | (Optional) Filter relationships by direction: "in" or "out" |
+| `direction`   | String          | (Optional) Filter relationships by direction: "in" or "out"                    |
 
 ### Example Request - Single Type
 
@@ -421,18 +421,18 @@ PUT /api/v1/records/{entityId}/relationships
 POST /api/v1/records/relationships/search
 ```
 
-This endpoint searches for relationships between records based on specified criteria.
+This endpoint searches for [relationships](../concepts/relationships.md) between records based on specified criteria.
 
 ### Request Body
 
-The request body follows the standard search parameters format.
+The request body follows the standard [search parameters](../concepts/search/introduction.md) format.
 
 ### Query Parameters
 
-| Parameter | Type   | Description |
-|-----------|--------|-------------|
-| `skip`    | Number | Number of relationships to skip (default: 0) |
-| `limit`   | Number | Maximum number of relationships to return (default: 1000) |
+| Parameter | Type   | Description                                                                                           |
+|-----------|--------|-------------------------------------------------------------------------------------------------------|
+| `skip`    | Number | Number of relationships to skip for [pagination](../concepts/search/pagination-order.md) (default: 0) |
+| `limit`   | Number | Maximum number of relationships to return (default: 1000)                                             |
 
 ### Response
 
@@ -450,7 +450,7 @@ The request body follows the standard search parameters format.
 
 ## Search Relationships
 
-Search across all relationships in the project.
+Search across all [relationships](../concepts/relationships.md) in the project. This endpoint allows you to query relationships with powerful filtering options.
 
 ```http
 POST /api/v1/records/relationships/search
@@ -458,20 +458,20 @@ POST /api/v1/records/relationships/search
 
 ### Query Parameters
 
-| Parameter | Type | Description | Default |
-|-----------|------|-------------|---------|
-| `skip` | Number | (Optional) Number of relationships to skip | 0 |
-| `limit` | Number | (Optional) Maximum number of relationships to return | 1000 |
+| Parameter | Type   | Description                                                                                         | Default |
+|-----------|--------|-----------------------------------------------------------------------------------------------------|---------|
+| `skip`    | Number | (Optional) Number of relationships to skip for [pagination](../concepts/search/pagination-order.md) | 0       |
+| `limit`   | Number | (Optional) Maximum number of relationships to return                                                | 1000    |
 
 ### Request Body
 
 The search endpoint accepts a SearchDto object with the following fields:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `where` | Object | (Optional) Filter criteria for the search |
-| `orderBy` | Object | (Optional) Sorting criteria |
-| `labels` | Array | (Optional) Filter by record labels |
+| Field     | Type   | Description                                                                                        |
+|-----------|--------|----------------------------------------------------------------------------------------------------|
+| `where`   | Object | (Optional) [Filter criteria](../concepts/search/where.md) for the search                           |
+| `orderBy` | Object | (Optional) [Sorting criteria](../concepts/search/pagination-order.md#sorting-records-with-orderby) |
+| `labels`  | Array  | (Optional) Filter by [record labels](../concepts/search/labels.md)                                 |
 
 ### Example Request - With Filters
 
@@ -538,28 +538,6 @@ The API enforces the following validation rules:
 3. `direction` must be either "in" or "out" when provided
 4. Record IDs must be valid UUIDv7 strings
 5. Source and target records must exist in the database
-
-## Error Handling
-
-Relationship operations may return the following error responses:
-
-| Status Code | Description |
-|-------------|-------------|
-| 400 | Bad Request - Invalid input format or validation failure |
-| 401 | Unauthorized - Authentication required |
-| 403 | Forbidden - Insufficient permissions |
-| 404 | Not Found - Record does not exist |
-| 500 | Server Error - Processing failed |
-
-### Example Error Response
-
-```json
-{
-  "success": false,
-  "message": "Target record with id '018dfc84-d6cb-7000-89cd-850db63a1e78' not found",
-  "statusCode": 404
-}
-```
 
 ## Best Practices
 

@@ -4,240 +4,308 @@ sidebar_position: 5
 
 # Transactions
 
-The `PropertiesAPI` class provides methods for managing and querying properties in RushDB.
+[Transactions](../concepts/transactions.mdx) in RushDB ensure data consistency by grouping multiple operations into a single atomic unit. The Python SDK provides a simple and powerful way to work with transactions, allowing you to perform multiple related operations with guaranteed consistency.
 
-## Class Definition
+## Overview
+
+Transactions in RushDB enable you to:
+- Perform multiple operations as a single atomic unit
+- Ensure data consistency across related records
+- Roll back changes automatically if any operation fails
+- Prevent partial updates that could leave your data in an inconsistent state
+
+## Working with Transactions
+
+The RushDB Python SDK offers two ways to work with transactions:
+
+### 1. Explicit Transaction Management
 
 ```python
-class PropertiesAPI(BaseAPI):
+from rushdb import RushDB
+
+db = RushDB("YOUR_API_TOKEN", base_url="https://api.rushdb.com")
+
+# Start a transaction
+tx = db.tx.begin()
+
+try:
+    # Perform operations within the transaction
+    product = db.records.create(
+        label="PRODUCT",
+        data={"name": "Smartphone X", "price": 999.99},
+        transaction=tx
+    )
+
+    inventory = db.records.create(
+        label="INVENTORY",
+        data={"productId": product.id, "stock": 100},
+        transaction=tx
+    )
+
+    # Create a relationship between records
+    product.attach(
+        target=inventory,
+        options={"type": "HAS_INVENTORY"},
+        transaction=tx
+    )
+
+    # Commit the transaction once all operations are successful
+    tx.commit()
+    print("Transaction committed successfully")
+except Exception as e:
+    # Roll back the transaction if any operation fails
+    tx.rollback()
+    print(f"Transaction rolled back due to error: {e}")
 ```
 
-## Methods
+### 2. Context Manager (with statement)
 
-### find
-
-Retrieves a find of properties based on optional search criteria.
-
-**Signature:**
 ```python
-def find(
-    self,
-    query: Optional[SearchQuery] = None,
-    transaction: Optional[Transaction] = None
-) -> List[Property]
+# Using transaction as a context manager
+try:
+    with db.tx.begin() as tx:
+        # Create an order record
+        order = db.records.create(
+            label="ORDER",
+            data={"orderId": "ORD-12345", "total": 129.99},
+            transaction=tx
+        )
+
+        # Create order items
+        item1 = db.records.create(
+            label="ORDER_ITEM",
+            data={"productId": "PROD-001", "quantity": 2, "price": 49.99},
+            transaction=tx
+        )
+
+        item2 = db.records.create(
+            label="ORDER_ITEM",
+            data={"productId": "PROD-002", "quantity": 1, "price": 30.01},
+            transaction=tx
+        )
+
+        # Connect items to the order
+        order.attach(
+            target=[item1, item2],
+            options={"type": "CONTAINS_ITEM"},
+            transaction=tx
+        )
+
+        # Transaction is automatically committed when the block exits normally
+except Exception as e:
+    # Transaction is automatically rolled back if an exception occurs
+    print(f"Transaction failed: {e}")
 ```
 
-**Arguments:**
-- `query` (Optional[SearchQuery]): Search query parameters for filtering properties
-- `transaction` (Optional[Transaction]): Optional transaction object
+## Transaction Operations
 
-**Returns:**
-- `List[Property]`: List of properties matching the search criteria
+The Transaction API provides the following operations:
 
-**Example:**
+### begin()
+
+Starts a new transaction.
+
 ```python
-# Find all properties
-properties = client.properties.find()
-
-# Find properties with specific criteria
-query = {
-    "where": {
-        "name": {"$startsWith": "user_"},  # Properties starting with 'user_'
-        "type": "string"  # Only string type properties
-    },
-    "limit": 10  # Limit to 10 results
-}
-filtered_properties = client.properties.find(query)
+tx = db.tx.begin()
 ```
 
-### find_by_id
+### commit()
 
-Retrieves a specific property by its ID.
+Commits all operations in the transaction.
 
-**Signature:**
 ```python
-def find_by_id(
-    self,
-    property_id: str,
-    transaction: Optional[Transaction] = None
-) -> Property
+tx.commit()
 ```
 
-**Arguments:**
-- `property_id` (str): Unique identifier of the property
-- `transaction` (Optional[Transaction]): Optional transaction object
+### rollback()
 
-**Returns:**
-- `Property`: Property details
+Rolls back all operations in the transaction.
 
-**Example:**
 ```python
-# Retrieve a specific property by ID
-property_details = client.properties.find_by_id("prop_123456")
+tx.rollback()
 ```
 
-### delete
+## Supported Methods with Transactions
 
-Deletes a property by its ID.
+Most RushDB Python SDK methods support an optional `transaction` parameter. Here are some examples:
 
-**Signature:**
+### Records API
+
 ```python
-def delete(
-    self,
-    property_id: str,
-    transaction: Optional[Transaction] = None
-) -> None
-```
-
-**Arguments:**
-- `property_id` (str): Unique identifier of the property to delete
-- `transaction` (Optional[Transaction]): Optional transaction object
-
-**Returns:**
-- `None`
-
-**Example:**
-```python
-# Delete a property
-client.properties.delete("prop_123456")
-```
-
-### values
-
-Retrieves values for a specific property with optional sorting and pagination.
-
-**Signature:**
-```python
-def values(
-    self,
-    property_id: str,
-    sort: Optional[Literal["asc", "desc"]] = None,
-    skip: Optional[int] = None,
-    limit: Optional[int] = None,
-    transaction: Optional[Transaction] = None
-) -> PropertyValuesData
-```
-
-**Arguments:**
-- `property_id` (str): Unique identifier of the property
-- `sort` (Optional[Literal["asc", "desc"]]): Sort order of values
-- `skip` (Optional[int]): Number of values to skip (for pagination)
-- `limit` (Optional[int]): Maximum number of values to return
-- `transaction` (Optional[Transaction]): Optional transaction object
-
-**Returns:**
-- `PropertyValuesData`: Property values data, including optional min/max and find of values
-
-**Example:**
-```python
-# Get property values
-values_data = client.properties.values(
-    property_id="prop_age",
-    sort="desc",  # Sort values in descending order
-    skip=0,       # Start from the first value
-    limit=100     # Return up to 100 values
+# Create a record within a transaction
+record = db.records.create(
+    label="USER",
+    data={"name": "John Doe"},
+    transaction=tx
 )
 
-# Access values
-print(values_data.get('values', []))  # List of property values
-print(values_data.get('min'))         # Minimum value (for numeric properties)
-print(values_data.get('max'))         # Maximum value (for numeric properties)
+# Update a record within a transaction
+db.records.update(
+    record_id=record.id,
+    data={"status": "active"},
+    transaction=tx
+)
+
+# Delete a record within a transaction
+db.records.delete_by_id(
+    id_or_ids=record.id,
+    transaction=tx
+)
+
+# Find records within a transaction
+users = db.records.find(
+    query={"labels": ["USER"]},
+    transaction=tx
+)
 ```
 
-## Comprehensive Usage Example
+### Relationships
 
 ```python
-# Find all properties
-all_properties = client.properties.find()
-for prop in all_properties:
-    print(f"Property ID: {prop['id']}")
-    print(f"Name: {prop['name']}")
-    print(f"Type: {prop['type']}")
-    print(f"Metadata: {prop.get('metadata', 'No metadata')}")
-    print("---")
+# Create a relationship within a transaction
+db.records.attach(
+    source=user.id,
+    target=group.id,
+    options={"type": "BELONGS_TO"},
+    transaction=tx
+)
 
-# Detailed property search
-query = {
-    "where": {
-        "type": "number",             # Only numeric properties
-        "name": {"$contains": "score"}  # Properties with 'score' in name
-    },
-    "limit": 5  # Limit to 5 results
-}
-numeric_score_properties = client.properties.find(query)
-
-# Get values for a specific property
-if numeric_score_properties:
-    first_prop = numeric_score_properties[0]
-    prop_values = client.properties.values(
-        property_id=first_prop['id'],
-        sort="desc",
-        limit=50
-    )
-    print(f"Values for {first_prop['name']}:")
-    print(f"Min: {prop_values.get('min')}")
-    print(f"Max: {prop_values.get('max')}")
-    
-    # Detailed property examination
-    detailed_prop = client.properties.find_by_id(first_prop['id'])
-    print("Detailed Property Info:", detailed_prop)
+# Remove a relationship within a transaction
+db.records.detach(
+    source=user.id,
+    target=group.id,
+    options={"typeOrTypes": "BELONGS_TO"},
+    transaction=tx
+)
 ```
 
-## Property Types and Structures
+## Complex Transaction Example
 
-RushDB supports the following property types:
-- `"boolean"`: True/False values
-- `"datetime"`: Date and time values
-- `"null"`: Null/empty values
-- `"number"`: Numeric values
-- `"string"`: Text values
-
-### Property Structure Example
-```python
-property = {
-    "id": "prop_unique_id",
-    "name": "user_score",
-    "type": "number",
-    "metadata": Optional[str]  # Optional additional information
-}
-
-property_with_value = {
-    "id": "prop_unique_id",
-    "name": "user_score",
-    "type": "number",
-    "value": 95.5  # Actual property value
-}
-```
-
-## Transactions
-
-Properties API methods support optional transactions for atomic operations:
+Here's a more complex example showing how to use transactions to ensure data consistency in an e-commerce scenario:
 
 ```python
-# Using a transaction
-with client.transactions.begin() as transaction:
-    # Perform multiple property-related operations
-    property_to_delete = client.properties.find(
-        {"where": {"name": "temp_property"}},
-        transaction=transaction
-    )[0]
-    
-    client.properties.delete(
-        property_id=property_to_delete['id'],
-        transaction=transaction
-    )
-    # Transaction will automatically commit if no errors occur
+def process_order(db, customer_id, items):
+    # Start a transaction
+    tx = db.tx.begin()
+
+    try:
+        # 1. Create the order record
+        order = db.records.create(
+            label="ORDER",
+            data={
+                "orderDate": datetime.now().isoformat(),
+                "status": "processing",
+                "totalAmount": sum(item["price"] * item["quantity"] for item in items)
+            },
+            transaction=tx
+        )
+
+        # 2. Retrieve the customer
+        customers = db.records.find(
+            query={"where": {"id": customer_id}},
+            transaction=tx
+        )
+
+        if not customers:
+            raise Exception(f"Customer {customer_id} not found")
+
+        customer = customers[0]
+
+        # 3. Connect order to customer
+        customer.attach(
+            target=order,
+            options={"type": "PLACED_ORDER"},
+            transaction=tx
+        )
+
+        # 4. Process each order item
+        order_items = []
+        for item in items:
+            # 4.1. Check inventory
+            inventory = db.records.find(
+                query={
+                    "labels": ["INVENTORY"],
+                    "where": {"productId": item["productId"]}
+                },
+                transaction=tx
+            )
+
+            if not inventory or inventory[0]["stock"] < item["quantity"]:
+                raise Exception(f"Insufficient stock for product {item['productId']}")
+
+            # 4.2. Create order item
+            order_item = db.records.create(
+                label="ORDER_ITEM",
+                data={
+                    "productId": item["productId"],
+                    "quantity": item["quantity"],
+                    "price": item["price"],
+                    "subtotal": item["price"] * item["quantity"]
+                },
+                transaction=tx
+            )
+
+            order_items.append(order_item)
+
+            # 4.3. Update inventory
+            db.records.update(
+                record_id=inventory[0].id,
+                data={"stock": inventory[0]["stock"] - item["quantity"]},
+                transaction=tx
+            )
+
+        # 5. Connect order items to order
+        order.attach(
+            target=order_items,
+            options={"type": "CONTAINS"},
+            transaction=tx
+        )
+
+        # 6. Update order status
+        order.update(
+            data={"status": "confirmed"},
+            transaction=tx
+        )
+
+        # Commit the transaction
+        tx.commit()
+        return {"success": True, "orderId": order.id}
+
+    except Exception as e:
+        # Roll back the transaction if any step fails
+        tx.rollback()
+        return {"success": False, "error": str(e)}
 ```
 
-## Error Handling
+## Transaction Limitations
 
-When working with the PropertiesAPI, be prepared to handle potential errors:
+1. **Timeouts**: Transactions have a timeout period. Long-running transactions may be automatically aborted.
 
-```python
-try:
-    # Attempt to find or delete a property
-    property_details = client.properties.find_by_id("non_existent_prop")
-except RushDBError as e:
-    print(f"Error: {e}")
-    print(f"Error Details: {e.details}")
-```
+2. **Isolation Level**: RushDB uses the underlying Neo4j transaction isolation level, which is READ_COMMITTED.
+
+3. **Nested Transactions**: Nested transactions are not supported. You should use a single transaction for a set of related operations.
+
+4. **Transaction Size**: Very large transactions with many operations may impact performance. Consider breaking extremely large operations into smaller batches.
+
+## Best Practices
+
+1. **Keep transactions short** - Transaction locks are held until the transaction is committed or rolled back.
+
+2. **Handle exceptions properly** - Always include exception handling to ensure transactions are properly rolled back.
+
+3. **Use appropriate scope** - Only include necessary operations in a transaction.
+
+4. **Consider using the context manager** - The context manager approach guarantees proper transaction handling.
+
+5. **Avoid long-running transactions** - Long-running transactions can impact system performance.
+
+6. **Don't mix transactional and non-transactional operations** - Keep all related operations within the transaction.
+
+7. **Test transaction rollback scenarios** - Ensure your application properly handles transaction failures.
+
+## Related Documentation
+
+- [Transactions Concept](../concepts/transactions.mdx) - Learn more about how transactions work in RushDB
+- [Record Operations](./records/create-records.md) - Record operations supporting transactions
+- [Relationships](./relationships.md) - Working with relationships in transactions
+

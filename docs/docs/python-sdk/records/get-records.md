@@ -220,4 +220,4 @@ When working with the Search API, follow these best practices for optimal perfor
 - Learn about [data aggregation capabilities](../../concepts/search/aggregations)
 - Understand [pagination and sorting options](../../concepts/search/pagination-order)
 - Discover how to filter by [record labels](../../concepts/search/labels)
-- See how to use [Records API](../../python-sdk/records) for other operations
+- See how to use [Records API](../../python-sdk/records/create-records.md) for other operations

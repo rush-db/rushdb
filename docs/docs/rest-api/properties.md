@@ -12,8 +12,6 @@ The Properties API allows you to:
 - List all properties in your project
 - Get details about a specific property
 - Get distinct values for a property
-- Update a property's name or type
-- Update property values across records
 - Delete properties
 
 All properties endpoints require authentication using a token header.
@@ -34,7 +32,7 @@ RushDB supports the following property types:
 ## List Properties
 
 ```http
-POST /api/v1/properties
+POST /api/v1/properties/search
 ```
 
 Returns a find of all properties in the current project, with filtering options.
@@ -157,100 +155,6 @@ For numeric properties, the response includes minimum and maximum values:
     "max": 21,
     "type": "number"
   }
-}
-```
-
-## Update Property
-
-```http
-PATCH /api/v1/properties/:propertyId
-```
-
-Updates a property's name or type.
-
-### Parameters
-
-| Parameter   | Type   | Description |
-|-------------|--------|-------------|
-| `propertyId` | String | The ID of the property to update |
-
-### Request Body
-
-| Field  | Type   | Description |
-|--------|--------|-------------|
-| `name` | String | Optional. New name for the property |
-| `type` | String | Optional. New type for the property |
-
-### Example Request
-
-```json
-{
-  "name": "fullName",
-  "type": "string"
-}
-```
-
-### Response
-
-```json
-{
-  "success": true,
-  "data": true
-}
-```
-
-### Notes on Type Conversion
-
-When changing property types:
-- Converting to string type is generally safe
-- Converting between other types may cause data loss if values are incompatible
-- If merging properties with conflicting types, an error will be thrown
-
-## Update Property Values
-
-```http
-PATCH /api/v1/properties/:propertyId/values
-```
-
-Updates the values of a property across multiple records.
-
-### Parameters
-
-| Parameter   | Type   | Description |
-|-------------|--------|-------------|
-| `propertyId` | String | The ID of the property to update |
-
-### Request Body
-
-| Field      | Type   | Description |
-|------------|--------|-------------|
-| `entityIds` | Array  | Optional. Array of record IDs to update. If not provided, all records with this property are updated |
-| `newValue` | Any    | The new value to set for the property |
-
-### Example Request
-
-```json
-{
-  "entityIds": ["018dfc84-d6cb-7000-89cd-850db63a1e80", "018dfc84-d6cb-7000-89cd-850db63a1e81"],
-  "newValue": "Unknown"
-}
-```
-
-For array values:
-
-```json
-{
-  "entityIds": ["018dfc84-d6cb-7000-89cd-850db63a1e80"],
-  "newValue": ["tag1", "tag2", "tag3"]
-}
-```
-
-### Response
-
-```json
-{
-  "success": true,
-  "data": true
 }
 ```
 
