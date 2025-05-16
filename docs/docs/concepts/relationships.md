@@ -19,9 +19,9 @@ graph TD
     C[":__RUSHDB__LABEL__RECORD__ :Motorcycle"] -->|"__RUSHDB__RELATION__DEFAULT__"| D[":__RUSHDB__LABEL__RECORD__ :Engine"]
 ```
 
-These relationships are automatically created during the data import process when nested objects are detected. Learn more at [REST API - Import Data](/rest-api/import-data) or through the language-specific SDKs:
-- [TypeScript SDK](/typescript-sdk/records/import-data)
-- [Python SDK](/python-sdk/records/import-data)
+These relationships are automatically created during the data import process when nested objects are detected. Learn more at [REST API - Import Data](../rest-api/records/import-data) or through the language-specific SDKs:
+- [TypeScript SDK](../typescript-sdk/records/import-data)
+- [Python SDK](../python-sdk/records/import-data)
 
 ### 2. Value Relationships (`__RUSHDB__RELATION__VALUE__`)
 
@@ -115,6 +115,6 @@ This relationship model provides several advantages:
 3. **Hidden Insights**: Property connections can reveal relationships between seemingly unrelated records
 4. **Flexible Structure**: Relationships can be easily rearranged or modified as your data model evolves
 
-To learn more about how to work with relationships in your queries and data operations, see the [REST API](/rest-api/relationships) or through the language-specific SDKs:
-- [TypeScript SDK](/typescript-sdk/relationships)
-- [Python SDK](/python-sdk/relationships)
+To learn more about how to work with relationships in your queries and data operations, see the [REST API](../rest-api/relationships) or through the language-specific SDKs:
+- [TypeScript SDK](../typescript-sdk/relationships)
+- [Python SDK](../python-sdk/relationships)

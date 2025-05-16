@@ -30,7 +30,7 @@ users = result.data
 print(f"Found {result.total} total users")
 ```
 
-Search queries support a powerful and flexible syntax for filtering records. For a detailed explanation of all the available operators and capabilities, see the [Where clause documentation](/concepts/search/where).
+Search queries support a powerful and flexible syntax for filtering records. For a detailed explanation of all the available operators and capabilities, see the [Where clause documentation](../../concepts/search/where).
 
 ### Finding Records by ID with `find_by_id()`
 
@@ -83,7 +83,7 @@ users = db.records.find({
 })
 ```
 
-See the [Where clause documentation](/concepts/search/where#relationship-queries) for more details on relationship queries.
+See the [Where clause documentation](../../concepts/search/where#relationship-queries) for more details on relationship queries.
 
 ### Vector Search
 
@@ -106,7 +106,7 @@ similar_documents = db.records.find({
 })
 ```
 
-See the [Vector operators documentation](/concepts/search/where#vector-operators) for more details on vector search capabilities.
+See the [Vector operators documentation](../../concepts/search/where#vector-operators) for more details on vector search capabilities.
 
 ### Pagination and Sorting
 
@@ -130,7 +130,7 @@ page2 = db.records.find({
 total_products = page2.total
 ```
 
-For more details on pagination and sorting options, see the [Pagination and ordering documentation](/concepts/search/pagination-order).
+For more details on pagination and sorting options, see the [Pagination and ordering documentation](../../concepts/search/pagination-order).
 
 ### Aggregations
 
@@ -168,7 +168,7 @@ sales_by_category = db.records.find({
 })
 ```
 
-For comprehensive details on available aggregation functions and usage, see the [Aggregations documentation](/concepts/search/aggregations).
+For comprehensive details on available aggregation functions and usage, see the [Aggregations documentation](../../concepts/search/aggregations).
 
 ## Search Within Transactions
 
@@ -201,7 +201,7 @@ except Exception as error:
     raise error
 ```
 
-For more details on transactions, see the [Transactions documentation](/python-sdk/transactions).
+For more details on transactions, see the [Transactions documentation](../../python-sdk/transactions).
 
 ## Performance Best Practices
 
@@ -216,8 +216,8 @@ When working with the Search API, follow these best practices for optimal perfor
 
 ## Next Steps
 
-- Explore [filtering with where clauses](/concepts/search/where) in depth
-- Learn about [data aggregation capabilities](/concepts/search/aggregations)
-- Understand [pagination and sorting options](/concepts/search/pagination-order)
-- Discover how to filter by [record labels](/concepts/search/labels)
-- See how to use [Records API](/python-sdk/records) for other operations
+- Explore [filtering with where clauses](../../concepts/search/where) in depth
+- Learn about [data aggregation capabilities](../../concepts/search/aggregations)
+- Understand [pagination and sorting options](../../concepts/search/pagination-order)
+- Discover how to filter by [record labels](../../concepts/search/labels)
+- See how to use [Records API](../../python-sdk/records) for other operations

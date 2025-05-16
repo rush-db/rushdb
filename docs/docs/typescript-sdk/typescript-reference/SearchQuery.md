@@ -4,7 +4,7 @@ sidebar_position: 8
 
 # SearchQuery
 
-`SearchQuery` is a type that defines the structure for querying [records](/concepts/records) in RushDB. It provides a flexible way to filter, sort, paginate, and aggregate data. For more information on search concepts, see the [search documentation](/concepts/search).
+`SearchQuery` is a type that defines the structure for querying [records](../../concepts/records) in RushDB. It provides a flexible way to filter, sort, paginate, and aggregate data. For more information on search concepts, see the [search documentation](../../concepts/search/introduction.md).
 
 ## Type Definition
 
@@ -18,8 +18,8 @@ export type SearchQuery<S extends Schema = any> = SearchQueryLabelsClause &
 
 ## Type Parameters
 
-| Parameter | Description |
-|-----------|-------------|
+| Parameter                | Description                                                             |
+|--------------------------|-------------------------------------------------------------------------|
 | `S extends Schema = any` | The schema type that defines the structure of the records being queried |
 
 ## Query Components
@@ -45,10 +45,10 @@ export type PaginationClause = {
 
 Controls pagination of the query results.
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `limit` | `number` | Maximum number of records to return |
-| `skip` | `number` | Number of records to skip |
+| Property | Type     | Description                         |
+|----------|----------|-------------------------------------|
+| `limit`  | `number` | Maximum number of records to return |
+| `skip`   | `number` | Number of records to skip           |
 
 ### Order Clause
 
@@ -183,7 +183,7 @@ export type Related<M extends Record<string, Model['schema']> = Models> =
     }
 ```
 
-Defines conditions on related records. Learn more about [relationships in RushDB](/concepts/relationships).
+Defines conditions on related records. Learn more about [relationships in RushDB](../../concepts/relationships).
 
 ### Aggregation
 

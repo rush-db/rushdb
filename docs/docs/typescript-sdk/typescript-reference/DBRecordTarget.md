@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # DBRecordTarget
 
-`DBRecordTarget` is a type that represents a target [record](/concepts/records) for operations like set, update, attach, detach, and delete. It is commonly used when working with [relationships](/concepts/relationships) and [property](/concepts/properties) updates.
+`DBRecordTarget` is a type that represents a target [record](../../concepts/records) for operations like set, update, attach, detach, and delete. It is commonly used when working with [relationships](../../concepts/relationships) and [property](../../concepts/properties) updates.
 
 ## Type Definition
 

@@ -198,13 +198,13 @@ This method searches for records that match the specified criteria, with support
 
 ### Parameters
 
-| Field     | Type   | Description |
-|-----------|--------|-------------|
-| `where`   | Object | Filter conditions for records ([learn more](/concepts/search/where)) |
-| `orderBy` | String or Object | Sorting criteria ([learn more](/concepts/search/pagination-order)) |
-| `skip`    | Number | Number of records to skip for pagination ([learn more](/concepts/search/pagination-order)) |
-| `limit`   | Number | Maximum number of records to return (default: 1000) |
-| `labels`  | Array  | Optional array of labels to filter records by ([learn more](/concepts/search/labels)) |
+| Field     | Type             | Description                                                                                     |
+|-----------|------------------|-------------------------------------------------------------------------------------------------|
+| `where`   | Object           | Filter conditions for records ([learn more](../../concepts/search/where))                       |
+| `orderBy` | String or Object | Sorting criteria ([learn more](../../concepts/search/pagination-order))                         |
+| `skip`    | Number           | Number of records to skip for pagination ([learn more](../../concepts/search/pagination-order)) |
+| `limit`   | Number           | Maximum number of records to return (default: 1000)                                             |
+| `labels`  | Array            | Optional array of labels to filter records by ([learn more](../../concepts/search/labels))      |
 
 ### Return Value
 
@@ -250,7 +250,7 @@ const results = await db.records.find({
 });
 ```
 
-Search queries support a powerful and flexible syntax for filtering records. For a detailed explanation of all the available operators and capabilities, see the [Where clause documentation](/concepts/search/where).
+Search queries support a powerful and flexible syntax for filtering records. For a detailed explanation of all the available operators and capabilities, see the [Where clause documentation](../../concepts/search/where).
 
 ## Advanced Search Features
 
@@ -293,7 +293,7 @@ const users = await db.records.find({
 });
 ```
 
-See the [Where clause documentation](/concepts/search/where#relationship-queries) for more details on relationship queries.
+See the [Where clause documentation](../../concepts/search/where#relationship-queries) for more details on relationship queries.
 
 ### Vector Search
 
@@ -316,7 +316,7 @@ const similarDocuments = await db.records.find({
 });
 ```
 
-See the [Vector operators documentation](/concepts/search/where#vector-operators) for more details on vector search capabilities.
+See the [Vector operators documentation](../../concepts/search/where#vector-operators) for more details on vector search capabilities.
 
 ### Pagination and Sorting
 
@@ -340,7 +340,7 @@ const page2 = await db.records.find({
 const totalProducts = page2.total;
 ```
 
-For more details on pagination and sorting options, see the [Pagination and ordering documentation](/concepts/search/pagination-order).
+For more details on pagination and sorting options, see the [Pagination and ordering documentation](../../concepts/search/pagination-order).
 
 ### Aggregations
 
@@ -406,7 +406,7 @@ const companySalaryStats = await db.records.find({
 });
 ```
 
-For comprehensive details on available aggregation functions and usage, see the [Aggregations documentation](/concepts/search/aggregations).
+For comprehensive details on available aggregation functions and usage, see the [Aggregations documentation](../../concepts/search/aggregations).
 
 ## Model-Based Search
 
@@ -466,8 +466,7 @@ const uniqueUser = await UserModel.findUniq({
 Note that when using model search methods, you don't need to specify the `labels` field in the search query since it's automatically set to the model's label.
 
 For more details on models and type safety, see:
-- [Models documentation](/typescript-sdk/records/models)
-- [Advanced TypeScript usage](/typescript-sdk/advanced-typescript)
+- [Models documentation](../../typescript-sdk/models)
 
 ## Search Within Transactions
 
@@ -500,7 +499,7 @@ try {
 }
 ```
 
-For more details on transactions, see the [Transactions documentation](/typescript-sdk/transactions).
+For more details on transactions, see the [Transactions documentation](../../typescript-sdk/transactions).
 
 ## Performance Best Practices
 
@@ -529,13 +528,13 @@ This method searches for records that are directly related to a specific record,
 
 ### Parameters
 
-| Parameter  | Type   | Description |
-|------------|--------|-------------|
-| `id`       | String | The unique identifier of the source record |
-| `where`    | Object | Filter conditions for records ([learn more](/concepts/search/where)) |
-| `orderBy`  | String or Object | Sorting criteria (same as regular search) |
-| `skip`     | Number | Number of records to skip for pagination |
-| `limit`    | Number | Maximum number of records to return |
+| Parameter | Type             | Description                                                               |
+|-----------|------------------|---------------------------------------------------------------------------|
+| `id`      | String           | The unique identifier of the source record                                |
+| `where`   | Object           | Filter conditions for records ([learn more](../../concepts/search/where)) |
+| `orderBy` | String or Object | Sorting criteria (same as regular search)                                 |
+| `skip`    | Number           | Number of records to skip for pagination                                  |
+| `limit`   | Number           | Maximum number of records to return                                       |
 
 ### Example
 
@@ -693,11 +692,11 @@ To optimize your record retrieval and search operations:
 
 ## Related Documentation
 
-- [Search Introduction](/concepts/search/introduction)
-- [Where Clause](/concepts/search/where)
-- [Labels](/concepts/search/labels)
-- [Pagination and Order](/concepts/search/pagination-order)
-- [Record Relationships](/concepts/relationships)
-- [Aggregations](/concepts/search/aggregations)
-- [Transactions](/concepts/transactions)
-- [Models](/typescript-sdk/models)
+- [Search Introduction](../../concepts/search/introduction)
+- [Where Clause](../../concepts/search/where)
+- [Labels](../../concepts/search/labels)
+- [Pagination and Order](../../concepts/search/pagination-order)
+- [Record Relationships](../../concepts/relationships)
+- [Aggregations](../../concepts/search/aggregations)
+- [Transactions](../../concepts/transactions.mdx)
+- [Models](../../typescript-sdk/models)

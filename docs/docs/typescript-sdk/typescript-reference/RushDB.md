@@ -4,7 +4,7 @@ sidebar_position: 7
 
 # RushDB
 
-The `RushDB` class is the main entry point for interacting with the RushDB database. It manages API connections and model registration. It provides access to [records](/concepts/records), [labels](/concepts/labels), and [transactions](/concepts/transactions).
+The `RushDB` class is the main entry point for interacting with the RushDB database. It manages API connections and model registration. It provides access to [records](../../concepts/records), [labels](../../concepts/labels), and [transactions](../../concepts/transactions).
 
 ## Initialization
 

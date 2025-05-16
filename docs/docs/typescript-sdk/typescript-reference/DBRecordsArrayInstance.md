@@ -4,7 +4,7 @@ sidebar_position: 5
 
 # DBRecordsArrayInstance
 
-`DBRecordsArrayInstance` is a class that manages an array of `DBRecordInstance` objects. It typically represents the result of a [search query](/concepts/search) that returns multiple [records](/concepts/records).
+`DBRecordsArrayInstance` is a class that manages an array of `DBRecordInstance` objects. It typically represents the result of a [search query](../../concepts/search/introduction.md) that returns multiple [records](../../concepts/records).
 
 ## Class Definition
 
@@ -21,10 +21,10 @@ export class DBRecordsArrayInstance<
 
 ## Type Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `S extends Schema = Schema` | The schema type that defines the structure of the records |
-| `Q extends SearchQuery<S> = SearchQuery<S>` | The search query type used to retrieve these records |
+| Parameter                                   | Description                                               |
+|---------------------------------------------|-----------------------------------------------------------|
+| `S extends Schema = Schema`                 | The schema type that defines the structure of the records |
+| `Q extends SearchQuery<S> = SearchQuery<S>` | The search query type used to retrieve these records      |
 
 ## Constructor
 
@@ -40,11 +40,11 @@ Creates a new `DBRecordsArrayInstance`.
 
 ### Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `data` | `Array<DBRecordInstance<S, Q>>` | Optional array of record instances |
-| `total` | `number` | Optional total count of records (may be greater than the length of `data` when pagination is used) |
-| `searchQuery` | `SearchQuery<S>` | Optional search query that was used to retrieve these records |
+| Parameter     | Type                            | Description                                                                                        |
+|---------------|---------------------------------|----------------------------------------------------------------------------------------------------|
+| `data`        | `Array<DBRecordInstance<S, Q>>` | Optional array of record instances                                                                 |
+| `total`       | `number`                        | Optional total count of records (may be greater than the length of `data` when pagination is used) |
+| `searchQuery` | `SearchQuery<S>`                | Optional search query that was used to retrieve these records                                      |
 
 ## Properties
 
@@ -74,7 +74,7 @@ The search query that was used to retrieve these records.
 
 ## Methods
 
-Currently, the `DBRecordsArrayInstance` class has no dedicated methods implemented. According to code comments, future plans may include:
+Currently, the `DBRecordsArrayInstance` class has no dedicated methods implemented. According to code comments, future improvements may include:
 
 ```typescript
 // @TODO: Bulk actions: Delete (by ids or searchQuery?); Export to csv; Props update for found Records; Attach/Detach

@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # DBRecordInstance
 
-`DBRecordInstance` is a class that wraps a DBRecord and provides methods for manipulating it. This class serves as an interface for working with individual [records](/concepts/records) in the database. It allows for updating [properties](/concepts/properties) and managing [relationships](/concepts/relationships).
+`DBRecordInstance` is a class that wraps a DBRecord and provides methods for manipulating it. This class serves as an interface for working with individual [records](../../concepts/records) in the database. It allows for updating [properties](../../concepts/properties) and managing [relationships](../../concepts/relationships).
 
 ## Class Definition
 

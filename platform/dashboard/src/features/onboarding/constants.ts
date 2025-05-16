@@ -20,7 +20,7 @@ export const docsUrls = {
     }
   },
   dashboard: {
-    configuration: 'https://docs.rushdb.com/quick-start/configuring-dashboard'
+    configuration: 'https://docs.rushdb.com/get-started/quick-tutorial'
   }
 } satisfies {
   dashboard: {

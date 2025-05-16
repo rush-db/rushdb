@@ -10,7 +10,7 @@ RushDB provides efficient APIs for deleting records from your database. This cap
 
 The delete endpoints allow you to:
 - Delete a single record by ID
-- Delete multiple records using [SearchQuery capabilities](/concepts/search/introduction)
+- Delete multiple records using [SearchQuery capabilities](../../concepts/search/introduction)
 - Perform conditional bulk deletions
 - Safely remove records with proper authentication
 
@@ -55,8 +55,8 @@ You can use search parameters to filter the data you want to delete:
 
 | Field     | Type   | Description |
 |-----------|--------|-------------|
-| `where`   | Object | Filter conditions for records ([learn more](/concepts/search/where)) |
-| `labels`  | Array  | Optional array of labels to filter records by ([learn more](/concepts/search/labels)) |
+| `where`   | Object | Filter conditions for records ([learn more](../../concepts/search/where)) |
+| `labels`  | Array  | Optional array of labels to filter records by ([learn more](../../concepts/search/labels)) |
 
 ### Example Request
 
@@ -115,12 +115,12 @@ RushDB implements several safeguards for delete operations:
 
 - For large-scale deletions, RushDB processes operations in batches
 - Complex query conditions may increase processing time
-- Consider using [label filtering](/concepts/search/labels) to narrow down records before deletion
+- Consider using [label filtering](../../concepts/search/labels) to narrow down records before deletion
 - For very large datasets, consider multiple smaller delete operations
 
 ## Related Documentation
 
-- [Search Introduction](/concepts/search/introduction)
-- [Where Clause](/concepts/search/where)
-- [Labels](/concepts/search/labels)
-- [Record Relationships](/concepts/relationships)
+- [Search Introduction](../../concepts/search/introduction)
+- [Where Clause](../../concepts/search/where)
+- [Labels](../../concepts/search/labels)
+- [Record Relationships](../../concepts/relationships)

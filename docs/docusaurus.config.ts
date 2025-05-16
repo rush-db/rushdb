@@ -272,15 +272,11 @@ const config: Config = {
             items: [
               {
                 label: 'Getting Started',
-                to: '/getting-started/quick-tutorial'
+                to: '/get-started/quick-tutorial'
               },
               {
                 label: 'Basic Concepts',
-                to: '/basic-concepts/records'
-              },
-              {
-                label: 'Operations',
-                to: '/operations/importing-data'
+                to: '/concepts/records'
               }
             ]
           },

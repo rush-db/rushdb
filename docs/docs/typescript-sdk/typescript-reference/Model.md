@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Model
 
-The `Model` class represents a schema-defined entity in RushDB. It provides methods to perform CRUD operations and manage [relationships](/concepts/relationships) between [records](/concepts/records). Models are identified by [labels](/concepts/labels) in the database.
+The `Model` class represents a schema-defined entity in RushDB. It provides methods to perform CRUD operations and manage [relationships](../../concepts/relationships) between [records](../../concepts/records). Models are identified by [labels](../../concepts/labels) in the database.
 
 ## Usage
 

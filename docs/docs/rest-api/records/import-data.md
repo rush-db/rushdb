@@ -32,7 +32,7 @@ For example, when importing a nested object like a person with embedded address 
 - Apply proper labels derived from the JSON structure
 - Set up property nodes with appropriate type inference
 
-For more details on how RushDB manages data storage and the underlying data import mechanism, see [Storage - Data Import Mechanism](/concepts/storage#data-import-mechanism).
+For more details on how RushDB manages data storage and the underlying data import mechanism, see [Storage - Data Import Mechanism](../../concepts/storage#data-import-mechanism).
 
 ## Import JSON Data
 

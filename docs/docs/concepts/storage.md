@@ -3,7 +3,7 @@ sidebar_position: 3
 ---
 # Storage
 
-RushDB leverages [Neo4j](https://neo4j.com/docs/getting-started/get-started-with-neo4j/) (version 5.25.1 or higher) as its underlying storage engine, enhanced with the [APOC](https://neo4j.com/labs/apoc/) (Awesome Procedures On Cypher) and [GDS](https://neo4j.com/docs/graph-data-science/current/) (Graph Data Science) plugins to perform efficient vector similarity searches and advanced graph operations.
+RushDB leverages [Neo4j](https://neo4j.com/docs/get-started/get-started-with-neo4j/) (version 5.25.1 or higher) as its underlying storage engine, enhanced with the [APOC](https://neo4j.com/labs/apoc/) (Awesome Procedures On Cypher) and [GDS](https://neo4j.com/docs/graph-data-science/current/) (Graph Data Science) plugins to perform efficient vector similarity searches and advanced graph operations.
 
 ## Graph Database vs. Traditional Databases
 
@@ -38,7 +38,7 @@ Each record in RushDB (a meaningful key-value data piece) is extended with sever
 |--------------|----------------------|-------------|
 | `__RUSHDB__KEY__ID__` | `__id` | UUIDv7 that enables lexicographic ordering without relying on user-defined fields like `createdAt`. RushDB SDKs support converting `__id` to timestamp and ISO8601 date. For more details, see [UUIDv7 specification](https://www.ietf.org/archive/id/draft-peabody-uuid-v7-01.html). |
 | `__RUSHDB__KEY__PROPERTIES__META__` | `__proptypes` | Stringified meta-object holding the types of data in the current record, e.g., `{ name: "string", active: "boolean", ... }` |
-| `__RUSHDB__KEY__LABEL__` | `__label` | Record Label identifier. Every record has two labels: a default one (`__RUSHDB__LABEL__RECORD__`) and a user-defined one that is searchable. Currently, RushDB allows only one custom label per record, and it is required by default. For more details about labels, see [Labels](/concepts/labels). |
+| `__RUSHDB__KEY__LABEL__` | `__label` | Record Label identifier. Every record has two labels: a default one (`__RUSHDB__LABEL__RECORD__`) and a user-defined one that is searchable. Currently, RushDB allows only one custom label per record, and it is required by default. For more details about labels, see [Labels](../concepts/labels). |
 | `__RUSHDB__KEY__PROJECT__ID__` | `__projectId` | Project identifier for multitenancy isolation. This property is never exposed to clients via UI or API. |
 
 
@@ -136,7 +136,7 @@ This data type accommodates arrays of both floating-point numbers and integers. 
 
 In essence, RushDB supports all the data types that JSON does. However, when it comes to arrays (or Lists), RushDB can indeed
 hold them as **Property** values, but it's important to note that it can only store <u>consistent values</u> within those
-arrays. To learn more, check out the [Properties](/concepts/properties) section.
+arrays. To learn more, check out the [Properties](../concepts/properties) section.
 
 > **Note:** Every data type mentioned above (except `vector`, since it's already an array by default) supports an array representation.
 
@@ -151,7 +151,7 @@ Here some valid examples:
 
 When records are imported into RushDB, data types are automatically inferred and stored in the `__RUSHDB__KEY__PROPERTIES__META__` internal field (exposed to clients as `__proptypes`). This metadata is crucial for maintaining type consistency and enabling efficient property-based connections across the graph.
 
-To learn more about how RushDB uses data types for property values and type inference during data import, see [REST API - Import Data](/rest-api/import-data).
+To learn more about how RushDB uses data types for property values and type inference during data import, see [REST API - Import Data](../rest-api/records/import-data).
 
 ## Data Import Mechanism
 
@@ -295,9 +295,9 @@ These indexes and constraints are essential for RushDB's performance and data in
 3. Property lookups are efficient, especially during joins and traversals
 4. User management operations perform optimally
 
-Learn more at [REST API - Import Data](/rest-api/import-data) or through the language-specific SDKs:
-- [TypeScript SDK](/typescript-sdk/records/import-data)
-- [Python SDK](/python-sdk/records/import-data)
+Learn more at [REST API - Import Data](../rest-api/records/import-data) or through the language-specific SDKs:
+- [TypeScript SDK](../typescript-sdk/records/import-data)
+- [Python SDK](../python-sdk/records/import-data)
 
 ## Performance Considerations
 

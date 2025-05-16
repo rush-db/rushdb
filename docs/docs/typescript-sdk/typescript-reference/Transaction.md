@@ -8,8 +8,8 @@ In RushDB, a transaction allows you to execute multiple database operations atom
 
 ## Properties
 
-| Property | Type   | Description |
-|----------|--------|-------------|
+| Property | Type   | Description                                                                                                                  |
+|----------|--------|------------------------------------------------------------------------------------------------------------------------------|
 | `id`     | string | The unique identifier for this transaction. This ID is used internally when making API calls within the transaction context. |
 
 ## Methods
@@ -94,5 +94,5 @@ The `Transaction` class extends `RestApiProxy`, which provides access to the und
 
 ## See Also
 
-- [Transactions API Documentation](/typescript-sdk/transactions)
-- [RushDB Class Reference](/typescript-sdk/typescript-reference/RushDB)
+- [Transactions API Documentation](../transactions)
+- [RushDB Class Reference](../typescript-reference/RushDB)

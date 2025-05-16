@@ -24,7 +24,7 @@ The SDK provides label-related methods through the `labels` object:
 const labels = db.labels;
 ```
 
-The Labels API is built on the powerful [SearchQuery](/concepts/search/introduction.md) interface, which enables you to use the same querying capabilities that are available throughout the RushDB search API. This means you can leverage complex filters, logical operators, and comparison operators when working with labels.
+The Labels API is built on the powerful [SearchQuery](../concepts/search/introduction.md) interface, which enables you to use the same querying capabilities that are available throughout the RushDB search API. This means you can leverage complex filters, logical operators, and comparison operators when working with labels.
 
 ### Find Labels
 
@@ -72,7 +72,7 @@ const users = await db.records.find({
 
 ## Filtering Labels
 
-The labels API leverages the powerful [`SearchQuery`](/concepts/search/introduction.md) interface, allowing you to use the same advanced querying capabilities that are available throughout the RushDB search API. You can use complex queries to filter which labeled records to include:
+The labels API leverages the powerful [`SearchQuery`](../concepts/search/introduction.md) interface, allowing you to use the same advanced querying capabilities that are available throughout the RushDB search API. You can use complex queries to filter which labeled records to include:
 
 ### Example with Multiple Conditions
 
@@ -104,7 +104,7 @@ This will return labels for records where `country` is either "USA" OR "Canada".
 
 ### Advanced Query Operators
 
-Since the Labels API uses the [`SearchQuery`](/concepts/search/introduction.md) interface, you can use all the query operators available in the [RushDB search API](/concepts/search/introduction.md):
+Since the Labels API uses the [`SearchQuery`](../concepts/search/introduction.md) interface, you can use all the query operators available in the [RushDB search API](../concepts/search/introduction.md):
 
 ```typescript
 const response = await db.labels.find({
@@ -154,5 +154,5 @@ Internally, labels are stored as the `__RUSHDB__KEY__LABEL__` property and expos
 ## Additional Resources
 
 - [Labels Concept Documentation](../concepts/labels.md) - Learn more about labels and their role in the RushDB data model
-- [Search API Documentation](/concepts/search/introduction.md) - Explore the powerful search capabilities available in RushDB
+- [Search API Documentation](../concepts/search/introduction.md) - Explore the powerful search capabilities available in RushDB
 

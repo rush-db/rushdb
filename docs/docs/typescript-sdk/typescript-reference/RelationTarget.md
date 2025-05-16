@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # RelationTarget
 
-`RelationTarget` is a type that represents the target(s) for [relationship](/concepts/relationships) operations like attach and detach.
+`RelationTarget` is a type that represents the target(s) for [relationship](../../concepts/relationships) operations like attach and detach.
 
 ## Type Definition
 

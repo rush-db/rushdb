@@ -10,7 +10,7 @@ RushDB provides flexible APIs for retrieving records from your database. This ca
 
 The record retrieval endpoints allow you to:
 - Get a single record by its ID
-- Search for multiple records using [SearchQuery capabilities](/concepts/search/introduction)
+- Search for multiple records using [SearchQuery capabilities](../../concepts/search/introduction)
 - Filter, sort, and paginate results
 - Retrieve records with related data
 
@@ -57,13 +57,13 @@ This endpoint searches for records that match the specified criteria, with suppo
 
 You can use search parameters to filter the data you want to retrieve:
 
-| Field     | Type   | Description |
-|-----------|--------|-------------|
-| `where`   | Object | Filter conditions for records ([learn more](/concepts/search/where)) |
-| `orderBy` | String or Object | Sorting criteria ([learn more](/concepts/search/pagination-order)) |
-| `skip`    | Number | Number of records to skip for pagination ([learn more](/concepts/search/pagination-order)) |
-| `limit`   | Number | Maximum number of records to return (default: 1000) |
-| `labels`  | Array  | Optional array of labels to filter records by ([learn more](/concepts/search/labels)) |
+| Field     | Type             | Description                                                                                  |
+|-----------|------------------|----------------------------------------------------------------------------------------------|
+| `where`   | Object           | Filter conditions for records ([learn more](../../concepts/search/where))                    |
+| `orderBy` | String or Object | Sorting criteria ([learn more](../../concepts/search/pagination-order))                         |
+| `skip`    | Number           | Number of records to skip for pagination ([learn more](../../concepts/search/pagination-order)) |
+| `limit`   | Number           | Maximum number of records to return (default: 1000)                                          |
+| `labels`  | Array            | Optional array of labels to filter records by ([learn more](../../concepts/search/labels))      |
 
 ### Example Request
 
@@ -179,20 +179,20 @@ RushDB supports complex filtering through the `where` clause, allowing you to cr
 }
 ```
 
-See the [Where Clause documentation](/concepts/search/where) for a complete reference of available operators.
+See the [Where Clause documentation](../../concepts/search/where) for a complete reference of available operators.
 
 ## Performance Considerations
 
 - Use appropriate `limit` values to control response size and query performance
-- When working with large datasets, use pagination (`skip` and `limit`) as described in [pagination documentation](/concepts/search/pagination-order)
+- When working with large datasets, use pagination (`skip` and `limit`) as described in [pagination documentation](../../concepts/search/pagination-order)
 - Complex query conditions may increase processing time
-- Use [label filtering](/concepts/search/labels) to narrow down the search scope before applying other filters
+- Use [label filtering](../../concepts/search/labels) to narrow down the search scope before applying other filters
 - For frequently accessed records, consider optimizing query patterns
 
 ## Related Documentation
 
-- [Search Introduction](/concepts/search/introduction)
-- [Where Clause](/concepts/search/where)
-- [Labels](/concepts/search/labels)
-- [Pagination and Order](/concepts/search/pagination-order)
-- [Record Relationships](/concepts/relationships)
+- [Search Introduction](../../concepts/search/introduction)
+- [Where Clause](../../concepts/search/where)
+- [Labels](../../concepts/search/labels)
+- [Pagination and Order](../../concepts/search/pagination-order)
+- [Record Relationships](../../concepts/relationships)

@@ -3,7 +3,7 @@ sidebar_position: 3
 ---
 # Properties
 
-The fundamental unit of meaningful data in RushDB is known as a **Property**. Properties are first-class citizens in the RushDB architecture and serve as critical links that interconnect diverse data within [Records](/concepts/records) across the graph database.
+The fundamental unit of meaningful data in RushDB is known as a **Property**. Properties are first-class citizens in the RushDB architecture and serve as critical links that interconnect diverse data within [Records](../concepts/records) across the graph database.
 
 ## How it works
 
@@ -69,7 +69,7 @@ This approach enables:
 ## Considerations
 
 Real-world data can be considerably more intricate and may encompass all conceivable
-[data types](/concepts/storage#data-types) within a single **Record**.
+[data types](../concepts/storage#data-types) within a single **Record**.
 However, rest assured that RushDB adeptly manages this complexity without hesitation. Nevertheless, there are a few
 important considerations you should be aware of:
 
@@ -232,4 +232,4 @@ RushDB automatically handles type inference during data import, ensuring optimal
 
 Properties are not shared amongst projects (database instances), ensuring complete isolation in multi-tenant environments. Each project has its own set of property nodes, maintaining data security and isolation.
 
-For more information on how properties are imported and processed, see [REST API - Import Data](/rest-api/import-data).
+For more information on how properties are imported and processed, see [REST API - Import Data](../rest-api/records/import-data).

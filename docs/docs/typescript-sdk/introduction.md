@@ -163,10 +163,10 @@ const db = new RushDB('API_TOKEN', {
 
 To continue learning about the RushDB TypeScript SDK, explore these related sections:
 
-- [Working with Records](/typescript-sdk/records/create-records)
-- [Managing Relationships](/typescript-sdk/relationships)
-- [Working with Properties](/typescript-sdk/properties)
-- [Working with Labels](/typescript-sdk/labels)
-- [Working with Transactions](/typescript-sdk/transactions)
+- [Working with Records](../typescript-sdk/records/create-records.md)
+- [Managing Relationships](../typescript-sdk/relationships)
+- [Working with Properties](../typescript-sdk/properties)
+- [Working with Labels](../typescript-sdk/labels)
+- [Working with Transactions](../typescript-sdk/transactions)
 
-Before you begin exploring the SDK features, make sure you have a valid API token. If you haven't set up your RushDB account yet, follow our guide to [registering on the dashboard and generating an API token](/quick-start/configuring-dashboard).
+Before you begin exploring the SDK features, make sure you have a valid API token. If you haven't set up your RushDB account yet, follow our guide to [registering on the dashboard and generating an API token](../get-started/quick-tutorial.mdx).

@@ -134,7 +134,7 @@ The TypeScript SDK abstracts this complexity, allowing you to focus on your data
 
 ## Related Documentation
 
-- [REST API - Import Data](/rest-api/records/import-data) - Complete API details for data import
-- [Storage Internals](/concepts/storage) - Technical details about how RushDB stores your data
-- [Properties](/concepts/properties) - Learn about property handling and type inference
-- [Transactions](/concepts/transactions) - Understand how RushDB ensures data integrity during imports
+- [REST API - Import Data](../../rest-api/records/import-data) - Complete API details for data import
+- [Storage Internals](../../concepts/storage) - Technical details about how RushDB stores your data
+- [Properties](../../concepts/properties) - Learn about property handling and type inference
+- [Transactions](../../concepts/transactions.mdx) - Understand how RushDB ensures data integrity during imports

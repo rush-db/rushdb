@@ -43,7 +43,7 @@ Currently, RushDB has the following requirements for labels:
 2. **Required Field**: A custom label is required for each record by default.
 3. **Case-Sensitive**: Labels are case-sensitive, so "User" and "user" would be considered different labels.
 
-These requirements help maintain a clean and consistent data structure across your database. For more details on how labels interact with other database elements, see [Records](/concepts/records) and [Properties](/concepts/properties).
+These requirements help maintain a clean and consistent data structure across your database. For more details on how labels interact with other database elements, see [Records](../concepts/records) and [Properties](../concepts/properties).
 
 ## Label Assignment
 
@@ -74,5 +74,5 @@ The label "car" is assigned to the top record, and "engine" is assigned to the n
 
 Internally, labels are stored as the `__RUSHDB__KEY__LABEL__` property and exposed to clients as `__label`. This property is essential for organizing records and enabling efficient queries across similar types of data.
 
-To learn more about how records are structured and interconnected, see [Records](/concepts/records) and [Relationships](/concepts/relationships).
+To learn more about how records are structured and interconnected, see [Records](../concepts/records) and [Relationships](../concepts/relationships).
 

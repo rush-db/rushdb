@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Create Records
 
-RushDB provides multiple ways to create records via its REST API. You can create single [records](/concepts/records.md), control how your data is processed, and work with transactions for data consistency.
+RushDB provides multiple ways to create records via its REST API. You can create single [records](../../concepts/records.md), control how your data is processed, and work with transactions for data consistency.
 
 ## Overview
 
@@ -187,7 +187,7 @@ The Import Data API is optimized for performance when working with large dataset
 
 ## Creating Records in Transactions
 
-To ensure data consistency when creating multiple related [records](/concepts/records.md), you can use [transactions](/concepts/transactions.mdx):
+To ensure data consistency when creating multiple related [records](../../concepts/records.md), you can use [transactions](../../concepts/transactions.mdx):
 
 1. Create a transaction:
 ```http
@@ -213,7 +213,7 @@ POST /api/v1/tx/YOUR_TRANSACTION_ID/rollback
 
 ## Data Type Handling
 
-RushDB supports the following [property](/concepts/properties.md) types:
+RushDB supports the following [property](../../concepts/properties.md) types:
 
 - `string`: Text values
 - `number`: Numeric values
@@ -229,7 +229,7 @@ When `convertNumericValuesToNumbers` is enabled, string values that represent nu
 ## Best Practices
 
 - Use the default approach for typical use cases and when automatic type inference is desired
-- Use the property-based approach when precise control over [property](/concepts/properties.md) types is required
+- Use the property-based approach when precise control over [property](../../concepts/properties.md) types is required
 - Use the [Import Data API](./import-data.md) for batch operations and creating multiple records
-- Use [transactions](/concepts/transactions.mdx) when creating related records to ensure data consistency
+- Use [transactions](../../concepts/transactions.mdx) when creating related records to ensure data consistency
 - Validate data on the client side before sending it to the API

@@ -25,9 +25,9 @@ Returns a find of all [labels](../concepts/labels.md) in the current project alo
 
 ### Request Body
 
-| Field     | Type   | Description |
-|-----------|--------|-------------|
-| `where`   | Object | Optional [filter criteria](../concepts/search/introduction.md) to narrow down which labeled records to include |
+| Field   | Type   | Description                                                                                                    |
+|---------|--------|----------------------------------------------------------------------------------------------------------------|
+| `where` | Object | Optional [filter criteria](../concepts/search/introduction.md) to narrow down which labeled records to include |
 
 ### Example Request
 

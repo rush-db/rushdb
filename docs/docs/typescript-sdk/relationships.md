@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Relationships
 
-Relationships in RushDB allow you to create links between [records](/concepts/records), simplifying the modeling of complex data interactions and enhancing relationships between different Records in your application.
+Relationships in RushDB allow you to create links between [records](../concepts/records), simplifying the modeling of complex data interactions and enhancing relationships between different Records in your application.
 
 ## Overview
 

@@ -96,11 +96,11 @@ Note: Using an empty `where` clause without allowing force delete will throw an 
 
 You can use search parameters to define which records to delete:
 
-| SearchQuery Field | Type   | Description |
-|-----------|--------|-------------|
-| `where`   | `Object` | Filter conditions for records to delete ([learn more](/concepts/search/where)) |
-| `labels`  | `Array`  | Optional array of labels to filter records by ([learn more](/concepts/search/labels)) |
-| `limit`   | `Number` | Maximum number of records to delete (optional) |
+| SearchQuery Field | Type     | Description                                                                                |
+|-------------------|----------|--------------------------------------------------------------------------------------------|
+| `where`           | `Object` | Filter conditions for records to delete ([learn more](../../concepts/search/where))        |
+| `labels`          | `Array`  | Optional array of labels to filter records by ([learn more](../../concepts/search/labels)) |
+| `limit`           | `Number` | Maximum number of records to delete (optional)                                             |
 
 ### Example
 
@@ -209,13 +209,13 @@ RushDB implements several safeguards for delete operations:
 
 - For large-scale deletions, RushDB processes operations in batches
 - Complex query conditions may increase processing time
-- Consider using [label filtering](/concepts/search/labels) to narrow down records before deletion
+- Consider using [label filtering](../../concepts/search/labels) to narrow down records before deletion
 - For very large datasets, use pagination in combination with delete operations
 
 ## Related Documentation
 
-- [Search Introduction](/concepts/search/introduction)
-- [Where Clause](/concepts/search/where)
-- [Labels](/concepts/search/labels)
-- [Record Relationships](/concepts/relationships)
-- [Transactions](/concepts/transactions)
+- [Search Introduction](../../concepts/search/introduction)
+- [Where Clause](../../concepts/search/where)
+- [Labels](../../concepts/search/labels)
+- [Record Relationships](../../concepts/relationships)
+- [Transactions](../../concepts/transactions.mdx)

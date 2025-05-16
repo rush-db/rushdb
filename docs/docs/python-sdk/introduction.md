@@ -118,4 +118,4 @@ Explore the detailed documentation for each component of the SDK:
 - [Relationships](./relationships.md) - Handle connections between records
 - [Transactions](./transactions.md) - Manage transaction operations for data consistency
 
-For more advanced use cases, check our [Tutorials](../tutorials) section.
+For more advanced use cases, check our [Tutorials](../tutorials/reusable-search-query) section.

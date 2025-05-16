@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # DBRecord
 
-`DBRecord` is a type representing a database [record](/concepts/records) in RushDB. It combines internal system properties with schema-defined data [properties](/concepts/properties).
+`DBRecord` is a type representing a database [record](../../concepts/records) in RushDB. It combines internal system properties with schema-defined data [properties](../../concepts/properties).
 
 ## Type Definition
 

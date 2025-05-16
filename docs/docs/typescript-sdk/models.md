@@ -98,7 +98,7 @@ const Author = new Model('author', {
 
 **Model Constructor Parameters:**
 
-- `label`: A unique string identifier for the model, which represents a [Label](/concepts/labels) in RushDB. It's used to categorize records and define their type in the database system. Labels are crucial for organizing and querying your data.
+- `label`: A unique string identifier for the model, which represents a [Label](../concepts/labels) in RushDB. It's used to categorize records and define their type in the database system. Labels are crucial for organizing and querying your data.
 - `schema`: The schema definition based on `Schema`, which dictates the structure and rules of the data stored.
 - `rushDBInstance` (optional): An instance of RushDB SDK that will automatically register the model. If provided, the model will be registered with this instance.
 
@@ -391,7 +391,7 @@ By defining comprehensive type definitions for your models and extending the `Mo
 
 ## Working with Transactions
 
-Model operations can be performed within transactions to ensure data integrity. For more information on using transactions with models, see the [Transactions](/typescript-sdk/transactions) documentation.
+Model operations can be performed within transactions to ensure data integrity. For more information on using transactions with models, see the [Transactions](../typescript-sdk/transactions) documentation.
 
 ## Conclusion
 
@@ -403,9 +403,9 @@ Defining models with `Model` and `Schema` sets a robust foundation for your appl
 
 For a more in-depth understanding of the RushDB TypeScript SDK and its capabilities, refer to these related sections:
 
-- [Introduction to TypeScript SDK](/typescript-sdk/introduction) - Learn about the basics of using the SDK
-- [Transactions](/typescript-sdk/transactions) - Learn how to use transactions with models for atomic operations
-- [Labels](/concepts/labels) - Understand how Labels work in RushDB and how they're used to categorize records
+- [Introduction to TypeScript SDK](../typescript-sdk/introduction) - Learn about the basics of using the SDK
+- [Transactions](../typescript-sdk/transactions) - Learn how to use transactions with models for atomic operations
+- [Labels](../concepts/labels) - Understand how Labels work in RushDB and how they're used to categorize records
 
 ## Conclusion
 

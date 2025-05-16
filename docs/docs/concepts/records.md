@@ -67,25 +67,25 @@ Internally, each Record in RushDB is represented as a node with two labels:
 
 In addition to user-defined properties, each Record contains several internal properties that enable advanced functionality:
 
-| Internal Key | Client Representation | Description |
-|--------------|----------------------|-------------|
-| `__RUSHDB__KEY__ID__` | `__id` | UUIDv7 that enables lexicographic ordering without relying on user-defined fields like `createdAt`. RushDB SDKs support converting `__id` to timestamp and ISO8601 date. For more details, see [UUIDv7 specification](https://www.ietf.org/archive/id/draft-peabody-uuid-v7-01.html). |
-| `__RUSHDB__KEY__PROPERTIES__META__` | `__proptypes` | Stringified meta-object holding the types of data in the current record, e.g., `{ name: "string", active: "boolean", ... }` |
-| `__RUSHDB__KEY__LABEL__` | `__label` | Record Label identifier. Every record has two labels: a default one (`__RUSHDB__LABEL__RECORD__`) and a user-defined one that is searchable. Currently, RushDB allows only one custom label per record, and it is required by default. For more details about labels, see [Labels](/concepts/labels). |
-| `__RUSHDB__KEY__PROJECT__ID__` | (not exposed) | Project identifier for multitenancy isolation. This property is never exposed to clients via UI or API. |
+| Internal Key                        | Client Representation | Description                                                                                                                                                                                                                                                                                             |
+|-------------------------------------|-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `__RUSHDB__KEY__ID__`               | `__id`                | UUIDv7 that enables lexicographic ordering without relying on user-defined fields like `createdAt`. RushDB SDKs support converting `__id` to timestamp and ISO8601 date. For more details, see [UUIDv7 specification](https://www.ietf.org/archive/id/draft-peabody-uuid-v7-01.html).                   |
+| `__RUSHDB__KEY__PROPERTIES__META__` | `__proptypes`         | Stringified meta-object holding the types of data in the current record, e.g., `{ name: "string", active: "boolean", ... }`                                                                                                                                                                             |
+| `__RUSHDB__KEY__LABEL__`            | `__label`             | Record Label identifier. Every record has two labels: a default one (`__RUSHDB__LABEL__RECORD__`) and a user-defined one that is searchable. Currently, RushDB allows only one custom label per record, and it is required by default. For more details about labels, see [Labels](../concepts/labels). |
+| `__RUSHDB__KEY__PROJECT__ID__`      | (not exposed)         | Project identifier for multitenancy isolation. This property is never exposed to clients via UI or API.                                                                                                                                                                                                 |
 
 ## Supported Data Types
 
 RushDB supports a wide range of data types to accommodate diverse data needs:
 
-| Data Type | Description | Example |
-|-----------|-------------|---------|
-| `string` | Textual information of unlimited length | `"Hello World"` |
-| `number` | Both floating-point numbers and integers | `-120.209817`, `42` |
-| `datetime` | ISO 8601 format, including timezones | `"2012-12-21T18:29:37Z"` |
-| `boolean` | True or false values | `true`, `false` |
-| `null` | Explicit null value | `null` |
-| `vector` | Arrays of floating-point numbers or integers | `[0.99070, 0.78912, 1, 0]` |
+| Data Type  | Description                                  | Example                    |
+|------------|----------------------------------------------|----------------------------|
+| `string`   | Textual information of unlimited length      | `"Hello World"`            |
+| `number`   | Both floating-point numbers and integers     | `-120.209817`, `42`        |
+| `datetime` | ISO 8601 format, including timezones         | `"2012-12-21T18:29:37Z"`   |
+| `boolean`  | True or false values                         | `true`, `false`            |
+| `null`     | Explicit null value                          | `null`                     |
+| `vector`   | Arrays of floating-point numbers or integers | `[0.99070, 0.78912, 1, 0]` |
 
 ### Arrays
 
@@ -111,9 +111,9 @@ During record creation:
 - Property types are inferred from values when not specified
 - Relationships are established based on data structure
 
-Learn more at [REST API - Create Records](/rest-api/records/create-records) or through the language-specific SDKs:
-- [TypeScript SDK](/typescript-sdk/records/create-records)
-- [Python SDK](/python-sdk/records/create-records)
+Learn more at [REST API - Create Records](../rest-api/records/create-records.md) or through the language-specific SDKs:
+- [TypeScript SDK](../typescript-sdk/records/create-records.md)
+- [Python SDK](../python-sdk/records/create-records.md)
 
 ## Graph Representation
 
@@ -198,9 +198,9 @@ graph TD
     E -->|"__RUSHDB__RELATION__VALUE__"| B
 ```
 
-For details on how to import complex data structures, see [REST API - Import Data](/rest-api/import-data) or through the language-specific SDKs:
-- [TypeScript SDK](/typescript-sdk/records/import-data)
-- [Python SDK](/python-sdk/records/import-data)
+For details on how to import complex data structures, see [REST API - Import Data](../rest-api/records/import-data) or through the language-specific SDKs:
+- [TypeScript SDK](../typescript-sdk/records/import-data)
+- [Python SDK](../python-sdk/records/import-data)
 
-For details on how properties are stored and managed, see the [Properties](/concepts/properties) section.
-For information about the underlying storage structure, visit the [Storage](/concepts/storage) section.
+For details on how properties are stored and managed, see the [Properties](../concepts/properties) section.
+For information about the underlying storage structure, visit the [Storage](../concepts/storage) section.
