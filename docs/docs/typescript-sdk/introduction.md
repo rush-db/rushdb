@@ -57,20 +57,23 @@ const db = new RushDB("API_TOKEN");
 
 // Push any data, and RushDB will automatically flatten it into Records
 // and establish relationships between them accordingly.
-await db.records.createMany("COMPANY", {
-  name: 'Google LLC',
-  address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
-  foundedAt: '1998-09-04T00:00:00.000Z',
-  rating: 4.9,
-  DEPARTMENT: [{
-    name: 'Research & Development',
-    description: 'Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.',
-    // Nested relationships are automatically created
-    PROJECT: [{
-      name: 'Bard AI',
-      // ... more properties
+await db.records.createMany({
+  label: "COMPANY",
+  payload: {
+    name: 'Google LLC',
+    address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
+    foundedAt: '1998-09-04T00:00:00.000Z',
+    rating: 4.9,
+    DEPARTMENT: [{
+      name: 'Research & Development',
+      description: 'Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.',
+      // Nested relationships are automatically created
+      PROJECT: [{
+        name: 'Bard AI',
+        // ... more properties
+      }]
     }]
-  }]
+  }
 })
 
 // Find Records by specific criteria

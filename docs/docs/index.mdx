@@ -103,9 +103,9 @@ Get instant guidance through our **[RushDB Docs Chat](https://chatgpt.com/g/g-67
     db = RushDB("API_TOKEN")
 
     # Push data with any structure you need
-    db.records.create(
+    db.records.create_many(
         label="PRODUCT",
-        data={
+        payload={
             "title": "Ergonomic Chair",
             "price": 299.99,
             "inStock": True,

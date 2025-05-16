@@ -128,7 +128,7 @@ const authors = [
   { name: 'Bob Brown', email: 'bob.brown@example.com' }
 ];
 
-const createdAuthors = await AuthorRepo.createMany(authors);
+const createdAuthors = await AuthorRepo.createMany({label: 'AUTHOR', payload: authors});
 console.log(createdAuthors);
 /*
 {
@@ -160,7 +160,7 @@ const authors = [
 
 const transaction = await db.tx.begin();
 try {
-  const createdAuthors = await AuthorRepo.createMany(authors, transaction);
+  const createdAuthors = await AuthorRepo.createMany({label: 'AUTHOR', payload: authors}, transaction);
   await transaction.commit();
   console.log(createdAuthors);
   /*

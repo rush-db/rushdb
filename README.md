@@ -276,28 +276,31 @@ const db = new RushDB("API_TOKEN", {
 });
 
 // Push data: RushDB flattens it into Records and establishes relationships automatically.
-await db.records.createMany("COMPANY", {
-  name: 'Google LLC',
-  address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
-  foundedAt: '1998-09-04T00:00:00.000Z',
-  rating: 4.9,
-  DEPARTMENT: [{
-    name: 'Research & Development',
-    description: 'Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.',
-    PROJECT: [{
-      name: 'Bard AI',
-      description: 'A state-of-the-art generative AI model for natural language understanding and creation.',
-      active: true,
-      budget: 1200000000,
-      EMPLOYEE: [{
-        name: 'Jeff Dean',
-        position: 'Head of AI Research',
-        email: 'jeff@google.com',
-        dob: '1968-07-16T00:00:00.000Z',
-        salary: 3000000,
-      }]
-    }]
-  }]
+await db.records.createMany({
+   label: "COMPANY", 
+   payload: {
+       name: 'Google LLC',
+       address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
+       foundedAt: '1998-09-04T00:00:00.000Z',
+       rating: 4.9,
+       DEPARTMENT: [{
+           name: 'Research & Development',
+           description: 'Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.',
+           PROJECT: [{
+               name: 'Bard AI',
+               description: 'A state-of-the-art generative AI model for natural language understanding and creation.',
+               active: true,
+               budget: 1200000000,
+               EMPLOYEE: [{
+                   name: 'Jeff Dean',
+                   position: 'Head of AI Research',
+                   email: 'jeff@google.com',
+                   dob: '1968-07-16T00:00:00.000Z',
+                   salary: 3000000,
+               }]
+           }]
+       }]
+   }
 });
 ```
 
@@ -318,10 +321,11 @@ const matchedEmployees = await db.records.find({
   },
 });
 
-const company = await db.records.findUniq('COMPANY', {
-  where: {
-    name: 'Google LLC',
-  },
+const company = await db.records.findUniq({
+   labels: ['COMPANY'],
+   where: {
+      name: 'Google LLC',
+   },
 });
 ```
 ---

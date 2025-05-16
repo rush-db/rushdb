@@ -57,8 +57,8 @@ export const api = {
       options = {}
     }: WithInit & {
       label: string
-      options?: DBRecordCreationOptions
       payload: MaybeArray<AnyObject>
+      options?: DBRecordCreationOptions
     }) {
       try {
         return await sdk(init).records.createMany({ label, options, payload })

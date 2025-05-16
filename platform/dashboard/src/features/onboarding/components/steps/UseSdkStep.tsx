@@ -28,7 +28,7 @@ const getCreateFirstRecordSteps = ({ language }: { language: AvailableSdkLanguag
   const typescriptSteps = {
     pushAndQueryDataTs: {
       title: 'Push and query data',
-      code: `await db.records.createMany('COMPANY', {...jsonData})
+      code: `await db.records.createMany({label: 'COMPANY', data: jsonData})
 
 await db.records.find({
   labels: ['COMPANY'],

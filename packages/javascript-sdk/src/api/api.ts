@@ -258,8 +258,8 @@ export class RestAPI {
     createMany: async <S extends Schema = any>(
       data: {
         label: string
-        options?: DBRecordCreationOptions
         payload: MaybeArray<AnyObject>
+        options?: DBRecordCreationOptions
       },
       transaction?: Transaction | string
     ): Promise<DBRecordsArrayInstance<S>> => {

@@ -13,12 +13,15 @@ const code = `import RushDB from '@rushdb/javascript-sdk'
 
 const db = new RushDB('API_TOKEN')
 
-const user = await db.records.create('USER', {
-  name: 'Paul Schmitz',
-  lastActive: '2024-12-02T11:38:29Z',
-  verified: true,
-  size: 9.5,
-  favoriteTags: ['Daily Run', 'Foam']
+const user = await db.records.create({
+  label: 'USER', 
+  data: {
+    name: 'Paul Schmitz',
+    lastActive: '2024-12-02T11:38:29Z',
+    verified: true,
+    size: 9.5,
+    favoriteTags: ['Daily Run', 'Foam']
+  }
 })
 
 await db.records.find({
@@ -35,16 +38,16 @@ const codePy = `from rushdb import RushDB
 
 db = RushDB("API_TOKEN")
 
-user = db.records.create(
-    "USER",
-    {
+user = db.records.create({
+    label: "USER",
+    data: {
         "name": "Paul Schmitz",
         "lastActive": "2024-12-02T11:38:29Z",
         "verified": True,
         "size": 9.5,
         "favoriteTags": ["Daily Run", "Foam"]
     }
-)
+})
 
 db.records.find(
     {

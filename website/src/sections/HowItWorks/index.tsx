@@ -16,26 +16,28 @@ const code1 = `import RushDB from '@rushdb/javascript-sdk'
 
 const db = new RushDB('rushdb-api-key')
 
-await db.records.createMany("COMPANY", {
-  name: 'Google LLC',
-  address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
-  foundedAt: '1998-09-04T00:00:00.000Z',
-  rating: 4.9,
-  DEPARTMENT: [{
-    name: 'Research & Development',
-    description: 'Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.',
-    tags: ['AI', 'Cloud Computing', 'Research'],
-    profitable: true,
-    PROJECT: [{
-      name: 'Bard AI',
-      description: 'A state-of-the-art generative AI model for natural language understanding and creation.',
-      active: true,
-      budget: 1200000000,
-      EMPLOYEE: [{
-        name: 'Jeff Dean',
-        position: 'Head of AI Research',
-        email: 'jeff@google.com',
-        salary: 3000000`
+await db.records.createMany({
+  label: "COMPANY", 
+  payload: {
+    name: 'Google LLC',
+    address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
+    foundedAt: '1998-09-04T00:00:00.000Z',
+    rating: 4.9,
+    DEPARTMENT: [{
+      name: 'Research & Development',
+      description: 'Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.',
+      tags: ['AI', 'Cloud Computing', 'Research'],
+      profitable: true,
+      PROJECT: [{
+        name: 'Bard AI',
+        description: 'A state-of-the-art generative AI model for natural language understanding and creation.',
+        active: true,
+        budget: 1200000000,
+        EMPLOYEE: [{
+          name: 'Jeff Dean',
+          position: 'Head of AI Research',
+          email: 'jeff@google.com',
+          salary: 3000000`
 
 const code1Py = `from rushdb import RushDB
 
@@ -236,10 +238,10 @@ async function generateAndStoreData() {
   const parsedContent = JSON.parse(generatedContent)
 
   // Step 3: Store the output in RushDB
-  const record = await db.records.createMany(
-    'AI_RESPONSE',
-    parsedContent
-  )
+  const record = await db.records.createMany({
+    label: 'AI_RESPONSE',
+    payload: parsedContent
+  })
 }`
 
 const codeAiIntegrationPy = `import openai

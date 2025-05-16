@@ -43,15 +43,15 @@ const data = JSON.parse(fs.readFileSync('data.json', 'utf8'));
 async function importData() {
   try {
     // Import users
-    const importedUsers = await db.records.createMany('user', data.users);
+    const importedUsers = await db.records.createMany({label: 'user', payload: data.users});
     console.log('Imported Users:', importedUsers.data);
 
     // Import posts
-    const importedPosts = await db.records.createMany('post', data.posts);
+    const importedPosts = await db.records.createMany({label: 'post', payload: data.posts});
     console.log('Imported Posts:', importedPosts.data);
 
     // Import blogs
-    const importedBlogs = await db.records.createMany('blog', data.blogs);
+    const importedBlogs = await db.records.createMany({label: 'blog', payload: data.blogs});
     console.log('Imported Blogs:', importedBlogs.data);
   } catch (error) {
     console.error('Error importing data:', error);
@@ -76,19 +76,23 @@ const importOptions = {
   castNumberArraysToVectors: false
 };
 
-const importedUsers = await db.records.createMany('user', data.users, importOptions);
+const importedUsers = await db.records.createMany({
+  labels: 'user',
+  payload: data.users, 
+  options: importOptions
+});
 ```
 
 ### Available Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `suggestTypes` | Boolean | `true` | Automatically infers data types for properties |
-| `castNumberArraysToVectors` | Boolean | `false` | Converts numeric arrays to vector type |
-| `convertNumericValuesToNumbers` | Boolean | `false` | Converts string numbers to number type |
-| `capitalizeLabels` | Boolean | `false` | Converts all labels to uppercase |
-| `relationshipType` | String | `__RUSHDB__RELATION__DEFAULT__` | Default relationship type between Records (nodes) |
-| `returnResult` | Boolean | `false` | Returns imported records in response |
+| Option                          | Type    | Default                         | Description                                       |
+|---------------------------------|---------|---------------------------------|---------------------------------------------------|
+| `suggestTypes`                  | Boolean | `true`                          | Automatically infers data types for properties    |
+| `castNumberArraysToVectors`     | Boolean | `false`                         | Converts numeric arrays to vector type            |
+| `convertNumericValuesToNumbers` | Boolean | `false`                         | Converts string numbers to number type            |
+| `capitalizeLabels`              | Boolean | `false`                         | Converts all labels to uppercase                  |
+| `relationshipType`              | String  | `__RUSHDB__RELATION__DEFAULT__` | Default relationship type between Records (nodes) |
+| `returnResult`                  | Boolean | `false`                         | Returns imported records in response              |
 
 ## How RushDB Import Works
 

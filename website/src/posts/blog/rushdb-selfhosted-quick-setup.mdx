@@ -147,27 +147,30 @@ const db = new RushDB("YOUR_API_TOKEN", {
   url: "http://localhost:3000",
 });
 
-await db.records.createMany("COMPANY", {
-  name: 'Google LLC',
-  address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
-  foundedAt: '1998-09-04T00:00:00.000Z',
-  rating: 4.9,
-  DEPARTMENT: [{
-    name: 'Research & Development',
-    description: 'Innovating advanced technologies for AI and cloud computing.',
-    PROJECT: [{
-      name: 'Bard AI',
-      description: 'A cutting-edge model for language understanding.',
-      active: true,
-      budget: 1200000000,
-      EMPLOYEE: [{
-        name: 'Jeff Dean',
-        position: 'Head of AI Research',
-        email: 'jeff@google.com',
-        salary: 3000000
+await db.records.createMany({
+  label: "COMPANY",
+  payload: {
+      name: 'Google LLC',
+      address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
+      foundedAt: '1998-09-04T00:00:00.000Z',
+      rating: 4.9,
+      DEPARTMENT: [{
+        name: 'Research & Development',
+        description: 'Innovating advanced technologies for AI and cloud computing.',
+        PROJECT: [{
+          name: 'Bard AI',
+          description: 'A cutting-edge model for language understanding.',
+          active: true,
+          budget: 1200000000,
+          EMPLOYEE: [{
+            name: 'Jeff Dean',
+            position: 'Head of AI Research',
+            email: 'jeff@google.com',
+            salary: 3000000
+          }]
+        }]
       }]
-    }]
-  }]
+    }
 });
 ```
 
