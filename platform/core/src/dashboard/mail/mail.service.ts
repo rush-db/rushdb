@@ -26,18 +26,19 @@ export class MailService {
     }
   }
 
-  async sendUserInvite(
-    login: string,
-    token: string,
-    isRegistered: boolean,
-    senderName?: string,
+  async sendUserInvite({
+    login,
+    token,
+    senderName,
+    workspaceName
+  }: {
+    login: string
+    token: string
+    senderName?: string
     workspaceName?: string
-  ) {
+  }) {
     if (isEmail(login)) {
-      const frontendRoute = isRegistered ? 'join-workspace' : 'signup-via-invite'
-      const emailPart = isRegistered ? '' : `email=${login}&`
-
-      const url = `${this.configService.get('RUSHDB_DASHBOARD_URL')}/${frontendRoute}?${emailPart}invite=${encodeURIComponent(token)}`
+      const url = `${this.configService.get('RUSHDB_DASHBOARD_URL')}/join-workspace?invite=${encodeURIComponent(token)}`
 
       await this.mailerService.sendMail({
         to: login,

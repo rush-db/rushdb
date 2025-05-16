@@ -6,7 +6,7 @@ import type { Project, ProjectStats } from '~/features/projects/types'
 import { Button } from '~/elements/Button'
 import { SearchInput } from '~/elements/Input'
 import { NothingFound } from '~/elements/NothingFound'
-import { PageHeader, PageTitle } from '~/elements/PageHeader'
+import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { Metric } from '~/features/projects/components'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
 import {
@@ -19,6 +19,10 @@ import {
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { isProjectEmpty } from '~/features/projects/utils'
+import { useEffect } from 'react'
+import { api } from '~/lib/api.ts'
+import { $user } from '~/features/auth/stores/user.ts'
+import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace.ts'
 
 const statsMap: Record<keyof ProjectStats, string> = {
   properties: 'Properties',
@@ -68,38 +72,46 @@ function ProjectsSearchInput(props: TInheritableElementProps<'input'>) {
 function Header() {
   const { data: projects } = useStore($workspaceProjects)
   const showUpgradeButton = useStore($showUpgrade)
+  const currentUser = useStore($user)
+  const isOwner = currentUser.currentScope?.role === 'owner'
 
   return (
-    <PageHeader className="justify-between gap-5">
+    <PageHeader className="justify-between gap-5" contained>
       <PageTitle>
         Projects{' '}
         {projects?.length ?
           <span className="text-content2 ml-1">{projects?.length}</span>
         : null}
       </PageTitle>
-      {showUpgradeButton ?
+      {showUpgradeButton && isOwner ?
         <Button as="a" href={getRoutePath('workspaceBilling')} variant="accent">
           <ZapIcon />
           Upgrade Plan
         </Button>
-      : <Button as="a" href={getRoutePath('newProject')} variant="primary">
+      : isOwner ?
+        <Button as="a" href={getRoutePath('newProject')} variant="primary">
           <FolderPlus />
           New Project
         </Button>
-      }
+      : null}
     </PageHeader>
   )
 }
 
 function EmptyProjects() {
+  const currentUser = useStore($user)
+  const isOwner = currentUser.currentScope?.role === 'owner'
+
   return (
     <div className="mx-auto grid h-full w-full max-w-lg flex-1 place-content-center place-items-center gap-3 p-5">
       <SearchX size={64} />
       <h4 className="text-2xl font-bold">You haven&apos;t created any projects yet!</h4>
       <p className="text-content/90">Project is a place to organize related records</p>
-      <Button as="a" className="mt-5 w-full" href={getRoutePath('newProject')} variant="accent">
-        New Project
-      </Button>
+      {isOwner ?
+        <Button as="a" className="mt-5 w-full" href={getRoutePath('newProject')} variant="accent">
+          New Project
+        </Button>
+      : null}
     </div>
   )
 }
@@ -122,6 +134,15 @@ function ProjectsCards() {
 
 function Projects() {
   const { data: projects, loading } = useStore($workspaceProjects)
+  const { data: workspace } = useStore($currentWorkspace)
+
+  useEffect(() => {
+    if (typeof projects !== 'undefined') {
+      api.user.current().then((res) => {
+        $user.set({ ...$user.get(), ...res })
+      })
+    }
+  }, [projects, workspace])
 
   if (loading) {
     return <div className="grid flex-1 place-items-center">Loading...</div>
@@ -134,9 +155,12 @@ function Projects() {
   return (
     <>
       <Header />
-      <div className="flex flex-1 flex-col gap-5 px-5 pb-10">
-        <ProjectsCards />
-      </div>
+
+      <PageContent contained>
+        <div className="flex flex-1 flex-col gap-5 pb-10">
+          <ProjectsCards />
+        </div>
+      </PageContent>
     </>
   )
 }

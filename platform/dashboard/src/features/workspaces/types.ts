@@ -1,6 +1,6 @@
 import type { PlanId } from '~/features/billing/types'
 import type { ISO8601 } from '~/types'
-import { GetUserResponse } from '~/features/auth/types.ts'
+import type { GetUserResponse } from '~/features/auth/types.ts'
 
 export type Workspace = {
   created: ISO8601
@@ -8,10 +8,13 @@ export type Workspace = {
   limits: {
     projects: number
     users?: number
+    records: number
+    importSize: number
   }
   name: string
   planId?: PlanId
   validTill?: ISO8601
+  role?: 'owner' | 'developer'
   isSubscriptionCancelled?: boolean
 }
 

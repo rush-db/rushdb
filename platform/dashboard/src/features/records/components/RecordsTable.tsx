@@ -386,7 +386,8 @@ export function RecordsTable({
                             property: {
                               name: '__id',
                               type: 'string',
-                              value: record.id()
+                              value: record.id(),
+                              date: record.date().toISOString()
                             },
                             showOperations: false
                           })}

@@ -1,58 +1,59 @@
-import { Book, Database, Key, Settings, UploadIcon } from 'lucide-react'
+import { Book, Database, Key, LayoutDashboard, Settings, SettingsIcon, UploadIcon, Users } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
 
 import type { Project } from '../types'
+import { useStore } from '@nanostores/react'
+import { $user } from '~/features/auth/stores/user.ts'
+import { useState } from 'react'
 
-const getTabs = (projectId: Project['id']) => {
-  return [
-    // {
-    //   href: getRoutePath('project', { id: projectId }),
-    //   icon: <LayoutDashboard />,
-    //   label: 'Overview'
-    // },
-    {
-      href: getRoutePath('project', { id: projectId }),
-      icon: <Database />,
-      label: 'Records'
-    },
-    // {
-    //   label: 'Users',
-    //   icon: <Users />,
-    //   href: getRoutePath('projectUsers', { id: projectId })
-    // }
-    {
-      href: getRoutePath('projectImportData', {
-        id: projectId
-      }),
-      icon: <UploadIcon />,
-      label: 'Import Data'
-    },
-    {
-      href: getRoutePath('projectTokens', {
-        id: projectId
-      }),
-      icon: <Key />,
-      label: 'API Keys'
-    },
-    {
-      href: getRoutePath('projectSettings', {
-        id: projectId
-      }),
-      icon: <Settings />,
-      label: 'Settings'
-    },
-    {
+export function ProjectTabs({ projectId }: { projectId: Project['id'] }) {
+  const currentUser = useStore($user)
+  const isOwner = currentUser.currentScope?.role === 'owner'
+
+  const [tabs, setTabs] = useState(() => {
+    const workspaceTabs = [
+      {
+        href: getRoutePath('project', { id: projectId }),
+        icon: <Database />,
+        label: 'Records'
+      },
+
+      {
+        href: getRoutePath('projectImportData', {
+          id: projectId
+        }),
+        icon: <UploadIcon />,
+        label: 'Import Data'
+      },
+      {
+        href: getRoutePath('projectTokens', {
+          id: projectId
+        }),
+        icon: <Key />,
+        label: 'API Keys'
+      }
+    ]
+
+    if (isOwner) {
+      workspaceTabs.push({
+        href: getRoutePath('projectSettings', {
+          id: projectId
+        }),
+        icon: <Settings />,
+        label: 'Settings'
+      })
+    }
+
+    workspaceTabs.push({
       href: getRoutePath('projectHelp', { id: projectId }),
       icon: <Book />,
       label: 'Help'
-    }
-  ]
-}
+    })
 
-export function ProjectTabs({ projectId }: { projectId: Project['id'] }) {
-  const tabs = getTabs(projectId)
+    return workspaceTabs
+  })
 
   return (
     <PageTabs>

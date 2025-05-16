@@ -5,6 +5,7 @@ import { uuidv7 } from 'uuidv7'
 
 import { QueryBuilder } from '@/common/QueryBuilder'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
+import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { IDecodedResetToken } from '@/dashboard/auth/auth.types'
@@ -20,22 +21,22 @@ import {
 } from '@/dashboard/common/constants'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { ICreatedUserData } from '@/dashboard/user/interfaces/authenticated-user.interface'
-import { sanitizeSettings, validateEmail } from '@/dashboard/user/user.utils'
-import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
-
-import { TUserInstance, TUserProperties, TUserRoles } from './model/user.interface'
-import { UserRepository } from './model/user.repository'
-import { User } from './user.entity'
-import { isDevMode } from '@/common/utils/isDevMode'
-import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
-import * as crypto from 'node:crypto'
+import { AcceptWorkspaceInvitationParams } from '@/dashboard/user/interfaces/user-properties.interface'
 import {
   USER_ROLE_EDITOR,
   USER_ROLE_OWNER,
   USER_ROLE_WEIGHT
 } from '@/dashboard/user/interfaces/user.constants'
-import { AcceptWorkspaceInvitationParams } from '@/dashboard/user/interfaces/user-properties.interface'
+import { sanitizeSettings, validateEmail } from '@/dashboard/user/user.utils'
+import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
+import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
+import { NeogmaService } from '@/database/neogma/neogma.service'
+
+import * as crypto from 'node:crypto'
+
+import { TUserInstance, TUserProperties, TUserRoles } from './model/user.interface'
+import { UserRepository } from './model/user.repository'
+import { User } from './user.entity'
 
 @Injectable()
 export class UserService {
@@ -166,7 +167,7 @@ export class UserService {
   ): Promise<ICreatedUserData> {
     const allowedLogins = JSON.parse(this.configService.get('RUSHDB_ALLOWED_LOGINS') || '[]') ?? []
     const { inviteToken, forceUserSignUp } = params
-    const { workspaceId, email, projectIds, isUserRegistered } = this.decryptInvite(inviteToken)
+    const { workspaceId, email, projectIds } = this.decryptInvite(inviteToken)
 
     const login = forceUserSignUp === true ? params.userData.login : email
     const providedUserLogin = forceUserSignUp === false ? params.authUserLogin : null
@@ -190,15 +191,7 @@ export class UserService {
       // For OAuth we don't abort request early bc we want to check google oauth first
       let shouldReCheckUser = false
 
-      if (forceUserSignUp && isUserRegistered) {
-        // Drop all potentially malformed requests when invitation was created for registered user,
-        // but request was send from sign-up invitation flow
-        throw new BadRequestException(
-          'Invitation was provided to a user who was already registered in RushDB'
-        )
-      }
-
-      if (!forceUserSignUp && !isUserRegistered) {
+      if (!forceUserSignUp) {
         isDevMode(() => Logger.warn(`[Accept user invitation WARN]: User with potentially malformed request`))
 
         // Mark user with potentially malformed data or user with google oauth

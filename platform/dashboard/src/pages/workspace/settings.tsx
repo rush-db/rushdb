@@ -6,7 +6,7 @@ import { object, string } from 'yup'
 
 import { Button } from '~/elements/Button'
 import { TextField } from '~/elements/Input'
-import { PageHeader, PageTitle } from '~/elements/PageHeader'
+import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { Setting, SettingsList } from '~/elements/Setting'
 import { Skeleton } from '~/elements/Skeleton'
 import { DeleteWorkspaceDialog } from '~/features/workspaces/components/DeleteWorkspaceDialog'
@@ -75,13 +75,16 @@ function DeleteWorkspaceSetting() {
 export function WorkspaceSettingsPage() {
   return (
     <WorkspacesLayout>
-      <PageHeader>
+      <PageHeader contained>
         <PageTitle>Workspace Settings</PageTitle>
       </PageHeader>
-      <SettingsList>
-        <WorkspaceNameSetting />
-        <DeleteWorkspaceSetting />
-      </SettingsList>
+
+      <PageContent contained>
+        <SettingsList>
+          <WorkspaceNameSetting />
+          <DeleteWorkspaceSetting />
+        </SettingsList>
+      </PageContent>
     </WorkspacesLayout>
   )
 }

@@ -26,7 +26,7 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
       const request = context.switchToHttp().getRequest()
       const txId = request.headers['x-transaction-id']
       const dbContext = dbContextStorage.getStore()
-      const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== 'default'
+      const hasCustomDbContext = dbContext?.projectId && dbContext?.projectId !== 'default'
       const projectId = request.projectId ?? request.headers['x-project-id']
 
       let transaction: Transaction

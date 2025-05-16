@@ -1,9 +1,17 @@
 import { useStore } from '@nanostores/react'
 import { UsersIcon, X } from 'lucide-react'
-import { useEffect, useState, FormEvent, HTMLAttributes, ThHTMLAttributes, TdHTMLAttributes } from 'react'
+import {
+  useEffect,
+  useState,
+  FormEvent,
+  HTMLAttributes,
+  ThHTMLAttributes,
+  TdHTMLAttributes,
+  useMemo
+} from 'react'
 import type { SubmitHandler } from 'react-hook-form'
 
-import { PageHeader, PageTitle } from '~/elements/PageHeader'
+import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
 import { Banner } from '~/elements/Banner'
 import { Setting, SettingsList } from '~/elements/Setting'
@@ -27,6 +35,9 @@ import {
 } from '~/features/workspaces/stores/users'
 import { object, string, useForm } from '~/lib/form'
 import { PendingInvite } from '~/features/workspaces/types.ts'
+import { getRoutePath } from '~/lib/router.ts'
+import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { IconButton } from '~/elements/IconButton'
 
 // Custom table components
 function Table({ children, className, ...props }: HTMLAttributes<HTMLTableElement>) {
@@ -215,7 +226,7 @@ function UserTable() {
     <div className="mt-6">
       <div className="text-content mb-4 text-lg font-medium">Workspace Users</div>
 
-      <Table>
+      <Table className="border-b">
         <TableHeader>
           <TableRow>
             <TableHead>Email</TableHead>
@@ -249,16 +260,15 @@ function UserTable() {
                 )}
               </TableCell>
               <TableCell>
-                {/* Don't allow revoking if user limit would be exceeded */}
                 <ConfirmDialog
                   description="Are you sure you want to revoke this user's access? They will no longer be able to access the workspace."
                   handler={() => handleRevoke(user.id)}
                   title="Revoke User Access"
                   trigger={
                     user.role !== 'owner' && (
-                      <Button size="small" variant="danger">
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <IconButton size="small" variant="ghost" aria-label={'Revoke User Access'}>
+                        <X />
+                      </IconButton>
                     )
                   }
                 />
@@ -300,7 +310,7 @@ export function PendingInvitesTable() {
   return (
     <div className="mt-8">
       <div className="text-content mb-4 text-lg font-medium">Pending Invites</div>
-      <Table>
+      <Table className="border-b">
         <TableHeader>
           <TableRow>
             <TableHead>Email</TableHead>
@@ -327,9 +337,9 @@ export function PendingInvitesTable() {
                   description={`Remove invitation for ${invite.email}?`}
                   handler={() => handleRemoveInvite(invite.email)}
                   trigger={
-                    <button className="hover:bg-fill2 rounded p-1">
-                      <X className="text-content2 h-5 w-5" />
-                    </button>
+                    <IconButton size="small" variant="ghost" aria-label={'Revoke User Access'}>
+                      <X />
+                    </IconButton>
                   }
                 />
               </TableCell>
@@ -343,39 +353,53 @@ export function PendingInvitesTable() {
 
 export function WorkspaceUsersPage() {
   const { data: workspace } = useStore($currentWorkspace)
-  const userLimit = workspace?.limits?.users || 3 // Default limit if not specified
+  const userLimit = workspace?.limits?.users
   const { data: users } = useStore($workspaceUsers)
-  const usersCount = users?.length || 0
-  // remove owner from userCount
-  const resultUsersCount = usersCount === 0 ? 0 : usersCount - 1
+  const { data: invites } = useStore($workspacePendingInvites)
+  const { loading, data: platformSettings } = useStore($platformSettings)
+
+  const usersCount = useMemo(() => {
+    return (users?.length || 1) + (invites?.length || 0)
+  }, [invites, users])
 
   return (
     <WorkspacesLayout>
-      <PageHeader>
+      <PageHeader contained>
         <PageTitle>Workspace Users</PageTitle>
         <div className="text-content2 flex items-center gap-1">
           <UsersIcon className="h-4 w-4" />
-          <span>
-            {resultUsersCount} / {userLimit} users
-          </span>
+          {platformSettings?.selfHosted ?
+            <span>{usersCount} users</span>
+          : <span>
+              {usersCount} / {userLimit} users
+            </span>
+          }
         </div>
       </PageHeader>
+      <PageContent contained>
+        <div className="flex flex-1 flex-col">
+          {!loading && userLimit && usersCount >= userLimit ?
+            !platformSettings?.selfHosted ?
+              <Banner
+                className="mb-6 min-h-[150px]"
+                title={`You've reached your ${userLimit} active user limit. Additional users will be billed according to your plan.`}
+                action={
+                  <Button as="a" href={getRoutePath('workspaceBilling')} variant="accent">
+                    Go to Billing
+                  </Button>
+                }
+              />
+            : null
+          : null}
 
-      <div className="flex flex-1 flex-col p-6">
-        {resultUsersCount >= userLimit ?
-          <Banner
-            className="mb-6 min-h-[150px]"
-            title={`You've reached your user limit of ${userLimit}. To add more users, please upgrade your plan.`}
-          />
-        : null}
+          <SettingsList>
+            <InviteUserSetting />
+          </SettingsList>
 
-        <SettingsList>
-          <InviteUserSetting />
-        </SettingsList>
-
-        <UserTable />
-        <PendingInvitesTable />
-      </div>
+          <UserTable />
+          <PendingInvitesTable />
+        </div>
+      </PageContent>
     </WorkspacesLayout>
   )
 }

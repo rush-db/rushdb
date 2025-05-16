@@ -4,14 +4,13 @@ import {
   Controller,
   Get,
   Param,
-  Patch,
   Post,
   Query,
   UnauthorizedException,
   UseInterceptors
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { ApiBearerAuth, ApiExcludeController, ApiQuery, ApiTags } from '@nestjs/swagger'
+import { ApiExcludeController, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
 import { CommonResponseDecorator } from '@/common/decorators/common-response.decorator'
@@ -85,45 +84,6 @@ export class AuthController {
             )
           }
 
-          return {
-            ...createdUserData,
-            token: this.authService.createToken(userData)
-          }
-        })
-    } catch (e) {
-      throw new BadRequestException('Provided email is not allowed')
-    }
-  }
-
-  @Post('register-via-invite')
-  @ApiTags('Auth')
-  @ApiQuery({
-    name: 'invite',
-    required: true,
-    description: "invite to verify user's email && workspace",
-    type: 'string'
-  })
-  @CommonResponseDecorator(GetUserDto)
-  async acceptInvitation(
-    @Body() user: CreateUserDto,
-    @Query('invite') token: string,
-    @TransactionDecorator() transaction: Transaction
-  ): Promise<IAuthenticatedUser> {
-    try {
-      return this.userService
-        .acceptWorkspaceInvitation<true>(
-          {
-            forceUserSignUp: true,
-            userData: {
-              ...user,
-              confirmed: true
-            },
-            inviteToken: token
-          },
-          transaction
-        )
-        .then(async ({ userData }) => {
-          const createdUserData = userData.toJson()
           return {
             ...createdUserData,
             token: this.authService.createToken(userData)

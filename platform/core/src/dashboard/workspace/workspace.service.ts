@@ -6,48 +6,49 @@ import {
   Injectable,
   Logger
 } from '@nestjs/common'
+import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
+import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
+import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
+import { MailService } from '@/dashboard/mail/mail.service'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { TProjectStats } from '@/dashboard/project/project.types'
+import { TShortUserDataWithRole } from '@/dashboard/user/interfaces/authenticated-user.interface'
 import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
+import { TUserRoles } from '@/dashboard/user/model/user.interface'
 import { UserRepository } from '@/dashboard/user/model/user.repository'
 import { UserService } from '@/dashboard/user/user.service'
 import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
+import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 import { Workspace } from '@/dashboard/workspace/entity/workspace.entity'
-import * as crypto from 'node:crypto'
 import {
   TWorkspaceInstance,
   TWorkspaceLimits,
   TWorkspaceProperties
 } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
+import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
 import {
   WORKSPACE_LIMITS_DEFAULT,
   WORKSPACE_LIMITS_PRO,
   WORKSPACE_LIMITS_START,
-  WORKSPACE_LIMITS_WHITE_LABEL
+  WORKSPACE_LIMITS_SELF_HOSTED
 } from '@/dashboard/workspace/workspace.constants'
-import { NeogmaService } from '@/database/neogma/neogma.service'
-import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
 import {
   TExtendedWorkspaceProperties,
   TNormalizedPendingInvite,
   TWorkspaceInvitation,
   TWorkSpaceInviteToken
 } from '@/dashboard/workspace/workspace.types'
-import { isDevMode } from '@/common/utils/isDevMode'
-import { MailService } from '@/dashboard/mail/mail.service'
-import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception'
-import { TUserRoles } from '@/dashboard/user/model/user.interface'
-import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
-import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
-import { TShortUserDataWithRole } from '@/dashboard/user/interfaces/authenticated-user.interface'
+import { NeogmaService } from '@/database/neogma/neogma.service'
+
+import * as crypto from 'node:crypto'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -203,7 +204,7 @@ export class WorkspaceService {
 
   getLimitsByKey(key = ''): TWorkspaceLimits {
     if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-      return WORKSPACE_LIMITS_WHITE_LABEL
+      return WORKSPACE_LIMITS_SELF_HOSTED
     }
 
     if (!toBoolean(key)) {
@@ -345,8 +346,7 @@ export class WorkspaceService {
     const invitationString = JSON.stringify({
       workspaceId: payload.workspaceId,
       projectIds: payload.projectIds,
-      email: payload.email,
-      isUserRegistered: payload.isUserRegistered
+      email: payload.email
     })
 
     const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
@@ -364,21 +364,10 @@ export class WorkspaceService {
 
     const { workspaceId, projectIds, email, ...rest } = payload
 
-    let shouldOnlyNotify = false
-    const userNode = await this.userService.find(email, transaction)
-
-    if (userNode?.getId()) {
-      isDevMode(() =>
-        Logger.log(`[Invite member LOG]: Invitation will be send to the already registered user ${email}`)
-      )
-      shouldOnlyNotify = true
-    }
-
     const token = this.encryptMemberToken({
       workspaceId,
       projectIds,
-      email,
-      isUserRegistered: shouldOnlyNotify
+      email
     })
 
     try {
@@ -408,13 +397,12 @@ export class WorkspaceService {
     }
 
     try {
-      await this.mailService.sendUserInvite(
-        email,
+      await this.mailService.sendUserInvite({
+        login: email,
         token,
-        shouldOnlyNotify,
-        rest.senderEmail,
-        rest.workspaceName
-      )
+        senderName: rest.senderEmail,
+        workspaceName: rest.workspaceName
+      })
       isDevMode(() => Logger.log(`[Invite member LOG]: Invitation sent to the ${email}`))
     } catch (e) {
       isDevMode(() => Logger.error('[Invite member ERROR]: Error sending an email', e))

@@ -19,7 +19,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   constructor(private readonly neogmaService: NeogmaService) {}
 
   async catch(exception: HttpException, host: ArgumentsHost) {
-    Logger.error('Global Exception Filter', exception)
     const ctx = host.switchToHttp()
     const response = ctx.getResponse<FastifyReply>()
     const request = ctx.getRequest<FastifyRequest>()

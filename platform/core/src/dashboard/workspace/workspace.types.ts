@@ -1,11 +1,10 @@
-import { TWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
+import { TWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
 
 export type TWorkSpaceInviteToken = {
   workspaceId: string
   email: string
   projectIds?: string[]
-  isUserRegistered?: boolean
 }
 
 export type TWorkspaceInvitation = TWorkSpaceInviteToken & {

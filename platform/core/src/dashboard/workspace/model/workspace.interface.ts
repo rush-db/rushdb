@@ -7,6 +7,7 @@ type TWorkspaceLimits = {
   records: number
   importSize: number
   projects?: number
+  users?: number
 }
 
 type TWorkspaceProperties = {
