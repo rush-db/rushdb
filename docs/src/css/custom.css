@@ -372,3 +372,7 @@ max-width: var(--ifm-container-width-xl) !important;
 .cta-button {
     @apply flex items-center justify-center transition bg-accent text-accent-contrast hover:bg-accent-hover focus-visible:bg-accent-focus ring-accent-ring gap-2 [&>svg]:hidden rounded-md px-3 font-medium;
 }
+
+.navbar-sidebar {
+    height: 100dvh;
+}
