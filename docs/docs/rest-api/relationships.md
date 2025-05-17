@@ -179,7 +179,7 @@ Deletes one or more relationships from a source record to one or more target rec
 ## Search Relationships
 
 ```http
-POST /api/v1/records/relationships/search
+POST /api/v1/relationships/search
 ```
 
 Searches for [relationships](../concepts/relationships.md) across your database with optional filtering.
@@ -418,7 +418,7 @@ PUT /api/v1/records/{entityId}/relationships
 ## Search Relations
 
 ```http
-POST /api/v1/records/relationships/search
+POST /api/v1/relationships/search
 ```
 
 This endpoint searches for [relationships](../concepts/relationships.md) between records based on specified criteria.
@@ -453,7 +453,7 @@ The request body follows the standard [search parameters](../concepts/search/int
 Search across all [relationships](../concepts/relationships.md) in the project. This endpoint allows you to query relationships with powerful filtering options.
 
 ```http
-POST /api/v1/records/relationships/search
+POST /api/v1/relationships/search
 ```
 
 ### Query Parameters

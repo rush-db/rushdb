@@ -196,7 +196,7 @@ POST /api/v1/tx
 2. Use the returned transaction ID in your create record requests:
 ```http
 POST /api/v1/records
-Authorization: Bearer YOUR_TOKEN
+Token: YOUR_TOKEN
 X-Transaction-Id: YOUR_TRANSACTION_ID
 ```
 

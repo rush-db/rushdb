@@ -6,11 +6,11 @@ sidebar_position: 1
 
 # Quick Tutorial
 
-This tutorial will help you get started with RushDB by walking through a simple example of creating and querying a small social network.
+This tutorial will help you get started with RushDB by walking through a simple example of creating and querying a small social network using the RushDB SDK.
 
 ## Prerequisites
 
-- An API token (see [Obtaining API Token](../get-started/get-api-token))
+- Create a RushDB account and get an API token (see [Get API Token](../get-started/get-api-token))
 - Your preferred programming language: Python, TypeScript/JavaScript, or any HTTP client for REST API
 
 ## Step 1: Initialize RushDB
@@ -25,16 +25,22 @@ import TabItem from '@theme/TabItem';
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
 
-const db = new RushDB({
-  apiToken: 'your-api-token'
-});
+// Initialize with your API token
+const db = new RushDB('your-api-token');
+
+// Or with additional configuration options
+// const db = new RushDB('your-api-token', {
+//   url: 'https://api.rushdb.com',
+//   timeout: 5000
+// });
 ```
   </TabItem>
   <TabItem value="python" label="Python">
 ```python
 from rushdb import RushDB
 
-db = RushDB(api_token='your-api-token')
+# Connect with your API token
+db = RushDB("your-api-token")
 ```
   </TabItem>
   <TabItem value="rest" label="REST API">
@@ -45,150 +51,310 @@ export TOKEN="your-api-token"
   </TabItem>
 </Tabs>
 
-## Step 2: Create Users
+## Step 2: Create [Records](../concepts/records.md) with Labels
 
 Let's create two users in our social network:
 
 <Tabs groupId="programming-language">
   <TabItem value="typescript" label="TypeScript" default>
 ```typescript
-const alice = await db.createRecord({
-  name: 'Alice',
-  age: 28,
-  interests: ['coding', 'hiking']
+// Create users with the Person [label](../concepts/labels.md)
+const alice = await db.records.create({
+  label: "PERSON",
+  data: {
+    name: 'Alice',
+    age: 28,
+    interests: ['coding', 'hiking']
+  }
 });
-await alice.addLabel('Person');
 
-const bob = await db.createRecord({
-  name: 'Bob',
-  age: 32,
-  interests: ['photography', 'travel']
+const bob = await db.records.create({
+  label: "PERSON",
+  data: {
+    name: 'Bob',
+    age: 32,
+    interests: ['photography', 'travel']
+  }
 });
-await bob.addLabel('Person');
 ```
   </TabItem>
   <TabItem value="python" label="Python">
 ```python
-alice = db.create_record({
-    'name': 'Alice',
-    'age': 28,
-    'interests': ['coding', 'hiking']
-}).add_label('Person')
+# Create users with the Person [label](../concepts/labels.md)
+alice = db.records.create(
+    label="PERSON",
+    data={
+        "name": "Alice",
+        "age": 28,
+        "interests": ["coding", "hiking"]
+    }
+)
 
-bob = db.create_record({
-    'name': 'Bob',
-    'age': 32,
-    'interests': ['photography', 'travel']
-}).add_label('Person')
+bob = db.records.create(
+    label="PERSON",
+    data={
+        "name": "Bob",
+        "age": 32,
+        "interests": ["photography", "travel"]
+    }
+)
 ```
   </TabItem>
   <TabItem value="rest" label="REST API">
 ```bash
-# Create Alice
-curl -X POST "https://api.rushdb.com/v1/records" \
-  -H "Authorization: Bearer $TOKEN" \
+# Create Alice with PERSON label
+curl -X POST "https://api.rushdb.com/api/v1/records" \
+  -H "Token: $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "properties": {
+    "label": "PERSON",
+    "data": {
       "name": "Alice",
       "age": 28,
       "interests": ["coding", "hiking"]
     }
   }'
 
-# Add label to Alice
-curl -X POST "https://api.rushdb.com/v1/records/{alice_id}/labels" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"label": "Person"}'
+# Save the ID from the response for Alice
+export ALICE_ID="response_id_here"
 
-# Repeat for Bob...
+# Create Bob with PERSON label
+curl -X POST "https://api.rushdb.com/api/v1/records" \
+  -H "Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "PERSON",
+    "data": {
+      "name": "Bob",
+      "age": 32,
+      "interests": ["photography", "travel"]
+    }
+  }'
+
+# Save the ID from the response for Bob
+export BOB_ID="response_id_here"
 ```
   </TabItem>
 </Tabs>
 
-## Step 3: Create Relationships
+## Step 3: Create [Relationships](../concepts/relationships.md)
 
 Let's make Alice and Bob friends:
 
 <Tabs groupId="programming-language">
   <TabItem value="typescript" label="TypeScript" default>
 ```typescript
-await alice.createRelationshipTo(bob, 'FRIENDS_WITH', {
-  since: '2024-01-01'
+// Create a FRIENDS_WITH relationship between Alice and Bob
+await alice.attach({
+  target: bob,
+  options: {
+    type: "FRIENDS_WITH"
+  }
 });
 ```
   </TabItem>
   <TabItem value="python" label="Python">
 ```python
-alice.create_relationship_to(bob, 'FRIENDS_WITH', {
-    'since': '2024-01-01'
-})
+# Create a FRIENDS_WITH relationship between Alice and Bob
+alice.attach(
+    target=bob,
+    options={
+        "type": "FRIENDS_WITH"
+    }
+)
 ```
   </TabItem>
   <TabItem value="rest" label="REST API">
 ```bash
-curl -X POST "https://api.rushdb.com/v1/relationships" \
-  -H "Authorization: Bearer $TOKEN" \
+# Create a FRIENDS_WITH relationship between Alice and Bob
+curl -X POST "https://api.rushdb.com/api/v1/relationships/$ALICE_ID" \
+  -H "Token: $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "from": "{alice_id}",
-    "to": "{bob_id}",
-    "type": "FRIENDS_WITH",
-    "properties": {
-      "since": "2024-01-01"
-    }
+    "targetIds": ["'$BOB_ID'"],
+    "type": "FRIENDS_WITH"
   }'
 ```
   </TabItem>
 </Tabs>
 
-## Step 4: Search Records
+## Step 4: Query Records with [Search](../concepts/search/introduction.md)
 
 Let's find all people who are interested in outdoor activities:
 
 <Tabs groupId="programming-language">
   <TabItem value="typescript" label="TypeScript" default>
 ```typescript
-const outdoorsy = await db.search()
-  .withLabel('Person')
-  .where('interests', 'CONTAINS', ['hiking', 'travel'])
-  .execute();
+// Find all people who are interested in outdoor activities using [where](../concepts/search/where.md) conditions
+const outdoorsy = await db.records.find({
+  labels: ['PERSON'],
+  where: {
+    interests: { $contains: ['hiking', 'travel'] }
+  }
+});
 
-console.log('Found:', outdoorsy.map(p => p.properties.name));
+console.log('Found:', outdoorsy.map(person => person.data.name));
 ```
   </TabItem>
   <TabItem value="python" label="Python">
 ```python
-outdoorsy = db.search() \
-    .with_label('Person') \
-    .where('interests', 'CONTAINS', ['hiking', 'travel']) \
-    .execute()
+# Find all people who are interested in outdoor activities using [where](../concepts/search/where.md) conditions
+outdoorsy = db.records.find({
+    "where": {
+        "interests": {"$contains": ["hiking", "travel"]}
+    },
+    "labels": ["PERSON"]
+})
 
-print('Found:', [p.properties['name'] for p in outdoorsy])
+print('Found:', [person.data["name"] for person in outdoorsy])
 ```
   </TabItem>
   <TabItem value="rest" label="REST API">
 ```bash
-curl -X POST "https://api.rushdb.com/v1/search" \
-  -H "Authorization: Bearer $TOKEN" \
+# Find all people who are interested in outdoor activities
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Token: $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "label": "Person",
-    "conditions": [{
-      "field": "interests",
-      "operator": "CONTAINS",
-      "value": ["hiking", "travel"]
-    }]
+    "labels": ["PERSON"],
+    "where": {
+      "interests": {
+        "$contains": ["hiking", "travel"]
+      }
+    }
   }'
+```
+  </TabItem>
+</Tabs>
+
+## Step 5: Using [Transactions](../concepts/transactions.mdx) (Optional)
+
+Transactions ensure data consistency by making a series of operations atomic:
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+```typescript
+// Begin a transaction
+const transaction = await db.transactions.begin();
+
+try {
+  // Create a post
+  const post = await db.records.create({
+    label: "POST",
+    data: {
+      title: "My Hiking Adventure",
+      content: "Today I went hiking in the mountains...",
+      createdAt: new Date().toISOString()
+    },
+    transaction
+  });
+
+  // Create a relationship between Alice and the post
+  await alice.attach({
+    target: post,
+    options: {
+      type: "CREATED",
+      properties: {
+        at: new Date().toISOString()
+      }
+    },
+    transaction
+  });
+
+  // Commit the transaction
+  await transaction.commit();
+  console.log("Post created and linked to Alice successfully!");
+} catch (error) {
+  // Roll back the transaction if anything fails
+  await transaction.rollback();
+  console.error("Error occurred, transaction rolled back:", error);
+}
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python
+# Using a transaction with context manager
+with db.transactions.begin() as transaction:
+    # Create a post
+    post = db.records.create(
+        label="POST",
+        data={
+            "title": "My Hiking Adventure",
+            "content": "Today I went hiking in the mountains...",
+            "createdAt": "2024-05-17T10:30:00.000Z"
+        },
+        transaction=transaction
+    )
+
+    # Create a relationship between Alice and the post
+    alice.attach(
+        target=post,
+        options={
+            "type": "CREATED",
+            "direction": "out",
+            "properties": {
+                "at": "2024-05-17T10:30:00.000Z"
+            }
+        },
+        transaction=transaction
+    )
+
+    # The transaction will automatically commit if no errors occur
+    # or roll back if an exception is raised
+```
+  </TabItem>
+  <TabItem value="rest" label="REST API">
+```bash
+# Start a transaction
+TRANSACTION_ID=$(curl -X POST "https://api.rushdb.com/api/v1/transactions" \
+  -H "Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  | jq -r '.id')
+
+# Create a post with the transaction ID
+POST_ID=$(curl -X POST "https://api.rushdb.com/api/v1/records" \
+  -H "Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-ID: $TRANSACTION_ID" \
+  -d '{
+    "label": "POST",
+    "data": {
+      "title": "My Hiking Adventure",
+      "content": "Today I went hiking in the mountains...",
+      "createdAt": "'$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")'"
+    }
+  }' \
+  | jq -r '.id')
+
+# Create relationship within the transaction
+curl -X POST "https://api.rushdb.com/api/v1/relationships/$ALICE_ID" \
+  -H "Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-ID: $TRANSACTION_ID" \
+  -d '{
+    "targetIds": ["'$POST_ID'"],
+    "type": "CREATED"
+  }'
+
+# Commit the transaction
+curl -X POST "https://api.rushdb.com/api/v1/transactions/$TRANSACTION_ID/commit" \
+  -H "Token: $TOKEN"
 ```
   </TabItem>
 </Tabs>
 
 ## Next Steps
 
-- Learn about [basic concepts](../concepts/records)
-- Check out the detailed SDK documentation:
-  - [TypeScript SDK](../typescript-sdk/introduction)
+- Learn about basic concepts:
+  - [Records](../concepts/records.md)
+  - [Labels](../concepts/labels.md)
+  - [Relationships](../concepts/relationships.md)
+  - [Properties](../concepts/properties.md)
+  - [Search & Querying](../concepts/search/introduction.md)
+  - [Transactions](../concepts/transactions.mdx)
+- Explore the SDK documentation in more detail:
+  - [TypeScript/JavaScript SDK](../typescript-sdk/introduction)
   - [Python SDK](../python-sdk/introduction)
   - [REST API](../rest-api/introduction)
+- Try working with [transactions](../typescript-sdk/transactions) for ensuring data consistency
+- Check out tutorials on specific use cases in the [Tutorials](../tutorials/reusable-search-query) section

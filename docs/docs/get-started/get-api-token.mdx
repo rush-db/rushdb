@@ -67,8 +67,8 @@ db = RushDB(api_token=os.environ['RUSHDB_API_TOKEN'])
 export RUSHDB_API_TOKEN='your-api-token'
 
 # Use in requests
-curl -H "Authorization: Bearer $RUSHDB_API_TOKEN" \
-  https://api.rushdb.com/v1/records
+curl -H "Token: $RUSHDB_API_TOKEN" \
+  https://api.rushdb.com/api/v1/records
 ```
   </TabItem>
 </Tabs>

@@ -1,62 +1,167 @@
+<!-- filepath: /Users/onepx/personal/rushdb/README.md -->
 <div align="center">
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
-### The Instant Database for Modern Apps and DS/ML Ops
+# 🚀 RushDB 1.0
 
-RushDB is an instant database for modern apps and DS/ML ops built on top of Neo4j.
+### The Instant Graph Database for Modern Apps
 
-It automates data normalization, manages relationships, and infers data types, enabling developers to focus on building features rather than wrestling with data.
+RushDB transforms how you work with graph data — no schema required, no complex queries, just push your data and go.
 
-[🌐 Homepage](https://rushdb.com) — [📢 Blog](https://rushdb.com/blog) — [☁️ Platform ](https://app.rushdb.com) — [📖 Docs](https://docs.rushdb.com) — [🧑‍💻 Examples](https://github.com/rush-db/examples)
+[![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
+[![Follow on Twitter](https://img.shields.io/twitter/follow/rushdb?style=social)](https://twitter.com/rushdb)
+
+[🌐 Website](https://rushdb.com) • [📖 Documentation](https://docs.rushdb.com) • [☁️ Cloud Platform](https://app.rushdb.com) • [🔍 Examples](https://github.com/rush-db/examples)
+
 </div>
 
 ---
 
-## Setup
+## ✨ Key Features
 
-### Option 1: Managed Environment
+- **Instant Setup**: Be productive in seconds, not days
+- **Push Any JSON**: Nested objects are automatically normalized into a graph
+- **Fractal API**: Same query syntax everywhere - learn once, use everywhere
+- **Vector Search**: Comprehensive similarity search for AI-powered applications
+- **Zero Schema Headaches**: We handle the data structure so you can focus on building
 
-The easiest way to start using RushDB is through **RushDB Cloud**. Free Tier is available.
+## 🌟 What's New in 1.0?
 
-Get up and running in less than 30 seconds by signing up at [app.rushdb.com](https://app.rushdb.com). RushDB Cloud provides a fully managed environment, so you can focus on building your application without worrying about setup or infrastructure.
+- **Vector Search**: Comprehensive vector search with similarity aggregates and query builder support
+- **Member Management**: Complete workspace membership system with invitations and access controls
+- **Remote Database**: Connect to existing Neo4j/Aura databases
+- **Enhanced Auth**: Google OAuth support and improved authorization flows
+- **Documentation**: Reworked docs with clear tutorials and guides
 
-### Option 2: Self-Hosted Environment
+## 🚀 Quick Start
 
-If you prefer to manage your own infrastructure, you can set up RushDB with a Neo4j instance. Here’s how:
+### 1. Get RushDB
 
-1. **Use Neo4j Aura (Free Tier Available)**  
-   Quickly create a Neo4j instance using [Neo4j Aura](https://neo4j.com/cloud/aura). It’s a managed service that allows you to get started with no configuration hassle.
-
-2. **Deploy Your Own Instance**  
-   Alternatively, you can host your own Neo4j instance. Follow [this detailed guide](https://medium.com/@1pxone/deploying-neo4j-on-aws-ec2-instance-apoc-plugin-installation-884deaeb4765) to deploy Neo4j on AWS EC2, including steps for installing the APOC plugin.
-
-Both options allow you to connect RushDB to your Neo4j database for a fully customizable self-hosted environment.
-
-#### Requirements
-- **Minimum Neo4j Version**: `5.25.1`
-- **Required Plugin**: `apoc-core` (installed and enabled)
-
-Make sure your setup meets these requirements for optimal functionality.
-
----
-
-#### Running the RushDB Platform
-
-You can quickly launch the **RushDB Platform** using the following Docker command:
-
-```shell
-docker run -p 3000:3000 \
---name rushdb \
--e NEO4J_URL='neo4j+s://1234567.databases.neo4j.io' \
--e NEO4J_USERNAME='neo4j' \
--e NEO4J_PASSWORD='password' \
-rushdb/platform
+**Option A: Use RushDB Cloud (Free Tier Available)**
+```bash
+# Sign up and get an API token at app.rushdb.com
+# No installation required!
 ```
 
-Or by using Docker Compose:
+**Option B: Self-Host with Docker**
+```bash
+docker run -p 3000:3000 \
+  --name rushdb \
+  -e NEO4J_URL='neo4j+s://your-instance.neo4j.io' \
+  -e NEO4J_USERNAME='neo4j' \
+  -e NEO4J_PASSWORD='password' \
+  rushdb/platform
+```
 
+### 2. Start Building
+
+#### Python
+```python
+from rushdb import RushDB
+
+db = RushDB("your-api-token")
+
+# Push any nested JSON - RushDB normalizes it into a graph
+db.records.create_many(
+   "COMPANY",
+   {
+      "name": "Google LLC",
+      "rating": 4.9,
+      "DEPARTMENT": [
+         {
+            "name": "Research & Development",
+            "PROJECT": [
+               {
+                  "name": "Bard AI",
+                  "budget": 1200000000,
+                  "EMPLOYEE": [
+                     {
+                        "name": "Jeff Dean",
+                        "position": "Head of AI Research",
+                     }
+                  ],
+               }
+            ],
+         }
+      ],
+   },
+)
+
+# Traverse relationships with intuitive nested queries
+employees = db.records.find({
+   "labels": ["EMPLOYEE"],
+   "where": {
+      "position": {"$contains": "AI"},
+      "PROJECT": {"DEPARTMENT": {"COMPANY": {"rating": {"$gte": 4}}}},
+   },
+})
+```
+
+#### TypeScript/JavaScript
+```typescript
+import RushDB from '@rushdb/javascript-sdk';
+
+const db = new RushDB("your-api-token");
+
+// Push data with automatic relationship creation
+await db.records.createMany({
+   label: "COMPANY",
+   payload: {
+      name: 'Google LLC',
+      rating: 4.9,
+      DEPARTMENT: [{
+         name: 'Research & Development',
+         PROJECT: [{
+            name: 'Bard AI',
+            EMPLOYEE: [{
+               name: 'Jeff Dean',
+               position: 'Head of AI Research',
+            }]
+         }]
+      }]
+   }
+});
+
+// Simple queries that traverse complex relationships
+const aiExperts = await db.records.find({
+  labels: ['EMPLOYEE'],
+  where: {
+    position: { $contains: 'AI' },
+    PROJECT: { DEPARTMENT: { COMPANY: { rating: { $gte: 4 } } } },
+  },
+});
+```
+
+## 💡 The Power of RushDB's Fractal API
+
+RushDB uses a consistent query structure across all operations:
+
+```typescript
+interface SearchQuery {
+  labels?: string[];     // Filter by record labels
+  where?: WhereClause;   // Filter by properties and relationships
+  limit?: number;        // Maximum records to return
+  skip?: number;         // Records to skip (pagination)
+  orderBy?: OrderByClause; // Sorting configuration
+  aggregate?: AggregateClause; // Data aggregation
+}
+```
+
+This approach means:
+- **Learn Once, Use Everywhere**: The same pattern works across records, relationships, labels, and properties
+- **Predictable API**: No surprises as you build more complex features
+- **Self-Discovering Database**: The graph knows its own structure and exposes it consistently
+- **Perfect for AI & RAG**: AI agents can explore and generate queries on-the-fly
+
+## 🛠️ Self-Hosting Options
+
+### Requirements
+- **Neo4j**: Version `5.25.1` or higher
+- **APOC Plugin**: Required and can be installed either via volume mount or auto-install
+- **Graph Data Science Plugin**: Required for advanced features like vector search and aggregations
+
+### Docker Compose Setup
 ```yaml
 version: '3.8'
 services:
@@ -66,339 +171,94 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEO4J_URL=neo4j+s://1234567.databases.neo4j.io
+      - NEO4J_URL=neo4j+s://your-instance.neo4j.io
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=password
+      - RUSHDB_LOGIN=admin
+      - RUSHDB_PASSWORD=secure-password
 ```
-
-#### Environment Variables
-
-Before running the container, ensure you provide the following required environment variables:
-
-- **`NEO4J_URL`**: The connection string for your Neo4j database (e.g., `neo4j+s://<your-instance-id>.databases.neo4j.io`).
-- **`NEO4J_USERNAME`**: The username for accessing the Neo4j database (default is `neo4j`).
-- **`NEO4J_PASSWORD`**: The password for your Neo4j database instance.
-
-### Additional Environment Variables
-
-#### 1. `RUSHDB_PORT`
-- **Description**: The port on which the application server will listen for incoming requests.
-- **Default**: `3000`
-
-#### 2. `RUSHDB_AES_256_ENCRYPTION_KEY`
-- **Description**: The encryption key for securing API tokens using AES-256 encryption.
-- **Requirement**: Must be exactly 32 characters long to meet the 256-bit key length requirement.
-- **Important**: Change this to a secure value in production.
-- **Default**: `32SymbolStringForTokenEncryption`
-
-#### 3. `RUSHDB_LOGIN`
-- **Description**: The login username for the RushDB admin account.
-- **Important**: Change this to a secure value in production.
-- **Default**: `admin`
-
-#### 4. `RUSHDB_PASSWORD`
-- **Description**: The password for the RushDB admin account.
-- **Important**: Change this to a secure value in production.
-- **Default**: `password`
-
----
 
 <details>
-  <summary>Development Setup with local Neo4j [DOCKER COMPOSE]</summary>
+  <summary>View all environment variables</summary>
 
-   ```yaml
-   version: '3.8'
-   services:
-     rushdb:
-       image: rushdb/platform
-       container_name: rushdb
-       depends_on:
-         neo4j:
-           condition: service_healthy
-       ports:
-         - "3000:3000"
-       environment:
-         - NEO4J_URL=bolt://neo4j
-         - NEO4J_USERNAME=neo4j
-         - NEO4J_PASSWORD=password
-     neo4j:
-       image: neo4j:5.25.1
-       healthcheck:
-         test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
-         interval: 5s
-         retries: 30
-         start_period: 10s
-       ports:
-         - "7474:7474"
-         - "7687:7687"
-       environment:
-         - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
-         - NEO4J_AUTH=neo4j/password
-         - NEO4J_PLUGINS=["apoc"]
-   ```
+  - **`NEO4J_URL`**: Connection string for Neo4j
+  - **`NEO4J_USERNAME`**: Neo4j username (default: `neo4j`)
+  - **`NEO4J_PASSWORD`**: Neo4j password
+  - **`RUSHDB_PORT`**: Server port (default: `3000`)
+  - **`RUSHDB_AES_256_ENCRYPTION_KEY`**: Encryption key for API tokens (32 chars)
+  - **`RUSHDB_LOGIN`**: Admin username (default: `admin`)
+  - **`RUSHDB_PASSWORD`**: Admin password (default: `password`)
 </details>
 
+<details>
+  <summary>Development setup with local Neo4j</summary>
 
-### **CLI Commands**
-
-The RushDB CLI allows you to manage users in self-hosted installations. Below are the available commands:
-
-#### **Create a New User**
-
-Command:
-```bash
-rushdb create-user <login> <password>
+```yaml
+version: '3.8'
+services:
+  rushdb:
+    image: rushdb/platform
+    container_name: rushdb
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      - NEO4J_URL=bolt://neo4j
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=password
+  neo4j:
+    image: neo4j:5.25.1
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
+      interval: 5s
+      retries: 30
+      start_period: 10s
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
 ```
+</details>
 
-Example:
+### CLI Commands
+
+<details>
+  <summary>View available CLI commands</summary>
+
+#### Create a New User
 ```bash
 rushdb create-user admin@example.com securepassword123
 ```
 
-This command creates a new user with the specified login and password. It is only allowed in self-hosted setups.
-
-#### **Update User Password**
-
-Command:
-```bash
-rushdb update-password <login> <newPassword>
-```
-
-Example:
+#### Update User Password
 ```bash
 rushdb update-password admin@example.com newsecurepassword456
 ```
+</details>
 
-This command updates the password for an existing user identified by the provided login. Like `create-user`, this command is restricted to self-hosted environments.
+## 📚 Learn More
 
----
+- [Quick Tutorial](https://docs.rushdb.com/get-started/quick-tutorial): Create a mini social network in minutes
+- [Reusable SearchQuery](https://docs.rushdb.com/tutorials/reusable-search-query): Harness the power of RushDB's fractal architecture
+- [Python SDK](https://docs.rushdb.com/python-sdk/introduction): Comprehensive Python API documentation
+- [TypeScript SDK](https://docs.rushdb.com/typescript-sdk/introduction): Complete TypeScript/JavaScript guide
+- [REST API](https://docs.rushdb.com/rest-api/introduction): Full HTTP API reference
 
-## Usage
+## 🤝 Contributing
 
-1. **Obtain an API Token**:
-   - If you’re using **RushDB Cloud**, get your token from [app.rushdb.com](https://app.rushdb.com).
-   - For a self-hosted RushDB instance, retrieve the token from the **Dashboard** running locally (`localhost:3000`).
-
-2. **Build Anything**:  
-   Easily push, search, and manage relationships within your data.
-
-### With Python
-
-Explore the [Documentation](https://docs.rushdb.com/python-sdk/records-api)
-
-#### Install the SDK
-
-```bash
-pip install rushdb
-```
-
-#### Push any json data
-
-```python
-from rushdb import RushDB
-
-db = RushDB(
-   "rushdb-api-key",
-   # Default URL; only override if necessary.
-   base_url="https://api.rushdb.com",
-)
-
-db.records.create_many(
-   "COMPANY",
-   {
-      "name": "Google LLC",
-      "address": "1600 Amphitheatre Parkway, Mountain View, CA 94043, USA",
-      "foundedAt": "1998-09-04T00:00:00.000Z",
-      "rating": 4.9,
-      "DEPARTMENT": [
-         {
-            "name": "Research & Development",
-            "description": "Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.",
-            "tags": ["AI", "Cloud Computing", "Research"],
-            "profitable": true,
-            "PROJECT": [
-               {
-                  "name": "Bard AI",
-                  "description": "A state-of-the-art generative AI model for natural language understanding and creation.",
-                  "active": true,
-                  "budget": 1200000000,
-                  "EMPLOYEE": [
-                     {
-                        "name": "Jeff Dean",
-                        "position": "Head of AI Research",
-                        "email": "jeff@google.com",
-                        "salary": 3000000,
-                     }
-                  ],
-               }
-            ],
-         }
-      ],
-   },
-)
-```
-
-#### Find Records by specific criteria
-```python
-# Find Records by specific criteria
-matched_employees = db.records.find(
-   {
-      "labels": ["EMPLOYEE"],
-      "where": {
-         "position": {"$contains": "AI"},
-         "PROJECT": {"DEPARTMENT": {"COMPANY": {"rating": {"$gte": 4}}}},
-      },
-   }
-)
-
-```
----
-
-### With TypeScript / JavaScript
-
-Explore the [Documentation](https://docs.rushdb.com)
-
-#### Install the SDK
-
-```bash
-npm install @rushdb/javascript-sdk
-```
-
-#### Push any json data
-
-```typescript
-import RushDB from '@rushdb/javascript-sdk';
-
-// Setup SDK
-const db = new RushDB("API_TOKEN", {
-  // Default URL; only override if necessary.
-  url: "https://api.rushdb.com",
-});
-
-// Push data: RushDB flattens it into Records and establishes relationships automatically.
-await db.records.createMany({
-   label: "COMPANY", 
-   payload: {
-       name: 'Google LLC',
-       address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
-       foundedAt: '1998-09-04T00:00:00.000Z',
-       rating: 4.9,
-       DEPARTMENT: [{
-           name: 'Research & Development',
-           description: 'Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.',
-           PROJECT: [{
-               name: 'Bard AI',
-               description: 'A state-of-the-art generative AI model for natural language understanding and creation.',
-               active: true,
-               budget: 1200000000,
-               EMPLOYEE: [{
-                   name: 'Jeff Dean',
-                   position: 'Head of AI Research',
-                   email: 'jeff@google.com',
-                   dob: '1968-07-16T00:00:00.000Z',
-                   salary: 3000000,
-               }]
-           }]
-       }]
-   }
-});
-```
-
-#### Find Records by specific criteria
-```typescript
-// Find Records by specific criteria
-const matchedEmployees = await db.records.find({
-  labels: ['EMPLOYEE'],
-  where: {
-    position: { $contains: 'AI' },
-    PROJECT: {
-      DEPARTMENT: {
-        COMPANY: {
-          rating: { $gte: 4 },
-        },
-      },
-    },
-  },
-});
-
-const company = await db.records.findUniq({
-   labels: ['COMPANY'],
-   where: {
-      name: 'Google LLC',
-   },
-});
-```
----
-
-### With REST API and cURL
-
-Explore the [Documentation](https://docs.rushdb.com)
-
-#### Specify API base URL
-
-- **RushDB Cloud**: `https://api.rushdb.com`
-- **Self-Hosted**: Your custom URL (e.g., `http://localhost:3000`)
-
-####  Push any json data
-
-```bash
-curl -X POST https://api.rushdb.com/api/v1/records/import/json \
--H "Authorization: Bearer API_TOKEN" \
--H "Content-Type: application/json" \
--d '{
-  "label": "COMPANY",
-  "payload": {
-    "name": "Google LLC",
-    "address": "1600 Amphitheatre Parkway, Mountain View, CA 94043, USA",
-    "foundedAt": "1998-09-04T00:00:00.000Z",
-    "rating": 4.9,
-    "DEPARTMENT": [{
-      "name": "Research & Development",
-      "description": "Innovating and creating advanced technologies for AI, cloud computing, and consumer devices.",
-      "PROJECT": [{
-        "name": "Bard AI",
-        "description": "A state-of-the-art generative AI model for natural language understanding and creation.",
-        "active": true,
-        "budget": 1200000000,
-        "EMPLOYEE": [{
-          "name": "Jeff Dean",
-          "position": "Head of AI Research",
-          "email": "jeff@google.com",
-          "dob": "1968-07-16T00:00:00.000Z",
-          "salary": 3000000
-        }]
-      }]
-    }]
-  }
-}'
-```
-
-#### Find Records by specific criteria
-
-```bash
-curl -X POST https://api.rushdb.com/api/v1/records/search \
--H "Authorization: Bearer API_TOKEN" \
--H "Content-Type: application/json" \
--d '{
-  "labels": ["EMPLOYEE"],
-  "where": {
-    "position": { "$contains": "AI" },
-    "PROJECT": {
-      "DEPARTMENT": {
-        "COMPANY": {
-          "rating": { "$gte": 4 }
-        }
-      }
-    }
-  }
-}'
-```
+We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ---
 
-<div align="center" style="margin-top: 20px">
-
-> Check the [Documentation](https://docs.rushdb.com) and [Examples](https://github.com/rush-db/examples) to learn more 🤓
-
+<div align="center">
+  <p>
+    <a href="https://rushdb.com">
+      <img src="https://img.shields.io/badge/Learn_more-rushdb.com-6D28D9?style=for-the-badge" alt="Learn more" />
+    </a>
+  </p>
 </div>
-

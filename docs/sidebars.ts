@@ -27,7 +27,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Getting Started',
       collapsed: false,
-      items: ['index', 'get-started/quick-tutorial', 'get-started/get-api-token']
+      items: ['index', 'get-started/get-api-token', 'get-started/quick-tutorial']
     },
     {
       type: 'category',
