@@ -486,7 +486,7 @@ const q12 = {
 }
 
 const r12 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((\`record\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) >= 0.93)) ORDER BY record.\`__RUSHDB__KEY__ID__\` ASC SKIP 0 LIMIT 1000
+WHERE ((\`record\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) <= 0.93)) ORDER BY record.\`__RUSHDB__KEY__ID__\` ASC SKIP 0 LIMIT 1000
 WITH record
 WHERE record IS NOT NULL
 WITH record, gds.similarity.euclidean(record.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) AS \`similarity\`
