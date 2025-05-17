@@ -45,8 +45,8 @@ function ResetFiltersButton() {
   if (hasAnyFiltersApplied) {
     return (
       <Button onClick={resetFilters} size="small" variant="outline">
-        <X />
         Reset filters
+        <X />
       </Button>
     )
   }

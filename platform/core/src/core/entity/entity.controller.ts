@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   Delete,
   Get,
   HttpCode,
@@ -9,11 +8,9 @@ import {
   Logger,
   NotFoundException,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Put,
-  Query,
   Request,
   UseGuards,
   UseInterceptors,
@@ -37,64 +34,27 @@ import {
   RUSHDB_KEY_PROPERTIES_META
 } from '@/core/common/constants'
 import { prepareProperties } from '@/core/common/normalizeRecord'
-import { LinkEntityDto } from '@/core/entity/dto/link-entity.dto'
-import { UnlinkEntityDto } from '@/core/entity/dto/unlink-entity.dto'
 import { EntityWriteGuard } from '@/core/entity/entity-write.guard'
-import { TRecordRelationsResponse, TRecordSearchResult } from '@/core/entity/entity.types'
+import { TRecordSearchResult } from '@/core/entity/entity.types'
 import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
 import { createEntitySchema } from '@/core/entity/validation/schemas/create-entity.schema'
 import { editEntitySchema } from '@/core/entity/validation/schemas/edit-entity.schema'
-import {
-  createRelationSchema,
-  deleteRelationsSchema
-} from '@/core/entity/validation/schemas/relations.schema'
-import { TPropertyProperties } from '@/core/property/model/property.interface'
 import { PropertyService } from '@/core/property/property.service'
 import { PropertyValuesPipe } from '@/core/property/validation/property-values.pipe'
 import { SearchDto } from '@/core/search/dto/search.dto'
-import { pagination } from '@/core/search/parser/pagination'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
+import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
+import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
-import { CreateEntityDto, CreateEntityDtoSimple } from './dto/create-entity.dto'
+import { CreateEntityDto } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
 import { EntityService } from './entity.service'
-
-// ---------------------------------------------------------------------------------------------------------------------
-// RECORDS CRUD
-
-// POST     /records                     ✅ CREATE
-// GET      /records/:id                 ✅ READ
-// PUT      /records/:id                 ✅ REWRITE
-// DELETE   /records/:id                 ✅ DELETE
-
-// RECORDS EXTRA
-
-// POST     /records/:id/link            ✅ LINK
-// POST     /records/:id/unlink          ✅ UNLINK
-
-// POST     /records/:id/properties      ✅ FIELDS LIST (SEARCHABLE)
-// POST     /records/:id/labels          ❌ LABELS LIST (SEARCHABLE) @TODO
-
-// RECORDS SEARCH
-
-// POST     /records/search              ✅ SEARCH SearchDto
-// POST     /records/:id/search          ✅ SEARCH SearchDto
-
-type BulkUpdateRecords = {
-  where: SearchDto
-  data: {
-    name: null
-    fullName: { alias?: '$record'; field: 'name' }
-  }
-}
-
-// ---------------------------------------------------------------------------------------------------------------------
 
 @Controller('records')
 @ApiTags('Records')
@@ -102,7 +62,8 @@ type BulkUpdateRecords = {
   TransformResponseInterceptor,
   NotFoundInterceptor,
   NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor
+  NeogmaTransactionInterceptor,
+  CustomTransactionInterceptor
 )
 export class EntityController {
   constructor(
@@ -118,36 +79,40 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @AuthGuard()
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
-  async getEntity(
+  async getById(
     @Param('entityId') entityId: string,
-    @TransactionDecorator() transaction: Transaction
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
   ): Promise<TEntityPropertiesNormalized> {
-    return await this.entityService.getEntity({
+    const projectId = request.projectId
+
+    return await this.entityService.getById({
       id: entityId,
+      projectId,
       transaction
     })
   }
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard, CustomDbWriteRestrictionGuard)
   @UsePipes(ValidationPipe(createEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
   @HttpCode(HttpStatus.CREATED)
   @AuthGuard('project')
-  async createEntity(
-    @Body() entity: CreateEntityDto | CreateEntityDtoSimple,
-    @TransactionDecorator() transaction: Transaction,
+  async create(
+    @Body() entity: CreateEntityDto,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<TEntityPropertiesNormalized> {
     const projectId = request.projectId
 
-    const result = await this.entityService.createEntity({
+    const result = await this.entityService.create({
       entity,
       projectId,
+      // we need smart switcher between customTx and default service tx, maybe new decorator
       transaction
     })
 
@@ -172,32 +137,34 @@ export class EntityController {
   @UsePipes(ValidationPipe(editEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
   @HttpCode(HttpStatus.CREATED)
-  async updateEntity(
+  async update(
     @Param('entityId') entityId: string,
     @Body() entity: EditEntityDto,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<TEntityPropertiesNormalized> {
     const projectId = request.projectId
 
     const currentRecordData = await asyncAssertExistsOrThrow(
-      () => this.entityService.getEntity({ id: entityId, transaction }),
+      () => this.entityService.getById({ id: entityId, projectId, transaction }),
       new NotFoundException(`Record with id '${entityId}' not found`)
     )
 
-    const ownProps = omit(currentRecordData, [
+    const currentOwnProperties = omit(currentRecordData, [
       RUSHDB_KEY_LABEL,
       RUSHDB_KEY_ID,
       RUSHDB_KEY_PROJECT_ID,
       RUSHDB_KEY_PROPERTIES_META
     ])
 
-    const record = await this.entityService.editEntity({
+    const normalizedOwnProperties = prepareProperties(currentOwnProperties)
+
+    const record = await this.entityService.edit({
       entityId,
       projectId,
       entity: {
         ...entity,
-        properties: [...prepareProperties(ownProps), ...entity.properties]
+        properties: [...normalizedOwnProperties, ...entity.properties]
       },
       transaction
     })
@@ -223,15 +190,29 @@ export class EntityController {
   @UsePipes(ValidationPipe(editEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
   @HttpCode(HttpStatus.CREATED)
-  async setEntity(
+  async set(
     @Param('entityId') entityId: string,
     @Body() entity: EditEntityDto,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<TEntityPropertiesNormalized> {
     const projectId = request.projectId
 
-    const record = await this.entityService.editEntity({
+    // let entityDraft: EditEntityDto
+    //
+    // if ('properties' in entity) {
+    //   entityDraft = entity
+    // }
+    //
+    // if ('data' in entity) {
+    //   // @TODO: Implement schema schema validation https://github.com/rush-db/rushdb/issues/43
+    //   entityDraft = {
+    //     label: entity.label,
+    //     properties: [...normalizeRecord(entity).properties]
+    //   }
+    // }
+
+    const record = await this.entityService.edit({
       entityId,
       projectId,
       entity,
@@ -251,16 +232,16 @@ export class EntityController {
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
-  async deleteBulk(
-    @TransactionDecorator() transaction: Transaction,
-    @Body() searchParams: SearchDto = {},
+  async delete(
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Body() searchQuery: SearchDto = {},
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
 
-    return await this.entityService.deleteRecords({
+    return await this.entityService.delete({
       projectId,
-      searchParams,
+      searchQuery,
       transaction
     })
   }
@@ -276,13 +257,13 @@ export class EntityController {
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
-  async deleteEntity(
+  async deleteById(
     @Param('entityId') entityId: string,
-    @TransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
-    return await this.entityService.deleteEntity(entityId, projectId, transaction)
+    return await this.entityService.deleteById({ id: entityId, projectId, transaction })
   }
 
   @Post('/search')
@@ -291,22 +272,22 @@ export class EntityController {
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
-  async searchFromRoot(
-    @TransactionDecorator() transaction: Transaction,
-    @Body() searchParams: SearchDto,
+  async find(
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Body() searchQuery: SearchDto,
     @Request() request: PlatformRequest
   ): Promise<TRecordSearchResult> {
     const projectId = request.projectId
     try {
       const [data, total] = await Promise.all([
-        this.entityService.findRecords({
+        this.entityService.find({
           projectId,
-          searchParams,
+          searchQuery,
           transaction
         }),
-        this.entityService.getRecordsTotalCount({
+        this.entityService.getCount({
           projectId,
-          searchParams,
+          searchQuery,
           transaction
         })
       ])
@@ -331,181 +312,25 @@ export class EntityController {
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
-  async levelSearch(
+  async findFromId(
     @Param('entityId') entityId: string,
-    @TransactionDecorator() transaction: Transaction,
-    @Body() searchParams: SearchDto = {},
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Body() searchQuery: SearchDto = {},
     @Request() request: PlatformRequest
   ): Promise<TRecordSearchResult> {
     const projectId = request.projectId
 
     const [data, total] = await Promise.all([
-      this.entityService.findRecords({
+      this.entityService.find({
         id: entityId,
         projectId,
-        searchParams,
+        searchQuery,
         transaction
       }),
-      this.entityService.getRecordsTotalCount({
+      this.entityService.getCount({
         id: entityId,
         projectId,
-        searchParams,
-        transaction
-      })
-    ])
-
-    return {
-      data,
-      total
-    }
-  }
-
-  @Get(':entityId/properties')
-  @ApiParam({
-    name: 'entityId',
-    required: true,
-    description: 'entity identifier (UUIDv7)',
-    type: 'string'
-  })
-  @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
-  @AuthGuard('project')
-  @UsePipes(ValidationPipe(searchSchema, 'body'))
-  @HttpCode(HttpStatus.OK)
-  async getEntityFields(
-    @Param('entityId') entityId: string,
-    @TransactionDecorator() transaction: Transaction,
-    @Request() request: PlatformRequest
-  ): Promise<{ data: TPropertyProperties[] }> {
-    const projectId = request.projectId
-
-    const data = await this.entityService.getEntityFields({
-      id: entityId,
-      projectId,
-      transaction
-    })
-    return { data }
-  }
-
-  @Get(':entityId/relations')
-  @ApiParam({
-    name: 'entityId',
-    required: true,
-    description: 'entity identifier (UUIDv7)',
-    type: 'string'
-  })
-  @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
-  @AuthGuard('project')
-  @HttpCode(HttpStatus.OK)
-  async getRecordRelations(
-    @Param('entityId') entityId: string,
-    @TransactionDecorator() transaction: Transaction,
-    @Request() request: PlatformRequest,
-    @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
-    @Query('limit', new DefaultValuePipe(1000), ParseIntPipe) limit?: number
-  ): Promise<TRecordRelationsResponse> {
-    const projectId = request.projectId
-    const [data, total] = await Promise.all([
-      this.entityService.getRecordRelations({
-        id: entityId,
-        searchParams: {},
-        pagination: pagination(skip, limit),
-        projectId,
-        transaction
-      }),
-      this.entityService.getRecordRelationsCount({
-        id: entityId,
-        searchParams: {},
-        projectId,
-        transaction
-      })
-    ])
-
-    return {
-      data,
-      total
-    }
-  }
-
-  @Post(':entityId/relations')
-  @ApiParam({
-    name: 'entityId',
-    required: true,
-    description: 'entity identifier (UUIDv7)',
-    type: 'string'
-  })
-  @ApiBearerAuth()
-  @UseGuards(
-    IsRelatedToProjectGuard(['targetIds'], {
-      nodeProperty: RUSHDB_KEY_ID,
-      projectIdProperty: RUSHDB_KEY_PROJECT_ID
-    })
-  )
-  @UsePipes(ValidationPipe(createRelationSchema, 'body'))
-  @AuthGuard('project')
-  @HttpCode(HttpStatus.CREATED)
-  async linkEntity(
-    @Param('entityId') entityId: string,
-    @Body() linkEntity: LinkEntityDto,
-    @TransactionDecorator() transaction: Transaction,
-    @Request() request: PlatformRequest
-  ): Promise<{ message: string }> {
-    const projectId = request.projectId
-    return await this.entityService.attachRecords(entityId, linkEntity, projectId, transaction)
-  }
-
-  @Put(':entityId/relations')
-  @ApiParam({
-    name: 'entityId',
-    required: true,
-    description: 'entity identifier (UUIDv7)',
-    type: 'string'
-  })
-  @ApiBearerAuth()
-  @UseGuards(
-    IsRelatedToProjectGuard(['targetIds'], {
-      nodeProperty: RUSHDB_KEY_ID,
-      projectIdProperty: RUSHDB_KEY_PROJECT_ID
-    })
-  )
-  @UsePipes(ValidationPipe(deleteRelationsSchema, 'body'))
-  @AuthGuard('project')
-  @HttpCode(HttpStatus.OK)
-  async deleteRecordRelations(
-    @Param('entityId') entityId: string,
-    @Body() unlinkEntityDto: UnlinkEntityDto,
-    @TransactionDecorator() transaction: Transaction,
-    @Request() request: PlatformRequest
-  ): Promise<{ message: string }> {
-    const projectId = request.projectId
-    return await this.entityService.detachRecords(entityId, unlinkEntityDto, projectId, transaction)
-  }
-
-  @Post('relations/search')
-  @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
-  @AuthGuard('project')
-  @HttpCode(HttpStatus.OK)
-  async searchRecordRelations(
-    @TransactionDecorator() transaction: Transaction,
-    @Body() searchParams: SearchDto = {},
-    @Request() request: PlatformRequest,
-    @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
-    @Query('limit', new DefaultValuePipe(1000), ParseIntPipe) limit?: number
-  ): Promise<TRecordRelationsResponse> {
-    const projectId = request.projectId
-
-    const [data, total] = await Promise.all([
-      this.entityService.getRecordRelations({
-        searchParams,
-        pagination: pagination(skip, limit),
-        projectId,
-        transaction
-      }),
-      this.entityService.getRecordRelationsCount({
-        projectId,
-        searchParams,
+        searchQuery,
         transaction
       })
     ])

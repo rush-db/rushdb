@@ -9,17 +9,19 @@ import { ProfilePage } from '~/pages/profile.tsx'
 import { SignInPage } from '~/pages/signin'
 import { SignUpPage } from '~/pages/signup'
 import { WorkspaceBillingPage } from '~/pages/workspace/billing'
-import { NewWorkspacePage } from '~/pages/workspace/new'
 import { WorkspaceProjectsPage } from '~/pages/workspace/projects'
 import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
+import { WorkspaceUsersPage } from '~/pages/workspace/users'
+import { JoinWorkspacePage } from '~/pages/workspace/join'
 import { ConfirmEmail } from '~/pages/auth/confirmEmail'
 
 import { Toaster } from './elements/Toast'
 import { ProjectLayout } from './layout/ProjectLayout'
 import { AuthGoogle } from './pages/auth/google'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { AuthGitHub } from '~/pages/auth/github.tsx'
+import { $user } from '~/features/auth/stores/user.ts'
 
 function PublicRoutes() {
   const page = useStore($router)
@@ -44,6 +46,9 @@ function PublicRoutes() {
 
 function ProtectedRoutes() {
   const page = useStore($router)
+  const currentUser = useStore($user)
+
+  const isOwner = useMemo(() => currentUser.currentScope?.role === 'owner', [currentUser])
 
   if (isProjectPage(page)) {
     return <ProjectLayout />
@@ -53,9 +58,13 @@ function ProtectedRoutes() {
     case 'profile':
       return <ProfilePage />
     case 'workspaceSettings':
-      return <WorkspaceSettingsPage />
+      return isOwner ? <WorkspaceSettingsPage /> : null
+    case 'workspaceUsers':
+      return isOwner ? <WorkspaceUsersPage /> : null
+    case 'joinWorkspace':
+      return <JoinWorkspacePage />
     case 'workspaceBilling':
-      if ($platformSettings.get().data?.selfHosted) {
+      if ($platformSettings.get().data?.selfHosted || !isOwner) {
         return null
       }
       return <WorkspaceBillingPage />
@@ -63,7 +72,7 @@ function ProtectedRoutes() {
     case 'home':
       return <WorkspaceProjectsPage />
     case 'newProject':
-      return <NewProjectPage />
+      return isOwner ? <NewProjectPage /> : null
     // case 'newWorkspace':
     //   return <NewWorkspacePage />
     default:
@@ -115,17 +124,13 @@ function Gtm() {
 }
 
 function ProductionScripts() {
-  const platformSettings = useStore($platformSettings)
+  const { loading, data: platformSettings } = useStore($platformSettings)
 
-  if (!platformSettings.loading && !platformSettings.data?.selfHosted) {
-    return (
-      <>
-        <Gtm />
-      </>
-    )
+  if (loading || platformSettings?.selfHosted) {
+    return null
   }
 
-  return null
+  return <Gtm />
 }
 
 export function App() {

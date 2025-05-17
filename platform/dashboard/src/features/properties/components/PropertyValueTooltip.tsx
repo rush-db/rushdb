@@ -29,7 +29,7 @@ export const $propertyValueTooltip = atom<
   | (Pick<PropertyWithValue, 'name' | 'type' | 'value'> & {
       element: HTMLElement
       showOperations: boolean
-    })
+    } & { date?: string })
   | undefined
 >()
 
@@ -53,7 +53,7 @@ export const handlePointerEnter =
     property,
     showOperations = true
   }: {
-    property: Pick<PropertyWithValue, 'name' | 'type' | 'value'>
+    property: Pick<PropertyWithValue, 'name' | 'type' | 'value'> & { date?: string }
     showOperations?: boolean
   }): PointerEventHandler<HTMLElement> =>
   (event) => {
@@ -221,13 +221,14 @@ export function PropertyValueTooltip() {
       onPointerLeave={handlePointerLeave}
       ref={refs.setFloating}
     >
-      <div className="flex">
+      <div className="flex justify-between">
         <PropertyName
           className="bg-accent/30 text-2xs text-accent gap-1 rounded-sm px-1 leading-snug"
           iconSize={12}
           name={property.name}
           type={property.type}
-        />
+        />{' '}
+        <p className="text-accent text-xs">{property.date}</p>
       </div>
 
       <div className="flex justify-between gap-1">

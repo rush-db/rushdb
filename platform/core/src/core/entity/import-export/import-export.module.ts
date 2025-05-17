@@ -1,4 +1,4 @@
-import { forwardRef, Module } from '@nestjs/common'
+import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 
 import { EntityModule } from '@/core/entity/entity.module'
 import { ExportController } from '@/core/entity/import-export/export.controller'
@@ -9,6 +9,9 @@ import { TransactionModule } from '@/core/transactions/transaction.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
+import { DbContextMiddleware } from '@/common/middlewares/db-context.middleware'
+import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
+import { DbConnectionModule } from '@/database/db-connection/db-connection.module'
 
 @Module({
   imports: [
@@ -19,10 +22,18 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
 
     // Core modules
     forwardRef(() => EntityModule),
-    forwardRef(() => TransactionModule)
+    forwardRef(() => TransactionModule),
+
+    //db modules
+    forwardRef(() => NeogmaDynamicModule),
+    forwardRef(() => DbConnectionModule)
   ],
   providers: [ImportService, ExportService],
   exports: [ImportService, ExportService],
   controllers: [ImportController, ExportController]
 })
-export class ImportExportModule {}
+export class ImportExportModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(DbContextMiddleware).forRoutes(ImportController, ExportController)
+  }
+}

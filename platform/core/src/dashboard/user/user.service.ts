@@ -1,9 +1,11 @@
-import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common'
+import { BadRequestException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
+import { QueryBuilder } from '@/common/QueryBuilder'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
+import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { IDecodedResetToken } from '@/dashboard/auth/auth.types'
@@ -19,11 +21,20 @@ import {
 } from '@/dashboard/common/constants'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { ICreatedUserData } from '@/dashboard/user/interfaces/authenticated-user.interface'
+import { AcceptWorkspaceInvitationParams } from '@/dashboard/user/interfaces/user-properties.interface'
+import {
+  USER_ROLE_EDITOR,
+  USER_ROLE_OWNER,
+  USER_ROLE_WEIGHT
+} from '@/dashboard/user/interfaces/user.constants'
 import { sanitizeSettings, validateEmail } from '@/dashboard/user/user.utils'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
+import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
-import { TUserInstance, TUserProperties } from './model/user.interface'
+import * as crypto from 'node:crypto'
+
+import { TUserInstance, TUserProperties, TUserRoles } from './model/user.interface'
 import { UserRepository } from './model/user.repository'
 import { User } from './user.entity'
 
@@ -88,6 +99,28 @@ export class UserService {
     return this.userRepository.model.buildFromRecord(user)
   }
 
+  async findUserNodeByLogin(login: string, transaction: Transaction) {
+    const queryRunner = this.neogmaService.createRunner()
+
+    const findUser = await this.neogmaService
+      .createBuilder()
+      .match({
+        model: this.userRepository.model,
+        where: { login },
+        identifier: 'i'
+      })
+      .return('i')
+      .run(queryRunner, transaction)
+
+    const user = findUser.records[0]?.get('i')
+
+    if (!user) {
+      return
+    }
+
+    return this.userRepository.model.buildFromRecord(user)
+  }
+
   async markEmailAsConfirmed(login: string, transaction: Transaction): Promise<User> {
     const queryRunner = this.neogmaService.createRunner()
 
@@ -112,33 +145,9 @@ export class UserService {
     const allowedLogins = JSON.parse(this.configService.get('RUSHDB_ALLOWED_LOGINS') || '[]') ?? []
 
     if (allowedLogins.length === 0 || (allowedLogins.length && allowedLogins.includes(properties.login))) {
-      let userSettings = {}
-      const currentTime = getCurrentISO()
-      const userId = uuidv7()
-      const userPassword = await this.encryptionService.hash(properties.password)
-
-      //  process settings only if they're present
-      if (properties.settings) {
-        userSettings = sanitizeSettings(properties.settings)
-      }
-
-      const isEmail = toBoolean(validateEmail(properties.login || ''))
-
-      const userNode = await this.userRepository.model.createOne(
-        {
-          ...properties,
-          isEmail,
-          password: userPassword,
-          confirmed: properties.confirmed ?? false,
-          created: currentTime,
-          id: userId,
-          settings: JSON.stringify(userSettings)
-        },
-        { session: transaction }
-      )
-
+      const userNode = await this.createUserNode(properties, transaction)
       // Add Default Workspace on registration
-      await this.workspaceService.createWorkspace({ name: 'Default Workspace' }, userId, transaction)
+      await this.workspaceService.createWorkspace({ name: 'Default Workspace' }, userNode.id, transaction)
 
       if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
         await this.stripeService.createCustomer(properties.login)
@@ -150,6 +159,157 @@ export class UserService {
     } else {
       throw new BadRequestException('Provided login is not allowed')
     }
+  }
+
+  async acceptWorkspaceInvitation<T extends boolean = boolean>(
+    params: AcceptWorkspaceInvitationParams<T>,
+    transaction: Transaction
+  ): Promise<ICreatedUserData> {
+    const allowedLogins = JSON.parse(this.configService.get('RUSHDB_ALLOWED_LOGINS') || '[]') ?? []
+    const { inviteToken, forceUserSignUp } = params
+    const { workspaceId, email, projectIds } = this.decryptInvite(inviteToken)
+
+    const login = forceUserSignUp === true ? params.userData.login : email
+    const providedUserLogin = forceUserSignUp === false ? params.authUserLogin : null
+
+    if (!forceUserSignUp && email !== providedUserLogin) {
+      throw new BadRequestException('Invitation was provided to another RushDB user')
+    }
+
+    isDevMode(() => Logger.log(`[Accept invite LOG]: Fetching pending invites for workspace ${workspaceId}`))
+    const pending = await this.workspaceService.getPendingInvites(workspaceId, transaction)
+
+    if (!pending.some((inv) => inv.email === login)) {
+      isDevMode(() =>
+        Logger.warn(`[Accept invite WARN]: No pending invite for ${login} in workspace ${workspaceId}`)
+      )
+
+      throw new BadRequestException('No pending invitation found for this email')
+    }
+
+    if (allowedLogins.length === 0 || (allowedLogins.length && allowedLogins.includes(login))) {
+      // For OAuth we don't abort request early bc we want to check google oauth first
+      let shouldReCheckUser = false
+
+      if (!forceUserSignUp) {
+        isDevMode(() => Logger.warn(`[Accept user invitation WARN]: User with potentially malformed request`))
+
+        // Mark user with potentially malformed data or user with google oauth
+        shouldReCheckUser = true
+      }
+
+      let userNode
+
+      if (forceUserSignUp) {
+        isDevMode(() => Logger.log(`[Accept user invitation LOG]: Create user node for ${login}`))
+        userNode = await this.createUserNode(params.userData, transaction)
+
+        isDevMode(() => Logger.log(`[Accept user invitation LOG]: Create default workspace for ${login}`))
+        await this.workspaceService.createWorkspace({ name: 'Default Workspace' }, userNode.id, transaction)
+      } else {
+        userNode = await this.findUserNodeByLogin(login, transaction)
+
+        if (shouldReCheckUser && !userNode.googleAuth) {
+          throw new BadRequestException('Invitation was provided to a new RushDB user')
+        } else if (shouldReCheckUser) {
+          isDevMode(() =>
+            Logger.log(`[Accept user invitation LOG]: User ${userNode.id} registered before with oauth`)
+          )
+        }
+      }
+
+      if (!workspaceId || !email) {
+        throw new BadRequestException('Malformed invite provided')
+      }
+
+      if (email !== login) {
+        throw new BadRequestException("Provided email doesn't match invitee's email")
+      }
+
+      await this.workspaceService.attachUserToWorkspace(
+        workspaceId,
+        userNode.id,
+        USER_ROLE_EDITOR,
+        transaction
+      )
+
+      isDevMode(() =>
+        Logger.log(`[Accept user invitation LOG]: User accepted invitation and created ${userNode.id}`)
+      )
+
+      if (Array.isArray(projectIds) && projectIds.length > 0) {
+        for (const projectId of projectIds) {
+          await this.linkUser(userNode.id, projectId, transaction)
+        }
+      }
+
+      if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED')) && forceUserSignUp) {
+        await this.stripeService.createCustomer(login)
+      }
+
+      await this.workspaceService.removePendingInvite(workspaceId, login, transaction)
+      isDevMode(() => Logger.log(`[Accept invite LOG] removed pending invite for ${login}`))
+
+      return {
+        userData: this.normalize(userNode),
+        workspaceId
+      }
+    } else {
+      throw new BadRequestException('Provided login is not allowed')
+    }
+  }
+
+  decryptInvite(encrypted: string): TWorkSpaceInviteToken {
+    const tokenNormalized = decodeURIComponent(encrypted)
+
+    const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
+    const iv = tokenNormalized.substring(0, 32)
+    const cipherText = tokenNormalized.substring(32)
+
+    const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey, Buffer.from(iv, 'hex'))
+
+    let decrypted: string
+
+    try {
+      decrypted = decipher.update(cipherText, 'base64', 'utf8')
+      decrypted = decrypted + decipher.final('utf8')
+    } catch {
+      throw new BadRequestException('Invalid invitation token')
+    }
+
+    return JSON.parse(decrypted) as TWorkSpaceInviteToken
+  }
+
+  async createUserNode(properties: Omit<TUserProperties, 'id' | 'isEmail'>, transaction: Transaction) {
+    let userSettings = {}
+    const currentTime = getCurrentISO()
+    const userId = uuidv7()
+    const userPassword = await this.encryptionService.hash(properties.password)
+
+    //  process settings only if they're present
+    if (properties.settings) {
+      userSettings = sanitizeSettings(properties.settings)
+    }
+
+    const isEmail = toBoolean(validateEmail(properties.login || ''))
+
+    if (!isEmail) {
+      isDevMode(() => Logger.error('[Create user ERROR]: Bad email provided'))
+      throw new BadRequestException('Bad email data provided')
+    }
+
+    return await this.userRepository.model.createOne(
+      {
+        ...properties,
+        isEmail,
+        password: userPassword,
+        confirmed: properties.confirmed ?? false,
+        created: currentTime,
+        id: userId,
+        settings: JSON.stringify(userSettings)
+      },
+      { session: transaction }
+    )
   }
 
   async update(
@@ -236,27 +396,30 @@ export class UserService {
     userId,
     targetId,
     targetType = 'workspace',
+    accessLevel,
     transaction
   }: {
     userId: string
     targetId: string
     targetType?: 'project' | 'workspace'
+    accessLevel?: TUserRoles
     transaction: Transaction
   }): Promise<boolean> {
     const queryRunner = this.neogmaService.createRunner()
+
+    const queryBuilder = new QueryBuilder()
 
     const targetPart =
       targetType === 'workspace' ?
         `-[rel:${RUSHDB_RELATION_MEMBER_OF}]->(:${RUSHDB_LABEL_WORKSPACE} { id: $targetId })`
       : `-[rel:${RUSHDB_RELATION_HAS_ACCESS}]->(:${RUSHDB_LABEL_PROJECT} { id: $targetId }) `
 
-    const query = `
-            MATCH (:${RUSHDB_LABEL_USER} { id: $userId })${targetPart}
-            RETURN rel.role as accessRole
-        `
+    queryBuilder
+      .append(`MATCH (:${RUSHDB_LABEL_USER} { id: $userId })${targetPart}`)
+      .append(`RETURN rel.role as accessRole`)
 
     const result = await queryRunner.run(
-      query,
+      queryBuilder.build(),
       {
         targetId,
         userId
@@ -268,36 +431,29 @@ export class UserService {
       return false
     }
 
-    // if (!currentUserRole) {
-    //     return false;
-    // }
-    //
-    // const currentUserRoleWeight = USER_ROLE_WEIGHT[currentUserRole];
-    // const minimalAccessLevel = USER_ROLE_WEIGHT[accessLevel];
-    //
-    // return currentUserRoleWeight >= minimalAccessLevel;
+    const currentRole: TUserRoles = result.records[0].get('accessRole')
+    const requiredWeight = USER_ROLE_WEIGHT[accessLevel] ?? 0
+    const currentWeight = USER_ROLE_WEIGHT[currentRole] ?? 0
 
-    return Boolean(result.records[0].get('accessRole') as string)
+    return currentWeight >= requiredWeight
   }
 
   async delete({ userId, transaction }: { userId: string; transaction: Transaction }) {
     try {
       const userNode = await this.findUserNodeById(userId, transaction)
       if (userNode) {
-        const relatedProjects = await userNode.findRelationships({
-          alias: 'Projects',
-          session: transaction
-        })
-
         const relatedWorkspaces = await userNode.findRelationships({
           alias: 'Workspaces',
+          where: {
+            relationship: {
+              role: USER_ROLE_OWNER
+            },
+            target: {}
+          },
           session: transaction
         })
 
         await Promise.all([
-          ...relatedProjects.map(
-            async (rp) => await this.projectService.deleteProject(rp.target.dataValues.id, transaction)
-          ),
           ...relatedWorkspaces.map(
             async (rws) => await this.workspaceService.deleteWorkspace(rws.target.dataValues.id, transaction)
           ),
@@ -311,19 +467,38 @@ export class UserService {
     return true
   }
 
-  // async linkUser(id: string, projectId: string, transaction: Transaction): Promise<boolean> {
-  //     const userNode = await this.findUserNodeById(id, transaction);
-  //
-  //     try {
-  //         await userNode.relateTo({
-  //             alias: 'Projects',
-  //             where: { id: projectId },
-  //             session: transaction,
-  //         });
-  //     } catch (e) {
-  //         throw new BadRequestException('Cant link user');
-  //     }
-  //
-  //     return true;
-  // }
+  async linkUser(id: string, projectId: string, transaction: Transaction): Promise<boolean> {
+    const currentTime = getCurrentISO()
+
+    try {
+      const projectNode = await this.projectService.getProjectNode(projectId, transaction)
+
+      if (!projectNode) {
+        return false
+      }
+    } catch (e) {
+      isDevMode(() =>
+        Logger.warn(`[Link user to the project WARN]: Incorrect project id provided ${projectId}`, e)
+      )
+
+      return false
+    }
+
+    try {
+      await this.projectService.linkUserToProject(id, projectId, currentTime, transaction)
+
+      isDevMode(() =>
+        Logger.log(`[Link user ${id} to the project LOG]: User linked to the project ${projectId}`)
+      )
+    } catch (e) {
+      isDevMode(() => Logger.error('[Link user to the project ERROR]: Error while linking user', e))
+      throw new BadRequestException('Cant link user to project')
+    }
+
+    return true
+  }
+
+  async getUserWorkspaceRole(login: string, workspaceId: string, transaction: Transaction) {
+    return await this.workspaceService.getUserRoleInWorkspace(login, workspaceId, transaction)
+  }
 }

@@ -35,6 +35,11 @@ export class PlanLimitsGuard implements CanActivate {
     transaction: Transaction
   ): Promise<boolean> {
     const workspaceInstance = await this.workspaceService.getWorkspaceInstance(workspaceId, transaction)
+
+    if (!workspaceInstance) {
+      throw new HttpException('No workspace ID provided', HttpStatus.BAD_REQUEST)
+    }
+
     const properties = workspaceInstance.dataValues
     const limits = JSON.parse(properties.limits) as TWorkspaceLimits
 

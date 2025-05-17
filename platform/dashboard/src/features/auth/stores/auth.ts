@@ -16,9 +16,11 @@ import {
 
 import { $token } from './token'
 import { $user } from './user'
+import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
 
 $user.subscribe(({ isLoggedIn, token }, changedKey) => {
   if (changedKey === 'isLoggedIn') {
+    const invite = $inviteToken.get()
     const page = $router.get()
 
     if (isLoggedIn) {
@@ -31,7 +33,11 @@ $user.subscribe(({ isLoggedIn, token }, changedKey) => {
       return null
     }
 
-    if (!isProtectedRoute(page?.route) && isLoggedIn === true) {
+    if (invite && isLoggedIn === true) {
+      redirectRoute('joinWorkspace')
+    }
+
+    if (!isProtectedRoute(page?.route) && isLoggedIn === true && !invite) {
       redirectRoute('home')
     }
 
@@ -43,6 +49,7 @@ $user.subscribe(({ isLoggedIn, token }, changedKey) => {
 
 $router.subscribe((page) => {
   if ($user) {
+    const invite = $inviteToken.get()
     const { isLoggedIn } = $user.get()
 
     if (isUserLeaveConfirmationRoute(page?.route)) {
@@ -51,8 +58,10 @@ $router.subscribe((page) => {
 
     if (isProtectedRoute(page?.route) && !isLoggedIn) {
       redirectRoute('signin')
-    } else if (isLoggedIn && isPublicRoute(page?.route)) {
+    } else if (isLoggedIn && isPublicRoute(page?.route) && !invite) {
       redirectRoute('home')
+    } else if (isLoggedIn && isPublicRoute(page?.route) && invite) {
+      redirectRoute('joinWorkspace')
     }
   }
 })

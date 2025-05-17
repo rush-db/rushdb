@@ -7,6 +7,12 @@ export type AuthorizedUser = {
   id: string
   settings: string
   token: string
+  isEmail?: boolean
+  firstName?: string
+  lastName?: string
+  currentScope?: {
+    role: 'owner' | 'developer'
+  }
 }
 
 export type GetUserResponse = GenericApiResponse<Omit<AuthorizedUser, 'settings'> & { settings: string }>

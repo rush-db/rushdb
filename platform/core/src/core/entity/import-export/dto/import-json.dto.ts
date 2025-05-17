@@ -7,7 +7,7 @@ export class ImportJsonDto {
   parentId?: string
 
   @ApiPropertyOptional({ default: {} })
-  payload?: TImportJsonPayload
+  data?: TImportJsonPayload
 
   @ApiPropertyOptional({ default: '' })
   label: string

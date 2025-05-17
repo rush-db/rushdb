@@ -10,7 +10,8 @@ import {
   Post,
   UseGuards,
   UseInterceptors,
-  Headers
+  Headers,
+  Query
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiExcludeController, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
@@ -18,6 +19,7 @@ import { Transaction } from 'neo4j-driver'
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
+import { CustomDbAvailabilityGuard } from '@/dashboard/billing/guards/custom-db-availability.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
 import { CreateProjectDto } from '@/dashboard/project/dto/create-project.dto'
@@ -46,9 +48,9 @@ export class ProjectController {
   @Post()
   @ApiTags('Projects')
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(PlanLimitsGuard)
+  @UseGuards(PlanLimitsGuard, CustomDbAvailabilityGuard)
   async createProject(
     @Body() project: CreateProjectDto,
     @AuthUser() { id: userId }: IUserClaims,
@@ -72,11 +74,12 @@ export class ProjectController {
   @AuthGuard()
   @HttpCode(HttpStatus.OK)
   async getProjectsList(
+    @AuthUser() { id: userId }: IUserClaims,
     @Headers() headers,
     @TransactionDecorator() transaction: Transaction
   ): Promise<ProjectEntity[]> {
     const workspaceId = headers['x-workspace-id']
-    return await this.projectService.getProjectsByWorkspaceId(workspaceId, transaction)
+    return await this.projectService.getProjectsByWorkspaceId(workspaceId, userId, transaction)
   }
 
   @Delete(':projectId')
@@ -89,12 +92,13 @@ export class ProjectController {
   @ApiTags('Projects')
   @ApiBearerAuth()
   // @UseInterceptors(RunSideEffectMixin([ESideEffectType.DELETE_PROJECT]))
-  @AuthGuard('project')
+  @AuthGuard('project', 'owner')
   async deleteProject(
     @Param('projectId') id: string,
+    @Query('shouldStoreCustomDbData') shouldStoreCustomDbData: boolean,
     @TransactionDecorator() transaction: Transaction
   ): Promise<boolean> {
-    return await this.projectService.deleteProject(id, transaction)
+    return await this.projectService.deleteProject(id, transaction, shouldStoreCustomDbData)
   }
 
   @Patch(':projectId')
@@ -106,8 +110,9 @@ export class ProjectController {
   })
   @ApiTags('Projects')
   @ApiBearerAuth()
-  @AuthGuard('project')
+  @AuthGuard('project', 'owner')
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(CustomDbAvailabilityGuard)
   async updateProject(
     @Param('projectId') id: string,
     @Body() editProjectProperties: UpdateProjectDto,

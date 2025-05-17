@@ -35,7 +35,7 @@ This article explains how to get started with **RushDB**. We will show two main 
 - **Cloud**: The quickest method to start using RushDB. Ideal for trying out small projects or prototypes.
 - **Self-Hosted**: Gives you more control and is suitable for production environments.
 
-If you want to explore the **Cloud** option, follow a few steps in the [official docs](https://docs.rushdb.com/quick-start/configuring-dashboard).
+If you want to explore the **Cloud** option, follow a few steps in the [official docs](https://docs.rushdb.com/get-started/quick-tutorial).
 This guide will focus on the **Self-Hosted** setup.
 
 ## Before You Begin
@@ -147,27 +147,30 @@ const db = new RushDB("YOUR_API_TOKEN", {
   url: "http://localhost:3000",
 });
 
-await db.records.createMany("COMPANY", {
-  name: 'Google LLC',
-  address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
-  foundedAt: '1998-09-04T00:00:00.000Z',
-  rating: 4.9,
-  DEPARTMENT: [{
-    name: 'Research & Development',
-    description: 'Innovating advanced technologies for AI and cloud computing.',
-    PROJECT: [{
-      name: 'Bard AI',
-      description: 'A cutting-edge model for language understanding.',
-      active: true,
-      budget: 1200000000,
-      EMPLOYEE: [{
-        name: 'Jeff Dean',
-        position: 'Head of AI Research',
-        email: 'jeff@google.com',
-        salary: 3000000
+await db.records.createMany({
+  label: "COMPANY",
+  data: {
+      name: 'Google LLC',
+      address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
+      foundedAt: '1998-09-04T00:00:00.000Z',
+      rating: 4.9,
+      DEPARTMENT: [{
+        name: 'Research & Development',
+        description: 'Innovating advanced technologies for AI and cloud computing.',
+        PROJECT: [{
+          name: 'Bard AI',
+          description: 'A cutting-edge model for language understanding.',
+          active: true,
+          budget: 1200000000,
+          EMPLOYEE: [{
+            name: 'Jeff Dean',
+            position: 'Head of AI Research',
+            email: 'jeff@google.com',
+            salary: 3000000
+          }]
+        }]
       }]
-    }]
-  }]
+    }
 });
 ```
 

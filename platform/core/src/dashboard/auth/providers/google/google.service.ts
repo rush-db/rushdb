@@ -42,7 +42,6 @@ export class GoogleOAuthService {
   }
 
   async getAccessTokenFromCode(code: string): Promise<string> {
-    // { access_token, expires_in, token_type, refresh_token }
     try {
       const { data } = await axios.post<{ access_token: string }>(GOOGLE_TOKEN_URL, {
         client_id: this.configService.get('GOOGLE_CLIENT_ID'),

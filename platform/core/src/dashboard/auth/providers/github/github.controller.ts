@@ -1,6 +1,6 @@
 import { Controller, Get, Query, Redirect, UnauthorizedException, UseInterceptors } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { ApiTags } from '@nestjs/swagger'
+import { ApiExcludeController, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 import * as queryString from 'query-string'
 
@@ -18,6 +18,7 @@ import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transacti
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 @Controller('auth')
+@ApiExcludeController()
 export class GithubOAuthController {
   constructor(
     private readonly authService: AuthService,
@@ -65,7 +66,6 @@ export class GithubOAuthController {
         token: this.authService.createToken(user)
       }
     } catch (e) {
-      // console.log(e)
       throw new UnauthorizedException()
     }
   }

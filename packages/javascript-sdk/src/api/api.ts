@@ -1,42 +1,46 @@
 import type { HttpClient } from '../network/HttpClient.js'
-import type { DBRecord, RelationDetachOptions, RelationOptions, RelationTarget } from '../sdk/record.js'
+import type {
+  DBRecord,
+  DBRecordTarget,
+  RelationDetachOptions,
+  RelationOptions,
+  RelationTarget,
+  Relation,
+  DBRecordInferred,
+  DBRecordCreationOptions
+} from '../sdk/record.js'
 import type { SDKConfig } from '../sdk/types.js'
 import type {
-  PropertyValue,
-  PropertyWithValue,
   SearchQuery,
   Schema,
   InferSchemaTypesWrite,
   MaybeArray,
-  PropertyValuesOptions
+  PropertyValuesOptions,
+  PropertyDraft,
+  Property,
+  PropertyValuesData,
+  AnyObject
 } from '../types/index.js'
-import type { ApiResponse, RecordsApi } from './types.js'
+import type { ApiResponse } from './types.js'
 
-import { isArray, isEmptyObject, isObject, isObjectFlat, isString, toBoolean } from '../common/utils.js'
+import { isArray, isEmptyObject, isObject, isFlatObject, toBoolean, isString } from '../common/utils.js'
 import { createFetcher } from '../network/index.js'
-import { EmptyTargetError } from '../sdk/errors.js'
-import {
-  DBRecordsBatchDraft,
-  DBRecordDraft,
-  DBRecordInstance,
-  DBRecordsArrayInstance
-} from '../sdk/record.js'
+import { EmptyTargetError, NonUniqueResultError } from '../sdk/errors.js'
+import { DBRecordInstance, DBRecordsArrayInstance } from '../sdk/record.js'
 import { Transaction } from '../sdk/transaction.js'
-import { createApi } from './create-api.js'
 import {
+  buildTransactionHeader,
   buildUrl,
-  createSearchParams,
-  isTransaction,
-  normalizeRecord,
-  pickTransaction,
-  prepareProperties
+  generateRandomId,
+  isPropertyDraft,
+  pickRecordId,
+  pickTransactionId
 } from './utils.js'
 
 export class RestAPI {
-  public api: ReturnType<typeof createApi>
   public fetcher: ReturnType<typeof createFetcher>
-
-  public records: RecordsApi
+  public options: SDKConfig['options']
+  public logger: SDKConfig['logger']
 
   constructor(token?: string, config?: SDKConfig & { httpClient: HttpClient }) {
     this.fetcher = null as unknown as ReturnType<typeof createFetcher>
@@ -50,415 +54,866 @@ export class RestAPI {
       })
     }
 
-    this.api = createApi(this.fetcher, config?.logger)
+    if (config?.options) {
+      this.options = config?.options
+    }
 
-    this.records = {
-      attach: async (
-        sourceId: string,
-        target: RelationTarget,
-        options?: RelationOptions,
-        transaction?: Transaction | string
-      ) => {
-        // target is MaybeArray<DBRecordInstance>
-        if (target instanceof DBRecordInstance) {
-          const id = target.data?.__id
-          if (id) {
-            return await this.api.records.attach(sourceId, id, options, transaction)
-          } else {
-            throw new EmptyTargetError('Attach error: Target id is empty')
-          }
-        } else if (isArray(target) && target.every((r) => r instanceof DBRecordInstance)) {
-          const ids = target.map((r) => (r as DBRecordInstance).data?.__id).filter(toBoolean)
-          if (ids.length) {
-            return await this.api.records.attach(sourceId, ids as string[], options, transaction)
-          } else {
-            throw new EmptyTargetError('Attach error: Target ids are empty')
-          }
-        }
+    if (config?.logger) {
+      this.logger = config?.logger
+    }
+  }
 
-        // target is DBRecordsArrayInstance
-        else if (target instanceof DBRecordsArrayInstance) {
-          const ids = target.data?.map((r) => r.__id).filter(Boolean)
-          if (ids?.length) {
-            return await this.api.records.attach(sourceId, ids, options, transaction)
-          } else {
-            throw new EmptyTargetError('Attach error: Target ids are empty')
-          }
-        }
+  _extractTargetIds(target: RelationTarget, operation: string): Array<string> {
+    // target is DBRecordInstance
+    if (target instanceof DBRecordInstance) {
+      const id = pickRecordId(target)
+      if (!id) throw new EmptyTargetError(`${operation} error: Target id is empty`)
+      return [id]
+    }
 
-        // target is MaybeArray<DBRecord>
-        else if (isObject(target) && '__id' in target) {
-          return await this.api.records.attach(sourceId, target.__id, options, transaction)
-        } else if (isArray(target) && target.every((r) => isObject(r) && '__id' in r)) {
-          const ids = target?.map((r) => (r as DBRecord).__id).filter(Boolean)
-          if (ids?.length) {
-            return await this.api.records.attach(sourceId, ids, options, transaction)
-          } else {
-            throw new EmptyTargetError('Attach error: Target ids are empty')
-          }
-        }
+    // target is Array<DBRecordInstance>
+    if (isArray(target) && target.every((r) => r instanceof DBRecordInstance)) {
+      const ids = target.map(pickRecordId).filter(toBoolean)
+      if (!ids.length) throw new EmptyTargetError(`${operation} error: Target ids are empty`)
+      return ids as Array<string>
+    }
 
-        // target is MaybeArray<string>
-        else {
-          return await this.api.records.attach(sourceId, target as MaybeArray<string>, options, transaction)
-        }
+    // target is DBRecordsArrayInstance
+    if (target instanceof DBRecordsArrayInstance) {
+      const ids = target.data?.map(pickRecordId).filter(toBoolean)
+      if (!ids?.length) throw new EmptyTargetError(`${operation} error: Target ids are empty`)
+      return ids as Array<string>
+    }
+
+    // target is DBRecord
+    if (isObject(target) && '__id' in target) {
+      return [target.__id]
+    }
+
+    // target is Array<DBRecord>
+    if (isArray(target) && target.every((r) => isObject(r) && '__id' in r)) {
+      const ids = target.map(pickRecordId).filter(toBoolean)
+      if (!ids.length) throw new EmptyTargetError(`${operation} error: Target ids are empty`)
+      return ids as Array<string>
+    }
+
+    // target is MaybeArray<string>
+    return (
+      isArray(target) ? target
+      : isString(target) ? [target]
+      : []
+    )
+  }
+
+  /**
+   * API methods for managing database records
+   */
+  public records = {
+    /**
+     * Attaches a relation between records
+     * @param source - The source record to create relation from
+     * @param target - The target record(s) to create relation to
+     * @param options - Optional relation configuration
+     * @param options.type - The type of relation to create
+     * @param options.direction - The direction of the relation
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response
+     */
+    attach: async (
+      {
+        source,
+        target,
+        options
+      }: {
+        source: DBRecordTarget
+        target: RelationTarget
+        options?: RelationOptions
       },
-
-      create: async <S extends Schema = any>(
-        labelOrData: DBRecordDraft | string,
-        maybeDataOrTransaction?: Transaction | InferSchemaTypesWrite<S> | string,
-        transaction?: Transaction | string
-      ): Promise<DBRecordInstance<S>> => {
-        let response
-
-        if (labelOrData instanceof DBRecordDraft) {
-          response = await this.api?.records.create<S>(labelOrData, pickTransaction(maybeDataOrTransaction))
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const recordId = pickRecordId(source)!
+      const path = `/relationships/${recordId}`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: {
+          targetIds: this._extractTargetIds(target, 'Attach'),
+          ...(options?.type && { type: options.type }),
+          ...(options?.direction && { direction: options.direction })
         }
-
-        if (!response && isString(labelOrData)) {
-          if (isObjectFlat(maybeDataOrTransaction)) {
-            const normalizedRecord = normalizeRecord({
-              label: labelOrData,
-              payload: maybeDataOrTransaction as Record<string, PropertyValue>
-            })
-
-            response = await this.api?.records.create<S>(
-              new DBRecordDraft(normalizedRecord as { label: string; properties: PropertyWithValue[] }),
-              transaction
-            )
-          } else if (isObject(maybeDataOrTransaction)) {
-            throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
-          }
-        }
-
-        if (response?.success && response?.data) {
-          const result = new DBRecordInstance<S>(response.data)
-          result.init(this)
-          return result
-        }
-
-        return new DBRecordInstance<S>()
-      },
-
-      createMany: async <S extends Schema = any>(
-        labelOrData: DBRecordsBatchDraft | string,
-        maybeDataOrTransaction?: Transaction | MaybeArray<InferSchemaTypesWrite<S>> | string,
-        transaction?: Transaction | string
-      ): Promise<DBRecordsArrayInstance<S>> => {
-        let response
-
-        if (labelOrData instanceof DBRecordsBatchDraft) {
-          response = await this.api?.records.createMany<S>(
-            labelOrData,
-            pickTransaction(maybeDataOrTransaction)
-          )
-        }
-
-        if (
-          !response &&
-          isString(labelOrData) &&
-          (isArray(maybeDataOrTransaction) || isObject(maybeDataOrTransaction))
-        ) {
-          const data = new DBRecordsBatchDraft({
-            label: labelOrData,
-            payload: maybeDataOrTransaction
-          })
-          response = await this.api?.records.createMany<S>(data, transaction)
-        }
-
-        if (response?.success && response?.data) {
-          const result = new DBRecordsArrayInstance<S>(response.data, response.total)
-          result.init(this)
-          return result
-        }
-
-        return new DBRecordsArrayInstance<S>([])
-      },
-
-      delete: async <S extends Schema = any>(
-        searchParams: SearchQuery<S>,
-        transaction?: Transaction | string
-      ) => {
-        if (isEmptyObject(searchParams.where) && !config?.options?.allowForceDelete) {
-          throw new EmptyTargetError(
-            `You must specify criteria to delete records. Empty criteria are not allowed. If this was intentional, use the Dashboard instead.`
-          )
-        }
-
-        return this.api?.records.delete(searchParams, transaction)
-      },
-
-      deleteById: async (idOrIds: MaybeArray<string>, transaction?: Transaction | string) => {
-        return this.api?.records.deleteById(idOrIds, transaction)
-      },
-
-      detach: async (
-        sourceId: string,
-        target: RelationTarget,
-        options?: RelationDetachOptions,
-        transaction?: Transaction | string
-      ) => {
-        // target is MaybeArray<DBRecordInstance>
-        if (target instanceof DBRecordInstance) {
-          const id = target.data?.__id
-          if (id) {
-            return await this.api.records.detach(sourceId, id, options, transaction)
-          } else {
-            throw new EmptyTargetError('Detach error: Target id is empty')
-          }
-        } else if (isArray(target) && target.every((r) => r instanceof DBRecordInstance)) {
-          const ids = target.map((r) => (r as DBRecordInstance).data?.__id).filter(Boolean)
-          if (ids.length) {
-            return await this.api.records.detach(sourceId, ids as string[], options, transaction)
-          } else {
-            throw new EmptyTargetError('Detach error: Target ids are empty')
-          }
-        }
-
-        // target is DBRecordsArrayInstance
-        else if (target instanceof DBRecordsArrayInstance) {
-          const ids = target.data?.map((r) => r.__id).filter(Boolean)
-          if (ids?.length) {
-            return await this.api.records.detach(sourceId, ids, options, transaction)
-          } else {
-            throw new EmptyTargetError('Detach error: Target ids are empty')
-          }
-        }
-
-        // target is MaybeArray<DBRecord>
-        else if (isObject(target) && '__id' in target) {
-          return await this.api.records.detach(sourceId, target.__id, options, transaction)
-        } else if (isArray(target) && target.every((r) => isObject(r) && '__id' in r)) {
-          const ids = target?.map((r) => (r as DBRecord).__id).filter(Boolean)
-          if (ids?.length) {
-            return await this.api.records.detach(sourceId, ids, options, transaction)
-          } else {
-            throw new EmptyTargetError('Detach error: Target ids are empty')
-          }
-        }
-
-        // target is MaybeArray<string>
-        else {
-          return await this.api.records.detach(sourceId, target as MaybeArray<string>, options, transaction)
-        }
-      },
-
-      export: async <S extends Schema = any>(
-        searchParams: SearchQuery<S>,
-        transaction?: Transaction | string
-      ) => {
-        return this.api?.records.export(searchParams, transaction)
-      },
-
-      find: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
-        labelOrSearchParams?: Q | string,
-        searchParamsOrTransaction?: Q | Transaction | string,
-        transaction?: Transaction | string
-      ): Promise<DBRecordsArrayInstance<S, Q>> => {
-        const isTransactionParam = isTransaction(searchParamsOrTransaction)
-        const { id, searchParams } = createSearchParams<S>(labelOrSearchParams, searchParamsOrTransaction)
-        const tx = isTransactionParam ? searchParamsOrTransaction : transaction
-        const response = await this.api?.records.find<S, Q>({ id, searchParams: searchParams as Q }, tx)
-
-        const result = new DBRecordsArrayInstance<S, Q>(
-          response.data,
-          response.total,
-          searchParamsOrTransaction as Q
-        )
-        result.init(this)
-        return result
-      },
-
-      findById: async <
-        S extends Schema = Schema,
-        Arg extends MaybeArray<string> = MaybeArray<string>,
-        Result = Arg extends string[] ? DBRecordsArrayInstance<S> : DBRecordInstance<S>
-      >(
-        idOrIds: Arg,
-        transaction?: Transaction | string
-      ): Promise<Result> => {
-        if (isArray(idOrIds)) {
-          const response = (await this.api?.records.findById<S>(idOrIds, transaction)) as ApiResponse<
-            DBRecord<S>[]
-          >
-          const result = new DBRecordsArrayInstance<S>(response.data, response.total)
-          result.init(this)
-          return result as Result
-        } else {
-          const response = (await this.api?.records.findById<S>(idOrIds, transaction)) as ApiResponse<
-            DBRecord<S>
-          >
-          const result = new DBRecordInstance<S>(response.data)
-          result.init(this)
-          return result as Result
-        }
-      },
-
-      findOne: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
-        labelOrSearchParams?: Q | string,
-        searchParamsOrTransaction?: Q | Transaction | string,
-        transaction?: Transaction | string
-      ): Promise<DBRecordInstance<S>> => {
-        const isTransactionParam = isTransaction(searchParamsOrTransaction)
-        const { searchParams } = createSearchParams<S>(labelOrSearchParams, searchParamsOrTransaction)
-        const tx = isTransactionParam ? searchParamsOrTransaction : transaction
-        const response = await this.api?.records.findOne<S, Q>(searchParams as Q, tx)
-
-        const result = new DBRecordInstance<S, Q>(response.data)
-        result.init(this)
-        return result
-      },
-
-      findUniq: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
-        labelOrSearchParams?: Q | string,
-        searchParamsOrTransaction?: Q | Transaction | string,
-        transaction?: Transaction | string
-      ): Promise<DBRecordInstance<S, Q>> => {
-        const isTransactionParam = isTransaction(searchParamsOrTransaction)
-        const { searchParams } = createSearchParams<S>(labelOrSearchParams, searchParamsOrTransaction)
-        const tx = isTransactionParam ? searchParamsOrTransaction : transaction
-        const response = await this.api?.records.findUniq<S, Q>(searchParams as Q, tx)
-
-        const result = new DBRecordInstance<S, Q>(response.data)
-        result.init(this)
-        return result
-      },
-
-      properties: async (id: string, transaction?: Transaction | string) => {
-        return this.api?.records.properties(id, transaction)
-      },
-
-      relations: async (id: string, transaction?: Transaction | string) => {
-        return await this.api.records.relations(id, transaction)
-      },
-
-      set: async <S extends Schema = any>(
-        id: string,
-        data: DBRecordDraft | InferSchemaTypesWrite<S>,
-        transaction?: Transaction | string
-      ) => {
-        let response
-
-        if (data instanceof DBRecordDraft) {
-          response = await this.api?.records.set<S>(id, data, transaction)
-        } else if (isObjectFlat(data)) {
-          const properties = prepareProperties(data)
-
-          response = await this.api?.records.set<S>(
-            id,
-            new DBRecordDraft({ properties } as {
-              label: string
-              properties: PropertyWithValue[]
-            }),
-            transaction
-          )
-        } else if (isObject(data)) {
-          throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
-        }
-
-        if (response?.success && response?.data) {
-          const result = new DBRecordInstance<S>(response.data)
-          result.init(this)
-          return result
-        }
-
-        return new DBRecordInstance<S>()
-      },
-
-      update: async <S extends Schema = any>(
-        id: string,
-        data: DBRecordDraft | Partial<InferSchemaTypesWrite<S>>,
-        transaction?: Transaction | string
-      ) => {
-        let response
-
-        if (data instanceof DBRecordDraft) {
-          response = await this.api?.records.update<S>(id, data, transaction)
-        } else if (isObjectFlat(data)) {
-          const properties = prepareProperties(data)
-
-          const recordDraft = new DBRecordDraft({ properties } as {
-            label: string
-            properties: PropertyWithValue[]
-          })
-
-          response = await this.api?.records.update<S>(id, recordDraft, transaction)
-        } else if (isObject(data)) {
-          throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
-        }
-
-        if (response?.success && response?.data) {
-          const result = new DBRecordInstance<S>(response.data)
-          result.init(this)
-          return result
-        }
-
-        return new DBRecordInstance<S>()
       }
-    }
-  }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
 
-  public relations = {
-    find: async <S extends Schema = any>({
-      pagination,
-      search,
-      transaction
-    }: {
-      pagination?: Pick<SearchQuery, 'limit' | 'skip'>
-      search?: SearchQuery<S>
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+
+    /**
+     * Detaches (removes) a relation between records
+     * @param source - The source record to remove relation from
+     * @param target - The target record(s) to remove relation to
+     * @param options - Optional detach configuration
+     * @param options.typeOrTypes - The type(s) of relations to remove
+     * @param options.direction - The direction of relations to remove
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response
+     */
+    detach: async (
+      {
+        source,
+        target,
+        options
+      }: {
+        source: DBRecordTarget
+        target: RelationTarget
+        options?: RelationDetachOptions
+      },
       transaction?: Transaction | string
-    }) => {
-      const { searchParams } = createSearchParams<S>(search)
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const recordId = pickRecordId(source)!
+      const path = `/relationships/${recordId}`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'PUT',
+        requestData: {
+          targetIds: this._extractTargetIds(target, 'Detach'),
+          ...(options?.typeOrTypes && { typeOrTypes: options.typeOrTypes }),
+          ...(options?.direction && { direction: options.direction })
+        }
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
 
-      const tx = pickTransaction(transaction)
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
-      return await this.api.relations.find(searchParams, pagination, tx)
+      return response
+    },
+
+    /**
+     * Creates a new record in the database
+     * @param label - The label/type of the record
+     * @param data - The record data, either as a flat object or array of property drafts
+     * @param options - Optional write configuration
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to the created DBRecordInstance
+     * @throws Error if data is not a flat object and createMany should be used instead
+     */
+    create: async <S extends Schema = any>(
+      {
+        label,
+        data,
+        options
+      }: {
+        label: string
+        data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
+        options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'>
+      },
+      transaction?: Transaction | string
+    ): Promise<DBRecordInstance<S>> => {
+      const txId = pickTransactionId(transaction)
+      const path = `/records`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+
+      if (isArray(data) && data.every(isPropertyDraft)) {
+        payload.requestData = { label, properties: data }
+      } else if (isFlatObject(data)) {
+        payload.requestData = { label, payload: data, options }
+      } else if (isObject(data)) {
+        throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
+      }
+
+      this.logger?.({ requestId, path, ...payload })
+      const response = await this.fetcher<ApiResponse<DBRecord<S> | undefined>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      if (response?.success && response?.data) {
+        const result = new DBRecordInstance<S>(response.data)
+        result.init(this)
+        return result
+      }
+
+      return new DBRecordInstance<S>()
+    },
+
+    /**
+     * Creates multiple records in a single operation
+     * @param data - Object containing label, options and data array or object for multiple records
+     * @param data.label - The label/type for all records
+     * @param data.options - Optional write configuration
+     * @param data.data - Array of record data to create
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordsArrayInstance containing created records
+     */
+    createMany: async <S extends Schema = any>(
+      data: {
+        label: string
+        data: MaybeArray<AnyObject>
+        options?: DBRecordCreationOptions
+      },
+      transaction?: Transaction | string
+    ): Promise<DBRecordsArrayInstance<S>> => {
+      const txId = pickTransactionId(transaction)
+      const path = `/records/import/json`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: data
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Array<DBRecord<S>>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      if (response?.success && response?.data) {
+        const dbRecordInstances = (response.data as Array<DBRecord<S>>).map((r) => {
+          const instance = new DBRecordInstance<S>(r)
+          instance.init(this)
+          return instance
+        })
+
+        const result = new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
+        result.init(this)
+        return result
+      }
+
+      return new DBRecordsArrayInstance<S>([])
+    },
+
+    /**
+     * Deletes records matching the search query
+     * @param searchQuery - Query to identify records to delete
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response
+     * @throws EmptyTargetError if query is empty and force delete is not allowed
+     */
+    delete: async <S extends Schema = any>(
+      searchQuery: SearchQuery<S>,
+      transaction?: Transaction | string
+    ) => {
+      if (isEmptyObject(searchQuery.where) && !this?.options?.allowForceDelete) {
+        throw new EmptyTargetError(
+          `You must specify criteria to delete records. Empty criteria are not allowed. If this was intentional, use the Dashboard instead.`
+        )
+      }
+
+      const txId = pickTransactionId(transaction)
+      const path = `/records/delete`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'PUT',
+        requestData: searchQuery
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+
+    /**
+     * Deletes record(s) by ID
+     * @param idOrIds - Single ID or array of IDs to delete
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response
+     */
+    deleteById: async (idOrIds: MaybeArray<string>, transaction?: Transaction | string) => {
+      const txId = pickTransactionId(transaction)
+      const multipleTargets = isArray(idOrIds)
+      const path = multipleTargets ? `/records/delete` : `/records/${idOrIds}`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: multipleTargets ? 'PUT' : 'DELETE',
+        requestData: multipleTargets ? { limit: 1000, where: { $id: { $in: idOrIds } } } : undefined
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+
+    /**
+     * Exports records matching the search query to CSV format
+     * @param searchQuery - Query to identify records to export
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing CSV data
+     */
+    export: async <S extends Schema = any>(
+      searchQuery: SearchQuery<S>,
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/records/export/csv`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: searchQuery
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ dateTime: string; fileContent: string }>>(
+        path,
+        payload
+      )
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+
+    /**
+     * Searches for records matching the query criteria
+     * @param searchQueryWithEntryPoint - Search query with optional entry point ID
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordsArrayInstance containing matched records
+     */
+    find: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+      searchQueryWithEntryPoint: Q & { id?: string },
+      transaction?: Transaction | string
+    ): Promise<DBRecordsArrayInstance<S, Q>> => {
+      const { id, ...searchQuery } = searchQueryWithEntryPoint
+
+      const txId = pickTransactionId(transaction)
+      const path = id ? `/records/${id}/search` : `/records/search`
+
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: searchQuery
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Array<DBRecordInferred<S, Q>>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      const dbRecordInstances = (response.data as Array<DBRecord<S>>).map((r) => {
+        const instance = new DBRecordInstance<S>(r)
+        instance.init(this)
+        return instance
+      })
+
+      const result = new DBRecordsArrayInstance<S, Q>(
+        dbRecordInstances,
+        response.total,
+        searchQueryWithEntryPoint
+      )
+      result.init(this)
+      return result
+    },
+
+    /**
+     * Retrieves record(s) by ID
+     * @param idOrIds - Single ID or array of IDs to retrieve
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordInstance or DBRecordsArrayInstance depending on input
+     */
+    findById: async <
+      S extends Schema = Schema,
+      Arg extends MaybeArray<string> = MaybeArray<string>,
+      Result = Arg extends Array<string> ? DBRecordsArrayInstance<S> : DBRecordInstance<S>
+    >(
+      idOrIds: Arg,
+      transaction?: Transaction | string
+    ): Promise<Result> => {
+      const txId = pickTransactionId(transaction)
+      const path = isArray(idOrIds) ? `/records` : `/records/${idOrIds}`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: isArray(idOrIds) ? 'POST' : 'GET',
+        requestData: isArray(idOrIds) ? { ids: idOrIds } : undefined
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Array<DBRecord<S>> | DBRecord<S>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      if (isArray(idOrIds)) {
+        const dbRecordInstances = (response.data as Array<DBRecord<S>>).map((r) => {
+          const instance = new DBRecordInstance<S>(r)
+          instance.init(this)
+          return instance
+        })
+
+        const result = new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
+        result.init(this)
+        return result as Result
+      } else {
+        const result = new DBRecordInstance<S>(response.data as DBRecord<S>)
+        result.init(this)
+        return result as Result
+      }
+    },
+
+    /**
+     * Finds a single record matching the search query
+     * @param searchQuery - Query to identify the record
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordInstance
+     */
+    findOne: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+      searchQuery: Q,
+      transaction?: Transaction | string
+    ): Promise<DBRecordInstance<S>> => {
+      const txId = pickTransactionId(transaction)
+      const path = `/records/search`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: { ...searchQuery, limit: 1, skip: 0 }
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Array<DBRecordInferred<S, Q>>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+      const [record] = response.data
+
+      const result = new DBRecordInstance<S, Q>(record)
+      result.init(this)
+      return result
+    },
+
+    /**
+     * Finds a unique record matching the search query
+     * @param searchQuery - Query to identify the record
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to DBRecordInstance
+     * @throws NonUniqueResultError if multiple records match the query
+     */
+    findUniq: async <S extends Schema = any, Q extends SearchQuery<S> = SearchQuery<S>>(
+      searchQuery: Q,
+      transaction?: Transaction | string
+    ): Promise<DBRecordInstance<S, Q>> => {
+      const txId = pickTransactionId(transaction)
+      const path = `/records/search`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: { ...searchQuery, limit: 1, skip: 0 }
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Array<DBRecordInferred<S, Q>>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      if (typeof response.total !== 'undefined' && response.total > 1) {
+        throw new NonUniqueResultError(response.total, searchQuery)
+      }
+
+      const [record] = response.data
+
+      const result = new DBRecordInstance<S, Q>(record)
+      result.init(this)
+      return result
+    },
+
+    /**
+     * Sets (overwrites) record data
+     * @param target - The record to update
+     * @param label - The label/type of the record
+     * @param data - The new record data
+     * @param options - Optional write configuration
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to updated DBRecordInstance
+     * @throws Error if data is not a flat object
+     */
+    set: async <S extends Schema = any>(
+      {
+        target,
+        label,
+        data,
+        options
+      }: {
+        target: DBRecordTarget
+        label: string
+        data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
+        options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'>
+      },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const recordId = pickRecordId(target)!
+      const path = `/records/${recordId}`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'PUT',
+        requestData: {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+
+      if (isArray(data) && data.every(isPropertyDraft)) {
+        payload.requestData = { label, properties: data }
+      } else if (isFlatObject(data)) {
+        payload.requestData = { label, data, options }
+      } else if (isObject(data)) {
+        throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
+      }
+
+      this.logger?.({ requestId, path, ...payload })
+      const response = await this.fetcher<ApiResponse<DBRecord<S> | undefined>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      if (response?.success && response?.data) {
+        const result = new DBRecordInstance<S>(response.data)
+        result.init(this)
+        return result
+      }
+
+      return new DBRecordInstance<S>()
+    },
+
+    /**
+     * Updates record data (partial update)
+     * @param target - The record to update
+     * @param label - The label/type of the record
+     * @param data - The partial record data to update
+     * @param options - Optional write configuration
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise resolving to updated DBRecordInstance
+     * @throws Error if data is not a flat object
+     */
+    update: async <S extends Schema = any>(
+      {
+        target,
+        label,
+        data,
+        options
+      }: {
+        target: DBRecordTarget
+        label: string
+        data: Partial<InferSchemaTypesWrite<S>> | Array<PropertyDraft>
+        options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'>
+      },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const recordId = pickRecordId(target)!
+      const path = `/records/${recordId}`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'PATCH',
+        requestData: {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+
+      if (isArray(data) && data.every(isPropertyDraft)) {
+        payload.requestData = { label, properties: data }
+      } else if (isFlatObject(data)) {
+        payload.requestData = { label, data, options }
+      } else if (isObject(data)) {
+        throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
+      }
+
+      this.logger?.({ requestId, path, ...payload })
+      const response = await this.fetcher<ApiResponse<DBRecord<S> | undefined>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      if (response?.success && response?.data) {
+        const result = new DBRecordInstance<S>(response.data)
+        result.init(this)
+        return result
+      }
+
+      return new DBRecordInstance<S>()
     }
   }
 
+  /**
+   * API methods for managing relations between records
+   */
+  public relationships = {
+    /**
+     * Searches for relations matching the query criteria
+     * @param searchQuery - Query to identify relations
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing matched relations
+     */
+    find: async <S extends Schema = any>(searchQuery: SearchQuery<S>, transaction?: Transaction | string) => {
+      const txId = pickTransactionId(transaction)
+      const queryParams = new URLSearchParams()
+
+      if (searchQuery?.limit !== undefined) {
+        queryParams.append('limit', searchQuery.limit.toString())
+      }
+      if (searchQuery?.skip !== undefined) {
+        queryParams.append('skip', searchQuery.skip.toString())
+      }
+
+      const queryString = queryParams.toString() ? '?' + queryParams.toString() : ''
+      const path = `/relationships/search${queryString}`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: searchQuery
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Array<Relation>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    }
+  }
+
+  /**
+   * API methods for managing properties in the database
+   */
   public properties = {
+    /**
+     * Deletes a property by its ID
+     * @param id - The unique identifier of the property to delete
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing the deleted property
+     */
     delete: async (id: string, transaction?: Transaction | string) => {
-      return this.api?.properties.delete(id, transaction)
+      const txId = pickTransactionId(transaction)
+      const path = `/properties/${id}`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'DELETE'
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Property>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
     },
-    find: async <S extends Schema = any>(
-      searchParams: SearchQuery<S>,
-      transaction?: Transaction | string
-    ) => {
-      return this.api?.properties.find<S>(searchParams, transaction)
+
+    /**
+     * Searches for properties based on the provided query
+     * @param searchQuery - Query parameters to filter properties
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing an array of matching properties
+     */
+    find: async <S extends Schema = any>(searchQuery: SearchQuery<S>, transaction?: Transaction | string) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/properties/search`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: searchQuery
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Array<Property>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
     },
+
+    /**
+     * Retrieves a specific property by its ID
+     * @param id - The unique identifier of the property to retrieve
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing the requested property
+     */
     findById: async (id: string, transaction?: Transaction | string) => {
-      return this.api?.properties.findById(id, transaction)
+      const txId = pickTransactionId(transaction)
+      const path = `/properties/${id}`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'GET'
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Property>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
     },
+
+    /**
+     * Retrieves values for a specific property
+     * @param id - The unique identifier of the property
+     * @param options - Optional parameters for pagination, sorting, and filtering
+     * @param options.sort - Sort direction for values ('asc' or 'desc')
+     * @param options.skip - Number of values to skip
+     * @param options.limit - Maximum number of values to return
+     * @param options.query - Filter query for values
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing the property and its values
+     */
     values: async (id: string, options?: PropertyValuesOptions, transaction?: Transaction | string) => {
-      return this.api?.properties.values(id, options, transaction)
+      const txId = pickTransactionId(transaction)
+      const path = `/properties/${id}/values`
+
+      const { sort, skip, limit, query } = options ?? {}
+
+      const queryParams = new URLSearchParams()
+      if (sort !== undefined) queryParams.append('sort', sort)
+      if (skip !== undefined) queryParams.append('skip', skip.toString())
+      if (limit !== undefined) queryParams.append('limit', limit.toString())
+      if (query !== undefined) queryParams.append('query', query)
+
+      const queryString = queryParams.toString()
+      const fullPath = queryString ? `${path}?${queryString}` : path
+
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'GET'
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Property & PropertyValuesData>>(fullPath, payload)
+      this.logger?.({ requestId, path: fullPath, ...payload, responseData: response.data })
+
+      return response
     }
+    // update: () => {
+    //   // @TODO
+    // },
+    // updateValues: (id: string, transaction?: Transaction | string) => {
+    //   // @TODO
+    // },
   }
 
+  /**
+   * API methods for managing labels in the database
+   */
   public labels = {
-    find: async <S extends Schema = any>(
-      searchParams: SearchQuery<S>,
-      transaction?: Transaction | string
-    ) => {
-      return this.api.labels.find<S>(searchParams, transaction)
+    /**
+     * Searches for labels based on the provided query
+     * @param searchQuery - Query parameters to filter labels
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response containing a record of label names and their counts
+     */
+    find: async <S extends Schema = any>(searchQuery: SearchQuery<S>, transaction?: Transaction | string) => {
+      const txId = pickTransactionId(transaction)
+
+      const path = '/labels/search'
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: searchQuery
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Record<string, number>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
     }
   }
 
+  /**
+   * API methods for managing database transactions
+   */
   public tx = {
+    /**
+     * Begins a new database transaction
+     * @param config - Optional configuration object for the transaction
+     * @param config.ttl - Time-to-live in milliseconds for the transaction
+     * @returns A new Transaction instance that can be used for subsequent operations
+     * @throws If the transaction cannot be started
+     */
     begin: async (config?: Partial<{ ttl: number }>) => {
-      const transaction = await this.api?.tx.begin(config)
+      const path = `/tx`
+      const payload = {
+        method: 'POST',
+        requestData: config
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const transaction = await this.fetcher<ApiResponse<{ id: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: transaction.data })
 
       const result = new Transaction(transaction.data.id)
       result.init(this)
       return result
     },
-    commit: async (id: string) => this.api?.tx.commit(id),
-    get: async (id: string) => {
-      const transaction = await this.api?.tx.get(id)
+
+    /**
+     * Commits a transaction, making its changes permanent
+     * @param tx - The ID of the transaction or Transaction instance to commit
+     * @returns An ApiResponse indicating success or failure of the commit
+     * @throws If the transaction cannot be committed or doesn't exist
+     */
+    commit: async (tx: string | Transaction) => {
+      const id = pickTransactionId(tx)!
+      const path = `/tx/${id}/commit`
+      const payload = {
+        method: 'POST',
+        requestData: {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+
+    /**
+     * Retrieves an existing transaction by its ID
+     * @param tx - The ID of the transaction or Transaction instance to retrieve
+     * @returns A Transaction instance representing the retrieved transaction
+     * @throws If the transaction doesn't exist or cannot be retrieved
+     */
+    get: async (tx: string | Transaction) => {
+      const id = pickTransactionId(tx)!
+      const path = `/tx/${id}`
+      const payload = {
+        method: 'GET'
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const transaction = await this.fetcher<ApiResponse<{ id: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: transaction.data })
 
       const result = new Transaction(transaction.data.id)
       result.init(this)
       return result
     },
-    rollback: async (id: string) => this.api?.tx.commit(id)
+
+    /**
+     * Rolls back a transaction, undoing all changes made within it
+     * @param tx - The ID of the transaction or Transaction instance to roll back
+     * @returns An ApiResponse indicating success or failure of the rollback
+     * @throws If the transaction cannot be rolled back or doesn't exist
+     */
+    rollback: async (tx: string | Transaction) => {
+      const id = pickTransactionId(tx)!
+      const path = `/tx/${id}/rollback`
+      const payload = {
+        method: 'POST',
+        requestData: {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    }
   }
 }

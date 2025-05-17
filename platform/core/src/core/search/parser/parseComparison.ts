@@ -1,4 +1,3 @@
-// only Record property (key) + criteria (input)
 import { arrayIsConsistent } from '@/common/utils/arrayIsConsistent'
 import { containsAllowedKeys } from '@/common/utils/containsAllowedKeys'
 import { isArray } from '@/common/utils/isArray'
@@ -6,13 +5,14 @@ import { isObject } from '@/common/utils/isObject'
 import { isPrimitive } from '@/common/utils/isPrimitive'
 import { toBoolean } from '@/common/utils/toBolean'
 import { RUSHDB_KEY_PROPERTIES_META, RUSHDB_VALUE_NULL, ISO_8601_REGEX } from '@/core/common/constants'
-import { PropertyExpression } from '@/core/common/types'
+import { PropertyExpression, VectorExpression } from '@/core/common/types'
 import { DatetimeObject } from '@/core/property/property.types'
 import { QueryCriteriaParsingError } from '@/core/search/parser/errors'
 import {
   COMPARISON_OPERATORS_MAP,
   comparisonOperators,
-  datetimeOperators
+  datetimeOperators,
+  vectorOperators
 } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
@@ -28,6 +28,40 @@ const formatCriteriaValue = (value: unknown): string => {
 
 const formatField = (field: string, options: TSearchQueryBuilderOptions) => {
   return options.nodeAlias ? `${options.nodeAlias}.${field}` : field
+}
+
+const vectorConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {
+  return `\`${options.nodeAlias}\`.\`${field}\` IS NOT NULL AND apoc.convert.fromJsonMap(\`${options.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "vector"`
+}
+
+const formatVectorForQuery = (
+  expression: VectorExpression['$vector'],
+  field: string,
+  options: TSearchQueryBuilderOptions
+) => {
+  const criteria = `${expression.fn}(\`${options.nodeAlias}\`.\`${field}\`, [${expression.query}])`
+  const isComplexQuery =
+    isObject(expression.threshold) &&
+    containsAllowedKeys(expression.threshold, Object.keys(COMPARISON_OPERATORS_MAP))
+
+  if (isComplexQuery) {
+    return Object.entries(expression.threshold)
+      .reduce((acc, [key, value]) => {
+        if (COMPARISON_OPERATORS_MAP[key]) {
+          acc.push(`${criteria} ${COMPARISON_OPERATORS_MAP[key]} ${value}`)
+        }
+        return acc
+      }, [])
+      .join(' AND ')
+  }
+
+  if (expression.fn === 'gds.similarity.euclidean' || expression.fn === 'gds.similarity.euclideanDistance') {
+    // For `euclidean` && `euclideanDistance` `threshold: number` will do `$lte` (`<= ${threshold}`) comparison
+    return `${criteria} ${COMPARISON_OPERATORS_MAP.$lte} ${expression.threshold}`
+  }
+
+  // By default `threshold: number` will do `$gte` (`>= ${threshold}`) comparison
+  return `${criteria} ${COMPARISON_OPERATORS_MAP.$gte} ${expression.threshold}`
 }
 
 const datetimeConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {
@@ -82,6 +116,11 @@ export const parseComparison = (
       return `any(value IN ${field} WHERE ${datetimeQueryPrefix} AND datetime(value) = ${datetimeCriteria})`
     }
 
+    // VECTOR
+    else if (toBoolean(input) && containsAllowedKeys(input, vectorOperators) && '$vector' in input) {
+      return `(${vectorConditionQueryPrefix(key, options)} AND ${formatVectorForQuery(input?.$vector, key, options)})`
+    }
+
     // COMPARISON
     else if (containsAllowedKeys(input, comparisonOperators)) {
       return Object.entries(input).map(([operator, value]) => {
@@ -91,7 +130,6 @@ export const parseComparison = (
           case '$lt':
           case '$lte': {
             if (typeof value === 'number') {
-              //
               return `any(value IN ${field} WHERE value ${COMPARISON_OPERATORS_MAP[operator]} ${value})`
             } else if (
               toBoolean(value) &&

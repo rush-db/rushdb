@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "compose:up": "cd core && docker-compose up",
+    "compose:up": "cd core && docker-compose up --build",
     "start:debug": "cd core && pnpm start:debug",
     "dashboard:dev": "cd dashboard && pnpm dev",
     "dev:platform": "npm-run-all --parallel compose:up start:debug dashboard:dev"

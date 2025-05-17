@@ -1,16 +1,9 @@
-import React, { useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 
 import { Logo } from '~/elements/Logo'
 import { cn } from '~/lib/utils'
 
-import { motion } from 'framer-motion'
-
-import createVideo from '~/assets/videos/create.mp4'
-import deleteVideo from '~/assets/videos/delete.mp4'
-import searchVideo from '~/assets/videos/search.mp4'
 import { Helmet } from 'react-helmet-async'
-
-const videos = [searchVideo, createVideo, deleteVideo]
 
 export const signupTitle = 'Sign Up – RushDB'
 export const signupDescription =
@@ -46,10 +39,6 @@ export function AuthLayout({
   type,
   ...props
 }: TPolymorphicComponentProps<'div', { title?: ReactNode; type: 'signin' | 'signup' | 'recover' | '404' }>) {
-  const [videoIdx, setVideoIdx] = useState(0)
-
-  const videoSrc = videos[videoIdx]
-
   const meta = metadataMap[type] ?? { title: defaultTitle, description: defaultDescription }
 
   return (
@@ -64,19 +53,6 @@ export function AuthLayout({
         <title>{meta.title}</title>
         <meta name="description" content={meta.description} />
       </Helmet>
-
-      <motion.video
-        src={videoSrc}
-        autoPlay
-        muted
-        playsInline
-        aria-hidden
-        className="fixed inset-0 z-0 hidden h-full w-full object-cover opacity-20 sm:block"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 0.2 }}
-        transition={{ duration: 0.5 }}
-        onEnded={() => setVideoIdx((currentIdx) => (currentIdx + 1) % videos.length)}
-      />
 
       <main className="sm:bg-fill/60 relative z-10 flex w-full max-w-xl flex-col items-stretch gap-5 sm:rounded-md sm:border sm:p-5 sm:backdrop-blur-sm">
         <Logo className="mx-auto" />

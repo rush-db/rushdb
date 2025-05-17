@@ -8,7 +8,7 @@ import type { WithProjectID } from '~/features/projects/types'
 
 import { Button } from '~/elements/Button'
 import { TextField } from '~/elements/Input'
-import { PageHeader, PageTitle } from '~/elements/PageHeader'
+import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { Setting, SettingsList } from '~/elements/Setting'
 import { Skeleton } from '~/elements/Skeleton'
 import { DeleteProjectDialog } from '~/features/projects/components/DeleteProjectDialog'
@@ -88,10 +88,12 @@ export function ProjectSettings({ projectId }: WithProjectID) {
       <PageHeader contained>
         <PageTitle>Project Settings</PageTitle>
       </PageHeader>
-      <SettingsList>
-        <ProjectNameSetting projectId={projectId} />
-        <DeleteProjectSetting projectId={projectId} />
-      </SettingsList>
+      <PageContent contained>
+        <SettingsList>
+          <ProjectNameSetting projectId={projectId} />
+          <DeleteProjectSetting projectId={projectId} />
+        </SettingsList>
+      </PageContent>
     </>
   )
 }

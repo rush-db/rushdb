@@ -6,9 +6,7 @@ import { parser } from 'stream-json'
 import { streamValues } from 'stream-json/streamers/StreamValues'
 
 import { ESideEffectType, RunSideEffectMixin } from '@/common/interceptors/run-side-effect.interceptor'
-import { sleep } from '@/common/utils/fetchRetry'
 import { isArray } from '@/common/utils/isArray'
-import { EntityService } from '@/core/entity/entity.service'
 import { ImportService } from '@/core/entity/import-export/import.service'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
@@ -71,12 +69,12 @@ export class BackupService {
         for (const relationship of fileRelationships) {
           relationships.push(relationship)
           if (relationships.length >= batchSize) {
-            await this.processRelationships({ batch: relationships, transaction })
+            await this.processRelationships({ batch: relationships, projectId, transaction })
             relationships = []
           }
         }
         if (relationships.length > 0) {
-          await this.processRelationships({ batch: relationships, transaction })
+          await this.processRelationships({ batch: relationships, projectId, transaction })
         }
 
         break // Exit after processing the top-level JSON structure
@@ -87,13 +85,15 @@ export class BackupService {
 
   private async processRelationships({
     batch,
+    projectId,
     transaction
   }: {
     batch: any[]
+    projectId: string
     transaction: Transaction
   }): Promise<void> {
     console.log(`Processing Relationships batch of size: ${batch.length}`)
-    await this.importService.processRelationshipsChunk({ relationsChunk: batch, transaction })
+    await this.importService.processRelationshipsChunk({ relationsChunk: batch, projectId, transaction })
   }
 
   private async processRecords({
@@ -106,7 +106,7 @@ export class BackupService {
     transaction: Transaction
   }): Promise<void> {
     console.log(`Processing Records batch of size: ${batch.length}`)
-    await this.importService.importRecords({ payload: batch, label: '' }, projectId, transaction)
+    await this.importService.importRecords({ data: batch, label: '' }, projectId, transaction)
   }
 
   async runSideEffects(projectId: string): Promise<void> {

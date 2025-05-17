@@ -3,6 +3,7 @@ import type { ParamsArg } from '@nanostores/router'
 
 import { createRouter, createSearchParams, getPagePath, openPage, redirectPage } from '@nanostores/router'
 import { $platformSettings } from '~/features/auth/stores/settings'
+import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
 
 const userConfirmationLeavePublicRoutes = {
   confirmEmail: '/confirm_email'
@@ -31,6 +32,8 @@ const protectedRoutes = {
   newWorkspace: '/new-workspace',
   newProject: '/projects/new',
   workspaceSettings: '/workspace-settings',
+  workspaceUsers: '/workspace-users',
+  joinWorkspace: '/join-workspace',
   projects: '/',
   workspaceBilling: !$platformSettings.get().data?.selfHosted ? '/billing' : '/',
   profile: '/profile',
@@ -96,3 +99,9 @@ export const openRoute = <PageName extends keyof typeof routes>(
   route: PageName,
   ...params: ParamsArg<typeof routes, PageName>
 ) => openPage($router, route, ...params)
+
+$searchParams.subscribe((params) => {
+  if (params.invite) {
+    $inviteToken.set(params.invite)
+  }
+})

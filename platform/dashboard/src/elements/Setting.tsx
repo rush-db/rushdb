@@ -24,12 +24,7 @@ export function Setting({
     description?: ReactNode
     title: ReactNode
     readOnly?: boolean
-  } & Partial<
-    Pick<
-      FormState<Record<string, unknown>>,
-      'isDirty' | 'isSubmitting' | 'isValid'
-    >
-  >
+  } & Partial<Pick<FormState<Record<string, unknown>>, 'isDirty' | 'isSubmitting' | 'isValid'>>
 >) {
   return (
     <li>
@@ -37,7 +32,7 @@ export function Setting({
         <form {...props}>
           <CardHeader description={description} title={title} />
           {children && <CardBody>{children}</CardBody>}
-          {!readOnly ? (
+          {!readOnly ?
             <CardFooter>
               {isDirty && (
                 <Button type="reset" variant="secondary">
@@ -46,28 +41,18 @@ export function Setting({
               )}
 
               {button ?? (
-                <Button
-                  disabled={!isValid}
-                  loading={isSubmitting}
-                  type="submit"
-                  variant="primary"
-                >
+                <Button disabled={!isValid} loading={isSubmitting} type="submit" variant="primary">
                   Save
                 </Button>
               )}
             </CardFooter>
-          ) : null}
+          : null}
         </form>
       </Card>
     </li>
   )
 }
 
-export function SettingsList({
-  className,
-  ...props
-}: TPolymorphicComponentProps<'ul'>) {
-  return (
-    <ul className={cn('container flex flex-col gap-5', className)} {...props} />
-  )
+export function SettingsList({ className, ...props }: TPolymorphicComponentProps<'ul'>) {
+  return <ul className={cn('flex flex-col gap-5', className)} {...props} />
 }

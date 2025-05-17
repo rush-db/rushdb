@@ -6,11 +6,9 @@ import { Divider } from '~/elements/Divider'
 import { Menu, MenuButton, MenuItem, MenuTitle } from '~/elements/Menu'
 import { Skeleton } from '~/elements/Skeleton'
 
-import {
-  $currentWorkspace,
-  setCurrentWorkspace
-} from '../stores/current-workspace'
+import { $currentWorkspace, setCurrentWorkspace } from '../stores/current-workspace'
 import { $workspacesList } from '../stores/workspaces'
+import { Label } from '~/elements/Label.tsx'
 
 export function ChangeWorkspaceMenu() {
   const { data: currentWorkspace, error, loading } = useStore($currentWorkspace)
@@ -18,20 +16,13 @@ export function ChangeWorkspaceMenu() {
 
   const showNew = !currentWorkspace && !error && !loading
 
-  const triggerText = showNew
-    ? 'Create new'
-    : currentWorkspace?.name ?? 'Loading...'
-
-  // TODO:
-  // const pastOrgsLimit = false
+  const triggerText = showNew ? 'Create new' : (currentWorkspace?.name ?? 'Loading...')
 
   return (
     <Menu
       trigger={
         <MenuButton>
-          <Skeleton enabled={loading && !currentWorkspace}>
-            {triggerText}
-          </Skeleton>
+          <Skeleton enabled={loading && !currentWorkspace}>{triggerText}</Skeleton>
         </MenuButton>
       }
       align="start"
@@ -41,11 +32,14 @@ export function ChangeWorkspaceMenu() {
       {list?.map((workspace, idx) => (
         <Fragment key={workspace.id}>
           {idx !== 0 && <Divider />}
-          <MenuItem
-            icon={<Building2 />}
-            onClick={() => setCurrentWorkspace(workspace.id)}
-          >
-            {workspace.name}
+          <MenuItem icon={<Building2 />} onClick={() => setCurrentWorkspace(workspace.id)}>
+            <div className="flex items-center justify-between gap-5">
+              <div className="flex flex-col text-left">
+                <strong>{workspace.name}</strong>
+                <p className="text-accent text-xs">{workspace.role}</p>
+              </div>
+              {workspace.id === currentWorkspace?.id && <Label>current</Label>}
+            </div>
           </MenuItem>
         </Fragment>
       ))}

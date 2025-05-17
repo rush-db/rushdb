@@ -9,7 +9,13 @@ import { atom } from 'nanostores'
 import { SelectEntityApi } from '~/features/projects/components/SelectEntityApi.tsx'
 import { useSearchQuery } from '~/features/projects/utils.ts'
 import { Editor } from '~/elements/Editor.tsx'
-import { $editorData, rawLabels, rawProperties, rawRecords } from '~/features/projects/stores/raw-api.ts'
+import {
+  $editorData,
+  $selectedOperation,
+  rawLabels,
+  rawProperties,
+  rawRecords
+} from '~/features/projects/stores/raw-api.ts'
 import { DBRecordsArrayInstance } from '@rushdb/javascript-sdk'
 import { $recordRawApiEntity } from '~/features/projects/stores/current-project.ts'
 import { ApiRecordsModal } from '~/features/records/components/ApiRecordsModal.tsx'
@@ -17,6 +23,7 @@ import { IconButton } from '~/elements/IconButton'
 import { Menu, MenuItem, MenuTitle } from '~/elements/Menu.tsx'
 
 import { Divider } from '~/elements/Divider.tsx'
+import { Select } from '~/elements/Select.tsx'
 
 const $recordsData = atom<string>('')
 const $labelsData = atom<string>('')
@@ -293,6 +300,40 @@ const ExampleSelector = () => {
   )
 }
 
+const OperationSelector = () => {
+  const operation = useStore($selectedOperation)
+
+  const options: Array<{ value: ReturnType<typeof $selectedOperation.get>; label: string }> = [
+    { value: 'records.find', label: 'records.find' },
+    { value: 'records.findOne', label: 'records.findOne' },
+    { value: 'records.findById', label: 'records.findById' },
+    { value: 'records.findUniq', label: 'records.findUniq' },
+    { value: 'records.deleteById', label: 'records.deleteById' },
+    { value: 'records.delete', label: 'records.delete' },
+    { value: 'records.createMany', label: 'records.createMany' },
+    { value: 'records.export', label: 'records.export' },
+    { value: 'records.set', label: 'records.set' },
+    { value: 'records.update', label: 'records.update' },
+    { value: 'records.attach', label: 'records.attach' },
+    { value: 'records.detach', label: 'records.detach' },
+    { value: 'labels.find', label: 'labels.find' },
+    { value: 'properties.values', label: 'properties.values' },
+    { value: 'properties.find', label: 'properties.list' },
+    { value: 'relations.find', label: 'relations.find' }
+  ]
+
+  return (
+    <Select
+      onChange={(value: { target: { value: ReturnType<typeof $selectedOperation.get> } }) => {
+        $selectedOperation.set(value.target.value)
+      }}
+      size="small"
+      value={operation}
+      options={options}
+    />
+  )
+}
+
 export function RawApiView() {
   const query = useStore($editorData)
   const entity = useStore($recordRawApiEntity)
@@ -323,7 +364,7 @@ export function RawApiView() {
       searchQuery: JSON.parse(editorData ?? '{}')
     }).then((response) => {
       const { data, total } = response as DBRecordsArrayInstance<any>
-      $recordsData.set(JSON.stringify({ data, total }))
+      $recordsData.set(JSON.stringify({ data: data?.map?.((d) => d.data) ?? data, total }))
     })
 
     findLabels({
@@ -361,8 +402,11 @@ export function RawApiView() {
         <div className="row-span-2 flex h-full min-h-[80vh] flex-col">
           <div className="border-r pr-5">
             <div className="my-5 flex w-full items-center justify-between">
-              <p className="text-content2 text-lg">Query</p>
-              <div className="flex items-center gap-5">
+              <div className="flex w-full items-end gap-3">
+                <div className="flex w-full flex-col">
+                  <p className="text-content2 mb-2 text-lg">Method</p>
+                  <OperationSelector />
+                </div>
                 <ApiRecordsModal />
 
                 <ExampleSelector />
@@ -378,6 +422,8 @@ export function RawApiView() {
                 </Button>
               </div>
             </div>
+            <p className="text-content2 mb-2 text-lg">Payload</p>
+
             <Editor
               defaultLanguage="json"
               value={query}

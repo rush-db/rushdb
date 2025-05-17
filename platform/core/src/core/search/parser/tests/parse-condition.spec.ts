@@ -101,7 +101,7 @@ describe('parseComparison', () => {
     }).toThrow(QueryCriteriaParsingError)
   })
 
-  it('throws error for array in payload', () => {
+  it('throws error for array in data', () => {
     expect(() => {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore

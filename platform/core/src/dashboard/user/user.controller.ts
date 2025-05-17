@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Patch, UseInterceptors } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Headers, Patch, UseInterceptors } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags, ApiExcludeController } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
@@ -9,7 +9,10 @@ import { AuthService } from '@/dashboard/auth/auth.service'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { AuthUser } from '@/dashboard/user/decorators/user.decorator'
 import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
-import { IAuthenticatedUser } from '@/dashboard/user/interfaces/authenticated-user.interface'
+import {
+  IAuthenticatedUser,
+  IAuthenticatedUserWithAccess
+} from '@/dashboard/user/interfaces/authenticated-user.interface'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
@@ -30,17 +33,28 @@ export class UserController {
   @ApiTags('Users')
   @ApiBearerAuth()
   @CommonResponseDecorator(GetUserDto)
-  @AuthGuard(null)
+  @AuthGuard('workspace')
   async getUser(
+    @Headers() headers,
     @AuthUser() user: IUserClaims,
     @TransactionDecorator() transaction: Transaction
-  ): Promise<IAuthenticatedUser> {
+  ): Promise<IAuthenticatedUserWithAccess> {
+    const workspaceId = headers['x-workspace-id']
+
+    if (!workspaceId) {
+      return
+    }
+
     const userEntity = await this.userService.find(user.login, transaction)
+    const userRole = await this.userService.getUserWorkspaceRole(user.login, workspaceId, transaction)
     const userData = userEntity.toJson()
 
     return {
       ...userData,
-      token: this.authService.createToken(userEntity)
+      token: this.authService.createToken(userEntity),
+      currentScope: {
+        role: userRole
+      }
     }
   }
 

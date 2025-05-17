@@ -1,10 +1,17 @@
+import { isArray } from '@/common/utils/isArray'
 import { toBoolean } from '@/common/utils/toBolean'
 import { DEFAULT_RECORD_ALIAS } from '@/core/common/constants'
+import { Where } from '@/core/common/types'
 import { SearchDto } from '@/core/search/dto/search.dto'
+import { buildWhereClause } from '@/core/search/parser/buildWhereClause'
 import { buildOrderByClause } from '@/core/search/parser/orderBy'
 import { pagination } from '@/core/search/parser/pagination'
-import { parse } from '@/core/search/parser/parse'
-import { TSearchSort } from '@/core/search/search.types'
+import { parseCurrentLevel } from '@/core/search/parser/parseCurrentLevel'
+import { parseSubQuery } from '@/core/search/parser/parseSubQuery'
+import { processCriteria } from '@/core/search/parser/processCriteria'
+import { ParseContext } from '@/core/search/parser/types'
+import { splitCriteria } from '@/core/search/parser/utils'
+import { TSearchQueryBuilderOptions, TSearchSort } from '@/core/search/search.types'
 
 export const buildLabelsClause = (labels?: string[]): string => {
   if (!labels || labels.length <= 1) {
@@ -67,20 +74,72 @@ export const buildQueryClause = ({
     .join('\n')
 }
 
-export const buildQuery = (searchParams: SearchDto) => {
-  const parsedWhere = parse(searchParams.where)
+export const parse = (
+  input: Where,
+  options: TSearchQueryBuilderOptions = { nodeAlias: DEFAULT_RECORD_ALIAS }
+) => {
+  const normalizedInput = processCriteria(input)
+
+  const nodeAliases = [options.nodeAlias]
+  const aliasesMap = { $record: options.nodeAlias }
+  const ctx: ParseContext = {
+    nodeAliases,
+    aliasesMap,
+    level: 0,
+    result: { [options.nodeAlias]: '' },
+    withQueryQueue: { [options.nodeAlias]: [] }
+  }
+
+  parseLevel('', normalizedInput, options, ctx)
+
+  return {
+    queryParts: ctx.result,
+    nodeAliases,
+    aliasesMap,
+    where: buildWhereClause(normalizedInput, options, ctx)
+  }
+}
+
+export const parseLevel = (
+  key: string,
+  input: Where,
+  options?: TSearchQueryBuilderOptions,
+  ctx?: ParseContext
+) => {
+  const { currentLevel, subQueries } = splitCriteria(input)
+
+  // SUB QUERY PROCESSING
+  if (toBoolean(subQueries)) {
+    Object.entries(subQueries).forEach(([k, value]) => parseSubQuery(k, value as Where, options, ctx))
+  }
+
+  let result = ''
+
+  if (toBoolean(currentLevel)) {
+    result = parseCurrentLevel(key, currentLevel, options, ctx)
+
+    // @TODO: Parenthesis ??? (...)
+    const queryPart = isArray(result) ? result.filter(toBoolean).join(' AND ') : result
+    ctx.result[options.nodeAlias] = (ctx.result[options.nodeAlias] ?? '') + queryPart
+  }
+
+  return result
+}
+
+export const buildQuery = (searchQuery: SearchDto) => {
+  const parsedWhere = parse(searchQuery.where)
 
   // Sort query parts in ascending order
   const sortedQueryParts = sortQueryParts(parsedWhere.queryParts)
 
-  const pagination = buildPagination(searchParams)
-  const sortParams = sort(searchParams.orderBy)
+  const pagination = buildPagination(searchQuery)
+  const sortParams = sort(searchQuery.orderBy)
 
   const queryClauses = buildQueryClause({
     queryParts: sortedQueryParts,
     pagination,
     sortParams,
-    labelClause: buildLabelsClause(searchParams.labels)
+    labelClause: buildLabelsClause(searchQuery.labels)
   })
 
   return {

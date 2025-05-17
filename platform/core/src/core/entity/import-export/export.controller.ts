@@ -12,7 +12,8 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // POST     /export/json           ✅ INGEST DATA
@@ -27,7 +28,8 @@ import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
   NotFoundInterceptor,
   TransformResponseInterceptor,
   NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor
+  NeogmaTransactionInterceptor,
+  CustomTransactionInterceptor
 )
 export class ExportController {
   constructor(private readonly exportService: ExportService) {}
@@ -37,15 +39,15 @@ export class ExportController {
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async exportCsv(
-    @Body() searchParams: SearchDto = {},
-    @TransactionDecorator() transaction: Transaction,
+    @Body() searchQuery: SearchDto = {},
+    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ) {
     const projectId = request.projectId
 
     const data = await this.exportService.exportRecords({
       projectId,
-      searchParams,
+      searchQuery,
       transaction
     })
 

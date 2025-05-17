@@ -3,17 +3,17 @@
   "address": "928 Conroy Village Suite 785",
   "foundedAt": "1949-10-06T22:07:28.709Z",
   "rating": 1.9,
-  "DEPARTMENT": [
+  "department": [
     {
       "name": "Sports",
       "description": "The sleek and filthy Gloves comes with sky blue LED lighting for smart functionality",
-      "PROJECT": [
+      "project": [
         {
           "name": "Awesome Soft Sausages",
           "description": "The silver Gloves combines Bermuda aesthetics with Zinc-based durability",
           "active": false,
           "budget": 88129927,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Norma O'Hara",
               "position": "Forward Mobility Liaison",
@@ -776,7 +776,7 @@
           "description": "Stylish Ball designed to make you stand out with numb looks",
           "active": true,
           "budget": 68756425,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Roosevelt Leuschke",
               "position": "International Marketing Engineer",
@@ -919,7 +919,7 @@
           "description": "Savor the spicy essence in our Shirt, designed for aged culinary adventures",
           "active": true,
           "budget": 40312347,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Ramiro Fisher",
               "position": "Future Factors Technician",
@@ -2018,7 +2018,7 @@
           "description": "Professional-grade Pants perfect for intrepid training and recreational use",
           "active": true,
           "budget": 67011898,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Carlos Mann",
               "position": "Human Division Architect",
@@ -2739,7 +2739,7 @@
           "description": "New Fish model with 71 GB RAM, 73 GB storage, and second features",
           "active": true,
           "budget": 53241891,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Wanda Lindgren",
               "position": "Investor Solutions Developer",
@@ -4040,13 +4040,13 @@
     {
       "name": "Computers",
       "description": "The Public-key 24/7 throughput Hat offers reliable performance and hefty design",
-      "PROJECT": [
+      "project": [
         {
           "name": "Sleek Metal Shoes",
           "description": "New purple Sausages with ergonomic design for glorious comfort",
           "active": false,
           "budget": 79348258,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Dr. Jerald Mraz V",
               "position": "Senior Integration Agent",
@@ -4962,7 +4962,7 @@
           "description": "Professional-grade Salad perfect for gaseous training and recreational use",
           "active": false,
           "budget": 10356418,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Irene Funk",
               "position": "District Data Supervisor",
@@ -5126,7 +5126,7 @@
           "description": "The Macie Chicken is the latest in a series of ordinary products from Pouros - Schneider",
           "active": true,
           "budget": 39998504,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Patrick Rutherford-Kessler",
               "position": "Human Usability Representative",
@@ -5703,7 +5703,7 @@
           "description": "Bahringer LLC's most advanced Bike technology increases definite capabilities",
           "active": false,
           "budget": 58091263,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Josh Vandervort",
               "position": "Central Infrastructure Coordinator",
@@ -6368,7 +6368,7 @@
           "description": "The Betty Gloves is the latest in a series of unruly products from Mann - Parker",
           "active": false,
           "budget": 34594752,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Jenna Terry",
               "position": "Future Integration Representative",
@@ -7768,13 +7768,13 @@
     {
       "name": "Toys",
       "description": "Our crispy-inspired Shirt brings a taste of luxury to your tame lifestyle",
-      "PROJECT": [
+      "project": [
         {
           "name": "Tasty Cotton Mouse",
           "description": "Luxurious Tuna designed with Metal for fussy performance",
           "active": true,
           "budget": 70215268,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Jared Turner-Stoltenberg DDS",
               "position": "National Metrics Analyst",
@@ -9085,13 +9085,13 @@
     {
       "name": "Books",
       "description": "Introducing the Marshall Islands-inspired Pants, blending gaseous style with local craftsmanship",
-      "PROJECT": [
+      "project": [
         {
           "name": "Electronic Cotton Towels",
           "description": "Introducing the Cook Islands-inspired Chips, blending bowed style with local craftsmanship",
           "active": false,
           "budget": 97805744,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Max Howell",
               "position": "Future Markets Planner",
@@ -10040,7 +10040,7 @@
           "description": "Luxurious Tuna designed with Concrete for tight performance",
           "active": true,
           "budget": 55022594,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Jody Leuschke",
               "position": "Direct Usability Orchestrator",
@@ -11247,7 +11247,7 @@
           "description": "Experience the silver brilliance of our Gloves, perfect for unimportant environments",
           "active": true,
           "budget": 19689603,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Eula Swaniawski",
               "position": "Customer Group Designer",
@@ -11846,13 +11846,13 @@
     {
       "name": "Books",
       "description": "The white Table combines Benin aesthetics with Mendelevium-based durability",
-      "PROJECT": [
+      "project": [
         {
           "name": "Oriental Plastic Bacon",
           "description": "New Towels model with 6 GB RAM, 263 GB storage, and posh features",
           "active": false,
           "budget": 52377354,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Jamie Casper",
               "position": "Chief Communications Orchestrator",
@@ -12608,7 +12608,7 @@
           "description": "Experience the sky blue brilliance of our Bike, perfect for low environments",
           "active": true,
           "budget": 77400047,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Karen Bosco",
               "position": "Central Markets Consultant",
@@ -13088,7 +13088,7 @@
           "description": "The Madie Computer is the latest in a series of pushy products from Boyle - Jacobs",
           "active": true,
           "budget": 49849908,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Horace Krajcik II",
               "position": "Global Web Administrator",
@@ -13207,7 +13207,7 @@
           "description": "The Programmable motivating approach Sausages offers reliable performance and hoarse design",
           "active": true,
           "budget": 89222092,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Holly Torp",
               "position": "Senior Optimization Coordinator",
@@ -13592,13 +13592,13 @@
     {
       "name": "Beauty",
       "description": "Featuring Magnesium-enhanced technology, our Cheese offers unparalleled impressive performance",
-      "PROJECT": [
+      "project": [
         {
           "name": "Gorgeous Rubber Keyboard",
           "description": "New Sausages model with 79 GB RAM, 913 GB storage, and cloudy features",
           "active": false,
           "budget": 16276310,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Kelly Rohan",
               "position": "Senior Communications Representative",
@@ -14228,7 +14228,7 @@
           "description": "Our salty-inspired Salad brings a taste of luxury to your strident lifestyle",
           "active": true,
           "budget": 88692203,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Lora Zemlak",
               "position": "Regional Mobility Manager",
@@ -15074,7 +15074,7 @@
           "description": "Innovative Mouse featuring ironclad technology and Wooden construction",
           "active": true,
           "budget": 54866182,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Ricky Veum",
               "position": "Forward Interactions Specialist",
@@ -16418,7 +16418,7 @@
           "description": "Savor the delicious essence in our Tuna, designed for abandoned culinary adventures",
           "active": true,
           "budget": 42067437,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Vicki Bernier",
               "position": "National Factors Liaison",
@@ -17688,7 +17688,7 @@
           "description": "Featuring Nobelium-enhanced technology, our Car offers unparalleled unwelcome performance",
           "active": false,
           "budget": 39689714,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Kendra Mayert",
               "position": "Human Security Officer",
@@ -18978,13 +18978,13 @@
     {
       "name": "Grocery",
       "description": "Our delicious-inspired Mouse brings a taste of luxury to your shadowy lifestyle",
-      "PROJECT": [
+      "project": [
         {
           "name": "Elegant Steel Soap",
           "description": "Our fresh-inspired Table brings a taste of luxury to your weird lifestyle",
           "active": false,
           "budget": 64997923,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Dr. Pamela Raynor",
               "position": "Corporate Data Assistant",
@@ -19480,7 +19480,7 @@
           "description": "Discover the darling new Cheese with an exciting mix of Plastic ingredients",
           "active": true,
           "budget": 22217005,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Doris Rodriguez",
               "position": "Direct Mobility Planner",
@@ -20003,7 +20003,7 @@
           "description": "Ergonomic Cheese made with Cotton for all-day helpful support",
           "active": true,
           "budget": 38110019,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Bill O'Kon",
               "position": "Internal Branding Designer",
@@ -20304,7 +20304,7 @@
           "description": "Innovative Table featuring inferior technology and Steel construction",
           "active": true,
           "budget": 53179852,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Mr. Theodore Hagenes",
               "position": "Dynamic Data Analyst",
@@ -20881,7 +20881,7 @@
           "description": "New grey Keyboard with ergonomic design for new comfort",
           "active": false,
           "budget": 91419106,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Denise Feil DDS",
               "position": "Forward Communications Agent",
@@ -21777,13 +21777,13 @@
     {
       "name": "Jewelry",
       "description": "The Icie Hat is the latest in a series of silver products from Predovic, Pouros and Hand",
-      "PROJECT": [
+      "project": [
         {
           "name": "Unbranded Steel Table",
           "description": "Simonis Inc's most advanced Hat technology increases weighty capabilities",
           "active": false,
           "budget": 51719931,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Levi Okuneva",
               "position": "Principal Research Officer",
@@ -22447,7 +22447,7 @@
           "description": "The Camilla Cheese is the latest in a series of only products from Nikolaus - Gleason",
           "active": false,
           "budget": 5863548,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Bethany Beatty",
               "position": "International Metrics Planner",
@@ -23667,7 +23667,7 @@
           "description": "Featuring Mendelevium-enhanced technology, our Bike offers unparalleled imaginative performance",
           "active": true,
           "budget": 81935955,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Ronald Grant",
               "position": "National Applications Designer",
@@ -24936,7 +24936,7 @@
           "description": "New turquoise Cheese with ergonomic design for blind comfort",
           "active": true,
           "budget": 78804531,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Laurence Rowe",
               "position": "Future Functionality Strategist",
@@ -25715,13 +25715,13 @@
     {
       "name": "Electronics",
       "description": "Sleek Tuna designed with Granite for present performance",
-      "PROJECT": [
+      "project": [
         {
           "name": "Oriental Steel Soap",
           "description": "Our dog-friendly Shoes ensures tragic comfort for your pets",
           "active": true,
           "budget": 93987437,
-          "EMPLOYEE": [
+          "employee": [
             {
               "name": "Tammy Jacobi",
               "position": "Corporate Communications Analyst",

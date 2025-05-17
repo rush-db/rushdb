@@ -7,13 +7,13 @@ import { UniquenessError } from './errors.js'
 
 export const mergeDefaultsWithPayload = async <S extends Schema = Schema>(
   schema: S,
-  payload: Partial<InferSchemaTypesWrite<S>>
+  data: Partial<InferSchemaTypesWrite<S>>
 ): Promise<InferSchemaTypesWrite<S>> => {
   const defaultPromises = Object.entries(schema).map(async ([key, prop]) => {
     if (
       prop.default &&
       typeof prop.default !== 'undefined' &&
-      typeof payload[key as keyof Partial<InferSchemaTypesWrite<S>>] === 'undefined'
+      typeof data[key as keyof Partial<InferSchemaTypesWrite<S>>] === 'undefined'
     ) {
       return {
         key,
@@ -36,7 +36,7 @@ export const mergeDefaultsWithPayload = async <S extends Schema = Schema>(
     {} as Record<string, PropertyValue>
   )
 
-  return { ...defaults, ...payload } as InferSchemaTypesWrite<S>
+  return { ...defaults, ...data } as InferSchemaTypesWrite<S>
 }
 
 export const pickUniqFieldsFromRecord = <S extends Schema = Schema>(
@@ -57,14 +57,14 @@ export const pickUniqFieldsFromRecord = <S extends Schema = Schema>(
 }
 
 export const pickUniqFieldsFromRecords = <S extends Schema = Schema>(
-  data: Partial<InferSchemaTypesWrite<S>>[],
+  data: Array<Partial<InferSchemaTypesWrite<S>>>,
   schema: S,
   label: string
 ) => {
-  const properties = {} as Record<string, PropertyValue[]>
+  const properties = {} as Record<string, Array<PropertyValue>>
 
   const uniqFields = Object.entries(schema)
-    .filter(([_, config]) => config.uniq)
+    .filter(([, config]) => config.uniq)
     .reduce(
       (acc, [key]) => {
         acc[key] = true
@@ -81,9 +81,9 @@ export const pickUniqFieldsFromRecords = <S extends Schema = Schema>(
           if (properties[key].includes(value as PropertyValue)) {
             throw new UniquenessError(label, { [key]: value })
           }
-          properties[key] = [...properties[key], value] as PropertyValue[]
+          properties[key] = [...properties[key], value] as Array<PropertyValue>
         } else {
-          properties[key] = [value] as PropertyValue[]
+          properties[key] = [value] as Array<PropertyValue>
         }
       }
     })

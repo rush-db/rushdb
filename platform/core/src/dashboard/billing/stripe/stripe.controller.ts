@@ -39,7 +39,7 @@ export class StripeController {
   constructor(private paymentService: StripeService) {}
 
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @Post('payment/create-session')
   async createCheckoutSession(
     @AuthUser() user: IUserClaims,
@@ -55,7 +55,7 @@ export class StripeController {
   }
 
   @ApiBearerAuth()
-  @AuthGuard()
+  @AuthGuard('workspace', 'owner')
   @Post('payment/create-portal-session')
   @HttpCode(HttpStatus.OK)
   async createPortalSession(@AuthUser() user: IUserClaims, @Body() config: Record<string, string>) {
@@ -88,6 +88,9 @@ export class StripeController {
       const event = this.paymentService.constructEvent(rawBody, signature)
 
       switch (event.type) {
+        case 'customer.subscription.created':
+          await this.paymentService.createCustomerPlan(event, transaction)
+          return response.status(HttpStatus.OK).send({ received: true })
         case 'customer.subscription.updated':
           await this.paymentService.updateCustomerPlan(event, transaction)
           return response.status(HttpStatus.OK).send({ received: true })

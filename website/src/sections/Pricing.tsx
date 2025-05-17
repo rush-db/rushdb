@@ -150,7 +150,7 @@ export function Pricing() {
           <Feat title="Unlimited API Requests" />
           <Feat title="10 000 Records" />
           <Feat title="2 Projects" subtitle="Projects are never paused, available for commercial use" />
-          <Feat title="1 Team Member per Project" />
+          <Feat title="1 Team Member" />
           <Feat title="Community Support" />
         </PricingCard>
         {startPrice && (
@@ -166,10 +166,11 @@ export function Pricing() {
               </Button>
             }
           >
-            <Feat title="100 000 Records" />
             <Feat title="Unlimited Projects" />
+            <Feat title="Bring Your Own Neo4j Database" />
+            <Feat title="100 000 Records" subtitle="No limits with your own Neo4j instance" />
             <Feat title="7-Day Backup" subtitle="Coming soon" />
-            <Feat title="3 Team Members per Project" subtitle="Coming soon" />
+            <Feat title="3 Team Members" subtitle="Additional seats $5/month each" />
           </PricingCard>
         )}
         {proPrice && (
@@ -186,10 +187,11 @@ export function Pricing() {
               </Button>
             }
           >
-            <Feat title="1 000 000 Records" />
             <Feat title="Unlimited Projects" />
+            <Feat title="Bring Your Own Neo4j Database" />
+            <Feat title="1 000 000 Records" subtitle="No limits with your own Neo4j instance" />
             <Feat title="30-Day Backup" subtitle="Coming soon" />
-            <Feat title="10 Team Members per Project" subtitle="Coming soon" />
+            <Feat title="10 Team Members" subtitle="Additional seats $5/month each" />
             <Feat title="Priority Support" />
           </PricingCard>
         )}

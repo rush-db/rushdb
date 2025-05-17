@@ -8,6 +8,10 @@ export type TImportRecordsRelation = {
 export type TImportJsonPayload = Record<string, any> | Array<Record<string, any>>
 export type TImportOptions = {
   suggestTypes?: boolean
+  castNumberArraysToVectors?: boolean
+  convertNumericValuesToNumbers?: boolean
+  capitalizeLabels?: boolean
+  relationshipType?: string
   returnResult?: boolean
 }
 export type WithId<T> = T & {

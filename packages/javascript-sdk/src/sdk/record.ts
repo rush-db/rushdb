@@ -1,14 +1,11 @@
 import type {
-  AnyObject,
   ExtractAggregateFields,
   FlattenTypes,
   InferSchemaTypesRead,
   InferSchemaTypesWrite,
   MaybeArray,
   OptionalKeysRead,
-  PropertyType,
-  PropertyValue,
-  PropertyWithValue,
+  PropertyDraft,
   RequiredKeysRead,
   Schema,
   SearchQuery
@@ -65,79 +62,16 @@ export type RelationDirection = 'in' | 'out'
 export type RelationOptions = { direction?: RelationDirection; type?: string }
 export type RelationDetachOptions = {
   direction?: RelationDirection
-  typeOrTypes?: string | string[]
+  typeOrTypes?: MaybeArray<string>
 }
 
-export class DBRecordsBatchDraft {
-  label: string
-  options?: {
-    returnResult?: boolean
-    suggestTypes?: boolean
-  }
-  payload: MaybeArray<AnyObject>
-
-  constructor({
-    label,
-    options = {
-      returnResult: true,
-      suggestTypes: true
-    },
-    payload
-  }: {
-    label: string
-    options?: {
-      returnResult?: boolean
-      suggestTypes?: boolean
-    }
-    payload: AnyObject
-  }) {
-    this.label = label
-    this.options = options
-    this.payload = payload
-  }
-
-  public toJson() {
-    return {
-      label: this.label,
-      options: this.options,
-      payload: this.payload
-    }
-  }
-}
-
-export class DBRecordDraft {
-  label: string
-  properties?: Array<{
-    metadata?: string
-    name: string
-    type: PropertyType
-    value: PropertyValue
-    valueSeparator?: string
-  }>
-
-  constructor({
-    label,
-    properties = []
-  }: {
-    label: string
-    properties?: Array<
-      PropertyWithValue & {
-        metadata?: string
-        valueSeparator?: string
-      }
-    >
-    relation?: RelationOptions
-  }) {
-    this.label = label
-    this.properties = properties
-  }
-
-  public toJson() {
-    return {
-      label: this.label,
-      properties: this.properties
-    }
-  }
+export type DBRecordCreationOptions = {
+  returnResult?: boolean
+  suggestTypes?: boolean
+  castNumberArraysToVectors?: boolean
+  convertNumericValuesToNumbers?: boolean
+  capitalizeLabels?: boolean
+  relationshipType?: string
 }
 
 export class DBRecordInstance<
@@ -151,43 +85,53 @@ export class DBRecordInstance<
     this.data = data
   }
 
-  get id() {
+  id() {
     try {
       return this.data!.__id
     } catch {
-      throw new Error(`DBRecordInstance: Unable to access 'id'. The Record data is undefined.`)
+      throw new Error(
+        `DBRecordInstance: Unable to access 'id'. The Record's \`data.__id\` is missing or incorrect.`
+      )
     }
   }
 
-  get label() {
+  label() {
     try {
       return this.data!.__label
     } catch {
-      throw new Error(`DBRecordInstance: Unable to access 'label'. The Record data is undefined.`)
+      throw new Error(
+        `DBRecordInstance: Unable to access 'label'. The Record's \`data.__label\` is missing or incorrect.`
+      )
     }
   }
 
-  get proptypes() {
+  proptypes() {
     try {
       return this.data!.__proptypes
     } catch {
-      throw new Error(`DBRecordInstance: Unable to access 'proptypes'. The Record data' is undefined.`)
+      throw new Error(
+        `DBRecordInstance: Unable to access 'proptypes'. The Record's \`data.__proptypes\` is missing or incorrect.`
+      )
     }
   }
 
-  get date() {
+  date() {
     try {
-      return idToDate(this.data!.__id)
+      return idToDate(this.id())
     } catch {
-      throw new Error(`DBRecordInstance: Unable to access 'date'. The Record data is undefined.`)
+      throw new Error(
+        `DBRecordInstance: Unable to access 'date'. The Record's \`data.__id\` is missing or incorrect.`
+      )
     }
   }
 
-  get timestamp() {
+  timestamp() {
     try {
-      return idToTimestamp(this.data!.__id)
+      return idToTimestamp(this.id())
     } catch {
-      throw new Error(`DBRecordInstance: Unable to access 'timestamp'. The Record data is undefined.`)
+      throw new Error(
+        `DBRecordInstance: Unable to access 'timestamp'. The Record's \`data.__id\` is missing or incorrect.`
+      )
     }
   }
 
@@ -196,29 +140,29 @@ export class DBRecordInstance<
       throw new Error('DBRecordInstance: Unable to delete Record. The Record data is undefined.')
     }
 
-    return await this.apiProxy.records.deleteById(this.data.__id, transaction)
+    return await this.apiProxy.records.deleteById(this.id(), transaction)
   }
 
   async update<S extends Schema = Schema>(
-    partialData: DBRecordDraft | Partial<InferSchemaTypesWrite<S>>,
+    data: Partial<InferSchemaTypesWrite<S>> | Array<PropertyDraft>,
     transaction?: Transaction | string
   ) {
     if (!this.data) {
       throw new Error('DBRecordInstance: Unable to update Record. The Record data is undefined.')
     }
 
-    return this.apiProxy.records.update(this.data.__id, partialData, transaction)
+    return this.apiProxy.records.update({ label: this.label(), target: this.id(), data }, transaction)
   }
 
   async set<S extends Schema = Schema>(
-    data: DBRecordDraft | InferSchemaTypesWrite<S>,
+    data: InferSchemaTypesWrite<S> | Array<PropertyDraft>,
     transaction?: Transaction | string
   ) {
     if (!this.data) {
       throw new Error('DBRecordInstance: Unable to set. The Record data is undefined.')
     }
 
-    return this.apiProxy.records.set(this.data.__id, data, transaction)
+    return this.apiProxy.records.set({ label: this.label(), target: this.id(), data }, transaction)
   }
 
   async attach(target: RelationTarget, options?: RelationOptions, transaction?: Transaction | string) {
@@ -226,7 +170,7 @@ export class DBRecordInstance<
       throw new Error('DBRecordInstance: Unable to attach Record. The Record data is undefined.')
     }
 
-    return this.apiProxy.records.attach(this.data.__id, target, options, transaction)
+    return this.apiProxy.records.attach({ source: this.id(), target, options }, transaction)
   }
 
   async detach(target: RelationTarget, options?: RelationDetachOptions, transaction?: Transaction | string) {
@@ -234,7 +178,7 @@ export class DBRecordInstance<
       throw new Error('DBRecordInstance: Unable to detach Record. The Record data is undefined.')
     }
 
-    return this.apiProxy.records.detach(this.data.__id, target, options, transaction)
+    return this.apiProxy.records.detach({ source: this.id(), target, options }, transaction)
   }
 }
 
@@ -242,16 +186,17 @@ export class DBRecordsArrayInstance<
   S extends Schema = Schema,
   Q extends SearchQuery<S> = SearchQuery<S>
 > extends RestApiProxy {
-  data?: DBRecordInferred<S, Q>[]
+  data?: Array<DBRecordInstance<S, Q>>
   total: number | undefined
-  searchParams?: SearchQuery<S>
+  searchQuery?: SearchQuery<S>
 
-  constructor(data?: DBRecordInferred<S, Q>[], total?: number, searchParams?: SearchQuery<S>) {
+  constructor(data?: Array<DBRecordInstance<S, Q>>, total?: number, searchQuery?: SearchQuery<S>) {
     super()
     this.data = data
     this.total = total
-    this.searchParams = searchParams
+    this.searchQuery = searchQuery
   }
 
-  // @TODO: Bulk actions: Delete (by ids or searchParams?); Export to csv; Props update for found Records; Attach/Detach
+  // @TODO: Bulk actions: Delete (by ids or searchQuery?); Export to csv; Props update for found Records; Attach/Detach
+  // @TODO: Create next({preserveData?: boolean}) method (or smth similar) to fetch next portion of data based on this.searchQuery
 }

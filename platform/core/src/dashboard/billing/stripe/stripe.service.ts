@@ -1,15 +1,15 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common'
+import { forwardRef, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import axios, { AxiosRequestConfig } from 'axios'
 import { Transaction } from 'neo4j-driver'
 import Stripe from 'stripe'
 
+import { isProductionMode } from '@/common/utils/isProductionMode'
 import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
+import { TPlan } from '@/dashboard/billing/stripe/interfaces/stripe.types'
 import { PlansDto } from '@/dashboard/billing/stripe/plans.dto'
 import { getPlanKeyByPriceId } from '@/dashboard/billing/stripe/stripe.utils'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import axios, { AxiosRequestConfig } from 'axios'
-import { TPlan } from '@/dashboard/billing/stripe/interfaces/stripe.types'
-import { isProductionMode } from '@/common/utils/isProductionMode'
 
 @Injectable()
 export class StripeService {
@@ -61,23 +61,46 @@ export class StripeService {
     await this.stripe.customers.update(customerId, updates)
   }
 
+  async getPrices() {
+    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
+      ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
+    } as AxiosRequestConfig)
+
+    return data
+  }
+
   async createCustomerPlan(payload: Stripe.Event, transaction: Transaction) {
-    const session = payload.data.object as Stripe.Checkout.Session
-    const subscriptionId = session.subscription
+    const stripePayload = payload.data.object
 
-    const userEmail = session.customer_email || (await this.stripe.customers.retrieve(session.customer)).email
+    const isCheckoutSession = 'object' in stripePayload && stripePayload.object === 'checkout.session'
+    const isSubscription = 'object' in stripePayload && stripePayload.object === 'subscription'
 
-    if (subscriptionId) {
-      const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
-        ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
-      } as AxiosRequestConfig)
+    let subscriptionId: string
+    let userEmail: string
+
+    if (isCheckoutSession) {
+      const session = stripePayload as Stripe.Checkout.Session
+      subscriptionId = session.subscription as string
+      userEmail = session.customer_email || (await this.stripe.customers.retrieve(session.customer)).email
+    } else if (isSubscription) {
+      const subscription = stripePayload as Stripe.Subscription
+      subscriptionId = subscription.id
+
+      const customer = await this.stripe.customers.retrieve(subscription.customer as string)
+      userEmail = customer.email
+    } else {
+      throw new HttpException('Unsupported event payload.', HttpStatus.BAD_REQUEST)
+    }
+
+    if (subscriptionId && userEmail) {
+      const prices = await this.getPrices()
 
       const subscription = await this.stripe.subscriptions.retrieve(subscriptionId)
       const planId = subscription.items.data[0].plan.id
       const validTill = new Date(subscription.current_period_end * 1000)
 
-      const targetId = await this.workspaceService.findUserWorkspace(userEmail, transaction)
-      const plan = getPlanKeyByPriceId(planId, data)
+      const targetId = await this.workspaceService.findUserBillingWorkspace(userEmail, transaction)
+      const plan = getPlanKeyByPriceId(planId, prices)
 
       await this.workspaceService.patchWorkspace(
         targetId,
@@ -95,9 +118,7 @@ export class StripeService {
   async updateCustomerPlan(payload: Stripe.Event, transaction: Transaction) {
     const updatedSubscription = payload.data.object as Stripe.Subscription
 
-    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
-      ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
-    } as AxiosRequestConfig)
+    const prices = await this.getPrices()
 
     const customer = await this.stripe.customers.retrieve(updatedSubscription.customer as string)
     const userEmail = customer.email
@@ -106,8 +127,8 @@ export class StripeService {
     const updateStatus = updatedSubscription.status
     const updatedValidTill = new Date(updatedSubscription.current_period_end * 1000)
 
-    const targetId = await this.workspaceService.findUserWorkspace(userEmail, transaction)
-    const plan = getPlanKeyByPriceId(updatedPlanId, data)
+    const targetId = await this.workspaceService.findUserBillingWorkspace(userEmail, transaction)
+    const plan = getPlanKeyByPriceId(updatedPlanId, prices)
 
     if ('cancel_at_period_end' in payload.data.object && payload.data.object.cancel_at_period_end === true) {
       await this.workspaceService.patchWorkspace(
@@ -137,7 +158,7 @@ export class StripeService {
     const customer = await this.stripe.customers.retrieve(deletedSubscription.customer as string)
     const userEmail = customer.email
 
-    const targetId = await this.workspaceService.findUserWorkspace(userEmail, transaction)
+    const targetId = await this.workspaceService.findUserBillingWorkspace(userEmail, transaction)
     await this.workspaceService.dropWorkspaceSubscription(targetId, transaction)
   }
 
@@ -158,10 +179,8 @@ export class StripeService {
     { id, period, returnUrl }: PlansDto,
     email: string
   ): Promise<Stripe.Checkout.Session> {
-    const { data } = await axios.get<TPlan>('https://billing.rushdb.com/api/prices', {
-      ...(!isProductionMode() && { headers: { 'x-env-id': 'dev' } })
-    } as AxiosRequestConfig)
-    const { priceId } = data[id][period]
+    const prices = await this.getPrices()
+    const { priceId } = prices[id][period]
 
     const customer: Stripe.Customer = await this.getCustomerByEmail(email)
 
@@ -176,7 +195,10 @@ export class StripeService {
       currency: 'usd',
       mode: 'subscription',
       success_url: `${returnUrl}?payment_successful=true`,
-      cancel_url: `${returnUrl}?payment_successful=false`
+      cancel_url: `${returnUrl}?payment_successful=false`,
+      subscription_data: {
+        trial_period_days: 14
+      }
     })
   }
 

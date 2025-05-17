@@ -66,7 +66,7 @@ const data = {
     rating: 4.9
 }
 
-const record = await db.records.create("COMPANY", data)
+const record = await db.records.create({label: "COMPANY", data})
 ```
 
 #### Query Records
@@ -137,22 +137,28 @@ options = RelationshipOptions(type="HAS_EMPLOYEE")
 # create Relationship
 project.attach(employee, options)
 
-# delete Relationship
+# deleteById Relationship
 project.detach(employee)
 ___SPLIT___
-const project = await db.records.create('PROJECT', {
-    name: 'Secret Project',
-    budget: 1000000
-})
+const project = await db.records.create({
+    label: 'PROJECT',
+    data: {
+        name: 'Secret Project',
+        budget: 1000000
+    }
+)
 
-const employee = await db.records.create('EMPLOYEE', {
-    name: 'Nikola Tesla'
-})
+const employee = await db.records.create({
+    label: 'EMPLOYEE',
+    data: {
+        name: 'Nikola Tesla'
+    }
+)
 
 // create Relationship
 await project.attach(employee, { type: 'HAS_EMPLOYEE' })
 
-// delete Relationship
+// deleteById Relationship
 await project.detach(employee)
 ```
 
@@ -297,14 +303,20 @@ const tx = await db.tx.begin();
 
 try {
   // Create some Records
-  const item = await db.records.create('ITEM', {
-    title: 'Nike Air Max 270',
-    price: 150
+  const item = await db.records.create({
+    label: 'ITEM',
+    data: {
+      title: 'Nike Air Max 270',
+      price: 150
+    }
   }, tx);
 
-  const owner = await db.records.create('OWNER', {
-    name: 'Jane Smith',
-    email: 'janesmith@example.com',
+  const owner = await db.records.create({
+    label: 'OWNER',
+    data: {
+      name: 'Jane Smith',
+      email: 'janesmith@example.com'
+    }
   }, tx);
 
   // create Relationship

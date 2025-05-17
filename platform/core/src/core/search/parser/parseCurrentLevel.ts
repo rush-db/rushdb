@@ -12,7 +12,12 @@ import { parseSubQuery } from '@/core/search/parser/parseSubQuery'
 import { processLogicalGroupedCriteria } from '@/core/search/parser/processLogicalGroupedCriteria'
 import { ParseContext } from '@/core/search/parser/types'
 import { splitCriteria, wrapInParentheses } from '@/core/search/parser/utils'
-import { comparisonOperators, datetimeOperators, ID_CLAUSE_OPERATOR } from '@/core/search/search.constants'
+import {
+  comparisonOperators,
+  datetimeOperators,
+  ID_CLAUSE_OPERATOR,
+  vectorOperators
+} from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
 export const parseCurrentLevel = (
@@ -44,7 +49,9 @@ export const parseCurrentLevel = (
         return parseSubQuery(k, value as Where, options, ctx)
       })
     } else {
-      if (containsAllowedKeys(currentLevel, [...comparisonOperators, ...datetimeOperators])) {
+      if (
+        containsAllowedKeys(currentLevel, [...comparisonOperators, ...datetimeOperators, ...vectorOperators])
+      ) {
         const condition = parseComparison(key, currentLevel as PropertyExpression, options)
 
         // @TODO: Parenthesis ??? (...)

@@ -7,6 +7,7 @@ type TWorkspaceLimits = {
   records: number
   importSize: number
   projects?: number
+  users?: number
 }
 
 type TWorkspaceProperties = {
@@ -18,6 +19,7 @@ type TWorkspaceProperties = {
   s3Bucket?: string
   s3User?: string
   s3Password?: string
+  pendingInvites?: string
 
   // @FYI: Andrew - those below are billing related fields:
   limits: string

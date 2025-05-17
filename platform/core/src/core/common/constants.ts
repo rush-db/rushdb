@@ -2,6 +2,8 @@
 export const RUSHDB_KEY_ID = '__RUSHDB__KEY__ID__' as const
 export const RUSHDB_KEY_PROJECT_ID = '__RUSHDB__KEY__PROJECT__ID__' as const
 export const RUSHDB_KEY_LABEL = '__RUSHDB__KEY__LABEL__' as const
+// Dynamically calculated property
+export const RUSHDB_KEY_SIMILARITY = '__RUSHDB__KEY__RUSHDB_KEY_SIMILARITY__' as const
 
 export const RUSHDB_KEY_PROPERTIES_META = '__RUSHDB__KEY__PROPERTIES__META__' as const
 

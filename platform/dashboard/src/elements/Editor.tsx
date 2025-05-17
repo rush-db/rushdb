@@ -63,6 +63,14 @@ export const Editor = ({
         onMount={(editor) => {
           setEditor(editor)
           editor.getAction('editor.action.formatDocument')?.run()
+
+          editor.onDidBlurEditorWidget(() => {
+            editor.getAction('editor.action.formatDocument')?.run()
+          })
+
+          editor.onDidFocusEditorWidget(() => {
+            editor.getAction('editor.action.formatDocument')?.run()
+          })
         }}
         defaultLanguage={defaultLanguage}
         value={value}

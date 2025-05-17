@@ -6,7 +6,7 @@ import { GoogleButton } from '~/features/auth/components/GoogleButton'
 import { createUser } from '~/features/auth/stores/auth'
 import { AuthLayout } from '~/layout/AuthLayout'
 import { object, string, useForm } from '~/lib/form'
-import { getRoutePath } from '~/lib/router'
+import { $searchParams, getRoutePath } from '~/lib/router'
 import { useStore } from '@nanostores/react'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { useMemo } from 'react'
@@ -62,21 +62,23 @@ function SignUpForm() {
 }
 
 export function SignUpPage() {
-  const platformSettings = useStore($platformSettings)
+  const { loading, data: platformSettings } = useStore($platformSettings)
+  const search = useStore($searchParams)
+  const invite = search.invite
 
   const hasGoogleOAuth = useMemo(
-    () => platformSettings.data?.googleOAuthEnabled,
-    [platformSettings.data?.googleOAuthEnabled]
+    () => platformSettings?.googleOAuthEnabled,
+    [platformSettings?.googleOAuthEnabled]
   )
 
   const hasGithubOAuth = useMemo(
-    () => platformSettings.data?.githubOAuthEnabled,
-    [platformSettings.data?.githubOAuthEnabled]
+    () => platformSettings?.githubOAuthEnabled,
+    [platformSettings?.githubOAuthEnabled]
   )
 
   const hasOauth = useMemo(() => hasGoogleOAuth || hasGithubOAuth, [hasGoogleOAuth, hasGithubOAuth])
 
-  if (platformSettings.loading) {
+  if (loading) {
     return (
       <AuthLayout title={'Sign in to RushDB'} type="signin">
         <div className="m-auto flex content-center items-center justify-between">
@@ -92,7 +94,7 @@ export function SignUpPage() {
         <>
           <div className="flex w-full justify-between gap-2">
             {hasGoogleOAuth ?
-              <GoogleButton />
+              <GoogleButton invite={invite} />
             : null}
             {hasGithubOAuth ?
               <GithubButton />

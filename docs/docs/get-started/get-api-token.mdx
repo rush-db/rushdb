@@ -1,0 +1,89 @@
+---
+title: Get API Token
+description: Learn how to get your RushDB API token
+sidebar_position: 2
+---
+
+# Get API Token
+
+To use RushDB, you'll need an API token for authentication. Here's how to get one:
+
+## 1. Create an Account
+
+Visit [RushDB Dashboard](https://dashboard.rushdb.com) and sign up for an account if you haven't already.
+
+## 2. Create a Project
+
+1. After signing in, click on "New Project"
+2. Enter a name for your project
+3. Choose your preferred region
+4. Click "Create"
+
+## 3. Generate API Token
+
+1. In your project dashboard, navigate to the "API Tokens" section
+2. Click "Generate New Token"
+3. Give your token a name (e.g., "Development", "Production")
+4. Choose the appropriate permissions:
+   - `read` - Read access to records and relationships
+   - `write` - Create and update records and relationships
+   - `delete` - Delete records and relationships
+   - `admin` - Full access, including managing project settings
+5. Click "Generate Token"
+
+## 4. Copy and Store Your Token
+
+Your API token will be displayed only once. Make sure to:
+
+1. Copy the token immediately
+2. Store it securely
+3. Never commit it to version control
+4. Use environment variables or secure configuration management
+
+Example of using environment variables:
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+```typescript
+// Load from environment variable
+const db = new RushDB({
+  apiToken: process.env.RUSHDB_API_TOKEN
+});
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python
+import os
+
+db = RushDB(api_token=os.environ['RUSHDB_API_TOKEN'])
+```
+  </TabItem>
+  <TabItem value="rest" label="REST API">
+```bash
+# Set in your shell
+export RUSHDB_API_TOKEN='your-api-token'
+
+# Use in requests
+curl -H "Token: $RUSHDB_API_TOKEN" \
+  https://api.rushdb.com/api/v1/records
+```
+  </TabItem>
+</Tabs>
+
+## Token Security
+
+- Keep your tokens secure and private
+- Rotate tokens periodically
+- Use different tokens for development and production
+- Limit token permissions to only what's needed
+- Monitor token usage in the dashboard
+- Revoke tokens immediately if compromised
+
+## Next Steps
+
+- Follow the [Quick Tutorial](../get-started/quick-tutorial) to start using your token
+- Learn about [RushDB](../concepts/records)
+- Check out the [Basic Concepts](../concepts/records)
