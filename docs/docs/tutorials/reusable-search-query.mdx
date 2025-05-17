@@ -317,9 +317,9 @@ To implement this pattern:
 <Tabs groupId="programming-language">
   <TabItem value="typescript" label="TypeScript" default>
 ```typescript
-// User selects a categoryId filter
+// User selects a category filter
 const filterQuery = {
-  where: { categoryId: "electronics" }
+  where: { category: "electronics" }
 };
 
 // Get filtered products
@@ -337,9 +337,9 @@ const dynamicFilters = generateFiltersFromProperties(availableProperties);
   </TabItem>
   <TabItem value="python" label="Python">
 ```python
-# User selects a categoryId filter
+# User selects a category filter
 filter_query = {
-  "where": {"categoryId": "electronics"}
+  "where": {"category": "electronics"}
 }
 
 # Get filtered products
@@ -394,8 +394,9 @@ console.log("Discovered entity types:", Object.keys(availableLabels));
 
 // Explore properties of a specific label
 const personProperties = await db.properties.find({
+  labels: ["PERSON"],
   where: {
-    recordLabels: { $contains: ["PERSON"] }
+    // ...
   }
 });
 
@@ -412,8 +413,9 @@ print("Discovered entity types:", list(available_labels.keys()))
 
 # Explore properties of a specific label
 person_properties = db.properties.find({
+  "labels": ["PERSON"],
   "where": {
-    "recordLabels": {"$contains": ["PERSON"]}
+    // ...
   }
 })
 
