@@ -42,7 +42,7 @@ For example:
     const profile = await db.record.create(
       {
         label: "Profile",
-        payload: {
+        data: {
           bio: "Software engineer",
           joinDate: new Date().toISOString()
         }
@@ -82,7 +82,7 @@ For example:
         # Create a new user record within the transaction
         user = db.records.create(
             label="User",
-            payload={
+            data={
                 "name": "Alice Smith",
                 "email": "alice@example.com",
                 "emailConfirmed": False
@@ -93,7 +93,7 @@ For example:
         # Create a related profile record within the same transaction
         profile = db.records.create(
             label="Profile",
-            payload={
+            data={
                 "bio": "Software engineer",
                 "joinDate": datetime.now().isoformat()
             },
@@ -253,7 +253,7 @@ When upgrading data structures or transforming records, transactions ensure that
       await db.records.create(
         {
           label: "Person",
-          payload: {
+          data: {
             fullName: `${user.firstName} ${user.lastName}`,
             email: user.email,
             migratedFrom: user.__id
@@ -280,7 +280,7 @@ When upgrading data structures or transforming records, transactions ensure that
             # Create new format record
             db.records.create(
                 label="Person",
-                payload={
+                data={
                     "fullName": f"{user.get('firstName')} {user.get('lastName')}",
                     "email": user.get('email'),
                     "migratedFrom": user.get('__id')

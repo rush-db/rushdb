@@ -16,7 +16,7 @@ export const createEntitySchema = Joi.alternatives().try(
   }),
   Joi.object({
     label: Joi.string(),
-    payload: Joi.object().pattern(
+    data: Joi.object().pattern(
       Joi.string().min(1).max(100),
       Joi.alternatives().try(
         nullValueSchema,

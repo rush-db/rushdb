@@ -399,7 +399,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
 
       // Create records in the database
       const createdRecords = await this.apiProxy.records.createMany<S>(
-        { label: this.label, payload: recordsToStore },
+        { label: this.label, data: recordsToStore },
         tx
       )
 

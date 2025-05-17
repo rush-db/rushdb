@@ -187,7 +187,7 @@ function EditorStep() {
               return
             }
             mutate({
-              payload: JSON.parse($editorData.get()),
+              data: JSON.parse($editorData.get()),
               label,
               options: {
                 suggestTypes,

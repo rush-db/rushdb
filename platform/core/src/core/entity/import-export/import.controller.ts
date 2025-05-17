@@ -93,7 +93,7 @@ export class ImportController {
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId
 
-    const result = parse(body.payload, {
+    const result = parse(body.data, {
       header: true,
       dynamicTyping: body?.options?.suggestTypes ?? false,
       delimiter: ','
@@ -101,7 +101,7 @@ export class ImportController {
 
     return await this.importService.importRecords(
       {
-        payload: result.data,
+        data: result.data,
         options: body.options,
         label: body.label
       },

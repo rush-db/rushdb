@@ -21,14 +21,14 @@ All create record endpoints require authentication using a token header.
 POST /api/v1/records
 ```
 
-This endpoint creates a record with the provided label and payload.
+This endpoint creates a record with the provided label and data.
 
 ### Request Body
 
 | Field       | Type   | Description |
 |-------------|--------|-------------|
 | `label`     | String | Label for the new record |
-| `payload`   | Object | Object containing property name/value pairs |
+| `data`   | Object | Object containing property name/value pairs |
 | `options`   | Object | Optional configuration parameters |
 
 #### Options Object
@@ -38,14 +38,13 @@ This endpoint creates a record with the provided label and payload.
 | `suggestTypes` | Boolean | `true` | When true, automatically infers data types for properties |
 | `castNumberArraysToVectors` | Boolean | `false` | When true, converts numeric arrays to vector type |
 | `convertNumericValuesToNumbers` | Boolean | `false` | When true, converts string numbers to number type |
-| `capitalizeLabels` | Boolean | `false` | When true, converts all labels to uppercase |
 
 ### Example Request
 
 ```json
 {
   "label": "Person",
-  "payload": {
+  "data": {
     "name": "John Doe",
     "age": "30",
     "isActive": true,

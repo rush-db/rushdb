@@ -55,7 +55,7 @@ export class PropertyValuesPipe implements PipeTransform {
       })
 
       return { ...value, properties: normalizeProperties(value.properties) }
-    } else if (metadata.type === 'body' && 'payload' in value) {
+    } else if (metadata.type === 'body' && 'data' in value) {
       // @TODO: Implement schema schema validation https://github.com/rush-db/rushdb/issues/43
 
       return normalizeRecord(value as CreateEntityDtoSimple)

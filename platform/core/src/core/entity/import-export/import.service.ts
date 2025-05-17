@@ -149,7 +149,7 @@ export class ImportService {
   }
 
   serializeBFS(
-    payload: TImportJsonPayload,
+    data: TImportJsonPayload,
     label: string,
     options: TImportOptions
   ): [Array<WithId<CreateEntityDto>>, TImportRecordsRelation[]] {
@@ -158,8 +158,8 @@ export class ImportService {
 
     const queue: Array<TImportQueue> = []
 
-    if (isArray(payload) && payload.length > 0) {
-      payload.forEach((value: WithId<CreateEntityDto>) =>
+    if (isArray(data) && data.length > 0) {
+      data.forEach((value: WithId<CreateEntityDto>) =>
         queue.push({
           ...options,
           key: options.capitalizeLabels ? label.toUpperCase() : label,
@@ -168,11 +168,11 @@ export class ImportService {
         })
       )
     } else {
-      const skip = !toBoolean(Object.keys(pickPrimitives(payload)).length)
+      const skip = !toBoolean(Object.keys(pickPrimitives(data)).length)
       queue.push({
         ...options,
         key: options.capitalizeLabels ? label.toUpperCase() : label,
-        value: payload,
+        value: data,
         target: null,
         // @FYI: Skip creation redundant start Record with no meaningful data:
         // { someObject: {...} } previously led to creation of two records instead of one =>
@@ -261,7 +261,7 @@ export class ImportService {
 
   async importRecords(
     {
-      payload,
+      data,
       label,
       options = {
         suggestTypes: true,
@@ -277,7 +277,7 @@ export class ImportService {
     const runner = queryRunner || this.compositeNeogmaService.createRunner()
 
     // @FYI: Approximate time for 25MB JSON: 2.5s. RUST WASM?))))))
-    const [records, relations] = this.serializeBFS(payload, label, options)
+    const [records, relations] = this.serializeBFS(data, label, options)
 
     // Will throw error if the amount of uploading Records is more than allowed by current plan
     await this.checkLimits(records.length, projectId, transaction)

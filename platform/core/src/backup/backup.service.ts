@@ -106,7 +106,7 @@ export class BackupService {
     transaction: Transaction
   }): Promise<void> {
     console.log(`Processing Records batch of size: ${batch.length}`)
-    await this.importService.importRecords({ payload: batch, label: '' }, projectId, transaction)
+    await this.importService.importRecords({ data: batch, label: '' }, projectId, transaction)
   }
 
   async runSideEffects(projectId: string): Promise<void> {

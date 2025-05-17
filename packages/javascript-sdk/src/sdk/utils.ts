@@ -7,13 +7,13 @@ import { UniquenessError } from './errors.js'
 
 export const mergeDefaultsWithPayload = async <S extends Schema = Schema>(
   schema: S,
-  payload: Partial<InferSchemaTypesWrite<S>>
+  data: Partial<InferSchemaTypesWrite<S>>
 ): Promise<InferSchemaTypesWrite<S>> => {
   const defaultPromises = Object.entries(schema).map(async ([key, prop]) => {
     if (
       prop.default &&
       typeof prop.default !== 'undefined' &&
-      typeof payload[key as keyof Partial<InferSchemaTypesWrite<S>>] === 'undefined'
+      typeof data[key as keyof Partial<InferSchemaTypesWrite<S>>] === 'undefined'
     ) {
       return {
         key,
@@ -36,7 +36,7 @@ export const mergeDefaultsWithPayload = async <S extends Schema = Schema>(
     {} as Record<string, PropertyValue>
   )
 
-  return { ...defaults, ...payload } as InferSchemaTypesWrite<S>
+  return { ...defaults, ...data } as InferSchemaTypesWrite<S>
 }
 
 export const pickUniqFieldsFromRecord = <S extends Schema = Schema>(
@@ -64,7 +64,7 @@ export const pickUniqFieldsFromRecords = <S extends Schema = Schema>(
   const properties = {} as Record<string, Array<PropertyValue>>
 
   const uniqFields = Object.entries(schema)
-    .filter(([_, config]) => config.uniq)
+    .filter(([, config]) => config.uniq)
     .reduce(
       (acc, [key]) => {
         acc[key] = true

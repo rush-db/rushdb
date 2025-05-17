@@ -7,7 +7,7 @@ export class ImportCsvDto {
   parentId?: string
 
   @ApiProperty({ default: '' })
-  payload: string
+  data: string
 
   @ApiPropertyOptional({ default: '' })
   label: string

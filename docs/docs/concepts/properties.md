@@ -74,7 +74,7 @@ However, rest assured that RushDB adeptly manages this complexity without hesita
 important considerations you should be aware of:
 
 1. **Property** is designed to accommodate only consistent values. This means that RushDB will strive to retain the
-original value type. However, if there are any inconsistent or non-convertible values in the payload, RushDB will
+original value type. However, if there are any inconsistent or non-convertible values in the data, RushDB will
 automatically convert them to a _string_ type.
 
 

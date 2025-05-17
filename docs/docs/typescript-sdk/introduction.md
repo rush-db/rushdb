@@ -59,7 +59,7 @@ const db = new RushDB("API_TOKEN");
 // and establish relationships between them accordingly.
 await db.records.createMany({
   label: "COMPANY",
-  payload: {
+  data: {
     name: 'Google LLC',
     address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
     foundedAt: '1998-09-04T00:00:00.000Z',

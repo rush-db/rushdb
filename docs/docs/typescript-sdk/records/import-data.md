@@ -6,7 +6,7 @@ sidebar_position: 1
 
 When working with RushDB SDK, creating models like Author, Post, and Blog repositories allows us to define clear TypeScript contracts, ensuring type safety and better development experience. However, in many scenarios, you might need to quickly import data from external sources, such as JSON files, without going through the process of registering models.
 
-Using the `createMany` method, you can efficiently import large datasets into RushDB by directly specifying the labels and payloads. This approach is ideal for batch imports, data migrations, and integrating external data sources.
+Using the `createMany` method, you can efficiently import large datasets into RushDB by directly specifying the label and payload data. This approach is ideal for batch imports, data migrations, and integrating external data sources.
 
 ## Example: Importing Data from JSON
 In this example, we will demonstrate how to import user, post, and blog data from a JSON file into RushDB SDK using the `createMany` method:
@@ -43,15 +43,15 @@ const data = JSON.parse(fs.readFileSync('data.json', 'utf8'));
 async function importData() {
   try {
     // Import users
-    const importedUsers = await db.records.createMany({label: 'user', payload: data.users});
+    const importedUsers = await db.records.createMany({label: 'user', data: data.users});
     console.log('Imported Users:', importedUsers.data);
 
     // Import posts
-    const importedPosts = await db.records.createMany({label: 'post', payload: data.posts});
+    const importedPosts = await db.records.createMany({label: 'post', data: data.posts});
     console.log('Imported Posts:', importedPosts.data);
 
     // Import blogs
-    const importedBlogs = await db.records.createMany({label: 'blog', payload: data.blogs});
+    const importedBlogs = await db.records.createMany({label: 'blog', data: data.blogs});
     console.log('Imported Blogs:', importedBlogs.data);
   } catch (error) {
     console.error('Error importing data:', error);
@@ -78,7 +78,7 @@ const importOptions = {
 
 const importedUsers = await db.records.createMany({
   labels: 'user',
-  payload: data.users, 
+  data: data.users, 
   options: importOptions
 });
 ```

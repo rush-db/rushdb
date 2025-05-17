@@ -64,7 +64,7 @@ token: YOUR_API_TOKEN
 
 {
   "label": "Person",
-  "payload": {
+  "data": {
     "name": "John Doe",
     "age": 30,
     "email": "john.doe@email.com"

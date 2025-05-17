@@ -18,7 +18,7 @@ export class CreateEntityDtoSimple {
   label: string
 
   @ApiProperty()
-  payload: Record<string, TPropertyValue>
+  data: Record<string, TPropertyValue>
 
   @ApiPropertyOptional()
   options?: Omit<TImportOptions, 'returnResult'>

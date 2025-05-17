@@ -18,7 +18,7 @@ const db = new RushDB('rushdb-api-key')
 
 await db.records.createMany({
   label: "COMPANY",
-  payload: {
+  data: {
     name: 'Google LLC',
     address: '1600 Amphitheatre Parkway, Mountain View, CA 94043, USA',
     foundedAt: '1998-09-04T00:00:00.000Z',
@@ -240,7 +240,7 @@ async function generateAndStoreData() {
   // Step 3: Store the output in RushDB
   const record = await db.records.createMany({
     label: 'AI_RESPONSE',
-    payload: parsedContent
+    data: parsedContent
   })
 }`
 

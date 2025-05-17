@@ -44,7 +44,7 @@ POST /api/v1/records/import/json
 
 | Field     | Type   | Description |
 |-----------|--------|-------------|
-| `payload` | Object or Array | JSON data to import |
+| `data` | Object or Array | JSON data to import |
 | `label`   | String | Label for the root node(s) |
 | `options` | Object | Optional configuration parameters |
 
@@ -64,7 +64,7 @@ POST /api/v1/records/import/json
 ```json
 {
   "label": "Person",
-  "payload": {
+  "data": {
     "name": "John Doe",
     "age": "30",
     "addresses": [
@@ -128,7 +128,7 @@ POST /api/v1/records/import/csv
 
 | Field     | Type   | Description |
 |-----------|--------|-------------|
-| `payload` | String | CSV data as a string |
+| `data` | String | CSV data as a string |
 | `label`   | String | Label for the nodes |
 | `options` | Object | Optional configuration parameters (same as JSON import) |
 
@@ -139,7 +139,7 @@ CSV files must have headers in the first row.
 ```json
 {
   "label": "Customer",
-  "payload": "name,email,age\nJohn Doe,john@example.com,30\nJane Smith,jane@example.com,25",
+  "data": "name,email,age\nJohn Doe,john@example.com,30\nJane Smith,jane@example.com,25",
   "options": {
     "suggestTypes": true,
     "convertNumericValuesToNumbers": true

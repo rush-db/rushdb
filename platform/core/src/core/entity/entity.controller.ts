@@ -45,16 +45,16 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
+import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
+import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
+import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 import { CreateEntityDto } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
 import { EntityService } from './entity.service'
-import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
-import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 
 @Controller('records')
 @ApiTags('Records')
@@ -204,7 +204,7 @@ export class EntityController {
     //   entityDraft = entity
     // }
     //
-    // if ('payload' in entity) {
+    // if ('data' in entity) {
     //   // @TODO: Implement schema schema validation https://github.com/rush-db/rushdb/issues/43
     //   entityDraft = {
     //     label: entity.label,

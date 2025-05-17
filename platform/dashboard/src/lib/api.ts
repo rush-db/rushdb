@@ -52,16 +52,16 @@ export const api = {
   records: {
     async createMany({
       init,
-      payload,
+      data,
       label,
       options = {}
     }: WithInit & {
       label: string
-      payload: MaybeArray<AnyObject>
+      data: MaybeArray<AnyObject>
       options?: DBRecordCreationOptions
     }) {
       try {
-        return await sdk(init).records.createMany({ label, options, payload })
+        return await sdk(init).records.createMany({ label, options, data })
       } catch (e: any) {
         if (e.message === BillingErrorCodes.PaymentRequired.toString()) {
           $limitReachModalOpen.set(true)

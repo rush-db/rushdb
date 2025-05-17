@@ -212,7 +212,7 @@ export class RestAPI {
       }: {
         label: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
-        options?: DBRecordCreationOptions
+        options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'>
       },
       transaction?: Transaction | string
     ): Promise<DBRecordInstance<S>> => {
@@ -248,17 +248,17 @@ export class RestAPI {
 
     /**
      * Creates multiple records in a single operation
-     * @param data - Object containing label, options and payload array for multiple records
+     * @param data - Object containing label, options and data array or object for multiple records
      * @param data.label - The label/type for all records
      * @param data.options - Optional write configuration
-     * @param data.payload - Array of record data to create
+     * @param data.data - Array of record data to create
      * @param transaction - Optional transaction for atomic operations
      * @returns Promise resolving to DBRecordsArrayInstance containing created records
      */
     createMany: async <S extends Schema = any>(
       data: {
         label: string
-        payload: MaybeArray<AnyObject>
+        data: MaybeArray<AnyObject>
         options?: DBRecordCreationOptions
       },
       transaction?: Transaction | string
@@ -546,7 +546,7 @@ export class RestAPI {
         target: DBRecordTarget
         label: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
-        options?: DBRecordCreationOptions
+        options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'>
       },
       transaction?: Transaction | string
     ) => {
@@ -563,7 +563,7 @@ export class RestAPI {
       if (isArray(data) && data.every(isPropertyDraft)) {
         payload.requestData = { label, properties: data }
       } else if (isFlatObject(data)) {
-        payload.requestData = { label, payload: data, options }
+        payload.requestData = { label, data, options }
       } else if (isObject(data)) {
         throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
       }
@@ -601,7 +601,7 @@ export class RestAPI {
         target: DBRecordTarget
         label: string
         data: Partial<InferSchemaTypesWrite<S>> | Array<PropertyDraft>
-        options?: DBRecordCreationOptions
+        options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'>
       },
       transaction?: Transaction | string
     ) => {
@@ -618,7 +618,7 @@ export class RestAPI {
       if (isArray(data) && data.every(isPropertyDraft)) {
         payload.requestData = { label, properties: data }
       } else if (isFlatObject(data)) {
-        payload.requestData = { label, payload: data, options }
+        payload.requestData = { label, data, options }
       } else if (isObject(data)) {
         throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
       }

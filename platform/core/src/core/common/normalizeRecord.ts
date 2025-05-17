@@ -85,10 +85,10 @@ export const prepareProperties = (
 export const normalizeRecord = ({
   label,
   options = { suggestTypes: true },
-  payload
+  data
 }: CreateEntityDtoSimple & {
   parentId?: string
 }) => ({
   label,
-  properties: prepareProperties(payload, options)
+  properties: prepareProperties(data, options)
 })

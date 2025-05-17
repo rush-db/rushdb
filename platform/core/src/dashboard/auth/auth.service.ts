@@ -14,9 +14,9 @@ import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { User } from '@/dashboard/user/user.entity'
 import { UserService } from '@/dashboard/user/user.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 import { EncryptionService } from './encryption/encryption.service'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 @Injectable()
 export class AuthService {
@@ -45,8 +45,8 @@ export class AuthService {
     return undefined
   }
 
-  verifyJwt(payload: string): IUserClaims {
-    return this.jwtService.verify(payload)
+  verifyJwt(jwt: string): IUserClaims {
+    return this.jwtService.verify(jwt)
   }
 
   // async isOwnerMatch(

@@ -12,10 +12,10 @@ import { DBRecordCreationOptions } from '@rushdb/javascript-sdk'
 export const createMany = createMutator<{
   label: string
   options?: DBRecordCreationOptions
-  payload: AnyRecord | Array<unknown>
+  data: AnyRecord | Array<unknown>
 }>({
-  async fetcher({ init, payload, label, options }) {
-    return await api.records.createMany({ init, payload, label, options })
+  async fetcher({ init, data, label, options }) {
+    return await api.records.createMany({ init, data, label, options })
   },
   throwError: true,
   onError: (error: unknown) => console.log({ error }),
