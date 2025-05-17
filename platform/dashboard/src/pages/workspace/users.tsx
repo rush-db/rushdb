@@ -369,7 +369,9 @@ export function WorkspaceUsersPage() {
         <div className="text-content2 flex items-center gap-1">
           <UsersIcon className="h-4 w-4" />
           {platformSettings?.selfHosted ?
-            <span>{usersCount} users</span>
+            <span>
+              {usersCount} user{usersCount > 1 ? 's' : ''}
+            </span>
           : <span>
               {usersCount} / {userLimit} users
             </span>
@@ -392,12 +394,16 @@ export function WorkspaceUsersPage() {
             : null
           : null}
 
-          <SettingsList>
-            <InviteUserSetting />
-          </SettingsList>
+          {usersCount === userLimit && !workspace?.planId ? null : (
+            <>
+              <SettingsList>
+                <InviteUserSetting />
+              </SettingsList>
 
-          <UserTable />
-          <PendingInvitesTable />
+              <UserTable />
+              <PendingInvitesTable />
+            </>
+          )}
         </div>
       </PageContent>
     </WorkspacesLayout>
