@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 1.0.1
+
+### Patch Changes
+
+- 2f1f084: Add local neo4j plugins and fix create method payload
+
 ## 1.0.0
 
 ### Major Changes
