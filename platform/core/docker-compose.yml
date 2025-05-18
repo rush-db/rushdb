@@ -16,13 +16,12 @@ services:
 #            Uncomment line below to fetch plugins from the internet instead of local volume
 #            - NEO4J_PLUGINS=["apoc", "graph-data-science"]
         volumes:
-            - neo4j-plugins:/var/lib/neo4j/plugins
+            - ./neo4j-plugins:/var/lib/neo4j/plugins
             - neo4j-data:/data
             - neo4j-logs:/logs
             - neo4j-conf:/var/lib/neo4j/conf
 
 volumes:
-    neo4j-plugins:
     neo4j-data:
     neo4j-logs:
     neo4j-conf:
