@@ -1,20 +1,19 @@
 import type { SdkLanguage } from '~/features/onboarding/types'
 
 import pythonLogo from './assets/python-logo.png'
-import rubyLogo from './assets/ruby-logo.png'
 import typescriptLogo from './assets/ts-logo.png'
 
 export const docsUrls = {
   sdk: {
     typescript: {
-      installation: 'https://docs.rushdb.com/quick-start/installation/',
-      usage: 'https://docs.rushdb.com/quick-start/creating-and-retrieving-records',
+      installation: 'https://docs.rushdb.com/typescript-sdk/introduction',
+      usage: 'https://docs.rushdb.com/typescript-sdk/records/create-records',
       github: 'https://github.com/rush-db/rushdb',
       logo: typescriptLogo
     },
     python: {
-      installation: 'https://docs.rushdb.com/quick-start/installation/',
-      usage: 'https://docs.rushdb.com/python-sdk/records-api',
+      installation: 'https://docs.rushdb.com/python-sdk/introduction',
+      usage: 'https://docs.rushdb.com/python-sdk/records/create-records',
       github: 'https://github.com/rush-db/rushdb-python',
       logo: pythonLogo
     }

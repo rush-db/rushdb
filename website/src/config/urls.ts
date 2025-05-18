@@ -14,7 +14,7 @@ export const socials = {
 
 export const links = {
   docs: 'https://docs.rushdb.com',
-  getStarted: 'https://docs.rushdb.com/quick-start/installation',
+  getStarted: 'https://docs.rushdb.com/get-started/quick-tutorial',
   tutorials: 'https://docs.rushdb.com',
   examples: 'https://github.com/rush-db/examples',
   pricing: '/pricing',

@@ -91,7 +91,7 @@ const records = await db.records.find({
 })
 ```
 
-[Learn more in the docs](https://docs.rushdb.com/basic-concepts/records#search)
+[Learn more in the docs](https://docs.rushdb.com/concepts/search/introduction)
 
 ### 2. Automatic Data Normalization and Type Inference
 RushDB takes raw input data and **automatically structures it** into a connected graph, allowing for seamless navigation across relationships.
@@ -114,7 +114,7 @@ RushDB takes raw input data and **automatically structures it** into a connected
 
 Above payload will be automatically normalized into separate **flat** Records. And relationship between ORDER and SHIPPING will be created automatically.
 
-[Learn more in the docs](https://docs.rushdb.com/advanced/properties)
+[Learn more in the docs](https://docs.rushdb.com/concepts/properties)
 
 ### 3. Relationships
 RushDB automatically creates relationships between Records based on JSON input, which is normalized into separate flat Records.
@@ -162,7 +162,7 @@ await project.attach(employee, { type: 'HAS_EMPLOYEE' })
 await project.detach(employee)
 ```
 
-[Learn more in the docs](https://docs.rushdb.com/basic-concepts/properties#how-it-works)
+[Learn more in the docs](https://docs.rushdb.com/concepts/properties)
 
 ### 4. Query Smarter, Not Harder
 Effortlessly find exactly what you need. With automated, on-the-fly data normalization, you can query complex, deeply interconnected data without workarounds or unnecessary overhead - just clear, intuitive access to your data.
@@ -260,7 +260,7 @@ RETURN collect(DISTINCT record {
 }) AS records
 ```
 
-[Learn more in the docs](https://docs.rushdb.com/advanced/querying-data)
+[Learn more in the docs](https://docs.rushdb.com/concepts/search/introduction)
 
 ### 5. Transactions
 RushDB is fully ACID-compliant, providing robust tools to ensure data consistency and reliability. With the Transactions API, you can execute multiple operations confidently - either every request completes successfully, or all changes are rolled back, maintaining data integrity.
@@ -336,7 +336,7 @@ try {
 }
 ```
 
-[Learn more in the docs](https://docs.rushdb.com/basic-concepts/transactions)
+[Learn more in the docs](https://docs.rushdb.com/concepts/transactions)
 
 ### 6. Properties: Lightweight Connectors That Unify Your Data
 
@@ -422,7 +422,7 @@ await db.properties.values(
 }
 ```
 
-[Learn more in the docs](https://docs.rushdb.com/basic-concepts/properties)
+[Learn more in the docs](https://docs.rushdb.com/concepts/properties)
 
 ### 7. A Universal API for the Entire Platform
 
