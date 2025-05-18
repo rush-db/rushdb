@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.0.2
+
+### Patch Changes
+
+- da7874f: fix: improved invitation accept flow, normalized checkers for invitee emails
+- Updated dependencies [da7874f]
+  - @rushdb/javascript-sdk@1.0.2
+
 ## 1.0.1
 
 ### Patch Changes
