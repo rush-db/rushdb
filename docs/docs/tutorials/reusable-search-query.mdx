@@ -155,7 +155,7 @@ curl -X PUT "https://api.rushdb.com/api/v1/records/delete" \
 // Find all CREATED relationships by users in the admin group
 const createdRelationships = await db.relationships.find({
   where: {
-    groups: { $contains: ["admin"] },
+    groups: { $in: ["admin"] },
     $relation: {
       type: "CREATED"
     }
@@ -169,7 +169,7 @@ const createdRelationships = await db.relationships.find({
 # Find all CREATED relationships by users in the admin group
 created_relationships = db.relationships.find({
   "where": {
-    "groups": { "$contains": ["admin"] },
+    "groups": { "$in": ["admin"] },
     "$relation": {
       "type": "CREATED"
     }
@@ -186,7 +186,7 @@ curl -X POST "https://api.rushdb.com/api/v1/relationships/search" \
   -H "Content-Type: application/json" \
   -d '{
     "where": {
-      "groups": { "$contains": ["admin"] },
+      "groups": { "$in": ["admin"] },
       "$relation": {
         "type": "CREATED"
       }

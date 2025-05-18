@@ -189,7 +189,7 @@ Let's find all people who are interested in outdoor activities:
 const outdoorsy = await db.records.find({
   labels: ['PERSON'],
   where: {
-    interests: { $contains: ['hiking', 'travel'] }
+    interests: { $in: ['hiking', 'travel'] }
   }
 });
 
@@ -201,7 +201,7 @@ console.log('Found:', outdoorsy.map(person => person.data.name));
 # Find all people who are interested in outdoor activities using [where](../concepts/search/where.md) conditions
 outdoorsy = db.records.find({
     "where": {
-        "interests": {"$contains": ["hiking", "travel"]}
+        "interests": {"$in": ["hiking", "travel"]}
     },
     "labels": ["PERSON"]
 })
@@ -219,7 +219,7 @@ curl -X POST "https://api.rushdb.com/api/v1/records/search" \
     "labels": ["PERSON"],
     "where": {
       "interests": {
-        "$contains": ["hiking", "travel"]
+        "$in": ["hiking", "travel"]
       }
     }
   }'
