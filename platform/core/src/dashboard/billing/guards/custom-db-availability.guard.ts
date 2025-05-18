@@ -36,7 +36,7 @@ export class CustomDbAvailabilityGuard implements CanActivate {
   ): Promise<boolean> {
     const workspaceInstance = await this.workspaceService.getWorkspaceInstance(workspaceId, transaction)
     const properties = workspaceInstance.dataValues
-    const hasCustomDbProperty = Boolean(request.body?.['customDb'])
+    const hasCustomDbProperty = Boolean(Object.keys(request.body?.['customDb'] ?? {}).length)
 
     // Check premium plan expiration (if exists)
     if (properties.planId) {

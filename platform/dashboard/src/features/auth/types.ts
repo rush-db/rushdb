@@ -16,5 +16,8 @@ export type AuthorizedUser = {
 }
 
 export type GetUserResponse = GenericApiResponse<Omit<AuthorizedUser, 'settings'> & { settings: string }>
+export type InvitedGetUserResponse = GenericApiResponse<
+  Omit<AuthorizedUser, 'settings'> & { settings: string } & { workspaceId?: string }
+>
 
 export type User = { isLoggedIn: boolean } & Partial<AuthorizedUser>

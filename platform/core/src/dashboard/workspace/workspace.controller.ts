@@ -242,11 +242,10 @@ export class WorkspaceController {
     @AuthUser() authUser: IUserClaims,
     @TransactionDecorator() transaction: Transaction
   ) {
-    const { userData, workspaceId } = await this.userService.acceptWorkspaceInvitation<false>(
+    const { userData, workspaceId } = await this.userService.acceptWorkspaceInvitation(
       {
         inviteToken: token,
-        authUserLogin: authUser.login,
-        forceUserSignUp: false
+        authUserLogin: authUser.login
       },
       transaction
     )

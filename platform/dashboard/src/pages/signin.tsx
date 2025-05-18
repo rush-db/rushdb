@@ -122,11 +122,10 @@ export function SignInPage() {
 
       <SignInForm />
       <Divider />
-      {invite ? null : (
-        <Button as="a" href={getRoutePath('signup')} size="large" variant="ghost">
-          Don&apos;t have an account?
-        </Button>
-      )}
+
+      <Button as="a" href={getRoutePath('signup')} size="large" variant="ghost">
+        Don&apos;t have an account?
+      </Button>
     </AuthLayout>
   )
 }
