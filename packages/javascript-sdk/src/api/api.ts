@@ -228,7 +228,7 @@ export class RestAPI {
       if (isArray(data) && data.every(isPropertyDraft)) {
         payload.requestData = { label, properties: data }
       } else if (isFlatObject(data)) {
-        payload.requestData = { label, payload: data, options }
+        payload.requestData = { label, data, options }
       } else if (isObject(data)) {
         throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
       }
