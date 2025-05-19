@@ -38,7 +38,7 @@ export function WorkspacesLayout({ children, className }: TPolymorphicComponentP
       )
     }
 
-    if (!platformSettings?.selfHosted) {
+    if (!platformSettings?.selfHosted && isOwner) {
       workspaceTabs.push({
         href: getRoutePath('workspaceBilling'),
         icon: <Wallet2 />,
