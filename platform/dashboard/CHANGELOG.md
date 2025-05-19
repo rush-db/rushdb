@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.0.3
+
+### Patch Changes
+
+- 3d3da80: Remove the billing tab for developers the workspace layout
+- Updated dependencies [3d3da80]
+  - @rushdb/javascript-sdk@1.0.3
+
 ## 1.0.2
 
 ### Patch Changes
