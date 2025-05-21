@@ -2,7 +2,7 @@
 sidebar_position: 4
 ---
 
-# Search
+# Get Records
 
 The Search API is one of the most powerful features of RushDB, allowing you to find records, navigate relationships, and transform results to exactly match your application's needs. This guide demonstrates how to effectively use the Python SDK to search and query data in your RushDB database.
 

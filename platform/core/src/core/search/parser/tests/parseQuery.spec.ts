@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
 import { RUSHDB_KEY_ID } from '@/core/common/constants'
-import { parse } from '@/core/search/parser/buildQuery'
+import { parseWhereClause } from '@/core/search/parser/buildQuery'
 import { ID_CLAUSE_OPERATOR } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
@@ -11,7 +11,7 @@ describe('parseQuery', () => {
   }
 
   it('parses subQueries correctly 1', () => {
-    const result1 = parse(
+    const result1 = parseWhereClause(
       {
         tag: 'top-sellers',
         AUTHOR: {
@@ -38,7 +38,7 @@ describe('parseQuery', () => {
   })
 
   it('parses subQueries correctly 2', () => {
-    const result2 = parse(
+    const result2 = parseWhereClause(
       {
         $or: [
           {
@@ -91,7 +91,7 @@ describe('parseQuery', () => {
   })
 
   it('parses subQueries correctly 3', () => {
-    const result3 = parse(
+    const result3 = parseWhereClause(
       {
         created: {
           $year: 2011,
@@ -133,7 +133,7 @@ describe('parseQuery', () => {
   })
 
   it('parses subQueries correctly 4', () => {
-    const result4 = parse(
+    const result4 = parseWhereClause(
       {
         created: true,
         rating: 5,
@@ -193,7 +193,7 @@ describe('parseQuery', () => {
   })
 
   it('parses subQueries correctly 5', () => {
-    const result2 = parse(
+    const result2 = parseWhereClause(
       {
         COMMENT: {
           authoredBy: {
@@ -222,7 +222,7 @@ describe('parseQuery', () => {
   })
 
   it('parses subQueries correctly 6', () => {
-    const result6 = parse(
+    const result6 = parseWhereClause(
       {
         created: true,
         rating: 5,
@@ -264,7 +264,7 @@ describe('parseQuery', () => {
   })
 
   it('parses subQueries correctly 7', () => {
-    const result7 = parse(
+    const result7 = parseWhereClause(
       {
         created: true,
         rating: 5,
@@ -308,7 +308,7 @@ describe('parseQuery', () => {
   })
 
   it('parses subQueries correctly 8', () => {
-    const result8 = parse(
+    const result8 = parseWhereClause(
       {
         created: true,
         rating: 5,
@@ -346,7 +346,7 @@ describe('parseQuery', () => {
   })
 
   it('parses subQueries correctly 9', () => {
-    const result9 = parse(
+    const result9 = parseWhereClause(
       {
         $or: {
           CAR: {
@@ -374,7 +374,7 @@ describe('parseQuery', () => {
   })
 
   it('parses ID criteria correctly 10', () => {
-    const result10 = parse(
+    const result10 = parseWhereClause(
       {
         [ID_CLAUSE_OPERATOR]: '123'
       },
@@ -386,12 +386,12 @@ describe('parseQuery', () => {
       queryParts: {
         record: `(any(value IN record.${RUSHDB_KEY_ID} WHERE value = "123"))`
       },
-      where: 'record IS NOT NULL'
+      where: ''
     })
   })
 
   it('parses nested ID criteria correctly 11', () => {
-    const result10 = parse(
+    const result10 = parseWhereClause(
       {
         [ID_CLAUSE_OPERATOR]: '123',
         CAR: {
@@ -413,19 +413,19 @@ describe('parseQuery', () => {
   })
 
   it('parses empty where correctly 12', () => {
-    const result10 = parse({}, queryBuilderOptions)
+    const result10 = parseWhereClause({}, queryBuilderOptions)
     expect(result10).toEqual({
       nodeAliases: ['record'],
       aliasesMap: { $record: 'record' },
       queryParts: {
         record: ''
       },
-      where: 'record IS NOT NULL'
+      where: ''
     })
   })
 
   it('parses empty nested criteria correctly 13', () => {
-    const result10 = parse(
+    const result10 = parseWhereClause(
       {
         $or: {
           CAR: {
@@ -458,7 +458,7 @@ describe('parseQuery', () => {
   })
 
   it('parses logical grouping on top level correctly 14', () => {
-    const result10 = parse(
+    const result10 = parseWhereClause(
       {
         $xor: [{ foundingDate: { $gte: '1989-10-01T19:05:17.780Z' } }, { city: 'Doral' }]
       },
@@ -471,7 +471,7 @@ describe('parseQuery', () => {
         record:
           '((any(value IN record.foundingDate WHERE apoc.convert.fromJsonMap(`record`.`__RUSHDB__KEY__PROPERTIES__META__`).`foundingDate` = "datetime" AND datetime(value) >= datetime("1989-10-01T19:05:17.780Z"))) XOR (any(value IN record.city WHERE value = "Doral")))'
       },
-      where: 'record IS NOT NULL'
+      where: ''
     })
   })
 })
