@@ -31,6 +31,11 @@ export const initSDK = (httpClient: HttpClient) => {
     }
 
     public static getInstance(): RushDB {
+      if (!RushDB.instance) {
+        throw new Error(
+          'RushDB instance not initialized. Please create a RushDB instance before calling getInstance().'
+        )
+      }
       return RushDB.instance
     }
 
