@@ -17,6 +17,7 @@ import {
 import { $token } from './token'
 import { $user } from './user'
 import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
+import { InvitedGetUserResponse } from '~/features/auth/types'
 
 $user.subscribe(({ isLoggedIn, token }, changedKey) => {
   if (changedKey === 'isLoggedIn') {
@@ -81,8 +82,13 @@ export const logIn = action(
 
 export const logInGoogle = action($user, 'logInGoogle', (store, searchParams: SearchParams) => {
   const query = new URLSearchParams(searchParams).toString()
-  return fetcher<GetUserResponse['data']>(`/api/v1/auth/google/callback?${query}`).then((user) => {
-    $user.set({ ...user, isLoggedIn: true })
+  return fetcher<InvitedGetUserResponse['data']>(`/api/v1/auth/google/callback?${query}`).then((user) => {
+    const { workspaceId, ...restUserProps } = user
+    $user.set({ ...restUserProps, isLoggedIn: true })
+
+    if (workspaceId) {
+      return workspaceId
+    }
   })
 })
 

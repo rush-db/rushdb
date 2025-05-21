@@ -1,5 +1,21 @@
 # rushdb-dashboard
 
+## 1.0.3
+
+### Patch Changes
+
+- 3d3da80: Remove the billing tab for developers the workspace layout
+- Updated dependencies [3d3da80]
+  - @rushdb/javascript-sdk@1.0.3
+
+## 1.0.2
+
+### Patch Changes
+
+- da7874f: fix: improved invitation accept flow, normalized checkers for invitee emails
+- Updated dependencies [da7874f]
+  - @rushdb/javascript-sdk@1.0.2
+
 ## 1.0.1
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # rushdb-core
 
+## 1.0.3
+
+### Patch Changes
+
+- 3d3da80: Remove the billing tab for developers the workspace layout
+
+## 1.0.2
+
+### Patch Changes
+
+- da7874f: fix: improved invitation accept flow, normalized checkers for invitee emails
+
 ## 1.0.1
 
 ### Patch Changes
