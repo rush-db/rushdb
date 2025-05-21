@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 1.1.0
+
+### Minor Changes
+
+- 1ba17a1: Implemented ordering by aggregated field
+
+### Patch Changes
+
+- Updated dependencies [1ba17a1]
+  - @rushdb/javascript-sdk@1.1.0
+
 ## 1.0.3
 
 ### Patch Changes

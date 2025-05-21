@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 1.1.0
+
+### Minor Changes
+
+- 1ba17a1: Implemented ordering by aggregated field
+
 ## 1.0.3
 
 ### Patch Changes
