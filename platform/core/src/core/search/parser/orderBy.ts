@@ -18,10 +18,14 @@ export const buildSortCriteria = (orderBy: TSearchSort) => {
   return sortCriteria
 }
 
-export const buildOrderByClause = (orderBy: TSearchSort, alias = DEFAULT_RECORD_ALIAS) => {
+export const buildOrderByClause = (orderBy: TSearchSort, alias: string | null = DEFAULT_RECORD_ALIAS) => {
   const sortCriteria = buildSortCriteria(orderBy)
 
   return Object.entries(sortCriteria).map(([property, direction]) => {
+    if (alias === null) {
+      return `\`${property}\` ${direction.toUpperCase()}`
+    }
+
     return `${alias}.\`${property}\` ${direction.toUpperCase()}`
   })
 }

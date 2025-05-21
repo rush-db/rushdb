@@ -1,36 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
-import { QueryBuilder } from '@/common/QueryBuilder'
-import { RUSHDB_LABEL_RECORD } from '@/core/common/constants'
-import { SearchDto } from '@/core/search/dto/search.dto'
-import { buildAggregation, buildQuery } from '@/core/search/parser'
-import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQueryPart'
-import { projectIdInline } from '@/core/search/parser/projectIdInline'
 
-const buildQ = ({ id, searchQuery }: { searchQuery?: SearchDto; id?: string }) => {
-  const relatedQueryPart = buildRelatedQueryPart(id)
-
-  const { queryClauses, parsedWhere, aliasesMap } = buildQuery(searchQuery)
-
-  const { withPart: aggregateProjections, recordPart: returnPart } = buildAggregation(
-    searchQuery.aggregate,
-    aliasesMap
-  )
-
-  const labelPart = searchQuery.labels && searchQuery.labels.length === 1 ? `:${searchQuery.labels?.[0]}` : ''
-
-  const queryBuilder = new QueryBuilder()
-
-  queryBuilder
-    .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
-    .append(queryClauses)
-    .append(`WITH ${parsedWhere.nodeAliases.join(', ')}`)
-    .append(`WHERE ${parsedWhere.where}`)
-    .append(aggregateProjections)
-    .append(`RETURN ${returnPart}`)
-
-  return queryBuilder.getQuery()
-}
+import { EntityQueryService } from '@/core/entity/entity-query.service'
 
 const q0 = {
   labels: ['COMPANY'],
@@ -293,8 +264,6 @@ const q4 = {
 
 const r4 = `MATCH (record:__RUSHDB__LABEL__RECORD__:COMPANY { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 WHERE ((any(value IN record.stage WHERE value = "seed") OR any(value IN record.stage WHERE value = "roundA"))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-WITH record
-WHERE record IS NOT NULL
 RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
 
 const q5 = {
@@ -306,8 +275,6 @@ const q5 = {
 
 const r5 = `MATCH (record:__RUSHDB__LABEL__RECORD__:COMPANY { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 WHERE ((any(value IN record.stage WHERE value = "seed")) OR (any(value IN record.stage WHERE value = "roundA"))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-WITH record
-WHERE record IS NOT NULL
 RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
 
 const q6 = {
@@ -398,8 +365,6 @@ const q9 = {
 
 const r9 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 WHERE ((\`record\`.\`emb\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`emb\` = "vector" AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <> 0.75)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-WITH record
-WHERE record IS NOT NULL
 RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
 
 const q10 = {
@@ -487,87 +452,155 @@ const q12 = {
 
 const r12 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 WHERE ((\`record\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) <= 0.93)) ORDER BY record.\`__RUSHDB__KEY__ID__\` ASC SKIP 0 LIMIT 1000
-WITH record
-WHERE record IS NOT NULL
 WITH record, gds.similarity.euclidean(record.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) AS \`similarity\`
 RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`}) AS records`
 
+const q13 = {
+  where: {},
+  aggregate: {
+    similarity: {
+      fn: 'gds.similarity.euclidean',
+      field: 'embedding',
+      query: [
+        0.0123, -0.4421, 0.9372, 0.1284, -0.3349, 0.7821, -0.2843, 0.1634, 0.4372, -0.219, 0.6612, 0.0841,
+        -0.3312, 0.9123, -0.1055, 0.0041, 0.4388, -0.7881, 0.5523, 0.0011, 0.7342, -0.2284, 0.1156, -0.5472,
+        0.3328, 0.9811, -0.1112, 0.0045, 0.6233, -0.7
+      ],
+      alias: '$record'
+    }
+  },
+  orderBy: { similarity: 'desc' },
+  skip: 0,
+  limit: 1000
+}
+
+const r13 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH record, gds.similarity.euclidean(record.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) AS \`similarity\`
+ORDER BY \`similarity\` DESC SKIP 0 LIMIT 1000
+RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`}) AS records`
+
+const q14 = {
+  labels: ['COMPANY'],
+  where: {
+    EMPLOYEE: {
+      $alias: '$employee'
+    }
+  },
+  aggregate: {
+    employeeCount: {
+      fn: 'count',
+      alias: '$employee'
+    }
+  },
+  orderBy: {
+    employeeCount: 'desc'
+  },
+  skip: 0,
+  limit: 1000
+}
+
+const r14 = `MATCH (record:__RUSHDB__LABEL__RECORD__:COMPANY { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+OPTIONAL MATCH (record)--(record1:EMPLOYEE)
+WITH record, record1
+WHERE record IS NOT NULL AND record1 IS NOT NULL
+WITH record, count(record1) AS \`employeeCount\`
+ORDER BY \`employeeCount\` DESC SKIP 0 LIMIT 1000
+RETURN collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`employeeCount\`}) AS records`
+
 describe('build complete query', () => {
+  let queryService: EntityQueryService
+
+  beforeEach(() => {
+    queryService = new EntityQueryService()
+  })
+
   it('0', () => {
-    const result = buildQ({ searchQuery: q0 })
+    const result = queryService.findRecords({ searchQuery: q0 })
 
     expect(result).toEqual(r0)
   })
 
   it('1', () => {
-    const result = buildQ({ searchQuery: q1 })
+    const result = queryService.findRecords({ searchQuery: q1 })
 
     expect(result).toEqual(r1)
   })
 
   it('2', () => {
-    const result = buildQ({ searchQuery: q2 })
+    const result = queryService.findRecords({ searchQuery: q2 })
 
     expect(result).toEqual(r2)
   })
 
   it('3', () => {
-    const result = buildQ({ searchQuery: q3 })
+    const result = queryService.findRecords({ searchQuery: q3 })
 
     expect(result).toEqual(r3)
   })
 
   it('4', () => {
-    const result = buildQ({ searchQuery: q4 })
+    const result = queryService.findRecords({ searchQuery: q4 })
 
     expect(result).toEqual(r4)
   })
 
   it('5', () => {
-    const result = buildQ({ searchQuery: q5 })
+    const result = queryService.findRecords({ searchQuery: q5 })
 
     expect(result).toEqual(r5)
   })
 
   it('6', () => {
-    const result = buildQ({ searchQuery: q6 })
+    const result = queryService.findRecords({ searchQuery: q6 })
 
     expect(result).toEqual(r6)
   })
 
   it('7', () => {
-    const result = buildQ({ searchQuery: q7 })
+    const result = queryService.findRecords({ searchQuery: q7 })
 
     expect(result).toEqual(r7)
   })
 
   it('8', () => {
-    const result = buildQ({ searchQuery: q8 })
+    const result = queryService.findRecords({ searchQuery: q8 })
 
     expect(result).toEqual(r8)
   })
 
   it('9', () => {
-    const result = buildQ({ searchQuery: q9 })
+    const result = queryService.findRecords({ searchQuery: q9 })
 
     expect(result).toEqual(r9)
   })
 
   it('10', () => {
-    const result = buildQ({ searchQuery: q10 })
+    const result = queryService.findRecords({ searchQuery: q10 })
 
     expect(result).toEqual(r10)
   })
 
   it('11', () => {
-    const result = buildQ({ searchQuery: q11 })
+    const result = queryService.findRecords({ searchQuery: q11 })
 
     expect(result).toEqual(r11)
   })
 
   it('12', () => {
-    const result = buildQ({ searchQuery: q12 })
+    const result = queryService.findRecords({ searchQuery: q12 })
 
     expect(result).toEqual(r12)
+  })
+
+  it('13', () => {
+    const result = queryService.findRecords({ searchQuery: q13 })
+
+    expect(result).toEqual(r13)
+  })
+
+  it('14', () => {
+    const result = queryService.findRecords({ searchQuery: q14 })
+
+    expect(result).toEqual(r14)
   })
 })

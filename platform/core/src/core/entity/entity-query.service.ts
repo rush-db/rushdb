@@ -10,7 +10,8 @@ import {
   RUSHDB_KEY_PROPERTIES_META,
   RUSHDB_LABEL_RECORD,
   RUSHDB_RELATION_VALUE,
-  RUSHDB_RELATION_DEFAULT
+  RUSHDB_RELATION_DEFAULT,
+  DEFAULT_RECORD_ALIAS
 } from '@/core/common/constants'
 import { MaybeArray } from '@/core/common/types'
 import { RELATION_DIRECTION_IN, RELATION_DIRECTION_OUT } from '@/core/entity/entity.constants'
@@ -21,7 +22,9 @@ import {
   buildLabelsClause,
   buildPagination,
   buildQuery,
-  buildQueryClause
+  buildQueryClause,
+  isOrderByAggregatedField,
+  sort
 } from '@/core/search/parser/buildQuery'
 import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQueryPart'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
@@ -113,22 +116,45 @@ export class EntityQueryService {
 
     const { queryClauses, sortedQueryParts, parsedWhere, aliasesMap } = buildQuery(searchQuery)
 
+    const pagination = buildPagination(searchQuery)
+    const orderByAggregatedField = isOrderByAggregatedField(searchQuery)
+    const sortParams = sort(searchQuery.orderBy, orderByAggregatedField ? null : DEFAULT_RECORD_ALIAS)
+
     const { withPart: aggregateProjections, recordPart: returnPart } = buildAggregation(
       searchQuery?.aggregate,
       aliasesMap
     )
 
+    // convert a clause array to string
+    const normalizedQueryClauses = queryClauses
+      .map((clause, index) => {
+        if (!orderByAggregatedField && index === 0) {
+          return `${clause} ${sortParams} ${pagination}`.trim()
+        } else {
+          return clause
+        }
+      })
+      // @FYI: Keep it in this order
+      .filter(toBoolean)
+      .join(`\n`)
+
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
       .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
-      .append(queryClauses)
+      .append(normalizedQueryClauses)
 
     if (sortedQueryParts.length > 1) {
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
     }
 
-    queryBuilder.append(aggregateProjections).append(`RETURN ${returnPart}`)
+    queryBuilder.append(aggregateProjections)
+
+    if (orderByAggregatedField) {
+      queryBuilder.append(`${sortParams} ${pagination}`)
+    }
+
+    queryBuilder.append(`RETURN ${returnPart}`)
 
     return queryBuilder.getQuery()
   }
@@ -141,9 +167,6 @@ export class EntityQueryService {
 
     const queryClauses = buildQueryClause({
       queryParts: sortedQueryParts,
-      // Explicitly omitting sort and pagination for count query
-      sortParams: '',
-      pagination: '',
       labelClause: buildLabelsClause(searchQuery?.labels)
     })
 
@@ -151,7 +174,7 @@ export class EntityQueryService {
 
     queryBuilder
       .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
-      .append(queryClauses)
+      .append(queryClauses.join(`\n`))
 
     if (sortedQueryParts.length > 1) {
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
@@ -176,15 +199,12 @@ export class EntityQueryService {
 
       const queryClauses = buildQueryClause({
         queryParts: sortedQueryParts,
-        // Explicitly omitting sort and pagination for count query
-        sortParams: '',
-        pagination: '',
         labelClause: buildLabelsClause(searchQuery?.labels)
       })
 
       queryBuilder
         .append(`MATCH (record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
-        .append(queryClauses)
+        .append(queryClauses.join(`\n`))
 
       if (sortedQueryParts.length > 1) {
         queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
@@ -206,9 +226,6 @@ export class EntityQueryService {
 
     const queryClauses = buildQueryClause({
       queryParts: sortedQueryParts,
-      // Explicitly omitting sort and pagination for count query
-      sortParams: '',
-      pagination: '',
       labelClause: buildLabelsClause(searchQuery?.labels)
     })
 
@@ -216,7 +233,7 @@ export class EntityQueryService {
 
     queryBuilder
       .append(`MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
-      .append(queryClauses)
+      .append(queryClauses.join(`\n`))
       .append(`WITH ${parsedWhere.nodeAliases.join(', ')} WHERE ${parsedWhere.where}`)
       .append(
         `WITH DISTINCT record, [label IN labels(record) WHERE label <> "${RUSHDB_LABEL_RECORD}"] as recordLabels`
@@ -259,9 +276,6 @@ export class EntityQueryService {
 
     const queryClauses = buildQueryClause({
       queryParts: sortedQueryParts,
-      // Explicitly omitting sort and pagination for id-targeted query
-      sortParams: '',
-      pagination: '',
       labelClause: buildLabelsClause(searchQuery?.labels)
     })
 
@@ -269,7 +283,7 @@ export class EntityQueryService {
 
     queryBuilder
       .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
-      .append(toBoolean(id) ? queryClauses : rawQueryClauses)
+      .append(toBoolean(id) ? queryClauses.join(`\n`) : rawQueryClauses.join(`\n`))
 
     if (sortedQueryParts.length > 1) {
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
@@ -307,9 +321,6 @@ export class EntityQueryService {
 
     const queryClauses = buildQueryClause({
       queryParts: sortedQueryParts,
-      // Explicitly omitting sort and pagination for id-targeted query
-      sortParams: '',
-      pagination: '',
       labelClause: buildLabelsClause(searchQuery?.labels)
     })
 
@@ -317,7 +328,7 @@ export class EntityQueryService {
 
     queryBuilder
       .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
-      .append(toBoolean(id) ? queryClauses : rawQueryClauses)
+      .append(toBoolean(id) ? queryClauses.join(`\n`) : rawQueryClauses.join(`\n`))
 
     if (sortedQueryParts.length > 1) {
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
@@ -371,9 +382,6 @@ export class EntityQueryService {
 
     const queryClauses = buildQueryClause({
       queryParts: sortedQueryParts,
-      // Explicitly omitting sort and pagination for count query
-      sortParams: '',
-      pagination: '',
       labelClause: buildLabelsClause(searchQuery?.labels)
     })
 
@@ -383,7 +391,7 @@ export class EntityQueryService {
     queryBuilder
       .append(`CALL apoc.periodic.iterate(`)
       .append(`'MATCH (record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
-      .append(queryClauses)
+      .append(queryClauses.join(`\n`))
       .append(whereClause)
       .append(`RETURN record',`)
       .append(`"WITH record DETACH DELETE record",`)
