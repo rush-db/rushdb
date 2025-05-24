@@ -15,6 +15,13 @@ import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { useMemo } from 'react'
 import { Spinner } from '~/elements/Spinner.tsx'
 import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
+import { SubmitHandler } from 'react-hook-form'
+import { toast } from '~/elements/Toast.tsx'
+
+interface LoginFormValues {
+  login: string
+  password: string
+}
 
 const schema = object({
   login: string().required(),
@@ -27,26 +34,37 @@ function SignInForm() {
     handleSubmit,
     register,
     setError
-  } = useForm({ schema })
+  } = useForm<LoginFormValues>({ schema })
+
+  const loginUser: SubmitHandler<LoginFormValues> = async (values) => {
+    try {
+      await logIn(values)
+    } catch (error) {
+      if (error instanceof FetchError) {
+        if (error.response.status === 404) {
+          setError('login', {
+            message: 'Not Found'
+          })
+        }
+
+        if (error.response.status === 401) {
+          setError('login', {
+            message: "User's email or password mismatch"
+          })
+          setError('password', {
+            message: "User's email or password mismatch"
+          })
+          toast({
+            title: "User's email or password mismatch"
+          })
+        }
+      }
+    }
+  }
 
   return (
     <>
-      <form
-        onSubmit={handleSubmit(async (values) => {
-          try {
-            await logIn(values)
-          } catch (error) {
-            if (error instanceof FetchError) {
-              if (error.response.status === 404) {
-                setError('login', {
-                  message: 'Not Found'
-                })
-              }
-            }
-          }
-        })}
-        className="flex flex-col gap-3"
-      >
+      <form onSubmit={handleSubmit(loginUser)} className="flex flex-col gap-3">
         <TextField
           label="Login"
           placeholder="example@example.com"

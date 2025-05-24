@@ -32,11 +32,15 @@ function SignUpForm() {
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
-    register
+    register,
+    setError
   } = useForm<SignUpFormValues>({ schema })
 
   const registerUser: SubmitHandler<SignUpFormValues> = (payload) => {
     return createUser(payload).catch(() => {
+      setError('login', {
+        message: 'User with provided email already exists'
+      })
       toast({
         title: 'Could not create user',
         description: 'User with provided email already exists'
