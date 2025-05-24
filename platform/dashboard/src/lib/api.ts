@@ -253,6 +253,14 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ email })
       })
+    },
+
+    async leaveWorkspace({ id, init }: { id: string; init?: RequestInit }): Promise<{ message: string }> {
+      return fetcher<{ message: string }>(`/api/v1/workspaces/${id}/leave-workspace`, {
+        ...init,
+        body: JSON.stringify({}),
+        method: 'PATCH'
+      })
     }
   },
   tokens: {

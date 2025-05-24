@@ -564,6 +564,24 @@ export class WorkspaceService {
     return { message: 'Access revoked where appropriate' }
   }
 
+  async leaveWorkspace(workspaceId: string, userId: string, transaction: Transaction): Promise<void> {
+    const runner = this.neogmaService.createRunner()
+
+    isDevMode(() => Logger.log(`[Revoke access LOG]: Remove ws relation for user ${userId}`))
+    await runner.run(
+      this.workspaceQueryService.getRemoveWorkspaceRelationQuery(),
+      { userId, workspaceId },
+      transaction
+    )
+
+    isDevMode(() => Logger.log(`[Revoke access LOG]: Remove project relation for user ${userId}`))
+    await runner.run(
+      this.workspaceQueryService.getRemoveProjectRelationsQuery(),
+      { userId, workspaceId },
+      transaction
+    )
+  }
+
   async getUserRoleInWorkspace(
     login: string,
     workspaceId: string,
