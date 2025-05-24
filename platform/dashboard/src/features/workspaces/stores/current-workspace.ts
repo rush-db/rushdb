@@ -3,6 +3,7 @@ import { action } from 'nanostores'
 import { api } from '~/lib/api'
 import { createAsyncStore, createMutator } from '~/lib/fetcher'
 import { $router, isProjectPage, redirectRoute } from '~/lib/router'
+import { $user } from '~/features/auth/stores/user'
 
 import type { Workspace } from '../types'
 
@@ -29,6 +30,22 @@ export const setCurrentWorkspace = action(
   'setCurrentWorkspace',
   (store, id: Workspace['id']) => {
     store.set(id)
+
+    const list = $workspacesList.get()
+    const workspace = list?.data?.find((w) => w.id === id)
+
+    // update user role when switching workspace instead of useEffects inside pages
+    if (workspace) {
+      const prev = $user.get()
+
+      $user.set({
+        ...prev,
+        currentScope: {
+          role: workspace.role ?? 'developer'
+        }
+      })
+    }
+
     if (isProjectPage($router.get())) {
       redirectRoute('home')
     }
