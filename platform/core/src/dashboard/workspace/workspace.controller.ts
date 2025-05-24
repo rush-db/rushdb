@@ -247,7 +247,6 @@ export class WorkspaceController {
     @AuthUser() user: IUserClaims,
     @TransactionDecorator() transaction: Transaction
   ) {
-    console.log(id, user.id, 'HUJ')
     await this.workspaceService.leaveWorkspace(id, user.id, transaction)
     return { message: 'You have left the workspace' }
   }

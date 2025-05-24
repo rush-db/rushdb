@@ -108,6 +108,23 @@ function DangerZone() {
             </div>
           </>
         )}
+
+        {!isOwner && (
+          <>
+            <p className="text-content mt-4">
+              Your projects, data, and workspace settings will remain intact, but you will lose your access
+              rights to view, edit, or add anything in this workspace.
+            </p>
+
+            <div className="border-warning mt-4 rounded border p-4">
+              <p className="font-semibold">Note:</p>
+              <ul className="text-content list-disc pl-5">
+                <li>You will be returned to your personal workspace.</li>
+                <li>You cannot rejoin this workspace unless an owner invites you again.</li>
+              </ul>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
