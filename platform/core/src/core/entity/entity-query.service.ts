@@ -229,12 +229,14 @@ export class EntityQueryService {
       labelClause: buildLabelsClause(searchQuery?.labels)
     })
 
+    const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
+
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
       .append(`MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
       .append(queryClauses.join(`\n`))
-      .append(`WITH ${parsedWhere.nodeAliases.join(', ')} WHERE ${parsedWhere.where}`)
+      .append(`WITH ${parsedWhere.nodeAliases.join(', ')}${wherePart}`)
       .append(
         `WITH DISTINCT record, [label IN labels(record) WHERE label <> "${RUSHDB_LABEL_RECORD}"] as recordLabels`
       )

@@ -1,4 +1,11 @@
-import { BadRequestException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger
+} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
@@ -266,18 +273,22 @@ export class UserService {
       throw new BadRequestException('Bad email data provided')
     }
 
-    return await this.userRepository.model.createOne(
-      {
-        ...properties,
-        isEmail,
-        password: userPassword,
-        confirmed: properties.confirmed ?? false,
-        created: currentTime,
-        id: userId,
-        settings: JSON.stringify(userSettings)
-      },
-      { session: transaction }
-    )
+    try {
+      return await this.userRepository.model.createOne(
+        {
+          ...properties,
+          isEmail,
+          password: userPassword,
+          confirmed: properties.confirmed ?? false,
+          created: currentTime,
+          id: userId,
+          settings: JSON.stringify(userSettings)
+        },
+        { session: transaction }
+      )
+    } catch {
+      throw new ConflictException('Provided email is registered already')
+    }
   }
 
   async update(
@@ -422,9 +433,9 @@ export class UserService {
         })
 
         await Promise.all([
-          ...relatedWorkspaces.map(
-            async (rws) => await this.workspaceService.deleteWorkspace(rws.target.dataValues.id, transaction)
-          ),
+          ...relatedWorkspaces.map(async (rws) => {
+            return await this.workspaceService.deleteWorkspace(rws.target.dataValues.id, transaction)
+          }),
           userNode.delete({ detach: true })
         ])
       }

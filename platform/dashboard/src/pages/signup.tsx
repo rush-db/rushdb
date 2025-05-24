@@ -11,6 +11,14 @@ import { useStore } from '@nanostores/react'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { useMemo } from 'react'
 import { Spinner } from '~/elements/Spinner.tsx'
+import { toast } from '~/elements/Toast.tsx'
+import type { SubmitHandler } from 'react-hook-form'
+
+interface SignUpFormValues {
+  login: string
+  password: string
+  passwordConfirmation: string
+}
 
 export const schema = object({
   login: string().required(),
@@ -24,12 +32,25 @@ function SignUpForm() {
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
-    register
-  } = useForm({ schema })
+    register,
+    setError
+  } = useForm<SignUpFormValues>({ schema })
+
+  const registerUser: SubmitHandler<SignUpFormValues> = (payload) => {
+    return createUser(payload).catch(() => {
+      setError('login', {
+        message: 'User with provided email already exists'
+      })
+      toast({
+        title: 'Could not create user',
+        description: 'User with provided email already exists'
+      })
+    })
+  }
 
   return (
     <>
-      <form className="flex flex-col gap-5" onSubmit={handleSubmit(createUser)}>
+      <form className="flex flex-col gap-5" onSubmit={handleSubmit(registerUser)}>
         <TextField
           label="Login"
           placeholder="example@example.com"
