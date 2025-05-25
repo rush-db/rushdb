@@ -55,7 +55,7 @@ import RushDB from '@rushdb/javascript-sdk';
 
 // Setup SDK
 const db = new RushDB("API_TOKEN");
-// Default URL is "https://api.rushdb.com". See SDK Configuration for more options.
+// Default URL is "https://api.rushdb.com/api/v1". See SDK Configuration for more options.
 
 // Push any data, and RushDB will automatically flatten it into Records
 // and establish relationships between them accordingly.
@@ -122,7 +122,7 @@ import RushDB from '@rushdb/javascript-sdk';
 
 // Example: Initialize with a custom URL and timeout
 const db = new RushDB('API_TOKEN', {
-  url: 'http://your-custom-rushdb-server.com', // Default is 'https://api.rushdb.com'
+  url: 'http://your-custom-rushdb-server.com/api/v1', // Default is 'https://api.rushdb.com/api/v1'
   timeout: 30000 // 30 seconds
 });
 ```
