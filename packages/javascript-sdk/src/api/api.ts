@@ -15,11 +15,11 @@ import type {
   Schema,
   InferSchemaTypesWrite,
   MaybeArray,
-  PropertyValuesOptions,
   PropertyDraft,
   Property,
   PropertyValuesData,
-  AnyObject
+  AnyObject,
+  OrderDirection
 } from '../types/index.js'
 import type { ApiResponse } from './types.js'
 
@@ -312,7 +312,7 @@ export class RestAPI {
       const path = `/records/delete`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
-        method: 'PUT',
+        method: 'POST',
         requestData: searchQuery
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
@@ -749,47 +749,32 @@ export class RestAPI {
     /**
      * Retrieves values for a specific property
      * @param id - The unique identifier of the property
-     * @param options - Optional parameters for pagination, sorting, and filtering
-     * @param options.sort - Sort direction for values ('asc' or 'desc')
-     * @param options.skip - Number of values to skip
-     * @param options.limit - Maximum number of values to return
-     * @param options.query - Filter query for values
+     * @param searchQuery - Query parameters to filter properties
+     * @param searchQuery.query - Filter query for values
      * @param transaction - Optional transaction for atomic operations
      * @returns Promise with the API response containing the property and its values
      */
-    values: async (id: string, options?: PropertyValuesOptions, transaction?: Transaction | string) => {
+    values: async (
+      id: string,
+      searchQuery?: SearchQuery & { query?: string; orderBy?: OrderDirection },
+      transaction?: Transaction | string
+    ) => {
       const txId = pickTransactionId(transaction)
       const path = `/properties/${id}/values`
 
-      const { sort, skip, limit, query } = options ?? {}
-
-      const queryParams = new URLSearchParams()
-      if (sort !== undefined) queryParams.append('sort', sort)
-      if (skip !== undefined) queryParams.append('skip', skip.toString())
-      if (limit !== undefined) queryParams.append('limit', limit.toString())
-      if (query !== undefined) queryParams.append('query', query)
-
-      const queryString = queryParams.toString()
-      const fullPath = queryString ? `${path}?${queryString}` : path
-
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
-        method: 'GET'
+        method: 'POST',
+        requestData: searchQuery
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
 
-      const response = await this.fetcher<ApiResponse<Property & PropertyValuesData>>(fullPath, payload)
-      this.logger?.({ requestId, path: fullPath, ...payload, responseData: response.data })
+      const response = await this.fetcher<ApiResponse<Property & PropertyValuesData>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response
     }
-    // update: () => {
-    //   // @TODO
-    // },
-    // updateValues: (id: string, transaction?: Transaction | string) => {
-    //   // @TODO
-    // },
   }
 
   /**

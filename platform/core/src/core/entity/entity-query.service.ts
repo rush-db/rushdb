@@ -145,7 +145,9 @@ export class EntityQueryService {
       .append(normalizedQueryClauses)
 
     if (sortedQueryParts.length > 1) {
-      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
+      const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
+
+      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
     }
 
     queryBuilder.append(aggregateProjections)
@@ -177,7 +179,9 @@ export class EntityQueryService {
       .append(queryClauses.join(`\n`))
 
     if (sortedQueryParts.length > 1) {
-      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
+      const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
+
+      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
     }
 
     queryBuilder.append('RETURN count(DISTINCT record) as total')
@@ -207,7 +211,9 @@ export class EntityQueryService {
         .append(queryClauses.join(`\n`))
 
       if (sortedQueryParts.length > 1) {
-        queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
+        const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
+
+        queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
       }
     }
 
@@ -236,7 +242,7 @@ export class EntityQueryService {
     queryBuilder
       .append(`MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
       .append(queryClauses.join(`\n`))
-      .append(`WITH ${parsedWhere.nodeAliases.join(', ')}${wherePart}`)
+      .append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
       .append(
         `WITH DISTINCT record, [label IN labels(record) WHERE label <> "${RUSHDB_LABEL_RECORD}"] as recordLabels`
       )
@@ -288,7 +294,9 @@ export class EntityQueryService {
       .append(toBoolean(id) ? queryClauses.join(`\n`) : rawQueryClauses.join(`\n`))
 
     if (sortedQueryParts.length > 1) {
-      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
+      const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
+
+      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
     }
 
     if (!toBoolean(id)) {
@@ -333,7 +341,9 @@ export class EntityQueryService {
       .append(toBoolean(id) ? queryClauses.join(`\n`) : rawQueryClauses.join(`\n`))
 
     if (sortedQueryParts.length > 1) {
-      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')}`).append(`WHERE ${parsedWhere.where}`)
+      const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
+
+      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
     }
 
     if (!toBoolean(id)) {

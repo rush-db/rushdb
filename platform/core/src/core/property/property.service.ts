@@ -10,11 +10,11 @@ import { PROPERTY_TYPE_STRING } from '@/core/property/property.constants'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { TSearchSortDirection } from '@/core/search/search.types'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 import { PropertyDto } from './dto/property.dto'
 import { TPropertyInstance, TPropertyProperties } from './model/property.interface'
 import { PropertyRepository } from './model/property.repository'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 @Injectable()
 export class PropertyService {
@@ -27,17 +27,15 @@ export class PropertyService {
 
   async getPropertyValues({
     propertyId,
-    sort,
-    query,
-    pagination,
+    searchQuery,
     transaction,
+    projectId,
     queryRunner
   }: {
     propertyId: string
-    sort?: TSearchSortDirection
-    query?: string
-    pagination?: Pick<SearchDto, 'skip' | 'limit'>
+    searchQuery: SearchDto & { query?: string; orderBy?: TSearchSortDirection }
     transaction: Transaction
+    projectId: string
     queryRunner?: QueryRunner
   }) {
     const runner = queryRunner || this.compositeNeogmaService.createRunner()
@@ -45,12 +43,11 @@ export class PropertyService {
     return await runner
       .run(
         this.propertyQueryService.getPropertyValues({
-          paginationParams: pagination,
-          query,
-          sort
+          searchQuery
         }),
         {
-          id: propertyId
+          id: propertyId,
+          projectId
         },
         transaction
       )

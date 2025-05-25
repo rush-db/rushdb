@@ -13,7 +13,7 @@ import RushDB from '@rushdb/javascript-sdk';
 
 // Create an instance with an API token
 const db = new RushDB('your-api-token', {
-  url: 'https://api.rushdb.com'
+  url: 'https://api.rushdb.com/api/v1'
 });
 ```
 
@@ -142,7 +142,7 @@ import RushDB, { Model } from '@rushdb/javascript-sdk';
 
 // Initialize the SDK
 const db = new RushDB('your-api-token', {
-  url: 'https://api.rushdb.com'
+  url: 'https://api.rushdb.com/api/v1'
 });
 
 // Define schemas
