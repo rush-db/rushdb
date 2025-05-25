@@ -121,15 +121,19 @@ To retrieve possible values for a specific property, use the `properties.values`
 
 ```typescript
 const values = await db.properties.values('property_id_1', {
-  limit: 10,
-  distinct: true
+  where: {
+    status: 'active'
+  },
+  query: 'john',
+  orderBy: 'asc',
+  limit: 10
 });
 
 console.log(values);
 /*
 {
-  data: ['john@example.com', 'jane@example.com', 'bob@example.com'],
-  total: 3
+  data: ['john@example.com', 'johnny@example.com'],
+  total: 2
 }
 */
 ```
@@ -137,10 +141,12 @@ console.log(values);
 #### Parameters
 
 - `id`: The ID of the property to get values for
-- `options` (optional): Configuration options:
+- `searchQuery` (optional): SearchQuery object with filtering options:
+  - `where` (object): Filter criteria for records containing this property
+  - `query` (string): Filter values by this text string
+  - `orderBy` (string): Sort direction ('asc' or 'desc')
   - `limit` (number): Maximum number of values to return
-  - `distinct` (boolean): Whether to return only distinct values
-  - `sort` (string): Sort direction ('asc' or 'desc')
+  - `skip` (number): Number of values to skip for pagination
 - `transaction` (optional): A [transaction](../concepts/transactions.mdx) object or string to include the operation within a transaction
 
 #### Returns
