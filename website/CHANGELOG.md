@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 1.2.1
+
+### Patch Changes
+
+- 7a4c193: Fix delete records by ids method
+
 ## 1.2.0
 
 ### Minor Changes

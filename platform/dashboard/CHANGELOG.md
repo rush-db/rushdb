@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.2.1
+
+### Patch Changes
+
+- 7a4c193: Fix delete records by ids method
+- Updated dependencies [7a4c193]
+  - @rushdb/javascript-sdk@1.2.1
+
 ## 1.2.0
 
 ### Minor Changes
