@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { QueryBuilder } from '@/common/QueryBuilder'
+import { toBoolean } from '@/common/utils/toBolean'
 import {
   RUSHDB_KEY_ID,
   RUSHDB_KEY_PROPERTIES_META,
@@ -191,7 +192,7 @@ export class PropertyQueryService {
       `MATCH (record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })<-[value:${RUSHDB_RELATION_VALUE}]-(property:${RUSHDB_LABEL_PROPERTY} { id: $id })`
     )
 
-    if (queryClauses.length > 0) {
+    if (queryClauses?.filter(toBoolean).length > 0) {
       queryBuilder
         .append(queryClauses.join(`\n`))
         .append(`AND record[property.name] IS NOT NULL AND property.type <> 'vector'`)
