@@ -336,7 +336,7 @@ export class RestAPI {
       const path = multipleTargets ? `/records/delete` : `/records/${idOrIds}`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
-        method: multipleTargets ? 'PUT' : 'DELETE',
+        method: multipleTargets ? 'POST' : 'DELETE',
         requestData: multipleTargets ? { limit: 1000, where: { $id: { $in: idOrIds } } } : undefined
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
