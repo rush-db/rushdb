@@ -1,7 +1,7 @@
 /**
  * This file is responsible for all api calls and data normalization
  */
-import type {
+import {
   AnyObject,
   Property,
   SearchQuery,
@@ -12,7 +12,8 @@ import type {
   RelationTarget,
   RelationOptions,
   PropertyDraft,
-  DBRecordCreationOptions
+  DBRecordCreationOptions,
+  OrderDirection
 } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
@@ -253,6 +254,14 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ email })
       })
+    },
+
+    async leaveWorkspace({ id, init }: { id: string; init?: RequestInit }): Promise<{ message: string }> {
+      return fetcher<{ message: string }>(`/api/v1/workspaces/${id}/leave-workspace`, {
+        ...init,
+        body: JSON.stringify({}),
+        method: 'PATCH'
+      })
     }
   },
   tokens: {
@@ -354,8 +363,16 @@ export const api = {
     async find({ searchQuery, init }: { searchQuery: SearchQuery; init: RequestInit }) {
       return sdk(init).properties.find(searchQuery)
     },
-    async values({ id, init }: { id: Property['id']; init: RequestInit }) {
-      return sdk(init).properties.values(id)
+    async values({
+      id,
+      searchQuery,
+      init
+    }: {
+      id: Property['id']
+      searchQuery: SearchQuery & { query?: string; orderBy?: OrderDirection }
+      init: RequestInit
+    }) {
+      return sdk(init).properties.values(id, searchQuery)
     }
   },
   auth: {

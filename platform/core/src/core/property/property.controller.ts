@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   Delete,
   forwardRef,
   Get,
@@ -9,10 +8,7 @@ import {
   HttpStatus,
   Inject,
   Param,
-  ParseIntPipe,
-  Patch,
   Post,
-  Query,
   Request,
   UseGuards,
   UseInterceptors,
@@ -26,11 +22,9 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { EntityService } from '@/core/entity/entity.service'
-import { UpdatePropertyDto } from '@/core/property/dto/update-property.dto'
 import { TPropertyProperties } from '@/core/property/model/property.interface'
 import { PropertyService } from '@/core/property/property.service'
 import { SearchDto } from '@/core/search/dto/search.dto'
-import { pagination } from '@/core/search/parser/pagination'
 import { TSearchSortDirection } from '@/core/search/search.types'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
@@ -77,7 +71,7 @@ export class PropertyController {
     })
   }
 
-  @Get(':propertyId/values')
+  @Post(':propertyId/values')
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
@@ -85,17 +79,16 @@ export class PropertyController {
   @HttpCode(HttpStatus.OK)
   async getPropertyValues(
     @Param('propertyId') propertyId: string,
+    @Body() searchQueryWithQuery: SearchDto & { query?: string; orderBy?: TSearchSortDirection },
     @PreferredTransactionDecorator() transaction: Transaction,
-    @Query('sort') sort?: TSearchSortDirection,
-    @Query('query') query?: string,
-    @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
-    @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit?: number
+    @Request() request: PlatformRequest
   ): Promise<unknown> {
+    const projectId = request.projectId
+
     return await this.propertyService.getPropertyValues({
       propertyId,
-      sort,
-      query,
-      pagination: pagination(skip, limit),
+      searchQuery: searchQueryWithQuery,
+      projectId,
       transaction
     })
   }
@@ -120,12 +113,15 @@ export class PropertyController {
     })
   }
 
-  // @TODO: Move it to Entity Scope Bulk Operations. (SearchDTO => delete Property for selected Records)
-  // It will become more useful when posed as Record-centric API.
+  // @TODO: Make it with POST :id/delete (SearchDTO => delete Property for selected Records)
 
   @Delete(':propertyId')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(
+    IsRelatedToProjectGuard()
+    // @TODO: Andrew? help
+    // CustomDbWriteRestrictionGuard
+  )
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async deleteField(
@@ -186,26 +182,26 @@ export class PropertyController {
   // @TODO: Rename operation here is ok too. But maybe it would be better to achieve the same more flexible
   // by putting Rename method as a part of Bulk Operation to Entity Scope. It will be cool to have SearchDTO as
   // a part this API.
-  @Patch(':propertyId')
-  @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard(), CustomDbWriteRestrictionGuard)
-  @AuthGuard('project')
-  @HttpCode(HttpStatus.OK)
-  async updateField(
-    @Param('propertyId') propertyId: string,
-    @Body() updateParams: UpdatePropertyDto,
-    @PreferredTransactionDecorator() transaction: Transaction,
-    @Request() request: PlatformRequest
-  ): Promise<boolean> {
-    const projectId = request.projectId
-
-    await this.propertyService.updateFieldData({
-      propertyId,
-      updateParams,
-      transaction,
-      projectId
-    })
-
-    return true
-  }
+  // @Patch(':propertyId')
+  // @ApiBearerAuth()
+  // @UseGuards(IsRelatedToProjectGuard(), CustomDbWriteRestrictionGuard)
+  // @AuthGuard('project')
+  // @HttpCode(HttpStatus.OK)
+  // async updateField(
+  //   @Param('propertyId') propertyId: string,
+  //   @Body() updateParams: UpdatePropertyDto,
+  //   @PreferredTransactionDecorator() transaction: Transaction,
+  //   @Request() request: PlatformRequest
+  // ): Promise<boolean> {
+  //   const projectId = request.projectId
+  //
+  //   await this.propertyService.updateFieldData({
+  //     propertyId,
+  //     updateParams,
+  //     transaction,
+  //     projectId
+  //   })
+  //
+  //   return true
+  // }
 }

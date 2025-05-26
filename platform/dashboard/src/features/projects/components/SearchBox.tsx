@@ -33,7 +33,13 @@ import { api } from '~/lib/api.ts'
 import { createAsyncStore } from '~/lib/fetcher.ts'
 import { isInViewport, normalizeString } from '~/lib/utils.ts'
 
-import { $currentProjectFields, addFilter } from '../stores/current-project.ts'
+import {
+  $activeLabels,
+  $currentProjectFields,
+  $currentProjectFilters,
+  addFilter
+} from '../stores/current-project.ts'
+import { convertToSearchQuery, filterToSearchOperation } from '~/features/projects/utils.ts'
 
 const ICON_SIZE = 12
 
@@ -76,9 +82,16 @@ const $currentFieldValues = createAsyncStore({
       return
     }
 
+    const labels = $activeLabels.get()
+    let properties = $currentProjectFilters.get().map(filterToSearchOperation)
+
     return await api.properties.values({
       init,
-      id: fieldId
+      id: fieldId,
+      searchQuery: {
+        labels,
+        where: convertToSearchQuery(properties)
+      }
     })
 
     // as unknown as Array<
