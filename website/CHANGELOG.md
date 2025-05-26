@@ -1,5 +1,11 @@
 # rushdb-website
 
+## 1.2.0
+
+### Minor Changes
+
+- 99ac372: Fix label api error, add auth header verification for sdk, values now searchable with SearchQuery, update docs, user can now leave workspace
+
 ## 1.1.0
 
 ### Minor Changes

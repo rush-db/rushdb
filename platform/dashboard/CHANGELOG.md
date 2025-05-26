@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 1.2.0
+
+### Minor Changes
+
+- 99ac372: Fix label api error, add auth header verification for sdk, values now searchable with SearchQuery, update docs, user can now leave workspace
+
+### Patch Changes
+
+- Updated dependencies [99ac372]
+  - @rushdb/javascript-sdk@1.2.0
+
 ## 1.1.0
 
 ### Minor Changes
