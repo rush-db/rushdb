@@ -84,7 +84,13 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
               and privacy. Your project can be created immediately without additional configuration.
             </p>
           : null}
-          <TextField label="Name" {...register('name')} autoFocus error={errors?.name?.message} />
+          <TextField
+            label="Name"
+            {...register('name')}
+            autoFocus
+            error={errors?.name?.message}
+            data-tour="project-name-input"
+          />
           <TextField
             label="Description (optional)"
             {...register('description')}
@@ -93,7 +99,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
         </CardBody>
 
         {loading || !platformSettings?.selfHosted ?
-          <div className="relative">
+          <div className="relative" data-tour="custom-neo4j-container">
             {!hasValidSubscription ?
               <div className="blur-10 absolute top-0 z-0 h-full rounded-t-lg bg-gradient-to-b from-[#3f82ff] to-transparent to-50% opacity-20">
                 <img src={ArrowsGrid} alt="Arrows Grid" className="" />
@@ -156,7 +162,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
         : null}
 
         <CardFooter>
-          <Button loading={isSubmitting} type="submit" variant="accent">
+          <Button loading={isSubmitting} type="submit" variant="accent" data-tour="create-project-btn">
             Create Project <ArrowRight className="mr-1 h-4 w-4" />
           </Button>
         </CardFooter>

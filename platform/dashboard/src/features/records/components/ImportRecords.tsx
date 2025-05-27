@@ -1,7 +1,7 @@
 import { useStore } from '@nanostores/react'
 import { Braces, DatabaseZap, Edit, TestTube2 } from 'lucide-react'
 import { atom, onSet } from 'nanostores'
-import { type ReactNode, Suspense, lazy, useState, ChangeEvent } from 'react'
+import { type ReactNode, Suspense, lazy, useState, ChangeEvent, useEffect } from 'react'
 
 import { Button } from '~/elements/Button'
 import { DialogFooter, DialogLoadingOverlay } from '~/elements/Dialog'
@@ -13,6 +13,7 @@ import { CheckboxField } from '~/elements/Checkbox.tsx'
 import { $router, getRoutePath } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
 import { PageHeader, PageTitle } from '~/elements/PageHeader.tsx'
+import { $tourRunning, $tourStep } from '~/features/tour/stores/tour.ts'
 
 function RadioGroup({ className, ...props }: TInheritableElementProps<'div', {}>) {
   return <div className={cn(className, 'flex flex-col gap-5')} {...props} />
@@ -160,6 +161,7 @@ function EditorStep() {
       </div>
 
       <div
+        data-tour="project-import-data-overview"
         className={cn('-mx-5 flex h-[70vh] min-h-[300px] flex-col overflow-hidden pb-5', {
           'opacity-0': loading
         })}
@@ -181,6 +183,7 @@ function EditorStep() {
           Back
         </Button>
         <Button
+          data-tour="project-import-data-ingest"
           onClick={() => {
             if (!label) {
               setError('Label is required')
@@ -235,7 +238,15 @@ function isNDJSONorJSON(input: string): 'NDJSON' | 'JSON' | 'Unknown' {
 }
 
 export function ImportRecords() {
+  const page = useStore($router)
   const step = useStore($step)
+
+  useEffect(() => {
+    if (page?.route === 'projectImportData') {
+      $tourStep.set('projectImportRadio')
+      $tourRunning.set(true)
+    }
+  }, [page?.route])
 
   const handleJsonUploadChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -290,11 +301,13 @@ export function ImportRecords() {
                   const data = await import('../batchData.json').then((mod) => mod.default)
                   $editorData.set(JSON.stringify(data))
                   $label.set('COMPANY')
+                  $tourStep.set('projectImportOverview')
                 } catch (error) {}
               }}
               description="We'll upload a test dataset for you to explore."
               icon={<TestTube2 />}
               title="Use test dataset"
+              data-tour="project-import-data-radio"
             />
             <RadioButton
               description="Create a new json from scratch"

@@ -163,7 +163,13 @@ function StickyHeaderWrapper({
   }
 
   return (
-    <div {...props} className={cn('overflow-auto', className)} onScroll={syncStickyHeaderScroll} ref={el}>
+    <div
+      data-tour="records-table-overview"
+      {...props}
+      className={cn('overflow-auto', className)}
+      onScroll={syncStickyHeaderScroll}
+      ref={el}
+    >
       <div ref={startBufferEl} />
       {children(sticky)}
       <div className="relative -z-10" ref={endBufferEl} />

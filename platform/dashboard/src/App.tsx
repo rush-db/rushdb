@@ -22,6 +22,7 @@ import { useEffect, useMemo } from 'react'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { AuthGitHub } from '~/pages/auth/github.tsx'
 import { $user } from '~/features/auth/stores/user.ts'
+import { OnboardingTour } from '~/features/tour/components/OnboardingTour.tsx'
 
 function PublicRoutes() {
   const page = useStore($router)
@@ -136,6 +137,7 @@ function ProductionScripts() {
 export function App() {
   return (
     <>
+      <OnboardingTour />
       <Routes />
       <Toaster />
       <ProductionScripts />
