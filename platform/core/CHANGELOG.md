@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.2.2
+
+### Patch Changes
+
+- 1720499: fix: simplified delete project flow, fixed orphan props deletion method
+
 ## 1.2.1
 
 ### Patch Changes
