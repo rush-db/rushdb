@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.2.2
+
+### Patch Changes
+
+- 1720499: fix: simplified delete project flow, fixed orphan props deletion method
+- Updated dependencies [1720499]
+  - @rushdb/javascript-sdk@1.2.2
+
 ## 1.2.1
 
 ### Patch Changes
