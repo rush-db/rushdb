@@ -153,8 +153,8 @@ export class ProjectService {
       return true
     }
 
-    // @FYI: UWAGA - keep it without await.
-    this.cleanUpProject(id).then(() => projectNode.delete())
+    await this.removeProjectOwnNode(id, transaction)
+    this.cleanUpProject(id)
 
     return true
   }
@@ -226,22 +226,19 @@ export class ProjectService {
     const queryRunner = this.neogmaService.createRunner()
 
     try {
-      await queryRunner
-        .run(
-          this.projectQueryService.removeProjectQuery(),
-          {
-            projectId: id
-          },
-          transaction
-        )
-        .then(
-          async () =>
-            await this.propertyService.deleteOrphanProps({
-              projectId: id,
-              queryRunner,
-              transaction
-            })
-        )
+      await queryRunner.run(
+        this.projectQueryService.removeProjectQuery(),
+        {
+          projectId: id
+        },
+        transaction
+      )
+
+      await this.propertyService.deleteOrphanProps({
+        projectId: id,
+        queryRunner,
+        transaction
+      })
     } catch (e) {
       console.log('[cleanUpProject ERROR]', e)
       if (transaction.isOpen()) {
