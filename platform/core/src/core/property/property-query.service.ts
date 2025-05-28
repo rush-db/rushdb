@@ -236,7 +236,7 @@ export class PropertyQueryService {
     const queryBuilder = new QueryBuilder()
 
     queryBuilder.append(
-      `MATCH (lost:${RUSHDB_LABEL_PROPERTY} { ${projectIdInline()} }) WHERE NOT (lost)--() DELETE lost`
+      `MATCH (lost:${RUSHDB_LABEL_PROPERTY} { projectId: $projectId }) WHERE NOT (lost)--() DELETE lost`
     )
 
     return queryBuilder.getQuery()
