@@ -18,7 +18,7 @@ import { GraphView } from '~/features/projects/components/GraphView.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
 import React, { useEffect } from 'react'
 import { RawApiView } from '~/features/projects/components/RawApiView.tsx'
-import { $tourRunning, $tourStep } from '~/features/tour/stores/tour.ts'
+import { setTourStep } from '~/features/tour/stores/tour.ts'
 import { $router } from '~/lib/router.ts'
 
 function View() {
@@ -35,10 +35,8 @@ function View() {
   const view = useStore($recordView)
 
   useEffect(() => {
-    const currentStep = $tourStep.get()
-    if (page?.route === 'project' && !loading && records?.length && !currentStep.startsWith('record')) {
-      $tourStep.set('recordTableOverview')
-      $tourRunning.set(true)
+    if (page?.route === 'project' && !loading && records?.length) {
+      setTourStep('recordTableOverview', false)
     }
   }, [page?.route, loading])
 

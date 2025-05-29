@@ -21,7 +21,7 @@ import { $currentProjectFirstToken } from '~/features/projects/stores/current-pr
 import { Project } from '~/features/projects/types'
 import { getRoutePath } from '~/lib/router'
 import { cn, getNumberOfLines } from '~/lib/utils'
-import { $tourRunning, $tourStep } from '~/features/tour/stores/tour.ts'
+import { setTourStep } from '~/features/tour/stores/tour.ts'
 
 const TOKEN_FALLBACK = 'TOKEN'
 
@@ -82,8 +82,7 @@ export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
 
   useEffect(() => {
     if (!loading && token?.value) {
-      $tourStep.set('projectSdkTokenOverview')
-      $tourRunning.set(true)
+      setTourStep('projectSdkTokenOverview', false)
     }
   }, [loading, token])
 

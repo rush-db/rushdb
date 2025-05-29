@@ -13,7 +13,7 @@ import { CheckboxField } from '~/elements/Checkbox.tsx'
 import { $router, getRoutePath } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
 import { PageHeader, PageTitle } from '~/elements/PageHeader.tsx'
-import { $tourRunning, $tourStep } from '~/features/tour/stores/tour.ts'
+import { setTourStep } from '~/features/tour/stores/tour.ts'
 
 function RadioGroup({ className, ...props }: TInheritableElementProps<'div', {}>) {
   return <div className={cn(className, 'flex flex-col gap-5')} {...props} />
@@ -243,8 +243,7 @@ export function ImportRecords() {
 
   useEffect(() => {
     if (page?.route === 'projectImportData') {
-      $tourStep.set('projectImportRadio')
-      $tourRunning.set(true)
+      setTourStep('projectImportRadio', false)
     }
   }, [page?.route])
 
@@ -301,7 +300,7 @@ export function ImportRecords() {
                   const data = await import('../batchData.json').then((mod) => mod.default)
                   $editorData.set(JSON.stringify(data))
                   $label.set('COMPANY')
-                  $tourStep.set('projectImportOverview')
+                  setTourStep('projectImportOverview', true)
                 } catch (error) {}
               }}
               description="We'll upload a test dataset for you to explore."

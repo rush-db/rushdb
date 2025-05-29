@@ -83,7 +83,6 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     data: {
       route: 'newProject',
       key: 'newProjectCreate',
-      nextShouldBeManuallySet: true,
       noNext: true
     }
   },
@@ -175,13 +174,12 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       route: 'projectImportData',
       key: 'projectImportIngest',
       nextShouldBeManuallySet: true,
-      noBack: true,
       noNext: true
     }
   },
   recordTableOverview: {
     target: '[data-tour="records-table-overview"]',
-    placement: 'top',
+    placementBeacon: 'top',
     content: (
       <div className="space-y-4 text-center">
         <h3 className="text-content text-xl font-bold">View Your Records</h3>

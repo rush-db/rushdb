@@ -10,4 +10,8 @@ export class UpdateUserDto {
   @ApiModelProperty()
   @ApiProperty()
   lastName?: string
+
+  @ApiModelProperty()
+  @ApiProperty()
+  settings?: string
 }

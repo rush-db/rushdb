@@ -89,7 +89,7 @@ function Header() {
           Upgrade Plan
         </Button>
       : isOwner ?
-        <Button as="a" href={getRoutePath('newProject')} variant="primary">
+        <Button data-tour="new-project-btn" as="a" href={getRoutePath('newProject')} variant="primary">
           <FolderPlus />
           New Project
         </Button>
@@ -109,9 +109,9 @@ function EmptyProjects() {
       <p className="text-content/90">Project is a place to organize related records</p>
       {isOwner ?
         <Button
+          data-tour="new-project-btn"
           as="a"
           className="mt-5 w-full"
-          data-tour="new-project-btn"
           href={getRoutePath('newProject')}
           variant="accent"
         >

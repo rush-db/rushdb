@@ -13,6 +13,8 @@ import { $currentWorkspace } from '~/features/workspaces/stores/current-workspac
 
 import ArrowsGrid from '~/assets/icons/arrows-grid.svg'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { setTourStep } from '~/features/tour/stores/tour.ts'
+import { useEffect } from 'react'
 
 // Type for form values
 type ProjectFormValues = {
@@ -53,6 +55,10 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
   const hasValidSubscription =
     isSubscriptionActive ||
     (hasPaidPlan && workspace?.validTill && new Date(workspace.validTill) > new Date())
+
+  useEffect(() => {
+    setTourStep('newProjectName', false)
+  }, [])
 
   // Use appropriate schema based on subscription status
   const schema = hasValidSubscription ? premiumSchema : baseSchema

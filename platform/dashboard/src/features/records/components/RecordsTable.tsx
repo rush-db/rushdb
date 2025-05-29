@@ -51,6 +51,7 @@ function FieldHeadCell({
 
   return (
     <HeadCell
+      data-tour="records-table-overview"
       {...props}
       onClick={() => {
         setRecordsSort(field.name)
@@ -163,13 +164,7 @@ function StickyHeaderWrapper({
   }
 
   return (
-    <div
-      data-tour="records-table-overview"
-      {...props}
-      className={cn('overflow-auto', className)}
-      onScroll={syncStickyHeaderScroll}
-      ref={el}
-    >
+    <div {...props} className={cn('overflow-auto', className)} onScroll={syncStickyHeaderScroll} ref={el}>
       <div ref={startBufferEl} />
       {children(sticky)}
       <div className="relative -z-10" ref={endBufferEl} />
