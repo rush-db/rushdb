@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect } from 'react'
 import Joyride, { CallBackProps, EVENTS, STATUS } from 'react-joyride'
 import { useStore } from '@nanostores/react'
-import { $user, updateUser } from '~/features/auth/stores/user'
+import { updateUser } from '~/features/auth/stores/user'
 import { $router, openRoute, projectRoutes, routes } from '~/lib/router'
 import { steps, keys } from '~/features/tour/config/steps'
 import {
@@ -11,113 +11,70 @@ import {
   $tourAllowed,
   setTourStep
 } from '~/features/tour/stores/tour'
-import { CustomTooltip } from '~/features/tour/components/CustomTooltip'
+import { CustomTooltip } from './CustomTooltip'
 import { $currentProjectId } from '~/features/projects/stores/id'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { useWaitForSelectorStable } from '~/features/tour/hooks/useWaitForSelector'
 
 export function OnboardingTour() {
   const page = useStore($router) as { route: keyof typeof routes }
-  const user = useStore($user)
   const projectId = useStore($currentProjectId)
   const currentKey = useStore($tourStep)
   const run = useStore($tourEffective)
-  const platformSettings = useStore($platformSettings)
   const { mutate: updateSettings } = useStore(updateUser)
   const isAllowed = useStore($tourAllowed)
-  const initializedRef = useRef(false)
-  const isOwner = user.currentScope?.role === 'owner'
 
-  useEffect(() => {
-    if (user && !isOwner && !user.isLoggedIn && !platformSettings.data?.selfHosted) {
-      return
-    }
-
-    if (initializedRef.current) return
-
-    const settings = user.settings || ''
-
-    let status: 'skipped' | 'finished' | 'active' | undefined
-
-    try {
-      status = JSON.parse(settings)?.onboardingStatus as 'skipped' | 'finished' | 'active'
-    } catch {
-      status = undefined
-    }
-
-    if (!status) {
-      updateSettings({
-        settings: JSON.stringify({
-          onboardingStatus: 'active'
-        })
-      })
-
-      initializedRef.current = true
-
-      $tourRunning.set(true)
-    } else if (status === 'active') {
-      $tourRunning.set(true)
-    } else {
-      $tourRunning.set(false)
-    }
-  }, [user])
+  const currentStep = steps.find((s) => (s.data as any).key === currentKey)
+  const targetSelector = (currentStep?.target as string) || ''
+  const stepReady = useWaitForSelectorStable(targetSelector)
 
   useEffect(() => {
     const def = steps.find((s) => (s.data as any).key === currentKey)
-    if (!def) return
+    if (!def) {
+      $tourRunning.set(false)
+      return
+    }
 
-    if (page.route === (def.data as any).route && isAllowed) {
+    const { route: stepRoute } = def.data as any
+    if (page.route === stepRoute && isAllowed && stepReady) {
       $tourRunning.set(true)
     } else {
       $tourRunning.set(false)
     }
-  }, [page.route, currentKey])
+  }, [page.route, currentKey, isAllowed, stepReady])
 
-  const handleCallback = ({ status, type, action, index, step }: CallBackProps) => {
+  const handleCallback = ({ status, type, action, index }: CallBackProps) => {
     if (status === STATUS.SKIPPED) {
-      updateSettings({
-        settings: JSON.stringify({
-          onboardingStatus: 'skipped'
-        })
-      })
+      updateSettings({ settings: JSON.stringify({ onboardingStatus: 'skipped' }) })
       $tourRunning.set(false)
       return
     }
 
     if (action === 'next' && index === steps.length - 1) {
-      updateSettings({
-        settings: JSON.stringify({
-          onboardingStatus: 'finished'
-        })
-      })
+      updateSettings({ settings: JSON.stringify({ onboardingStatus: 'finished' }) })
       $tourRunning.set(false)
       return
     }
 
     if (type === EVENTS.STEP_AFTER) {
       const data = (steps[index].data as any) || {}
-      const nextStep = (steps[index + 1].data as any) || {}
 
-      // Next
       if (action === 'next' && !data.nextShouldBeManuallySet) {
         const nextKey = keys[index + 1]
         if (data.redirectTo) {
           const route = data.redirectTo as keyof typeof projectRoutes
-
           if (projectRoutes[route] && projectId) {
-            openRoute(route as keyof typeof projectRoutes, { id: projectId })
+            openRoute(route, { id: projectId })
           } else {
             openRoute(route as keyof typeof routes)
           }
         }
-        setTourStep(nextKey, false)
+        setTourStep(nextKey)
       }
 
-      // Back
       if (action === 'prev' && !data.noBack) {
         const prevKey = keys[index - 1]
         const prevData = (steps[index - 1]?.data as any) || {}
         const backRoute = prevData.route as keyof typeof routes
-
         if (projectRoutes[backRoute as keyof typeof projectRoutes] && projectId) {
           openRoute(backRoute as keyof typeof projectRoutes, { id: projectId })
         } else {
@@ -131,11 +88,12 @@ export function OnboardingTour() {
   return (
     <Joyride
       steps={steps}
-      run={run}
+      run={run && stepReady}
       stepIndex={keys.indexOf(currentKey)}
       continuous
       showSkipButton
       disableOverlay
+      disableScrollParentFix
       tooltipComponent={CustomTooltip}
       callback={handleCallback}
       styles={{

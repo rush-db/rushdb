@@ -23,6 +23,8 @@ import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { AuthGitHub } from '~/pages/auth/github.tsx'
 import { $user } from '~/features/auth/stores/user.ts'
 import { OnboardingTour } from '~/features/tour/components/OnboardingTour.tsx'
+import { OnboardingInit } from '~/features/tour/components/OnboardingInit.tsx'
+import { ErrorBoundary } from '~/features/tour/components/ErrorBoundary.tsx'
 
 function PublicRoutes() {
   const page = useStore($router)
@@ -137,7 +139,10 @@ function ProductionScripts() {
 export function App() {
   return (
     <>
-      <OnboardingTour />
+      <ErrorBoundary>
+        <OnboardingInit />
+        <OnboardingTour />
+      </ErrorBoundary>
       <Routes />
       <Toaster />
       <ProductionScripts />

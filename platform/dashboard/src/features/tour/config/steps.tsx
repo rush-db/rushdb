@@ -1,6 +1,7 @@
+import React from 'react'
 import type { Step } from 'react-joyride'
-import { TourStepKey } from '~/features/tour/stores/tour'
-import { getRoutePath } from '~/lib/router.ts'
+import { TourStepKey } from '~/features/tour/types'
+import { getRoutePath } from '~/lib/router'
 
 export const stepDefinitions: Record<TourStepKey, Step> = {
   welcome: {
@@ -14,7 +15,10 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
         </p>
       </div>
     ),
-    data: { route: 'home', key: 'welcome' }
+    data: {
+      route: 'home',
+      key: 'welcome'
+    }
   },
   homeNewProject: {
     target: '[data-tour="new-project-btn"]',
@@ -31,12 +35,16 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
             rel="noreferrer"
           >
             our Quick Tutorial
-          </a>{' '}
+          </a>
           .
         </p>
       </div>
     ),
-    data: { route: 'home', redirectTo: 'newProject', key: 'homeNewProject' }
+    data: {
+      route: 'home',
+      redirectTo: 'newProject',
+      key: 'homeNewProject'
+    }
   },
   newProjectName: {
     target: '[data-tour="project-name-input"]',
@@ -47,7 +55,10 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
         <p className="text-content2">Give your project a descriptive name so you can find it later.</p>
       </div>
     ),
-    data: { route: 'newProject', key: 'newProjectName' }
+    data: {
+      route: 'newProject',
+      key: 'newProjectName'
+    }
   },
   newProjectCustomDb: {
     target: '[data-tour="custom-neo4j-container"]',
@@ -64,12 +75,15 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
             rel="noreferrer"
           >
             billing page
-          </a>{' '}
+          </a>
           .
         </p>
       </div>
     ),
-    data: { route: 'newProject', key: 'newProjectCustomDb' }
+    data: {
+      route: 'newProject',
+      key: 'newProjectCustomDb'
+    }
   },
   newProjectCreate: {
     target: '[data-tour="create-project-btn"]',
@@ -83,7 +97,8 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     data: {
       route: 'newProject',
       key: 'newProjectCreate',
-      noNext: true
+      noNext: true,
+      nextShouldBeManuallySet: true
     }
   },
   projectSdkTokenOverview: {
@@ -101,12 +116,16 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
             rel="noreferrer"
           >
             SDKs
-          </a>{' '}
+          </a>
           .
         </p>
       </div>
     ),
-    data: { route: 'projectHelp', key: 'projectSdkTokenOverview', noBack: true }
+    data: {
+      route: 'projectHelp',
+      key: 'projectSdkTokenOverview',
+      noBack: true
+    }
   },
   projectSdkTokenTabInfo: {
     target: '[data-tour="project-token-chip"]',
@@ -117,7 +136,10 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
         <p className="text-content2">Here you can create, rotate, and revoke tokens at any time.</p>
       </div>
     ),
-    data: { route: 'projectHelp', key: 'projectSdkTokenTabInfo' }
+    data: {
+      route: 'projectHelp',
+      key: 'projectSdkTokenTabInfo'
+    }
   },
   projectImportDataTab: {
     target: '[data-tour="project-import-data-chip"]',
@@ -128,7 +150,11 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
         <p className="text-content2">Load JSON/NDJSON data into RushDB. We’ll show you how in a moment.</p>
       </div>
     ),
-    data: { route: 'projectHelp', key: 'projectImportDataTab', redirectTo: 'projectImportData' }
+    data: {
+      route: 'projectHelp',
+      key: 'projectImportDataTab',
+      redirectTo: 'projectImportData'
+    }
   },
   projectImportRadio: {
     target: '[data-tour="project-import-data-radio"]',
@@ -157,7 +183,11 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
         <p className="text-content2">Here’s the JSON you selected. Click “Ingest data” when you’re ready.</p>
       </div>
     ),
-    data: { route: 'projectImportData', key: 'projectImportOverview', noBack: true }
+    data: {
+      route: 'projectImportData',
+      key: 'projectImportOverview',
+      noBack: true
+    }
   },
   projectImportIngest: {
     target: '[data-tour="project-import-data-ingest"]',
@@ -188,7 +218,10 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
         </p>
       </div>
     ),
-    data: { route: 'project', key: 'recordTableOverview' }
+    data: {
+      route: 'project',
+      key: 'recordTableOverview'
+    }
   },
   recordTableSearchInput: {
     target: '[data-tour="records-table-search-input"]',
@@ -205,12 +238,15 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
             rel="noreferrer"
           >
             Search Guide
-          </a>{' '}
+          </a>
           .
         </p>
       </div>
     ),
-    data: { route: 'project', key: 'recordTableSearchInput' }
+    data: {
+      route: 'project',
+      key: 'recordTableSearchInput'
+    }
   },
   recordTableViewMode: {
     target: '[data-tour="records-table-view-mode"]',
@@ -228,12 +264,15 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
             rel="noreferrer"
           >
             Search Guide
-          </a>{' '}
-          to work with Raw API view
+          </a>
+           to work with Raw API view
         </p>
       </div>
     ),
-    data: { route: 'project', key: 'recordTableViewMode' }
+    data: {
+      route: 'project',
+      key: 'recordTableViewMode'
+    }
   }
 }
 
