@@ -21,6 +21,7 @@ import { $currentProjectFirstToken } from '~/features/projects/stores/current-pr
 import { Project } from '~/features/projects/types'
 import { getRoutePath } from '~/lib/router'
 import { cn, getNumberOfLines } from '~/lib/utils'
+import { setTourStep } from '~/features/tour/stores/tour.ts'
 
 const TOKEN_FALLBACK = 'TOKEN'
 
@@ -79,6 +80,12 @@ db = RushDB("${token}")`
 export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
   const { token, loading } = useStore($currentProjectFirstToken)
 
+  useEffect(() => {
+    if (!loading && token?.value) {
+      setTourStep('projectSdkTokenOverview', false)
+    }
+  }, [loading, token])
+
   const { sdkLanguage } = useStore($settings)
 
   return (
@@ -120,6 +127,7 @@ export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
           </p>
 
           <CopyInput
+            data-tour="project-help-sdk-input"
             readOnly
             value={token?.value ?? TOKEN_FALLBACK}
             className={cn('col-span-2 sm:col-span-1 sm:col-start-2', {

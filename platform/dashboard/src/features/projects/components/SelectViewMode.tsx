@@ -54,6 +54,7 @@ export function SelectViewMode({
 
   return (
     <RadioGroup
+      data-tour="records-table-view-mode"
       {...props}
       onChange={$recordView.set}
       options={options}

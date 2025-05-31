@@ -7,24 +7,23 @@ import { $router } from '~/lib/router'
 export function PageTab({
   href,
   icon,
-  label
+  label,
+  dataTour
 }: {
   href: string
   icon?: ReactNode
   label?: ReactNode
+  dataTour?: string
 }) {
   return (
-    <Tab layoutId="PAGE_TAB" value={href}>
+    <Tab layoutId="PAGE_TAB" value={href} data-tour={dataTour}>
       {icon}
       {label}
     </Tab>
   )
 }
 
-export function PageTabs({
-  className,
-  ...props
-}: TPolymorphicComponentProps<'nav'>) {
+export function PageTabs({ className, ...props }: TPolymorphicComponentProps<'nav'>) {
   const page = useStore($router)
 
   return (

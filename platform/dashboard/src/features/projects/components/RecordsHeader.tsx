@@ -115,6 +115,7 @@ export function RecordsHeader() {
     <header className="flex justify-between gap-x-3 gap-y-3 border-b p-5">
       <div className="gap-inherit flex flex-1 flex-wrap items-start">
         <SearchBox
+          data-tour="records-table-search-input"
           prefix={<SelectCombineFiltersMode className="-ml-3 rounded-none border-0 border-r" />}
           className="max-w-sm"
           size="small"

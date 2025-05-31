@@ -1,24 +1,32 @@
-export const sanitizeSettings = (settings: any) => {
+export const sanitizeSettings = (settings: string | undefined) => {
   if (!settings) {
+    return
+  }
+
+  let parsedPayload = {}
+
+  try {
+    parsedPayload = JSON.parse(settings)
+  } catch (e) {
     return
   }
 
   const clearedSettings = {}
 
-  for (const propName in settings) {
+  for (const propName in parsedPayload) {
     const validProp =
-      settings[propName] !== null &&
-      settings[propName] !== undefined &&
-      (typeof settings[propName] === 'string' ||
-        typeof settings[propName] === 'boolean' ||
-        typeof settings[propName] === 'number')
+      parsedPayload[propName] !== null &&
+      parsedPayload[propName] !== undefined &&
+      (typeof parsedPayload[propName] === 'string' ||
+        typeof parsedPayload[propName] === 'boolean' ||
+        typeof parsedPayload[propName] === 'number')
 
     if (validProp) {
-      clearedSettings[propName] = settings[propName]
+      clearedSettings[propName] = parsedPayload[propName]
     }
   }
 
-  return clearedSettings as unknown as string
+  return JSON.stringify(clearedSettings)
 }
 
 export const validateEmail = (email: string) => {

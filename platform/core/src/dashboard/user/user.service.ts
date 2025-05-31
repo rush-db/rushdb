@@ -256,7 +256,7 @@ export class UserService {
   }
 
   async createUserNode(properties: Omit<TUserProperties, 'id' | 'isEmail'>, transaction: Transaction) {
-    let userSettings = {}
+    let userSettings = ''
     const currentTime = getCurrentISO()
     const userId = uuidv7()
     const userPassword = await this.encryptionService.hash(properties.password)
@@ -282,7 +282,7 @@ export class UserService {
           confirmed: properties.confirmed ?? false,
           created: currentTime,
           id: userId,
-          settings: JSON.stringify(userSettings)
+          settings: userSettings
         },
         { session: transaction }
       )
@@ -308,7 +308,7 @@ export class UserService {
       if (userNode[key] !== value) {
         // hack to change an object in TUserProperties interface
         if (key === 'settings') {
-          userNode[key] = sanitizeSettings(value)
+          userNode[key] = sanitizeSettings(value as string)
         } else {
           userNode[key] = value
         }
