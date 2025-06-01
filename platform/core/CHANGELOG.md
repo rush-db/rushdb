@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.3.0
+
+### Minor Changes
+
+- 7f1bf8d: Add onboarding tour
+
 ## 1.2.2
 
 ### Patch Changes
