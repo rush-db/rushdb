@@ -16,10 +16,13 @@ import { $currentProjectVisibleFields } from '../stores/hidden-fields'
 import { $sheetRecordId } from '../stores/id'
 import { GraphView } from '~/features/projects/components/GraphView.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
-import React from 'react'
+import React, { useEffect } from 'react'
 import { RawApiView } from '~/features/projects/components/RawApiView.tsx'
+import { setTourStep } from '~/features/tour/stores/tour.ts'
+import { $router } from '~/lib/router.ts'
 
 function View() {
+  const page = useStore($router)
   const { data: records, loading: loadingRecords, total = 0 } = useStore($filteredRecords)
   const { data: fields, loading: loadingFields } = useStore($currentProjectVisibleFields)
 
@@ -30,6 +33,12 @@ function View() {
   const loading = loadingRecords || loadingFields
 
   const view = useStore($recordView)
+
+  useEffect(() => {
+    if (page?.route === 'project' && !loading && records?.length) {
+      setTourStep('recordTableOverview', false)
+    }
+  }, [page?.route, loading])
 
   switch (view) {
     case 'table':

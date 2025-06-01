@@ -25,14 +25,16 @@ export function ProjectTabs({ projectId }: { projectId: Project['id'] }) {
           id: projectId
         }),
         icon: <UploadIcon />,
-        label: 'Import Data'
+        label: 'Import Data',
+        dataTour: 'project-import-data-chip'
       },
       {
         href: getRoutePath('projectTokens', {
           id: projectId
         }),
         icon: <Key />,
-        label: 'API Keys'
+        label: 'API Keys',
+        dataTour: 'project-token-chip'
       }
     ]
 
@@ -57,8 +59,8 @@ export function ProjectTabs({ projectId }: { projectId: Project['id'] }) {
 
   return (
     <PageTabs>
-      {tabs.map((item) => (
-        <PageTab {...item} key={item.href} />
+      {tabs.map(({ href, icon, label, dataTour }) => (
+        <PageTab key={href} href={href} icon={icon} label={label} dataTour={dataTour} />
       ))}
     </PageTabs>
   )

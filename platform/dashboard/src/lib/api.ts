@@ -342,7 +342,7 @@ export const api = {
         transformResponse: true
       })
 
-      return { ...user, settings: JSON.parse(user.settings) }
+      return { ...user }
     },
     async update({ init, ...body }: { init?: RequestInit } & Partial<User>) {
       return fetcher<GetUserResponse>(`/api/v1/user`, {

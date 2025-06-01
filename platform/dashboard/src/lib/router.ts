@@ -18,7 +18,7 @@ const publicRoutes = {
   githubAuth: '/auth/github/:token?'
 } as const
 
-const projectRoutes = {
+export const projectRoutes = {
   project: '/projects/:id',
   projectSettings: '/projects/:id/settings',
   projectImportData: '/projects/:id/import',
@@ -40,7 +40,7 @@ const protectedRoutes = {
   ...projectRoutes
 } as const
 
-const routes = {
+export const routes = {
   ...publicRoutes,
   ...protectedRoutes
 } as const

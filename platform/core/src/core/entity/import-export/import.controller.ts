@@ -36,13 +36,6 @@ import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 import { CustomTransactionDecorator } from '@/database/neogma-dynamic/custom-transaction.decorator'
 import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
 
-// ---------------------------------------------------------------------------------------------------------------------
-// POST     /import/json           ✅ INGEST DATA
-// POST     /import/csv            ✅ INGEST DATA
-// POST     /import/yml            ❌ INGEST DATA
-// POST     /import/xml            ❌ INGEST DATA
-// ---------------------------------------------------------------------------------------------------------------------
-
 @Controller('')
 @ApiTags('Records')
 @UseInterceptors(
