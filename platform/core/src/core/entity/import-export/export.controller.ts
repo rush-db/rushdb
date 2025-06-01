@@ -12,15 +12,8 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
-
-// ---------------------------------------------------------------------------------------------------------------------
-// POST     /export/json           ✅ INGEST DATA
-// POST     /export/csv            ✅ INGEST DATA
-// POST     /export/yml            ❌ INGEST DATA
-// POST     /export/xml            ❌ INGEST DATA
-// ---------------------------------------------------------------------------------------------------------------------
+import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 @Controller('')
 @ApiTags('Records')

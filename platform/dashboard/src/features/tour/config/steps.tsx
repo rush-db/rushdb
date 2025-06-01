@@ -1,6 +1,6 @@
 import React from 'react'
 import type { Step } from 'react-joyride'
-import { TourStepKey } from '~/features/tour/types'
+import type { TourStepKey } from '~/features/tour/types'
 import { getRoutePath } from '~/lib/router'
 
 export const stepDefinitions: Record<TourStepKey, Step> = {
@@ -8,7 +8,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: 'body',
     placement: 'center',
     content: (
-      <div className="space-y-4 text-center">
+      <div className="space-y-4">
         <h2 className="text-content text-2xl font-bold">Welcome to RushDB!</h2>
         <p className="text-content2">
           Congratulations on creating your account and first workspace. Let’s walk through the key features.
@@ -24,19 +24,21 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="new-project-btn"]',
     placement: 'bottom',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Create a Project</h3>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Create a Project</h3>
+        <p className="text-content2 font-bold">Projects help you separate and manage your data.</p>
         <p className="text-content2">
-          Projects let you organize your data. Click here to get started, then we’ll guide you to
+          Each project acts as its own data space — perfect for staging vs. production, or isolated tenants.
+          Click to create your first one — we’ll guide you from there. See{' '}
           <a
             className="text-accent ml-1 underline"
-            href="https://docs.rushdb.com/"
+            href="https://docs.rushdb.com/get-started/quick-tutorial"
             target="_blank"
             rel="noreferrer"
           >
-            our Quick Tutorial
+            our Quick Tutorial{' '}
           </a>
-          .
+          to get started faster.
         </p>
       </div>
     ),
@@ -50,8 +52,8 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="project-name-input"]',
     placement: 'right',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Enter Project Name</h3>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Enter Project Name</h3>
         <p className="text-content2">Give your project a descriptive name so you can find it later.</p>
       </div>
     ),
@@ -64,8 +66,8 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="custom-neo4j-container"]',
     placement: 'right',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Connect Custom Neo4j</h3>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Connect Custom Neo4j</h3>
         <p className="text-content2">
           On a paid plan you can attach your own Neo4j instance for full data isolation. Learn more on
           <a
@@ -76,7 +78,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
           >
             billing page
           </a>
-          .
+          .
         </p>
       </div>
     ),
@@ -89,8 +91,8 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="create-project-btn"]',
     placement: 'right',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Create Your Project</h3>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Create Your Project</h3>
         <p className="text-content2">Everything’s set—click “Create project” to finish the setup.</p>
       </div>
     ),
@@ -105,8 +107,8 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="project-help-sdk-input"]',
     placement: 'top',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Your First SDK Token</h3>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Your First SDK Token</h3>
         <p className="text-content2">
           We’ve generated an API key so you can immediately start using our
           <a
@@ -117,7 +119,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
           >
             SDKs
           </a>
-          .
+          .
         </p>
       </div>
     ),
@@ -131,9 +133,9 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="project-token-chip"]',
     placement: 'bottom',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">API Keys Tab</h3>
-        <p className="text-content2">Here you can create, rotate, and revoke tokens at any time.</p>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">API Keys Tab</h3>
+        <p className="text-content2">Create or revoke API tokens to control secure access to your project.</p>
       </div>
     ),
     data: {
@@ -145,9 +147,11 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="project-import-data-chip"]',
     placement: 'bottom',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Import Data Tab</h3>
-        <p className="text-content2">Load JSON/NDJSON data into RushDB. We’ll show you how in a moment.</p>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Import Data Tab</h3>
+        <p className="text-content2">
+          Upload your JSON or NDJSON — RushDB will handle the rest. We’ll guide you through it shortly.
+        </p>
       </div>
     ),
     data: {
@@ -160,8 +164,8 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="project-import-data-radio"]',
     placement: 'bottom',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Choose Your Method</h3>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Choose Your Method</h3>
         <p className="text-content2">
           Pick “Use test dataset” for a quick start or upload your own JSON/NDJSON.
         </p>
@@ -178,9 +182,9 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="project-import-data-overview"]',
     placement: 'top',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Preview Your Data</h3>
-        <p className="text-content2">Here’s the JSON you selected. Click “Ingest data” when you’re ready.</p>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Preview Your Data</h3>
+        <p className="text-content2">Here’s the JSON you selected. Click “Import data” when you’re ready.</p>
       </div>
     ),
     data: {
@@ -193,10 +197,11 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="project-import-data-ingest"]',
     placement: 'top',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Ingest Your Data</h3>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Import Your Data</h3>
         <p className="text-content2">
-          RushDB will parse and store your JSON. Once it finishes, you’ll see your records in real time.
+          Upload your JSON — RushDB automatically transforms it into graph records and relationships. Once
+          complete, your data appears instantly, ready to query.
         </p>
       </div>
     ),
@@ -211,10 +216,11 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="records-table-overview"]',
     placementBeacon: 'top',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">View Your Records</h3>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">View Your Records</h3>
         <p className="text-content2">
-          All your ingested data appears here. Click a row to inspect full properties.
+          Browse your imported data as records in the graph. Click any row to explore its full properties and
+          relationships.
         </p>
       </div>
     ),
@@ -227,10 +233,11 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="records-table-search-input"]',
     placement: 'right',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Search & Filter</h3>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Search & Filter</h3>
         <p className="text-content2">
-          Use filters to quickly find the data you need. See our
+          Use powerful filters to query by properties, relationships, and labels — no schema required. Learn
+          more in our
           <a
             className="text-accent ml-1 underline"
             href="https://docs.rushdb.com/concepts/search/introduction"
@@ -239,7 +246,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
           >
             Search Guide
           </a>
-          .
+          .
         </p>
       </div>
     ),
@@ -252,11 +259,13 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     target: '[data-tour="records-table-view-mode"]',
     placement: 'left',
     content: (
-      <div className="space-y-4 text-center">
-        <h3 className="text-content text-xl font-bold">Switch View Modes</h3>
-        <p className="text-content2">Table, Graph or Raw API view—choose whatever fits your workflow.</p>
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Switch View Modes</h3>
         <p className="text-content2">
-          Read our
+          Toggle between Table, Graph, and Raw API views — pick the one that fits your workflow best.
+        </p>
+        <p className="text-content2">
+          To explore queries directly, check out our
           <a
             className="text-accent ml-1 underline"
             href="https://docs.rushdb.com/concepts/search/introduction"
@@ -265,7 +274,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
           >
             Search Guide
           </a>
-           to work with Raw API view
+          .
         </p>
       </div>
     ),

@@ -12,7 +12,7 @@ export function OnboardingInit() {
   const isOwner = user.currentScope?.role === 'owner'
 
   useEffect(() => {
-    if (!user || !isOwner || !user.isLoggedIn || platformSettings.data?.selfHosted) return
+    if (!user || !isOwner || !user.isLoggedIn) return
     if (hasInitialized.current) return
 
     let settingsObj: Record<string, any> = {}

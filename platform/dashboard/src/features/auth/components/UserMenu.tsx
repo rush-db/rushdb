@@ -16,7 +16,6 @@ export function UserMenu() {
   const { mutate: updateSettings } = useStore(updateUser)
 
   const handleRestart = async () => {
-    if (platformSettings?.data?.selfHosted) return
     await updateSettings({ settings: JSON.stringify({ onboardingStatus: 'active' }) })
     openRoute('home')
     setTourStep('welcome', true)

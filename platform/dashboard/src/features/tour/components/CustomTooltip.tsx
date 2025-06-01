@@ -17,7 +17,7 @@ export function CustomTooltip({
   const { noBack, noNext } = (step.data as any) || {}
 
   return (
-    <div {...tooltipProps} className="bg-fill2 text-content relative max-w-sm rounded-lg p-6 shadow-lg">
+    <div {...tooltipProps} className="bg-fill3 text-content relative max-w-sm rounded-lg p-6 shadow-lg">
       <IconButton
         {...closeProps}
         aria-label="Close tour"
@@ -49,7 +49,7 @@ export function CustomTooltip({
           )}
           {noNext && (
             <Button size="small" variant="accent" {...closeProps}>
-              Got it
+              Finish
             </Button>
           )}
         </div>

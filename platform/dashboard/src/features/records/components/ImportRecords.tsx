@@ -162,7 +162,7 @@ function EditorStep() {
 
       <div
         data-tour="project-import-data-overview"
-        className={cn('-mx-5 flex h-[70vh] min-h-[300px] flex-col overflow-hidden pb-5', {
+        className={cn('flex h-[70vh] min-h-[300px] flex-col overflow-hidden pb-5', {
           'opacity-0': loading
         })}
       >
@@ -207,7 +207,7 @@ function EditorStep() {
           loading={submitting}
           variant="accent"
         >
-          Ingest data
+          Import Data
         </Button>
       </DialogFooter>
     </>
