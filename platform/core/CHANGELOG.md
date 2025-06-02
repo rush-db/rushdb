@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.3.1
+
+### Patch Changes
+
+- 43d355b: Fix multiple records deletion error
+
 ## 1.3.0
 
 ### Minor Changes

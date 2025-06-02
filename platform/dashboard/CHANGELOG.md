@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.3.1
+
+### Patch Changes
+
+- 43d355b: Fix multiple records deletion error
+- Updated dependencies [43d355b]
+  - @rushdb/javascript-sdk@1.3.1
+
 ## 1.3.0
 
 ### Minor Changes
