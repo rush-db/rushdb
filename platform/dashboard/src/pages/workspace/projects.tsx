@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { FolderPlus, SearchX, ZapIcon } from 'lucide-react'
+import { FolderPlus, Link, SearchX, ZapIcon } from 'lucide-react'
 
 import type { Project, ProjectStats } from '~/features/projects/types'
 
@@ -23,13 +23,14 @@ import { useEffect } from 'react'
 import { api } from '~/lib/api.ts'
 import { $user } from '~/features/auth/stores/user.ts'
 import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace.ts'
+import { Label } from '~/elements/Label.tsx'
 
 const statsMap: Record<keyof ProjectStats, string> = {
   properties: 'Properties',
   records: 'Records'
 }
 
-function ProjectCard({ description, id, stats, name }: Project) {
+function ProjectCard({ description, id, stats, name, customDb }: Project & { customDb?: string }) {
   const isEmpty = isProjectEmpty({
     loading: false,
     totalRecords: stats?.records ?? 0
@@ -44,7 +45,15 @@ function ProjectCard({ description, id, stats, name }: Project) {
     >
       <article className={cn('flex flex-col gap-3 p-5 transition')}>
         <header className="flex flex-col items-start justify-between">
-          <h4 className="text-content truncate text-lg font-bold">{name}</h4>
+          <div className="flex w-full items-center justify-between">
+            <h4 className="text-content truncate text-lg font-bold">{name}</h4>
+            {customDb && (
+              <Label className="items-center">
+                <Link size={18} className="pr-2" />
+                External Neo4j
+              </Label>
+            )}
+          </div>
           <p className={cn('text-content2 text-sm')}>{description || 'No description provided'}</p>
         </header>
         <hr />

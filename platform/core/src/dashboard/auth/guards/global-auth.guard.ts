@@ -40,7 +40,7 @@ class GlobalAuthGuard implements CanActivate {
     const minimalRole =
       this.reflector.get<TUserRoles>('minimalRole', context.getHandler()) ?? USER_ROLE_EDITOR
 
-    const session = this.neogmaService.createSession()
+    const session = this.neogmaService.createSession('global-auth-guard')
     const transaction = session.beginTransaction()
 
     const cleanUp = async () => {

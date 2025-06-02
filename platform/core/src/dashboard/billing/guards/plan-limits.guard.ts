@@ -109,7 +109,7 @@ export class PlanLimitsGuard implements CanActivate {
       return false
     }
 
-    const session = this.neogmaService.createSession()
+    const session = this.neogmaService.createSession('plan-limits-guard')
     const transaction = session.beginTransaction()
 
     const canProcessRequest = await this.checkLimits(workspaceId, request, transaction)

@@ -64,9 +64,7 @@ function DeleteAccount() {
         }}
         trigger={
           isOwner ?
-            <Button variant="danger" disabled={paidUser && !isSubscriptionCanceled}>
-              Delete Account Permanently
-            </Button>
+            <Button variant="danger">Delete Account Permanently</Button>
           : <Button variant="danger">Leave Workspace</Button>
         }
         title={title}

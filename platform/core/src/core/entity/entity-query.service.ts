@@ -397,7 +397,8 @@ export class EntityQueryService {
       labelClause: buildLabelsClause(searchQuery?.labels)
     })
 
-    const whereClause = `WITH ${parsedWhere.nodeAliases.join(', ')} WHERE ${parsedWhere.where}`
+    const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
+    const whereClause = `WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim()
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
@@ -408,24 +409,6 @@ export class EntityQueryService {
       .append(`RETURN record',`)
       .append(`"WITH record DETACH DELETE record",`)
       .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
-      .append(`) YIELD batch as b1, operations as o1`)
-
-    return queryBuilder.getQuery()
-  }
-
-  deleteRecordsByIds() {
-    const queryBuilder = new QueryBuilder()
-
-    queryBuilder
-      .append(`CALL apoc.periodic.iterate(`)
-      .append(`"MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
-      .append(`WITH *, collect(record.${RUSHDB_KEY_ID}) as recordIds`)
-      .append(`WHERE any(id IN recordIds WHERE id IN $idsToDelete)`)
-      .append(`RETURN record",`)
-      .append(`"WITH record DETACH DELETE record",`)
-      .append(
-        `{ batchSize: 5000, params: { projectId: $projectId, idsToDelete: $idsToDelete }, batchMode: "SINGLE", retries: 5 }`
-      )
       .append(`) YIELD batch as b1, operations as o1`)
 
     return queryBuilder.getQuery()

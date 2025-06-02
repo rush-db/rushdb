@@ -49,7 +49,7 @@ export function CustomTooltip({
           )}
           {noNext && (
             <Button size="small" variant="accent" {...closeProps}>
-              Finish
+              Got it
             </Button>
           )}
         </div>

@@ -12,11 +12,10 @@ import { ConfigService } from '@nestjs/config'
 import { FastifyRequest } from 'fastify'
 import { Transaction } from 'neo4j-driver'
 
+import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
-import { ProjectService } from '@/dashboard/project/project.service'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
-import { isDevMode } from '@/common/utils/isDevMode'
 
 @Injectable()
 export class CustomDbAvailabilityGuard implements CanActivate {
@@ -24,8 +23,6 @@ export class CustomDbAvailabilityGuard implements CanActivate {
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
-    @Inject(forwardRef(() => ProjectService))
-    private readonly projectService: ProjectService,
     private readonly neogmaService: NeogmaService
   ) {}
 
@@ -70,7 +67,7 @@ export class CustomDbAvailabilityGuard implements CanActivate {
 
     isDevMode(() => Logger.log(`[CDA GUARD]: Transaction created for CDA guard`))
 
-    const session = this.neogmaService.createSession()
+    const session = this.neogmaService.createSession('custom-db-write-availability-guard')
     const transaction = session.beginTransaction()
 
     const canProcessRequest = await this.isCustomDbOptionEnabled(workspaceId, request, transaction)

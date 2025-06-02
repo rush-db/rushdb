@@ -5,7 +5,7 @@ import { Card, CardBody, CardFooter, CardHeader } from '~/elements/Card'
 import { TextField } from '~/elements/Input'
 import { FormField } from '~/elements/FormField'
 import { createProject } from '~/features/projects/stores/project'
-import { ArrowRight, SparklesIcon, ZapIcon } from 'lucide-react'
+import { ArrowRight, SparklesIcon } from 'lucide-react'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
@@ -60,7 +60,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
     setTourStep('newProjectName', false)
   }, [])
 
-  // Use appropriate schema based on subscription status
+  // Use the appropriate schema based on subscription status
   const schema = hasValidSubscription ? premiumSchema : baseSchema
 
   const {
@@ -71,7 +71,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
     defaultValues: {
       description: '',
       name: '',
-      ...(hasValidSubscription ? { customDb: { url: '', username: '', password: '' } } : {})
+      ...(hasValidSubscription ? { customDb: { url: '', username: 'neo4j', password: '' } } : {})
     },
     schema
   })
