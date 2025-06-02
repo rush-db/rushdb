@@ -8,7 +8,7 @@ import { $user, logOut, updateUser } from '~/features/auth/stores/user'
 import { CurrentSubscriptionInfo } from '~/features/billing/components/CurrentSubscriptionInfo'
 import { getRoutePath, openRoute } from '~/lib/router'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
-import { $tourRunning, $tourStep, setTourStep } from '~/features/tour/stores/tour.ts'
+import { $tourRunning, setTourStep } from '~/features/tour/stores/tour.ts'
 
 export function UserMenu() {
   const currentUser = useStore($user)
@@ -25,7 +25,7 @@ export function UserMenu() {
   return (
     <div className="flex items-center gap-2">
       {!platformSettings?.data?.selfHosted ?
-        <a href={getRoutePath('workspaceBilling')}>
+        <a href={getRoutePath('workspaceBilling')} className="px-3">
           <CurrentSubscriptionInfo />
         </a>
       : null}
@@ -49,7 +49,7 @@ export function UserMenu() {
         <Divider />
         {!platformSettings?.data?.selfHosted ?
           <MenuItem as="a" href={getRoutePath('workspaceBilling')}>
-            <CurrentSubscriptionInfo />
+            <CurrentSubscriptionInfo className="items-start" />
           </MenuItem>
         : null}
         <Divider />

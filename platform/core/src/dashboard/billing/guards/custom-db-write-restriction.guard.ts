@@ -80,7 +80,7 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
 
     isDevMode(() => Logger.log(`[CDWR GUARD]: Transaction created for CDWR guard`))
 
-    const session = this.neogmaService.createSession()
+    const session = this.neogmaService.createSession('custom-db-write-restriction-guard')
     const transaction = session.beginTransaction()
 
     const canProcessRequest = await this.isCustomDbOptionEnabled(workspaceId, request, transaction)

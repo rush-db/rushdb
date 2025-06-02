@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import { Neogma } from 'neogma'
 
 import { INeogmaConfig } from './neogma-config.interface'
@@ -12,10 +13,9 @@ export const createInstance = async (config: INeogmaConfig): Promise<Neogma> => 
     {
       maxConnectionPoolSize: 0
       // logging: {
-      //     level: 'debug',
-      //     logger: (level, message) =>
-      //         console.log(new Date().toISOString() + ': ' + level + ' ' + message),
-      // },
+      //   level: 'debug',
+      //   logger: (level, message) => Logger.debug(new Date().toISOString() + ': ' + level + ' ' + message)
+      // }
     }
   )
 }

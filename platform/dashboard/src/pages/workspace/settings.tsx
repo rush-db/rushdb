@@ -55,6 +55,7 @@ function WorkspaceNameSetting() {
   )
 }
 
+// @TODO: Restore when multiple workspaces ownership will be available
 function DeleteWorkspaceSetting() {
   const { data: workspace } = useStore($currentWorkspace)
 
@@ -82,7 +83,7 @@ export function WorkspaceSettingsPage() {
       <PageContent contained>
         <SettingsList>
           <WorkspaceNameSetting />
-          <DeleteWorkspaceSetting />
+          {/*<DeleteWorkspaceSetting />*/}
         </SettingsList>
       </PageContent>
     </WorkspacesLayout>

@@ -1,4 +1,5 @@
 import { CallHandler, ExecutionContext, Injectable, Logger, mixin, NestInterceptor } from '@nestjs/common'
+import { Session, Transaction } from 'neo4j-driver'
 import { Observable } from 'rxjs'
 import { catchError, tap } from 'rxjs/operators'
 
@@ -25,11 +26,11 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
       const dbContext = dbContextStorage.getStore()
       const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== 'default'
 
-      const session = this.neogmaService.createSession()
+      const session = this.neogmaService.createSession('run-side-effect')
       const transaction = session.beginTransaction()
 
-      let customSession
-      let customTransaction
+      let customSession: Session
+      let customTransaction: Transaction
 
       // @TODO: It's an optimistic way to recompute project with external neo4j.
       // Source controller should use db-context.middleware, bc project controller doesn't use db context

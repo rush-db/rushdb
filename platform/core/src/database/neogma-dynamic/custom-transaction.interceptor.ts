@@ -1,9 +1,10 @@
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Logger } from '@nestjs/common'
-import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
 import { concatMap, Observable } from 'rxjs'
-import { ProjectService } from '@/dashboard/project/project.service'
 import { catchError } from 'rxjs/operators'
+
 import { isDevMode } from '@/common/utils/isDevMode'
+import { ProjectService } from '@/dashboard/project/project.service'
+import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
 
 @Injectable()
 export class CustomTransactionInterceptor implements NestInterceptor {

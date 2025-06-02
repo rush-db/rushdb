@@ -36,7 +36,7 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
       let customTransaction: Transaction
 
       if (!txId && !request.transaction) {
-        session = this.neogmaService.createSession()
+        session = this.neogmaService.createSession('related-to-project-guard')
         transaction = session.beginTransaction()
       } else {
         const clientTransaction = this.transactionService.getTransaction(txId)

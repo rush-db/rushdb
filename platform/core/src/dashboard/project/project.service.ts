@@ -4,6 +4,7 @@ import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
+import { isDevMode } from '@/common/utils/isDevMode'
 import { EntityService } from '@/core/entity/entity.service'
 import { EntityRepository } from '@/core/entity/model/entity.repository'
 import { PropertyService } from '@/core/property/property.service'
@@ -18,15 +19,15 @@ import {
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { ProjectQueryService } from '@/dashboard/project/project-query.service'
 import { TProjectCustomDbPayload, TProjectStats } from '@/dashboard/project/project.types'
-import { toNative } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaService } from '@/database/neogma/neogma.service'
-import * as crypto from 'node:crypto'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
-import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
-import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
 import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
-import { isDevMode } from '@/common/utils/isDevMode'
+import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
+import { toNative } from '@/database/neogma/neogma-data.interceptor'
+import { NeogmaService } from '@/database/neogma/neogma.service'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
+import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
+
+import * as crypto from 'node:crypto'
 
 @Injectable()
 export class ProjectService {
@@ -201,7 +202,7 @@ export class ProjectService {
     }
   }
 
-  async removeProjectOwnNode(id, currentTxn: Transaction) {
+  async removeProjectOwnNode(projectId: string, currentTxn: Transaction) {
     const queryRunner = this.neogmaService.createRunner()
 
     try {
@@ -209,7 +210,7 @@ export class ProjectService {
       await queryRunner.run(
         this.projectQueryService.removeProjectNodeQuery(),
         {
-          projectId: id
+          projectId
         },
         currentTxn
       )
@@ -220,8 +221,8 @@ export class ProjectService {
     }
   }
 
-  async cleanUpProject(id: string) {
-    const session = this.neogmaService.createSession()
+  async cleanUpProject(projectId: string) {
+    const session = this.neogmaService.createSession('cleanUpProject')
     const transaction = session.beginTransaction()
     const queryRunner = this.neogmaService.createRunner()
 
@@ -229,13 +230,13 @@ export class ProjectService {
       await queryRunner.run(
         this.projectQueryService.removeProjectQuery(),
         {
-          projectId: id
+          projectId
         },
         transaction
       )
 
       await this.propertyService.deleteOrphanProps({
-        projectId: id,
+        projectId,
         queryRunner,
         transaction
       })

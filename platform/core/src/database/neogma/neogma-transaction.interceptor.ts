@@ -19,12 +19,11 @@ export class NeogmaTransactionInterceptor implements NestInterceptor {
 
     // Check if transaction already in Request Object (as it may be added from GlobalAuthGuard)
     const txId = request.headers['x-transaction-id']
-
     let transaction: Transaction
     let session: Session
 
     if (!txId && !request.transaction) {
-      session = this.neogmaService.createSession()
+      session = this.neogmaService.createSession('neogma-transaction-interceptor ' + request.url)
       transaction = session.beginTransaction()
     } else {
       const clientTransaction = this.transactionService.getTransaction(txId)
@@ -42,14 +41,14 @@ export class NeogmaTransactionInterceptor implements NestInterceptor {
       concatMap(async (data) => {
         if (!txId && transaction.isOpen()) {
           await transaction.commit()
-          await this.neogmaService.closeSession(session, 'neogma-transaction-interceptor')
+          await this.neogmaService.closeSession(session, 'neogma-transaction-interceptor ' + request.url)
           isDevMode(() => Logger.log('[COMMIT TRANSACTION]'))
         }
         return data
       }),
       catchError(async (error) => {
         await transaction.rollback()
-        await this.neogmaService.closeSession(session, 'neogma-transaction-interceptor')
+        await this.neogmaService.closeSession(session, 'neogma-transaction-interceptor' + request.url)
 
         isDevMode(() => Logger.log('[ROLLBACK TRANSACTION]: Neogma interceptor', error))
 
