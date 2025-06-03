@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 1.3.2
+
+### Patch Changes
+
+- 5ec730f: Add server logs and update deployment tutorial
+
 ## 1.3.1
 
 ### Patch Changes
