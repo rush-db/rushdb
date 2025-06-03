@@ -2,7 +2,7 @@ import type { Property, PropertySingleValue } from '@rushdb/javascript-sdk'
 import type { Control, UseFormSetValue, UseFormWatch } from 'react-hook-form'
 
 import { useStore } from '@nanostores/react'
-import { PlusCircle, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { atom } from 'nanostores'
 import { useEffect, useState } from 'react'
 import { Controller } from 'react-hook-form'
@@ -24,8 +24,12 @@ import { Message } from '~/elements/Message'
 import { Popover, PopoverContent, PopoverTrigger } from '~/elements/Popover'
 import { SearchSelect, SelectItem } from '~/elements/SearchSelect'
 import { Slider } from '~/elements/Slider'
-import { Tooltip } from '~/elements/Tooltip'
-import { $currentProjectSuggestedFields, editFilter } from '~/features/projects/stores/current-project'
+import {
+  $activeLabels,
+  $currentProjectFilters,
+  $currentProjectSuggestedFields,
+  editFilter
+} from '~/features/projects/stores/current-project'
 import { PropertyName } from '~/features/properties/components/PropertyName'
 import { PropertyTypeIcon } from '~/features/properties/components/PropertyTypeIcon'
 import { formatPropertyValue } from '~/features/properties/utils'
@@ -35,7 +39,7 @@ import { isViableSearchOperation } from '~/features/search/types'
 import { api } from '~/lib/api'
 import { createAsyncStore } from '~/lib/fetcher'
 import { mixed, object, string, useForm } from '~/lib/form'
-// import { formatMinMax } from '~/lib/formatters'
+import { convertToSearchQuery, filterToSearchOperation } from '~/features/projects/utils.ts'
 
 const $fieldId = atom<Property['id'] | undefined>(undefined)
 const $fieldValues = createAsyncStore({
@@ -46,7 +50,18 @@ const $fieldValues = createAsyncStore({
     if (!fieldId) {
       return
     }
-    return await api.properties.values({ init, id: fieldId })
+
+    const labels = $activeLabels.get()
+    let properties = $currentProjectFilters.get().map(filterToSearchOperation)
+
+    return await api.properties.values({
+      init,
+      id: fieldId,
+      searchQuery: {
+        labels,
+        where: convertToSearchQuery(properties)
+      }
+    })
   }
 })
 
@@ -64,6 +79,7 @@ function SelectSearchOperator({
   control,
   name,
   setValue,
+  property,
   ...props
 }: TExtendableProps<
   InputProps & FormFieldProps,
@@ -71,6 +87,7 @@ function SelectSearchOperator({
     control: Control<any>
     name: string
     setValue: UseFormSetValue<any>
+    property?: Property
   }
 >) {
   return (
@@ -93,20 +110,37 @@ function SelectSearchOperator({
               />
             }
           >
-            {operatorOptions.map((o) => (
-              <SelectItem
-                onSelect={() => {
-                  setValue(name, o.value, {
-                    shouldDirty: true
-                  })
-                }}
-                key={o.value}
-                value={o.label}
-              >
-                <SearchOperationIcon operation={o.value} />
-                {o.label}
-              </SelectItem>
-            ))}
+            {operatorOptions
+              .filter((o) => {
+                if (property?.type === 'number' || property?.type === 'datetime') {
+                  return ![
+                    SearchOperations.Contains,
+                    SearchOperations.StartsWith,
+                    SearchOperations.EndsWith
+                  ].includes(o.value)
+                }
+
+                return ![
+                  SearchOperations.Greater,
+                  SearchOperations.GreaterOrEqual,
+                  SearchOperations.Less,
+                  SearchOperations.LessOrEqual
+                ].includes(o.value)
+              })
+              .map((o) => (
+                <SelectItem
+                  onSelect={() => {
+                    setValue(name, o.value, {
+                      shouldDirty: true
+                    })
+                  }}
+                  key={o.value}
+                  value={o.label}
+                >
+                  <SearchOperationIcon operation={o.value} />
+                  {o.label}
+                </SelectItem>
+              ))}
           </SearchSelect>
         )
       }}
@@ -850,7 +884,7 @@ export function FilterPopover({ filter, onRemove }: { filter: Filter; onRemove: 
         >
           <div className="grid grid-cols-2 gap-3">
             <SelectField control={control} fields={fields} name="field" setValue={setValue} value={field} />
-            <SelectSearchOperator control={control} name="operator" setValue={setValue} />
+            <SelectSearchOperator control={control} name="operator" setValue={setValue} property={field} />
             <div className="col-span-2 grid gap-[inherit]">
               <SelectFilterValues control={control} field={field} setValue={setValue} watch={watch} />
             </div>

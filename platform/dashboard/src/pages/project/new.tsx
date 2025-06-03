@@ -5,7 +5,7 @@ import { Card, CardBody, CardFooter, CardHeader } from '~/elements/Card'
 import { TextField } from '~/elements/Input'
 import { FormField } from '~/elements/FormField'
 import { createProject } from '~/features/projects/stores/project'
-import { ArrowRight, SparklesIcon, ZapIcon } from 'lucide-react'
+import { ArrowRight, SparklesIcon } from 'lucide-react'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
@@ -13,6 +13,8 @@ import { $currentWorkspace } from '~/features/workspaces/stores/current-workspac
 
 import ArrowsGrid from '~/assets/icons/arrows-grid.svg'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { setTourStep } from '~/features/tour/stores/tour.ts'
+import { useEffect } from 'react'
 
 // Type for form values
 type ProjectFormValues = {
@@ -54,7 +56,11 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
     isSubscriptionActive ||
     (hasPaidPlan && workspace?.validTill && new Date(workspace.validTill) > new Date())
 
-  // Use appropriate schema based on subscription status
+  useEffect(() => {
+    setTourStep('newProjectName', false)
+  }, [])
+
+  // Use the appropriate schema based on subscription status
   const schema = hasValidSubscription ? premiumSchema : baseSchema
 
   const {
@@ -65,7 +71,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
     defaultValues: {
       description: '',
       name: '',
-      ...(hasValidSubscription ? { customDb: { url: '', username: '', password: '' } } : {})
+      ...(hasValidSubscription ? { customDb: { url: '', username: 'neo4j', password: '' } } : {})
     },
     schema
   })
@@ -84,7 +90,13 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
               and privacy. Your project can be created immediately without additional configuration.
             </p>
           : null}
-          <TextField label="Name" {...register('name')} autoFocus error={errors?.name?.message} />
+          <TextField
+            label="Name"
+            {...register('name')}
+            autoFocus
+            error={errors?.name?.message}
+            data-tour="project-name-input"
+          />
           <TextField
             label="Description (optional)"
             {...register('description')}
@@ -93,7 +105,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
         </CardBody>
 
         {loading || !platformSettings?.selfHosted ?
-          <div className="relative">
+          <div className="relative" data-tour="custom-neo4j-container">
             {!hasValidSubscription ?
               <div className="blur-10 absolute top-0 z-0 h-full rounded-t-lg bg-gradient-to-b from-[#3f82ff] to-transparent to-50% opacity-20">
                 <img src={ArrowsGrid} alt="Arrows Grid" className="" />
@@ -156,7 +168,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
         : null}
 
         <CardFooter>
-          <Button loading={isSubmitting} type="submit" variant="accent">
+          <Button loading={isSubmitting} type="submit" variant="accent" data-tour="create-project-btn">
             Create Project <ArrowRight className="mr-1 h-4 w-4" />
           </Button>
         </CardFooter>

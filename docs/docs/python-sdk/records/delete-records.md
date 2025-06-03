@@ -21,7 +21,7 @@ Before deleting records, make sure you have initialized the RushDB client with y
 ```python
 from rushdb import RushDB
 
-db = RushDB("YOUR_API_TOKEN", base_url="https://api.rushdb.com")
+db = RushDB("YOUR_API_TOKEN", base_url="https://api.rushdb.com/api/v1")
 ```
 
 ## Deleting a Single Record by ID

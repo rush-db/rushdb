@@ -44,7 +44,7 @@ This endpoint deletes a specific record identified by its unique ID.
 ## Delete Multiple Records
 
 ```http
-PUT /api/v1/records/delete
+POST /api/v1/records/delete
 ```
 
 This endpoint deletes multiple records that match the specified search criteria.

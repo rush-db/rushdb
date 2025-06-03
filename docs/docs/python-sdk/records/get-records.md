@@ -2,7 +2,7 @@
 sidebar_position: 4
 ---
 
-# Search
+# Get Records
 
 The Search API is one of the most powerful features of RushDB, allowing you to find records, navigate relationships, and transform results to exactly match your application's needs. This guide demonstrates how to effectively use the Python SDK to search and query data in your RushDB database.
 
@@ -96,9 +96,9 @@ similar_documents = db.records.find({
     "where": {
         "embedding": {
             "$vector": {
-                "fn": "cosine",                     # Similarity function
-                "query": query_embedding,           # Your vector embedding
-                "threshold": {"$gte": 0.75}         # Minimum similarity threshold
+                "fn": "gds.similarity.cosine",   # Similarity function
+                "query": query_embedding,        # Your vector embedding
+                "threshold": {"$gte": 0.75}      # Minimum similarity threshold
             }
         }
     },
@@ -137,31 +137,26 @@ For more details on pagination and sorting options, see the [Pagination and orde
 Transform and aggregate your search results:
 
 ```python
-# Calculate sales statistics by product category
+# Calculate sales statistics
 sales_by_category = db.records.find({
     "labels": ["ORDER"],
     "where": {
         "status": "completed",
-        "createdAt": {"$gte": "2023-01-01T00:00:00Z"},
-        "PRODUCT": {
-            "$alias": "$product"  # Create alias for use in aggregation
-        }
+        "createdAt": {"$gte": "2023-01-01T00:00:00Z"}
     },
     "aggregate": {
-        "category": {
-            "fn": "group",
-            "alias": "$product",
-            "field": "category"
-        },
         "totalSales": {
             "fn": "sum",
+            "alias": "$record",
             "field": "amount"
         },
         "orderCount": {
-            "fn": "count"
+            "fn": "count",
+            "alias": "$record"
         },
         "avgOrderValue": {
             "fn": "avg",
+            "alias": "$record",
             "field": "amount"
         }
     }

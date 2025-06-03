@@ -4,6 +4,7 @@ import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
+import { isDevMode } from '@/common/utils/isDevMode'
 import { EntityService } from '@/core/entity/entity.service'
 import { EntityRepository } from '@/core/entity/model/entity.repository'
 import { PropertyService } from '@/core/property/property.service'
@@ -18,15 +19,15 @@ import {
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { ProjectQueryService } from '@/dashboard/project/project-query.service'
 import { TProjectCustomDbPayload, TProjectStats } from '@/dashboard/project/project.types'
-import { toNative } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaService } from '@/database/neogma/neogma.service'
-import * as crypto from 'node:crypto'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
-import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
-import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
 import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
-import { isDevMode } from '@/common/utils/isDevMode'
+import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
+import { toNative } from '@/database/neogma/neogma-data.interceptor'
+import { NeogmaService } from '@/database/neogma/neogma.service'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
+import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
+
+import * as crypto from 'node:crypto'
 
 @Injectable()
 export class ProjectService {
@@ -138,31 +139,23 @@ export class ProjectService {
       session: transaction
     })
 
-    if (projectNode) {
-      projectNode['deleted'] = getCurrentISO()
-      await projectNode.save()
-    }
-
     if (projectNode.customDb && !shouldStoreCustomDbData) {
       const customDbPayload = this.decryptCustomDb(projectNode.customDb)
 
-      this.cleanUpRemoteProject(id, customDbPayload)
-        .then(() => this.removeProjectOwnNode(id).then(() => projectNode.delete()))
-        .catch((e) => {
-          isDevMode(() => Logger.error("[cleanUpRemoteProject ERROR]: Can't delete remote project data", e))
-
-          this.removeProjectOwnNode(id).then(() => projectNode.delete())
-        })
+      await this.removeProjectOwnNode(id, transaction)
+      this.cleanUpRemoteProject(id, customDbPayload).catch((e) => {
+        isDevMode(() => Logger.error("[cleanUpRemoteProject ERROR]: Can't delete remote project data", e))
+      })
 
       return true
     } else if (projectNode.customDb && shouldStoreCustomDbData) {
-      this.removeProjectOwnNode(id).then(() => projectNode.delete())
+      await this.removeProjectOwnNode(id, transaction)
 
       return true
     }
 
-    // @FYI: UWAGA - keep it without await.
-    this.cleanUpProject(id).then(() => projectNode.delete())
+    await this.removeProjectOwnNode(id, transaction)
+    this.cleanUpProject(id)
 
     return true
   }
@@ -209,9 +202,7 @@ export class ProjectService {
     }
   }
 
-  async removeProjectOwnNode(id) {
-    const session = this.neogmaService.createSession()
-    const transaction = session.beginTransaction()
+  async removeProjectOwnNode(projectId: string, currentTxn: Transaction) {
     const queryRunner = this.neogmaService.createRunner()
 
     try {
@@ -219,46 +210,36 @@ export class ProjectService {
       await queryRunner.run(
         this.projectQueryService.removeProjectNodeQuery(),
         {
-          projectId: id
+          projectId
         },
-        transaction
+        currentTxn
       )
     } catch (e) {
       isDevMode(() =>
         Logger.error('[cleanUpProject ERROR]: failed to process removeProjectOwnNode method', e)
       )
-      if (transaction.isOpen()) {
-        isDevMode(() => Logger.log('[ROLLBACK TRANSACTION]: cleanUpProject'))
-        await transaction.rollback()
-      }
-    } finally {
-      await transaction.commit()
-      await transaction.close().then(() => session.close())
     }
   }
 
-  async cleanUpProject(id: string) {
-    const session = this.neogmaService.createSession()
+  async cleanUpProject(projectId: string) {
+    const session = this.neogmaService.createSession('cleanUpProject')
     const transaction = session.beginTransaction()
     const queryRunner = this.neogmaService.createRunner()
 
     try {
-      await queryRunner
-        .run(
-          this.projectQueryService.removeProjectQuery(),
-          {
-            projectId: id
-          },
-          transaction
-        )
-        .then(
-          async () =>
-            await this.propertyService.deleteOrphanProps({
-              projectId: id,
-              queryRunner,
-              transaction
-            })
-        )
+      await queryRunner.run(
+        this.projectQueryService.removeProjectQuery(),
+        {
+          projectId
+        },
+        transaction
+      )
+
+      await this.propertyService.deleteOrphanProps({
+        projectId,
+        queryRunner,
+        transaction
+      })
     } catch (e) {
       console.log('[cleanUpProject ERROR]', e)
       if (transaction.isOpen()) {

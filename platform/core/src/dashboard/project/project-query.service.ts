@@ -32,7 +32,6 @@ export class ProjectQueryService {
       .append(`"WITH property DETACH DELETE property",`)
       .append(batchConfig)
       .append(`) YIELD batch as b2, operations as o2`)
-      .append(this.removeProjectNodeQuery())
       .append(`RETURN b1,b2,o1,o2`)
 
     return queryBuilder.getQuery()

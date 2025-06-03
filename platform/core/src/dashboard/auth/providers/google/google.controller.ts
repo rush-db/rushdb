@@ -96,22 +96,25 @@ export class GoogleOAuthController {
         await this.emailConfirmationService.sendVerificationLink(userData.login, userData.firstName)
       }
 
+      let workspaceId: string
+
       if (parsed.invite) {
         isDevMode(() => Logger.log(`[Google OAUTH LOG]: Accept user invitation`))
-        await this.userService.acceptWorkspaceInvitation<false>(
+        const acceptedInviteUserData = await this.userService.acceptWorkspaceInvitation(
           {
             authUserLogin: userData.login,
-            inviteToken: parsed.invite,
-            forceUserSignUp: false
+            inviteToken: parsed.invite
           },
           transaction
         )
+
+        workspaceId = acceptedInviteUserData.workspaceId
       }
 
       return {
         ...userData,
         token: this.authService.createToken(user),
-        inviteQuery: parsed.invite
+        ...(workspaceId && { workspaceId })
       }
     } catch (e) {
       isDevMode(() => Logger.log(`[Google OAUTH ERROR]: `, e))

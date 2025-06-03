@@ -183,5 +183,5 @@ export const buildWhereClause = (input: any, options?: TSearchQueryBuilderOption
       : ' AND ' + relatedRecordsClause
     : ''
 
-  return firstLevelClause + relatedClause
+  return relatedClause ? firstLevelClause + relatedClause : ''
 }

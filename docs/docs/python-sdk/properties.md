@@ -22,13 +22,13 @@ Retrieves a find of properties based on optional search criteria.
 ```python
 def find(
     self,
-    query: Optional[SearchQuery] = None,
+    search_query: Optional[SearchQuery] = None,
     transaction: Optional[Transaction] = None
 ) -> List[Property]
 ```
 
 **Arguments:**
-- `query` (Optional[SearchQuery]): Search query parameters for filtering properties
+- `search_query` (Optional[SearchQuery]): Search query parameters for filtering properties
 - `transaction` (Optional[Transaction]): Optional transaction object
 
 **Returns:**
@@ -104,38 +104,47 @@ client.properties.delete("prop_123456")
 
 ### values()
 
-Retrieves values for a specific property with optional sorting and pagination.
+Retrieves values for a specific property with optional filtering, sorting and pagination using SearchQuery.
 
 **Signature:**
 ```python
 def values(
     self,
     property_id: str,
-    sort: Optional[Literal["asc", "desc"]] = None,
-    skip: Optional[int] = None,
-    limit: Optional[int] = None,
+    search_query: Optional[SearchQuery] = None,
     transaction: Optional[Transaction] = None
 ) -> PropertyValuesData
 ```
 
 **Arguments:**
 - `property_id` (str): Unique identifier of the property
-- `sort` (Optional[Literal["asc", "desc"]]): Sort order of values
-- `skip` (Optional[int]): Number of values to skip (for pagination)
-- `limit` (Optional[int]): Maximum number of values to return
+- `search_query` (Optional[SearchQuery]): Search query parameters for filtering the records containing this property. This can include:
+  - `where`: Filter criteria for records containing this property
+  - `labels`: Array of labels to filter records by
+  - `query`: Filter values by this text string
+  - `orderBy`: Sort direction (`asc` or `desc`)
+  - `skip`: Number of values to skip (for pagination)
+  - `limit`: Maximum number of values to return
 - `transaction` (Optional[Transaction]): Optional transaction object
 
 **Returns:**
-- `PropertyValuesData`: Property values data, including optional min/max and find of values
+- `PropertyValuesData`: Property values data, including optional min/max and list of values
 
 **Example:**
 ```python
-# Get property values
+# Get property values with filtering
 values_data = client.properties.values(
     property_id="prop_age",
-    sort="desc",  # Sort values in descending order
-    skip=0,       # Start from the first value
-    limit=100     # Return up to 100 values
+    search_query={
+        "where": {
+            "status": "active",  # Only get values from active records
+            "region": "US"       # Only from US region
+        },
+        "query": "2",         # Filter values containing "2"
+        "orderBy": "desc",    # Sort values in descending order
+        "skip": 0,            # Start from the first value
+        "limit": 100          # Return up to 100 values
+    }
 )
 
 # Access values
@@ -171,8 +180,10 @@ if numeric_score_properties:
     first_prop = numeric_score_properties[0]
     prop_values = client.properties.values(
         property_id=first_prop['id'],
-        sort="desc",
-        limit=50
+        search_query={
+            "orderBy": "desc",
+            "limit": 50
+        }
     )
     print(f"Values for {first_prop['name']}:")
     print(f"Min: {prop_values.get('min')}")

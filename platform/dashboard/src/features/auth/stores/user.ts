@@ -44,11 +44,9 @@ export const useUser = () => useStore($user)
 
 export const updateUser = createMutator({
   async fetcher(params: Partial<User>) {
-    const newUser = await api.user.update(params)
-
-    $user.set({ ...$user.get(), ...newUser })
-
-    return newUser
+    const updated = await api.user.update(params)
+    $user.set({ ...$user.get(), ...updated })
+    return updated
   }
 })
 

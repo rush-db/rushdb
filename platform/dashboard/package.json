@@ -1,6 +1,6 @@
 {
   "name": "rushdb-dashboard",
-  "version": "1.0.1",
+  "version": "1.3.2",
   "description": "RushDB Dashboard",
   "type": "module",
   "private": true,
@@ -15,7 +15,6 @@
     "reinstall": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && pnpm i"
   },
   "dependencies": {
-    "@rushdb/javascript-sdk": "workspace:*",
     "@floating-ui/react-dom": "^2.0.2",
     "@hookform/resolvers": "^3.1.0",
     "@monaco-editor/react": "^4.5.2",
@@ -33,6 +32,7 @@
     "@radix-ui/react-tabs": "^1.1.2",
     "@radix-ui/react-toast": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.2",
+    "@rushdb/javascript-sdk": "workspace:*",
     "@sentry/react": "7.74.0",
     "@stripe/stripe-js": "^2.4.0",
     "class-variance-authority": "^0.5.2",
@@ -49,6 +49,7 @@
     "react-force-graph": "^1.45.4",
     "react-helmet-async": "^2.0.5",
     "react-hook-form": "~7.41.0",
+    "react-joyride": "^2.9.3",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.171.0",

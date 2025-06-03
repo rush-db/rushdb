@@ -232,6 +232,25 @@ export class WorkspaceController {
     return await this.workspaceService.revokeAccessList(id, userIds, transaction)
   }
 
+  @Patch(':id/leave-workspace')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiBearerAuth()
+  @AuthGuard('workspace')
+  @HttpCode(HttpStatus.OK)
+  async leaveWorkspace(
+    @Param('id') id: string,
+    @AuthUser() user: IUserClaims,
+    @TransactionDecorator() transaction: Transaction
+  ) {
+    await this.workspaceService.leaveWorkspace(id, user.id, transaction)
+    return { message: 'You have left the workspace' }
+  }
+
   @Post('join-workspace')
   @ApiTags('Workspaces')
   @ApiBearerAuth()
@@ -242,11 +261,10 @@ export class WorkspaceController {
     @AuthUser() authUser: IUserClaims,
     @TransactionDecorator() transaction: Transaction
   ) {
-    const { userData, workspaceId } = await this.userService.acceptWorkspaceInvitation<false>(
+    const { userData, workspaceId } = await this.userService.acceptWorkspaceInvitation(
       {
         inviteToken: token,
-        authUserLogin: authUser.login,
-        forceUserSignUp: false
+        authUserLogin: authUser.login
       },
       transaction
     )

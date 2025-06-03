@@ -10,7 +10,11 @@ import {
   RUSHDB_RELATION_VALUE
 } from '@/core/common/constants'
 import { SearchDto } from '@/core/search/dto/search.dto'
-import { buildPagination } from '@/core/search/parser/buildQuery'
+import { buildLabelsClause, buildQuery, buildQueryClause } from '@/core/search/parser/buildQuery'
+import { pagination } from '@/core/search/parser/pagination'
+import { projectIdInline } from '@/core/search/parser/projectIdInline'
+import { singleLabelPart } from '@/core/search/parser/singleLabelPart'
+import { SORT_ASC, SORT_DESC } from '@/core/search/search.constants'
 import { TSearchSortDirection } from '@/core/search/search.types'
 
 @Injectable()
@@ -161,27 +165,51 @@ export class PropertyQueryService {
   }
 
   getPropertyValues({
-    sort,
-    query,
-    paginationParams = { skip: 0, limit: 100 }
+    searchQuery
   }: {
-    sort?: TSearchSortDirection
-    query?: string
-    searchQuery?: SearchDto
-    paginationParams?: Pick<SearchDto, 'skip' | 'limit'>
+    searchQuery?: SearchDto & { query?: string; orderBy?: TSearchSortDirection }
   }) {
+    const sort = [SORT_ASC, SORT_DESC].includes(searchQuery.orderBy) ? searchQuery.orderBy : undefined
+
     const sortPart = sort ? `record[property.name] ${sort}` : `record.${RUSHDB_KEY_ID}`
+
+    const paginationParams = pagination(searchQuery.skip, searchQuery.limit)
+
+    const { sortedQueryParts, parsedWhere } = buildQuery(searchQuery)
+    const labelPart = singleLabelPart(searchQuery?.labels)
+
+    const queryClauses = buildQueryClause({
+      queryParts: sortedQueryParts,
+      labelClause: buildLabelsClause(searchQuery?.labels)
+    })
+
+    const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
+    const whereClause = `WITH property, ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim()
 
     const queryBuilder = new QueryBuilder()
 
-    queryBuilder
-      .append(
-        `MATCH (record:${RUSHDB_LABEL_RECORD})<-[value:${RUSHDB_RELATION_VALUE}]-(property:${RUSHDB_LABEL_PROPERTY} { id: $id })`
-      )
-      .append(`WHERE record[property.name] IS NOT NULL AND property.type <> 'vector'`)
+    queryBuilder.append(
+      `MATCH (record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })<-[value:${RUSHDB_RELATION_VALUE}]-(property:${RUSHDB_LABEL_PROPERTY} { id: $id })`
+    )
 
-    if (query) {
-      queryBuilder.append(`AND any(value IN record[property.name] WHERE value  =~ "(?i).*${query}.*")`)
+    if (queryClauses?.filter(toBoolean).length > 0) {
+      queryBuilder
+        .append(queryClauses.join(`\n`))
+        .append(`AND record[property.name] IS NOT NULL AND property.type <> 'vector'`)
+        .append(
+          searchQuery.query ?
+            `AND any(value IN record[property.name] WHERE value  =~ "(?i).*${searchQuery.query}.*")`
+          : ''
+        )
+        .append(whereClause)
+    } else {
+      queryBuilder
+        .append(`WHERE record[property.name] IS NOT NULL AND property.type <> 'vector'`)
+        .append(
+          searchQuery.query ?
+            `AND any(value IN record[property.name] WHERE value  =~ "(?i).*${searchQuery.query}.*")`
+          : ''
+        )
     }
 
     queryBuilder

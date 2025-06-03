@@ -136,9 +136,9 @@ Or:
 ### Configuration Options Explained
 
 - **Connection settings**:
-  - `url`: The complete URL to the RushDB API (e.g., `https://api.rushdb.com`)
+  - `url`: The complete URL to the RushDB API (e.g., `https://api.rushdb.com/api/v1`)
   - **OR** the individual components:
-    - `host`: The domain name or IP address (e.g., `api.rushdb.com`)
+    - `host`: The domain name or IP address (e.g., `api.rushdb.com/api/v1`)
     - `port`: The port number (defaults to 80 for HTTP, 443 for HTTPS)
     - `protocol`: Either `http` or `https` (defaults to `https`)
 

@@ -1,12 +1,12 @@
 import { forwardRef, Global, MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 
+import { DbContextMiddleware } from '@/common/middlewares/db-context.middleware'
 import { TransactionController } from '@/core/transactions/transaction.controller'
 import { TransactionService } from '@/core/transactions/transaction.service'
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
-import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
-import { DbContextMiddleware } from '@/common/middlewares/db-context.middleware'
 import { DbConnectionModule } from '@/database/db-connection/db-connection.module'
+import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
 
 @Global()
 @Module({

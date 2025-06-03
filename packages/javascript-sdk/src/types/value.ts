@@ -64,8 +64,6 @@ export type PropertyDraft = Omit<PropertyWithValue, 'id'> & {
   valueSeparator?: string
 }
 
-export type PropertyValuesOptions = { sort?: OrderDirection; skip?: number; limit?: number; query?: string }
-
 export type PropertySingleValue<TType extends PropertyType = PropertyType> =
   TType extends typeof PROPERTY_TYPE_DATETIME ? DatetimeValue
   : TType extends typeof PROPERTY_TYPE_NUMBER ? NumberValue

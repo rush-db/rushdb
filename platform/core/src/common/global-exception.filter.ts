@@ -32,7 +32,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       session: Session
     }
     isDevMode(() => {
-      Logger.log('[ROLLBACK TRANSACTION]: Exception filter', exception)
+      Logger.log('[ROLLBACK TRANSACTION]: Exception filter', JSON.stringify(exception))
     })
 
     await transaction?.close()

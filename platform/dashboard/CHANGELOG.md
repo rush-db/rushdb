@@ -1,5 +1,86 @@
 # rushdb-dashboard
 
+## 1.3.2
+
+### Patch Changes
+
+- 5ec730f: Add server logs and update deployment tutorial
+- Updated dependencies [5ec730f]
+  - @rushdb/javascript-sdk@1.3.2
+
+## 1.3.1
+
+### Patch Changes
+
+- 43d355b: Fix multiple records deletion error
+- Updated dependencies [43d355b]
+  - @rushdb/javascript-sdk@1.3.1
+
+## 1.3.0
+
+### Minor Changes
+
+- 7f1bf8d: Add onboarding tour
+
+### Patch Changes
+
+- Updated dependencies [7f1bf8d]
+  - @rushdb/javascript-sdk@1.3.0
+
+## 1.2.2
+
+### Patch Changes
+
+- 1720499: fix: simplified delete project flow, fixed orphan props deletion method
+- Updated dependencies [1720499]
+  - @rushdb/javascript-sdk@1.2.2
+
+## 1.2.1
+
+### Patch Changes
+
+- 7a4c193: Fix delete records by ids method
+- Updated dependencies [7a4c193]
+  - @rushdb/javascript-sdk@1.2.1
+
+## 1.2.0
+
+### Minor Changes
+
+- 99ac372: Fix label api error, add auth header verification for sdk, values now searchable with SearchQuery, update docs, user can now leave workspace
+
+### Patch Changes
+
+- Updated dependencies [99ac372]
+  - @rushdb/javascript-sdk@1.2.0
+
+## 1.1.0
+
+### Minor Changes
+
+- 1ba17a1: Implemented ordering by aggregated field
+
+### Patch Changes
+
+- Updated dependencies [1ba17a1]
+  - @rushdb/javascript-sdk@1.1.0
+
+## 1.0.3
+
+### Patch Changes
+
+- 3d3da80: Remove the billing tab for developers the workspace layout
+- Updated dependencies [3d3da80]
+  - @rushdb/javascript-sdk@1.0.3
+
+## 1.0.2
+
+### Patch Changes
+
+- da7874f: fix: improved invitation accept flow, normalized checkers for invitee emails
+- Updated dependencies [da7874f]
+  - @rushdb/javascript-sdk@1.0.2
+
 ## 1.0.1
 
 ### Patch Changes

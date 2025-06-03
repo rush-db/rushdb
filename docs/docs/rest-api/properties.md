@@ -41,7 +41,8 @@ Returns a find of all properties in the current project, with filtering options.
 
 | Field     | Type   | Description |
 |-----------|--------|-------------|
-| `where`   | Object | Optional filter criteria |
+| `where`   | Object | Optional filter criteria ([learn more](../../concepts/search/where)) |
+| `labels`  | Array  | Optional array of labels to filter records by ([learn more](../../concepts/search/labels)) |
 
 ### Example Request
 
@@ -109,25 +110,45 @@ Retrieve detailed information about a specific property by its ID.
 ## Get Property Values
 
 ```http
-GET /api/v1/properties/:propertyId/values
+POST /api/v1/properties/:propertyId/values
 ```
 
-Retrieves distinct values for a specific property across all records.
+Retrieves distinct values for a specific property across all records using SearchQuery filtering.
 
 ### Parameters
 
 | Parameter   | Type   | Description |
 |-------------|--------|-------------|
 | `propertyId` | String | The ID of the property |
-| `sort` | String | Optional. Sort direction (`asc` or `desc`) |
-| `query` | String | Optional. Filter values by this string |
-| `skip` | Number | Optional. Number of values to skip (default: 0) |
-| `limit` | Number | Optional. Maximum number of values to return (default: 100) |
+
+### Request Body
+
+The request body supports SearchQuery parameters along with value-specific filtering:
+
+| Field     | Type   | Description |
+|-----------|--------|-------------|
+| `where`   | Object | Optional. SearchQuery filter criteria ([learn more](../../concepts/search/where)) |
+| `labels`  | Array  | Optional array of labels to filter records by ([learn more](../../concepts/search/labels)) |
+| `skip`    | Number | Optional. Number of values to skip (default: 0) |
+| `limit`   | Number | Optional. Maximum number of values to return (default: 100) |
+| `query`   | String | Optional. Filter values by this text string |
+| `orderBy` | String | Optional. Sort direction (`asc` or `desc`) |
 
 ### Example Request
 
 ```http
-GET /api/v1/properties/018dfc84-d6cb-7000-89cd-850db63a1e78/values?sort=asc&query=jo&skip=0&limit=10
+POST /api/v1/properties/018dfc84-d6cb-7000-89cd-850db63a1e78/values
+Content-Type: application/json
+
+{
+  "where": {
+    "status": "active"
+  },
+  "query": "jo",
+  "orderBy": "asc",
+  "skip": 0,
+  "limit": 10
+}
 ```
 
 ### Response

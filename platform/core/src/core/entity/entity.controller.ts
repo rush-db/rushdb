@@ -227,7 +227,7 @@ export class EntityController {
     return record
   }
 
-  @Put('delete')
+  @Post('delete')
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')

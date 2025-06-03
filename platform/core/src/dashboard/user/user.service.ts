@@ -1,4 +1,11 @@
-import { BadRequestException, forwardRef, Inject, Injectable, Logger } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger
+} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
@@ -161,25 +168,25 @@ export class UserService {
     }
   }
 
-  async acceptWorkspaceInvitation<T extends boolean = boolean>(
-    params: AcceptWorkspaceInvitationParams<T>,
+  async acceptWorkspaceInvitation(
+    params: AcceptWorkspaceInvitationParams,
     transaction: Transaction
   ): Promise<ICreatedUserData> {
     const allowedLogins = JSON.parse(this.configService.get('RUSHDB_ALLOWED_LOGINS') || '[]') ?? []
-    const { inviteToken, forceUserSignUp } = params
+    const { inviteToken } = params
     const { workspaceId, email, projectIds } = this.decryptInvite(inviteToken)
 
-    const login = forceUserSignUp === true ? params.userData.login : email
-    const providedUserLogin = forceUserSignUp === false ? params.authUserLogin : null
+    const login = email
+    const providedUserLogin = params.authUserLogin
 
-    if (!forceUserSignUp && email !== providedUserLogin) {
+    if (email !== providedUserLogin) {
       throw new BadRequestException('Invitation was provided to another RushDB user')
     }
 
     isDevMode(() => Logger.log(`[Accept invite LOG]: Fetching pending invites for workspace ${workspaceId}`))
     const pending = await this.workspaceService.getPendingInvites(workspaceId, transaction)
 
-    if (!pending.some((inv) => inv.email === login)) {
+    if (!pending.some((inv) => inv.email === login && inv.email === providedUserLogin)) {
       isDevMode(() =>
         Logger.warn(`[Accept invite WARN]: No pending invite for ${login} in workspace ${workspaceId}`)
       )
@@ -188,35 +195,7 @@ export class UserService {
     }
 
     if (allowedLogins.length === 0 || (allowedLogins.length && allowedLogins.includes(login))) {
-      // For OAuth we don't abort request early bc we want to check google oauth first
-      let shouldReCheckUser = false
-
-      if (!forceUserSignUp) {
-        isDevMode(() => Logger.warn(`[Accept user invitation WARN]: User with potentially malformed request`))
-
-        // Mark user with potentially malformed data or user with google oauth
-        shouldReCheckUser = true
-      }
-
-      let userNode
-
-      if (forceUserSignUp) {
-        isDevMode(() => Logger.log(`[Accept user invitation LOG]: Create user node for ${login}`))
-        userNode = await this.createUserNode(params.userData, transaction)
-
-        isDevMode(() => Logger.log(`[Accept user invitation LOG]: Create default workspace for ${login}`))
-        await this.workspaceService.createWorkspace({ name: 'Default Workspace' }, userNode.id, transaction)
-      } else {
-        userNode = await this.findUserNodeByLogin(login, transaction)
-
-        if (shouldReCheckUser && !userNode.googleAuth) {
-          throw new BadRequestException('Invitation was provided to a new RushDB user')
-        } else if (shouldReCheckUser) {
-          isDevMode(() =>
-            Logger.log(`[Accept user invitation LOG]: User ${userNode.id} registered before with oauth`)
-          )
-        }
-      }
+      const userNode = await this.findUserNodeByLogin(login, transaction)
 
       if (!workspaceId || !email) {
         throw new BadRequestException('Malformed invite provided')
@@ -241,10 +220,6 @@ export class UserService {
         for (const projectId of projectIds) {
           await this.linkUser(userNode.id, projectId, transaction)
         }
-      }
-
-      if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED')) && forceUserSignUp) {
-        await this.stripeService.createCustomer(login)
       }
 
       await this.workspaceService.removePendingInvite(workspaceId, login, transaction)
@@ -281,7 +256,7 @@ export class UserService {
   }
 
   async createUserNode(properties: Omit<TUserProperties, 'id' | 'isEmail'>, transaction: Transaction) {
-    let userSettings = {}
+    let userSettings = ''
     const currentTime = getCurrentISO()
     const userId = uuidv7()
     const userPassword = await this.encryptionService.hash(properties.password)
@@ -298,18 +273,22 @@ export class UserService {
       throw new BadRequestException('Bad email data provided')
     }
 
-    return await this.userRepository.model.createOne(
-      {
-        ...properties,
-        isEmail,
-        password: userPassword,
-        confirmed: properties.confirmed ?? false,
-        created: currentTime,
-        id: userId,
-        settings: JSON.stringify(userSettings)
-      },
-      { session: transaction }
-    )
+    try {
+      return await this.userRepository.model.createOne(
+        {
+          ...properties,
+          isEmail,
+          password: userPassword,
+          confirmed: properties.confirmed ?? false,
+          created: currentTime,
+          id: userId,
+          settings: userSettings
+        },
+        { session: transaction }
+      )
+    } catch {
+      throw new ConflictException('Provided email is registered already')
+    }
   }
 
   async update(
@@ -329,7 +308,7 @@ export class UserService {
       if (userNode[key] !== value) {
         // hack to change an object in TUserProperties interface
         if (key === 'settings') {
-          userNode[key] = sanitizeSettings(value)
+          userNode[key] = sanitizeSettings(value as string)
         } else {
           userNode[key] = value
         }
@@ -454,9 +433,9 @@ export class UserService {
         })
 
         await Promise.all([
-          ...relatedWorkspaces.map(
-            async (rws) => await this.workspaceService.deleteWorkspace(rws.target.dataValues.id, transaction)
-          ),
+          ...relatedWorkspaces.map(async (rws) => {
+            return await this.workspaceService.deleteWorkspace(rws.target.dataValues.id, transaction)
+          }),
           userNode.delete({ detach: true })
         ])
       }

@@ -1,6 +1,8 @@
-import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common'
+import { Inject, Injectable, Logger, OnApplicationShutdown } from '@nestjs/common'
 import { Driver, Session } from 'neo4j-driver'
 import { Neogma, QueryBuilder, QueryRunner } from 'neogma'
+
+import { isDevMode } from '@/common/utils/isDevMode'
 
 import { INeogmaConfig } from './neogma-config.interface'
 import { NEOGMA_CONFIG, NEOGMA_INSTANCE } from './neogma.constants'
@@ -36,17 +38,43 @@ export class NeogmaService implements OnApplicationShutdown {
     return res
   }
 
-  createSession(): Session {
-    // this.activeSessions().then((activeSessions) =>
-    //     console.log('Active Sessions (before): ', activeSessions.records.length)
-    // );
-    return this.getDriver().session()
+  async activeTransactions() {
+    const session = this.getDriver().session()
+    const transaction = session.beginTransaction()
+
+    const res = await transaction.run('SHOW TRANSACTIONS')
+
+    await transaction.close()
+    await session.close()
+
+    return res
+  }
+
+  async stats(context?: any) {
+    const [activeSessions, activeTransactions] = await Promise.all([
+      this.activeSessions(),
+      this.activeTransactions()
+    ])
+    Logger.debug(
+      `[NEO4J STATS] (context: ${context}): ${JSON.stringify({ activeSessions: activeSessions.records.length, activeTransactions: activeTransactions.records.length })}`
+    )
+  }
+
+  createSession(context?: any): Session {
+    const session = this.getDriver().session()
+
+    isDevMode(() => {
+      this.stats('create session ' + (context ? context : ''))
+    })
+
+    return session
   }
 
   async closeSession(session: Session, context?: any) {
     await session?.close()
-    // const activeSessions = await this.activeSessions();
-    // console.log('Active Sessions (close): ', activeSessions.records.length, context);
+    isDevMode(() => {
+      this.stats('close session' + (context ? context : ''))
+    })
   }
 
   getReadSession() {

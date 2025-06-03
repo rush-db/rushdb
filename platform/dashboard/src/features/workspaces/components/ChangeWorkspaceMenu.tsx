@@ -14,15 +14,22 @@ export function ChangeWorkspaceMenu() {
   const { data: currentWorkspace, error, loading } = useStore($currentWorkspace)
   const { data: list } = useStore($workspacesList)
 
-  const showNew = !currentWorkspace && !error && !loading
-
-  const triggerText = showNew ? 'Create new' : (currentWorkspace?.name ?? 'Loading...')
+  const triggerText = currentWorkspace?.name ?? 'Loading...'
 
   return (
     <Menu
       trigger={
         <MenuButton>
-          <Skeleton enabled={loading && !currentWorkspace}>{triggerText}</Skeleton>
+          <Skeleton enabled={loading && !currentWorkspace}>
+            <div className="flex items-center justify-between gap-5">
+              <div className="flex flex-col text-left">
+                <strong>{triggerText}</strong>
+                <p className="text-accent text-xs">
+                  {list?.find((workspace) => workspace.id === currentWorkspace?.id)?.role}
+                </p>
+              </div>
+            </div>
+          </Skeleton>
         </MenuButton>
       }
       align="start"

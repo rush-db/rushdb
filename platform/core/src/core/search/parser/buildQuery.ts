@@ -1,4 +1,5 @@
 import { isArray } from '@/common/utils/isArray'
+import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
 import { DEFAULT_RECORD_ALIAS } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
@@ -43,38 +44,32 @@ export function buildPagination({ skip: skipRaw = 0, limit: limitRaw = 100 }: Se
   return `SKIP ${skip} LIMIT ${limit}`
 }
 
-export function sort(orderBy: TSearchSort, alias = DEFAULT_RECORD_ALIAS) {
+export function sort(orderBy: TSearchSort, alias: string | null = DEFAULT_RECORD_ALIAS) {
   const orderClauses = buildOrderByClause(orderBy, alias)
   return `ORDER BY ${orderClauses.join(', ')}`
 }
 
 export const buildQueryClause = ({
   queryParts,
-  labelClause,
-  sortParams,
-  pagination
+  labelClause
 }: {
   queryParts: string[]
   labelClause?: string
-  sortParams: string
-  pagination: string
 }) => {
-  return queryParts
-    .map((part, index) => {
-      if (index === 0) {
-        const whereClause = toBoolean(part) ? `WHERE ${part}` : ''
+  return queryParts.map((part, index) => {
+    if (index === 0) {
+      const whereClause = toBoolean(part) ? `WHERE ${part}` : ''
 
-        const combinedClause = `${whereClause}${
-          labelClause ? (whereClause ? ' AND ' : 'WHERE ') + labelClause : ''
-        }`
-        return `${combinedClause} ${sortParams} ${pagination}`.trim()
-      }
-      return part
-    })
-    .join('\n')
+      const combinedClause = `${whereClause}${
+        labelClause ? (whereClause ? ' AND ' : 'WHERE ') + labelClause : ''
+      }`
+      return combinedClause.trim()
+    }
+    return part
+  })
 }
 
-export const parse = (
+export const parseWhereClause = (
   input: Where,
   options: TSearchQueryBuilderOptions = { nodeAlias: DEFAULT_RECORD_ALIAS }
 ) => {
@@ -126,19 +121,20 @@ export const parseLevel = (
   return result
 }
 
+export const isOrderByAggregatedField = (searchQuery: SearchDto) =>
+  toBoolean(searchQuery.orderBy) &&
+  isObject(searchQuery.orderBy) &&
+  Object.keys(searchQuery.orderBy).length === 1 &&
+  Object.keys(searchQuery.aggregate ?? {}).includes(Object.keys(searchQuery.orderBy)[0])
+
 export const buildQuery = (searchQuery: SearchDto) => {
-  const parsedWhere = parse(searchQuery.where)
+  const parsedWhere = parseWhereClause(searchQuery.where)
 
   // Sort query parts in ascending order
   const sortedQueryParts = sortQueryParts(parsedWhere.queryParts)
 
-  const pagination = buildPagination(searchQuery)
-  const sortParams = sort(searchQuery.orderBy)
-
   const queryClauses = buildQueryClause({
     queryParts: sortedQueryParts,
-    pagination,
-    sortParams,
     labelClause: buildLabelsClause(searchQuery.labels)
   })
 

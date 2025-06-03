@@ -1,13 +1,14 @@
 export enum SearchOperations {
-  // Perform exact matching of property values with the given input.
+  // Perform an exact matching of property values with the given input.
   Equals = '$equals',
 
   // Exclude records with property values matching the given input.
   NotEquals = '$ne',
 
-  //  Include records if some of the elements are matched (in: [])
+  //  Include records if some elements are matched (in: [])
   // In = '$in',
-  // Exclude records if some of the elements are matched (in: [])
+
+  // Exclude records if some elements are matched (in: [])
   // NotIn = '$nin',
 
   // lt, lte, gt, and gte: Perform comparisons (less than, less than or equal to, greater than, greater than or equal to) with numeric property values.
@@ -27,12 +28,7 @@ export const SearchSymbols: Record<SearchOperations, string> = {
   [SearchOperations.Contains]: '=~',
   [SearchOperations.StartsWith]: '*.',
   [SearchOperations.EndsWith]: '.*',
-  // [SearchOperations.NotEquals]: '!=~',
   [SearchOperations.NotEquals]: '!=',
-  // [SearchOperations.In]: '=~',
-  // [SearchOperations.NotIn]: '!=~',
-  // [SearchOperations.Range]: '<>',
-  // [SearchOperations.ExcludeRange]: '!<>',
   [SearchOperations.Less]: '<',
   [SearchOperations.LessOrEqual]: '<=',
   [SearchOperations.Greater]: '>',
@@ -80,7 +76,7 @@ export const operationsRecord: Record<
   //     'Exclude records with property values matching the given input.'
   // },
   [SearchOperations.NotEquals]: {
-    label: 'Not',
+    label: 'Not Equals',
     value: SearchOperations.NotEquals,
     symbol: SearchSymbols[SearchOperations.NotEquals],
     description: 'Exclude records with property values matching the given input.'
@@ -91,26 +87,6 @@ export const operationsRecord: Record<
   //   symbol: SearchSymbols[SearchOperations.NotIn],
   //   description:
   //     'Exclude records with property values matching the given input.'
-  // },
-  // [SearchOperations.ExactExclude]: {
-  //   label: 'Not Equals',
-  //   value: SearchOperations.ExactExclude,
-  //   symbol: SearchSymbols[SearchOperations.ExactExclude],
-  //   description:
-  //     'Exclude records with exact property values matching the given input.'
-  // },
-  // [SearchOperations.Range]: {
-  //   label: 'Range',
-  //   value: SearchOperations.Range,
-  //   symbol: SearchSymbols[SearchOperations.Range],
-  //   description: 'Filter property values that fall within a specified range.'
-  // },
-  // [SearchOperations.ExcludeRange]: {
-  //   label: 'Exclude Range',
-  //   value: SearchOperations.ExcludeRange,
-  //   symbol: SearchSymbols[SearchOperations.ExcludeRange],
-  //   description:
-  //     'Exclude records with property values falling within a specified range.'
   // },
   [SearchOperations.Less]: {
     label: 'Less',

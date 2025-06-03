@@ -12,10 +12,10 @@ import { AuthService } from '@/dashboard/auth/auth.service'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { ThrottleByTokenGuard } from '@/dashboard/throttle/guards/throttle-by-token.guard'
 import { TokenService } from '@/dashboard/token/token.service'
-import { UserService } from '@/dashboard/user/user.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
+import { UserService } from '@/dashboard/user/user.service'
+import { NeogmaService } from '@/database/neogma/neogma.service'
 
 type TDashboardTargetType = 'project' | 'workspace'
 
@@ -40,7 +40,7 @@ class GlobalAuthGuard implements CanActivate {
     const minimalRole =
       this.reflector.get<TUserRoles>('minimalRole', context.getHandler()) ?? USER_ROLE_EDITOR
 
-    const session = this.neogmaService.createSession()
+    const session = this.neogmaService.createSession('global-auth-guard')
     const transaction = session.beginTransaction()
 
     const cleanUp = async () => {
@@ -48,9 +48,15 @@ class GlobalAuthGuard implements CanActivate {
       await this.neogmaService.closeSession(session, 'global-auth-guard')
     }
 
-    if (request.headers['token']) {
+    const authHeader = request.headers['authorization']
+    const bearerToken = authHeader?.split(' ')[1]
+
+    const isJwt = bearerToken?.split('.').length === 3
+
+    // Flow for SDK auth
+    if (request.headers['token'] || !isJwt) {
       try {
-        const authHeader = request.headers['token']
+        const authHeader = request.headers['token'] || bearerToken
         const tokenId = this.tokenService.decrypt(authHeader)
 
         const { hasAccess, projectId, workspaceId } = await this.tokenService.validateToken({

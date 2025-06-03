@@ -26,7 +26,7 @@ export class CliService {
   })
   async createUser(login: string, password: string): Promise<void> {
     const isSelfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
-    const session = this.neogmaService.createSession()
+    const session = this.neogmaService.createSession('cli-create-user')
     const transaction = session.beginTransaction()
 
     try {
@@ -55,7 +55,7 @@ export class CliService {
   })
   async updatePassword(login: string, newPassword: string): Promise<void> {
     const isSelfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
-    const session = this.neogmaService.createSession()
+    const session = this.neogmaService.createSession('cli-update-password')
     const transaction = session.beginTransaction()
 
     try {
@@ -92,7 +92,7 @@ export class CliService {
   })
   async dbRestore(projectId: string, filePath: string): Promise<void> {
     const isSelfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
-    const session = this.neogmaService.createSession()
+    const session = this.neogmaService.createSession('cli-restore')
     const transaction = session.beginTransaction()
 
     try {

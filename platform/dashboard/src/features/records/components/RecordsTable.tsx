@@ -51,6 +51,7 @@ function FieldHeadCell({
 
   return (
     <HeadCell
+      data-tour="records-table-overview"
       {...props}
       onClick={() => {
         setRecordsSort(field.name)
