@@ -169,13 +169,14 @@ jobs:
                 "logConfiguration": {
                   "logDriver": "awslogs",
                   "options": {
-                    "awslogs-create-group": "true",
                     "awslogs-group": "/ecs/rushdb",
                     "awslogs-region": "${{ vars.AWS_REGION }}",
                     "awslogs-stream-prefix": "ecs-rushdb"
                   }
                 },
                 "environment": [
+                  { "name": "NODE_ENV", "value": "production" },
+                  { "name": "LOG_LEVEL", "value": "info" },
                   { "name": "RUSHDB_DASHBOARD_URL", "value": "${{ vars.RUSHDB_DASHBOARD_URL }}" },
                   { "name": "RUSHDB_AES_256_ENCRYPTION_KEY", "value": "${{ secrets.RUSHDB_AES_256_ENCRYPTION_KEY }}" },
                   { "name": "RUSHDB_SELF_HOSTED", "value": "false" },
