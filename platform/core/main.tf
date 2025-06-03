@@ -39,6 +39,19 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# CLOUDWATCH LOGS =================================================================================
+
+resource "aws_cloudwatch_log_group" "rushdb_logs" {
+  # Creates a CloudWatch log group for RushDB application logs.
+  name              = "/ecs/rushdb"
+  retention_in_days = 30
+
+  tags = {
+    Name        = "rushdb-logs"
+    Environment = "production"
+  }
+}
+
 # NETWORK =========================================================================================
 
 data "aws_vpc" "default" {
@@ -156,34 +169,33 @@ resource "aws_ecs_task_definition" "rushdb-task-definition" {
   memory                   = 2048
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
 
-  container_definitions = <<DEFINITION
-    [
-      {
-        "name": "rushdb",
-        "image": "rushdb/platform:latest",
-        "cpu": 1024,
-        "memory": 2048,
-        "essential": true,
-        "logConfiguration": {
-          "logDriver": "awslogs",
-          "options": {
-            "awslogs-create-group": "true",
-            "awslogs-group": "/ecs/rushdb",
-            "awslogs-region": "eu-central-1",
-            "awslogs-stream-prefix": "ecs-rushdb"
-          }
-        },
-        "portMappings": [
-          {
-            "containerPort": 3000,
-            "hostPort": 3000,
-            "protocol": "tcp",
-            "appProtocol": "http"
-          }
-        ]
+  container_definitions = jsonencode([
+    {
+      name      = "rushdb"
+      image     = "rushdb/platform:latest"
+      cpu       = 1024
+      memory    = 2048
+      essential = true
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.rushdb_logs.name
+          "awslogs-region"        = "eu-central-1"
+          "awslogs-stream-prefix" = "ecs-rushdb"
+        }
       }
-    ]
-  DEFINITION
+
+      portMappings = [
+        {
+          containerPort = 3000
+          hostPort      = 3000
+          protocol      = "tcp"
+          appProtocol   = "http"
+        }
+      ]
+    }
+  ])
 }
 
 resource "aws_ecs_cluster" "rushdb-ecs-cluster" {
@@ -212,7 +224,10 @@ resource "aws_ecs_service" "rushdb-ecs-service" {
     container_port   = 3000
   }
 
-  depends_on = [aws_lb_listener.rushdb-listener]
+  depends_on = [
+    aws_lb_listener.rushdb-listener,
+    aws_cloudwatch_log_group.rushdb_logs
+  ]
 }
 
 # DOMAIN ==========================================================================================
@@ -277,4 +292,9 @@ output "load_balancer_ip_rushdb" {
 output "execution_role_arn" {
   # Outputs the ARN of the ECS execution role.
   value = aws_iam_role.ecs_task_execution_role.arn
+}
+
+output "cloudwatch_log_group" {
+  # Outputs the CloudWatch log group name for easy access to application logs.
+  value = aws_cloudwatch_log_group.rushdb_logs.name
 }

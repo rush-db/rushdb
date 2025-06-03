@@ -190,6 +190,45 @@ data "aws_subnets" "all" {
   }
 }
 
+# IAM role for ECS task execution
+resource "aws_iam_role" "ecs_task_execution_role" {
+  name = "rushdb-ecs-task-execution-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+resource "aws_iam_role_policy_attachment" "cloudwatch_logs_access" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+}
+
+# CloudWatch log group for application logs
+resource "aws_cloudwatch_log_group" "rushdb_logs" {
+  name              = "/ecs/rushdb"
+  retention_in_days = 30
+
+  tags = {
+    Name        = "rushdb-logs"
+    Environment = "production"
+  }
+}
+
 # Security group for RushDB
 resource "aws_security_group" "rushdb_sg" {
   name        = "rushdb-security-group"
@@ -197,9 +236,10 @@ resource "aws_security_group" "rushdb_sg" {
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    from_port   = 3000
-    to_port     = 3000
-    protocol    = "tcp"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    self        = true
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -213,7 +253,7 @@ resource "aws_security_group" "rushdb_sg" {
 
 # ECS cluster
 resource "aws_ecs_cluster" "rushdb_cluster" {
-  name = "rushdb-cluster"
+  name = "rushdb-ecs-cluster"
 }
 
 # Task execution role
@@ -241,7 +281,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
 
 # ECS task definition
 resource "aws_ecs_task_definition" "rushdb_task" {
-  family                   = "rushdb"
+  family                   = "rushdb-task-definition"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "1024"
@@ -270,10 +310,9 @@ resource "aws_ecs_task_definition" "rushdb_task" {
     logConfiguration = {
       logDriver = "awslogs"
       options = {
-        "awslogs-group"         = "/ecs/rushdb"
+        "awslogs-group"         = aws_cloudwatch_log_group.rushdb_logs.name
         "awslogs-region"        = "us-east-1"
-        "awslogs-stream-prefix" = "ecs"
-        "awslogs-create-group"  = "true"
+        "awslogs-stream-prefix" = "ecs-rushdb"
       }
     }
   }])
@@ -281,7 +320,7 @@ resource "aws_ecs_task_definition" "rushdb_task" {
 
 # ECS service
 resource "aws_ecs_service" "rushdb_service" {
-  name            = "rushdb-service"
+  name            = "rushdb-ecs-service"
   cluster         = aws_ecs_cluster.rushdb_cluster.id
   task_definition = aws_ecs_task_definition.rushdb_task.arn
   desired_count   = 1
@@ -292,12 +331,22 @@ resource "aws_ecs_service" "rushdb_service" {
     security_groups  = [aws_security_group.rushdb_sg.id]
     assign_public_ip = true
   }
+
+  depends_on = [
+    aws_cloudwatch_log_group.rushdb_logs
+  ]
+}
+
+# Output the CloudWatch log group for easy access
+output "cloudwatch_log_group" {
+  value       = aws_cloudwatch_log_group.rushdb_logs.name
+  description = "CloudWatch log group name for RushDB application logs"
 }
 
 # Output the service URL
-output "rushdb_url" {
-  value = "http://${aws_ecs_service.rushdb_service.network_configuration[0].assign_public_ip ? "Public IP" : "Private IP"}:3000"
-  description = "URL to access RushDB service"
+output "rushdb_public_ip_note" {
+  value       = "Check the ECS service in AWS Console for the public IP address"
+  description = "Note about accessing RushDB service"
 }
 ```
 
@@ -323,7 +372,26 @@ terraform apply tfplan
 
 6. **Access Your RushDB Service**
 
-After deployment completes, Terraform will output the URL to access your RushDB service.
+After deployment completes, Terraform will output information about your deployment including the CloudWatch log group name.
+
+#### Viewing Application Logs
+
+To view your RushDB application logs:
+
+1. **Using AWS Console**:
+   - Go to CloudWatch in the AWS Console
+   - Navigate to "Log groups"
+   - Find the log group `/ecs/rushdb`
+   - Click on it to view log streams with prefix `ecs-rushdb`
+
+2. **Using AWS CLI**:
+   ```bash
+   # List log streams
+   aws logs describe-log-streams --log-group-name "/ecs/rushdb"
+
+   # View recent logs
+   aws logs tail "/ecs/rushdb" --follow
+   ```
 
 #### Advanced AWS Deployment with Load Balancer and SSL
 
