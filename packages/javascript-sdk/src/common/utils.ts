@@ -14,6 +14,36 @@ export const isPrimitive = (value: unknown) => {
   )
 }
 
+export function omit<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
+  const result = { ...obj }
+  keys.forEach((key) => {
+    delete result[key]
+  })
+  return result
+}
+
+export const getOwnProperties = <T>(input: T) => {
+  if (isObject(input)) {
+    return omit(input, ['__label', '__id', '__proptypes'] as unknown as (keyof T)[])
+  }
+  return input
+}
+
+export const removeUndefinedDeep = <T>(input: T): T => {
+  if (isArray(input)) {
+    return input.map(removeUndefinedDeep) as T
+  } else if (isObject(input)) {
+    return Object.fromEntries(
+      Object.entries(input)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        .filter(([_, v]) => v !== undefined)
+        .map(([k, v]) => [k, removeUndefinedDeep(v)])
+    ) as T
+  }
+
+  return input
+}
+
 export const isPropertyValue = (value: any): value is PropertyValue => {
   return isArray(value) ? value.every(isPrimitive) : isPrimitive(value)
 }

@@ -12,7 +12,7 @@ sidebar_position: 5
 export class DBRecordsArrayInstance<
   S extends Schema = Schema,
   Q extends SearchQuery<S> = SearchQuery<S>
-> extends RestApiProxy {
+> {
   data?: Array<DBRecordInstance<S, Q>>
   total: number | undefined
   searchQuery?: SearchQuery<S>

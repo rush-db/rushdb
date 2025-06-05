@@ -261,7 +261,7 @@ const AuthorModel = new Model('author', {
   name: { type: 'string' },
   email: { type: 'string', uniq: true }
 });
-const AuthorRepo = db.registerModel(AuthorModel);
+
 ```
 
 ### Using Model's `create` Method

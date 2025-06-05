@@ -12,7 +12,7 @@ sidebar_position: 3
 export class DBRecordInstance<
   S extends Schema = Schema,
   Q extends SearchQuery<S> = SearchQuery<S>
-> extends RestApiProxy {
+> {
   data?: DBRecordInferred<S, Q>
 }
 ```

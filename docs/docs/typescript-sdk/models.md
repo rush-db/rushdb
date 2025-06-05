@@ -100,7 +100,6 @@ const Author = new Model('author', {
 
 - `label`: A unique string identifier for the model, which represents a [Label](../concepts/labels) in RushDB. It's used to categorize records and define their type in the database system. Labels are crucial for organizing and querying your data.
 - `schema`: The schema definition based on `Schema`, which dictates the structure and rules of the data stored.
-- `rushDBInstance` (optional): An instance of RushDB SDK that will automatically register the model. If provided, the model will be registered with this instance.
 
 ### Type Helpers in Models
 
@@ -148,6 +147,29 @@ export type UserRecordDraft = typeof UserModel.draft;
 export type UserSearchQuery = SearchQuery<typeof UserModel.schema>;
 ```
 
+### Model Implementation Architecture
+
+The `Model` class uses the same architectural pattern as other SDK components like `Transaction` and `DBRecordInstance`. It uses the static `RushDB.init()` method to access the API:
+
+```typescript
+// Internal implementation pattern (from model.ts)
+async someMethod(params) {
+  const instance = await this.getRushDBInstance()
+  return await instance.someApi.someMethod(params)
+}
+
+// getRushDBInstance method in Model class
+public async getRushDBInstance(): Promise<RushDB> {
+  const instance = RushDB.getInstance()
+  if (instance) {
+    return await RushDB.init()
+  }
+  throw new Error('No RushDB instance found. Please create a RushDB instance first: new RushDB("RUSHDB_API_TOKEN")')
+}
+```
+
+This architecture ensures consistent API access across all SDK components.
+
 These exported types can then be used throughout your application to ensure type safety:
 
 ```typescript
@@ -190,57 +212,73 @@ This approach gives you several advantages:
 
 ## Registering and Managing Models
 
-When working with models in RushDB, there are two ways to register them. The recommended approach is to pass the RushDB instance directly to the model constructor. To make it clear which approach you're using in your code, we recommend following this naming convention:
+Models in RushDB don't need to be registered explicitly. When you create a model, it's ready to use right away:
 
 ```typescript
-// RECOMMENDED: Register the model during creation (use ${Name}Repo naming convention)
-const AuthorRepo = new Model('author', {
-  name: { type: 'string' },
-  email: { type: 'string', uniq: true }
-}, db); // Pass the RushDB instance here
-
-// The model is automatically registered and ready to use
-```
-
-Alternatively, you can register a model after creation:
-
-```typescript
-// Create the model (use ${Name}Model naming convention)
+// Create the model
 const AuthorModel = new Model('author', {
   name: { type: 'string' },
   email: { type: 'string', uniq: true }
 });
 
-// Then register it with the RushDB SDK
-const AuthorRepo = db.registerModel(AuthorModel);
+// Start using it directly
+const author = await AuthorModel.create({
+  name: "Jane Doe",
+  email: "jane@example.com"
+});
 ```
 
-Following this naming convention (`${Name}Repo` vs `${Name}Model`) makes it immediately clear in your code which approach was used to register the model.
+### Important: RushDB Initialization Architecture
 
-**Working with Models in RushDB class:**
+Due to the async initialization architecture of RushDB, it's important to initialize the RushDB instance early in your application's lifecycle. This is because JavaScript modules are lazy-loaded and only executed when imported.
 
-- `registerModel`: Registers the model with the RushDB SDK, making it ready for data operations
-- `getModel` and `getModels`: Retrieve registered models from the SDK, useful for accessing model details programmatically:
+To ensure that the RushDB instance is available when needed by your models, it's recommended to:
+
+1. Create your RushDB instance in a dedicated file at the root of your application
+2. Export this instance so it can be imported by other modules
+3. Import this file early in your application's bootstrap process
+
+Example of proper initialization:
+
 ```typescript
-public getModel(label: string): Model
-public getModels(): Map<string, Model>
+// db.ts (at the root of your project)
+import RushDB from '@rushdb/javascript-sdk';
+
+// Initialize RushDB with your API token
+export const db = new RushDB('RUSHDB_API_TOKEN');
+
+// You can also export a helper function to access the instance
+export const getRushDBInstance = async () => {
+  return await RushDB.init();
+};
 ```
+
+```typescript
+// app.ts or index.ts (your application entry point)
+import { db } from './db';
+// Import your models after importing the db
+import { UserModel, PostModel } from './models';
+
+// The rest of your application code...
+```
+
+This approach ensures that the RushDB instance is initialized before any model tries to use it, preventing "No RushDB instance found" errors.
 
 ## Model CRUD Operations
 
-After registering a model, you can perform CRUD (Create, Read, Update, Delete) operations through the model's methods.
+After creating a model, you can perform CRUD (Create, Read, Update, Delete) operations through the model's methods.
 
 ### Creating Records
 
 ```typescript
 // Create a single record
-const newAuthor = await AuthorRepo.create({
+const newAuthor = await AuthorModel.create({
   name: 'Alice Smith',
   email: 'alice.smith@example.com'
 });
 
 // Create multiple records
-const authors = await AuthorRepo.createMany([
+const authors = await AuthorModel.createMany([
   { name: 'Bob Johnson', email: 'bob.johnson@example.com' },
   { name: 'Carol Davis', email: 'carol.davis@example.com' }
 ]);
@@ -250,32 +288,32 @@ const authors = await AuthorRepo.createMany([
 
 ```typescript
 // Find all records of this model
-const allAuthors = await AuthorRepo.find();
+const allAuthors = await AuthorModel.find();
 
 // Find specific records with search criteria
-const specificAuthors = await AuthorRepo.find({
+const specificAuthors = await AuthorModel.find({
   where: { name: { $contains: 'Smith' } }
 });
 
 // Find a single record
-const oneAuthor = await AuthorRepo.findOne({
+const oneAuthor = await AuthorModel.findOne({
   where: { email: 'alice.smith@example.com' }
 });
 
 // Find by unique identifier
-const authorById = await AuthorRepo.findById('author_id_123');
+const authorById = await AuthorModel.findById('author_id_123');
 ```
 
 ### Updating Records
 
 ```typescript
 // Update a specific record by ID
-await AuthorRepo.update('author_id_123', {
+await AuthorModel.update('author_id_123', {
   name: 'Alice Johnson-Smith'
 });
 
 // Set all values of a record (replace existing data)
-await AuthorRepo.set('author_id_123', {
+await AuthorModel.set('author_id_123', {
   name: 'Alice Johnson',
   email: 'alice.johnson@example.com'
 });
@@ -285,26 +323,26 @@ await AuthorRepo.set('author_id_123', {
 
 ```typescript
 // Delete records matching criteria
-await AuthorRepo.delete({
+await AuthorModel.delete({
   where: { name: { $contains: 'temp' } }
 });
 
 // Delete records by ID
-await AuthorRepo.deleteById(['author_id_123', 'author_id_456']);
+await AuthorModel.deleteById(['author_id_123', 'author_id_456']);
 ```
 
 ### Working with Relationships
 
 ```typescript
 // Attach a relationship
-await AuthorRepo.attach({
+await AuthorModel.attach({
   source: 'author_id_123',
   target: 'book_id_456',
   options: { type: 'WROTE' }
 });
 
 // Detach a relationship
-await AuthorRepo.detach({
+await AuthorModel.detach({
   source: 'author_id_123',
   target: 'book_id_456',
   options: { type: 'WROTE' }
@@ -325,23 +363,23 @@ First, define your models using `Model`:
 ```typescript
 import { Model } from '@rushdb/javascript-sdk'
 
-// Using the recommended approach with RushDB instance in constructor
-const AuthorRepo = new Model('author', {
+// Create models
+const AuthorModel = new Model('author', {
   name: { type: 'string' },
   email: { type: 'string', uniq: true }
-}, db);
+});
 
-const PostRepo = new Model('post', {
+const PostModel = new Model('post', {
   created: { type: 'datetime', default: () => new Date().toISOString() },
   title: { type: 'string' },
   content: { type: 'string' },
   rating: { type: 'number' }
-}, db);
+});
 
-const BlogRepo = new Model('blog', {
+const BlogModel = new Model('blog', {
   title: { type: 'string' },
   description: { type: 'string' }
-}, db);
+});
 ```
 
 #### Step 2: Create an Exportable Type for All Schemas
@@ -349,9 +387,9 @@ const BlogRepo = new Model('blog', {
 Next, create an exportable type that includes all the schemas defined in your application:
 ```typescript
 export type MyModels = {
-  author: typeof AuthorRepo.schema
-  post: typeof PostRepo.schema
-  blog: typeof BlogRepo.schema
+  author: typeof AuthorModel.schema
+  post: typeof PostModel.schema
+  blog: typeof BlogModel.schema
 }
 ```
 
@@ -406,7 +444,3 @@ For a more in-depth understanding of the RushDB TypeScript SDK and its capabilit
 - [Introduction to TypeScript SDK](../typescript-sdk/introduction) - Learn about the basics of using the SDK
 - [Transactions](../typescript-sdk/transactions) - Learn how to use transactions with models for atomic operations
 - [Labels](../concepts/labels) - Understand how Labels work in RushDB and how they're used to categorize records
-
-## Conclusion
-
-Using the `RestAPI` methods in the `RushDB` class provides a flexible way to perform CRUD operations without registering models. This approach is particularly useful for dynamic or ad-hoc operations, offering a straightforward way to interact with your data. However, for more complex applications where type safety and structure are important, defining and registering models is recommended.

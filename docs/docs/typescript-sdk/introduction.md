@@ -42,10 +42,10 @@ After installation, create an instance of the RushDB SDK in your project:
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
 
-const db = new RushDB('API_TOKEN');
+const db = new RushDB('RUSHDB_API_TOKEN');
 ```
 
-Replace `API_TOKEN` with your actual API token from the [RushDB Dashboard](https://app.rushdb.com/).
+Replace `RUSHDB_API_TOKEN` with your actual API token from the [RushDB Dashboard](https://app.rushdb.com/).
 
 ### Usage Example
 
@@ -53,7 +53,7 @@ Replace `API_TOKEN` with your actual API token from the [RushDB Dashboard](https
 import RushDB from '@rushdb/javascript-sdk'
 
 // Setup SDK
-const db = new RushDB("API_TOKEN");
+const db = new RushDB("RUSHDB_API_TOKEN");
 
 // Push any data, and RushDB will automatically flatten it into Records
 // and establish relationships between them accordingly.
@@ -153,13 +153,33 @@ Or:
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
 
-const db = new RushDB('API_TOKEN', {
-  url: 'http://localhost:3000',
+const db = new RushDB('RUSHDB_API_TOKEN', {
+  url: 'http://localhost:3000/api/v1',
   timeout: 5000,
   options: {
     allowForceDelete: false
   }
 });
+```
+
+## SDK Architecture
+
+The RushDB SDK uses a consistent approach for accessing the RushDB API instance across all SDK components. Classes like `Transaction`, `DBRecordInstance`, `DBRecordsArrayInstance` and `Model` all use the static `RushDB.init()` method to obtain the API instance, ensuring a uniform pattern throughout the SDK.
+
+This architecture provides several benefits:
+
+1. **Simplified Access**: Components can access the API without managing dependencies
+2. **Consistency**: All components use the same mechanism to access API methods
+3. **Cleaner Code**: Removes the need for inheritance from a base proxy class
+
+Example of the implementation pattern:
+
+```typescript
+// Internal implementation example
+async someMethod(param: string): Promise<ApiResponse> {
+  const instance = await RushDB.init()  // Get the RushDB instance
+  return await instance.someApi.someMethod(param)  // Use the instance to make API calls
+}
 ```
 
 ## Next Steps

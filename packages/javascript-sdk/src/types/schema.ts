@@ -1,7 +1,10 @@
-import type { FlattenTypes, MaybePromise } from './utils.js'
+import type { FlattenTypes } from './utils.js'
 import type { DatetimeObject, PropertyType, PropertyValue } from './value.js'
 
-export type SchemaDefaultValue<T extends PropertyType = PropertyType> = MaybePromise<PropertyValue<T>>
+export type SchemaDefaultValue<T extends PropertyType = PropertyType> =
+  | PropertyValue<T>
+  | (() => PropertyValue<T>)
+  | (() => Promise<PropertyValue<T>>)
 
 export type SchemaField<T extends PropertyType = PropertyType> = {
   default?: SchemaDefaultValue<T>
@@ -13,7 +16,7 @@ export type SchemaField<T extends PropertyType = PropertyType> = {
 
 export type Schema = Record<string, SchemaField>
 
-// Typings for write ops (create/update)
+// Typings for writing ops (create/update)
 type TypeMappingWrite = {
   boolean: boolean
   datetime: DatetimeObject | string

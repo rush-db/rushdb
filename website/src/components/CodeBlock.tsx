@@ -64,7 +64,7 @@ export const CodeBlock = forwardRef<
     }, [])
 
     if (!isClient) {
-      return <div className="text-content3 text-sm italic">Loading code snippet...</div>
+      return <div className="text-content3 text-sm italic"></div>
     }
 
     return (

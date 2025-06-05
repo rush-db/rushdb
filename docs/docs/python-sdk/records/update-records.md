@@ -20,7 +20,7 @@ Before updating records, make sure you have initialized the RushDB client with y
 ```python
 from rushdb import RushDB
 
-db = RushDB("YOUR_API_TOKEN", base_url="https://api.rushdb.com/api/v1")
+db = RushDB("RUSHDB_API_TOKEN", base_url="https://api.rushdb.com/api/v1")
 ```
 
 ## Updating Records with `update()`

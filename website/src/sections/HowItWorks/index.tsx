@@ -14,7 +14,7 @@ import { GitHub } from '~/components/Icons/GitHub'
 
 const code1 = `import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('rushdb-api-key')
+const db = new RushDB('RUSHDB_API_TOKEN')
 
 await db.records.createMany({
   label: "COMPANY",
@@ -41,7 +41,7 @@ await db.records.createMany({
 
 const code1Py = `from rushdb import RushDB
 
-db = RushDB("rushdb-api-key")
+db = RushDB("RUSHDB_API_TOKEN")
 
 db.records.create_many(
     "COMPANY",
@@ -221,7 +221,7 @@ type:      "string"`
 const codeAiIntegration = `import OpenAI from 'openai'
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('rushdb-api-key')
+const db = new RushDB('RUSHDB_API_TOKEN')
 const openai = new OpenAI({ apiKey: 'openai-api-key' })
 
 async function generateAndStoreData() {
@@ -247,7 +247,7 @@ async function generateAndStoreData() {
 const codeAiIntegrationPy = `import openai
 from rushdb import RushDB
 
-db = RushDB("rushdb-api-key")
+db = RushDB("RUSHDB_API_TOKEN")
 openai.api_key = "openai-api-key"
 
 

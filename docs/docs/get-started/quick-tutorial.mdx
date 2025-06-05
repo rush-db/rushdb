@@ -26,10 +26,10 @@ import TabItem from '@theme/TabItem';
 import RushDB from '@rushdb/javascript-sdk';
 
 // Initialize with your API token
-const db = new RushDB('your-api-token');
+const db = new RushDB('RUSHDB_API_TOKEN');
 
 // Or with additional configuration options
-// const db = new RushDB('your-api-token', {
+// const db = new RushDB('RUSHDB_API_TOKEN', {
 //   url: 'https://api.rushdb.com/api/v1',
 //   timeout: 5000
 // });
@@ -40,13 +40,13 @@ const db = new RushDB('your-api-token');
 from rushdb import RushDB
 
 # Connect with your API token
-db = RushDB("your-api-token")
+db = RushDB("RUSHDB_API_TOKEN")
 ```
   </TabItem>
   <TabItem value="rest" label="REST API">
 ```bash
 # Set your API token for future requests
-export TOKEN="your-api-token"
+export TOKEN="RUSHDB_API_TOKEN"
 ```
   </TabItem>
 </Tabs>

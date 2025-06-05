@@ -1,32 +1,41 @@
 import type { HttpClient } from '../network/HttpClient.js'
 import type {
   DBRecord,
+  DBRecordCreationOptions,
+  DBRecordInferred,
   DBRecordTarget,
+  Relation,
   RelationDetachOptions,
   RelationOptions,
-  RelationTarget,
-  Relation,
-  DBRecordInferred,
-  DBRecordCreationOptions
+  RelationTarget
 } from '../sdk/record.js'
-import type { SDKConfig } from '../sdk/types.js'
+import { DBRecordInstance, DBRecordsArrayInstance } from '../sdk/record.js'
+import type { SDKConfig, State } from '../sdk/types.js'
 import type {
-  SearchQuery,
-  Schema,
+  AnyObject,
   InferSchemaTypesWrite,
   MaybeArray,
-  PropertyDraft,
+  OrderDirection,
   Property,
+  PropertyDraft,
   PropertyValuesData,
-  AnyObject,
-  OrderDirection
+  Schema,
+  SearchQuery
 } from '../types/index.js'
 import type { ApiResponse } from './types.js'
 
-import { isArray, isEmptyObject, isObject, isFlatObject, toBoolean, isString } from '../common/utils.js'
+import {
+  getOwnProperties,
+  isArray,
+  isEmptyObject,
+  isFlatObject,
+  isObject,
+  isString,
+  removeUndefinedDeep,
+  toBoolean
+} from '../common/utils.js'
 import { createFetcher } from '../network/index.js'
 import { EmptyTargetError, NonUniqueResultError } from '../sdk/errors.js'
-import { DBRecordInstance, DBRecordsArrayInstance } from '../sdk/record.js'
 import { Transaction } from '../sdk/transaction.js'
 import {
   buildTransactionHeader,
@@ -207,7 +216,7 @@ export class RestAPI {
     create: async <S extends Schema = any>(
       {
         label,
-        data,
+        data: rawData,
         options
       }: {
         label: string
@@ -225,12 +234,16 @@ export class RestAPI {
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
 
+      const data = getOwnProperties(removeUndefinedDeep(rawData))
+
       if (isArray(data) && data.every(isPropertyDraft)) {
         payload.requestData = { label, properties: data }
       } else if (isFlatObject(data)) {
         payload.requestData = { label, data, options }
       } else if (isObject(data)) {
-        throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
+        throw new Error('Provided data is not a flat object. Consider to use `createMany` method.')
+      } else {
+        throw new Error('Provided data is not valid.')
       }
 
       this.logger?.({ requestId, path, ...payload })
@@ -238,9 +251,7 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       if (response?.success && response?.data) {
-        const result = new DBRecordInstance<S>(response.data)
-        result.init(this)
-        return result
+        return new DBRecordInstance<S>(response.data)
       }
 
       return new DBRecordInstance<S>()
@@ -278,14 +289,9 @@ export class RestAPI {
 
       if (response?.success && response?.data) {
         const dbRecordInstances = (response.data as Array<DBRecord<S>>).map((r) => {
-          const instance = new DBRecordInstance<S>(r)
-          instance.init(this)
-          return instance
+          return new DBRecordInstance<S>(r)
         })
-
-        const result = new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
-        result.init(this)
-        return result
+        return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
       }
 
       return new DBRecordsArrayInstance<S>([])
@@ -313,7 +319,7 @@ export class RestAPI {
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: searchQuery
+        requestData: searchQuery ?? {}
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -363,7 +369,7 @@ export class RestAPI {
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: searchQuery
+        requestData: searchQuery ?? {}
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -395,7 +401,7 @@ export class RestAPI {
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: searchQuery
+        requestData: searchQuery ?? {}
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -404,18 +410,10 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       const dbRecordInstances = (response.data as Array<DBRecord<S>>).map((r) => {
-        const instance = new DBRecordInstance<S>(r)
-        instance.init(this)
-        return instance
+        return new DBRecordInstance<S>(r)
       })
 
-      const result = new DBRecordsArrayInstance<S, Q>(
-        dbRecordInstances,
-        response.total,
-        searchQueryWithEntryPoint
-      )
-      result.init(this)
-      return result
+      return new DBRecordsArrayInstance<S, Q>(dbRecordInstances, response.total, searchQueryWithEntryPoint)
     },
 
     /**
@@ -447,18 +445,12 @@ export class RestAPI {
 
       if (isArray(idOrIds)) {
         const dbRecordInstances = (response.data as Array<DBRecord<S>>).map((r) => {
-          const instance = new DBRecordInstance<S>(r)
-          instance.init(this)
-          return instance
+          return new DBRecordInstance<S>(r)
         })
 
-        const result = new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
-        result.init(this)
-        return result as Result
+        return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total) as Result
       } else {
-        const result = new DBRecordInstance<S>(response.data as DBRecord<S>)
-        result.init(this)
-        return result as Result
+        return new DBRecordInstance<S>(response.data as DBRecord<S>) as Result
       }
     },
 
@@ -486,9 +478,7 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
       const [record] = response.data
 
-      const result = new DBRecordInstance<S, Q>(record)
-      result.init(this)
-      return result
+      return new DBRecordInstance<S, Q>(record)
     },
 
     /**
@@ -521,9 +511,7 @@ export class RestAPI {
 
       const [record] = response.data
 
-      const result = new DBRecordInstance<S, Q>(record)
-      result.init(this)
-      return result
+      return new DBRecordInstance<S, Q>(record)
     },
 
     /**
@@ -540,7 +528,7 @@ export class RestAPI {
       {
         target,
         label,
-        data,
+        data: rawData,
         options
       }: {
         target: DBRecordTarget
@@ -560,12 +548,16 @@ export class RestAPI {
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
 
+      const data = getOwnProperties(removeUndefinedDeep(rawData))
+
       if (isArray(data) && data.every(isPropertyDraft)) {
         payload.requestData = { label, properties: data }
       } else if (isFlatObject(data)) {
         payload.requestData = { label, data, options }
       } else if (isObject(data)) {
-        throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
+        throw new Error('Provided data is not a flat object. Consider to use `createMany` method.')
+      } else {
+        throw new Error('Provided data is not valid.')
       }
 
       this.logger?.({ requestId, path, ...payload })
@@ -573,9 +565,7 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       if (response?.success && response?.data) {
-        const result = new DBRecordInstance<S>(response.data)
-        result.init(this)
-        return result
+        return new DBRecordInstance<S>(response.data)
       }
 
       return new DBRecordInstance<S>()
@@ -595,7 +585,7 @@ export class RestAPI {
       {
         target,
         label,
-        data,
+        data: rawData,
         options
       }: {
         target: DBRecordTarget
@@ -615,12 +605,16 @@ export class RestAPI {
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
 
+      const data = getOwnProperties(removeUndefinedDeep(rawData))
+
       if (isArray(data) && data.every(isPropertyDraft)) {
         payload.requestData = { label, properties: data }
       } else if (isFlatObject(data)) {
         payload.requestData = { label, data, options }
       } else if (isObject(data)) {
-        throw Error('Provided data is not a flat object. Consider to use `createMany` method.')
+        throw new Error('Provided data is not a flat object. Consider to use `createMany` method.')
+      } else {
+        throw new Error('Provided data is not valid.')
       }
 
       this.logger?.({ requestId, path, ...payload })
@@ -628,9 +622,7 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       if (response?.success && response?.data) {
-        const result = new DBRecordInstance<S>(response.data)
-        result.init(this)
-        return result
+        return new DBRecordInstance<S>(response.data)
       }
 
       return new DBRecordInstance<S>()
@@ -663,7 +655,7 @@ export class RestAPI {
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: searchQuery
+        requestData: searchQuery ?? {}
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -713,7 +705,7 @@ export class RestAPI {
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: searchQuery
+        requestData: searchQuery ?? {}
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -765,7 +757,7 @@ export class RestAPI {
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: searchQuery
+        requestData: searchQuery ?? {}
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -794,7 +786,7 @@ export class RestAPI {
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: searchQuery
+        requestData: searchQuery ?? {}
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -821,7 +813,7 @@ export class RestAPI {
       const path = `/tx`
       const payload = {
         method: 'POST',
-        requestData: config
+        requestData: isObject(config) && 'ttl' in config ? config : {}
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -829,9 +821,7 @@ export class RestAPI {
       const transaction = await this.fetcher<ApiResponse<{ id: string }>>(path, payload)
       this.logger?.({ requestId, path, ...payload, responseData: transaction.data })
 
-      const result = new Transaction(transaction.data.id)
-      result.init(this)
-      return result
+      return new Transaction(transaction.data.id)
     },
 
     /**
@@ -874,9 +864,7 @@ export class RestAPI {
       const transaction = await this.fetcher<ApiResponse<{ id: string }>>(path, payload)
       this.logger?.({ requestId, path, ...payload, responseData: transaction.data })
 
-      const result = new Transaction(transaction.data.id)
-      result.init(this)
-      return result
+      return new Transaction(transaction.data.id)
     },
 
     /**
@@ -896,6 +884,22 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload })
 
       const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    }
+  }
+
+  public settings = {
+    get: async () => {
+      const path = `/settings`
+      const payload = {
+        method: 'GET'
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<State['serverSettings']>>(path, payload)
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response

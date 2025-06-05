@@ -140,7 +140,7 @@ To use a transaction with other API endpoints, include the transaction ID in the
 ```http
 POST /api/v1/records
 Content-Type: application/json
-token: YOUR_API_TOKEN
+token: RUSHDB_API_TOKEN
 X-Transaction-Id: 018e5c31-f35a-7000-89cd-850db63a1e77
 
 {
@@ -179,7 +179,7 @@ const createTxResponse = await fetch('https://api.rushdb.com/api/v1/tx', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'token': 'YOUR_API_TOKEN'
+    'token': 'RUSHDB_API_TOKEN'
   },
   body: JSON.stringify({ ttl: 10000 })
 });
@@ -192,7 +192,7 @@ try {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'token': 'YOUR_API_TOKEN',
+      'token': 'RUSHDB_API_TOKEN',
       'X-Transaction-Id': txId
     },
     body: JSON.stringify({
@@ -207,7 +207,7 @@ try {
   await fetch(`https://api.rushdb.com/api/v1/tx/${txId}/commit`, {
     method: 'POST',
     headers: {
-      'token': 'YOUR_API_TOKEN'
+      'token': 'RUSHDB_API_TOKEN'
     }
   });
 } catch (error) {
@@ -215,7 +215,7 @@ try {
   await fetch(`https://api.rushdb.com/api/v1/tx/${txId}/rollback`, {
     method: 'POST',
     headers: {
-      'token': 'YOUR_API_TOKEN'
+      'token': 'RUSHDB_API_TOKEN'
     }
   });
   throw error;

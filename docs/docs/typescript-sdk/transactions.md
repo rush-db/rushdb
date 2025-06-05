@@ -160,7 +160,7 @@ Here's a complete example showing a transaction workflow for creating a user pro
 import RushDB from '@rushdb/javascript-sdk';
 
 // Initialize SDK
-const db = new RushDB('YOUR_API_TOKEN');
+const db = new RushDB('RUSHDB_API_TOKEN');
 
 async function createUserProfile(userData) {
   // Begin a transaction with 15-second TTL
@@ -258,4 +258,3 @@ createUserProfile({
   }
 });
 ```
-
