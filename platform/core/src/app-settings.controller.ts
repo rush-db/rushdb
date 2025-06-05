@@ -22,22 +22,27 @@ export class AppSettingsController {
 
   @Get('settings')
   @ApiBearerAuth()
-  @AuthGuard('project')
+  @AuthGuard()
   async settings(@TransactionDecorator() transaction: Transaction, @Request() request: PlatformRequest) {
     const selfHosted = this.configService.get('RUSHDB_SELF_HOSTED')
     const dashboardUrl = this.configService.get('RUSHDB_DASHBOARD_URL')
     const googleAuthClientId = this.configService.get('GOOGLE_CLIENT_ID')
     const githubAuthClientId = this.configService.get('GH_CLIENT_ID')
-    const projectId = request.projectId
 
-    const project = await this.projectService.getProject(projectId, transaction)
+    const projectId = request.projectId
+    let customDb = undefined
+
+    if (projectId) {
+      const project = await this.projectService.getProject(projectId, transaction)
+      customDb = toBoolean(project.toJson().customDb)
+    }
 
     return {
       selfHosted: toBoolean(selfHosted),
       dashboardUrl: dashboardUrl,
       googleOAuthEnabled: toBoolean(googleAuthClientId),
       githubOAuthEnabled: toBoolean(githubAuthClientId),
-      customDb: toBoolean(project.toJson().customDb)
+      customDb
     }
   }
 }

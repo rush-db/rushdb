@@ -22,20 +22,34 @@ class CustomHttpClientResponse extends HttpClientResponse {
 }
 
 class CustomHttpClient extends HttpClient {
-  headers: HeadersInit = {}
-
-  constructor(headers: HeadersInit = {} as HeadersInit, signal?: AbortSignal | null) {
+  constructor() {
     super()
-    this.headers = headers
+  }
+
+  private getDynamicHeaders(): HeadersInit {
+    const token = $token.get()
+    const currentWorkspaceId = $currentWorkspaceId.get()
+    const currentProjectId = $currentProjectId.get()
+
+    return token ?
+        {
+          Authorization: `Bearer ${token}`,
+          ...(currentWorkspaceId ? { 'x-workspace-id': currentWorkspaceId } : {}),
+          ...(currentProjectId ? { 'x-project-id': currentProjectId } : {})
+        }
+      : {}
   }
 
   async makeRequest(url: string, { ...init }) {
+    const dynamicHeaders = this.getDynamicHeaders()
+
     const res = await fetch(url, {
       ...init,
       body: JSON.stringify(init.requestData),
+      signal: init.signal, // Use signal from the request init if provided
       headers: {
         ...init.headers,
-        ...this.headers
+        ...dynamicHeaders
       }
     })
 
@@ -43,22 +57,8 @@ class CustomHttpClient extends HttpClient {
   }
 }
 
-export const sdk = (init?: Partial<RequestInit>) => {
-  const token = $token.get()
-  const currentWorkspaceId = $currentWorkspaceId.get()
-  const currentProjectId = $currentProjectId.get()
-
-  const headers: HeadersInit =
-    token ?
-      {
-        Authorization: `Bearer ${token}`,
-        ...(currentWorkspaceId ? { 'x-workspace-id': currentWorkspaceId } : {}),
-        ...(currentProjectId ? { 'x-project-id': currentProjectId } : {})
-      }
-    : {}
-
-  return new RushDB(undefined, {
-    url: BASE_URL || document.URL,
-    httpClient: new CustomHttpClient(headers, init?.signal)
-  })
-}
+// Create a singleton RushDB instance
+export const rushDBInstance = new RushDB(undefined, {
+  url: BASE_URL || document.URL,
+  httpClient: new CustomHttpClient()
+})

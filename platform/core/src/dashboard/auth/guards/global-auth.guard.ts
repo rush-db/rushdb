@@ -111,6 +111,7 @@ class GlobalAuthGuard implements CanActivate {
           transaction
         })
 
+        request.projectId = request.headers['x-project-id']
         if (hasAccess && dashboardTargetType === 'project') {
           request.projectId = targetId
         }
