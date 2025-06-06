@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 1.4.0
+
+### Minor Changes
+
+- 3b52549: New SDK Architecture and minor bug fixes
+
 ## 1.3.2
 
 ### Patch Changes
