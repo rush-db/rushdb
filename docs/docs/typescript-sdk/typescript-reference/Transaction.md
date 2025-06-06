@@ -88,10 +88,6 @@ try {
 }
 ```
 
-## Inheritance
-
-The `Transaction` class extends `RestApiProxy`, which provides access to the underlying API methods through the `apiProxy` property.
-
 ## See Also
 
 - [Transactions API Documentation](../transactions)

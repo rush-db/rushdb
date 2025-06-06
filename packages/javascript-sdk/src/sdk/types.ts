@@ -14,6 +14,14 @@ export type State = {
   debug: boolean
   timeout: number
   token?: string
+  initialized: boolean
+  serverSettings?: {
+    selfHosted: boolean
+    dashboardUrl: string
+    googleOAuthEnabled: boolean
+    githubOAuthEnabled: boolean
+    customDB?: boolean
+  }
 } & Partial<ApiConnectionConfig>
 
 export type Logger = (payload: any) => void

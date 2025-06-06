@@ -11,7 +11,7 @@ import { CodingLanguage } from '~/contexts/CodingLanguage'
 
 const code = `import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('API_TOKEN')
+const db = new RushDB('RUSHDB_API_TOKEN')
 
 const user = await db.records.create({
   label: 'USER', 
@@ -36,7 +36,7 @@ await db.records.find({
 
 const codePy = `from rushdb import RushDB
 
-db = RushDB("API_TOKEN")
+db = RushDB("RUSHDB_API_TOKEN")
 
 user = db.records.create({
     label: "USER",

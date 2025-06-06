@@ -30,7 +30,7 @@ import type {
 } from '~/features/workspaces/types'
 import type { GenericApiResponse, Override } from '~/types'
 
-import { sdk } from '~/lib/sdk.ts'
+import { rushDBInstance } from '~/lib/sdk.ts'
 
 import { fetcher } from './fetcher'
 import { BillingErrorCodes } from '~/features/billing/constants.ts'
@@ -62,7 +62,7 @@ export const api = {
       options?: DBRecordCreationOptions
     }) {
       try {
-        return await sdk(init).records.createMany({ label, options, data })
+        return await rushDBInstance.records.createMany({ label, options, data })
       } catch (e: any) {
         if (e.message === BillingErrorCodes.PaymentRequired.toString()) {
           $limitReachModalOpen.set(true)
@@ -72,25 +72,25 @@ export const api = {
     },
     async delete({ init, ...payload }: WithInit & ({ ids: string[] } | SearchQuery)) {
       if ('ids' in payload && payload.ids) {
-        return sdk(init).records.deleteById(payload.ids)
+        return rushDBInstance.records.deleteById(payload.ids)
       } else {
-        return sdk(init).records.delete(payload as SearchQuery)
+        return rushDBInstance.records.delete(payload as SearchQuery)
       }
     },
     async findById({ id, init }: { id: DBRecord['__id']; init: RequestInit }) {
-      return sdk(init).records.findById(id)
+      return rushDBInstance.records.findById(id)
     },
     async deleteById({ id, init }: { id: DBRecord['__id']; init?: RequestInit }) {
-      return sdk(init).records.deleteById(id)
+      return rushDBInstance.records.deleteById(id)
     },
     async find(searchQuery: SearchQuery, init: RequestInit) {
-      return sdk(init).records.find(searchQuery)
+      return rushDBInstance.records.find(searchQuery)
     },
     async findOne(searchQuery: Omit<SearchQuery, 'skip' | 'limit'>, init: RequestInit) {
-      return sdk(init).records.findOne(searchQuery)
+      return rushDBInstance.records.findOne(searchQuery)
     },
     async findUniq(searchQuery: Omit<SearchQuery, 'skip' | 'limit'>, init: RequestInit) {
-      return sdk(init).records.findUniq(searchQuery)
+      return rushDBInstance.records.findUniq(searchQuery)
     },
     async set(
       target: DBRecordTarget,
@@ -98,7 +98,7 @@ export const api = {
       data: InferSchemaTypesWrite<any> | Array<PropertyDraft>,
       init: RequestInit
     ) {
-      return sdk(init).records.set({ target, label, data })
+      return rushDBInstance.records.set({ target, label, data })
     },
     async update(
       target: DBRecordTarget,
@@ -106,10 +106,10 @@ export const api = {
       data: Partial<InferSchemaTypesWrite<any>> | Array<PropertyDraft>,
       init: RequestInit
     ) {
-      return sdk(init).records.update({ target, label, data })
+      return rushDBInstance.records.update({ target, label, data })
     },
     async export(query: SearchQuery, init: RequestInit) {
-      return sdk(init).records.export(query)
+      return rushDBInstance.records.export(query)
     },
     async attach({
       source,
@@ -121,7 +121,7 @@ export const api = {
       target: RelationTarget
       options?: RelationOptions
     } & WithInit) {
-      return sdk(init).records.attach({ source, target, options })
+      return rushDBInstance.records.attach({ source, target, options })
     },
     async detach({
       source,
@@ -133,12 +133,12 @@ export const api = {
       target: RelationTarget
       options?: RelationOptions
     } & WithInit) {
-      return sdk(init).records.detach({ source, target, options })
+      return rushDBInstance.records.detach({ source, target, options })
     }
   },
   labels: {
     async find({ searchQuery = {}, init }: { searchQuery?: SearchQuery } & WithInit) {
-      return sdk(init).labels.find(searchQuery)
+      return rushDBInstance.labels.find(searchQuery)
     }
   },
   relationships: {
@@ -150,7 +150,7 @@ export const api = {
       searchQuery: SearchQuery
       pagination?: Pick<SearchQuery, 'limit' | 'skip'>
     } & WithInit) {
-      return sdk(init).relationships.find({ ...searchQuery, ...pagination })
+      return rushDBInstance.relationships.find({ ...searchQuery, ...pagination })
     }
   },
   workspaces: {
@@ -361,7 +361,7 @@ export const api = {
   },
   properties: {
     async find({ searchQuery, init }: { searchQuery: SearchQuery; init: RequestInit }) {
-      return sdk(init).properties.find(searchQuery)
+      return rushDBInstance.properties.find(searchQuery)
     },
     async values({
       id,
@@ -372,7 +372,7 @@ export const api = {
       searchQuery: SearchQuery & { query?: string; orderBy?: OrderDirection }
       init: RequestInit
     }) {
-      return sdk(init).properties.values(id, searchQuery)
+      return rushDBInstance.properties.values(id, searchQuery)
     }
   },
   auth: {

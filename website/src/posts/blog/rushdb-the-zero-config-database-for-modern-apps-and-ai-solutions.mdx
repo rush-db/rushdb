@@ -46,7 +46,7 @@ RushDB allows developers to push raw JSON or CSV data without worrying about sch
 ```sdk
 from rushdb import RushDB
 
-db = RushDB("API_TOKEN")
+db = RushDB("RUSHDB_API_TOKEN")
 
 data = {
     "name": "Google LLC",
@@ -57,7 +57,7 @@ data = {
 
 record = db.records.create("COMPANY", data)
 ___SPLIT___
-const db = new RushDB('API_TOKEN');
+const db = new RushDB('RUSHDB_API_TOKEN');
 
 const data = {
     name: 'Google LLC',

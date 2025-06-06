@@ -12,7 +12,7 @@ The `RushDB` class is the main entry point for interacting with the RushDB datab
 import RushDB from '@rushdb/javascript-sdk';
 
 // Create an instance with an API token
-const db = new RushDB('your-api-token', {
+const db = new RushDB('RUSHDB_API_TOKEN', {
   url: 'https://api.rushdb.com/api/v1'
 });
 ```
@@ -43,14 +43,6 @@ Creates a new `RushDB` instance.
 
 ## Properties
 
-### models
-
-```typescript
-public models: Map<string, Model>
-```
-
-A map of registered models, keyed by their label.
-
 ### state
 
 ```typescript
@@ -71,56 +63,28 @@ Gets the singleton instance of the RushDB class.
 
 **Returns**: The RushDB instance
 
+### init()
+
+```typescript
+public static async init(): Promise<RushDB>
+```
+
+Initializes and returns the RushDB instance. This method is used internally by other SDK components (like Transaction and DBRecordInstance) to access the API.
+
+**Returns**: A Promise that resolves to the RushDB instance
+
+**Example**:
+```typescript
+// Internal usage in SDK components
+async someMethod() {
+  const instance = await RushDB.init()
+  return await instance.someApi.someMethod()
+}
+```
+
 ## Instance Methods
 
-### registerModel()
-
-```typescript
-public registerModel(model: Model): Model
-```
-
-Registers a model with the RushDB instance.
-
-**Parameters**:
-- `model`: The model to register
-
-**Returns**: The registered model
-
-**Example**:
-```typescript
-const UserModel = new Model('User', UserSchema);
-db.registerModel(UserModel);
-```
-
-### getModels()
-
-```typescript
-public getModels(): Map<string, Model>
-```
-
-Gets all registered models.
-
-**Returns**: A map of all registered models
-
-### getModel()
-
-```typescript
-public getModel<Label extends keyof Models | string = keyof Models>(
-  label: Label
-): Label extends keyof Models ? Model<Models[Label]> : Model | undefined
-```
-
-Gets a registered model by its label.
-
-**Parameters**:
-- `label`: The label of the model to get
-
-**Returns**: The requested model or undefined if not found
-
-**Example**:
-```typescript
-const UserModel = db.getModel('User');
-```
+### toInstance()
 
 ### toInstance()
 
@@ -141,7 +105,7 @@ Converts a database record to a record instance.
 import RushDB, { Model } from '@rushdb/javascript-sdk';
 
 // Initialize the SDK
-const db = new RushDB('your-api-token', {
+const db = new RushDB('RUSHDB_API_TOKEN', {
   url: 'https://api.rushdb.com/api/v1'
 });
 
@@ -158,13 +122,9 @@ const PostSchema = {
   published: { type: 'boolean', default: false }
 };
 
-// Create and register models
-const UserModel = new Model('User', UserSchema, db);
-const PostModel = new Model('Post', PostSchema, db);
-
-// Alternatively:
-// const UserModel = new Model('User', UserSchema);
-// db.registerModel(UserModel);
+// Create models
+const UserModel = new Model('User', UserSchema);
+const PostModel = new Model('Post', PostSchema);
 
 // Use the models to interact with the database
 async function main() {

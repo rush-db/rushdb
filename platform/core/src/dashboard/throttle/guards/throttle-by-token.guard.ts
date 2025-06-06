@@ -28,21 +28,35 @@ export class ThrottleByTokenGuard extends ThrottlerGuard {
 
   // We add our guard to auth guard decorator app/src/dashboard/auth/guards/global-auth.guard.ts
   protected async handleRequest(context: ExecutionContext, limit: number, ttl: number): Promise<boolean> {
-    const request = context.switchToHttp().getRequest()
-    const token = await this.getTracker(request)
+    // false by default (will not allow to bypass)
+    const optionalGuard = this.reflector.get<boolean>('optionalGuard', context.getHandler()) ?? false
 
-    if (!token) {
-      return false
+    try {
+      const request = context.switchToHttp().getRequest()
+
+      const token = await this.getTracker(request)
+
+      if (!token) {
+        // false by default (will not allow to bypass)
+        return optionalGuard
+      }
+
+      const key = this.generateKey(context, token)
+
+      const { totalHits } = await this.storageService.increment(key, ttl)
+      if (totalHits > limit) {
+        throw new ThrottlerException('Too many requests')
+      }
+
+      return true
+    } catch (error) {
+      // Keep Throttler doing its job
+      if (error instanceof ThrottlerException && error.message === 'Too many requests') {
+        return false
+      }
+
+      // false by default (will not allow to bypass)
+      return optionalGuard
     }
-
-    const key = this.generateKey(context, token)
-
-    const { totalHits } = await this.storageService.increment(key, ttl)
-
-    if (totalHits > limit) {
-      throw new ThrottlerException('Too many requests')
-    }
-
-    return true
   }
 }

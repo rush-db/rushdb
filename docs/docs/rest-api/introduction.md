@@ -60,7 +60,7 @@ You can use these specifications to:
 ```http
 POST /api/v1/records
 Content-Type: application/json
-token: YOUR_API_TOKEN
+token: RUSHDB_API_TOKEN
 
 {
   "label": "Person",

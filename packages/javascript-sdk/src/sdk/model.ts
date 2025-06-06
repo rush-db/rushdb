@@ -18,16 +18,11 @@ import type {
 } from './record.js'
 import type { Transaction } from './transaction.js'
 
-import { RestApiProxy } from '../api/rest-api-proxy.js'
-import { isArray, isEmptyObject } from '../common/utils.js'
+import { isArray, isEmptyObject, toBoolean } from '../common/utils.js'
 import { EmptyTargetError, UniquenessError } from './errors.js'
 import { mergeDefaultsWithPayload, pickUniqFieldsFromRecord, pickUniqFieldsFromRecords } from './utils.js'
 import { isPropertyDraft, pickRecordId } from '../api/utils'
-
-type RushDBInstance = {
-  registerModel(model: Model): void
-  toInstance<S extends Schema = Schema>(record: DBRecord<S>): DBRecordInstance<S, SearchQuery<S>>
-}
+import { RushDB } from './sdk'
 
 /**
  * Represents a model in the RushDB database.
@@ -36,27 +31,22 @@ type RushDBInstance = {
  *
  * @typeParam S - The schema type that defines the structure of the model's records
  */
-export class Model<S extends Schema = any> extends RestApiProxy {
+export class Model<S extends Schema = any> {
   public readonly label: string
   public readonly schema: S
-  private readonly rushDBInstance?: RushDBInstance
 
   /**
    * Creates a new Model instance.
    *
    * @param modelName - The name/label of the model in the database
    * @param schema - The schema definition that describes the model's structure
-   * @param RushDBInstance - Optional RushDB instance for model registration.
+   * @param rushDBInstance - Optional RushDB instance for model registration.
    *                        This is the recommended way to register models as it automatically
    *                        registers the model with the RushDB instance during creation.
    */
-  constructor(modelName: string, schema: S, RushDBInstance?: RushDBInstance) {
-    super()
+  constructor(modelName: string, schema: S) {
     this.label = modelName
     this.schema = schema
-    this.rushDBInstance = RushDBInstance
-
-    RushDBInstance?.registerModel(this)
   }
 
   /** @description
@@ -69,7 +59,15 @@ export class Model<S extends Schema = any> extends RestApiProxy {
   readonly draft!: InferType<Model<S>>
 
   /** @description
-   * Type helper for a fully-defined record with database representation.
+   * Type helper for a SearchQuery of the schema.
+   * Represents a structured query input that enables filtering,
+   * sorting, pagination, and aggregation of records based on schema-defined fields.
+   * Useful for composing reusable, type-safe search expressions.
+   */
+  readonly searchQuery!: SearchQuery<S>
+
+  /** @description
+   * Type helper for a fully defined record with database representation.
    * Similar to the draft, but includes all fields that come with the record's
    * database-side representation, such as `__id`, `__label`, and `__proptypes`.
    */
@@ -99,16 +97,44 @@ export class Model<S extends Schema = any> extends RestApiProxy {
   }
 
   /**
-   * Converts a database record to a record instance with additional methods.
+   * Retrieves the initialized RushDB instance or waits for initialization to complete.
+   *
+   * This method is called internally by all data access methods in the Model class.
+   * It ensures that the database connection is properly established before executing
+   * any operations. For this to work, make sure you've created a RushDB instance
+   * somewhere in your code and imported that module in your application's entry point.
+   *
+   * Note: If you get "No RushDB instance found" errors, it usually means the module
+   * where you create your RushDB instance hasn't been imported yet.
+   *
+   * @returns Promise resolving to the initialized RushDB instance
+   * @throws Error if no RushDB instance has been created yet
+   */
+  public async getRushDBInstance(): Promise<RushDB> {
+    // First check if there's already an instance
+    const instance = RushDB.getInstance()
+    if (instance) {
+      // If an instance exists, wait for it to be fully initialized
+      return await RushDB.init()
+    }
+
+    throw new Error(
+      'No RushDB instance found. Please create a RushDB instance first: new RushDB("RUSHDB_API_TOKEN")'
+    )
+  }
+
+  /**
+   * Converts a database record to a record instance (DBRecordInstance) with additional methods.
    *
    * @param record - The database record to convert
    * @returns A record instance with additional methods
    * @throws Error if no RushDB instance was provided during initialization
    */
-  public toInstance(record: DBRecord<S>) {
-    if (this.rushDBInstance) {
-      return this.rushDBInstance.toInstance(record)
-    } else {
+  public async toDBRecordInstance(record: DBRecord<S>) {
+    try {
+      const instance = await this.getRushDBInstance()
+      return instance.toDBRecordInstance(record)
+    } catch (error) {
       throw new Error('No RushDB instance was provided during model initialization.')
     }
   }
@@ -125,7 +151,8 @@ export class Model<S extends Schema = any> extends RestApiProxy {
     transaction?: Transaction | string
   ) {
     const query = (searchQuery ?? {}) as Q
-    return this.apiProxy?.records.find<S, Q>({ ...query, labels: [this.label] }, transaction)
+    const instance = await this.getRushDBInstance()
+    return instance.records.find<S, Q>({ ...query, labels: [this.label] }, transaction)
   }
 
   /**
@@ -148,7 +175,8 @@ export class Model<S extends Schema = any> extends RestApiProxy {
       limit?: never
       skip?: never
     }
-    return this.apiProxy?.records.findOne<S, Q>({ ...query, labels: [this.label] }, transaction)
+    const instance = await this.getRushDBInstance()
+    return instance.records.findOne<S, Q>({ ...query, labels: [this.label] }, transaction)
   }
 
   /**
@@ -182,7 +210,8 @@ export class Model<S extends Schema = any> extends RestApiProxy {
       limit?: never
       skip?: never
     }
-    return this.apiProxy?.records.findUniq<S, Q>({ ...query, labels: [this.label] }, transaction)
+    const instance = await this.getRushDBInstance()
+    return instance.records.findUniq<S, Q>({ ...query, labels: [this.label] }, transaction)
   }
 
   /**
@@ -197,18 +226,21 @@ export class Model<S extends Schema = any> extends RestApiProxy {
     const data = await mergeDefaultsWithPayload<S>(this.schema, record)
 
     const uniqFields = pickUniqFieldsFromRecord(this.schema, data)
+    const hasUniqFields = toBoolean(uniqFields)
+    const instance = await this.getRushDBInstance()
 
-    if (!isEmptyObject(uniqFields)) {
-      const tx = transaction ?? (await this.apiProxy.tx.begin())
+    if (hasUniqFields) {
+      const tx = transaction ?? (await instance.tx.begin())
       const matchingRecords = await this.find({ where: uniqFields }, tx)
       const hasOwnTransaction = typeof transaction !== 'undefined'
       const canCreate = !matchingRecords?.data?.length
 
       if (canCreate) {
-        const result = await this.apiProxy.records.create<S>({ label: this.label, data }, tx)
+        const result = await instance.records.create<S>({ label: this.label, data }, tx)
         if (!hasOwnTransaction) {
           await (tx as Transaction).commit()
         }
+
         return result
       } else {
         if (!hasOwnTransaction) {
@@ -219,7 +251,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
         throw new UniquenessError(this.label, uniqFields)
       }
     }
-    return await this.apiProxy.records.create<S>({ label: this.label, data }, transaction)
+    return await instance.records.create<S>({ label: this.label, data }, transaction)
   }
 
   /**
@@ -229,7 +261,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
    * @param transaction - Optional transaction or transaction ID
    * @returns Promise resolving to the result of the attach operation
    */
-  attach(
+  async attach(
     {
       source,
       target,
@@ -241,7 +273,8 @@ export class Model<S extends Schema = any> extends RestApiProxy {
     },
     transaction?: Transaction | string
   ) {
-    return this.apiProxy.records.attach({ source, target, options }, transaction)
+    const instance = await this.getRushDBInstance()
+    return await instance.records.attach({ source, target, options }, transaction)
   }
 
   /**
@@ -251,7 +284,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
    * @param transaction - Optional transaction or transaction ID
    * @returns Promise resolving to the result of the detach operation
    */
-  detach(
+  async detach(
     {
       source,
       target,
@@ -263,7 +296,8 @@ export class Model<S extends Schema = any> extends RestApiProxy {
     },
     transaction?: Transaction | string
   ) {
-    return this.apiProxy.records.detach({ source, target, options }, transaction)
+    const instance = await this.getRushDBInstance()
+    return await instance.records.detach({ source, target, options }, transaction)
   }
 
   /**
@@ -289,11 +323,12 @@ export class Model<S extends Schema = any> extends RestApiProxy {
       throw new Error(`Model.${method} with Array<PropertyDraft> as payload is not implemented yet.`)
     }
 
+    const instance = await this.getRushDBInstance()
     const data = await mergeDefaultsWithPayload<S>(this.schema, record)
     const uniqFields = pickUniqFieldsFromRecord(this.schema, data)
 
     if (!isEmptyObject(uniqFields)) {
-      const tx = transaction ?? (await this.apiProxy.tx.begin())
+      const tx = transaction ?? (await instance.tx.begin())
       const matchingRecords = await this.find({ where: uniqFields }, tx)
       const hasOwnTransaction = typeof transaction !== 'undefined'
 
@@ -302,7 +337,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
         (matchingRecords.data.length === 1 && matchingRecords.data[0]?.id() === pickRecordId(target)!)
 
       if (canUpdate) {
-        const result = await this.apiProxy.records[method]<S>({ target, label: this.label, data }, tx)
+        const result = await instance.records[method]<S>({ target, label: this.label, data }, tx)
 
         if (!hasOwnTransaction) {
           await (tx as Transaction).commit()
@@ -316,7 +351,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
       }
     }
 
-    return await this.apiProxy.records[method]<S>({ label: this.label, target, data }, transaction)
+    return await instance.records[method]<S>({ label: this.label, target, data }, transaction)
   }
 
   /**
@@ -362,9 +397,11 @@ export class Model<S extends Schema = any> extends RestApiProxy {
    * @throws UniquenessError if any record violates uniqueness constraints
    */
   async createMany(records: Array<InferSchemaTypesWrite<S>>, transaction?: Transaction | string) {
+    const instance = await this.getRushDBInstance()
+
     // Begin a transaction if one isn't provided.
     const hasOwnTransaction = typeof transaction !== 'undefined'
-    const tx = transaction ?? (await this.apiProxy.tx.begin())
+    const tx = transaction ?? (await instance.tx.begin())
 
     try {
       // Apply defaults in parallel
@@ -398,7 +435,7 @@ export class Model<S extends Schema = any> extends RestApiProxy {
       }
 
       // Create records in the database
-      const createdRecords = await this.apiProxy.records.createMany<S>(
+      const createdRecords = await instance.records.createMany<S>(
         { label: this.label, data: recordsToStore },
         tx
       )
@@ -431,8 +468,8 @@ export class Model<S extends Schema = any> extends RestApiProxy {
         `You must specify criteria to delete records of type '${this.label}'. Empty criteria are not allowed. If this was intentional, use the Dashboard instead.`
       )
     }
-
-    return await this.apiProxy.records.delete({ ...searchQuery, labels: [this.label] }, transaction)
+    const instance = await this.getRushDBInstance()
+    return await instance.records.delete({ ...searchQuery, labels: [this.label] }, transaction)
   }
 
   /**
@@ -443,7 +480,8 @@ export class Model<S extends Schema = any> extends RestApiProxy {
    * @returns Promise resolving to the result of the delete operation
    */
   async deleteById(idOrIds: MaybeArray<string>, transaction?: Transaction | string) {
-    return await this.apiProxy.records.deleteById(idOrIds, transaction)
+    const instance = await this.getRushDBInstance()
+    return await instance.records.deleteById(idOrIds, transaction)
   }
 }
 

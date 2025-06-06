@@ -275,7 +275,7 @@ export function ImportRecords() {
           // Parse as normal JSON
           $editorData.set(result)
         } else {
-          throw Error('File content cannot be recognized as JSON or NDJSON')
+          throw new Error('File content cannot be recognized as JSON or NDJSON')
         }
       }
     } catch (error) {

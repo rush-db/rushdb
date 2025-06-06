@@ -21,7 +21,7 @@ Before working with labels, make sure you have initialized the RushDB client wit
 ```python
 from rushdb import RushDB
 
-db = RushDB("YOUR_API_TOKEN", base_url="https://api.rushdb.com/api/v1")
+db = RushDB("RUSHDB_API_TOKEN", base_url="https://api.rushdb.com/api/v1")
 ```
 
 ## Creating Records with Labels

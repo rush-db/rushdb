@@ -4,7 +4,7 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "next dev",
+    "dev": "PORT=3008 next dev",
     "dev:watch": "next-remote-watch ./posts",
     "build": "next build && next export",
     "postbuild": "next-sitemap",

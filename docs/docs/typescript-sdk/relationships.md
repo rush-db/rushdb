@@ -64,12 +64,12 @@ If you're using models, you can use the model's `attach` method:
 const UserModel = new Model('USER', {
   name: { type: 'string' },
   email: { type: 'string', uniq: true }
-}, db);
+});
 
 const CompanyModel = new Model('COMPANY', {
   name: { type: 'string' },
   industry: { type: 'string' }
-}, db);
+});
 
 // Create records
 const user = await UserModel.create({
@@ -84,8 +84,8 @@ const company = await CompanyModel.create({
 
 // Create relationship between user and company
 await UserModel.attach({
-  source: user.data.__id,
-  target: company.data.__id,
+  source: user,
+  target: company,
   options: {
     type: 'WORKS_AT',
     direction: 'out'

@@ -23,7 +23,7 @@ The RushDB Python SDK offers two ways to work with transactions:
 ```python
 from rushdb import RushDB
 
-db = RushDB("YOUR_API_TOKEN", base_url="https://api.rushdb.com/api/v1")
+db = RushDB("RUSHDB_API_TOKEN", base_url="https://api.rushdb.com/api/v1")
 
 # Start a transaction
 tx = db.tx.begin()

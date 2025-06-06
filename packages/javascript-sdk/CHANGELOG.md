@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 1.3.3
+
+### Minor Changes
+
+- Updated SDK architecture for Transaction and Record classes to use RushDB.init() pattern instead of RestApiProxy inheritance
+
 ## 1.3.2
 
 ### Patch Changes

@@ -29,7 +29,7 @@ export const mergeDefaultsWithPayload = async <S extends Schema = Schema>(
   const defaults = resolvedDefaults.reduce(
     (acc, { key, value }) => {
       if (value !== undefined) {
-        acc[key] = value
+        acc[key] = value as PropertyValue
       }
       return acc
     },

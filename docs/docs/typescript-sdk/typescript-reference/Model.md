@@ -25,25 +25,24 @@ const UserModel = new Model('User', UserSchema);
 
 ## Type Parameters
 
-| Parameter | Description |
-|-----------|-------------|
+| Parameter                | Description                                                       |
+|--------------------------|-------------------------------------------------------------------|
 | `S extends Schema = any` | The schema type that defines the structure of the model's records |
 
 ## Constructor
 
 ```typescript
-constructor(modelName: string, schema: S, RushDBInstance?: RushDBInstance)
+constructor(modelName: string, schema: S)
 ```
 
 Creates a new `Model` instance.
 
 ### Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `modelName` | `string` | The name/label of the model in the database |
-| `schema` | `S` | The schema definition that describes the model's structure |
-| `RushDBInstance` | `RushDBInstance` | Optional RushDB instance for model registration. This is the recommended way to register models as it automatically registers the model with the RushDB instance during creation. |
+| Parameter        | Type             | Description                                                                |
+|------------------|------------------|----------------------------------------------------------------------------|
+| `modelName`      | `string`         | The name/label of the model in the database                                |
+| `schema`         | `S`              | The schema definition that describes the model's structure                 |
 
 ## Properties
 
@@ -78,6 +77,14 @@ readonly record!: DBRecord<S>
 ```
 
 Type helper for a fully-defined record with database representation. Similar to the draft, but includes all fields that come with the record's database-side representation, such as `__id`, `__label`, and `__proptypes`.
+
+### searchQuery
+```typescript
+readonly searchQuery!: SearchQuery<S>
+```
+
+Type helper for a SearchQuery of the schema. Represents a structured query input that enables filtering, sorting, pagination, and aggregation of records based on schema-defined fields. Useful for composing reusable, type-safe search expressions.
+
 
 ### recordInstance
 

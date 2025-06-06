@@ -12,7 +12,7 @@ sidebar_position: 3
 export class DBRecordInstance<
   S extends Schema = Schema,
   Q extends SearchQuery<S> = SearchQuery<S>
-> extends RestApiProxy {
+> {
   data?: DBRecordInferred<S, Q>
 }
 ```
@@ -49,6 +49,18 @@ data?: DBRecordInferred<S, Q>
 The actual record data, which may include aggregated fields if the record was retrieved via a query with aggregation.
 
 ## Methods
+
+### exists()
+
+```typescript
+exists(): boolean
+```
+
+Checks if this record instance exists. A record is considered to exist if it has a valid ID and label.
+
+**Returns**: `true` if the record exists (has both valid ID and label), `false` otherwise
+
+**Note**: Unlike other getter methods (`id()`, `label()`, `proptypes()`, etc.), this method does not throw an error when the record data is missing or invalid. It safely returns `false` instead.
 
 ### id()
 

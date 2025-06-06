@@ -60,7 +60,7 @@ docker run -p 3000:3000 \
 ```python
 from rushdb import RushDB
 
-db = RushDB("your-api-token")
+db = RushDB("RUSHDB_API_TOKEN")
 
 # Push any nested JSON - RushDB normalizes it into a graph
 db.records.create_many(
@@ -102,7 +102,7 @@ employees = db.records.find({
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
 
-const db = new RushDB("your-api-token");
+const db = new RushDB("RUSHDB_API_TOKEN");
 
 // Push data with automatic relationship creation
 await db.records.createMany({
