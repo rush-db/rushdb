@@ -892,7 +892,7 @@ export class RestAPI {
 
   public settings = {
     get: async () => {
-      const path = `/settings`
+      const path = `/sdk/settings`
       const payload = {
         method: 'GET'
       }

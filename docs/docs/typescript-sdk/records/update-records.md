@@ -313,18 +313,10 @@ The recommended approach for structured applications is to use RushDB's [Models]
 We'll use the following model definitions for these examples:
 
 ```typescript
-// Using the recommended approach with RushDB instance in constructor
 const AuthorRepo = new Model('author', {
   name: { type: 'string' },
   email: { type: 'string', uniq: true }
-}, db);
-
-// Alternative approach without RushDB instance
-const AuthorModel = new Model('author', {
-  name: { type: 'string' },
-  email: { type: 'string', uniq: true }
 });
-
 ```
 
 ### Using Model's `update` Method

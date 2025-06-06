@@ -4,6 +4,7 @@ import { BASE_URL } from '~/config.ts'
 import { $token } from '~/features/auth/stores/token.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
 import { $currentWorkspaceId } from '~/features/workspaces/stores/current.ts'
+import { sleep } from '~/features/billing/utils.ts'
 
 class CustomHttpClientResponse extends HttpClientResponse {
   _res: Response
@@ -41,6 +42,23 @@ class CustomHttpClient extends HttpClient {
   }
 
   async makeRequest(url: string, { ...init }) {
+    if (url.includes('sdk/settings')) {
+      // Promisify headers getter
+      const dynamicHeaders = await sleep(0).then(() => this.getDynamicHeaders())
+
+      const res = await fetch(url, {
+        ...init,
+        body: JSON.stringify(init.requestData),
+        signal: init.signal, // Use signal from the request init if provided
+        headers: {
+          ...init.headers,
+          ...dynamicHeaders
+        }
+      })
+
+      return new CustomHttpClientResponse(res)
+    }
+
     const dynamicHeaders = this.getDynamicHeaders()
 
     const res = await fetch(url, {

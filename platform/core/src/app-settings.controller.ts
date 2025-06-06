@@ -9,6 +9,7 @@ import { PlatformRequest } from '@/common/types/request'
 import { toBoolean } from '@/common/utils/toBolean'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { ProjectService } from '@/dashboard/project/project.service'
+import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
@@ -20,15 +21,28 @@ export class AppSettingsController {
     private readonly projectService: ProjectService
   ) {}
 
-  @Get('settings')
-  @ApiBearerAuth()
-  @AuthGuard()
-  async settings(@TransactionDecorator() transaction: Transaction, @Request() request: PlatformRequest) {
+  commonSettings() {
     const selfHosted = this.configService.get('RUSHDB_SELF_HOSTED')
     const dashboardUrl = this.configService.get('RUSHDB_DASHBOARD_URL')
     const googleAuthClientId = this.configService.get('GOOGLE_CLIENT_ID')
     const githubAuthClientId = this.configService.get('GH_CLIENT_ID')
+    return {
+      selfHosted: toBoolean(selfHosted),
+      dashboardUrl: dashboardUrl,
+      googleOAuthEnabled: toBoolean(googleAuthClientId),
+      githubOAuthEnabled: toBoolean(githubAuthClientId)
+    }
+  }
 
+  @Get('settings')
+  settings() {
+    return this.commonSettings()
+  }
+
+  @Get('sdk/settings')
+  @ApiBearerAuth()
+  @AuthGuard('project', USER_ROLE_EDITOR, true)
+  async sdkSettings(@TransactionDecorator() transaction: Transaction, @Request() request: PlatformRequest) {
     const projectId = request.projectId
     let customDb = undefined
 
@@ -36,12 +50,10 @@ export class AppSettingsController {
       const project = await this.projectService.getProject(projectId, transaction)
       customDb = toBoolean(project.toJson().customDb)
     }
+    const commonSettings = this.commonSettings()
 
     return {
-      selfHosted: toBoolean(selfHosted),
-      dashboardUrl: dashboardUrl,
-      googleOAuthEnabled: toBoolean(googleAuthClientId),
-      githubOAuthEnabled: toBoolean(githubAuthClientId),
+      ...commonSettings,
       customDb
     }
   }

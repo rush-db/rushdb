@@ -128,6 +128,17 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
+   *
+   * Checks if this record instance exists.
+   * A record is considered to exist if it has a valid ID and label.
+   *
+   * @returns True if the record exists, false otherwise
+   */
+  exists() {
+    return toBoolean(this.data.__id) && toBoolean(this.data.__label)
+  }
+
+  /**
    * Gets the unique ID of this record.
    *
    * @returns The record's ID
@@ -139,7 +150,6 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
         `DBRecordInstance: Unable to access 'id'. The Record's \`data.__id\` is missing or incorrect.`
       )
     }
-
     return this.data.__id
   }
 

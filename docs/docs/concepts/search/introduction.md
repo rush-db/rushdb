@@ -38,7 +38,8 @@ interface SearchQuery {
 Here's a simple example of searching for products:
 
 ```typescript
-db.records.find("PRODUCT", {
+db.records.find({
+    labels: ["PRODUCT"],
     where: {
         title: { $contains: "Sneakers" },
         SIZE: {

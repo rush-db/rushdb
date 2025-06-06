@@ -50,6 +50,18 @@ The actual record data, which may include aggregated fields if the record was re
 
 ## Methods
 
+### exists()
+
+```typescript
+exists(): boolean
+```
+
+Checks if this record instance exists. A record is considered to exist if it has a valid ID and label.
+
+**Returns**: `true` if the record exists (has both valid ID and label), `false` otherwise
+
+**Note**: Unlike other getter methods (`id()`, `label()`, `proptypes()`, etc.), this method does not throw an error when the record data is missing or invalid. It safely returns `false` instead.
+
 ### id()
 
 ```typescript

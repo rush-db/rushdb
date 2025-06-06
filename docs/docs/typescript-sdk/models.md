@@ -411,7 +411,8 @@ declare module '@rushdb/javascript-sdk' {
 By following these steps, you can now write complex queries with confidence, knowing that TypeScript will help you avoid errors and provide accurate autocomplete suggestions. Here's an example demonstrating how you can leverage this setup:
 
 ```typescript
-const query = await db.records.find('post', {
+const query = await db.records.find({
+  labels: ['post'],
   where: {
     author: {
       name: { $contains: 'John' }, // Checking if the author's name contains 'John'

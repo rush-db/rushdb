@@ -40,6 +40,9 @@ class GlobalAuthGuard implements CanActivate {
     const minimalRole =
       this.reflector.get<TUserRoles>('minimalRole', context.getHandler()) ?? USER_ROLE_EDITOR
 
+    // false by default (will not allow to bypass)
+    const optionalGuard = this.reflector.get<boolean>('optionalGuard', context.getHandler()) ?? false
+
     const session = this.neogmaService.createSession('global-auth-guard')
     const transaction = session.beginTransaction()
 
@@ -70,7 +73,8 @@ class GlobalAuthGuard implements CanActivate {
           return true
         }
       } catch (e) {
-        return false
+        // false by default (will not allow to bypass)
+        return optionalGuard
       } finally {
         await cleanUp()
       }
@@ -100,7 +104,8 @@ class GlobalAuthGuard implements CanActivate {
           : request.headers['x-project-id']
 
         if (!targetId || !userId) {
-          return false
+          // false by default (will not allow to bypass)
+          return optionalGuard
         }
 
         const hasAccess = await this.userService.hasMinimalAccessLevel({
@@ -111,14 +116,14 @@ class GlobalAuthGuard implements CanActivate {
           transaction
         })
 
-        request.projectId = request.headers['x-project-id']
         if (hasAccess && dashboardTargetType === 'project') {
           request.projectId = targetId
         }
 
         return hasAccess
       } catch (e) {
-        return false
+        // false by default (will not allow to bypass)
+        return optionalGuard
       } finally {
         await cleanUp()
       }
@@ -130,10 +135,13 @@ class GlobalAuthGuard implements CanActivate {
 
 export const AuthGuard = (
   dashboardTargetType: TDashboardTargetType | null = 'workspace',
-  minimalRole: TUserRoles = USER_ROLE_EDITOR
+  minimalRole: TUserRoles = USER_ROLE_EDITOR,
+  optionalGuard: boolean = false
 ) =>
   applyDecorators(
     UseGuards(GlobalAuthGuard, ThrottleByTokenGuard),
     SetMetadata('dashboardTargetType', dashboardTargetType),
-    SetMetadata('minimalRole', minimalRole)
+    SetMetadata('minimalRole', minimalRole),
+    // false by default (will not allow to bypass)
+    SetMetadata('optionalGuard', optionalGuard)
   )
