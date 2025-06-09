@@ -16,7 +16,7 @@ The most versatile search method is `find()`, which accepts a search query dicti
 
 ```python
 # Basic search for records with the "USER" label
-result = db.records.find({
+records, total = db.records.find({
     "labels": ["USER"],
     "where": {
         "isActive": True
@@ -26,8 +26,8 @@ result = db.records.find({
 })
 
 # Access the returned records
-users = result.data
-print(f"Found {result.total} total users")
+users = records
+print(f"Found {len(records)} records out of {total} total users")
 ```
 
 Search queries support a powerful and flexible syntax for filtering records. For a detailed explanation of all the available operators and capabilities, see the [Where clause documentation](../../concepts/search/where).
@@ -50,7 +50,7 @@ One of RushDB's most powerful features is the ability to search across relations
 
 ```python
 # Find all blog posts by users who work at tech companies
-tech_bloggers = db.records.find({
+posts, total = db.records.find({
     "labels": ["POST"],
     "where": {
         "USER": {                            # Traverse to related USER records
@@ -69,7 +69,7 @@ For more complex relationship queries, you can specify relationship types and di
 
 ```python
 # Find users who follow specific topics
-users = db.records.find({
+users, total = db.records.find({
     "labels": ["USER"],
     "where": {
         "TOPIC": {
@@ -91,7 +91,7 @@ RushDB supports vector similarity searches for AI and machine learning applicati
 
 ```python
 # Find documents similar to a query embedding
-similar_documents = db.records.find({
+documents, total = db.records.find({
     "labels": ["DOCUMENT"],
     "where": {
         "embedding": {
@@ -114,7 +114,7 @@ Control the order and volume of results:
 
 ```python
 # Get the second page of results (20 items per page)
-page2 = db.records.find({
+products, total = db.records.find({
     "labels": ["PRODUCT"],
     "where": {
         "category": "Electronics"
@@ -127,7 +127,7 @@ page2 = db.records.find({
 })
 
 # Get total number of results for pagination UI
-total_products = page2.total
+total_products = total
 ```
 
 For more details on pagination and sorting options, see the [Pagination and ordering documentation](../../concepts/search/pagination-order).
@@ -138,7 +138,7 @@ Transform and aggregate your search results:
 
 ```python
 # Calculate sales statistics
-sales_by_category = db.records.find({
+stats, total = db.records.find({
     "labels": ["ORDER"],
     "where": {
         "status": "completed",
@@ -165,6 +165,92 @@ sales_by_category = db.records.find({
 
 For comprehensive details on available aggregation functions and usage, see the [Aggregations documentation](../../concepts/search/aggregations).
 
+### Searching Within a Record's Context
+
+You can search for records within the context of a specific record's relationships using the `record_id` parameter:
+
+```python
+# Find all records related to a specific user
+related_records, total = db.records.find(
+    search_query={
+        "labels": ["POST", "COMMENT"],
+        "where": {
+            "isPublished": True
+        }
+    },
+    record_id="user_123"  # Search within this user's context
+)
+
+# Find only posts created by a specific user
+user_posts, total = db.records.find(
+    search_query={
+        "labels": ["POST"],
+        "orderBy": {"createdAt": "desc"}
+    },
+    record_id="user_123"
+)
+
+# Search for documents shared with a specific team
+team_documents, total = db.records.find(
+    search_query={
+        "labels": ["DOCUMENT"],
+        "where": {
+            "status": "shared",
+            "category": {"$in": ["proposal", "contract"]}
+        }
+    },
+    record_id="team_456"
+)
+```
+
+This is particularly useful when you want to:
+- Find all records that have relationships with a specific record
+- Search within the scope of a particular entity's connected data
+- Implement features like "user's posts", "team's documents", or "company's projects"
+
+## Return Format and Error Handling
+
+The `find()` method returns a tuple containing the list of records and the total count:
+
+```python
+# The method returns (records, total_count)
+records, total = db.records.find({
+    "labels": ["USER"],
+    "limit": 10
+})
+
+print(f"Retrieved {len(records)} records")
+print(f"Total matching records: {total}")
+
+# Handle cases where no records are found
+if not records:
+    print("No records found matching the criteria")
+
+# The total count is useful for pagination
+pages = (total + 9) // 10  # Calculate number of pages (10 per page)
+```
+
+### Error Handling
+
+The `find()` method includes built-in error handling that returns an empty result on exceptions:
+
+```python
+# If an error occurs, the method returns ([], 0) instead of raising an exception
+records, total = db.records.find({
+    "labels": ["INVALID_LABEL"],
+    "where": {
+        "nonexistent_field": "some_value"
+    }
+})
+
+# Always returns a tuple, even on errors
+print(f"Found {len(records)} records")  # Will print "Found 0 records"
+print(f"Total: {total}")                # Will print "Total: 0"
+
+# For more explicit error handling in production code, you may want to validate
+# your queries before calling find() or implement additional error checking
+```
+
 ## Search Within Transactions
 
 All search operations can be performed within transactions for consistency:
@@ -175,18 +261,18 @@ tx = db.tx.begin()
 
 try:
     # Perform search within the transaction
-    users = db.records.find({
+    users, total = db.records.find({
         "labels": ["USER"],
         "where": {"is_active": True}
-    }, tx)
+    }, transaction=tx)
 
     # Use the results to make changes
-    for user in users.data:
+    for user in users:
         if user.last_login < older_than_3_months:
             db.records.update({
                 "target": user,
                 "data": {"is_active": False}
-            }, tx)
+            }, transaction=tx)
 
     # Commit the transaction when done
     tx.commit()
