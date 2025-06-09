@@ -253,6 +253,332 @@ db.records.attach(
 )
 ```
 
+## Searching and Querying Relationships with RelationsAPI
+
+The `RelationsAPI` provides dedicated functionality for searching and analyzing relationships directly. This API allows you to query relationships themselves rather than records, giving you insights into the connections within your graph.
+
+**Important**: The RelationsAPI uses a Record-centric approach. When filtering relationships, you specify properties of the records involved in those relationships, not properties of the relationships themselves. This means the `where` clause contains Record properties to find relationships involving records that match those criteria.
+
+### Overview
+
+The RelationsAPI enables you to:
+- Search for specific relationships based on criteria
+- Analyze relationship patterns across your data
+- Discover connections between records
+- Perform relationship-based analytics
+- Monitor relationship types and their usage
+
+### Accessing the RelationsAPI
+
+You access the RelationsAPI through the main RushDB client:
+
+```python
+from rushdb import RushDB
+
+# Initialize the client
+db = RushDB("RUSHDB_API_TOKEN", base_url="https://api.rushdb.com/api/v1")
+
+# Access the relationships API
+relationships_api = db.relationships
+```
+
+### The find() Method
+
+The `find()` method is the primary way to search for relationships in your database. It supports the same powerful SearchQuery pattern used throughout RushDB.
+
+#### Method Signature
+
+```python
+async def find(
+    self,
+    search_query: Optional[SearchQuery] = None,
+    pagination: Optional[PaginationParams] = None,
+    transaction: Optional[Union[Transaction, str]] = None,
+) -> List[Relationship]
+```
+
+#### Parameters
+
+- **search_query** (`Optional[SearchQuery]`): Search criteria to filter relationships. Uses a Record-centric approach where the `where` clause contains Record properties to find relationships involving records that match those criteria:
+  - `where`: Filter conditions for record properties (not relationship properties)
+  - `labels`: Filter by record labels to find relationships involving specific record types
+  - `orderBy`: Sort relationships by various criteria
+- **pagination** (`Optional[PaginationParams]`): Control result set size and pagination:
+  - `limit` (int): Maximum number of relationships to return (default: 100, max: 1000)
+  - `skip` (int): Number of relationships to skip for pagination (default: 0)
+- **transaction** (`Optional[Union[Transaction, str]]`): Optional transaction context for the operation
+
+#### Return Value
+
+Returns a `List[Relationship]` containing relationship objects that match the search criteria. Each relationship object contains information about the source record, target record, relationship type, and direction.
+
+### Basic Relationship Searching
+
+#### Find All Relationships
+
+```python
+# Get all relationships in the database
+all_relationships = await db.relationships.find()
+
+print(f"Total relationships: {len(all_relationships)}")
+for rel in all_relationships[:5]:  # Show first 5
+    print(f"{rel.sourceId} -> {rel.targetId} ({rel.type})")
+```
+
+#### Find Relationships with Pagination
+
+```python
+# Get relationships with pagination
+pagination_params = {
+    "limit": 50,
+    "skip": 0
+}
+
+first_page = await db.relationships.find(pagination=pagination_params)
+
+# Get next page
+next_page_params = {
+    "limit": 50,
+    "skip": 50
+}
+
+second_page = await db.relationships.find(pagination=next_page_params)
+```
+
+### Advanced Relationship Queries
+
+#### Filter by Record Properties
+
+The RelationsAPI uses a Record-centric approach. You specify record properties in the `where` clause to find relationships involving records that match those criteria:
+
+```python
+# Find relationships involving active users in Engineering department
+engineering_relationships = await db.relationships.find({
+    "where": {
+        "isActive": True,
+        "department": "Engineering"
+    }
+})
+
+# Find relationships involving large technology companies
+tech_company_relationships = await db.relationships.find({
+    "where": {
+        "industry": "Technology",
+        "employees": {"$gte": 100}
+    }
+})
+
+# Find relationships involving records with specific labels
+user_relationships = await db.relationships.find({
+    "labels": ["USER"]  # Only find relationships involving USER records
+})
+
+# Find relationships involving records matching complex criteria
+senior_dev_relationships = await db.relationships.find({
+    "where": {
+        "role": "Developer",
+        "experience": {"$gte": 5},
+        "isActive": True
+    }
+})
+```
+
+#### Complex Relationship Queries
+
+```python
+# Find relationships involving engineering employees who are active
+engineering_relationships = await db.relationships.find({
+    "where": {
+        "$and": [
+            {"department": "Engineering"},
+            {"isActive": True},
+            {"role": {"$in": ["Developer", "QA Engineer", "DevOps"]}}
+        ]
+    },
+    "orderBy": {"name": "asc"}
+})
+
+# Find relationships involving recently created records
+recent_record_relationships = await db.relationships.find({
+    "where": {
+        "createdAt": {"$gte": "2024-01-01T00:00:00Z"}
+    },
+    "orderBy": {"createdAt": "desc"}
+}, pagination={"limit": 25, "skip": 0})
+
+# Find relationships involving records with specific labels and properties
+manager_relationships = await db.relationships.find({
+    "labels": ["MANAGER"],
+    "where": {
+        "department": "Engineering",
+        "teamSize": {"$gte": 5}
+    }
+})
+```
+
+### Relationship Analytics and Insights
+
+#### Count Relationships by Type
+
+```python
+# Get all relationships and analyze by type
+all_relationships = await db.relationships.find()
+
+# Count by type
+type_counts = {}
+for rel in all_relationships:
+    rel_type = rel.type
+    type_counts[rel_type] = type_counts.get(rel_type, 0) + 1
+
+print("Relationship types and counts:")
+for rel_type, count in sorted(type_counts.items()):
+    print(f"  {rel_type}: {count}")
+```
+
+#### Find Highly Connected Records
+
+```python
+# Find relationships involving all records first
+all_relationships = await db.relationships.find()
+
+# Count outgoing relationships per record
+outgoing_counts = {}
+for rel in all_relationships:
+    source_id = rel.sourceId
+    outgoing_counts[source_id] = outgoing_counts.get(source_id, 0) + 1
+
+# Find top 10 most connected records
+top_connected = sorted(outgoing_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+print("Most connected records (outgoing):")
+for record_id, count in top_connected:
+    print(f"  {record_id}: {count} relationships")
+
+# Alternative: Find relationships for specific high-activity records
+manager_relationships = await db.relationships.find({
+    "labels": ["MANAGER"],
+    "where": {
+        "isActive": True,
+        "teamSize": {"$gte": 10}  # Managers with large teams likely have many relationships
+    }
+})
+```
+
+### Using Relationships API with Transactions
+
+The RelationsAPI supports transactions for consistent querying:
+
+```python
+# Start a transaction
+tx = db.tx.begin()
+
+try:
+    # Query relationships involving records in Sales department within the transaction
+    relationships = await db.relationships.find({
+        "where": {
+            "department": "Sales"
+        }
+    }, transaction=tx)
+
+    # Perform additional operations in the same transaction
+    for rel in relationships:
+        # Update related records or create new relationships
+        pass
+
+    # Commit the transaction
+    tx.commit()
+except Exception as e:
+    # Roll back on error
+    tx.rollback()
+    print(f"Transaction failed: {e}")
+```
+
+### Pagination Best Practices
+
+When working with large numbers of relationships, use pagination effectively:
+
+```python
+# Process relationships in batches
+async def process_all_relationships(batch_size=100):
+    skip = 0
+    processed_count = 0
+
+    while True:
+        # Get next batch
+        relationships = await db.relationships.find(
+            pagination={"limit": batch_size, "skip": skip}
+        )
+
+        if not relationships:
+            break  # No more relationships
+
+        # Process this batch
+        for rel in relationships:
+            # Process individual relationship
+            processed_count += 1
+            print(f"Processing relationship {rel.sourceId} -> {rel.targetId}")
+
+        # Move to next batch
+        skip += batch_size
+
+        print(f"Processed {processed_count} relationships so far...")
+
+    print(f"Finished processing {processed_count} total relationships")
+
+# Run the batch processor
+await process_all_relationships()
+```
+
+### Performance Considerations
+
+When using the RelationsAPI:
+
+1. **Use specific filters**: Apply `where` conditions to reduce the result set
+2. **Limit result sizes**: Use pagination to avoid loading too many relationships at once
+3. **Filter by relationship type**: Use type filters when you know the specific relationship types you need
+4. **Index frequently queried properties**: Ensure properties used in filters are indexed
+5. **Combine with record queries**: Use RelationsAPI to discover connections, then use RecordsAPI for detailed record data
+
+### Error Handling
+
+```python
+try:
+    relationships = await db.relationships.find({
+        "where": {"department": "InvalidDepartment"}
+    })
+except Exception as e:
+    print(f"Error querying relationships: {e}")
+    # Handle the error appropriately
+```
+
+### Integration with Record Operations
+
+The RelationsAPI works seamlessly with record operations:
+
+```python
+# 1. Discover relationships involving specific types of records
+management_rels = await db.relationships.find({
+    "labels": ["MANAGER"],
+    "where": {
+        "department": "Engineering",
+        "isActive": True
+    }
+})
+
+# 2. Extract record IDs from relationships
+manager_ids = [rel.sourceId for rel in management_rels]
+employee_ids = [rel.targetId for rel in management_rels]
+
+# 3. Query the actual records using RecordsAPI for detailed information
+managers = db.records.find_by_id(manager_ids)
+employees = db.records.find_by_id(employee_ids)
+
+# 4. Combine data for analysis
+for rel in management_rels:
+    manager = next(m for m in managers if m.id == rel.sourceId)
+    employee = next(e for e in employees if e.id == rel.targetId)
+    print(f"{manager.name} manages {employee.name}")
+```
+
 ## Relationship Direction
 
 Relationships in RushDB have direction. You can specify the direction when creating or querying relationships:
@@ -338,6 +664,75 @@ except Exception as e:
 6. **Think in graphs** - Approach relationships as a graph model, considering paths between records
 
 7. **Balance denormalization and relationships** - In some cases, it may be better to duplicate data rather than create complex relationship chains
+
+8. **Use RelationsAPI for analysis** - Use the dedicated RelationsAPI for relationship analytics and discovery
+
+9. **Optimize relationship queries** - Use appropriate filters and pagination when querying large numbers of relationships
+
+10. **Combine APIs effectively** - Use RelationsAPI to discover connections, then RecordsAPI for detailed record data
+
+## API Reference
+
+### PaginationParams
+
+The `PaginationParams` TypedDict defines the structure for pagination options when querying relationships:
+
+```python
+from typing import TypedDict
+
+class PaginationParams(TypedDict, total=False):
+    """TypedDict for pagination parameters in relationship queries.
+
+    Defines the structure for pagination options when querying relationships,
+    allowing for efficient retrieval of large result sets.
+    """
+    limit: int  # Maximum number of relationships to return in a single request
+    skip: int   # Number of relationships to skip from the beginning of the result set
+```
+
+#### Parameters
+
+- **limit** (`int`): Maximum number of relationships to return in a single request
+  - Default: 100
+  - Maximum: 1000
+  - Used for controlling the size of result sets and implementing pagination
+
+- **skip** (`int`): Number of relationships to skip from the beginning of the result set
+  - Default: 0
+  - Used for implementing pagination by skipping already retrieved items
+  - Useful for getting subsequent pages of results
+
+#### Usage Example
+
+```python
+# Define pagination parameters
+pagination = PaginationParams(
+    limit=50,   # Return at most 50 relationships
+    skip=100    # Skip the first 100 relationships
+)
+
+# Use with the find method
+relationships = await db.relationships.find(
+    search_query={"where": {"isActive": True}},
+    pagination=pagination
+)
+```
+
+### Relationship Object
+
+When you query relationships using the RelationsAPI, you receive `Relationship` objects with the following structure:
+
+```python
+# Example Relationship object attributes
+relationship = relationships[0]
+
+print(f"Source ID: {relationship.sourceId}")        # ID of the source record
+print(f"Source Label: {relationship.sourceLabel}")  # Label of the source record
+print(f"Target ID: {relationship.targetId}")        # ID of the target record
+print(f"Target Label: {relationship.targetLabel}")  # Label of the target record
+print(f"Type: {relationship.type}")                 # Relationship type (e.g., "MANAGES")
+print(f"Direction: {relationship.direction}")       # Relationship direction
+```
 
 ## Related Documentation
 

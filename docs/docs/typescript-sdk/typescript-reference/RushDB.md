@@ -13,6 +13,7 @@ import RushDB from '@rushdb/javascript-sdk';
 
 // Create an instance with an API token
 const db = new RushDB('RUSHDB_API_TOKEN', {
+  // Optionnaly provide API url to your RushDB instance
   url: 'https://api.rushdb.com/api/v1'
 });
 ```
