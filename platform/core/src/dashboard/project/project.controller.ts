@@ -48,9 +48,9 @@ export class ProjectController {
   @Post()
   @ApiTags('Projects')
   @ApiBearerAuth()
-  @AuthGuard('workspace', 'owner')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(PlanLimitsGuard, CustomDbAvailabilityGuard)
+  @AuthGuard('workspace', 'owner')
   async createProject(
     @Body() project: CreateProjectDto,
     @AuthUser() { id: userId }: IUserClaims,
@@ -110,9 +110,9 @@ export class ProjectController {
   })
   @ApiTags('Projects')
   @ApiBearerAuth()
-  @AuthGuard('project', 'owner')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(CustomDbAvailabilityGuard)
+  @AuthGuard('project', 'owner')
   async updateProject(
     @Param('projectId') id: string,
     @Body() editProjectProperties: UpdateProjectDto,

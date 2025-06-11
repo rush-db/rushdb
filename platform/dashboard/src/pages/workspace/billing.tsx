@@ -23,6 +23,7 @@ const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>
   start: [
     { title: 'Unlimited Projects' },
     { title: 'Bring Your Own Neo4j Database' },
+    { title: 'Cypher Query Preview' },
     { title: '100 000 Records', description: 'No limits with your own Neo4j instance' },
     { title: '7-Day Backups', description: 'Coming soon' },
     { title: '3 Team Members', description: 'Additional seats $5/month each' }
@@ -30,6 +31,7 @@ const benefitsMap: Record<PlanId, Array<{ description?: string; title: string }>
   pro: [
     { title: 'Unlimited Projects' },
     { title: 'Bring Your Own Neo4j Database' },
+    { title: 'Cypher Query Preview' },
     { title: '1 000 000 Records', description: 'No limits with your own Neo4j instance' },
     { title: '30-Day Backups', description: 'Coming soon' },
     { title: '10 Team Members', description: 'Additional seats $5/month each' },

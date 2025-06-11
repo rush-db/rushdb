@@ -72,6 +72,9 @@ class GlobalAuthGuard implements CanActivate {
           request.workspaceId = workspaceId
           return true
         }
+
+        // false by default (will not allow to bypass)
+        return optionalGuard
       } catch (e) {
         // false by default (will not allow to bypass)
         return optionalGuard
