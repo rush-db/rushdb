@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.5.1
+
+### Patch Changes
+
+- 090a6ab: Fix empty projectId for customdb connection
+- Updated dependencies [090a6ab]
+  - @rushdb/javascript-sdk@1.5.1
+
 ## 1.5.0
 
 ### Minor Changes
