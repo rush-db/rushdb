@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 1.5.1
+
+### Patch Changes
+
+- 090a6ab: Fix empty projectId for customdb connection
+
 ## 1.5.0
 
 ### Minor Changes
