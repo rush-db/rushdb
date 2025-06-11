@@ -78,16 +78,16 @@ records = client.records.import_csv(
 
 ## Importing JSON Data
 
-### import_json()
+### create_many()
 
 Imports records from JSON data into RushDB.
 
 **Signature:**
 ```python
-def import_json(
+def create_many(
     self,
     label: str,
-    json_data: Union[Dict[str, Any], List[Dict[str, Any]]],
+    data: Union[Dict[str, Any], List[Dict[str, Any]]],
     options: Optional[Dict[str, Any]] = None,
     transaction: Optional[Transaction] = None
 ) -> List[Dict[str, Any]]
@@ -95,7 +95,7 @@ def import_json(
 
 **Arguments:**
 - `label` (str): Label for the root node(s)
-- `json_data` (Union[Dict[str, Any], List[Dict[str, Any]]]): JSON data to import as dict or find of dicts
+- `data` (Union[Dict[str, Any], List[Dict[str, Any]]]): JSON data to import as dict or find of dicts
 - `options` (Optional[Dict[str, Any]]): Import options
   - `suggestTypes` (bool): When true, automatically infers data types for properties
   - `castNumberArraysToVectors` (bool): When true, converts numeric arrays to vector type
@@ -130,9 +130,9 @@ person_data = {
     "active": True
 }
 
-records = client.records.import_json(
+records = client.records.create_many(
     label="PERSON",
-    json_data=person_data,
+    data=person_data,
     options={
         "returnResult": True,
         "suggestTypes": True,
@@ -155,9 +155,9 @@ employees_data = [
     }
 ]
 
-records = client.records.import_json(
+records = client.records.create_many(
     label="EMPLOYEE",
-    json_data=employees_data,
+    data=employees_data,
     options={"returnResult": True, "suggestTypes": True}
 )
 ```
