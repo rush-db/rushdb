@@ -1,4 +1,5 @@
 import { useStore } from '@nanostores/react'
+import { useEffect } from 'react'
 
 import { RecordSheet } from '~/features/projects/components/RecordSheet'
 import { RecordsHeader } from '~/features/projects/components/RecordsHeader'
@@ -16,7 +17,6 @@ import { $currentProjectVisibleFields } from '../stores/hidden-fields'
 import { $sheetRecordId } from '../stores/id'
 import { GraphView } from '~/features/projects/components/GraphView.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
-import React, { useEffect } from 'react'
 import { RawApiView } from '~/features/projects/components/RawApiView.tsx'
 import { setTourStep } from '~/features/tour/stores/tour.ts'
 import { $router } from '~/lib/router.ts'

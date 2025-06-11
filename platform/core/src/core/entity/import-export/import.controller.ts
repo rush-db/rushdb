@@ -70,7 +70,6 @@ export class ImportController {
 
   @Post('/records/import/csv')
   @ApiBearerAuth()
-  @AuthGuard('project')
   @UseInterceptors(
     RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]),
     TransformResponseInterceptor
@@ -78,6 +77,7 @@ export class ImportController {
   @UsePipes(ValidationPipe(importCsvSchema, 'body'))
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(PlanLimitsGuard, EntityWriteGuard, CustomDbWriteRestrictionGuard)
+  @AuthGuard('project')
   async collectCsv(
     @Body() body: ImportCsvDto,
     @TransactionDecorator() transaction: Transaction,
@@ -89,12 +89,17 @@ export class ImportController {
     const result = parse(body.data, {
       header: true,
       dynamicTyping: body?.options?.suggestTypes ?? false,
+      skipEmptyLines: true,
       delimiter: ','
+    })
+    const cleanedData = result.data.map((draft) => {
+      const entries = Object.entries(draft).filter(([, value]) => value !== null)
+      return Object.fromEntries(entries)
     })
 
     return await this.importService.importRecords(
       {
-        data: result.data,
+        data: cleanedData,
         options: body.options,
         label: body.label
       },

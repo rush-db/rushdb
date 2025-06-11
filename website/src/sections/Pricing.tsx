@@ -168,6 +168,7 @@ export function Pricing() {
           >
             <Feat title="Unlimited Projects" />
             <Feat title="Bring Your Own Neo4j Database" />
+            <Feat title="Cypher Query Preview" />
             <Feat title="100 000 Records" subtitle="No limits with your own Neo4j instance" />
             <Feat title="7-Day Backup" subtitle="Coming soon" />
             <Feat title="3 Team Members" subtitle="Additional seats $5/month each" />
@@ -189,6 +190,7 @@ export function Pricing() {
           >
             <Feat title="Unlimited Projects" />
             <Feat title="Bring Your Own Neo4j Database" />
+            <Feat title="Cypher Query Preview" />
             <Feat title="1 000 000 Records" subtitle="No limits with your own Neo4j instance" />
             <Feat title="30-Day Backup" subtitle="Coming soon" />
             <Feat title="10 Team Members" subtitle="Additional seats $5/month each" />

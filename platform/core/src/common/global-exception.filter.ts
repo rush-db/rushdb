@@ -37,7 +37,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     await transaction?.close()
     await customTransaction?.close()
-    await this.neogmaService.closeSession(session, 'global-exception-filter')
+    await this.neogmaService.closeSession(session, ' global-exception-filter')
 
     response.status(status).send(isHttpException ? exception.getResponse() : {})
   }

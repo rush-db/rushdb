@@ -5,21 +5,18 @@ import {
   HttpException,
   HttpStatus,
   Inject,
-  Injectable,
-  PayloadTooLargeException
+  Injectable
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { FastifyRequest } from 'fastify'
 import { Transaction } from 'neo4j-driver'
 
 import { toBoolean } from '@/common/utils/toBolean'
 import { ProjectService } from '@/dashboard/project/project.service'
-import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
-export class PlanLimitsGuard implements CanActivate {
+export class PlanActiveGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => WorkspaceService))
@@ -29,11 +26,7 @@ export class PlanLimitsGuard implements CanActivate {
     private readonly neogmaService: NeogmaService
   ) {}
 
-  async checkLimits(
-    workspaceId: string,
-    request: FastifyRequest,
-    transaction: Transaction
-  ): Promise<boolean> {
+  async checkHasSubscription(workspaceId: string, transaction: Transaction): Promise<boolean> {
     const workspaceInstance = await this.workspaceService.getWorkspaceInstance(workspaceId, transaction)
 
     if (!workspaceInstance) {
@@ -41,26 +34,6 @@ export class PlanLimitsGuard implements CanActivate {
     }
 
     const properties = workspaceInstance.dataValues
-    const limits = JSON.parse(properties.limits) as TWorkspaceLimits
-
-    const requestSize = Number(
-      request?.raw?.headers?.['content-length'] ??
-        request?.raw?.headers?.['Content-Length'] ??
-        request?.headers?.['Content-Length'] ??
-        request?.headers?.['content-length'] ??
-        request?.socket?.bytesRead
-    )
-
-    // By default, we check import size limits
-    // For binary data uploads we must check formdata and compare its size against limits.fileSize
-    const targetLimit = limits.importSize
-
-    // Check body size limits
-    if (requestSize > targetLimit) {
-      throw new PayloadTooLargeException(
-        `Reduce size to ${targetLimit / 1024}KB. Got ${requestSize / 1024}KB`
-      )
-    }
 
     // Check premium plan expiration (if exists)
     if (properties.planId) {
@@ -76,26 +49,9 @@ export class PlanLimitsGuard implements CanActivate {
       const currentDate = new Date()
 
       return !(currentDate > increasedValidTillDate)
+    } else {
+      return false
     }
-
-    const workspaceSummaryState = await this.projectService.getProjectsProperties(workspaceId, transaction)
-    const projectsCount = workspaceSummaryState.length
-
-    const accumulatedWorkspaceStats = await this.workspaceService.getAccumulatedWorkspaceStats(
-      workspaceInstance,
-      transaction
-    )
-
-    // Check project count limits
-    if (!accumulatedWorkspaceStats.records) {
-      return !(limits.projects && projectsCount > limits.projects)
-    }
-
-    // Check Records limits
-    return !(
-      accumulatedWorkspaceStats.records >= limits.records ||
-      (limits.projects && projectsCount > limits.projects)
-    )
   }
 
   async canActivate(context: ExecutionContext) {
@@ -113,11 +69,11 @@ export class PlanLimitsGuard implements CanActivate {
     const session = this.neogmaService.createSession('plan-limits-guard')
     const transaction = session.beginTransaction()
 
-    const canProcessRequest = await this.checkLimits(workspaceId, request, transaction)
+    const canProcessRequest = await this.checkHasSubscription(workspaceId, transaction)
 
     if (!canProcessRequest) {
       transaction.close().then(() => session.close())
-      throw new HttpException('Excess records or projects', HttpStatus.PAYMENT_REQUIRED)
+      throw new HttpException('This feature available with subscription enabled', HttpStatus.PAYMENT_REQUIRED)
     }
     transaction.close().then(() => session.close())
 

@@ -24,10 +24,16 @@ import { Menu, MenuItem, MenuTitle } from '~/elements/Menu.tsx'
 
 import { Divider } from '~/elements/Divider.tsx'
 import { Select } from '~/elements/Select.tsx'
+import { api } from '~/lib/api'
+import { CheckboxField } from '~/elements/Checkbox.tsx'
+import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { $paidUser } from '~/features/billing/stores/plans.ts'
 
 const $recordsData = atom<string>('')
 const $labelsData = atom<string>('')
 const $propertiesData = atom<string>('')
+const $showCypherQuery = atom<boolean>(false)
+const $cypherQuery = atom<string>('')
 
 const aggregateExample0 = `{
     "labels":[
@@ -110,7 +116,7 @@ const aggregateExample2 = `{
                 "EMPLOYEE": {
                     "dob": {
                         "$lte": {
-                            "$year": 1994 
+                            "$year": 1994
                         }
                     },
                     "$alias": "$employee"
@@ -318,7 +324,7 @@ const OperationSelector = () => {
     { value: 'records.detach', label: 'records.detach' },
     { value: 'labels.find', label: 'labels.find' },
     { value: 'properties.values', label: 'properties.values' },
-    { value: 'properties.find', label: 'properties.list' },
+    { value: 'properties.find', label: 'properties.find' },
     { value: 'relations.find', label: 'relations.find' }
   ]
 
@@ -337,6 +343,8 @@ const OperationSelector = () => {
 export function RawApiView() {
   const query = useStore($editorData)
   const entity = useStore($recordRawApiEntity)
+  const platformSettings = useStore($platformSettings)
+  const paidUser = useStore($paidUser)
 
   const { mutate: findRecords, loading: recordsSubmitting } = useStore(rawRecords)
   const { mutate: findLabels, loading: labelsSubmitting } = useStore(rawLabels)
@@ -347,8 +355,26 @@ export function RawApiView() {
   const propertiesData = useStore($propertiesData)
 
   const editorData = useStore($editorData)
-
   const q = useSearchQuery()
+  const operation = useStore($selectedOperation)
+  const showCypherQuery = useStore($showCypherQuery)
+  const cypherQuery = useStore($cypherQuery)
+
+  useEffect(() => {
+    if (operation === 'records.find') {
+      $editorData.set(
+        JSON.stringify({
+          where: {},
+          orderBy: {},
+          skip: 0,
+          limit: 100,
+          labels: []
+        })
+      )
+    } else {
+      $editorData.set('{}')
+    }
+  }, [operation])
 
   useEffect(() => {
     // Inherit current searchQuery to local query on mount (once)
@@ -359,23 +385,40 @@ export function RawApiView() {
     $recordsData.set('')
     $labelsData.set('')
     $propertiesData.set('')
+    $cypherQuery.set('')
+
+    // Get the search query
+    const searchQueryObj = JSON.parse(editorData ?? '{}')
+
+    // Fetch the Cypher query if we're doing records.find and the toggle is enabled
+    if (operation === 'records.find' && showCypherQuery) {
+      api.search['records-query']({
+        searchQuery: searchQueryObj
+      })
+        .then((cypherQueryStr) => {
+          $cypherQuery.set(cypherQueryStr)
+        })
+        .catch((error) => {
+          console.error('Failed to fetch Cypher query:', error)
+        })
+    }
 
     findRecords({
-      searchQuery: JSON.parse(editorData ?? '{}')
+      searchQuery: searchQueryObj
     }).then((response) => {
       const { data, total } = response as DBRecordsArrayInstance<any>
       $recordsData.set(JSON.stringify({ data: data?.map?.((d) => d.data) ?? data, total }))
     })
 
     findLabels({
-      searchQuery: JSON.parse(editorData ?? '{}')
+      searchQuery: searchQueryObj
     }).then((response) => {
       const { data, total } = response as DBRecordsArrayInstance<any>
       $labelsData.set(JSON.stringify({ data, total }))
     })
 
     findProperties({
-      searchQuery: JSON.parse(editorData ?? '{}')
+      searchQuery: searchQueryObj
     }).then((response) => {
       const { data, total } = response as DBRecordsArrayInstance<any>
       $propertiesData.set(JSON.stringify({ data, total }))
@@ -402,36 +445,55 @@ export function RawApiView() {
         <div className="row-span-2 flex h-full min-h-[80vh] flex-col">
           <div className="border-r pr-5">
             <div className="my-5 flex w-full items-center justify-between">
-              <div className="flex w-full items-end gap-3">
-                <div className="flex w-full flex-col">
-                  <p className="text-content2 mb-2 text-lg">Method</p>
-                  <OperationSelector />
+              <div className="flex w-full items-end justify-between gap-3">
+                <p className="text-content2 mb-2 text-lg">Payload</p>
+                <div className="flex w-full items-center justify-end gap-3">
+                  {/*  <p className="text-content2 mb-2 text-lg">Method</p>*/}
+                  {/*  <OperationSelector />*/}
+
+                  {operation === 'records.find' && (platformSettings.data?.selfHosted || paidUser) && (
+                    <CheckboxField
+                      className="mb-0 mr-2"
+                      label="Show Cypher"
+                      checked={showCypherQuery}
+                      onCheckedChange={$showCypherQuery.set}
+                    />
+                  )}
+
+                  <ApiRecordsModal />
+
+                  {['records.find', 'records.findUniq', 'records.findOne'].includes(operation) && (
+                    <ExampleSelector />
+                  )}
+
+                  <Button
+                    onClick={handleSearch}
+                    loading={recordsSubmitting || labelsSubmitting || propertiesSubmitting}
+                    size="small"
+                    className="min-w-0 px-3"
+                    variant="secondary"
+                  >
+                    <PlayIcon className="h-2 w-2" />
+                  </Button>
                 </div>
-                <ApiRecordsModal />
-
-                <ExampleSelector />
-
-                <Button
-                  onClick={handleSearch}
-                  loading={recordsSubmitting || labelsSubmitting || propertiesSubmitting}
-                  size="small"
-                  className="min-w-0 px-3"
-                  variant="secondary"
-                >
-                  <PlayIcon className="h-2 w-2" />
-                </Button>
               </div>
             </div>
-            <p className="text-content2 mb-2 text-lg">Payload</p>
 
             <Editor
               defaultLanguage="json"
               value={query}
               onChange={$editorData.set}
-              height="80vh"
+              height={operation === 'records.find' && showCypherQuery && cypherQuery ? '50vh' : '80vh'}
               format={false}
               theme="vs-dark"
             />
+
+            {operation === 'records.find' && showCypherQuery && cypherQuery && (
+              <div className="mt-4">
+                <p className="text-content2 mb-2 text-lg">Generated Cypher Query</p>
+                <Editor defaultLanguage="cypher" value={cypherQuery} height="25vh" readOnly theme="vs-dark" />
+              </div>
+            )}
           </div>
         </div>
 
