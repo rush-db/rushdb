@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.5.0
+
+### Minor Changes
+
+- a920ddf: Add cypher query preview
+
 ## 1.4.0
 
 ### Minor Changes
