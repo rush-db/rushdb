@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 1.5.0
+
+### Minor Changes
+
+- a920ddf: Add cypher query preview
+
+### Patch Changes
+
+- Updated dependencies [a920ddf]
+  - @rushdb/javascript-sdk@1.5.0
+
 ## 1.4.0
 
 ### Minor Changes
