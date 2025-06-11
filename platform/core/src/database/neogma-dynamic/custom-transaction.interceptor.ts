@@ -15,7 +15,7 @@ export class CustomTransactionInterceptor implements NestInterceptor {
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<any>> {
     const request = context.switchToHttp().getRequest()
-    const projectId = request.headers['x-project-id']
+    const projectId = request.projectId ?? request.headers['x-project-id']
     const defaultTx = request.transaction
 
     if (projectId && defaultTx) {
