@@ -26,7 +26,7 @@ Imports records from CSV data into RushDB.
 def import_csv(
     self,
     label: str,
-    csv_data: Union[str, bytes],
+    data: str,
     options: Optional[Dict[str, bool]] = None,
     transaction: Optional[Transaction] = None
 ) -> List[Dict[str, Any]]
@@ -34,7 +34,7 @@ def import_csv(
 
 **Arguments:**
 - `label` (str): Label for all imported records
-- `csv_data` (Union[str, bytes]): CSV data to import as a string or bytes
+- `csv_data` (str): CSV data to import as a string
 - `options` (Optional[Dict[str, bool]]): Import options
   - `suggestTypes` (bool): When true, automatically infers data types for properties
   - `castNumberArraysToVectors` (bool): When true, converts numeric arrays to vector type
