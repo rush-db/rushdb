@@ -20,5 +20,7 @@ export const links = {
   pricing: '/pricing',
   app: 'https://app.rushdb.com',
   appPricing: 'https://app.rushdb.com/pricing',
-  contactUs: 'mailto:hi@rushdb.com'
+  contactUs: 'mailto:hi@rushdb.com',
+  storage: 'https://docs.rushdb.com/concepts/storage',
+  relationships: 'https://docs.rushdb.com/concepts/relationships'
 } as const

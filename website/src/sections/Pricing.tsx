@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { links } from '~/config/urls'
 import { useBillingData } from '~/hooks/useBillingData'
 import { Switch } from '~/components/Switch'
+import { PricingComparison } from '~/components/PricingComparison'
 
 function Feat({ title, subtitle }: { title: ReactNode; subtitle?: ReactNode }) {
   return (
@@ -123,9 +124,9 @@ export function Pricing() {
   return (
     <Section className="container">
       <SectionHeader className="text-center">
-        <SectionTitle className="m-auto max-w-3xl">Pricing</SectionTitle>
+        <SectionTitle className="m-auto max-w-3xl">Simple, Transparent Pricing</SectionTitle>
         <SectionSubtitle className="text-content3">
-          Start building for free with the power to scale
+          Start building for free. Scale when you're ready. No hidden fees.
         </SectionSubtitle>
       </SectionHeader>
 
@@ -135,23 +136,23 @@ export function Pricing() {
         <p className="text-content3">Annually</p>
       </div>
       <div className="grid grid-cols-4 gap-4 sm:grid-cols-1 md:grid-cols-2">
+        {' '}
         <PricingCard
           price="free"
-          title="Free"
-          description="Forever"
-          headline={' '}
+          title="Free Forever"
+          description="Perfect for side projects"
+          headline="Everything you need to start:"
           action={
             <Button size="small" variant="outline" as={Link} href={links.app} target="_blank">
-              Continue Free
+              Start Building Free
               <ArrowUpRight />
             </Button>
           }
         >
-          <Feat title="Unlimited API Requests" />
-          <Feat title="10 000 Records" />
-          <Feat title="2 Projects" subtitle="Projects are never paused, available for commercial use" />
-          <Feat title="1 Team Member" />
-          <Feat title="Community Support" />
+          <Feat title="2 Projects" subtitle="No time limits, no feature restrictions" />
+          <Feat title="10,000 Records" subtitle="Enough for most MVPs and prototypes" />
+          <Feat title="Full REST API" subtitle="Complete access to all query capabilities" />
+          <Feat title="Community Support" subtitle="Get help from our developer community" />
         </PricingCard>
         {startPrice && (
           <PricingCard
@@ -211,6 +212,8 @@ export function Pricing() {
           <Feat title="Customizations" />
         </PricingCard>
       </div>
+
+      <PricingComparison className="mt-16" />
     </Section>
   )
 }

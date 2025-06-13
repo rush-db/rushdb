@@ -45,7 +45,7 @@ export function Button<As extends React.ElementType = 'button'>({
 export const MainCta = ({
   children,
   href = 'https://app.rushdb.com',
-  text = 'Create Project',
+  text = 'Start Building Free',
   ...props
 }: Props & ComponentPropsWithoutRef<typeof Button>) => {
   return (

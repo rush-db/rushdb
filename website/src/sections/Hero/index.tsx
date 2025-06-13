@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BookIcon } from 'lucide-react'
+import { BookIcon, Check } from 'lucide-react'
 
 import { Button, MainCta } from '~/components/Button'
 import { links, socials } from '~/config/urls'
@@ -14,7 +14,7 @@ const code = `import RushDB from '@rushdb/javascript-sdk'
 const db = new RushDB('RUSHDB_API_TOKEN')
 
 const user = await db.records.create({
-  label: 'USER', 
+  label: 'USER',
   data: {
     name: 'Paul Schmitz',
     lastActive: '2024-12-02T11:38:29Z',
@@ -53,7 +53,7 @@ db.records.find(
     {
         "labels": ["USER"],
         "where": {
-            "size": {"$gte": 9}, 
+            "size": {"$gte": 9},
             "favoriteTags": {"$in": ["Foam"]}
         }
     }
@@ -76,7 +76,8 @@ export const Hero = () => {
                 for Modern Apps & AI<span className="hidden"> - RushDB</span>
               </h1>
               <h2 className="text-content3 text-md mb-8 mt-10 inline !font-medium !tracking-normal md:mt-0 md:text-base">
-                RushDB is an <b>open-source</b>, graph-powered <b>zero-config database</b>
+                Push JSON, query instantly. <b>Zero schema</b>, <b>zero config</b> <b>graph database</b> that
+                auto-normalizes your data.
               </h2>
 
               <Link href={socials.github} target="__blank" rel="noopener noreferrer" aria-label="Github">
@@ -88,10 +89,27 @@ export const Hero = () => {
                 </div>
               </Link>
               <div className="mt-16 flex gap-4 md:justify-center">
-                <MainCta variant="accent" size="small" text="Create Project" />
-                <Button as={Link} href={links.getStarted} variant="outline" size="small" className="bg-fill">
-                  Docs <BookIcon />
+                <MainCta variant="accent" text="Start Building Free" />
+                <Button
+                  as={Link}
+                  href="https://docs.rushdb.com/get-started/quick-tutorial"
+                  variant="outline"
+                  className="bg-fill"
+                >
+                  5-Min Tutorial <BookIcon />
                 </Button>
+              </div>
+
+              <div className="text-content3 mt-16 flex items-center justify-start gap-2 text-sm md:justify-center">
+                <span>
+                  <Check className="text-accent mx-auto h-5 w-5" /> 2 projects free forever
+                </span>
+                <span>
+                  <Check className="text-accent mx-auto h-5 w-5" /> No credit card required
+                </span>
+                <span>
+                  <Check className="text-accent mx-auto h-5 w-5" /> Ready in 15 seconds
+                </span>
               </div>
             </div>
 
@@ -108,7 +126,7 @@ export const Hero = () => {
           </div>
           <div className="w-full justify-center self-end pb-16 text-center align-bottom md:hidden md:flex-col md:pb-4">
             <p className="text-content3 text-md mb-4 text-center !font-medium md:text-lg">
-              Focus on building features. RushDB handles the rest.
+              Focus on delivering value. RushDB handles the rest.
             </p>
             <CodeBlock
               code={language === 'typescript' ? 'pnpm add @rushdb/javascript-sdk' : 'pip install rushdb'}

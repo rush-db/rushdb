@@ -1,7 +1,7 @@
 import { Button, MainCta } from '~/components/Button'
 import Link from 'next/link'
 import { links } from '~/config/urls'
-import { BookIcon, Waypoints } from 'lucide-react'
+import { ArrowLeftRight, ArrowRight, BookIcon } from 'lucide-react'
 import { CodeBlock } from '~/components/CodeBlock'
 import Image from 'next/image'
 
@@ -11,6 +11,8 @@ import { useContext } from 'react'
 import { CodingLanguage } from '~/contexts/CodingLanguage'
 import { Demo } from '~/sections/HowItWorks/demo'
 import { GitHub } from '~/components/Icons/GitHub'
+import { YouTubeEmbed } from '~/components/YouTubeEmbed'
+import { PropertyGraphTopology } from '~/components/PropertyGraphTopology'
 
 const code1 = `import RushDB from '@rushdb/javascript-sdk'
 
@@ -123,100 +125,42 @@ const code2Py = `db.records.find(
     }
 )`
 
-const code3 = `// Property \`name\` [string]
-await db.properties.values(
-  '0192397b-8579-7ce2-a899-01c59bad63f8'
-)
-// Response
+const code2Result = `// Response from RushDB
 {
-  values: [
-    'Eleanor Whitaker',
-    'Marcus Donovan',
-    'Priya Kapoor',
-    'Julian Alvarez'
-  ],
-  type: 'string'
-}
-
-// Property \`size\` [number]
-await db.properties.values(
-  '019412c0-2051-71fe-bc9d-26117b52c119'
-)
-// Response
-{
-  min: 5.5,
-  max: 12.5,
-  values: [5.5, 6, 6.5, 7, 7.5, 8, 8.5, ...],
-  type: 'number'
-}
-`
-
-const code3Py = `# Property \`name\` [string]
-db.properties.values(
-  "0192397b-8579-7ce2-a899-01c59bad63f8"
-)
-# Response
-{
-  "values": [
-    "Eleanor Whitaker",
-    "Marcus Donovan",
-    "Priya Kapoor",
-    "Julian Alvarez"
-  ],
-  "type": "string"
-}
-
-# Property \`size\` [number]
-db.properties.values(
-  "019412c0-2051-71fe-bc9d-26117b52c119"
-)
-# Response
-{
-  "min": 5.5,
-  "max": 12.5,
-  "values": [5.5, 6, 6.5, 7, 7.5, 8, 8.5, ...],
-  "type": "number"
-}
-`
+  "data": [{
+    "__id": "019412c0-2051-7000-8000-850db63a1e77",
+    "__label": "COMPANY",
+    "name": "TechStart Inc",
+    "stage": "seed",
+    "address": "123 Innovation St, Austin, TX, USA",
+    "foundedAt": "1999-03-15T00:00:00.000Z",
+    "rating": 4.8,
+    "employees": [
+      {
+        "__id": "019412c0-2051-7000-8000-850db63a1e78",
+        "__label": "EMPLOYEE",
+        "name": "Sarah Chen",
+        "position": "Lead Engineer",
+        "salary": 650000
+      },
+      {
+        "__id": "019412c0-2051-7000-8000-850db63a1e79",
+        "__label": "EMPLOYEE",
+        "name": "Marcus Rodriguez",
+        "position": "Senior Developer",
+        "salary": 580000
+      }
+    ]
+  }],
+  "success": true,
+  "total": 1
+}`
 
 const codeDocker = `docker run -p 3000:3000 --name rushdb \\
 -e NEO4J_URL='bolt+s://your-neo4j-instance-url:7687' \\
 -e NEO4J_USERNAME='neo4j' \\
 -e NEO4J_PASSWORD='password' \\
 rushdb/platform`
-
-const codeCompany = `Record
----------------------
-name:        "string"
-address:     "string"
-foundedAt: "datetime"
-rating:      "number"`
-
-const codeDepartment = `Record
----------------------
-name:        "string"
-description: "string"
-tags:        "string"
-profitable: "boolean"`
-
-const codeProject = `Record
----------------------
-name:        "string"
-description: "string"
-active:     "boolean"
-budget:      "number"`
-
-const codeEmployee = `Record
-------------------
-name:     "string"
-position: "string"
-email:    "string"
-salary:   "number"`
-
-const codeProperty = `Property
--------------------
-name: "description"
-type:      "string"`
 
 const codeAiIntegration = `import OpenAI from 'openai'
 import RushDB from '@rushdb/javascript-sdk'
@@ -267,6 +211,70 @@ def generate_and_store_data():
     # Step 3: Store the output in RushDB
     record = await db.records.create_many("AI_RESPONSE", parsed_content)`
 
+const codeRelationships = `// Create records
+const user = await db.records.create({
+  label: 'USER',
+  data: { name: 'John Doe', email: 'john@example.com' }
+})
+
+const project = await db.records.create({
+  label: 'PROJECT',
+  data: { name: 'Website Redesign', deadline: '2025-06-30' }
+})
+
+// Connect them with a relationship
+await db.records.attach({
+  source: user,
+  target: project,
+  options: {
+    type: 'MANAGES'
+  }
+})
+
+// Query related data naturally
+const userProjects = await db.records.find({
+  labels: ['PROJECT'],
+  where: {
+    USER: {
+      $relation: {
+        type : 'MANAGES'
+      },
+    }
+  }
+})`
+
+const codeRelationshipsPy = `# Create records
+user = db.records.create(
+    label="USER",
+    data={"name": "John Doe", "email": "john@example.com"}
+)
+
+project = db.records.create(
+    label="PROJECT",
+    data={"name": "Website Redesign", "deadline": "2025-06-30"}
+)
+
+# Connect them with a relationship
+db.records.attach(
+    source=user,
+    target=project,
+    options={
+        "type": "MANAGES"
+    }
+)
+
+# Query related data naturally
+user_projects = db.records.find({
+    "labels": ["PROJECT"],
+    "where": {
+        "USER": {
+            "$relation": {
+                "type" : "MANAGES"
+            },
+        }
+    }
+})`
+
 export const HowItWorks = () => {
   const { language } = useContext(CodingLanguage)
 
@@ -292,6 +300,61 @@ export const HowItWorks = () => {
               <div className="absolute bottom-0 left-0 h-1/2 w-full bg-gradient-to-b from-transparent to-[#131313]"></div>
             </CodeBlock>
           </div>
+        </div>
+      </section>
+
+      <section className="container">
+        <div className="outline-stroke rounded-b-full py-20 text-center outline outline-1 outline-offset-0 md:rounded-b-[100px]">
+          <h3 className="typography-2xl md:typography-xl text px-6">Smart Auto-Normalization</h3>
+          <div className="mt-4 text-center">
+            <p className="text-content3 text-md">
+              From a single JSON payload <ArrowRight size={16} /> <b>4 normalized Records</b> with{' '}
+              <b>automatic Relationships</b>
+            </p>
+          </div>
+          <div className="mx-auto max-w-4xl">
+            <div className="bg-secondary rounded-lg p-8 md:p-4">
+              <div className="flex items-center justify-center gap-4 md:grid md:grid-cols-2 md:gap-2">
+                <div className="text-center">
+                  <div className="bg-accent-yellow mx-auto mb-2 h-4 w-4 rounded-full"></div>
+                  <span className="text-content font-mono text-sm font-bold">COMPANY</span>
+                </div>
+
+                <div className="text-content3 md:hidden">
+                  <ArrowRight />
+                </div>
+
+                <div className="text-center">
+                  <div className="bg-accent-orange mx-auto mb-2 h-4 w-4 rounded-full"></div>
+                  <span className="text-content font-mono text-sm font-bold">DEPARTMENT</span>
+                </div>
+
+                <div className="text-content3 md:hidden">
+                  <ArrowRight />
+                </div>
+
+                <div className="text-center">
+                  <div className="mx-auto mb-2 h-4 w-4 rounded-full bg-green-600"></div>
+                  <span className="text-content font-mono text-sm font-bold">PROJECT</span>
+                </div>
+
+                <div className="text-content3 md:hidden">
+                  <ArrowRight />
+                </div>
+
+                <div className="text-center">
+                  <div className="bg-accent-purple mx-auto mb-2 h-4 w-4 rounded-full"></div>
+                  <span className="text-content font-mono text-sm font-bold">EMPLOYEE</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-content3 text-md px-6 pb-12 pt-4 !tracking-normal md:text-base">
+            RushDB automatically creates <b>Records</b> with proper relationships and types from your JSON.
+            <br className="md:hidden" />
+            Zero schemas, maximum speed — built for <b>SaaS</b>, <b>AI apps</b>, and <b>fast-moving teams</b>.
+          </p>
         </div>
       </section>
 
@@ -321,7 +384,7 @@ export const HowItWorks = () => {
             <p className="text-md text-content3 md:text-base">Batch write speed per Record</p>
           </div>
           <div className="outline-stroke flex w-full flex-col gap-4 rounded-l-full p-8 outline outline-1 outline-offset-0 md:gap-2">
-            <span className="text-content font-mono text-xl font-bold md:text-lg">ACID Compliance</span>{' '}
+            <span className="text-content font-mono text-xl font-bold md:text-lg">Transactions (ACID)</span>{' '}
             <p className="text-md text-content3 md:text-base">Ensures data integrity and reliability</p>
           </div>
 
@@ -329,83 +392,26 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className="border-b">
-        <div className="container text-center">
-          <h3 className="typography-2xl md:typography-xl text px-6 pt-20">Automatic Data Normalization</h3>
-          <p className="text-content3 text-md px-6 pb-20 pt-8 !tracking-normal md:text-base">
-            Built for <b>SaaS development</b>, <b>machine learning</b>, <b>AI-driven apps</b>,{' '}
-            <b>vector search</b>, <b>semi-structured</b> and <b>structured data</b> needs.{' '}
-            <br className="md:hidden" />
-            RushDB creates each <b>Record</b> with the proper relationships and types, so you don’t need
-            predefined schemas — ideal for fast-moving teams.
-          </p>
-          <div className="m-auto grid w-full max-w-3xl grid-flow-col grid-rows-2 gap-[1px] md:grid-rows-4">
-            <div className="outline-stroke w-full rounded-bl-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
-              <div className="flex w-full flex-col items-start gap-4">
-                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
-                  <div className="bg-accent-yellow h-6 w-6 rounded-full md:h-4 md:w-4"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">COMPANY</span>
-                </div>
-                <CodeBlock code={codeCompany} className="m-auto" preClassName="md:w-full" />
-              </div>
-            </div>
-            <div className="outline-stroke w-full rounded-br-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
-              <div className="flex w-full flex-col items-start gap-4">
-                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
-                  <div className="h-6 w-6 rounded-full bg-green-600 md:h-4 md:w-4"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">PROJECT</span>
-                </div>
-                <CodeBlock code={codeProject} className="m-auto" preClassName="md:w-full" />
-              </div>
-            </div>
-            <div className="outline-stroke w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
-              <div className="flex w-full flex-col items-start gap-4">
-                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
-                  <div className="bg-accent-orange h-6 w-6 rounded-full md:h-4 md:w-4"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">DEPARTMENT</span>
-                </div>
-                <CodeBlock code={codeDepartment} className="m-auto" preClassName="md:w-full" />
-              </div>
-            </div>
-            <div className="outline-stroke w-full rounded-bl-[80px] rounded-tr-[80px] p-12 outline outline-1 outline-offset-0 md:p-6">
-              <div className="flex w-full flex-col items-start gap-4">
-                <div className="m-auto flex w-fit flex-wrap items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
-                  <div className="bg-accent-purple h-6 w-6 rounded-full md:h-4 md:w-4"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">EMPLOYEE</span>
-                </div>
-                <CodeBlock code={codeEmployee} className="m-auto" preClassName="md:w-full" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section>
         <div className="container text-center">
-          <div className="outline-stroke rounded-t-[80px] py-20 outline outline-1 outline-offset-0 md:pb-8">
-            <h3 className="typography-2xl md:typography-xl text px-6">Query Smarter, Not Harder</h3>
-            <p className="text-content3 text-md px-6 pb-20 pt-8 !tracking-normal md:text-base">
-              Built for <b>interconnected data</b> and <b>high-speed queries</b>. Each Property lives in its
-              own container, linked by name and type to other <b>Records</b> — <br className="md:hidden" />{' '}
-              making retrieval fast and precise. Designed for <b>rapid development</b>, <b>AI workflows</b>,
-              and <b>data-intensive</b> use cases.
+          <div className="outline-stroke rounded-t-[80px] pt-20 outline outline-1 outline-offset-0 md:pb-8">
+            <h3 className="typography-2xl md:typography-xl text px-6">Push JSON. Query JSON.</h3>
+            <p className="text-content3 text-md px-6 pt-8 !tracking-normal md:text-base">
+              If you can push JSON, why not query with JSON too?
+              <br className="md:hidden" />
+              Simple, consistent, <b>developer-friendly</b> — no SQL, no complexity.
             </p>
 
-            <div className="flex w-full flex-row items-center justify-center gap-4 md:gap-1">
-              <CodeBlock
-                code={codeProperty}
-                className="place-content-center gap-[1px]"
-                preClassName="md:w-full"
-              />
-              <Waypoints />
-              <div className="flex flex-col gap-4 md:gap-2">
-                <div className="flex w-fit items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
-                  <div className="h-6 w-6 rounded-full bg-green-600 md:h-4 md:w-4"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">PROJECT</span>
-                </div>
-                <div className="flex items-center gap-4 rounded-full border px-3 py-3 md:gap-2 md:p-2">
-                  <div className="bg-accent-orange h-6 w-6 rounded-full md:h-4 md:w-4"></div>
-                  <span className="text-content text-md mr-2 font-mono font-bold md:text-xs">DEPARTMENT</span>
+            <div className="mx-auto max-w-2xl">
+              <div className="bg-secondary p-6 md:p-4">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="text-content bg-fill rounded px-3 py-1 font-mono text-lg">JSON in</span>
+                    <span className="text-content3">
+                      <ArrowLeftRight />
+                    </span>
+                    <span className="text-content bg-fill rounded px-3 py-1 font-mono text-lg">JSON out</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -417,39 +423,160 @@ export const HowItWorks = () => {
         <div className="container m-auto grid grid-cols-2 gap-[1px] md:grid-cols-1">
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-bl-[80px] rounded-tr-[80px] pt-12 outline outline-1 outline-offset-0">
             <div className="mx-auto mb-8 max-w-xl md:px-6 md:text-center">
-              <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Complex Queries, Simple Syntax</h4>
+              <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Simple Syntax for Complex Queries</h4>
               <p className="text-content3 text-md !tracking-normal md:text-base">
-                Query complex, deeply <b>connected data</b> without friction. RushDB’s <b>graph database</b>{' '}
-                engine and <b>REST API</b> make it easy to ask real questions — without writing verbose logic
-                or managing queries manually.
+                RushDB’s <b>graph database</b> engine and <b>API</b>s make it easy to ask real questions —
+                without writing verbose logic or managing queries manually.
               </p>
             </div>
             <CodeBlockWithLanguageSelector
               data={{ typescript: code2, python: code2Py }}
               className="mx-auto w-full max-w-xl"
               preClassName="md:w-full"
-              wrapperClassName="rounded-bl-none rounded-br-none pb-0"
+              wrapperClassName="rounded-lg"
             />
           </div>
 
           <div className="outline-stroke flex h-full w-full flex-col justify-between rounded-br-[80px] pt-12 outline outline-1 outline-offset-0">
             <div className="mx-auto mb-8 max-w-xl md:px-6 md:text-center">
-              <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Build Powerful Filters & Search</h4>
+              <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Clean JSON responses every time</h4>
               <p className="text-content3 text-md !tracking-normal md:text-base">
-                Create filters, lists, and <b>vector search</b> interfaces from a single <b>API</b>. No
-                backend boilerplate, just a clean <b>no-code</b> <b>graph database</b>, with structured access
-                to everything you store.
+                Structured <b>JSON responses</b> with clear data shapes. No (de)normalization headaches, just
+                clean results ready for your app.
               </p>
             </div>
-            <CodeBlockWithLanguageSelector
-              data={{ typescript: code3, python: code3Py }}
+            <CodeBlock
+              code={code2Result}
+              language="json"
               className="mx-auto w-full max-w-xl"
               preClassName="md:w-full"
-              wrapperClassName="rounded-bl-none rounded-br-none pb-0"
+              wrapperClassName="rounded-lg"
             />
           </div>
         </div>
       </section>
+
+      <section className="border-b border-t">
+        <div className="container m-auto">
+          <div className="bg-secondary rounded-[80px] p-12 md:rounded-[50px] md:p-8">
+            <div className="grid grid-cols-2 md:grid-cols-1 md:gap-8">
+              <div className="flex flex-col justify-between">
+                <div className="mb-8">
+                  <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">
+                    Smart Faceted Search Out of the Box
+                  </h4>
+                  <p className="text-content3 text-md mb-4 !tracking-normal md:text-base">
+                    RushDB's <b>property graph</b> design means every filter makes your search <b>smarter</b>.
+                    The more you filter, the more precise your options become — like marketplace category
+                    filters that automatically reduce brand choices, but for <b>any dataset at any scale</b>.
+                  </p>
+                  <p className="text-content3 text-md !tracking-normal md:text-base">
+                    <b>Properties</b> are managed <b>autonomously</b> by RushDB — search capabilities are
+                    delivered instantly at record creation time. No manual indexing, no configuration — just
+                    intelligent <b>faceted search</b> that works out of the box.
+                  </p>
+                </div>
+
+                <div className="text-center md:text-left">
+                  <Button
+                    as={Link}
+                    href={links.storage}
+                    target="_blank"
+                    size="small"
+                    variant="outline"
+                    className="bg-fill w-fit"
+                  >
+                    Learn more about RushDB storage <BookIcon />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-between">
+                {/* Enhanced Property Graph Visualization */}
+                <div className="flex-1">
+                  <div className="bg-fill flex h-full min-h-[200px] flex-col justify-center rounded-lg">
+                    <PropertyGraphTopology />
+                    <p className="text-content text-center text-sm font-medium !tracking-normal">
+                      Property Graph Topology
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-t">
+        <div className="container m-auto">
+          <div className="bg-secondary rounded-[80px] p-12 md:rounded-[50px] md:p-8">
+            <div className="mb-12 text-center">
+              <h3 className="typography-2xl md:typography-xl text mb-6">Relationships That Make Sense</h3>
+              <p className="text-content3 text-md mx-auto max-w-4xl !tracking-normal md:text-base">
+                Connect your data naturally. It's like foreign keys but without the mental overhead —
+                <br className="md:hidden" />
+                control relationships the way you actually think about them.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-12 md:grid-cols-1 md:gap-8">
+              <div className="flex flex-col justify-between">
+                <div className="mb-8">
+                  <h4 className="mb-6 text-xl font-bold md:mb-4 md:text-lg">Beyond Firebase Limitations</h4>
+                  <p className="text-content3 text-md mb-4 !tracking-normal md:text-base">
+                    <b>Firebase</b> forces you into document hierarchies. <b>Supabase</b> and ORMs make you
+                    overthink schemas and joins.
+                  </p>
+                  <p className="text-content3 text-md mb-6 !tracking-normal md:text-base">
+                    RushDB's <b>graph architecture</b> connects data instantly. No complex joins, no rigid
+                    schemas — just natural <b>relationships</b> that scale.
+                  </p>
+
+                  <div className="bg-fill mb-6 rounded-lg">
+                    <div className="flex items-center gap-8 py-8">
+                      <div>
+                        <div className="bg-accent-yellow mx-auto mb-2 h-4 w-4 rounded-full"></div>
+                        <span className="text-content font-mono text-sm font-bold">USER</span>
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <span className="text-content3 font-mono text-sm">
+                          MANAGES <ArrowRight />
+                        </span>
+                      </div>
+                      <div>
+                        <div className="bg-accent-purple mx-auto mb-2 h-4 w-4 rounded-full"></div>
+                        <span className="text-content font-mono text-sm font-bold">PROJECT</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    as={Link}
+                    href={links.relationships}
+                    target="_blank"
+                    size="small"
+                    variant="outline"
+                    className="bg-fill w-fit"
+                  >
+                    Learn about Relationships <BookIcon />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-between">
+                <CodeBlockWithLanguageSelector
+                  data={{ typescript: codeRelationships, python: codeRelationshipsPy }}
+                  className="w-full"
+                  preClassName="md:w-full"
+                  wrapperClassName="rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* {add section here} */}
 
       <section className="outline-stroke outline outline-1 outline-offset-0 md:hidden" id="demo">
         <div className="container">
@@ -496,11 +623,12 @@ export const HowItWorks = () => {
               <div className="outline-stroke row-end-1 w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:row-end-2 md:rounded-r-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">AI & Machine Learning</h4>
                 <p className="text-content3 text-md md:text-base">
-                  Leverage RushDB as your <b>AI persistence</b> — perfect for <b>predictive analytics</b>,{' '}
-                  <b>AI embeddings</b>, <b>recommendation systems</b>, and <b>vector search</b>. With{' '}
-                  <b>low-latency</b> and <b>vector database</b> capabilities powered by a{' '}
-                  <b>knowledge graph</b> engine, it’s optimized for <b>AI-first applications</b> and works as
-                  a plug-and-play <b>backend as a service</b>.
+                  Building <b>NLP pipelines</b> and <b>Graph RAG</b> was never simpler. RushDB serves as your{' '}
+                  <b>AI persistence</b> layer — perfect for <b>predictive analytics</b>, <b>AI embeddings</b>,{' '}
+                  <b>recommendation systems</b>, and <b>vector search</b>. With <b>low-latency</b> and{' '}
+                  <b>vector database</b> capabilities powered by a <b>knowledge graph</b> engine, it's
+                  optimized for <b>AI-first applications</b> and works as a plug-and-play{' '}
+                  <b>backend as a service</b>.
                 </p>
               </div>
 
@@ -559,7 +687,7 @@ export const HowItWorks = () => {
                 <p className="text-content3 text-md text-center md:text-base">
                   Create a project, grab your API token,
                   <br />
-                  and start building in less than 30 seconds.
+                  and start building in less than 15 seconds.
                 </p>
                 <div className="m-auto flex w-full justify-center gap-4">
                   <MainCta size="small" variant="accent" text="Create Project" />
@@ -595,6 +723,24 @@ export const HowItWorks = () => {
               height={989}
               className="w-full"
             />
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b">
+        <div className="container text-center">
+          <div className="outline-stroke outline outline-1 outline-offset-0">
+            <h3 className="typography-2xl md:typography-xl text pt-20">See RushDB in Action</h3>
+            <p className="text-content3 text-md pb-8 pt-8 !tracking-normal md:text-base">
+              Watch how easy it is to build with RushDB. From zero to production in minutes.
+            </p>
+            <div className="mx-auto max-w-4xl px-6 pb-20">
+              <YouTubeEmbed
+                videoId="NKgNV3y_wVY"
+                title="RushDB Demo - Build faster with zero-config database"
+                className="shadow-lg"
+              />
+            </div>
           </div>
         </div>
       </section>
