@@ -6,8 +6,8 @@ import { GitHub } from '~/components/Icons/GitHub'
 
 export const SocialProof = () => {
   return (
-    <Section className="bg-secondary/30 border-y">
-      <div className="container py-12 text-center">
+    <section className="container">
+      <div className="outline-stroke rounded-b-[50px] py-12 text-center outline outline-1 outline-offset-0">
         <div className="flex items-center justify-center gap-8 md:flex-col md:gap-6">
           <div className="flex items-center gap-2">
             <GitHub className="h-5 w-5" />
@@ -41,6 +41,6 @@ export const SocialProof = () => {
           </Link>
         </div>
       </div>
-    </Section>
+    </section>
   )
 }

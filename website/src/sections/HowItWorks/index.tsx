@@ -358,7 +358,7 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className="outline-stroke outline outline-1 outline-offset-0">
+      <section className="outline-stroke my-[1px] outline outline-1 outline-offset-0">
         <div className="container grid w-full grid-flow-col grid-rows-2 gap-[1px] md:grid-flow-row md:grid-rows-3">
           <div className="outline-stroke row-span-2 w-full rounded-full rounded-tr-none p-8 outline outline-1 outline-offset-0 md:hidden md:p-6"></div>
 
@@ -456,50 +456,47 @@ export const HowItWorks = () => {
         </div>
       </section>
 
-      <section className="border-b border-t">
-        <div className="container m-auto">
-          <div className="bg-secondary rounded-[80px] p-12 md:rounded-[50px] md:p-8">
-            <div className="grid grid-cols-2 md:grid-cols-1 md:gap-8">
-              <div className="flex flex-col justify-between">
-                <div className="mb-8">
-                  <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">
-                    Smart Faceted Search Out of the Box
-                  </h4>
-                  <p className="text-content3 text-md mb-4 !tracking-normal md:text-base">
-                    RushDB's <b>property graph</b> design means every filter makes your search <b>smarter</b>.
-                    The more you filter, the more precise your options become — like marketplace category
-                    filters that automatically reduce brand choices, but for <b>any dataset at any scale</b>.
-                  </p>
-                  <p className="text-content3 text-md !tracking-normal md:text-base">
-                    <b>Properties</b> are managed <b>autonomously</b> by RushDB — search capabilities are
-                    delivered instantly at record creation time. No manual indexing, no configuration — just
-                    intelligent <b>faceted search</b> that works out of the box.
-                  </p>
-                </div>
-
-                <div className="text-center md:text-left">
-                  <Button
-                    as={Link}
-                    href={links.storage}
-                    target="_blank"
-                    size="small"
-                    variant="outline"
-                    className="bg-fill w-fit"
-                  >
-                    Learn more about RushDB storage <BookIcon />
-                  </Button>
-                </div>
+      <section className="container m-auto">
+        <div className="bg-secondary rounded-[80px] p-12 md:rounded-[50px] md:p-8">
+          <div className="grid grid-cols-2 md:grid-cols-1 md:gap-8">
+            <div className="flex flex-col justify-between">
+              <div className="mb-4">
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">
+                  Smart Faceted Search Out of the Box
+                </h4>
+                <p className="text-content3 text-md mb-4 !tracking-normal md:text-base">
+                  RushDB's <b>property graph</b> design means every filter makes your search <b>smarter</b>.
+                  The more you filter, the more precise your options become — like marketplace category
+                  filters that automatically reduce brand choices, but for <b>any dataset at any scale</b>.
+                </p>
+                <p className="text-content3 text-md !tracking-normal md:text-base">
+                  <b>Properties</b> are managed <b>autonomously</b> by RushDB — search capabilities are
+                  delivered instantly at record creation time. No manual indexing, no configuration — just
+                  intelligent <b>faceted search</b> that works out of the box.
+                </p>
               </div>
+              <div className="text-center md:text-left">
+                <Button
+                  as={Link}
+                  href={links.storage}
+                  target="_blank"
+                  size="small"
+                  variant="outline"
+                  className="bg-fill w-fit"
+                >
+                  RushDB Storage <BookIcon />
+                </Button>
+              </div>
+            </div>
 
-              <div className="flex flex-col justify-between">
-                {/* Enhanced Property Graph Visualization */}
-                <div className="flex-1">
-                  <div className="bg-fill flex h-full min-h-[200px] flex-col justify-center rounded-lg">
-                    <PropertyGraphTopology />
-                    <p className="text-content text-center text-sm font-medium !tracking-normal">
-                      Property Graph Topology
-                    </p>
-                  </div>
+            <div className="flex flex-col justify-between">
+              {/* Enhanced Property Graph Visualization */}
+              <div className="flex-1">
+                <div className="bg-fill flex h-full min-h-[200px] flex-col justify-center rounded-lg">
+                  <PropertyGraphTopology />
+                  <p className="text-content text-center text-sm font-medium !tracking-normal">
+                    Property Graph Topology
+                  </p>
                 </div>
               </div>
             </div>
@@ -558,7 +555,7 @@ export const HowItWorks = () => {
                     variant="outline"
                     className="bg-fill w-fit"
                   >
-                    Learn about Relationships <BookIcon />
+                    RushDB Relationships <BookIcon />
                   </Button>
                 </div>
               </div>
