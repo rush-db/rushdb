@@ -12,22 +12,6 @@ import { useBillingData } from '~/hooks/useBillingData'
 import { Switch } from '~/components/Switch'
 import { PricingComparison } from '~/components/PricingComparison'
 
-type PaidStartPlanId = 'start'
-type PaidPlanId = 'pro'
-type PlanPeriod = 'annual' | 'month'
-
-type IncomingPlanData = {
-  amount: number
-  priceId: string
-  productId: string
-}
-
-type BillingData = Record<PaidStartPlanId | PaidPlanId, Record<PlanPeriod, IncomingPlanData>>
-
-interface PricingProps {
-  initialBillingData?: BillingData | null
-}
-
 function Feat({ title, subtitle }: { title: ReactNode; subtitle?: ReactNode }) {
   return (
     <li className="py-3 text-start">
@@ -67,8 +51,8 @@ function PricingCard({
   return (
     <article
       className={cx(
-        'flex flex-col items-center rounded-xl p-1 text-center first:rounded-l-3xl last:rounded-r-3xl sm:!rounded-xl [&:first-child>div]:rounded-l-[20px] [&:last-child>div]:rounded-r-[20px]',
-        featured ? 'border-accent border-2' : 'border-2',
+        'bg-secondary flex flex-col items-center rounded-xl p-1 text-center first:rounded-l-3xl last:rounded-r-3xl sm:!rounded-xl [&:first-child>div]:rounded-l-[20px] [&:last-child>div]:rounded-r-[20px]',
+        featured ? 'border-accent border-2' : 'bg-secondary border-2',
         className
       )}
       {...props}
@@ -76,7 +60,7 @@ function PricingCard({
       <div
         className={cx(
           'flex h-full w-full flex-col items-center justify-between gap-4 rounded-lg p-4 sm:!rounded-lg',
-          featured ? 'bg-fill' : ''
+          featured ? 'bg-fill' : 'bg-secondary'
         )}
       >
         <div className="w-full p-4">
@@ -106,9 +90,9 @@ enum Variants {
   OnPremise = 'on-premise'
 }
 
-export function Pricing({ initialBillingData }: PricingProps) {
+export function Pricing() {
   const [variant] = useState<Variants>(Variants.Cloud)
-  const { loading, data } = useBillingData(initialBillingData)
+  const { loading, data } = useBillingData()
 
   const [annual, setAnnual] = useState(false)
 

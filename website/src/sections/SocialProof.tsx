@@ -1,3 +1,4 @@
+import { Section } from '~/components/Section'
 import { Check, Star } from 'lucide-react'
 import Link from 'next/link'
 import { socials } from '~/config/urls'

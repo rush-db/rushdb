@@ -5,7 +5,6 @@ import { jetBrainsMono, manrope } from '~/styles/fonts'
 import React, { useMemo } from 'react'
 import cx from 'classnames'
 import { CodingLanguageProvider } from '~/contexts/CodingLanguage'
-import { ThemeProvider } from '~/contexts/ThemeContext'
 import Script from 'next/script'
 import { generateJsonLd } from '~/utils/jsonLd'
 import { useRouter } from 'next/router'
@@ -86,11 +85,9 @@ export default function App({ Component, pageProps }: AppProps) {
       )}
 
       <main className={cx(jetBrainsMono.variable, manrope.variable)}>
-        <ThemeProvider>
-          <CodingLanguageProvider>
-            <Component {...pageProps} />
-          </CodingLanguageProvider>
-        </ThemeProvider>
+        <CodingLanguageProvider>
+          <Component {...pageProps} />
+        </CodingLanguageProvider>
       </main>
     </>
   )

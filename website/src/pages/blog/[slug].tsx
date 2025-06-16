@@ -2,9 +2,9 @@ import { MDXRemoteSerializeResult } from 'next-mdx-remote'
 import { serialize } from 'next-mdx-remote/serialize'
 
 import { Layout } from '~/components/Layout'
-import { GetServerSideProps } from 'next'
+import { GetStaticPaths, GetStaticProps } from 'next'
 import { LetterTypingText } from '~/components/LetterTypingText'
-import { getRemoteBlogPost, getRemoteBlogPosts } from '~/sections/blog/remote-utils'
+import { getBlogPost, getBlogPosts } from '~/sections/blog/utils'
 import { Post } from '~/sections/blog/types'
 import { MDXRenderer } from '~/sections/blog/MDXRenderer'
 import { PostCard } from '~/sections/blog/PostCard'
@@ -19,7 +19,7 @@ import { useRouter } from 'next/router'
 type Props = {
   serializedPost: MDXRemoteSerializeResult
   data: Post['data']
-  morePosts: Array<Post['data']>
+  morePosts: Array<Post>
 }
 
 type Params = {
@@ -31,15 +31,17 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
 
   const jsonLdData = generateJsonLd('blog', {
     title: data.title,
-    description: data.excerpt,
-    datePublished: data.publishedAt,
+    description: data.description,
+    datePublished: data.date,
     url: getAbsoluteURL(router.asPath)
   })
 
   return (
-    <Layout title={data.title} description={data.excerpt} image={getAbsoluteURL(data.image)}>
+    <Layout title={data.title} description={data.description} image={getAbsoluteURL(data.image)}>
       <Head>
-        <meta name="robots" content="index, follow" />
+        {data?.noindex ?
+          <meta name="robots" content="noindex, nofollow" />
+        : <meta name="robots" content="index, follow" />}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }} />
       </Head>
       <MDXRenderer {...serializedPost} data={data} showDate />
@@ -47,7 +49,36 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
         <div className="m-auto mb-8 mt-8 max-w-5xl border-t pb-8">
           <CallToAction />
 
-          <Faq />
+          <h4 className="py-8 text-xl font-bold leading-tight">FAQ</h4>
+          <Faq
+            items={[
+              {
+                question: 'How does RushDB differ from traditional SQL and NoSQL databases?',
+                answer:
+                  'RushDB bridges the gap between SQL and NoSQL by leveraging graph-based relationships and flattening JSON or CSV data into interconnected Records.'
+              },
+              {
+                question: 'Do I need to structure my data before using RushDB?',
+                answer:
+                  'Not at all. RushDB automatically normalizes and connects your data, making setup effortless.'
+              },
+              {
+                question: 'What makes RushDB ideal for data scientists and ML engineers?',
+                answer:
+                  'Its graph-based structure and powerful querying capabilities make it easy to explore and analyze complex relationships in your data.'
+              },
+              {
+                question: 'Can RushDB handle nested JSON data effectively?',
+                answer:
+                  'Yes, RushDB splits nested JSON into distinct records and connects them as a graph for seamless querying.'
+              },
+              {
+                question: 'How fast can I start using RushDB?',
+                answer:
+                  'You can set up and start working with RushDB in less than 30 seconds with an API token.'
+              }
+            ]}
+          />
         </div>
       </div>
       {morePosts?.length > 0 && (
@@ -69,37 +100,42 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
   )
 }
 
-export const getServerSideProps: GetServerSideProps<Props, Params> = async ({ params }) => {
+export const getStaticProps: GetStaticProps<Props, Params> = async ({ params }) => {
   if (!params?.slug) {
     return {
       notFound: true
     }
   }
 
-  const post = await getRemoteBlogPost(params.slug)
+  const post = getBlogPost(params.slug)
 
-  if (!post?.__id) {
-    return {
-      notFound: true
-    }
-  }
-
-  const serializedPost = await serialize(post?.content, {
+  const serializedPost = await serialize(post.content, {
     mdxOptions: {
       remarkPlugins: [remarkGfm]
     },
-    scope: post
+    scope: post.data
   })
 
-  const morePosts = await getRemoteBlogPosts().then((posts) =>
-    posts.filter((p) => p.slug !== params.slug).slice(0, 3)
-  )
+  const morePosts = getBlogPosts()
+    .filter((post) => post.slug !== params.slug)
+    .slice(0, 3)
 
   return {
     props: {
       serializedPost,
-      data: post,
+      data: post.data,
       morePosts
     }
+  }
+}
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const paths = getBlogPosts().map(({ slug }) => ({
+    params: { slug }
+  }))
+
+  return {
+    paths,
+    fallback: false
   }
 }

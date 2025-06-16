@@ -67,7 +67,7 @@ export function useRecords() {
 // Fetch Properties from RushDB
 export function useProperties() {
   const { where = {}, labels, skip, limit } = useSearchQuery()
-
+  
   return useQuery({
     queryKey: ['properties', where, labels, skip, limit],
     queryFn: () => db.properties.find({ where, labels, skip, limit })
@@ -202,24 +202,17 @@ export const Demo = forwardRef<HTMLDivElement, PropsWithoutRef<DemoProps>>(
     }, [])
 
     return (
-      <div
-        className={cn(className, 'w-full rounded-xl bg-[#131313] dark:bg-[#0a0a0a]')}
-        ref={ref}
-        style={style}
-      >
-        <div className="text-content-contrast border-b-stroke mb-2 flex w-full cursor-pointer justify-between rounded-t-xl border-b bg-[#131313] text-center font-mono font-bold dark:border-b-[#404040] dark:bg-[#0a0a0a]">
+      <div className={cn(className, 'w-full rounded-xl bg-[#131313]')} ref={ref} style={style}>
+        <div className="text-content-contrast border-b-content2 mb-2 flex w-full cursor-pointer justify-between rounded-t-xl border-b bg-[#131313] text-center font-mono font-bold">
           {Object.keys(tabs).map((key) => (
             <div
               key={key}
               onClick={() => setTab(key as keyof typeof tabs)}
-              className={cn(
-                'w-full grow py-2 transition hover:bg-gray-800 hover:grayscale-0 dark:hover:bg-gray-700',
-                {
-                  grayscale: key !== tab,
-                  'border-accent border-b-2 text-white dark:text-white': key === tab,
-                  'text-gray-400 dark:text-gray-300': key !== tab
-                }
-              )}
+              className={cn('w-full grow py-2 transition hover:grayscale-0', {
+                grayscale: key !== tab,
+                'border-b': key === tab,
+                'text-content3': key !== tab
+              })}
             >
               {key} <Logo className="h-8 w-8 p-2" tab={key} />
             </div>

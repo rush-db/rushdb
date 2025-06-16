@@ -8,7 +8,6 @@ import { Button, MainCta } from '~/components/Button'
 import { IconButton } from '~/components/IconButton'
 import { IconX } from '~/components/Layout/IconX'
 import { Logo } from '~/components/Logo'
-import { ThemeSwitcher } from '~/components/ThemeSwitcher'
 import { links, socials } from '~/config/urls'
 import { GitHub } from '~/components/Icons/GitHub'
 
@@ -86,15 +85,6 @@ function MobileMenu() {
 
               <div className="bg-stroke my-4 h-0.5" />
 
-              <div className="container">
-                <div className="flex items-center justify-between px-3 py-2">
-                  <span className="typography-base text-content2">Theme</span>
-                  <ThemeSwitcher />
-                </div>
-              </div>
-
-              <div className="bg-stroke my-4 h-0.5" />
-
               <div className="container divide-y">
                 {/*<h6 className="typography-base text-content2 px-3">Socials</h6>*/}
 
@@ -111,7 +101,7 @@ function MobileMenu() {
                 </MenuItem>
                 <MenuItem as={Link} href={socials.github} target="_blank" rel="noreferrer noopener">
                   <div className="flex items-center gap-2">
-                    <GitHub height={18} width={18} className="text-content dark:text-content" />
+                    <GitHub height={18} width={18} className="" />
                     Github
                   </div>
                 </MenuItem>
@@ -149,7 +139,6 @@ function Nav() {
         key={'nav-socials'}
         className="flex min-w-0 items-center gap-4 overflow-hidden whitespace-nowrap sm:!hidden"
       >
-        <ThemeSwitcher />
         <IconButton
           variant="custom"
           size="small"
@@ -159,7 +148,7 @@ function Nav() {
           rel="noreferrer noopener"
           title="Github"
         >
-          <GitHub className="text-content dark:text-content" />
+          <GitHub />
         </IconButton>
       </div>
 
