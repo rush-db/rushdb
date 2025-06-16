@@ -1,9 +1,9 @@
 import { MainCta } from '~/components/Button'
 
 export const CallToAction = ({
-  text = 'Ready to Ship Faster? Start Building with RushDB',
+  text = 'Ready to Build Faster? Zero Config Database for Modern Apps & AI',
   buttonText = 'Start Building Free',
-  description = "Join developers who've eliminated database complexity. Zero setup, zero config, maximum velocity. Build features your users love, not infrastructure they'll never see."
+  description = 'Join developers shipping at maximum velocity. Push JSON, query instantly with our auto-normalizing graph database. Zero setup, zero schemas — just pure, frictionless development. 2 projects free forever, no credit card required.'
 }: {
   text?: string
   description?: string

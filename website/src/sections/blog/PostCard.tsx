@@ -1,10 +1,11 @@
 import classNames from 'classnames'
 import Image from 'next/image'
 import Link from 'next/link'
-import { LetterTypingText } from '~/components/LetterTypingText'
 import { Post } from '~/sections/blog/types'
+import { formatDate } from './utils'
+import { Tags } from '~/components/Tags'
 
-export function PostCard({ post, className }: { post: Post; className?: string }) {
+export function PostCard({ post, className }: { post: Post['data']; className?: string }) {
   return (
     <Link
       key={post.slug}
@@ -16,18 +17,28 @@ export function PostCard({ post, className }: { post: Post; className?: string }
         className
       )}
     >
-      {post.data.image && (
-        <div className="absolute inset-0 transition group-hover:scale-105">
-          <Image src={post.data.image} className="object-cover" alt="" fill />
+      <div className="absolute inset-0 transition group-hover:scale-105">
+        <Image src={post.image || '/images/blog/default-cover.png'} className="object-cover" alt="" fill />
+      </div>
+
+      {/* Gradient overlay to improve text visibility */}
+      <div className="z-5 absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/10"></div>
+
+      <div className="relative z-10 flex h-full w-full flex-col justify-end p-6">
+        <h4 className="text-md mb-1 font-bold leading-tight text-white">{post.title}</h4>
+
+        {/* Meta information row below title */}
+        <div className="mb-2 flex flex-wrap items-center gap-x-3 text-white/80">
+          <span className="text-sm font-medium">{formatDate(post.publishedAt)}</span>
+          {post.readTime && (
+            <span className="flex items-center text-sm">
+              <span className="mr-1 inline-block h-1 w-1 rounded-full bg-white/60"></span>
+              {post.readTime} min read
+            </span>
+          )}
         </div>
-      )}
 
-      <div className="bg-fill/5 relative z-10 flex h-full w-full flex-col justify-end p-6">
-        <p className="mb-auto">{post.data.date}</p>
-
-        <h4 className="text-md max-w-sm font-bold leading-none drop-shadow-lg">
-          {post.data.title as string}
-        </h4>
+        {post.tags && post.tags.length > 0 && <Tags tags={post.tags} limit={3} />}
       </div>
     </Link>
   )

@@ -4,7 +4,7 @@ import Image from 'next/image'
 
 export const Mission = () => {
   return (
-    <section className="container mx-auto grid max-w-3xl content-center items-center gap-4 px-10 py-20">
+    <section className="container mx-auto grid max-w-3xl content-center items-center gap-4 py-20">
       <div className="flex items-center justify-start gap-4 md:justify-between">
         <h3 className="typography-2xl md:typography-xl font-bold">Team & Mission</h3>
         <div className="flex">
