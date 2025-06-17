@@ -227,7 +227,11 @@ export const Demo = forwardRef<HTMLDivElement, PropsWithoutRef<DemoProps>>(
         </div>
         {isClient ?
           tab === 'Live Preview' ?
-            <iframe src={'https://main.d2d2gymukglcvg.amplifyapp.com/'} className="h-[85vh] w-full" />
+            <iframe
+              src={'https://main.d2d2gymukglcvg.amplifyapp.com/'}
+              className="h-[85vh] w-full"
+              title="RushDB Demo App"
+            />
           : <CodeBlock
               code={code[tab]}
               className={className}

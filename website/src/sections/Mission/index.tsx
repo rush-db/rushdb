@@ -1,4 +1,4 @@
-import as from '../../images/team/as.jpg'
+import as from '../../images/team/as.png'
 import av from '../../images/team/av.png'
 import Image from 'next/image'
 
@@ -8,14 +8,14 @@ export const Mission = () => {
       <div className="flex items-center justify-start gap-4 md:justify-between">
         <h3 className="typography-2xl md:typography-xl font-bold">Team & Mission</h3>
         <div className="flex">
-          <Image src={av.src} alt="Artemiy" width={60} height={60} priority className="rounded-full" />
+          <Image src={av.src} alt="Artemiy" width={60} height={60} className="rounded-full" loading="lazy" />
           <Image
             src={as.src}
             alt="Andrey"
             width={60}
             height={60}
-            priority
             className="ml-[-10px] rounded-full"
+            loading="lazy"
           />
         </div>
       </div>

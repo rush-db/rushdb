@@ -24,7 +24,7 @@ export function PostCard({ post, className }: { post: Post['data']; className?: 
       )}
     >
       <div className="absolute inset-0 transition group-hover:scale-105">
-        <Image src={post.image || defaultCoverImage} className="object-cover" alt="" fill />
+        <Image src={post.image || defaultCoverImage} className="object-cover" alt="" fill loading="lazy" />
       </div>
 
       {/* Gradient overlay to improve text visibility */}

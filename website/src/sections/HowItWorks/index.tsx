@@ -713,12 +713,12 @@ export const HowItWorks = () => {
               <b>clarity</b>.
             </p>
             <Image
-              priority
               src={dashboard.src}
               alt="dashboard-preview"
               width={1894}
               height={989}
               className="w-full"
+              loading="lazy"
             />
           </div>
         </div>
