@@ -16,8 +16,100 @@
     text-rendering: optimizeLegibility;
     -webkit-text-size-adjust: 100%;
     --radius: 0.5rem;
-    color-scheme: dark;
+    color-scheme: light;
     scrollbar-gutter: stable;
+
+    /* Light theme colors */
+    --color-fill: 0 0% 100%;
+    --color-fill-contrast: 0 0% 20%;
+    --color-fill-hover: 0 0% 92%;
+    --color-fill-focus: 0 0% 92%;
+
+    --color-fill2: 0 0% 95%;
+    --color-fill2-contrast: 0 0% 25%;
+    --color-fill2-hover: 0 0% 90%;
+    --color-fill2-focus: 0 0% 90%;
+
+    --color-fill3: 0 0% 90%;
+    --color-fill3-contrast: 0 0% 30%;
+    --color-fill3-hover: 0 0% 85%;
+    --color-fill3-focus: 0 0% 85%;
+
+    --color-content: 0 0% 15%;
+    --color-content-contrast: 0 0% 100%;
+    --color-content-hover: 0 0% 25%;
+    --color-content-focus: 0 0% 25%;
+
+    --color-content2: 0 0% 30%;
+    --color-content2-contrast: 0 0% 100%;
+    --color-content2-hover: 0 0% 40%;
+    --color-content2-focus: 0 0% 40%;
+
+    --color-content3: 0 0% 50%;
+    --color-content3-contrast: 0 0% 100%;
+    --color-content3-hover: 0 0% 60%;
+    --color-content3-focus: 0 0% 60%;
+
+    --color-stroke: 0 0% 92%;
+    --color-stroke-contrast: 0 0% 80%;
+
+    --color-primary: 0 0% 100%;
+    --color-primary-contrast: 0 0% 10%;
+    --color-primary-hover: 0 0% 95%;
+    --color-primary-focus: 0 0% 95%;
+
+    --color-secondary: 0 0% 100%;
+    --color-secondary-contrast: 0 0% 20%;
+    --color-secondary-hover: 0 0% 96%;
+    --color-secondary-focus: 0 0% 100%;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    /* Dark theme colors */
+    --color-fill: 0 0% 10%;
+    --color-fill-contrast: 0 0% 95%;
+    --color-fill-hover: 0 0% 15%;
+    --color-fill-focus: 0 0% 15%;
+
+    --color-fill2: 0 0% 7%;
+    --color-fill2-contrast: 0 0% 90%;
+    --color-fill2-hover: 0 0% 12%;
+    --color-fill2-focus: 0 0% 12%;
+
+    --color-fill3: 0 0% 12%;
+    --color-fill3-contrast: 0 0% 85%;
+    --color-fill3-hover: 0 0% 17%;
+    --color-fill3-focus: 0 0% 17%;
+
+    --color-content: 0 0% 95%;
+    --color-content-contrast: 0 0% 5%;
+    --color-content-hover: 0 0% 85%;
+    --color-content-focus: 0 0% 85%;
+
+    --color-content2: 0 0% 80%;
+    --color-content2-contrast: 0 0% 10%;
+    --color-content2-hover: 0 0% 70%;
+    --color-content2-focus: 0 0% 70%;
+
+    --color-content3: 0 0% 65%;
+    --color-content3-contrast: 0 0% 15%;
+    --color-content3-hover: 0 0% 55%;
+    --color-content3-focus: 0 0% 55%;
+
+    --color-stroke: 0 0% 20%;
+    --color-stroke-contrast: 0 0% 40%;
+
+    --color-primary: 0 0% 10%;
+    --color-primary-contrast: 0 0% 95%;
+    --color-primary-hover: 0 0% 15%;
+    --color-primary-focus: 0 0% 15%;
+
+    --color-secondary: 0 0% 20%;
+    --color-secondary-contrast: 0 0% 90%;
+    --color-secondary-hover: 0 0% 25%;
+    --color-secondary-focus: 0 0% 20%;
   }
 
   ::selection {
@@ -139,6 +231,10 @@ a {
   background-repeat: repeat;
   background-size: contain;
   background-position: center bottom;
+}
+
+.dark .hero {
+  background-image: url("/images/hero-bg-dark.svg");
 }
 
 b {

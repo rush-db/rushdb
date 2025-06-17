@@ -100,7 +100,7 @@ export const Hero = () => {
                 </Button>
               </div>
 
-              <div className="text-content3 mt-16 flex items-center justify-start gap-2 text-sm md:justify-center">
+              <div className="text-content3 text-md mt-16 flex flex-col items-start justify-start gap-2 md:items-center md:justify-center">
                 <span>
                   <Check className="text-accent mx-auto h-5 w-5" /> 2 projects free forever
                 </span>
@@ -113,7 +113,7 @@ export const Hero = () => {
               </div>
             </div>
 
-            <div className="flex w-full items-center justify-start md:hidden md:flex-col">
+            <div className="m-auto flex min-w-[465px] items-center justify-start md:hidden md:flex-col">
               <CodeBlockWithLanguageSelector
                 data={{
                   typescript: code,

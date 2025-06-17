@@ -22,7 +22,7 @@ export function Layout({
 
       <Header />
 
-      <main className={classNames('min-h-screen pt-24 md:pt-0', className)}>{children}</main>
+      <div className={classNames('min-h-screen pt-24 md:pt-0', className)}>{children}</div>
 
       <Footer />
       <CookieNotification />

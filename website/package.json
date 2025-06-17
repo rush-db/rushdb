@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "PORT=3008 next dev",
     "dev:watch": "next-remote-watch ./posts",
-    "build": "next build && next export",
+    "build": "next build",
     "postbuild": "next-sitemap",
     "types:check": "tsc --noEmit",
     "start": "next start",
@@ -16,6 +16,7 @@
     "@radix-ui/react-portal": "^1.1.2",
     "@radix-ui/react-tabs": "^1.1.2",
     "@radix-ui/react-switch": "^1.1.2",
+    "@rushdb/javascript-sdk": "workspace:*",
     "classnames": "2.3.2",
     "framer-motion": "^11.15.0",
     "lucide-react": "^0.473.0",

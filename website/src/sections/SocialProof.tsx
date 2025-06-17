@@ -1,4 +1,3 @@
-import { Section } from '~/components/Section'
 import { Check, Star } from 'lucide-react'
 import Link from 'next/link'
 import { socials } from '~/config/urls'
@@ -8,7 +7,7 @@ export const SocialProof = () => {
   return (
     <section className="container">
       <div className="outline-stroke rounded-b-[50px] py-12 text-center outline outline-1 outline-offset-0">
-        <div className="flex items-center justify-center gap-8 md:flex-col md:gap-6">
+        <div className="text-md flex items-center justify-center gap-8 md:flex-col md:gap-6">
           <div className="flex items-center gap-2">
             <GitHub className="h-5 w-5" />
             <span className="font-medium">Open Source</span>
@@ -34,7 +33,7 @@ export const SocialProof = () => {
           </div>
         </div>
 
-        <div className="text-content3 mt-8 text-sm">
+        <div className="text-content3 text-md mt-8">
           <p>Trusted by developers who ship fast</p> {/* <span className="mx-2">•</span> */}
           <Link href={socials.github} target="_blank" className="hover:text-accent underline">
             Star us on GitHub

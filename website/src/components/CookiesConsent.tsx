@@ -26,22 +26,22 @@ export default function CookieNotification() {
   if (!isVisible) return null
 
   return (
-    <div className="fixed bottom-4 right-4 z-10 ml-4 max-w-xs rounded-lg border border-gray-200 bg-white p-4 shadow-lg md:max-w-sm md:p-2">
+    <div className="outline-stroke bg-fill fixed bottom-4 right-4 z-10 ml-4 max-w-xs rounded-lg p-4 shadow-lg outline outline-1 outline-offset-0 md:max-w-sm md:p-2">
       <div className="mb-4 flex items-center justify-between md:mb-2">
         <span className="text-lg leading-4">🍪</span>
-        <Button onClick={handleReject} size="small" variant="secondary">
+        <Button onClick={handleReject} size="small" variant="outline" className="bg-fill">
           <X className="h-4 w-4" />
         </Button>
       </div>
       <p className="text-content3 mb-4 text-sm md:mb-2">
         We use cookies to enhance your experience. By clicking "Accept," you agree to{' '}
-        <Link href="/cookie-policy" target="_blank" className="text-blue-500 underline hover:text-blue-700">
+        <Link href="/cookie-policy" target="_blank" className="text-accent hover:text-accent-hover underline">
           our use of cookies
         </Link>
         .
       </p>
 
-      <Button variant="outline" size="small" onClick={handleAccept} className="w-full">
+      <Button variant="outline" size="small" onClick={handleAccept} className="bg-fill w-full">
         Accept
       </Button>
     </div>

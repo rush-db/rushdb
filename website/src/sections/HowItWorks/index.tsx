@@ -313,7 +313,7 @@ export const HowItWorks = () => {
             </p>
           </div>
           <div className="mx-auto max-w-4xl">
-            <div className="bg-secondary rounded-lg p-8 md:p-4">
+            <div className="rounded-lg p-8 md:p-4">
               <div className="flex items-center justify-center gap-4 md:grid md:grid-cols-2 md:gap-2">
                 <div className="text-center">
                   <div className="bg-accent-yellow mx-auto mb-2 h-4 w-4 rounded-full"></div>
@@ -403,7 +403,7 @@ export const HowItWorks = () => {
             </p>
 
             <div className="mx-auto max-w-2xl">
-              <div className="bg-secondary p-6 md:p-4">
+              <div className="p-6 md:p-4">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-3">
                     <span className="text-content bg-fill rounded px-3 py-1 font-mono text-lg">JSON in</span>
@@ -457,7 +457,7 @@ export const HowItWorks = () => {
       </section>
 
       <section className="container m-auto">
-        <div className="bg-secondary rounded-[80px] p-12 md:rounded-[50px] md:p-8">
+        <div className="rounded-[80px] p-12 md:rounded-[50px] md:p-8">
           <div className="grid grid-cols-2 md:grid-cols-1 md:gap-8">
             <div className="flex flex-col justify-between">
               <div className="mb-4">
@@ -506,7 +506,7 @@ export const HowItWorks = () => {
 
       <section className="border-b border-t">
         <div className="container m-auto">
-          <div className="bg-secondary rounded-[80px] p-12 md:rounded-[50px] md:p-8">
+          <div className="rounded-[80px] p-12 md:rounded-[50px] md:p-8">
             <div className="mb-12 text-center">
               <h3 className="typography-2xl md:typography-xl text mb-6">Relationships That Make Sense</h3>
               <p className="text-content3 text-md mx-auto max-w-4xl !tracking-normal md:text-base">
@@ -743,7 +743,7 @@ export const HowItWorks = () => {
       </section>
       <section className="outline-stroke outline outline-1 outline-offset-0">
         <div className="container text-center">
-          <div className="outline-stroke rounded-t-full py-20 outline outline-1 outline-offset-0 md:rounded-t-[100px]">
+          <div className="outline-stroke rounded-bl-[80px] rounded-tr-[80px] py-20 outline outline-1 outline-offset-0 md:rounded-bl-[50px] md:rounded-tr-[50px]">
             <h3 className="typography-2xl md:typography-xl text mb-8">
               Bring your own <span className="text-accent">Neo4j</span> instance
             </h3>
@@ -766,11 +766,7 @@ export const HowItWorks = () => {
             <h3 className="typography-2xl md:typography-xl text mb-8">Self-hosted? Simple.</h3>
             <p className="text-content3 text-md !tracking-normal md:text-base">
               1. Setup your Neo4j instance or use{' '}
-              <Link
-                href="https://neo4j.com/product/auradb/"
-                target="_blank"
-                className="underline decoration-dashed"
-              >
+              <Link href="https://neo4j.com/product/auradb/" target="_blank" className="underline">
                 Neo4j Aura
               </Link>
             </p>

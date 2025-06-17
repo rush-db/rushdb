@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./src/**/*.{js,ts,jsx,tsx}'],
+  darkMode: 'class',
   theme: {
     screens: {
       xl: { max: '1920px' },
@@ -74,50 +75,50 @@ module.exports = {
           ring: 'hsla(0, 0%, 92%, 0.5)'
         },
         fill: {
-          DEFAULT: 'hsl(0,0%,100%)',
-          contrast: 'hsl(0, 0%, 20%)',
-          hover: 'hsl(0, 0%, 92%)',
-          focus: 'hsl(0, 0%, 92%)',
+          DEFAULT: 'hsl(var(--color-fill))',
+          contrast: 'hsl(var(--color-fill-contrast))',
+          hover: 'hsl(var(--color-fill-hover))',
+          focus: 'hsl(var(--color-fill-focus))',
           ring: 'hsla(0, 0%, 97%, 0.5)'
         },
         fill2: {
-          DEFAULT: 'hsl(0, 0%, 95%)',
-          contrast: 'hsl(0, 0%, 25%)',
-          hover: 'hsl(0, 0%, 90%)',
-          focus: 'hsl(0, 0%, 90%)',
+          DEFAULT: 'hsl(var(--color-fill2))',
+          contrast: 'hsl(var(--color-fill2-contrast))',
+          hover: 'hsl(var(--color-fill2-hover))',
+          focus: 'hsl(var(--color-fill2-focus))',
           ring: 'hsla(0, 0%, 95%, 0.5)'
         },
         fill3: {
-          DEFAULT: 'hsl(0, 0%, 90%)',
-          contrast: 'hsl(0, 0%, 30%)',
-          hover: 'hsl(0, 0%, 85%)',
-          focus: 'hsl(0, 0%, 85%)',
+          DEFAULT: 'hsl(var(--color-fill3))',
+          contrast: 'hsl(var(--color-fill3-contrast))',
+          hover: 'hsl(var(--color-fill3-hover))',
+          focus: 'hsl(var(--color-fill3-focus))',
           ring: 'hsla(0, 0%, 90%, 0.5)'
         },
         content: {
-          DEFAULT: 'hsl(0, 0%, 15%)',
-          contrast: 'hsl(0, 0%, 100%)',
-          hover: 'hsl(0, 0%, 25%)',
-          focus: 'hsl(0, 0%, 25%)',
+          DEFAULT: 'hsl(var(--color-content))',
+          contrast: 'hsl(var(--color-content-contrast))',
+          hover: 'hsl(var(--color-content-hover))',
+          focus: 'hsl(var(--color-content-focus))',
           ring: 'hsla(0, 0%, 15%, 0.5)'
         },
         content2: {
-          DEFAULT: 'hsl(0, 0%, 30%)',
-          contrast: 'hsl(0, 0%, 100%)',
-          hover: 'hsl(0, 0%, 40%)',
-          focus: 'hsl(0, 0%, 40%)',
+          DEFAULT: 'hsl(var(--color-content2))',
+          contrast: 'hsl(var(--color-content2-contrast))',
+          hover: 'hsl(var(--color-content2-hover))',
+          focus: 'hsl(var(--color-content2-focus))',
           ring: 'hsla(0, 0%, 30%, 0.5)'
         },
         content3: {
-          DEFAULT: 'hsl(0, 0%, 50%)',
-          contrast: 'hsl(0, 0%, 100%)',
-          hover: 'hsl(0, 0%, 60%)',
-          focus: 'hsl(0, 0%, 60%)',
+          DEFAULT: 'hsl(var(--color-content3))',
+          contrast: 'hsl(var(--color-content3-contrast))',
+          hover: 'hsl(var(--color-content3-hover))',
+          focus: 'hsl(var(--color-content3-focus))',
           ring: 'hsla(0, 0%, 50%, 0.5)'
         },
         stroke: {
-          DEFAULT: '#EBEBEB',
-          contrast: 'hsl(0, 0%, 80%)',
+          DEFAULT: 'hsl(var(--color-stroke))',
+          contrast: 'hsl(var(--color-stroke-contrast))',
           hover: 'hsla(0, 0%, 20%, 0.2)',
           focus: 'hsla(0, 0%, 20%, 0.2)',
           ring: 'hsla(0, 0%, 20%, 0.5)'
@@ -130,17 +131,17 @@ module.exports = {
           ring: 'rgba(63, 129, 255, 0.24)' // Transparent version of base for focus ring
         },
         primary: {
-          DEFAULT: 'hsl(0, 0%, 100%)',
-          contrast: 'hsl(0, 0%, 10%)',
-          hover: 'hsl(0, 0%, 95%)',
-          focus: 'hsl(0, 0%, 95%)',
+          DEFAULT: 'hsl(var(--color-primary))',
+          contrast: 'hsl(var(--color-primary-contrast))',
+          hover: 'hsl(var(--color-primary-hover))',
+          focus: 'hsl(var(--color-primary-focus))',
           ring: 'hsla(0, 0%, 100%, 0.5)'
         },
         secondary: {
-          DEFAULT: 'hsla(0, 0%, 100%, 0.9)',
-          contrast: 'hsl(0, 0%, 20%)',
-          hover: 'hsla(0,0%,96%,0.8)',
-          focus: 'hsla(0, 0%, 100%, 0.8)',
+          DEFAULT: 'hsl(var(--color-secondary) / 0.9)',
+          contrast: 'hsl(var(--color-secondary-contrast))',
+          hover: 'hsl(var(--color-secondary-hover) / 0.8)',
+          focus: 'hsl(var(--color-secondary-focus) / 0.8)',
           ring: 'hsla(0, 0%, 100%, 0.5)'
         }
       }
