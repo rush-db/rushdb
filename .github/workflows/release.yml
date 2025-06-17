@@ -42,20 +42,23 @@ jobs:
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Install Dependencies
-        run: pnpm install
-
-      - name: Build SDK
-        run: pnpm --filter ./packages/javascript-sdk... build
-
-      - name: Setup .npmrc
+      - name: Setup .npmrc for Public and Private Packages
         run: |
           cat << EOF > ~/.npmrc
           registry=https://registry.npmjs.org/
           //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
           access=public
           always-auth=true
+          
+          @rush-db:registry=https://npm.pkg.github.com/
+          //npm.pkg.github.com/:_authToken=${{ secrets.NPM_PRIVATE_REGISTRY_TOKEN }}
           EOF
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Build SDK
+        run: pnpm --filter ./packages/javascript-sdk... build
 
       - name: Determine Upcoming Version
         id: determine-version
@@ -73,6 +76,7 @@ jobs:
           title: "chore(release): version packages v${{ steps.determine-version.outputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # @TODO: Dedupe
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -120,6 +124,7 @@ jobs:
           file: platform/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: NPM_PRIVATE_REGISTRY_TOKEN=${{ secrets.NPM_PRIVATE_REGISTRY_TOKEN }}
           tags: |
             rushdb/platform:latest
             rushdb/platform:${{ needs.release.outputs.version }}
