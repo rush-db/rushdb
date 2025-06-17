@@ -37,7 +37,7 @@ export function PostCard({ post, className }: { post: Post['data']; className?: 
         <div className="mb-2 flex flex-wrap items-center gap-x-3 text-white/80">
           <span className="text-sm font-medium">{formatDate(post.publishedAt)}</span>
           {post.readTime && (
-            <span className="flex items-center text-sm">
+            <span className="flex items-center text-sm font-medium">
               <span className="mr-1 inline-block h-1 w-1 rounded-full bg-white/60"></span>
               {post.readTime} min read
             </span>
