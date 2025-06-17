@@ -1,57 +1,56 @@
 import { MDXRemoteSerializeResult } from 'next-mdx-remote'
-import { serialize } from 'next-mdx-remote/serialize'
 
 import { Layout } from '~/components/Layout'
-import { GetStaticPaths, GetStaticProps } from 'next'
-import { Post } from '~/sections/blog/types'
-import { MDXRenderer } from '~/sections/blog/MDXRenderer'
-import { getPost, getPosts } from '~/sections/blog/utils'
+import { GetServerSideProps } from 'next'
+import { Page } from '~/sections/blog/types'
+import { MDXPageRenderer } from '~/sections/blog/MDXRenderer'
+import { getRemotePage } from '~/sections/blog/remote-utils'
+import remarkGfm from 'remark-gfm'
+import { serialize } from 'next-mdx-remote/serialize'
 
 type Props = {
-  serializedPost: MDXRemoteSerializeResult
-  data: Post['data']
+  serializedPage: MDXRemoteSerializeResult
+  data: Page['data']
 }
 
 type Params = {
   slug: string
 }
 
-export default function StaticPage({ serializedPost, data }: Props) {
+export default function StaticPage({ serializedPage, data }: Props) {
   return (
-    <Layout title={data.title} description={data.description} image={data.image}>
-      <MDXRenderer {...serializedPost} data={data} />
+    <Layout title={data.title}>
+      <MDXPageRenderer {...serializedPage} data={data} />
     </Layout>
   )
 }
 
-export const getStaticProps: GetStaticProps<Props, Params> = async ({ params }) => {
+export const getServerSideProps: GetServerSideProps<Props, Params> = async ({ params }) => {
   if (!params?.slug) {
     return {
       notFound: true
     }
   }
 
-  const post = getPost(params.slug)
+  const page = await getRemotePage(params.slug)
 
-  const serializedPost = await serialize(post.content, {
-    scope: post.data
+  if (!page?.__id) {
+    return {
+      notFound: true
+    }
+  }
+
+  const serializedPage = await serialize(page?.content, {
+    mdxOptions: {
+      remarkPlugins: [remarkGfm]
+    },
+    scope: page
   })
 
   return {
     props: {
-      serializedPost,
-      data: post.data
+      serializedPage,
+      data: page
     }
-  }
-}
-
-export const getStaticPaths: GetStaticPaths = async () => {
-  const paths = getPosts().map(({ slug }) => ({
-    params: { slug }
-  }))
-
-  return {
-    paths,
-    fallback: false
   }
 }

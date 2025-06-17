@@ -1,39 +1,37 @@
-import classNames from "classnames"
-import { GetStaticProps } from "next"
+import classNames from 'classnames'
+import { GetServerSideProps } from 'next'
 
-import { Layout } from "~/components/Layout"
-import { LetterTypingText } from "~/components/LetterTypingText"
-import { PostCard } from "~/sections/blog/PostCard"
-import { Post } from "~/sections/blog/types"
-import { getBlogPosts } from "~/sections/blog/utils"
+import { Layout } from '~/components/Layout'
+import { LetterTypingText } from '~/components/LetterTypingText'
+import { PostCard } from '~/sections/blog/PostCard'
+import { Post } from '~/sections/blog/types'
+import { getRemoteBlogPosts } from '~/sections/blog/remote-utils'
 
-type Props = { posts: Array<Post> }
+type Props = { posts: Array<Post['data']> }
 
 export default function Index({ posts }: Props) {
   return (
-    <Layout className="container ">
+    <Layout className="container">
       <section>
-        <div className="flex flex-col items-center pt-32 pb-16">
-          <p className="text-content2 uppercase font-mono">blog</p>
-          <LetterTypingText
-            as="h1"
-            className="text-4xl leading-[1] font-bold"
-            animate
-          >
-            Overview
+        <div className="flex flex-col items-center pb-16 pt-32">
+          <p className="text-content3 font-mono uppercase">Latest Updates</p>
+          <LetterTypingText as="h1" className="text-4xl font-black leading-[1]" animate>
+            RushDB Blog
           </LetterTypingText>
+          <p className="text-content3 mt-4 max-w-2xl text-center">
+            Stay up to date with the latest features, tutorials, and insights from the RushDB team
+          </p>
         </div>
 
-        <div className="w-full col-span-12 grid grid-cols-12 gap-3 mx-auto">
+        <div className="col-span-12 mx-auto grid w-full grid-cols-12 gap-3">
           {posts.map((post, idx) => (
             <PostCard
               key={post.slug}
               post={post}
               className={classNames({
-                "row-start-1 row-span-2 col-span-8 md:col-span-12": idx === 0,
-                "row-span-1 col-span-4 md:col-span-6 sm:col-span-12":
-                  idx === 1 || idx === 2,
-                "col-span-4 md:col-span-6 sm:col-span-12": idx > 2,
+                'col-span-8 row-span-2 row-start-1 md:col-span-12': idx === 0,
+                'col-span-4 row-span-1 sm:col-span-12 md:col-span-6': idx === 1 || idx === 2,
+                'col-span-4 sm:col-span-12 md:col-span-6': idx > 2
               })}
             />
           ))}
@@ -43,8 +41,12 @@ export default function Index({ posts }: Props) {
   )
 }
 
-export const getStaticProps: GetStaticProps<Props> = () => {
-  const posts = getBlogPosts()
+export const getServerSideProps: GetServerSideProps<Props> = async () => {
+  const posts = await getRemoteBlogPosts()
 
-  return { props: { posts } }
+  return {
+    props: {
+      posts
+    }
+  }
 }

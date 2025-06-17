@@ -12,11 +12,16 @@ type IncomingPlanData = {
 
 type BillingData = Record<PaidStartPlanId | PaidPlanId, Record<PlanPeriod, IncomingPlanData>>
 
-export function useBillingData() {
-  const [data, setData] = useState<BillingData | null>(null)
-  const [loading, setLoading] = useState(true)
+export function useBillingData(initialData?: BillingData | null) {
+  const [data, setData] = useState<BillingData | null>(initialData || null)
+  const [loading, setLoading] = useState(!initialData)
 
   useEffect(() => {
+    // If we already have initial data from SSR, don't fetch again
+    if (initialData) {
+      return
+    }
+
     async function fetchBillingData() {
       try {
         setLoading(true)
@@ -37,7 +42,7 @@ export function useBillingData() {
     }
 
     fetchBillingData()
-  }, [])
+  }, [initialData])
 
   return { data, loading }
 }
