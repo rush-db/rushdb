@@ -35,11 +35,7 @@ export default function CookieNotification() {
       </div>
       <p className="text-content3 mb-4 text-sm md:mb-2">
         We use cookies to enhance your experience. By clicking "Accept," you agree to{' '}
-        <Link
-          href="/cookie-policy"
-          target="_blank"
-          className="text-accent hover:text-accent-hover underline decoration-dashed"
-        >
+        <Link href="/cookie-policy" target="_blank" className="text-accent hover:text-accent-hover underline">
           our use of cookies
         </Link>
         .

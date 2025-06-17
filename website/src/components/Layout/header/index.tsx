@@ -181,7 +181,7 @@ export const Header = () => {
         </Link>
 
         <Nav />
-        <div className="ml-4 flex gap-2 justify-self-end">
+        <div className="ml-4 flex gap-4 justify-self-end">
           <Button
             variant="outline"
             as={Link}

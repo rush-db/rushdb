@@ -766,11 +766,7 @@ export const HowItWorks = () => {
             <h3 className="typography-2xl md:typography-xl text mb-8">Self-hosted? Simple.</h3>
             <p className="text-content3 text-md !tracking-normal md:text-base">
               1. Setup your Neo4j instance or use{' '}
-              <Link
-                href="https://neo4j.com/product/auradb/"
-                target="_blank"
-                className="underline decoration-dashed"
-              >
+              <Link href="https://neo4j.com/product/auradb/" target="_blank" className="underline">
                 Neo4j Aura
               </Link>
             </p>
