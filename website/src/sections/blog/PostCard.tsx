@@ -4,8 +4,14 @@ import Link from 'next/link'
 import { Post } from '~/sections/blog/types'
 import { formatDate } from './utils'
 import { Tags } from '~/components/Tags'
+import { useTheme } from '~/contexts/ThemeContext'
 
 export function PostCard({ post, className }: { post: Post['data']; className?: string }) {
+  const { theme } = useTheme()
+
+  const defaultCoverImage =
+    theme === 'dark' ? '/images/blog/default-cover-dark.png' : '/images/blog/default-cover.png'
+
   return (
     <Link
       key={post.slug}
@@ -18,7 +24,7 @@ export function PostCard({ post, className }: { post: Post['data']; className?: 
       )}
     >
       <div className="absolute inset-0 transition group-hover:scale-105">
-        <Image src={post.image || '/images/blog/default-cover.png'} className="object-cover" alt="" fill />
+        <Image src={post.image || defaultCoverImage} className="object-cover" alt="" fill />
       </div>
 
       {/* Gradient overlay to improve text visibility */}

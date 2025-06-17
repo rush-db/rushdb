@@ -6,6 +6,7 @@ interface ThemeContextType {
   theme: Theme
   toggleTheme: () => void
   setTheme: (theme: Theme) => void
+  isInitialized: boolean
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
@@ -24,6 +25,7 @@ interface ThemeProviderProps {
 
 export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   const [theme, setThemeState] = useState<Theme>('light')
+  const [isInitialized, setIsInitialized] = useState(false)
 
   useEffect(() => {
     // Check for saved theme preference or default to 'light'
@@ -31,8 +33,21 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
 
     const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light')
-    setThemeState(initialTheme)
-    applyTheme(initialTheme)
+
+    // Only update state if it's different from what's already applied in the document
+    const isDarkApplied = document.documentElement.classList.contains('dark')
+    const shouldBeDark = initialTheme === 'dark'
+
+    if (isDarkApplied === shouldBeDark) {
+      // Theme is already correctly applied by the blocking script
+      setThemeState(initialTheme)
+      setIsInitialized(true)
+    } else {
+      // Fallback: apply theme if script didn't work
+      setThemeState(initialTheme)
+      applyTheme(initialTheme)
+      setIsInitialized(true)
+    }
   }, [])
 
   const applyTheme = (newTheme: Theme) => {
@@ -62,5 +77,9 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     setTheme(newTheme)
   }
 
-  return <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>{children}</ThemeContext.Provider>
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme, isInitialized }}>
+      {children}
+    </ThemeContext.Provider>
+  )
 }

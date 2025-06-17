@@ -58,23 +58,19 @@ export const CodeBlockWithLanguageSelector = forwardRef<
   const setLanguage = useCallback((lang: string) => setLang(lang), [language])
 
   return (
-    <div
-      className={cn(className, 'w-full rounded-xl bg-[#131313] dark:bg-[#0a0a0a]')}
-      ref={ref}
-      style={style}
-    >
-      <div className="text-content-contrast border-b-stroke mb-2 flex w-full cursor-pointer justify-between rounded-t-xl border-b bg-[#131313] text-center font-mono font-bold dark:border-b-[#404040] dark:bg-[#0a0a0a]">
+    <div className={cn(className, 'w-full rounded-xl bg-[#131313]')} ref={ref} style={style}>
+      <div className="text-content-contrast border-b-stroke mb-2 flex w-full cursor-pointer justify-between rounded-t-xl border-b border-b-[#404040] bg-[#131313] text-center font-mono font-bold dark:bg-[#0a0a0a]">
         {Object.keys(data).map((key) => (
           <div
             key={key}
             onClick={() => setLanguage(key)}
             className={cn('flex w-full grow items-center justify-center py-2 transition hover:grayscale-0', {
               grayscale: key !== language,
-              'border-accent border-b-2 text-white dark:text-white': key === language,
+              'dark:border-content border-b-2 text-white dark:text-white': key === language,
               'text-content3 dark:text-content2': key !== language
             })}
           >
-            {key} <Logo className="h-8 w-8 p-2" lang={key} />
+            <Logo className="h-9 w-9 p-2" lang={key} /> {key}
           </div>
         ))}
       </div>
