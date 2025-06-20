@@ -250,16 +250,13 @@ try {
   });
 
   // Create a relationship between Alice and the post
-  await alice.attach({
-    target: post,
-    options: {
-      type: "CREATED",
-      properties: {
-        at: new Date().toISOString()
-      }
+  await alice.attach(
+    post,
+    {
+      type: 'CREATED'
     },
     transaction
-  });
+  )
 
   // Commit the transaction
   await transaction.commit();
@@ -290,11 +287,7 @@ with db.transactions.begin() as transaction:
     alice.attach(
         target=post,
         options={
-            "type": "CREATED",
-            "direction": "out",
-            "properties": {
-                "at": "2024-05-17T10:30:00.000Z"
-            }
+            "type": "CREATED"
         },
         transaction=transaction
     )
