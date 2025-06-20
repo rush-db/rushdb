@@ -39,7 +39,7 @@ db = RushDB("RUSHDB_API_TOKEN")
 
 ```python
 # Create a record
-user = client.records.create(
+user = db.records.create(
     label="USER",
     data={
         "name": "John Doe",
@@ -50,7 +50,7 @@ user = client.records.create(
 )
 
 # Find records
-results = client.records.find({
+result = db.records.find({
     "where": {
         "age": {"$gte": 18},
         "name": {"$startsWith": "J"}
@@ -58,13 +58,20 @@ results = client.records.find({
     "limit": 10
 })
 
+# Iterate over results
+for user in result:
+    print(f"Found user: {user.get('name')}")
+
+# Check result metadata
+print(f"Found {len(result)} users out of {result.total} total")
+
 # Update a record
 user.update({
     "last_login": "2025-05-04T12:30:45Z"
 })
 
 # Create relationships
-company = client.records.create(
+company = db.records.create(
     label="COMPANY",
     data={"name": "Acme Inc."}
 )
@@ -82,16 +89,16 @@ Ensure data consistency with transactions:
 
 ```python
 # Begin a transaction
-with client.transactions.begin() as transaction:
+with db.transactions.begin() as transaction:
     # Create a user
-    user = client.records.create(
+    user = db.records.create(
         label="USER",
         data={"name": "Alice Smith"},
         transaction=transaction
     )
 
     # Create a product
-    product = client.records.create(
+    product = db.records.create(
         label="PRODUCT",
         data={"name": "Smartphone", "price": 799.99},
         transaction=transaction

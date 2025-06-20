@@ -2,7 +2,6 @@ import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
 import {
   RUSHDB_KEY_ID,
-  RUSHDB_KEY_PROPERTIES_META,
   DEFAULT_RECORD_ALIAS,
   RUSHDB_KEY_ID_ALIAS,
   RUSHDB_VALUE_EMPTY_ARRAY
@@ -128,11 +127,7 @@ export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap) {
         recordPart: `collect(DISTINCT record {${fieldsInCollect.join(', ')}}) AS records`
       }
     } else {
-      const fieldsInCollect: string[] = [
-        `${RUSHDB_KEY_ID}: record.${RUSHDB_KEY_ID}`,
-        `${RUSHDB_KEY_PROPERTIES_META}: record.${RUSHDB_KEY_PROPERTIES_META}`,
-        `${label()}`
-      ]
+      const fieldsInCollect: string[] = ['.*', `${label()}`]
 
       const withAggregations = []
       const orderClauses = []

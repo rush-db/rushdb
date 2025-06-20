@@ -10,7 +10,7 @@
 RushDB transforms how you work with graph data — no schema required, no complex queries, just push your data and go.
 
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
-[![Follow on Twitter](https://img.shields.io/twitter/follow/rushdb?style=social)](https://twitter.com/rushdb)
+[![Follow on X (Twitter)](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 
 [🌐 Website](https://rushdb.com) • [📖 Documentation](https://docs.rushdb.com) • [☁️ Cloud Platform](https://app.rushdb.com) • [🔍 Examples](https://github.com/rush-db/examples)
 

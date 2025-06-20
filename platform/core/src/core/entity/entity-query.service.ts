@@ -144,7 +144,7 @@ export class EntityQueryService {
       .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
       .append(normalizedQueryClauses)
 
-    if (sortedQueryParts?.filter(toBoolean).length > 1) {
+    if (parsedWhere.nodeAliases.filter(toBoolean).length > 1) {
       const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
 
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
@@ -178,7 +178,7 @@ export class EntityQueryService {
       .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
       .append(queryClauses.join(`\n`))
 
-    if (sortedQueryParts?.filter(toBoolean).length > 1) {
+    if (parsedWhere.nodeAliases.filter(toBoolean).length > 1) {
       const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
 
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
@@ -210,7 +210,7 @@ export class EntityQueryService {
         .append(`MATCH (record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
         .append(queryClauses.join(`\n`))
 
-      if (sortedQueryParts?.filter(toBoolean).length > 1) {
+      if (parsedWhere.nodeAliases.filter(toBoolean).length > 1) {
         const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
 
         queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
@@ -293,7 +293,7 @@ export class EntityQueryService {
       .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
       .append(toBoolean(id) ? queryClauses.join(`\n`) : rawQueryClauses.join(`\n`))
 
-    if (sortedQueryParts?.filter(toBoolean).length > 1) {
+    if (parsedWhere.nodeAliases.filter(toBoolean).length > 1) {
       const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
 
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
@@ -340,7 +340,7 @@ export class EntityQueryService {
       .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
       .append(toBoolean(id) ? queryClauses.join(`\n`) : rawQueryClauses.join(`\n`))
 
-    if (sortedQueryParts?.filter(toBoolean).length > 1) {
+    if (parsedWhere.nodeAliases.filter(toBoolean).length > 1) {
       const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
 
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())

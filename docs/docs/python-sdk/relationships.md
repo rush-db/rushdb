@@ -200,7 +200,7 @@ You can find records based on their relationships:
 
 ```python
 # Find all employees of a specific department
-employees = db.records.find({
+result = db.records.find({
     "labels": ["EMPLOYEE"],
     "where": {
         "_in": {  # Use _in to find incoming relationships
@@ -210,8 +210,10 @@ employees = db.records.find({
     }
 })
 
+employees = result.data
+
 # Find all projects managed by a specific user
-projects = db.records.find({
+result = db.records.find({
     "labels": ["PROJECT"],
     "where": {
         "_in": {
@@ -220,6 +222,8 @@ projects = db.records.find({
         }
     }
 })
+
+projects = result.data
 ```
 
 ## Using Custom Relationship Types

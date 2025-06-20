@@ -2,9 +2,58 @@ import type { Config } from '@docusaurus/types'
 import type * as Preset from '@docusaurus/preset-classic'
 import { themes } from 'prism-react-renderer'
 import tailwindPlugin from './plugins/tailwind-config.cjs'
-import { version } from './package.json'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
+
+// Helper function to generate categorized content files
+async function generateCategorizedContentFiles(
+  llmsDir: string,
+  allMdx: string[],
+  currentVersionDocsRoutes: Record<string, Record<string, unknown>>,
+  filePathToContent: Map<string, string>
+) {
+  // Create mapping from file content to routes to categorize the full content
+  const categories = {
+    concepts: [] as string[],
+    'typescript-sdk': [] as string[],
+    'python-sdk': [] as string[],
+    'rest-api': [] as string[],
+    tutorials: [] as string[],
+    'get-started': [] as string[]
+  }
+
+  // Group content by file paths directly
+  for (const [filePath, content] of filePathToContent.entries()) {
+    // Categorize by file path prefix
+    if (filePath.startsWith('concepts/')) {
+      categories.concepts.push(content)
+    } else if (filePath.startsWith('typescript-sdk/')) {
+      categories['typescript-sdk'].push(content)
+    } else if (filePath.startsWith('python-sdk/')) {
+      categories['python-sdk'].push(content)
+    } else if (filePath.startsWith('rest-api/')) {
+      categories['rest-api'].push(content)
+    } else if (filePath.startsWith('tutorials/')) {
+      categories.tutorials.push(content)
+    } else if (filePath.startsWith('get-started/')) {
+      categories['get-started'].push(content)
+    }
+  }
+
+  // Generate full content files for each category
+  for (const [categoryName, categoryContent] of Object.entries(categories)) {
+    if (categoryContent.length > 0) {
+      const categoryContentPath = path.join(llmsDir, `llms-${categoryName}-full.txt`)
+      const combinedContent = categoryContent.join('\n\n---\n\n')
+
+      try {
+        await fs.promises.writeFile(categoryContentPath, combinedContent)
+      } catch (err) {
+        console.error(`Error writing ${categoryName} full content file:`, err)
+      }
+    }
+  }
+}
 
 const atomTheme = {
   plain: {
@@ -107,6 +156,7 @@ const config: Config = {
 
           const contentDir = path.join(siteDir, 'docs')
           const allMdx: string[] = []
+          const filePathToContent: Map<string, string> = new Map()
 
           // recursive function to get all mdx files
           const getMdxFiles = async (dir: string) => {
@@ -119,21 +169,33 @@ const config: Config = {
               } else if (entry.name.endsWith('.mdx') || entry.name.endsWith('.md')) {
                 let content = await fs.promises.readFile(fullPath, 'utf8')
 
-                content = content.replace(/^---\n(?:.*\n)*?sidebar_position:\s*\d+\n(?:.*\n)*?---\n/, '')
+                // Remove ALL front-matter (everything between --- and ---)
+                content = content.replace(/^---\n[\s\S]*?\n---\n/, '')
+
+                // Get relative path from docs directory for categorization
+                const relativePath = path.relative(contentDir, fullPath)
 
                 allMdx.push(content)
+                filePathToContent.set(relativePath, content)
               }
             }
           }
 
           await getMdxFiles(contentDir)
-          return { allMdx }
+          return { allMdx, filePathToContent }
         },
         postBuild: async ({ content, routes, outDir }) => {
-          const { allMdx } = content as { allMdx: string[] }
+          const { allMdx, filePathToContent } = content as {
+            allMdx: string[]
+            filePathToContent: Map<string, string>
+          }
+
+          // Create llms directory
+          const llmsDir = path.join(outDir, 'llms')
+          await fs.promises.mkdir(llmsDir, { recursive: true })
 
           // Write concatenated MDX content
-          const concatenatedPath = path.join(outDir, 'llms-full.txt')
+          const concatenatedPath = path.join(llmsDir, 'llms-full.txt')
           await fs.promises.writeFile(concatenatedPath, allMdx.join('\n\n---\n\n'))
 
           // we need to dig down several layers:
@@ -154,21 +216,71 @@ const config: Config = {
           const currentVersionDocsRoutes = (allDocsRouteConfig.props.version as Record<string, unknown>)
             .docs as Record<string, Record<string, unknown>>
 
-          // for every single docs route we now parse a path (which is the key) and a title
-          const docsRecords = Object.entries(currentVersionDocsRoutes).map(([path, record]) => {
-            return `- [${record.title}](https://docs.rushdb.com/${path}): ${record.description}`
+          // Categorize docs by section
+          const categories = {
+            concepts: [] as string[],
+            'typescript-sdk': [] as string[],
+            'python-sdk': [] as string[],
+            'rest-api': [] as string[],
+            tutorials: [] as string[],
+            'get-started': [] as string[]
+          }
+
+          // Group all docs records by category and prepare content maps
+          const contentByPath = new Map<string, string>()
+          const docsRecords: string[] = []
+
+          Object.entries(currentVersionDocsRoutes).forEach(([path, record]) => {
+            const docEntry = `- [${record.title}](https://docs.rushdb.com/${path}): ${record.description}`
+            docsRecords.push(docEntry)
+
+            // Categorize by path prefix
+            if (path.startsWith('concepts/')) {
+              categories.concepts.push(docEntry)
+            } else if (path.startsWith('typescript-sdk/')) {
+              categories['typescript-sdk'].push(docEntry)
+            } else if (path.startsWith('python-sdk/')) {
+              categories['python-sdk'].push(docEntry)
+            } else if (path.startsWith('rest-api/')) {
+              categories['rest-api'].push(docEntry)
+            } else if (path.startsWith('tutorials/')) {
+              categories.tutorials.push(docEntry)
+            } else if (path.startsWith('get-started/')) {
+              categories['get-started'].push(docEntry)
+            }
           })
 
-          // Build up llms.txt file
+          // Build main llms.txt file
           const llmsTxt = `# ${context.siteConfig.title}\n\n## Docs\n\n${docsRecords.join('\n')}`
-
-          // Write llms.txt file
-          const llmsTxtPath = path.join(outDir, 'llms.txt')
+          const llmsTxtPath = path.join(llmsDir, 'llms.txt')
           try {
             fs.writeFileSync(llmsTxtPath, llmsTxt)
           } catch (err) {
             throw err
           }
+
+          // Generate isolated txt files for each category
+          for (const [categoryName, categoryDocs] of Object.entries(categories)) {
+            if (categoryDocs.length > 0) {
+              const categoryTitle = categoryName
+                .split('-')
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ')
+
+              const categoryTxt = `# RushDB ${categoryTitle}\n\n${categoryDocs.join('\n')}`
+              const categoryPath = path.join(llmsDir, `llms-${categoryName}.txt`)
+
+              try {
+                fs.writeFileSync(categoryPath, categoryTxt)
+              } catch (err) {
+                console.error(`Error writing ${categoryName} file:`, err)
+              }
+            }
+          }
+
+          // Generate isolated content files with full MDX content
+          // We need to parse the full content and categorize by path
+          await generateCategorizedContentFiles(llmsDir, allMdx, currentVersionDocsRoutes, filePathToContent)
         }
       }
     }

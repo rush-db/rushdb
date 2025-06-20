@@ -153,10 +153,12 @@ db.records.delete_by_id(
 )
 
 # Find records within a transaction
-users = db.records.find(
+result = db.records.find(
     query={"labels": ["USER"]},
     transaction=tx
 )
+
+users = result.data
 ```
 
 ### Relationships
@@ -201,15 +203,15 @@ def process_order(db, customer_id, items):
         )
 
         # 2. Retrieve the customer
-        customers = db.records.find(
+        result = db.records.find(
             query={"where": {"id": customer_id}},
             transaction=tx
         )
 
-        if not customers:
+        if not result:
             raise Exception(f"Customer {customer_id} not found")
 
-        customer = customers[0]
+        customer = result[0]
 
         # 3. Connect order to customer
         customer.attach(
@@ -222,7 +224,7 @@ def process_order(db, customer_id, items):
         order_items = []
         for item in items:
             # 4.1. Check inventory
-            inventory = db.records.find(
+            result = db.records.find(
                 query={
                     "labels": ["INVENTORY"],
                     "where": {"productId": item["productId"]}
@@ -230,8 +232,10 @@ def process_order(db, customer_id, items):
                 transaction=tx
             )
 
-            if not inventory or inventory[0]["stock"] < item["quantity"]:
+            if not result or result[0]["stock"] < item["quantity"]:
                 raise Exception(f"Insufficient stock for product {item['productId']}")
+
+            inventory = result[0]
 
             # 4.2. Create order item
             order_item = db.records.create(

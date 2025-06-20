@@ -70,7 +70,7 @@ const products = await db.records.find({
   <TabItem value="python" label="Python">
 ```python
 # Find all active PRODUCT records with price between $10-$50
-products = db.records.find({
+result = db.records.find({
   "labels": ["PRODUCT"],
   "where": {
     "active": True,
@@ -79,6 +79,8 @@ products = db.records.find({
   "orderBy": {"price": "asc"},
   "limit": 20
 })
+
+products = result.data
 ```
   </TabItem>
   <TabItem value="rest" label="REST API">
@@ -344,10 +346,12 @@ filter_query = {
 }
 
 # Get filtered products
-products = db.records.find({
+result = db.records.find({
   "labels": ["PRODUCT"],
   **filter_query
 })
+
+products = result.data
 
 # Get available properties for the remaining product set
 available_properties = db.properties.find(filter_query)
@@ -422,7 +426,8 @@ person_properties = db.properties.find({
 
 # Generate insights based on discovered structure
 insight_query = generate_query_from_discovered_structure(person_properties)
-results = db.records.find(insight_query)
+result = db.records.find(insight_query)
+results = result.data
 ```
   </TabItem>
 </Tabs>

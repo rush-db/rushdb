@@ -24,7 +24,7 @@ describe('Aggregate', () => {
 
     expect(result1).toEqual({
       recordPart:
-        'collect(DISTINCT record {__RUSHDB__KEY__ID__: record.__RUSHDB__KEY__ID__, __RUSHDB__KEY__PROPERTIES__META__: record.__RUSHDB__KEY__PROPERTIES__META__, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], `projectName`: undefined.`name`, `employee_count`, `departments`, `totalStoryPoints`}) AS records',
+        'collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], `projectName`: undefined.`name`, `employee_count`, `departments`, `totalStoryPoints`}) AS records',
       withPart:
         'WITH record, count(record2) AS `employee_count`, apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.`name`))), ["__RUSHDB__VALUE__EMPTY__ARRAY__"]))[0..100] AS `departments`, sum(record3.`storyPoints`) AS `totalStoryPoints`'
     })

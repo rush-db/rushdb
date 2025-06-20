@@ -24,12 +24,7 @@ Visit [RushDB Dashboard](https://dashboard.rushdb.com) and sign up for an accoun
 1. In your project dashboard, navigate to the "API Tokens" section
 2. Click "Generate New Token"
 3. Give your token a name (e.g., "Development", "Production")
-4. Choose the appropriate permissions:
-   - `read` - Read access to records and relationships
-   - `write` - Create and update records and relationships
-   - `delete` - Delete records and relationships
-   - `admin` - Full access, including managing project settings
-5. Click "Generate Token"
+4. Click "Generate Token"
 
 ## 4. Copy and Store Your Token
 
@@ -56,7 +51,7 @@ const db = new RushDB(process.env.RUSHDB_API_TOKEN);
 ```python
 import os
 
-db = RushDB(api_token=os.environ['RUSHDB_API_TOKEN'])
+db = RushDB(api_key=os.environ['RUSHDB_API_TOKEN'])
 ```
   </TabItem>
   <TabItem value="rest" label="REST API">
