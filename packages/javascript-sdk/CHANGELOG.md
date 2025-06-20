@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 1.6.0
+
+### Minor Changes
+
+- aae7461: Update aggregation behavior: all own properties of top-level record now included by default
+
 ## 1.5.1
 
 ### Patch Changes
