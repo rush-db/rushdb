@@ -6,7 +6,6 @@ import { EntityQueryService } from '@/core/entity/entity-query.service'
 const q0 = {
   labels: ['COMPANY'],
   where: {
-    // stage: { $or: ['seed', 'roundA'] },
     $or: [{ stage: 'seed' }, { stage: 'roundA' }],
     EMPLOYEE: {
       $alias: '$employee',
@@ -443,7 +442,11 @@ const q12 = {
 
 const r12 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 WHERE ((\`record\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) <= 0.93)) ORDER BY record.\`__RUSHDB__KEY__ID__\` ASC SKIP 0 LIMIT 1000
-WITH record, gds.similarity.euclidean(record.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) AS \`similarity\`
+WITH record, CASE 
+    WHEN \`record\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND size(\`record\`.\`embedding\`) = size([0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) 
+    THEN gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) 
+    ELSE null 
+  END AS \`similarity\`
 RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`}) AS records`
 
 const q13 = {
@@ -466,7 +469,11 @@ const q13 = {
 }
 
 const r13 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH record, gds.similarity.euclidean(record.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) AS \`similarity\`
+WITH record, CASE 
+    WHEN \`record\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND size(\`record\`.\`embedding\`) = size([0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) 
+    THEN gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) 
+    ELSE null 
+  END AS \`similarity\`
 ORDER BY \`similarity\` DESC SKIP 0 LIMIT 1000
 RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`}) AS records`
 
@@ -496,6 +503,104 @@ WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
 WITH record, count(record1) AS \`employeeCount\`
 ORDER BY \`employeeCount\` DESC SKIP 0 LIMIT 1000
 RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`employeeCount\`}) AS records`
+
+const q15 = {
+  labels: ['COMPANY'],
+  where: {
+    $and: [
+      {
+        active: true
+      },
+      {
+        $or: [
+          {
+            email: {
+              $endsWith: '@gmail.com'
+            }
+          },
+          {
+            email: {
+              $endsWith: '@outlook.com'
+            }
+          }
+        ]
+      }
+    ]
+  },
+  skip: 0,
+  limit: 1000
+}
+
+const r15 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE ((any(value IN record.active WHERE value = true)) AND ((any(value IN record.email WHERE value ENDS WITH "@gmail.com")) OR (any(value IN record.email WHERE value ENDS WITH "@outlook.com")))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
+const q16 = {
+  where: {
+    title: {
+      $type: 'string'
+    }
+  },
+  skip: 0,
+  limit: 1000
+}
+
+const r16 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE (apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`title\` = "string") ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
+const q17 = {
+  where: {
+    title: {
+      $exists: true
+    }
+  },
+  skip: 0,
+  limit: 1000
+}
+
+const r17 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE (record.title IS NOT NULL) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
+const q18 = {
+  where: {
+    $and: [
+      {
+        title: {
+          $exists: true
+        }
+      },
+      { title: { $type: 'string' } }
+    ]
+  },
+  skip: 0,
+  limit: 1000
+}
+
+const r18 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE ((record.title IS NOT NULL) AND (apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`title\` = "string")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+
+const q19 = {
+  where: {
+    emb: {
+      $vector: {
+        fn: 'gds.similarity.cosine',
+        query: [1, 2, 3, 4, 5],
+        threshold: {
+          $gte: 0.5,
+          $lte: 0.8,
+          $ne: 0.75
+        }
+      }
+    }
+  }
+}
+
+const r19 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE ((\`record\`.\`emb\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`emb\` = "vector" AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <> 0.75)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
 
 describe('build complete query', () => {
   let queryService: EntityQueryService
@@ -592,5 +697,29 @@ describe('build complete query', () => {
     const result = queryService.findRecords({ searchQuery: q14 })
 
     expect(result).toEqual(r14)
+  })
+
+  it('15', () => {
+    const result = queryService.findRecords({ searchQuery: q15 })
+
+    expect(result).toEqual(r15)
+  })
+
+  it('16', () => {
+    const result = queryService.findRecords({ searchQuery: q16 })
+
+    expect(result).toEqual(r16)
+  })
+
+  it('17', () => {
+    const result = queryService.findRecords({ searchQuery: q17 })
+
+    expect(result).toEqual(r17)
+  })
+
+  it('18', () => {
+    const result = queryService.findRecords({ searchQuery: q18 })
+
+    expect(result).toEqual(r18)
   })
 })

@@ -22,24 +22,26 @@ export type DatetimeValue = DatetimeObject | string
 export type DatetimeExpression =
   | RequireAtLeastOne<
       Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', DatetimeObject | string> &
-        Record<'$in' | '$nin', Array<DatetimeObject | string>>
+        Record<'$in' | '$nin', Array<DatetimeObject | string>> &
+        Record<'$exists', BooleanValue>
     >
   | DatetimeValue
 
 // BOOLEAN
 export type BooleanValue = boolean
-export type BooleanExpression = Record<'$ne', BooleanValue> | BooleanValue
+export type BooleanExpression = Record<'$ne' | '$exists', BooleanValue> | BooleanValue
 
 // NULL
 export type NullValue = null
-export type NullExpression = Record<'$ne', NullValue> | NullValue
+export type NullExpression = Record<'$ne' | '$exists', NullValue | BooleanValue> | NullValue
 
 // NUMBER
 export type NumberValue = number
 export type NumberExpression =
   | RequireAtLeastOne<
       Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', NumberValue> &
-        Record<'$in' | '$nin', Array<NumberValue>>
+        Record<'$in' | '$nin', Array<NumberValue>> &
+        Record<'$exists', BooleanValue>
     >
   | NumberValue
 
@@ -48,7 +50,8 @@ export type StringValue = string
 export type StringExpression =
   | RequireAtLeastOne<
       Record<'$contains' | '$endsWith' | '$ne' | '$startsWith', StringValue> &
-        Record<'$in' | '$nin', Array<StringValue>>
+        Record<'$in' | '$nin', Array<StringValue>> &
+        Record<'$exists', BooleanValue>
     >
   | StringValue
 
@@ -67,21 +70,25 @@ export type VectorExpression = RequireAtLeastOne<
   >
 >
 
+// TYPE
+export type TypeExpression = Record<'$type', TPropertyType>
+
 export type PropertyExpression =
   | BooleanExpression
   | DatetimeExpression
   | NullExpression
   | NumberExpression
   | StringExpression
+  | TypeExpression
   | VectorExpression
 
 export type PropertyExpressionByType = {
-  boolean: BooleanExpression
-  datetime: DatetimeExpression
-  null: NullExpression
-  number: NumberExpression
-  string: StringExpression
-  vector: VectorExpression
+  boolean: BooleanExpression | TypeExpression
+  datetime: DatetimeExpression | TypeExpression
+  null: NullExpression | TypeExpression
+  number: NumberExpression | TypeExpression
+  string: StringExpression | TypeExpression
+  vector: VectorExpression | TypeExpression
 }
 
 export type LogicalGrouping<T> = {

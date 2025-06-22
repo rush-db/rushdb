@@ -7,7 +7,8 @@ import {
   PROPERTY_TYPE_DATETIME,
   PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_STRING
+  PROPERTY_TYPE_STRING,
+  PROPERTY_TYPE_VECTOR
 } from '@/core/property/property.constants'
 import { TPropertySingleValue, TPropertyType } from '@/core/property/property.types'
 
@@ -62,6 +63,9 @@ export function removeUndefinedKeys(obj) {
 const parseValue = (value: TPropertySingleValue, type: TPropertyType) => {
   switch (type) {
     case PROPERTY_TYPE_NUMBER: {
+      return Number(value)
+    }
+    case PROPERTY_TYPE_VECTOR: {
       return Number(value)
     }
     case PROPERTY_TYPE_BOOLEAN: {

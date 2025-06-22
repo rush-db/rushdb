@@ -139,6 +139,16 @@ function Operations({ property }: { property: Pick<PropertyWithValue, 'name' | '
         handler: createHandler(SearchOperations.NotEquals),
         label: operationsRecord[SearchOperations.NotEquals].label
       }
+      // [SearchOperations.Exists]: {
+      //   code: 'e',
+      //   handler: createHandler(SearchOperations.Exists),
+      //   label: operationsRecord[SearchOperations.Exists].label
+      // },
+      // [SearchOperations.Type]: {
+      //   code: 't',
+      //   handler: createHandler(SearchOperations.Type),
+      //   label: operationsRecord[SearchOperations.Type].label
+      // }
     }
 
     const hotkeys = Object.fromEntries(Object.values(operations).map((entry) => [entry.code, entry.handler]))

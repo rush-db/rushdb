@@ -17,32 +17,10 @@ export type EqualsOperation = SearchOperation<{
   value: PropertySingleValue
 }>
 
-// export type ExactMatchOperation = SearchOperation<{
-//   operation: SearchOperations.ExactMatch
-//   value: PropertyValue
-// }>
-
 export type ExcludeOperation = SearchOperation<{
   operation: SearchOperations.NotEquals
   value: PropertySingleValue
 }>
-
-// export type ExactExcludeOperation = SearchOperation<{
-//   operation: SearchOperations.ExactExclude
-//   value: PropertyValue
-// }>
-//
-// export type RangeOperation = SearchOperation<{
-//   max?: ISO8601 | number
-//   min?: ISO8601 | number
-//   operation: SearchOperations.Range
-// }>
-//
-// export type ExcludeRangeOperation = SearchOperation<{
-//   max: number
-//   min: number
-//   operation: SearchOperations.ExcludeRange
-// }>
 
 export type GreaterOperation = SearchOperation<{
   operation: SearchOperations.Greater
@@ -65,31 +43,15 @@ export type LessOrEqualOperation = SearchOperation<{
 }>
 
 export type AnySearchOperation =
-  // | ExactExcludeOperation
-  // | ExactMatchOperation
   | EqualsOperation
-  // | ExcludeRangeOperation
   | ExcludeOperation
   | GreaterOperation
   | GreaterOrEqualOperation
   | LessOperation
   | LessOrEqualOperation
-// | RangeOperation
 
 /** operation with filterId */
 export type Filter = AnySearchOperation & { filterId: string }
-
-// export const isNumberRangeOperation = (
-//   operation: Pick<AnySearchOperation, 'operation'>
-// ): operation is ExcludeRangeOperation | RangeOperation => {
-//   switch (operation.operation) {
-//     case SearchOperations.Range:
-//     case SearchOperations.ExcludeRange:
-//       return true
-//     default:
-//       return false
-//   }
-// }
 
 export const getViableSearchOperations = (propertyType: PropertyType): Array<SearchOperations> => {
   switch (propertyType) {

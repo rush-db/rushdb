@@ -13,6 +13,7 @@ import {
   AggregateCollectNestedFn,
   AliasesMap
 } from '@/core/common/types'
+import { safeGdsSimilarity, vectorConditionQueryPrefix } from '@/core/search/parser/utils'
 import { SORT_ASC } from '@/core/search/search.constants'
 import { TSearchSort } from '@/core/search/search.types'
 
@@ -191,17 +192,18 @@ export function buildAggregationFunction(
 
       // gds
       case 'gds.similarity.cosine':
-        return `gds.similarity.cosine(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
       case 'gds.similarity.jaccard':
-        return `gds.similarity.jaccard(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
       case 'gds.similarity.euclidean':
-        return `gds.similarity.euclidean(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
       case 'gds.similarity.euclideanDistance':
-        return `gds.similarity.euclideanDistance(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
       case 'gds.similarity.overlap':
-        return `gds.similarity.overlap(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
       case 'gds.similarity.pearson':
-        return `gds.similarity.pearson(${recordAlias}.${fieldAlias}, [${instruction.query}]) AS ${asPart}`
+        return safeGdsSimilarity(
+          instruction.fn,
+          recordAlias,
+          instruction.field,
+          instruction.query as unknown as string,
+          asPart
+        )
 
       default:
         throw new Error(`Unsupported aggregation function: ${JSON.stringify(instruction)}`)

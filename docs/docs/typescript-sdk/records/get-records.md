@@ -318,6 +318,56 @@ const similarDocuments = await db.records.find({
 
 See the [Vector operators documentation](../../concepts/search/where#vector-operators) for more details on vector search capabilities.
 
+### Field Existence and Type Checking
+
+RushDB provides operators to check for field existence and data types, which is particularly useful when working with heterogeneous data:
+
+```typescript
+// Find users who have provided an email but not a phone number
+const emailOnlyUsers = await db.records.find({
+  labels: ["USER"],
+  where: {
+    $and: [
+      { email: { $exists: true } },         // Must have email
+      { phoneNumber: { $exists: false } }   // Must not have phone number
+    ]
+  }
+});
+
+// Find records where age is actually stored as a number (not string)
+const properAgeRecords = await db.records.find({
+  labels: ["USER"],
+  where: {
+    age: { $type: "number" }
+  }
+});
+
+// Complex query combining type and existence checks
+const validProfiles = await db.records.find({
+  labels: ["PROFILE"],
+  where: {
+    $and: [
+      { bio: { $type: "string" } },         // Bio must be text
+      { bio: { $contains: "developer" } },   // Bio mentions developer
+      { skills: { $exists: true } },        // Skills must exist
+      { avatar: { $exists: false } }        // No avatar uploaded yet
+    ]
+  }
+});
+```
+
+The `$exists` operator is useful for:
+- Data validation and cleanup
+- Finding incomplete profiles
+- Filtering by optional fields
+
+The `$type` operator is useful for:
+- Working with imported data that might have inconsistent types
+- Validating data integrity
+- Ensuring type consistency before operations
+
+See the [Field existence operators documentation](../../concepts/search/where#field-existence-operator) for more details.
+
 ### Pagination and Sorting
 
 Control the order and volume of results:

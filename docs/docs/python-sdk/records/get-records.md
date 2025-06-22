@@ -123,6 +123,56 @@ total = result.total
 
 See the [Vector operators documentation](../../concepts/search/where#vector-operators) for more details on vector search capabilities.
 
+### Field Existence and Type Checking
+
+RushDB provides operators to check for field existence and data types, which is particularly useful when working with heterogeneous data:
+
+```python
+# Find users who have provided an email but not a phone number
+email_only_users = db.records.find({
+    "labels": ["USER"],
+    "where": {
+        "$and": [
+            {"email": {"$exists": True}},         # Must have email
+            {"phone_number": {"$exists": False}}  # Must not have phone number
+        ]
+    }
+})
+
+# Find records where age is actually stored as a number (not string)
+proper_age_records = db.records.find({
+    "labels": ["USER"],
+    "where": {
+        "age": {"$type": "number"}
+    }
+})
+
+# Complex query combining type and existence checks
+valid_profiles = db.records.find({
+    "labels": ["PROFILE"],
+    "where": {
+        "$and": [
+            {"bio": {"$type": "string"}},         # Bio must be text
+            {"bio": {"$contains": "developer"}},  # Bio mentions developer
+            {"skills": {"$exists": True}},        # Skills must exist
+            {"avatar": {"$exists": False}}        # No avatar uploaded yet
+        ]
+    }
+})
+```
+
+The `$exists` operator is useful for:
+- Data validation and cleanup
+- Finding incomplete profiles
+- Filtering by optional fields
+
+The `$type` operator is useful for:
+- Working with imported data that might have inconsistent types
+- Validating data integrity
+- Ensuring type consistency before operations
+
+See the [Field existence operators documentation](../../concepts/search/where#field-existence-operator) for more details.
+
 ### Pagination and Sorting
 
 Control the order and volume of results:

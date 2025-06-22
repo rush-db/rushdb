@@ -13,6 +13,7 @@ import type {
   DatetimeValue,
   NullValue,
   NumberValue,
+  PropertyType,
   StringValue
 } from './value.js'
 
@@ -20,25 +21,28 @@ export type DatetimeExpression =
   | DatetimeValue
   | RequireAtLeastOne<
       Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', DatetimeObject | DatetimeValue> &
-        Record<'$in' | '$nin', Array<DatetimeObject | DatetimeValue>>
+        Record<'$in' | '$nin', Array<DatetimeObject | DatetimeValue>> &
+        Record<'$exists', BooleanValue>
     >
 
-export type BooleanExpression = BooleanValue | Record<'$ne', BooleanValue>
+export type BooleanExpression = BooleanValue | Record<'$ne' | '$exists', BooleanValue>
 
-export type NullExpression = NullValue | Record<'$ne', NullValue>
+export type NullExpression = NullValue | Record<'$ne' | '$exists', NullValue | BooleanValue>
 
 export type NumberExpression =
   | NumberValue
   | RequireAtLeastOne<
       Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', NumberValue> &
-        Record<'$in' | '$nin', Array<NumberValue>>
+        Record<'$in' | '$nin', Array<NumberValue>> &
+        Record<'$exists', BooleanValue>
     >
 
 export type StringExpression =
   | StringValue
   | RequireAtLeastOne<
       Record<'$contains' | '$endsWith' | '$ne' | '$startsWith', StringValue> &
-        Record<'$in' | '$nin', Array<StringValue>>
+        Record<'$in' | '$nin', Array<StringValue>> &
+        Record<'$exists', BooleanValue>
     >
 
 export type VectorSearchFn = 'jaccard' | 'overlap' | 'cosine' | 'pearson' | 'euclideanDistance' | 'euclidean'
@@ -52,21 +56,26 @@ export type VectorExpression = {
   }
 }
 
+export type TypeExpression = {
+  $type: PropertyType
+}
+
 export type PropertyExpression =
   | BooleanExpression
   | DatetimeExpression
   | NullExpression
   | NumberExpression
   | StringExpression
+  | TypeExpression
   | VectorExpression
 
 export type PropertyExpressionByType = {
-  [PROPERTY_TYPE_BOOLEAN]: BooleanExpression
-  [PROPERTY_TYPE_DATETIME]: DatetimeExpression
-  [PROPERTY_TYPE_NULL]: NullExpression
-  [PROPERTY_TYPE_NUMBER]: NumberExpression
-  [PROPERTY_TYPE_STRING]: StringExpression
-  [PROPERTY_TYPE_VECTOR]: VectorExpression
+  [PROPERTY_TYPE_BOOLEAN]: BooleanExpression | TypeExpression
+  [PROPERTY_TYPE_DATETIME]: DatetimeExpression | TypeExpression
+  [PROPERTY_TYPE_NULL]: NullExpression | TypeExpression
+  [PROPERTY_TYPE_NUMBER]: NumberExpression | TypeExpression
+  [PROPERTY_TYPE_STRING]: StringExpression | TypeExpression
+  [PROPERTY_TYPE_VECTOR]: VectorExpression | TypeExpression
 }
 
 // Logical Expressions

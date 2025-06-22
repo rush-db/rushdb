@@ -20,8 +20,11 @@ export const comparisonOperators = [
   '$lt',
   '$contains',
   '$startsWith',
-  '$endsWith'
+  '$endsWith',
+  '$exists'
 ]
+
+export const typeOperators = ['$type']
 
 export const datetimeOperators = [
   '$day',

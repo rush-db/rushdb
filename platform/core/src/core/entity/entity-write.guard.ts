@@ -18,6 +18,7 @@ import {
   ID_CLAUSE_OPERATOR,
   logicalOperators,
   RELATION_CLAUSE_OPERATOR,
+  typeOperators,
   vectorOperators
 } from '@/core/search/search.constants'
 
@@ -25,6 +26,7 @@ const publiclyDisallowedKeys = [
   ...logicalOperators,
   ...comparisonOperators,
   ...datetimeOperators,
+  ...typeOperators,
   ...vectorOperators,
   RUSHDB_KEY_ID_ALIAS,
   RUSHDB_KEY_PROJECT_ID_ALIAS,

@@ -7,20 +7,17 @@ import { SvgIcon } from '~/elements/SvgIcon'
 import { SearchOperations } from '../constants'
 
 const iconNames: Record<SearchOperations, string> = {
-  // [SearchOperations.ExactMatch]: 'equals',
   [SearchOperations.Equals]: 'equals',
   [SearchOperations.NotEquals]: 'not_equals',
-  // [SearchOperations.ExactExclude]: 'not_equals',
-  // [SearchOperations.Range]: 'in_range',
-  // [SearchOperations.ExcludeRange]: 'not_in_range',
   [SearchOperations.Less]: 'less',
   [SearchOperations.LessOrEqual]: 'less_or_equals',
   [SearchOperations.Greater]: 'greater',
   [SearchOperations.GreaterOrEqual]: 'greater_or_equals',
-
   [SearchOperations.Contains]: 'contains',
   [SearchOperations.StartsWith]: 'starts_with',
   [SearchOperations.EndsWith]: 'ends_with'
+  // [SearchOperations.Exists]: 'question_mark',
+  // [SearchOperations.Type]: 'question_mark'
   // [SearchOperations.In]: '=~',
   // [SearchOperations.NotIn]: '!=~'
 }

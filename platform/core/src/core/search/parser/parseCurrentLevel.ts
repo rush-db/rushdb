@@ -11,14 +11,23 @@ import { parseComparison } from '@/core/search/parser/parseComparison'
 import { parseSubQuery } from '@/core/search/parser/parseSubQuery'
 import { processLogicalGroupedCriteria } from '@/core/search/parser/processLogicalGroupedCriteria'
 import { ParseContext } from '@/core/search/parser/types'
-import { splitCriteria, wrapInParentheses } from '@/core/search/parser/utils'
+import { isCurrentLevelCriteria, splitCriteria, wrapInParentheses } from '@/core/search/parser/utils'
 import {
   comparisonOperators,
   datetimeOperators,
   ID_CLAUSE_OPERATOR,
+  logicalOperators,
+  typeOperators,
   vectorOperators
 } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
+
+const shouldParseCurrentLevel = (v: any) =>
+  isArray(v) &&
+  (isPrimitiveArray(v) ||
+    v?.every(
+      (criteria) => containsAllowedKeys(criteria, logicalOperators) || isCurrentLevelCriteria(criteria)
+    ))
 
 export const parseCurrentLevel = (
   key: string,
@@ -50,7 +59,12 @@ export const parseCurrentLevel = (
       })
     } else {
       if (
-        containsAllowedKeys(currentLevel, [...comparisonOperators, ...datetimeOperators, ...vectorOperators])
+        containsAllowedKeys(currentLevel, [
+          ...comparisonOperators,
+          ...datetimeOperators,
+          ...typeOperators,
+          ...vectorOperators
+        ])
       ) {
         const condition = parseComparison(key, currentLevel as PropertyExpression, options)
 
@@ -63,7 +77,7 @@ export const parseCurrentLevel = (
           case '$or': {
             let condition
 
-            if (isArray(v) && isPrimitiveArray(v)) {
+            if (shouldParseCurrentLevel(v)) {
               condition = parseCurrentLevel(
                 key,
                 v,
@@ -93,7 +107,7 @@ export const parseCurrentLevel = (
           case '$xor': {
             let condition
 
-            if (isArray(v) && isPrimitiveArray(v)) {
+            if (shouldParseCurrentLevel(v)) {
               condition = parseCurrentLevel(
                 key,
                 v,
@@ -123,7 +137,7 @@ export const parseCurrentLevel = (
           case '$nor': {
             let condition
 
-            if (isArray(v) && isPrimitiveArray(v)) {
+            if (shouldParseCurrentLevel(v)) {
               condition = parseCurrentLevel(
                 key,
                 v,
@@ -155,7 +169,7 @@ export const parseCurrentLevel = (
           case '$not': {
             let condition
 
-            if (isArray(v) && isPrimitiveArray(v)) {
+            if (shouldParseCurrentLevel(v)) {
               condition = parseCurrentLevel(key, v, options, ctx)
             } else {
               condition = processLogicalGroupedCriteria(key, v as Where, options, ctx)
@@ -170,7 +184,7 @@ export const parseCurrentLevel = (
           case '$and': {
             let condition
 
-            if (isArray(v) && isPrimitiveArray(v)) {
+            if (shouldParseCurrentLevel(v)) {
               condition = parseCurrentLevel(
                 key,
                 v,
