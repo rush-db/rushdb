@@ -405,6 +405,7 @@ When providing a simple number as threshold, the comparison differs by function 
     }
   }
 }
+```
 
 ## Field Existence Operator
 
