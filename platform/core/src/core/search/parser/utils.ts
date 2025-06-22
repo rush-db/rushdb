@@ -3,8 +3,10 @@ import { isArray } from '@/common/utils/isArray'
 import { isEmptyObject } from '@/common/utils/isEmptyObject'
 import { isObject } from '@/common/utils/isObject'
 import { isPrimitive } from '@/common/utils/isPrimitive'
-import { Where, MaybeArray, Condition } from '@/core/common/types'
+import { RUSHDB_KEY_PROPERTIES_META } from '@/core/common/constants'
+import { Where, MaybeArray, TVectorSearchFn } from '@/core/common/types'
 import { allowedKeys } from '@/core/search/parser/constants'
+import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
 import { RELATION_CLAUSE_OPERATOR, ALIAS_CLAUSE_OPERATOR, ID_CLAUSE_OPERATOR } from '../search.constants'
 
@@ -77,4 +79,24 @@ export function isCurrentLevelCriteria(input: MaybeArray<Where>) {
   if (isArray(input)) {
     return (input as Array<Where>).every(isCurrentLevelCriteria)
   }
+}
+
+export const vectorConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {
+  return `\`${options.nodeAlias}\`.\`${field}\` IS NOT NULL AND apoc.convert.fromJsonMap(\`${options.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "vector"`
+}
+
+export function safeGdsSimilarity(
+  method: `gds.similarity.${TVectorSearchFn}`,
+  recordAlias: string,
+  field: string,
+  query: string,
+  asPart: string
+) {
+  const nodeVec = `\`${recordAlias}\`.\`${field}\``
+  const queryVec = `[${query}]`
+  return `CASE 
+    WHEN ${vectorConditionQueryPrefix(field, { nodeAlias: recordAlias })} AND size(${nodeVec}) = size(${queryVec}) 
+    THEN ${method}(${nodeVec}, ${queryVec}) 
+    ELSE null 
+  END AS ${asPart}`
 }

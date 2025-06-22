@@ -406,6 +406,125 @@ When providing a simple number as threshold, the comparison differs by function 
   }
 }
 
+## Field Existence Operator
+
+### $exists
+
+The `$exists` operator checks whether a field exists in the record or not. This is useful for filtering records based on the presence or absence of specific fields.
+
+#### Check if field exists
+
+```typescript
+{
+  where: {
+    phoneNumber: { $exists: true }  // Only records that have a phoneNumber field
+  }
+}
+```
+
+#### Check if field does not exist
+
+```typescript
+{
+  where: {
+    phoneNumber: { $exists: false }  // Only records that don't have a phoneNumber field
+  }
+}
+```
+
+The `$exists` operator works with all field types (string, number, boolean, datetime, null, arrays) and considers a field to:
+- **Exist** (`$exists: true`) when the field is not null and not empty
+- **Not exist** (`$exists: false`) when the field is null or empty
+
+**Examples:**
+
+```typescript
+// Find users who have provided their email address
+{
+  where: {
+    email: { $exists: true }
+  }
+}
+
+// Find products that don't have a description
+{
+  where: {
+    description: { $exists: false }
+  }
+}
+
+// Combine with other operators
+{
+  where: {
+    $and: [
+      { email: { $exists: true } },
+      { isActive: true }
+    ]
+  }
+}
+```
+
+### $type
+
+The `$type` operator checks whether a field has a specific data type. This is useful for filtering records based on the data type of a field, especially when working with heterogeneous data or when you need to ensure type consistency.
+
+```typescript
+{
+  where: {
+    value: { $type: "string" }  // Only records where 'value' field is a string
+  }
+}
+```
+
+Available types:
+- `"string"`: Text values
+- `"number"`: Numeric values
+- `"boolean"`: True/false values
+- `"datetime"`: Date and time values
+- `"null"`: Null values
+- `"vector"`: Vector/array values for similarity search
+
+**Examples:**
+
+```typescript
+// Find records where age is actually a number (not stored as string)
+{
+  where: {
+    age: { $type: "number" }
+  }
+}
+
+// Find records where the status field is a boolean
+{
+  where: {
+    status: { $type: "boolean" }
+  }
+}
+
+// Find records with vector embeddings
+{
+  where: {
+    embedding: { $type: "vector" }
+  }
+}
+
+// Combine with other operators to find string fields that contain specific text
+{
+  where: {
+    $and: [
+      { description: { $type: "string" } },
+      { description: { $contains: "important" } }
+    ]
+  }
+}
+```
+
+The `$type` operator is particularly useful when:
+- Working with imported data that might have inconsistent types
+- Validating data integrity across your records
+- Building queries that need to handle fields that might contain different types of values
+- Filtering records before applying type-specific operations
+
 ## Logical Grouping Operators
 
 When you need to create complex conditions, logical grouping operators allow you to combine multiple conditions.
@@ -821,6 +940,30 @@ This query traverses a complex relationship structure from COMPANY to DEPARTMENT
 ```
 
 This query uses nested logical operators to find records that either have a high rating with moderate review count OR a slightly lower rating with high review count and are featured, but in either case are not deprecated.
+</details>
+
+<details>
+<summary>Field existence filtering</summary>
+
+```typescript
+{
+  where: {
+    $and: [
+      { email: { $exists: true } },        // Must have email
+      { phoneNumber: { $exists: false } }, // Must not have phone number
+      { isActive: true },
+      {
+        $or: [
+          { lastLoginDate: { $exists: true } },  // Has logged in before
+          { createdAt: { $gte: "2024-01-01T00:00:00Z" } }  // Or is a recent signup
+        ]
+      }
+    ]
+  }
+}
+```
+
+This query finds active users who have provided an email address but no phone number, and either have logged in before or are recent signups.
 </details>
 
 <details>

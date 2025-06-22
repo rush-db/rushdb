@@ -115,4 +115,49 @@ describe('parseComparison', () => {
       `any(value IN ${queryBuilderOptions.nodeAlias}.field WHERE value = \"${RUSHDB_VALUE_NULL}\")`
     )
   })
+
+  it('parses $exists operator correctly', () => {
+    const result0 = parseComparison('field', { $exists: true }, queryBuilderOptions)
+    expect(result0).toEqual([
+      `${queryBuilderOptions.nodeAlias}.field IS NOT NULL AND size(${queryBuilderOptions.nodeAlias}.field) > 0`
+    ])
+
+    const result1 = parseComparison('field', { $exists: false }, queryBuilderOptions)
+    expect(result1).toEqual([
+      `(${queryBuilderOptions.nodeAlias}.field IS NULL OR size(${queryBuilderOptions.nodeAlias}.field) = 0)`
+    ])
+  })
+
+  it('throws error for invalid $exists value', () => {
+    expect(() => {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      parseComparison('field', { $exists: 'invalid' }, queryBuilderOptions)
+    }).toThrow(QueryCriteriaParsingError)
+  })
+
+  it('parses $type operator correctly', () => {
+    const result0 = parseComparison('field', { $type: 'string' }, queryBuilderOptions)
+    expect(result0).toEqual([
+      `apoc.convert.fromJsonMap(\`${queryBuilderOptions.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`field\` = "string"`
+    ])
+
+    const result1 = parseComparison('age', { $type: 'number' }, queryBuilderOptions)
+    expect(result1).toEqual([
+      `apoc.convert.fromJsonMap(\`${queryBuilderOptions.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`age\` = "number"`
+    ])
+
+    const result2 = parseComparison('embedding', { $type: 'vector' }, queryBuilderOptions)
+    expect(result2).toEqual([
+      `apoc.convert.fromJsonMap(\`${queryBuilderOptions.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`embedding\` = "vector"`
+    ])
+  })
+
+  it('throws error for invalid $type value', () => {
+    expect(() => {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      parseComparison('field', { $type: 123 }, queryBuilderOptions)
+    }).toThrow(QueryCriteriaParsingError)
+  })
 })

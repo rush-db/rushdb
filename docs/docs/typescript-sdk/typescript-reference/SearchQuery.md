@@ -96,6 +96,7 @@ export type PropertyExpression =
   NullExpression |
   NumberExpression |
   StringExpression |
+  TypeExpression |
   VectorExpression
 ```
 
@@ -110,6 +111,7 @@ export type NumberExpression = number | {
   $lte?: number
   $ne?: number
   $nin?: Array<number>
+  $exists?: boolean
 }
 ```
 
@@ -123,6 +125,7 @@ export type StringExpression = string | {
   $endsWith?: string
   $startsWith?: string
   $contains?: string
+  $exists?: boolean
 }
 ```
 
@@ -131,6 +134,7 @@ export type StringExpression = string | {
 ```typescript
 export type BooleanExpression = boolean | {
   $ne?: boolean
+  $exists?: boolean
 }
 ```
 
@@ -139,6 +143,35 @@ export type BooleanExpression = boolean | {
 ```typescript
 export type NullExpression = null | {
   $ne?: null
+  $exists?: boolean | null
+}
+  $ne?: null
+}
+```
+
+#### Type Expressions
+
+```typescript
+export type TypeExpression = {
+  $type: 'string' | 'number' | 'boolean' | 'datetime' | 'null' | 'vector'
+}
+```
+
+The `$type` operator checks whether a field has a specific data type:
+
+```typescript
+// Find records where age is actually stored as a number
+{
+  where: {
+    age: { $type: "number" }
+  }
+}
+
+// Find records with vector embeddings
+{
+  where: {
+    embedding: { $type: "vector" }
+  }
 }
 ```
 

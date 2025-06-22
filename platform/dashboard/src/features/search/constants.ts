@@ -21,6 +21,12 @@ export enum SearchOperations {
   Contains = '$contains',
   StartsWith = '$startsWith',
   EndsWith = '$endsWith'
+
+  // exists: Check if field exists or not
+  // Exists = '$exists',
+
+  // type: Check field data type
+  // Type = '$type'
 }
 
 export const SearchSymbols: Record<SearchOperations, string> = {
@@ -33,6 +39,8 @@ export const SearchSymbols: Record<SearchOperations, string> = {
   [SearchOperations.LessOrEqual]: '<=',
   [SearchOperations.Greater]: '>',
   [SearchOperations.GreaterOrEqual]: '>='
+  // [SearchOperations.Exists]: '?',
+  // [SearchOperations.Type]: '::'
 }
 
 export const operationsRecord: Record<
@@ -112,6 +120,18 @@ export const operationsRecord: Record<
     symbol: SearchSymbols[SearchOperations.GreaterOrEqual],
     description: 'Perform comparisons with numeric property value'
   }
+  // [SearchOperations.Exists]: {
+  //   label: 'Exists',
+  //   value: SearchOperations.Exists,
+  //   symbol: SearchSymbols[SearchOperations.Exists],
+  //   description: 'Check if property exists or not'
+  // },
+  // [SearchOperations.Type]: {
+  //   label: 'Type',
+  //   value: SearchOperations.Type,
+  //   symbol: SearchSymbols[SearchOperations.Type],
+  //   description: 'Check if property has a specific data type'
+  // }
 }
 
 export const operatorOptions = Object.values(operationsRecord)

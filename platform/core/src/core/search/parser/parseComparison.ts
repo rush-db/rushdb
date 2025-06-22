@@ -8,10 +8,12 @@ import { RUSHDB_KEY_PROPERTIES_META, RUSHDB_VALUE_NULL, ISO_8601_REGEX } from '@
 import { PropertyExpression, VectorExpression } from '@/core/common/types'
 import { DatetimeObject } from '@/core/property/property.types'
 import { QueryCriteriaParsingError } from '@/core/search/parser/errors'
+import { vectorConditionQueryPrefix } from '@/core/search/parser/utils'
 import {
   COMPARISON_OPERATORS_MAP,
   comparisonOperators,
   datetimeOperators,
+  typeOperators,
   vectorOperators
 } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
@@ -28,10 +30,6 @@ const formatCriteriaValue = (value: unknown): string => {
 
 const formatField = (field: string, options: TSearchQueryBuilderOptions) => {
   return options.nodeAlias ? `${options.nodeAlias}.${field}` : field
-}
-
-const vectorConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {
-  return `\`${options.nodeAlias}\`.\`${field}\` IS NOT NULL AND apoc.convert.fromJsonMap(\`${options.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "vector"`
 }
 
 const formatVectorForQuery = (
@@ -121,6 +119,21 @@ export const parseComparison = (
       return `(${vectorConditionQueryPrefix(key, options)} AND ${formatVectorForQuery(input?.$vector, key, options)})`
     }
 
+    // TYPE
+    else if (containsAllowedKeys(input, typeOperators)) {
+      return Object.entries(input).map(([operator, value]) => {
+        switch (operator) {
+          case '$type': {
+            if (typeof value === 'string') {
+              return `apoc.convert.fromJsonMap(\`${options.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${key}\` = "${value}"`
+            } else {
+              throw new QueryCriteriaParsingError(operator, value)
+            }
+          }
+        }
+      })
+    }
+
     // COMPARISON
     else if (containsAllowedKeys(input, comparisonOperators)) {
       return Object.entries(input).map(([operator, value]) => {
@@ -189,6 +202,19 @@ export const parseComparison = (
               const datetimeCriteria = formatDateTimeForQuery(value as DatetimeObject)
 
               return `any(value IN ${field} WHERE ${datetimeQueryPrefix} AND datetime(value) <> ${datetimeCriteria})`
+            } else {
+              throw new QueryCriteriaParsingError(operator, value)
+            }
+          }
+          case '$exists': {
+            if (typeof value === 'boolean') {
+              if (value) {
+                // $exists: true - field must exist and not be null
+                return `${field} IS NOT NULL`
+              } else {
+                // $exists: false - field must not exist or be null
+                return `${field} IS NULL`
+              }
             } else {
               throw new QueryCriteriaParsingError(operator, value)
             }

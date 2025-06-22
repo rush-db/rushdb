@@ -191,7 +191,7 @@ const config: Config = {
           }
 
           // Create llms directory
-          const llmsDir = path.join(outDir, 'llms')
+          const llmsDir = path.join(outDir, '')
           await fs.promises.mkdir(llmsDir, { recursive: true })
 
           // Write concatenated MDX content

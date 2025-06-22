@@ -179,6 +179,24 @@ RushDB supports complex filtering through the `where` clause, allowing you to cr
 }
 ```
 
+### Field Existence and Type Checking
+
+You can check for field existence and data types:
+
+```json
+{
+  "where": {
+    "$and": [
+      { "email": { "$exists": true } },
+      { "phoneNumber": { "$exists": false } },
+      { "age": { "$type": "number" } }
+    ]
+  }
+}
+```
+
+This query finds records that have an email address, don't have a phone number, and where age is stored as a number.
+
 See the [Where Clause documentation](../../concepts/search/where) for a complete reference of available operators.
 
 ## Performance Considerations
