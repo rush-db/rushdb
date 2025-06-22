@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 1.7.0
+
+### Minor Changes
+
+- f9a386d: Implement $exists and $type operators
+
 ## 1.6.0
 
 ### Minor Changes
