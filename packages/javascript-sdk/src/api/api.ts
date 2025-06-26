@@ -288,9 +288,12 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       if (response?.success && response?.data) {
-        const dbRecordInstances = (response.data as Array<DBRecord<S>>).map((r) => {
-          return new DBRecordInstance<S>(r)
-        })
+        // If `returnResult` was not explicitly set to `true`, `response.data` may be just `true`.
+        // In that case, fallback to an empty array. Otherwise, map records to typed instances.
+        const dbRecordInstances =
+          (response.data as Array<DBRecord<S>>)?.map((r) => {
+            return new DBRecordInstance<S>(r)
+          }) ?? []
         return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
       }
 
