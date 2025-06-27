@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 1.7.1
+
+### Patch Changes
+
+- b68c596: Fix error on an attempt of mapping result in createMany method
+
 ## 1.7.0
 
 ### Minor Changes

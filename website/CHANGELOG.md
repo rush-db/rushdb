@@ -1,5 +1,13 @@
 # rushdb-website
 
+## 1.7.1
+
+### Patch Changes
+
+- b68c596: Fix error on an attempt of mapping result in createMany method
+- Updated dependencies [b68c596]
+  - @rushdb/javascript-sdk@1.7.1
+
 ## 1.7.0
 
 ### Minor Changes
