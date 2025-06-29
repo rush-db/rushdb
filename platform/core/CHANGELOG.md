@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.8.0
+
+### Minor Changes
+
+- 3312b28: Implemented ISR (Incremental Static Regeneration) for website, update dependencies, update docs, fix 3D view issue for records without a relationship (blank canvas)
+
 ## 1.7.1
 
 ### Patch Changes
