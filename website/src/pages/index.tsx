@@ -1,4 +1,4 @@
-import { GetStaticProps } from 'next'
+import { GetServerSideProps } from 'next'
 import { Layout } from '~/components/Layout'
 import { Hero } from '~/sections/Hero'
 import { SocialProof } from '~/sections/SocialProof'
@@ -29,13 +29,12 @@ export default function Home({ featuredPosts }: Props) {
   )
 }
 
-export const getStaticProps: GetStaticProps<Props> = async () => {
+export const getServerSideProps: GetServerSideProps<Props> = async () => {
   const featuredPosts = await getFeaturedBlogPosts(3)
 
   return {
     props: {
       featuredPosts
-    },
-    revalidate: 3600 // Revalidate every hour
+    }
   }
 }

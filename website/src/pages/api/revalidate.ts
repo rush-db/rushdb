@@ -15,12 +15,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else if (type === 'page' && slug) {
       // Revalidate the specific page
       await res.revalidate(`/${slug}`)
-    } else if (type === 'pricing') {
-      // Revalidate the pricing page
-      await res.revalidate('/pricing')
-    } else if (type === 'homepage') {
-      // Revalidate the homepage
-      await res.revalidate('/')
     }
 
     // Revalidate blog index regardless of type
@@ -32,8 +26,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       paths:
         type === 'post' && slug ? [`/blog/${slug}`, '/blog']
         : type === 'page' && slug ? [`/${slug}`]
-        : type === 'pricing' ? ['/pricing']
-        : type === 'homepage' ? ['/']
         : ['/blog']
     })
   } catch (err) {

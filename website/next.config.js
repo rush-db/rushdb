@@ -10,13 +10,6 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: version
   },
-  // Remove standalone output for Amplify - it uses its own serverless setup
-  // output: 'standalone',
-
-  // Enable experimental ISR features for better Amplify compatibility
-  experimental: {
-    isrMemoryCacheSize: 0 // Disable in-memory cache for better ISR behavior on Amplify
-  },
   // compiler: {
   //   styledJsx: false
   // },
