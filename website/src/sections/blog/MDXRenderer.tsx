@@ -9,7 +9,9 @@ import { Tags } from '~/components/Tags'
 
 const Pre = ({ children, ...props }: ComponentPropsWithoutRef<'pre'>) => {
   if (isValidElement(children) && children.type === 'code') {
+    // @ts-ignore
     const language = children.props.className.split('-').pop()
+    // @ts-ignore
     const code = children.props.children
 
     if (language === 'mermaid') {

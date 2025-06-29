@@ -12,7 +12,7 @@ The `RushDB` class is the main entry point for interacting with the RushDB datab
 import RushDB from '@rushdb/javascript-sdk';
 
 // Create an instance with an API token
-const db = new RushDB('RUSHDB_API_TOKEN', {
+const db = new RushDB('RUSHDB_API_KEY', {
   // Optionnaly provide API url to your RushDB instance
   url: 'https://api.rushdb.com/api/v1'
 });
@@ -106,7 +106,7 @@ Converts a database record to a record instance.
 import RushDB, { Model } from '@rushdb/javascript-sdk';
 
 // Initialize the SDK
-const db = new RushDB('RUSHDB_API_TOKEN', {
+const db = new RushDB('RUSHDB_API_KEY', {
   url: 'https://api.rushdb.com/api/v1'
 });
 

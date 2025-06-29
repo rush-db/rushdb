@@ -137,7 +137,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                   </FormField>
                   <FormField label="Password" error={errors?.customDb?.password?.message}>
                     <TextField
-                      mb={2}
+                      className={'mb-2'}
                       type="password"
                       {...register('customDb.password')}
                       placeholder="your-password"

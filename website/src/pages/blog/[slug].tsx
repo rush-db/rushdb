@@ -2,7 +2,7 @@ import { MDXRemoteSerializeResult } from 'next-mdx-remote'
 import { serialize } from 'next-mdx-remote/serialize'
 
 import { Layout } from '~/components/Layout'
-import { GetServerSideProps } from 'next'
+import { GetStaticProps } from 'next'
 import { LetterTypingText } from '~/components/LetterTypingText'
 import { getRemoteBlogPost, getRemoteBlogPosts } from '~/sections/blog/remote-utils'
 import { Post } from '~/sections/blog/types'
@@ -25,6 +25,8 @@ type Props = {
 type Params = {
   slug: string
 }
+
+export const revalidate = 3600
 
 export default function PostPage({ serializedPost, data, morePosts }: Props) {
   const router = useRouter()
@@ -69,37 +71,60 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
   )
 }
 
-export const getServerSideProps: GetServerSideProps<Props, Params> = async ({ params }) => {
+export const getStaticPaths = async () => {
+  // Get all published posts for static generation
+  const posts = await getRemoteBlogPosts()
+
+  const paths = posts.map((post) => ({
+    params: { slug: post.slug }
+  }))
+
+  return {
+    paths,
+    fallback: 'blocking' // Enable ISR for new posts
+  }
+}
+
+export const getStaticProps: GetStaticProps<Props, Params> = async ({ params }) => {
   if (!params?.slug) {
     return {
       notFound: true
     }
   }
 
-  const post = await getRemoteBlogPost(params.slug)
+  try {
+    // Fetch post and all posts in parallel
+    const [post, allPosts] = await Promise.all([getRemoteBlogPost(params.slug), getRemoteBlogPosts()])
 
-  if (!post?.__id) {
+    if (!post?.__id) {
+      return {
+        notFound: true
+      }
+    }
+
+    // Serialize MDX content
+    const serializedPost = await serialize(post?.content, {
+      mdxOptions: {
+        remarkPlugins: [remarkGfm]
+      },
+      scope: post
+    })
+
+    // Filter and limit related posts
+    const morePosts = allPosts.filter((p) => p.slug !== params.slug).slice(0, 3)
+
+    return {
+      props: {
+        serializedPost,
+        data: post,
+        morePosts
+      },
+      revalidate: 3600 // Revalidate every hour
+    }
+  } catch (error) {
+    console.error('Error in getStaticProps:', error)
     return {
       notFound: true
-    }
-  }
-
-  const serializedPost = await serialize(post?.content, {
-    mdxOptions: {
-      remarkPlugins: [remarkGfm]
-    },
-    scope: post
-  })
-
-  const morePosts = await getRemoteBlogPosts().then((posts) =>
-    posts.filter((p) => p.slug !== params.slug).slice(0, 3)
-  )
-
-  return {
-    props: {
-      serializedPost,
-      data: post,
-      morePosts
     }
   }
 }

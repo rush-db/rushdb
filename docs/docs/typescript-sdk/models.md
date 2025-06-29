@@ -164,7 +164,7 @@ public async getRushDBInstance(): Promise<RushDB> {
   if (instance) {
     return await RushDB.init()
   }
-  throw new Error('No RushDB instance found. Please create a RushDB instance first: new RushDB("RUSHDB_API_TOKEN")')
+  throw new Error('No RushDB instance found. Please create a RushDB instance first: new RushDB("RUSHDB_API_KEY")')
 }
 ```
 
@@ -245,7 +245,7 @@ Example of proper initialization:
 import RushDB from '@rushdb/javascript-sdk';
 
 // Initialize RushDB with your API token
-export const db = new RushDB('RUSHDB_API_TOKEN');
+export const db = new RushDB('RUSHDB_API_KEY');
 
 // You can also export a helper function to access the instance
 export const getRushDBInstance = async () => {

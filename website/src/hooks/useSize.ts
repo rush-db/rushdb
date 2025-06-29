@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from 'react'
 
 type Size = {
   width: number
@@ -8,22 +8,22 @@ type Size = {
 export const useSize = <Element extends HTMLElement = HTMLDivElement>() => {
   const [size, setSize] = useState<Size>({
     width: 0,
-    height: 0,
+    height: 0
   })
   const ref = useRef<Element>(null)
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+
     if (ref.current) {
       const resizeObserver = new ResizeObserver((entries) => {
         const entry = entries[0]
-        const borderSizeEntry = entry["borderBoxSize"]
-        const borderSize = Array.isArray(borderSizeEntry)
-          ? borderSizeEntry[0]
-          : borderSizeEntry
+        const borderSizeEntry = entry['borderBoxSize']
+        const borderSize = Array.isArray(borderSizeEntry) ? borderSizeEntry[0] : borderSizeEntry
 
         setSize({
-          width: borderSize["inlineSize"],
-          height: borderSize["blockSize"],
+          width: borderSize['inlineSize'],
+          height: borderSize['blockSize']
         })
       })
 

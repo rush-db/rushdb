@@ -71,7 +71,7 @@ await db.records.find(${body})`
 
 const PyTemplate = (body: string) => `from rushdb import RushDB
 
-db = RushDB("RUSHDB_API_TOKEN")
+db = RushDB("RUSHDB_API_KEY")
 
 db.records.find(${body})`
 

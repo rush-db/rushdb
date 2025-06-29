@@ -40,7 +40,7 @@ RushDB transforms how you work with graph data — no schema required, no comple
 
 **Option A: Use RushDB Cloud (Free Tier Available)**
 ```bash
-# Sign up and get an API token at app.rushdb.com
+# Sign up and get an API key at app.rushdb.com
 # No installation required!
 ```
 
@@ -60,7 +60,7 @@ docker run -p 3000:3000 \
 ```python
 from rushdb import RushDB
 
-db = RushDB("RUSHDB_API_TOKEN")
+db = RushDB("RUSHDB_API_KEY")
 
 # Push any nested JSON - RushDB normalizes it into a graph
 db.records.create_many(
@@ -102,7 +102,7 @@ employees = db.records.find({
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
 
-const db = new RushDB("RUSHDB_API_TOKEN");
+const db = new RushDB("RUSHDB_API_KEY");
 
 // Push data with automatic relationship creation
 await db.records.createMany({

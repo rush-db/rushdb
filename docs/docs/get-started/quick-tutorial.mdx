@@ -10,7 +10,7 @@ This tutorial will help you get started with RushDB by walking through a simple 
 
 ## Prerequisites
 
-- Create a RushDB account and get an API token (see [Get API Token](../get-started/get-api-token))
+- Create a RushDB account and get an API token (see [Get API Key](../get-started/get-api-key))
 - Your preferred programming language: Python, TypeScript/JavaScript, or any HTTP client for REST API
 
 ## Step 1: Initialize RushDB
@@ -26,10 +26,10 @@ import TabItem from '@theme/TabItem';
 import RushDB from '@rushdb/javascript-sdk';
 
 // Initialize with your API token
-const db = new RushDB('RUSHDB_API_TOKEN');
+const db = new RushDB('RUSHDB_API_KEY');
 
 // Or with additional configuration options
-// const db = new RushDB('RUSHDB_API_TOKEN', {
+// const db = new RushDB('RUSHDB_API_KEY', {
 //   url: 'https://api.rushdb.com/api/v1',
 //   timeout: 5000
 // });
@@ -40,13 +40,13 @@ const db = new RushDB('RUSHDB_API_TOKEN');
 from rushdb import RushDB
 
 # Connect with your API token
-db = RushDB("RUSHDB_API_TOKEN")
+db = RushDB("RUSHDB_API_KEY")
 ```
   </TabItem>
   <TabItem value="rest" label="REST API">
 ```bash
 # Set your API token for future requests
-export TOKEN="RUSHDB_API_TOKEN"
+export TOKEN="RUSHDB_API_KEY"
 ```
   </TabItem>
 </Tabs>
@@ -104,7 +104,7 @@ bob = db.records.create(
 ```bash
 # Create Alice with PERSON label
 curl -X POST "https://api.rushdb.com/api/v1/records" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "label": "PERSON",
@@ -120,7 +120,7 @@ export ALICE_ID="response_id_here"
 
 # Create Bob with PERSON label
 curl -X POST "https://api.rushdb.com/api/v1/records" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "label": "PERSON",
@@ -168,7 +168,7 @@ alice.attach(
 ```bash
 # Create a FRIENDS_WITH relationship between Alice and Bob
 curl -X POST "https://api.rushdb.com/api/v1/relationships/$ALICE_ID" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "targetIds": ["'$BOB_ID'"],
@@ -213,7 +213,7 @@ print('Found:', [person.data["name"] for person in outdoorsy])
 ```bash
 # Find all people who are interested in outdoor activities
 curl -X POST "https://api.rushdb.com/api/v1/records/search" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "labels": ["PERSON"],
@@ -300,13 +300,13 @@ with db.transactions.begin() as transaction:
 ```bash
 # Start a transaction
 TRANSACTION_ID=$(curl -X POST "https://api.rushdb.com/api/v1/transactions" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   | jq -r '.id')
 
 # Create a post with the transaction ID
 POST_ID=$(curl -X POST "https://api.rushdb.com/api/v1/records" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -H "X-Transaction-ID: $TRANSACTION_ID" \
   -d '{
@@ -321,7 +321,7 @@ POST_ID=$(curl -X POST "https://api.rushdb.com/api/v1/records" \
 
 # Create relationship within the transaction
 curl -X POST "https://api.rushdb.com/api/v1/relationships/$ALICE_ID" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -H "X-Transaction-ID: $TRANSACTION_ID" \
   -d '{
@@ -331,7 +331,7 @@ curl -X POST "https://api.rushdb.com/api/v1/relationships/$ALICE_ID" \
 
 # Commit the transaction
 curl -X POST "https://api.rushdb.com/api/v1/transactions/$TRANSACTION_ID/commit" \
-  -H "Token: $TOKEN"
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
   </TabItem>
 </Tabs>

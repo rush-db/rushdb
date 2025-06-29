@@ -7,7 +7,7 @@ import { forwardRef } from 'react'
 import { cn } from '~/lib/utils'
 
 export const variants = {
-  blank: 'bg-badge-blue text-badge-blue-contrast',
+  white: 'bg-badge-blue text-badge-blue-contrast',
   blue: 'bg-badge-blue text-badge-blue-contrast',
   green: 'bg-badge-green text-badge-green-contrast',
   orange: 'bg-badge-orange text-badge-orange-contrast',
@@ -29,7 +29,7 @@ export const filterLabel = cva<{
   },
   defaultVariants: {
     size: 'medium',
-    variant: 'blank'
+    variant: 'white'
   }
 })
 

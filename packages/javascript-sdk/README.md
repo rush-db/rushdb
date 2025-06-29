@@ -46,7 +46,7 @@ pnpm add @rushdb/javascript-sdk
 
 ---
 
-1. **Obtain API Token**: Grab one from the [RushDB Cloud Dashboard](https://app.rushdb.com).
+1. **Obtain API Key**: Grab one from the [RushDB Cloud Dashboard](https://app.rushdb.com).
 2. **Build anything**: Easily push, search, and manage relationships within your data.
 
 ### Quick Example
@@ -54,7 +54,7 @@ pnpm add @rushdb/javascript-sdk
 import RushDB from '@rushdb/javascript-sdk';
 
 // Setup SDK
-const db = new RushDB("RUSHDB_API_TOKEN");
+const db = new RushDB("RUSHDB_API_KEY");
 // Default URL is "https://api.rushdb.com/api/v1". See SDK Configuration for more options.
 
 // Push any data, and RushDB will automatically flatten it into Records
@@ -121,7 +121,7 @@ The SDK is designed to be flexible. You can provide configuration options when i
 import RushDB from '@rushdb/javascript-sdk';
 
 // Example: Initialize with a custom URL and timeout
-const db = new RushDB('RUSHDB_API_TOKEN', {
+const db = new RushDB('RUSHDB_API_KEY', {
   url: 'http://your-custom-rushdb-server.com/api/v1', // Default is 'https://api.rushdb.com/api/v1'
   timeout: 30000 // 30 seconds
 });

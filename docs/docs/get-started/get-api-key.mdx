@@ -1,10 +1,10 @@
 ---
-title: Get API Token
+title: Get API Key
 description: Learn how to get your RushDB API token
 sidebar_position: 2
 ---
 
-# Get API Token
+# Get API Key
 
 To use RushDB, you'll need an API token for authentication. Here's how to get one:
 
@@ -19,14 +19,14 @@ Visit [RushDB Dashboard](https://dashboard.rushdb.com) and sign up for an accoun
 3. Choose your preferred region
 4. Click "Create"
 
-## 3. Generate API Token
+## 3. Generate API key
 
-1. In your project dashboard, navigate to the "API Tokens" section
-2. Click "Generate New Token"
+1. In your project dashboard, navigate to the "API Keys" section
+2. Click "Generate New API Key"
 3. Give your token a name (e.g., "Development", "Production")
-4. Click "Generate Token"
+4. Click "Generate Key"
 
-## 4. Copy and Store Your Token
+## 4. Copy and Store Your API Key
 
 Your API token will be displayed only once. Make sure to:
 
@@ -44,23 +44,23 @@ import TabItem from '@theme/TabItem';
   <TabItem value="typescript" label="TypeScript" default>
 ```typescript
 // Load from environment variable
-const db = new RushDB(process.env.RUSHDB_API_TOKEN);
+const db = new RushDB(process.env.RUSHDB_API_KEY);
 ```
   </TabItem>
   <TabItem value="python" label="Python">
 ```python
 import os
 
-db = RushDB(api_key=os.environ['RUSHDB_API_TOKEN'])
+db = RushDB(api_key=os.environ['RUSHDB_API_KEY'])
 ```
   </TabItem>
   <TabItem value="rest" label="REST API">
 ```bash
 # Set in your shell
-export RUSHDB_API_TOKEN='RUSHDB_API_TOKEN'
+export RUSHDB_API_KEY='RUSHDB_API_KEY'
 
 # Use in requests
-curl -H "Token: $RUSHDB_API_TOKEN" \
+curl -H "Authorization: Bearer $RUSHDB_API_TOKEN" \
   https://api.rushdb.com/api/v1/records
 ```
   </TabItem>

@@ -2,6 +2,8 @@ import { type ReactNode } from 'react'
 
 import { Logo } from '~/elements/Logo'
 import { cn } from '~/lib/utils'
+import CookieNotification from '~/components/CookiesConsent'
+import { PolicyLinks } from '~/components/PolicyLinks'
 
 import { Helmet } from 'react-helmet-async'
 
@@ -62,7 +64,11 @@ export function AuthLayout({
         : null}
 
         {children}
+
+        <PolicyLinks />
       </main>
+
+      <CookieNotification />
     </div>
   )
 }

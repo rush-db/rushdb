@@ -31,7 +31,7 @@ function TokenCreated({
 }) {
   return (
     <>
-      <CardHeader title="Token successfully created" />
+      <CardHeader title="API key successfully created" />
       <CardBody>
         <FormField label={token.name} caption={token.description}>
           <CopyInput value={token.value} />
@@ -47,13 +47,7 @@ function TokenCreated({
   )
 }
 
-export function AddTokenCard({
-  projectId,
-  project
-}: {
-  project?: Project
-  projectId: Project['id']
-}) {
+export function AddTokenCard({ projectId, project }: { project?: Project; projectId: Project['id'] }) {
   const { data: createdToken, error, mutate } = useStore(addToken)
 
   const defaultValues = {
@@ -82,13 +76,9 @@ export function AddTokenCard({
 
   return (
     <Card>
-      {showSuccess ? (
-        <TokenCreated
-          onBack={() => reset(defaultValues)}
-          token={createdToken}
-        />
-      ) : (
-        <form
+      {showSuccess ?
+        <TokenCreated onBack={() => reset(defaultValues)} token={createdToken} />
+      : <form
           onSubmit={handleSubmit((values) =>
             mutate({
               projectId,
@@ -99,11 +89,7 @@ export function AddTokenCard({
         >
           <CardHeader title="Create token" />
           <CardBody className="grid grid-cols-1 sm:grid-cols-3">
-            <TextField
-              {...register('name')}
-              error={errors.name?.message}
-              label="API key name"
-            />
+            <TextField {...register('name')} error={errors.name?.message} label="API key name" />
             <TextField
               {...register('description')}
               error={errors.description?.message}
@@ -119,29 +105,18 @@ export function AddTokenCard({
                 type="number"
               />
               <label>
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  {...register('noExpire')}
-                />
-                <span className="ml-2 select-none text-start text-sm">
-                  No expiration
-                </span>
+                <input type="checkbox" defaultChecked {...register('noExpire')} />
+                <span className="ml-2 select-none text-start text-sm">No expiration</span>
               </label>
             </div>
           </CardBody>
           <CardFooter className="mt-5">
-            <Button
-              disabled={!isValid}
-              loading={isSubmitting}
-              type="submit"
-              variant="accent"
-            >
+            <Button disabled={!isValid} loading={isSubmitting} type="submit" variant="accent">
               Create
             </Button>
           </CardFooter>
         </form>
-      )}
+      }
     </Card>
   )
 }

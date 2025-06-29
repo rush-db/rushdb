@@ -108,7 +108,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'top',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Your First SDK Token</h3>
+        <h3 className="text-content text-lg font-bold">Your First SDK Key</h3>
         <p className="text-content2">
           We’ve generated an API key so you can immediately start using our
           <a

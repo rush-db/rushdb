@@ -51,7 +51,7 @@ You can use these specifications to:
 
 ## Getting Started
 
-1. **Get an API Token**: Sign up at [app.rushdb.com](https://app.rushdb.com) or set up a self-hosted instance.
+1. **Get an API Key**: Sign up at [app.rushdb.com](https://app.rushdb.com) or set up a self-hosted instance.
 2. **Read the Endpoint Docs**: Explore the sidebar for detailed documentation on each API endpoint, including request/response formats and examples.
 3. **Try It Out**: Use cURL, Postman, or your favorite HTTP client to interact with the API.
 
@@ -60,7 +60,7 @@ You can use these specifications to:
 ```http
 POST /api/v1/records
 Content-Type: application/json
-token: RUSHDB_API_TOKEN
+token: RUSHDB_API_KEY
 
 {
   "label": "Person",
