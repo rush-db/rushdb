@@ -1,6 +1,6 @@
 import { Layout } from '~/components/Layout'
 import { Pricing } from '~/sections/Pricing'
-import { GetServerSideProps } from 'next'
+import { GetStaticProps } from 'next'
 
 type PaidStartPlanId = 'start'
 type PaidPlanId = 'pro'
@@ -29,7 +29,7 @@ export default function PricingPage({ billingData }: PricingPageProps) {
   )
 }
 
-export const getServerSideProps: GetServerSideProps<PricingPageProps> = async () => {
+export const getStaticProps: GetStaticProps<PricingPageProps> = async () => {
   try {
     const res = await fetch('https://billing.rushdb.com/api/prices')
 
@@ -37,7 +37,8 @@ export const getServerSideProps: GetServerSideProps<PricingPageProps> = async ()
       return {
         props: {
           billingData: null
-        }
+        },
+        revalidate: 300 // Revalidate every 5 minutes on error
       }
     }
 
@@ -46,14 +47,16 @@ export const getServerSideProps: GetServerSideProps<PricingPageProps> = async ()
     return {
       props: {
         billingData
-      }
+      },
+      revalidate: 3600 // Revalidate every hour
     }
   } catch (error) {
     console.error('Failed to fetch billing data:', error)
     return {
       props: {
         billingData: null
-      }
+      },
+      revalidate: 300 // Revalidate every 5 minutes on error
     }
   }
 }
