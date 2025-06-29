@@ -16,7 +16,7 @@ import { PropertyGraphTopology } from '~/components/PropertyGraphTopology'
 
 const code1 = `import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('RUSHDB_API_TOKEN')
+const db = new RushDB('RUSHDB_API_KEY')
 
 await db.records.createMany({
   label: "COMPANY",
@@ -43,7 +43,7 @@ await db.records.createMany({
 
 const code1Py = `from rushdb import RushDB
 
-db = RushDB("RUSHDB_API_TOKEN")
+db = RushDB("RUSHDB_API_KEY")
 
 db.records.create_many(
     "COMPANY",
@@ -165,7 +165,7 @@ rushdb/platform`
 const codeAiIntegration = `import OpenAI from 'openai'
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('RUSHDB_API_TOKEN')
+const db = new RushDB('RUSHDB_API_KEY')
 const openai = new OpenAI({ apiKey: 'openai-api-key' })
 
 async function generateAndStoreData() {
@@ -191,7 +191,7 @@ async function generateAndStoreData() {
 const codeAiIntegrationPy = `import openai
 from rushdb import RushDB
 
-db = RushDB("RUSHDB_API_TOKEN")
+db = RushDB("RUSHDB_API_KEY")
 openai.api_key = "openai-api-key"
 
 

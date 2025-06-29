@@ -32,7 +32,7 @@ pip install rushdb
 from rushdb import RushDB
 
 # Connect to RushDB with your API token
-db = RushDB("RUSHDB_API_TOKEN")
+db = RushDB("RUSHDB_API_KEY")
 ```
 
 ### Basic Operations

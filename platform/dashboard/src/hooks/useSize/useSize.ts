@@ -18,7 +18,7 @@ export const useSize = <T extends TMeasurableElement = HTMLDivElement>({
   cb,
   disabled
 }: {
-  cb?: (value: { elementRef: RefObject<T>; size: TSize }) => void
+  cb?: (value: { elementRef: RefObject<T | null>; size: TSize }) => void
   /* debounce size updates */
   delay?: number
   disabled?: boolean
@@ -78,7 +78,7 @@ export const useSize = <T extends TMeasurableElement = HTMLDivElement>({
       }
 
       if (node) {
-        // check if a node is actually passed. Otherwise node would be null
+        // Check if a node is actually passed. Otherwise, node would be null
         observer?.observe(node)
       }
 

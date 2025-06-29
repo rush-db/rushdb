@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { ChangeEvent, ChangeEventHandler, useEffect, useMemo } from 'react'
 
 import { useStore } from '@nanostores/react'
 
@@ -330,8 +330,10 @@ const OperationSelector = () => {
 
   return (
     <Select
-      onChange={(value: { target: { value: ReturnType<typeof $selectedOperation.get> } }) => {
-        $selectedOperation.set(value.target.value)
+      onChange={(value: ChangeEvent<HTMLSelectElement>) => {
+        $selectedOperation.set(
+          (value.target as unknown as { value: ReturnType<typeof $selectedOperation.get> }).value
+        )
       }}
       size="small"
       value={operation}

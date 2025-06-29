@@ -16,7 +16,7 @@ import RushDB from '@rushdb/javascript-sdk';
 import fs from 'fs';
 
 // Initialize the SDK
-const db = new RushDB('RUSHDB_API_TOKEN');
+const db = new RushDB('RUSHDB_API_KEY');
 
 // Load data from a JSON file
 const data = JSON.parse(fs.readFileSync('data.json', 'utf8'));

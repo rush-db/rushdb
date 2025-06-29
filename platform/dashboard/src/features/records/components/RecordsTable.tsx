@@ -191,14 +191,17 @@ const StickyTableHead = ({ children, sticky }: { children: ReactElement; sticky:
       })
     }
   }, [children, sticky])
-
+  // @ts-ignore
   const clonedTrWithRef = cloneElement(children, { ref: trRef })
 
   const clone = cloneElement(children, {
+    // @ts-ignore
     'data-clone': 'true',
+    // @ts-ignore
     ref: cloneRef,
     className: cn(
-      children.props.className,
+      // @ts-ignore
+      children.props?.className,
       'fixed top-0 z-10 flex min-w-[100vw] bg-fill shadow-2xl shadow-fill [&>th]:h-[var(--height)] [&>th]:w-[var(--width)] border-b'
     )
   })

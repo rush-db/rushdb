@@ -86,7 +86,7 @@ export class RushDB extends RestAPI {
     }
 
     throw new Error(
-      'RushDB not initialized. Please create a RushDB instance first: new RushDB("RUSHDB_API_TOKEN")'
+      'RushDB not initialized. Please create a RushDB instance first: new RushDB("RUSHDB_API_KEY")'
     )
   }
 

@@ -2,16 +2,17 @@ import Link from 'next/link'
 import { BookIcon, Check } from 'lucide-react'
 
 import { Button, MainCta } from '~/components/Button'
-import { links, socials } from '~/config/urls'
+import { socials } from '~/config/urls'
 import { CodeBlock } from '~/components/CodeBlock'
 import { GitHub } from '~/components/Icons/GitHub'
 import { CodeBlockWithLanguageSelector } from '~/components/CodeBlockWithLanguageSelector'
 import { useContext } from 'react'
 import { CodingLanguage } from '~/contexts/CodingLanguage'
+import Image from 'next/image'
 
 const code = `import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('RUSHDB_API_TOKEN')
+const db = new RushDB('RUSHDB_API_KEY')
 
 const user = await db.records.create({
   label: 'USER',
@@ -36,7 +37,7 @@ await db.records.find({
 
 const codePy = `from rushdb import RushDB
 
-db = RushDB("RUSHDB_API_TOKEN")
+db = RushDB("RUSHDB_API_KEY")
 
 user = db.records.create({
     label: "USER",
@@ -134,7 +135,9 @@ export const Hero = () => {
               preClassName="md:w-full"
               copyButton={true}
             >
-              <img
+              <Image
+                width={100}
+                height={25}
                 src={
                   language === 'typescript' ?
                     'https://img.shields.io/npm/v/@rushdb/javascript-sdk'

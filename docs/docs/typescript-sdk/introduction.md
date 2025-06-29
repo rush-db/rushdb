@@ -42,10 +42,10 @@ After installation, create an instance of the RushDB SDK in your project:
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
 
-const db = new RushDB('RUSHDB_API_TOKEN');
+const db = new RushDB('RUSHDB_API_KEY');
 ```
 
-Replace `RUSHDB_API_TOKEN` with your actual API token from the [RushDB Dashboard](https://app.rushdb.com/).
+Replace `RUSHDB_API_KEY` with your actual API token from the [RushDB Dashboard](https://app.rushdb.com/).
 
 ### Usage Example
 
@@ -53,7 +53,7 @@ Replace `RUSHDB_API_TOKEN` with your actual API token from the [RushDB Dashboard
 import RushDB from '@rushdb/javascript-sdk'
 
 // Setup SDK
-const db = new RushDB("RUSHDB_API_TOKEN");
+const db = new RushDB("RUSHDB_API_KEY");
 
 // Push any data, and RushDB will automatically flatten it into Records
 // and establish relationships between them accordingly.
@@ -153,7 +153,7 @@ Or:
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
 
-const db = new RushDB('RUSHDB_API_TOKEN', {
+const db = new RushDB('RUSHDB_API_KEY', {
   url: 'http://localhost:3000/api/v1',
   timeout: 5000,
   options: {

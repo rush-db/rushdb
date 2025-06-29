@@ -7,12 +7,13 @@ import { useStore } from '@nanostores/react'
 
 import {
   $currentProjectLabels,
+  $filteredRecords,
   $filteredRecordsRelations
 } from '~/features/projects/stores/current-project.ts'
 import { Renderer } from 'three'
 import { $sheetRecordId } from '~/features/projects/stores/id.ts'
 import { getLabelColor } from '~/features/labels'
-import { DBRecord, type Relation } from '@rushdb/javascript-sdk'
+import { DBRecord, DBRecordInstance, type Relation } from '@rushdb/javascript-sdk'
 
 export function getRelationCounts(tree: Output) {
   const counts: Record<string, number> = {}
@@ -37,7 +38,7 @@ interface Output {
   links: Relation[]
 }
 
-function createNodesAndLinks(data: Relation[]): Output {
+function createNodesAndLinks(data: Relation[], records?: DBRecordInstance[]): Output {
   const nodesMap = new Map<string, DBRecord>()
 
   data.forEach(({ sourceId, sourceLabel, targetId, targetLabel }) => {
@@ -46,6 +47,12 @@ function createNodesAndLinks(data: Relation[]): Output {
     }
     if (!nodesMap.has(targetId)) {
       nodesMap.set(targetId, { __id: targetId, __label: targetLabel })
+    }
+  })
+
+  records?.forEach((node) => {
+    if (!nodesMap.has(node.id())) {
+      nodesMap.set(node.id(), { __id: node.id(), __label: node.label() })
     }
   })
 
@@ -62,19 +69,20 @@ export const GraphView: FC = () => {
   const extraRenderers: Renderer[] = [new CSS2DRenderer() as unknown as Renderer]
 
   const { data: relations } = useStore($filteredRecordsRelations)
+  const { data: records } = useStore($filteredRecords)
 
   const [data, setData] = useState<Output>({ nodes: [], links: [] })
   const [weights, setWeights] = useState<Record<string, number>>({})
 
   useEffect(() => {
-    const result = createNodesAndLinks(relations ?? [])
+    const result = createNodesAndLinks(relations ?? [], records)
     setData(result)
 
     const newWeights = getRelationCounts(result)
     setWeights(newWeights)
   }, [relations])
 
-  const fgRef = useRef<any>()
+  const fgRef = useRef<any>(undefined)
 
   const handleClick = useCallback(
     (node: any) => {

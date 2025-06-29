@@ -1,6 +1,6 @@
 import RushDB, { Model } from '@rushdb/javascript-sdk'
 
-export const db = new RushDB(process.env.RUSHDB_API_TOKEN)
+export const db = new RushDB(process.env.RUSHDB_API_KEY)
 
 export const PostModel = new Model('Post', {
   title: { type: 'string', required: true },

@@ -119,7 +119,7 @@ export class Model<S extends Schema = any> {
     }
 
     throw new Error(
-      'No RushDB instance found. Please create a RushDB instance first: new RushDB("RUSHDB_API_TOKEN")'
+      'No RushDB instance found. Please create a RushDB instance first: new RushDB("RUSHDB_API_KEY")'
     )
   }
 

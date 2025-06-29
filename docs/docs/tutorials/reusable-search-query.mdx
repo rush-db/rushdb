@@ -87,7 +87,7 @@ products = result.data
 ```bash
 # Find all active PRODUCT records with price between $10-$50
 curl -X POST "https://api.rushdb.com/api/v1/records/search" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "labels": ["PRODUCT"],
@@ -136,7 +136,7 @@ db.records.delete({
 ```bash
 # Delete discontinued products with zero inventory
 curl -X PUT "https://api.rushdb.com/api/v1/records/delete" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "labels": ["PRODUCT"],
@@ -184,7 +184,7 @@ created_relationships = db.relationships.find({
 ```bash
 # Find all CREATED relationships by users in the admin group
 curl -X POST "https://api.rushdb.com/api/v1/relationships/search" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "where": {
@@ -226,7 +226,7 @@ labels = db.labels.find({
 ```bash
 # Find all labels used on records in North America region
 curl -X POST "https://api.rushdb.com/api/v1/labels/search" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "where": {
@@ -266,7 +266,7 @@ product_props = db.properties.find({
 ```bash
 # Get all string properties used on PRODUCT records
 curl -X POST "https://api.rushdb.com/api/v1/properties/search" \
-  -H "Token: $TOKEN" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "labels": ["PRODUCT"],

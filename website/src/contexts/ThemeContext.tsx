@@ -28,6 +28,9 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   const [isInitialized, setIsInitialized] = useState(false)
 
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return
+
     // Check for saved theme preference or default to 'light'
     const savedTheme = localStorage.getItem('theme') as Theme | null
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -51,6 +54,8 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   }, [])
 
   const applyTheme = (newTheme: Theme) => {
+    if (typeof window === 'undefined') return
+
     const root = document.documentElement
 
     if (newTheme === 'dark') {
@@ -68,7 +73,9 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme)
-    localStorage.setItem('theme', newTheme)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('theme', newTheme)
+    }
     applyTheme(newTheme)
   }
 
