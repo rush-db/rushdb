@@ -2,7 +2,7 @@ import { MDXRemoteSerializeResult } from 'next-mdx-remote'
 import { serialize } from 'next-mdx-remote/serialize'
 
 import { Layout } from '~/components/Layout'
-import { GetStaticProps } from 'next'
+import { GetServerSideProps } from 'next'
 import { LetterTypingText } from '~/components/LetterTypingText'
 import { getRemoteBlogPost, getRemoteBlogPosts } from '~/sections/blog/remote-utils'
 import { Post } from '~/sections/blog/types'
@@ -25,8 +25,6 @@ type Props = {
 type Params = {
   slug: string
 }
-
-export const revalidate = 3600
 
 export default function PostPage({ serializedPost, data, morePosts }: Props) {
   const router = useRouter()
@@ -71,21 +69,7 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
   )
 }
 
-export const getStaticPaths = async () => {
-  // Get all published posts for static generation
-  const posts = await getRemoteBlogPosts()
-
-  const paths = posts.map((post) => ({
-    params: { slug: post.slug }
-  }))
-
-  return {
-    paths,
-    fallback: 'blocking' // Enable ISR for new posts
-  }
-}
-
-export const getStaticProps: GetStaticProps<Props, Params> = async ({ params }) => {
+export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) => {
   if (!params?.slug) {
     return {
       notFound: true
@@ -94,7 +78,10 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({ params }) 
 
   try {
     // Fetch post and all posts in parallel
-    const [post, allPosts] = await Promise.all([getRemoteBlogPost(params.slug), getRemoteBlogPosts()])
+    const [post, allPosts] = await Promise.all([
+      getRemoteBlogPost(params.slug as string),
+      getRemoteBlogPosts()
+    ])
 
     if (!post?.__id) {
       return {
@@ -118,11 +105,10 @@ export const getStaticProps: GetStaticProps<Props, Params> = async ({ params }) 
         serializedPost,
         data: post,
         morePosts
-      },
-      revalidate: 3600 // Revalidate every hour
+      }
     }
   } catch (error) {
-    console.error('Error in getStaticProps:', error)
+    console.error('Error in getServerSideProps:', error)
     return {
       notFound: true
     }
