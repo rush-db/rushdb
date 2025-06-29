@@ -1,5 +1,16 @@
 # rushdb-website
 
+## 1.8.0
+
+### Minor Changes
+
+- 3312b28: Implemented ISR (Incremental Static Regeneration) for website, update dependencies, update docs, fix 3D view issue for records without a relationship (blank canvas)
+
+### Patch Changes
+
+- Updated dependencies [3312b28]
+  - @rushdb/javascript-sdk@1.8.0
+
 ## 1.7.1
 
 ### Patch Changes
