@@ -723,24 +723,6 @@ export const HowItWorks = () => {
           </div>
         </div>
       </section>
-
-      <section className="border-b">
-        <div className="container text-center">
-          <div className="outline-stroke outline outline-1 outline-offset-0">
-            <h3 className="typography-2xl md:typography-xl text pt-20">See RushDB in Action</h3>
-            <p className="text-content3 text-md pb-8 pt-8 !tracking-normal md:text-base">
-              Watch how easy it is to build with RushDB. From zero to production in minutes.
-            </p>
-            <div className="mx-auto max-w-4xl px-6 pb-20">
-              <YouTubeEmbed
-                videoId="NKgNV3y_wVY"
-                title="RushDB Demo - Build faster with zero-config database"
-                className="shadow-lg"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
       <section className="outline-stroke outline outline-1 outline-offset-0">
         <div className="container text-center">
           <div className="outline-stroke rounded-bl-[80px] rounded-tr-[80px] py-20 outline outline-1 outline-offset-0 md:rounded-bl-[50px] md:rounded-tr-[50px]">

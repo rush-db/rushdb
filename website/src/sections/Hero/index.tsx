@@ -1,12 +1,12 @@
 import Link from 'next/link'
-import { BookIcon, Check } from 'lucide-react'
+import { BookIcon, Check, Play, X } from 'lucide-react'
 
 import { Button, MainCta } from '~/components/Button'
 import { socials } from '~/config/urls'
 import { CodeBlock } from '~/components/CodeBlock'
 import { GitHub } from '~/components/Icons/GitHub'
 import { CodeBlockWithLanguageSelector } from '~/components/CodeBlockWithLanguageSelector'
-import { useContext } from 'react'
+import { useContext, useState } from 'react'
 import { CodingLanguage } from '~/contexts/CodingLanguage'
 import Image from 'next/image'
 
@@ -63,6 +63,10 @@ db.records.find(
 
 export const Hero = () => {
   const { language } = useContext(CodingLanguage)
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
+
+  const openVideoModal = () => setIsVideoModalOpen(true)
+  const closeVideoModal = () => setIsVideoModalOpen(false)
 
   return (
     <>
@@ -76,9 +80,10 @@ export const Hero = () => {
                 Instant Database <br />
                 for Modern Apps & AI<span className="hidden"> - RushDB</span>
               </h1>
+
               <h2 className="text-content3 text-md mb-8 mt-10 inline !font-medium !tracking-normal md:mt-0 md:text-base">
-                Push JSON, query instantly. <b>Zero schema</b>, <b>zero config</b> <b>graph database</b> that
-                auto-normalizes your data.
+                <b>Push JSON</b>, query instantly. <br />
+                <b>Zero-boilerplate</b> <b>graph database</b> that auto-normalizes your data.
               </h2>
 
               <Link href={socials.github} target="__blank" rel="noopener noreferrer" aria-label="Github">
@@ -101,16 +106,35 @@ export const Hero = () => {
                 </Button>
               </div>
 
-              <div className="text-content3 text-md mt-16 flex flex-col items-start justify-start gap-2 md:items-center md:justify-center">
-                <span>
-                  <Check className="text-accent mx-auto h-5 w-5" /> 2 projects free forever
-                </span>
-                <span>
-                  <Check className="text-accent mx-auto h-5 w-5" /> No credit card required
-                </span>
-                <span>
-                  <Check className="text-accent mx-auto h-5 w-5" /> Ready in 15 seconds
-                </span>
+              <div className="mt-16 flex justify-start md:justify-center">
+                <Button
+                  onClick={openVideoModal}
+                  variant="outline"
+                  className="bg-fill group flex h-auto items-center gap-3 !rounded-full !px-6 !py-3 shadow-sm transition-all hover:scale-105 hover:shadow-md"
+                >
+                  <div className="relative">
+                    <Image
+                      src="https://img.youtube.com/vi/wuJW9xre0xw/default.jpg"
+                      alt="RushDB Video Preview"
+                      width={80}
+                      height={45}
+                      className="rounded object-cover"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-transform group-hover:scale-110">
+                        <Play className="h-4 w-4 fill-current" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      See RushDB in Action
+                    </span>
+                    <span className="text-left text-xs font-medium text-red-600 dark:text-red-400">
+                      Zero setup demo • 1:45
+                    </span>
+                  </div>
+                </Button>
               </div>
             </div>
 
@@ -150,6 +174,30 @@ export const Hero = () => {
           </div>
         </div>
       </section>
+
+      {/* Video Modal */}
+      {isVideoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl">
+            <button
+              onClick={closeVideoModal}
+              className="absolute -top-12 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition-all hover:bg-white/30 hover:text-gray-200"
+              aria-label="Close video"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-white/20">
+              <iframe
+                src="https://www.youtube.com/embed/wuJW9xre0xw?autoplay=1&rel=0"
+                title="RushDB Video"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="h-full w-full"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
