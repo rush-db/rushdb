@@ -162,6 +162,45 @@
       padding: revert;
     }
 
+    table {
+      @apply w-full border-collapse my-6;
+      border: 1px solid hsl(var(--color-stroke));
+      border-radius: 8px;
+    }
+
+    thead {
+      background-color: hsl(var(--color-fill2));
+    }
+
+    tr {
+      border-bottom: 1px solid hsl(var(--color-stroke));
+    }
+
+    tr:hover {
+      background-color: hsl(var(--color-fill2) / 0.5);
+    }
+
+    th {
+      border: 1px solid hsl(var(--color-stroke));
+      background-color: hsl(var(--color-fill2));
+      @apply px-4 py-3 text-left font-semibold;
+      color: hsl(var(--color-content));
+    }
+
+    th:first-child {
+      border-top-left-radius: 8px;
+    }
+
+    th:last-child {
+      border-top-right-radius: 8px;
+    }
+
+    td {
+      border: 1px solid hsl(var(--color-stroke));
+      @apply px-4 py-3;
+      color: hsl(var(--color-content2));
+    }
+
     ul, ol {
       list-style: revert;
       margin: revert;

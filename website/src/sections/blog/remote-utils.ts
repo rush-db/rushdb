@@ -18,12 +18,16 @@ export const getRemoteBlogPosts = async (): Promise<Post['data'][]> => {
 }
 
 // Function to get a single blog post by slug
-export const getRemoteBlogPost = async (slug: string): Promise<Post['data'] | null> => {
+export const getRemoteBlogPost = async (slug: string, previewId?: string): Promise<Post['data'] | null> => {
   try {
     const result = await PostModel.findOne({
-      where: {
-        slug
-      }
+      where:
+        previewId ?
+          {
+            slug,
+            $id: previewId
+          }
+        : { slug, draft: false }
     })
 
     if (result.exists()) {

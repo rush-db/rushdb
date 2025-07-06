@@ -15,6 +15,7 @@ import { CallToAction } from '~/components/CallToAction'
 import remarkGfm from 'remark-gfm'
 import { generateJsonLd } from '~/utils/jsonLd'
 import { useRouter } from 'next/router'
+import mermaidPlugin from 'mdx-mermaid' // this might bring commonJS vs ESM problems, I am not 100% sure
 
 type Props = {
   serializedPost: MDXRemoteSerializeResult
@@ -69,7 +70,7 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
   )
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) => {
+export const getServerSideProps: GetServerSideProps<Props> = async ({ params, query }) => {
   if (!params?.slug) {
     return {
       notFound: true
@@ -77,9 +78,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) 
   }
 
   try {
+    const previewId = query.preview as string | undefined
+
     // Fetch post and all posts in parallel
     const [post, allPosts] = await Promise.all([
-      getRemoteBlogPost(params.slug as string),
+      getRemoteBlogPost(params.slug as string, previewId),
       getRemoteBlogPosts()
     ])
 
@@ -92,7 +95,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) 
     // Serialize MDX content
     const serializedPost = await serialize(post?.content, {
       mdxOptions: {
-        remarkPlugins: [remarkGfm]
+        remarkPlugins: [remarkGfm, mermaidPlugin]
       },
       scope: post
     })

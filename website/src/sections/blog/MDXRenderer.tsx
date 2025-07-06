@@ -2,15 +2,15 @@ import { MDXRemote } from 'next-mdx-remote'
 import { ComponentPropsWithoutRef, isValidElement } from 'react'
 import { CodeBlock } from '~/components/CodeBlock'
 import { Page, Post } from '~/sections/blog/types'
-import { Mermaid } from 'mdx-mermaid/lib/Mermaid'
 import { CodeBlockWithLanguageSelector } from '~/components/CodeBlockWithLanguageSelector'
 import { formatDate } from './utils'
 import { Tags } from '~/components/Tags'
+import { Mermaid } from '~/components/Mermaid'
 
 const Pre = ({ children, ...props }: ComponentPropsWithoutRef<'pre'>) => {
   if (isValidElement(children) && children.type === 'code') {
     // @ts-ignore
-    const language = children.props.className.split('-').pop()
+    const language = children.props.className?.split('-').pop()
     // @ts-ignore
     const code = children.props.children
 
@@ -40,8 +40,15 @@ const Pre = ({ children, ...props }: ComponentPropsWithoutRef<'pre'>) => {
 }
 
 const getPostComponents = () => ({
-  pre: Pre
+  pre: Pre,
+  table: ({ children, ...props }: ComponentPropsWithoutRef<'table'>) => (
+    <div className="col-span-8 col-start-3 overflow-x-auto md:col-span-12 md:col-start-1">
+      <table {...props}>{children}</table>
+    </div>
+  ),
+  mermaid: Mermaid
 })
+
 export function MDXRenderer({
   data: post,
   showDate,
@@ -50,7 +57,7 @@ export function MDXRenderer({
   data: Post['data']
   showDate?: boolean
 }) {
-  const components = getPostComponents() as unknown as null
+  const components = getPostComponents()
 
   return (
     <section className="container">
@@ -93,7 +100,7 @@ export function MDXPageRenderer({
   data: Page['data']
   showDate?: boolean
 }) {
-  const components = getPostComponents() as unknown as null
+  const components = getPostComponents()
 
   return (
     <section className="container">
