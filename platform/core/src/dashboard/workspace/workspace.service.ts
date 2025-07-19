@@ -49,6 +49,7 @@ import {
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import * as crypto from 'node:crypto'
+import { validateEmail } from '@/dashboard/user/user.utils'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -356,8 +357,9 @@ export class WorkspaceService {
 
   async inviteMember(payload: TWorkspaceInvitation, transaction: Transaction): Promise<{ message: string }> {
     const runner = this.neogmaService.createRunner()
+    const isEmail = toBoolean(validateEmail(payload.email || ''))
 
-    if (!payload.workspaceId || !payload.email) {
+    if (!payload.workspaceId || !payload.email || !isEmail) {
       isDevMode(() => Logger.error('[Invite member ERROR]: No required data provided'))
       throw new BadRequestException('No required data provided')
     }

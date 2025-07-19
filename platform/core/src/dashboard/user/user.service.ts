@@ -267,8 +267,9 @@ export class UserService {
     }
 
     const isEmail = toBoolean(validateEmail(properties.login || ''))
+    const isOnlyEmailLoginAllowed = !toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
 
-    if (!isEmail) {
+    if (!isEmail && isOnlyEmailLoginAllowed) {
       isDevMode(() => Logger.error('[Create user ERROR]: Bad email provided'))
       throw new BadRequestException('Bad email data provided')
     }
