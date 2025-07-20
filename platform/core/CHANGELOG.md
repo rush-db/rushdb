@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.8.1
+
+### Patch Changes
+
+- c239ad9: Fix: Allowed non-email logins for self-hosted instances
+
 ## 1.8.0
 
 ### Minor Changes
