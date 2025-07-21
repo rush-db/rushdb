@@ -1,7 +1,7 @@
 import { MDXRemoteSerializeResult } from 'next-mdx-remote'
 
 import { Layout } from '~/components/Layout'
-import { GetServerSideProps } from 'next'
+import { GetStaticProps, GetStaticPaths } from 'next'
 import { Page } from '~/sections/blog/types'
 import { MDXPageRenderer } from '~/sections/blog/MDXRenderer'
 import { getRemotePage } from '~/sections/blog/remote-utils'
@@ -25,14 +25,23 @@ export default function StaticPage({ serializedPage, data }: Props) {
   )
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) => {
+export const getStaticPaths: GetStaticPaths = async () => {
+  // For static pages, we'll use fallback: 'blocking' to generate pages on-demand
+  // This allows for ISR with new pages that weren't pre-built
+  return {
+    paths: [], // We'll generate pages on-demand
+    fallback: 'blocking'
+  }
+}
+
+export const getStaticProps: GetStaticProps<Props, Params> = async ({ params }) => {
   if (!params?.slug) {
     return {
       notFound: true
     }
   }
 
-  const page = await getRemotePage(params.slug as string)
+  const page = await getRemotePage(params.slug)
 
   if (!page?.__id) {
     return {
@@ -51,6 +60,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params }) 
     props: {
       serializedPage,
       data: page
-    }
+    },
+    revalidate: 3600 // Revalidate every hour
   }
 }
