@@ -3,11 +3,11 @@ import type { Schema } from '../types/index.js'
 
 import type { DBRecord } from './record.js'
 import { DBRecordInstance } from './record.js'
-import type { SDKConfig, State } from './types.js'
+import { SDKConfig, State, TokenPublicVariables } from './types.js'
 
 import { RestAPI } from '../api/api.js'
 import { DEFAULT_TIMEOUT } from '../common/constants.js'
-import { parseConfig, validateInteger } from './utils.js'
+import { extractMixedPropertiesFromToken, parseConfig, validateInteger } from './utils.js'
 
 let httpClient: HttpClient
 
@@ -27,10 +27,17 @@ export class RushDB extends RestAPI {
 
     RushDB.instance = this
 
-    RushDB.initPromise = this.initializeAsync(token, props).catch((error) => {
-      console.error('RushDB initialization failed:', error)
-      throw error
-    })
+    const [maybeMixed] = extractMixedPropertiesFromToken(token ?? '')
+
+    if (maybeMixed) {
+      this.initializeSync(maybeMixed, token, props)
+      RushDB.initPromise = Promise.resolve(this)
+    } else {
+      RushDB.initPromise = this.initializeAsync(token, props).catch((error) => {
+        console.error('RushDB initialization failed:', error)
+        throw error
+      })
+    }
   }
 
   /**
@@ -42,6 +49,27 @@ export class RushDB extends RestAPI {
       return await RushDB.initPromise
     }
     return this
+  }
+
+  private initializeSync(mixed: TokenPublicVariables, token?: string, props?: any) {
+    const { planType, customDB, managedDB, selfHosted, canceled } = mixed
+
+    try {
+      RushDB.state = {
+        initialized: true,
+        debug: false,
+        timeout: validateInteger('timeout', props?.timeout, DEFAULT_TIMEOUT),
+        token,
+        serverSettings: { customDB, managedDB, selfHosted, canceled, planType }
+      }
+
+      return this
+    } catch (error) {
+      console.error('Failed to initialize RushDB:', error)
+      throw new Error(`RushDB initialization failed: ${error}`)
+    } finally {
+      RushDB.state.initialized = true
+    }
   }
 
   private async initializeAsync(token?: string, props?: any): Promise<RushDB> {
