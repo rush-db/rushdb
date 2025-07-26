@@ -18,12 +18,8 @@ export type State = {
   initialized: boolean
   serverSettings?: {
     selfHosted: boolean
-    dashboardUrl?: string
-    googleOAuthEnabled?: boolean
-    githubOAuthEnabled?: boolean
     customDB?: boolean
     managedDB?: boolean
-    canceled?: boolean
     planType?: PlanType
   }
 } & Partial<ApiConnectionConfig>
@@ -50,5 +46,5 @@ export type PlanType = keyof typeof PlanPrefix
 type RawServerSettings = NonNullable<State['serverSettings']>
 export type TokenPublicVariables = Pick<
   RawServerSettings,
-  'selfHosted' | 'customDB' | 'managedDB' | 'canceled' | 'planType'
+  'selfHosted' | 'customDB' | 'managedDB' | 'planType'
 >

@@ -156,13 +156,12 @@ export function extractMixedPropertiesFromToken(
   const plan = planEntry[0]
 
   // Build feature flags
-  const [bCustomDb, bManagedDb, bSelfHosted, bCanceled] = bits.split('')
+  const [bCustomDb, bManagedDb, bSelfHosted] = bits.split('')
 
   const settings: TokenPublicVariables = {
     customDB: bCustomDb === '1',
     managedDB: bManagedDb === '1',
     selfHosted: bSelfHosted === '1',
-    canceled: bCanceled === '1',
     planType: plan
   }
 
