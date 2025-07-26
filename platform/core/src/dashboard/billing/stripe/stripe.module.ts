@@ -12,7 +12,7 @@ import { StripeService } from './stripe.service'
   imports: [
     forwardRef(() => WorkspaceModule),
     forwardRef(() => ProjectModule),
-    TokenModule,
+    forwardRef(() => TokenModule),
     forwardRef(() => TransactionModule)
   ],
   controllers: [StripeController],

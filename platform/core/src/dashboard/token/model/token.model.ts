@@ -36,6 +36,10 @@ export const Token: TTokenParams = {
     value: {
       type: 'string',
       required: true
+    },
+    prefixValue: {
+      type: 'string',
+      required: false
     }
   },
   primaryKeyField: 'id',

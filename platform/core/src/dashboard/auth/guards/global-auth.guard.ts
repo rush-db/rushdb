@@ -16,6 +16,7 @@ import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
 import { UserService } from '@/dashboard/user/user.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { extractMixedPropertiesFromToken } from '@/common/utils/tokenUtils'
 
 type TDashboardTargetType = 'project' | 'workspace'
 
@@ -61,10 +62,12 @@ class GlobalAuthGuard implements CanActivate {
       try {
         const authHeader = request.headers['token'] || bearerToken
         const tokenId = this.tokenService.decrypt(authHeader)
+        const prefixedToken = extractMixedPropertiesFromToken(authHeader)
 
         const { hasAccess, projectId, workspaceId } = await this.tokenService.validateToken({
           tokenId,
-          transaction
+          transaction,
+          prefixData: prefixedToken
         })
 
         if (hasAccess) {

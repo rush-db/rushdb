@@ -17,6 +17,16 @@ import { ACCESS_WEIGHT, READ_ACCESS, WRITE_ACCESS } from '@/dashboard/token/toke
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import * as crypto from 'node:crypto'
+import { ProjectService } from '@/dashboard/project/project.service'
+import { toBoolean } from '@/common/utils/toBolean'
+import { MixedTypeResult, ServerSettings } from '@/common/types/prefix'
+import {
+  attachMixedProperties,
+  extractMixedPropertiesFromToken,
+  getNormalizedPrefix,
+  getPrefixedPlan
+} from '@/common/utils/tokenUtils'
+import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
 @Injectable()
 export class TokenService {
@@ -24,11 +34,21 @@ export class TokenService {
     private readonly neogmaService: NeogmaService,
     private readonly tokenRepository: TokenRepository,
     private readonly tokenQueryService: TokenQueryService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly projectService: ProjectService,
+    private readonly workspaceService: WorkspaceService
   ) {}
 
   normalize(node: TTokenInstance) {
-    return new TokenEntity(node.id, node.name, node.created, node.expiration, node.value, node.description)
+    return new TokenEntity(
+      node.id,
+      node.name,
+      node.created,
+      node.expiration,
+      node.value,
+      node.description,
+      node.prefixValue
+    )
   }
 
   encryptTokenData(tokenData) {
@@ -41,9 +61,10 @@ export class TokenService {
   }
 
   decrypt(encrypted) {
+    const [_, rawToken] = extractMixedPropertiesFromToken(encrypted)
     const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
-    const iv = encrypted.substring(0, 32)
-    const cipherText = encrypted.substring(32)
+    const iv = rawToken.substring(0, 32)
+    const cipherText = rawToken.substring(32)
 
     const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey, Buffer.from(iv, 'hex'))
     const decrypted = decipher.update(cipherText, 'base64', 'utf8')
@@ -59,6 +80,17 @@ export class TokenService {
     const id = uuidv7()
     const { name, description = '', expiration: expirationRaw = '30d' } = properties
     const expiration = expirationRaw === '*' ? -1 : ms(expirationRaw as string)
+    const projectNode = await this.projectService.getProject(projectId, transaction)
+    const workspaceNode = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
+    const { customDb, managedDb } = projectNode.toJson()
+    const { planId } = workspaceNode
+    const selfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
+    const tokenPrefix = {
+      managedDB: Boolean(managedDb),
+      customDb: Boolean(customDb),
+      selfHosted
+    } as ServerSettings
+    const prefixString = attachMixedProperties(getPrefixedPlan(planId as string), tokenPrefix)
 
     const token = this.encryptTokenData(id)
     const tokenNode = await this.tokenRepository.model.createOne(
@@ -68,7 +100,8 @@ export class TokenService {
         description,
         expiration,
         created: currentTime,
-        value: token
+        value: token,
+        prefixValue: prefixString
       },
       { session: transaction }
     )
@@ -106,7 +139,35 @@ export class TokenService {
     return expiration === -1 ? false : validTill < currentTime.getTime()
   }
 
-  async validateToken({ tokenId, transaction }: { tokenId: string; transaction: Transaction }): Promise<{
+  isTokenPrefixMalformed(tokenInstance: TTokenInstance, incomingTokenPrefix: MixedTypeResult) {
+    const [settings] = incomingTokenPrefix
+
+    if (settings === null && !tokenInstance.prefixValue) {
+      return false
+    } else if (settings && !tokenInstance.prefixValue) {
+      return true
+    } else if (settings === null && tokenInstance.prefixValue) {
+      return true
+    }
+
+    const storedSettings = getNormalizedPrefix(tokenInstance.prefixValue)
+
+    if (storedSettings === null) {
+      return true
+    }
+
+    return !Object.keys(storedSettings).every((key) => storedSettings[key] === settings[key])
+  }
+
+  async validateToken({
+    tokenId,
+    transaction,
+    prefixData
+  }: {
+    tokenId: string
+    transaction: Transaction
+    prefixData: MixedTypeResult
+  }): Promise<{
     hasAccess: boolean
     projectId: string
     workspaceId: string
@@ -130,6 +191,16 @@ export class TokenService {
           level: result.records[0]?.get('level')
         }
       })
+
+    const isMalformedPrefix = this.isTokenPrefixMalformed(token, prefixData)
+
+    if (isMalformedPrefix) {
+      return {
+        hasAccess: false,
+        projectId: undefined,
+        workspaceId: undefined
+      }
+    }
 
     const currentTokenRole = level as typeof READ_ACCESS | typeof WRITE_ACCESS
 

@@ -10,6 +10,7 @@ type TTokenProperties = {
   expiration: number
   description?: string
   value?: string
+  prefixValue?: string
 }
 
 export type TAccessLevel = typeof WRITE_ACCESS | typeof READ_ACCESS

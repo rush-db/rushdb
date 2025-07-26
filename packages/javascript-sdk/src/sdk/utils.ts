@@ -1,8 +1,8 @@
 import type { PropertyValue, Schema, InferSchemaTypesWrite } from '../types/index.js'
-import type { SDKConfig } from './types.js'
+import { PlanType, SDKConfig, TokenPublicVariables } from './types.js'
 
 import { isObject } from '../common/utils.js'
-import { ALLOWED_CONFIG_PROPERTIES } from './constants.js'
+import { ALLOWED_CONFIG_PROPERTIES, PlanPrefix } from './constants.js'
 import { UniquenessError } from './errors.js'
 
 export const mergeDefaultsWithPayload = async <S extends Schema = Schema>(
@@ -131,4 +131,39 @@ export function idToTimestamp(id: string): number {
 
 export function idToDate(id: string): Date {
   return new Date(idToTimestamp(id))
+}
+
+export function extractMixedPropertiesFromToken(
+  prefixedToken: string
+): [TokenPublicVariables | null, string] {
+  // Try such token format XX_YYYYYY_ZZZ
+  const reg = /^([a-z]{2})_([01]{3}\d{0,})_(.+)$/
+
+  const matchedToken = prefixedToken.match(reg)
+
+  if (!matchedToken) {
+    // Working with old token
+    return [null, prefixedToken]
+  }
+
+  const [, prefix, bits, rawToken] = matchedToken
+
+  // Get user prefixed plan
+  const planEntry = (Object.entries(PlanPrefix) as [PlanType, string][]).find(
+    ([_, currentPrefix]) => currentPrefix === prefix
+  )!
+
+  const plan = planEntry[0]
+
+  // Build feature flags
+  const [bCustomDb, bManagedDb, bSelfHosted] = bits.split('')
+
+  const settings: TokenPublicVariables = {
+    customDB: bCustomDb === '1',
+    managedDB: bManagedDb === '1',
+    selfHosted: bSelfHosted === '1',
+    planType: plan
+  }
+
+  return [{ ...settings }, rawToken]
 }
