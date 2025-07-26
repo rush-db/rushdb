@@ -157,7 +157,7 @@ export class TokenService {
       return true
     }
 
-    return Object.keys(storedSettings).every((key) => storedSettings[key] === settings[key])
+    return !Object.keys(storedSettings).every((key) => storedSettings[key] === settings[key])
   }
 
   async validateToken({

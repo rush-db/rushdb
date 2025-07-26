@@ -2,10 +2,15 @@ import { MixedPlanProperties, MixedTypeResult, PlanType, ServerSettings } from '
 import { PlanPrefix, RESERVED_FLAGS_COUNT } from '@/common/constants'
 
 export function attachMixedProperties(plan: PlanType, settings?: Partial<ServerSettings>): string {
-  const { customDB = false, managedDB = false, selfHosted = false } = settings ?? {}
+  const { customDB = false, managedDB = false, selfHosted = false, canceled = false } = settings ?? {}
 
   // Compute features bits customDB → managedDB → selfHosted
-  const bitsCore = [customDB ? '1' : '0', managedDB ? '1' : '0', selfHosted ? '1' : '0'].join('')
+  const bitsCore = [
+    customDB ? '1' : '0',
+    managedDB ? '1' : '0',
+    selfHosted ? '1' : '0',
+    canceled ? '1' : '0'
+  ].join('')
 
   // Attach reserved bits
   const bitsReserved = '0'.repeat(RESERVED_FLAGS_COUNT)
