@@ -48,6 +48,9 @@ export const Project: TProjectParams = {
     },
     customDb: {
       type: 'string'
+    },
+    managedDb: {
+      type: 'string'
     }
   },
   primaryKeyField: 'id',

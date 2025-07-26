@@ -13,6 +13,7 @@ type TProjectProperties = {
   description?: string
   stats?: string
   customDb?: string
+  managedDb?: boolean
 }
 
 interface IProjectProperties extends TProjectProperties {}
