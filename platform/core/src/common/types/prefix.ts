@@ -6,7 +6,6 @@ export interface ServerSettings {
   selfHosted: boolean
   customDB?: boolean
   managedDB?: boolean
-  canceled?: boolean
 }
 
 export type MixedPlanProperties = ServerSettings & { plan: PlanType }

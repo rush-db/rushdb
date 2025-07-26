@@ -2,15 +2,10 @@ import { MixedPlanProperties, MixedTypeResult, PlanType, ServerSettings } from '
 import { PlanPrefix, RESERVED_FLAGS_COUNT } from '@/common/constants'
 
 export function attachMixedProperties(plan: PlanType, settings?: Partial<ServerSettings>): string {
-  const { customDB = false, managedDB = false, selfHosted = false, canceled = false } = settings ?? {}
+  const { customDB = false, managedDB = false, selfHosted = false } = settings ?? {}
 
-  // Compute features bits customDB → managedDB → selfHosted → canceled
-  const bitsCore = [
-    customDB ? '1' : '0',
-    managedDB ? '1' : '0',
-    selfHosted ? '1' : '0',
-    canceled ? '1' : '0'
-  ].join('')
+  // Compute features bits customDB → managedDB → selfHosted
+  const bitsCore = [customDB ? '1' : '0', managedDB ? '1' : '0', selfHosted ? '1' : '0'].join('')
 
   // Attach reserved bits
   const bitsReserved = '0'.repeat(RESERVED_FLAGS_COUNT)
@@ -40,13 +35,12 @@ export function extractMixedPropertiesFromToken(prefixedToken: string): MixedTyp
   const plan = planEntry[0]
 
   // Build feature flags
-  const [bCustomDb, bManagedDb, bSelfHosted, bCanceled] = bits.split('')
+  const [bCustomDb, bManagedDb, bSelfHosted] = bits.split('')
 
   const settings: ServerSettings = {
     customDB: bCustomDb === '1',
     managedDB: bManagedDb === '1',
-    selfHosted: bSelfHosted === '1',
-    canceled: bCanceled === '1'
+    selfHosted: bSelfHosted === '1'
   }
 
   return [{ plan, ...settings }, rawToken]
@@ -72,13 +66,12 @@ export function getNormalizedPrefix(prefixString: string): MixedPlanProperties |
   const plan = planEntry[0]
 
   // Build feature flags
-  const [bCustomDb, bManagedDb, bSelfHosted, bCanceled] = bits.split('')
+  const [bCustomDb, bManagedDb, bSelfHosted] = bits.split('')
 
   const settings: ServerSettings = {
     customDB: bCustomDb === '1',
     managedDB: bManagedDb === '1',
-    selfHosted: bSelfHosted === '1',
-    canceled: bCanceled === '1'
+    selfHosted: bSelfHosted === '1'
   }
 
   return { plan, ...settings }

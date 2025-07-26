@@ -83,13 +83,12 @@ export class TokenService {
     const projectNode = await this.projectService.getProject(projectId, transaction)
     const workspaceNode = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
     const { customDb, managedDb } = projectNode.toJson()
-    const { planId, isSubscriptionCancelled } = workspaceNode
+    const { planId } = workspaceNode
     const selfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
     const tokenPrefix = {
       managedDB: Boolean(managedDb),
       customDb: Boolean(customDb),
-      selfHosted,
-      canceled: isSubscriptionCancelled
+      selfHosted
     } as ServerSettings
     const prefixString = attachMixedProperties(getPrefixedPlan(planId as string), tokenPrefix)
 
