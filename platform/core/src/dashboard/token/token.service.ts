@@ -82,11 +82,11 @@ export class TokenService {
     const expiration = expirationRaw === '*' ? -1 : ms(expirationRaw as string)
     const projectNode = await this.projectService.getProject(projectId, transaction)
     const workspaceNode = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    // @TODO: managedDb should be extracted from this point
-    const { customDb } = projectNode.toJson()
+    const { customDb, managedDb } = projectNode.toJson()
     const { planId, isSubscriptionCancelled } = workspaceNode
     const selfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
     const tokenPrefix = {
+      managedDB: Boolean(managedDb),
       customDb: Boolean(customDb),
       selfHosted,
       canceled: isSubscriptionCancelled
