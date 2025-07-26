@@ -4,7 +4,7 @@ import { PlanPrefix, RESERVED_FLAGS_COUNT } from '@/common/constants'
 export function attachMixedProperties(plan: PlanType, settings?: Partial<ServerSettings>): string {
   const { customDB = false, managedDB = false, selfHosted = false, canceled = false } = settings ?? {}
 
-  // Compute features bits customDB → managedDB → selfHosted
+  // Compute features bits customDB → managedDB → selfHosted → canceled
   const bitsCore = [
     customDB ? '1' : '0',
     managedDB ? '1' : '0',
