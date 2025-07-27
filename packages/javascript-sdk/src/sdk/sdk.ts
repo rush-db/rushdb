@@ -50,10 +50,10 @@ export class RushDB extends RestAPI {
   }
 
   /**
-   * Static method to get or wait for initialization
+   * Static method to get instance
    * This is the preferred way to get an initialized RushDB instance
    */
-  static async init(): Promise<RushDB> {
+  static init(): RushDB {
     // If an instance exists but is not yet initialized, wait for it
     if (RushDB.instance) {
       return RushDB.instance
