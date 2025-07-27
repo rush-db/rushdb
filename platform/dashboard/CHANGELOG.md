@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 1.9.0
+
+### Minor Changes
+
+- 5e7ea2c: Feat: added non-encrypted prefix for token to setup server settings in sdk
+
+### Patch Changes
+
+- Updated dependencies [5e7ea2c]
+  - @rushdb/javascript-sdk@1.9.0
+
 ## 1.8.1
 
 ### Patch Changes
