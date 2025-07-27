@@ -7,7 +7,8 @@ export class ProjectEntity {
     private readonly created: string,
     private readonly description?: string,
     private readonly edited?: string,
-    private readonly customDb?: string
+    private readonly customDb?: string,
+    private readonly managedDb?: boolean
   ) {}
 
   getProperties(): IProjectProperties {
@@ -17,7 +18,8 @@ export class ProjectEntity {
       created: this.created,
       edited: this.edited,
       description: this.description,
-      customDb: this.customDb
+      customDb: this.customDb,
+      managedDb: this.managedDb
     }
   }
 
