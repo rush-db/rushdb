@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.9.1
+
+### Patch Changes
+
+- 742bee5: fix: changed managedDb property type
+
 ## 1.9.0
 
 ### Minor Changes

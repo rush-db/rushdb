@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.9.1
+
+### Patch Changes
+
+- 742bee5: fix: changed managedDb property type
+- Updated dependencies [742bee5]
+  - @rushdb/javascript-sdk@1.9.1
+
 ## 1.9.0
 
 ### Minor Changes
