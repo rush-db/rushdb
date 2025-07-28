@@ -50,7 +50,7 @@ export const Project: TProjectParams = {
       type: 'string'
     },
     managedDb: {
-      type: 'string'
+      type: 'boolean'
     }
   },
   primaryKeyField: 'id',
