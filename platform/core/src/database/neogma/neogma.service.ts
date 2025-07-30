@@ -73,7 +73,7 @@ export class NeogmaService implements OnApplicationShutdown {
   async closeSession(session: Session, context?: any) {
     await session?.close()
     isDevMode(() => {
-      this.stats('close session' + (context ? context : ''))
+      this.stats('close session ' + (context ? context : ''))
     })
   }
 
