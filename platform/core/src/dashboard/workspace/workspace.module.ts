@@ -8,6 +8,7 @@ import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repos
 import { WorkspaceController } from '@/dashboard/workspace/workspace.controller'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
+import { WorkspaceContextCacheService } from '@/dashboard/workspace/workspace-context-cache.service'
 
 @Module({
   imports: [
@@ -16,8 +17,8 @@ import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.ser
     forwardRef(() => TokenModule),
     forwardRef(() => EntityModule)
   ],
-  providers: [WorkspaceRepository, WorkspaceService, WorkspaceQueryService],
-  exports: [WorkspaceRepository, WorkspaceService, WorkspaceQueryService],
+  providers: [WorkspaceRepository, WorkspaceService, WorkspaceQueryService, WorkspaceContextCacheService],
+  exports: [WorkspaceRepository, WorkspaceService, WorkspaceQueryService, WorkspaceContextCacheService],
   controllers: [WorkspaceController]
 })
 export class WorkspaceModule {}

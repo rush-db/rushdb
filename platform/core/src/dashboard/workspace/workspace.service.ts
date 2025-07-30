@@ -50,6 +50,7 @@ import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import * as crypto from 'node:crypto'
 import { validateEmail } from '@/dashboard/user/user.utils'
+import { WorkspaceContext } from '@/dashboard/workspace/workspace.context'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -606,5 +607,29 @@ export class WorkspaceService {
     }
 
     return rec.get('role') as TUserRoles
+  }
+
+  async buildWorkspaceContext(workspaceId: string, transaction: Transaction): Promise<WorkspaceContext> {
+    const workspace = await this.getWorkspaceInstance(workspaceId, transaction)
+    const properties = workspace.dataValues
+    let isCancelled: boolean
+
+    if (properties.planId) {
+      if (!properties.isSubscriptionCancelled) {
+        isCancelled = false
+      } else {
+        const validTillDate = new Date(properties.validTill)
+        const increasedValidTillDate = new Date(validTillDate)
+        increasedValidTillDate.setDate(increasedValidTillDate.getDate() + 30)
+        const currentDate = new Date()
+
+        isCancelled = !(currentDate > increasedValidTillDate)
+      }
+    }
+
+    return {
+      planId: properties.planId,
+      isSubscriptionCancelled: isCancelled
+    }
   }
 }
