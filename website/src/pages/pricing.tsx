@@ -1,18 +1,7 @@
 import { Layout } from '~/components/Layout'
 import { Pricing } from '~/sections/Pricing'
 import { GetServerSideProps } from 'next'
-
-type PaidStartPlanId = 'start'
-type PaidPlanId = 'pro'
-type PlanPeriod = 'annual' | 'month'
-
-type IncomingPlanData = {
-  amount: number
-  priceId: string
-  productId: string
-}
-
-type BillingData = Record<PaidStartPlanId | PaidPlanId, Record<PlanPeriod, IncomingPlanData>>
+import { BillingData } from '~/components/pricing-types'
 
 interface PricingPageProps {
   billingData: BillingData | null
@@ -24,24 +13,22 @@ export default function PricingPage({ billingData }: PricingPageProps) {
       title="Pricing"
       description="Explore RushDB's flexible pricing plans designed for startups, developers, and enterprises. Get the power of a graph database with instant setup, zero configuration, and best-in-class developer experience. Scale effortlessly with transparent and predictable pricing. Start for free!"
     >
-      <Pricing initialBillingData={billingData} />
+      <Pricing billingData={billingData} />
     </Layout>
   )
 }
 
 export const getServerSideProps: GetServerSideProps<PricingPageProps> = async () => {
   try {
-    const res = await fetch('https://billing.rushdb.com/api/prices')
+    const res = await fetch('http://localhost:3000/api/prices')
 
-    if (!res.ok) {
-      return {
-        props: {
-          billingData: null
-        }
-      }
+    let billingData: BillingData | null = null
+
+    if (res.ok) {
+      billingData = await res.json()
+    } else {
+      console.warn('Failed to fetch billing data, using tiered pricing only')
     }
-
-    const billingData = await res.json()
 
     return {
       props: {

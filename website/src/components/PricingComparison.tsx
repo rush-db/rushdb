@@ -21,13 +21,13 @@ const features: Feature[] = [
   {
     name: 'Records',
     free: '10,000',
-    start: '100,000',
-    pro: '1,000,000',
+    start: 'Up to 200,000',
+    pro: 'Up to 1B+',
     enterprise: 'Unlimited'
   },
   {
     name: 'Team Members',
-    free: '1',
+    free: 'N/A',
     start: '3',
     pro: '10',
     enterprise: 'Unlimited'
@@ -35,8 +35,8 @@ const features: Feature[] = [
   {
     name: 'Additional Seat Cost',
     free: 'N/A',
-    start: '$5/month',
-    pro: '$5/month',
+    start: '$10/month',
+    pro: '$25/month',
     enterprise: 'Custom'
   },
   {
@@ -54,11 +54,11 @@ const features: Feature[] = [
     enterprise: true
   },
   {
-    name: 'MCP (Model Context Protocol)',
-    free: 'Coming Soon',
-    start: 'Coming Soon',
-    pro: 'Coming Soon',
-    enterprise: 'Coming Soon'
+    name: 'Smart CDN',
+    free: true,
+    start: true,
+    pro: true,
+    enterprise: true
   },
   {
     name: 'Dashboard Access',
@@ -82,10 +82,17 @@ const features: Feature[] = [
     enterprise: true
   },
   {
+    name: 'Custom Queries',
+    free: false,
+    start: false,
+    pro: true,
+    enterprise: true
+  },
+  {
     name: 'Backups',
     free: false,
-    start: '7-day (Coming Soon)',
-    pro: '30-day (Coming Soon)',
+    start: false,
+    pro: '14-day (Coming Soon)',
     enterprise: 'Custom'
   },
   {
@@ -93,41 +100,34 @@ const features: Feature[] = [
     free: 'Community',
     start: 'Email',
     pro: 'Priority',
-    enterprise: 'Premium + SLA'
+    enterprise: 'Dedicated'
   },
   {
-    name: 'Uptime SLA',
+    name: 'Dedicated Instances',
+    free: false,
+    start: false,
+    pro: true,
+    enterprise: true
+  },
+  {
+    name: 'SSO',
+    free: false,
+    start: false,
+    pro: 'Coming Soon',
+    enterprise: true
+  },
+  {
+    name: 'SLA Guarantees',
     free: false,
     start: false,
     pro: false,
     enterprise: true
   },
   {
-    name: 'Custom Integrations',
+    name: 'Custom Deployment',
     free: false,
     start: false,
     pro: false,
-    enterprise: true
-  },
-  {
-    name: 'Advanced Analytics',
-    free: false,
-    start: false,
-    pro: 'Coming Soon',
-    enterprise: 'Coming Soon'
-  },
-  {
-    name: 'Multi-Region Deployment',
-    free: false,
-    start: false,
-    pro: false,
-    enterprise: 'Coming Soon'
-  },
-  {
-    name: 'Single Sign-On (SSO)',
-    free: false,
-    start: false,
-    pro: 'Coming Soon',
     enterprise: true
   }
 ]
@@ -139,7 +139,6 @@ const FeatureCell = ({ value }: { value: boolean | string }) => {
       : <X className="text-content3 mx-auto h-5 w-5" />
   }
 
-  // Check if the value contains "Coming Soon"
   if (typeof value === 'string' && value.includes('Coming Soon')) {
     return (
       <span className="text-content flex flex-col items-center font-medium">
