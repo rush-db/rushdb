@@ -5,9 +5,10 @@ import { TokenRepository } from '@/dashboard/token/model/token.repository'
 import { TokenQueryService } from '@/dashboard/token/token-query.service'
 import { TokenController } from '@/dashboard/token/token.controller'
 import { TokenService } from '@/dashboard/token/token.service'
+import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
 
 @Module({
-  imports: [forwardRef(() => ProjectModule)],
+  imports: [forwardRef(() => WorkspaceModule), forwardRef(() => ProjectModule)],
   providers: [TokenRepository, TokenService, TokenQueryService],
   exports: [TokenRepository, TokenService, TokenQueryService],
   controllers: [TokenController]

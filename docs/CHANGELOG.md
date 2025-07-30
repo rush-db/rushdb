@@ -1,5 +1,23 @@
 # rushdb-docs
 
+## 1.9.1
+
+### Patch Changes
+
+- 742bee5: fix: changed managedDb property type
+
+## 1.9.0
+
+### Minor Changes
+
+- 5e7ea2c: Feat: added non-encrypted prefix for token to setup server settings in sdk
+
+## 1.8.1
+
+### Patch Changes
+
+- c239ad9: Fix: Allowed non-email logins for self-hosted instances
+
 ## 1.8.0
 
 ### Minor Changes

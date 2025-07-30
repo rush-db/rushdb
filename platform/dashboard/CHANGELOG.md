@@ -1,5 +1,32 @@
 # rushdb-dashboard
 
+## 1.9.1
+
+### Patch Changes
+
+- 742bee5: fix: changed managedDb property type
+- Updated dependencies [742bee5]
+  - @rushdb/javascript-sdk@1.9.1
+
+## 1.9.0
+
+### Minor Changes
+
+- 5e7ea2c: Feat: added non-encrypted prefix for token to setup server settings in sdk
+
+### Patch Changes
+
+- Updated dependencies [5e7ea2c]
+  - @rushdb/javascript-sdk@1.9.0
+
+## 1.8.1
+
+### Patch Changes
+
+- c239ad9: Fix: Allowed non-email logins for self-hosted instances
+- Updated dependencies [c239ad9]
+  - @rushdb/javascript-sdk@1.8.1
+
 ## 1.8.0
 
 ### Minor Changes

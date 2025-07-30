@@ -60,6 +60,7 @@ export class ProjectService {
     const { name, description = '' } = properties
 
     const customDb = await this.attachCustomDb(properties.customDb)
+    const managedDb = this.checkManagedDb(properties.customDb)
 
     const projectNode = await this.projectRepository.model.createOne(
       {
@@ -67,6 +68,7 @@ export class ProjectService {
         name,
         description,
         ...(customDb && { customDb }),
+        ...(customDb && { managedDb }),
         created: currentTime
       },
       { session: transaction }
@@ -104,6 +106,14 @@ export class ProjectService {
     await this.neogmaDynamicService.validateConnection(config)
 
     return this.encryptCustomDb(payload)
+  }
+
+  checkManagedDb(payload?: TProjectCustomDbPayload): boolean {
+    if (!payload?.url) {
+      return false
+    }
+
+    return payload.url.includes('rushdb.net')
   }
 
   encryptCustomDb(payload: TProjectCustomDbPayload): string {
