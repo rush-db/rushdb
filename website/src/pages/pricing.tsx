@@ -18,7 +18,7 @@ export default function PricingPage({ billingData }: PricingPageProps) {
   )
 }
 
-export const getServerSideProps: GetServerSideProps<PricingPageProps> = async () => {
+export const getStaticProps = async () => {
   try {
     const res = await fetch('https://billing.rushdb.com/api/prices')
 
@@ -33,14 +33,16 @@ export const getServerSideProps: GetServerSideProps<PricingPageProps> = async ()
     return {
       props: {
         billingData
-      }
+      },
+      revalidate: 3600 // Optional: ISR, revalidate every hour
     }
   } catch (error) {
     console.error('Failed to fetch billing data:', error)
     return {
       props: {
         billingData: null
-      }
+      },
+      revalidate: 3600 // Optional: ISR
     }
   }
 }

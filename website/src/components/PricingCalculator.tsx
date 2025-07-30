@@ -259,13 +259,12 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
             </div>
           </div>
           <div className="text-content3 mt-1 flex justify-between text-xs">
-            <span className="font-medium">T3 Tier (Up to 10M)</span>
-            <span className="font-medium">T2 Tier (Up to 100M)</span>
-            <span className="font-medium">T1 Tier (100M+)</span>
+            <span className="font-medium">T3 Tier</span>
+            <span className="font-medium">T2 Tier</span>
+            <span className="font-medium">T1 Tier</span>
           </div>
         </div>
 
-        {/* Average Properties Slider */}
         <div className="mb-8">
           <label className="text-content2 typography-base mb-4 block font-medium">
             Average Properties per Record: <span className="text-accent font-bold">{avgProperties}</span>
