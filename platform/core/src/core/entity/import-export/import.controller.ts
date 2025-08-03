@@ -33,8 +33,8 @@ import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
-import { CustomTransactionDecorator } from '@/database/neogma-dynamic/custom-transaction.decorator'
 import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
+import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 @Controller('')
 @ApiTags('Records')
@@ -60,7 +60,7 @@ export class ImportController {
   async collectJson(
     @Body() body: ImportJsonDto,
     @TransactionDecorator() transaction: Transaction,
-    @CustomTransactionDecorator() customTx: Transaction,
+    @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId
@@ -81,7 +81,7 @@ export class ImportController {
   async collectCsv(
     @Body() body: ImportCsvDto,
     @TransactionDecorator() transaction: Transaction,
-    @CustomTransactionDecorator() customTx: Transaction,
+    @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId

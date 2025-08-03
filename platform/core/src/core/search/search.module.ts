@@ -1,6 +1,6 @@
 import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 
-import { DbContextMiddleware } from '@/common/middlewares/db-context.middleware'
+import { DbContextMiddleware } from '@/database/middlewares/db-context.middleware'
 import { EntityModule } from '@/core/entity/entity.module'
 import { SearchController } from '@/core/search/search.controller'
 import { ProjectModule } from '@/dashboard/project/project.module'

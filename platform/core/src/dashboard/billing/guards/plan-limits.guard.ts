@@ -99,28 +99,28 @@ export class PlanLimitsGuard implements CanActivate {
   }
 
   async canActivate(context: ExecutionContext) {
-    if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-      return true
-    }
-
-    const request = context.switchToHttp().getRequest()
-    const workspaceId = request.workspaceId || request.headers['x-workspace-id']
-
-    if (!workspaceId) {
-      return false
-    }
-
-    const session = this.neogmaService.createSession('plan-limits-guard')
-    const transaction = session.beginTransaction()
-
-    const canProcessRequest = await this.checkLimits(workspaceId, request, transaction)
-
-    if (!canProcessRequest) {
-      transaction.close().then(() => session.close())
-      throw new HttpException('Excess records or projects', HttpStatus.PAYMENT_REQUIRED)
-    }
-    transaction.close().then(() => session.close())
-
+    // if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
     return true
+    // }
+
+    // const request = context.switchToHttp().getRequest()
+    // const workspaceId = request.workspaceId || request.headers['x-workspace-id']
+    //
+    // if (!workspaceId) {
+    //   return false
+    // }
+    //
+    // const session = this.neogmaService.createSession('plan-limits-guard')
+    // const transaction = session.beginTransaction()
+    //
+    // const canProcessRequest = await this.checkLimits(workspaceId, request, transaction)
+    //
+    // if (!canProcessRequest) {
+    //   transaction.close().then(() => session.close())
+    //   throw new HttpException('Excess records or projects', HttpStatus.PAYMENT_REQUIRED)
+    // }
+    // transaction.close().then(() => session.close())
+    //
+    // return true
   }
 }

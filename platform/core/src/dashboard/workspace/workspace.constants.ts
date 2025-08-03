@@ -15,7 +15,7 @@ export const WORKSPACE_LIMITS_DEFAULT: TWorkspaceLimits = {
 }
 
 export const WORKSPACE_LIMITS_START: TWorkspaceLimits = {
-  records: 100_000,
+  records: 200_000,
   projects: null, // UNLIMITED
   importSize: 32 * 1024 * 1024, // 32 MB
   users: 3

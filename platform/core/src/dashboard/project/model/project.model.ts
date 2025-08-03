@@ -51,6 +51,28 @@ export const Project: TProjectParams = {
     },
     managedDb: {
       type: 'boolean'
+    },
+    managedDbPassword: {
+      type: 'string'
+    },
+    planId: {
+      type: 'string'
+    },
+    productId: {
+      type: 'string'
+    },
+    priceId: {
+      type: 'string'
+    },
+    // limits: {
+    //   type: 'string',
+    //   required: true
+    // },
+    validTill: {
+      type: 'string'
+    },
+    isSubscriptionCancelled: {
+      type: 'boolean'
     }
   },
   primaryKeyField: 'id',

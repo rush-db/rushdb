@@ -77,14 +77,17 @@ export class StripeService {
 
     let subscriptionId: string
     let userEmail: string
+    let projectId: string | undefined
 
     if (isCheckoutSession) {
       const session = stripePayload as Stripe.Checkout.Session
       subscriptionId = session.subscription as string
       userEmail = session.customer_email || (await this.stripe.customers.retrieve(session.customer)).email
+      projectId = session.metadata?.projectId ?? session.client_reference_id ?? undefined
     } else if (isSubscription) {
       const subscription = stripePayload as Stripe.Subscription
       subscriptionId = subscription.id
+      projectId = subscription.metadata?.projectId
 
       const customer = await this.stripe.customers.retrieve(subscription.customer as string)
       userEmail = customer.email
@@ -117,6 +120,7 @@ export class StripeService {
 
   async updateCustomerPlan(payload: Stripe.Event, transaction: Transaction) {
     const updatedSubscription = payload.data.object as Stripe.Subscription
+    const projectId = updatedSubscription.metadata?.projectId
 
     const prices = await this.getPrices()
 
@@ -155,6 +159,8 @@ export class StripeService {
 
   async deleteCustomerPlan(payload: Stripe.Event, transaction: Transaction) {
     const deletedSubscription = payload.data.object as Stripe.Subscription
+    const projectId = deletedSubscription.metadata?.projectId
+
     const customer = await this.stripe.customers.retrieve(deletedSubscription.customer as string)
     const userEmail = customer.email
 
@@ -176,28 +182,26 @@ export class StripeService {
   }
 
   async createCheckoutSession(
-    { id, period, returnUrl }: PlansDto,
+    { priceId, projectId, returnUrl }: PlansDto,
     email: string
   ): Promise<Stripe.Checkout.Session> {
-    const prices = await this.getPrices()
-    const { priceId } = prices[id][period]
-
     const customer: Stripe.Customer = await this.getCustomerByEmail(email)
 
     return await this.stripe.checkout.sessions.create({
       customer: customer.id,
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1
-        }
-      ],
+      line_items: [{ price: priceId, quantity: 1 }],
       currency: 'usd',
       mode: 'subscription',
       success_url: `${returnUrl}?payment_successful=true`,
       cancel_url: `${returnUrl}?payment_successful=false`,
+      metadata: {
+        projectId
+      },
+      client_reference_id: projectId,
       subscription_data: {
-        trial_period_days: 14
+        metadata: {
+          projectId
+        }
       }
     })
   }

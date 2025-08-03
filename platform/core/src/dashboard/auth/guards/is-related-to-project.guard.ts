@@ -7,9 +7,12 @@ import { TransactionService } from '@/core/transactions/transaction.service'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
 import { TokenService } from '@/dashboard/token/token.service'
+import { DEFAULT_INSTANCE_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
 import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
+
+import * as fs from 'node:fs'
 
 export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerifyOwnershipConfig) => {
   @Injectable()
@@ -25,8 +28,10 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
     async canActivate(context: ExecutionContext): Promise<boolean> {
       const request = context.switchToHttp().getRequest()
       const txId = request.headers['x-transaction-id']
+
       const dbContext = dbContextStorage.getStore()
-      const hasCustomDbContext = dbContext?.projectId && dbContext?.projectId !== 'default'
+      const hasCustomDbContext =
+        dbContext?.projectId && dbContext?.projectId !== DEFAULT_INSTANCE_CONNECTION_LITERAL
       const projectId = request.projectId ?? request.headers['x-project-id']
 
       let transaction: Transaction
@@ -85,7 +90,7 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
       } catch (e) {
         return false
       } finally {
-        // Close only if tx was began locally (in this particular guard)
+        // Close only if tx was begun locally (in this particular guard)
         if (!txId) {
           isDevMode(() => Logger.log('[RTP GUARD]: Close tx and session'))
 

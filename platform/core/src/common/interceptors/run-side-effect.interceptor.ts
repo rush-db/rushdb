@@ -5,6 +5,7 @@ import { catchError, tap } from 'rxjs/operators'
 
 import { isDevMode } from '@/common/utils/isDevMode'
 import { ProjectService } from '@/dashboard/project/project.service'
+import { DEFAULT_INSTANCE_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
 import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
@@ -24,7 +25,8 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
       const { projectId } = context.switchToHttp().getRequest()
       const dbContext = dbContextStorage.getStore()
-      const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== 'default'
+      const hasCustomDbContext =
+        dbContext.projectId && dbContext.projectId !== DEFAULT_INSTANCE_CONNECTION_LITERAL
 
       const session = this.neogmaService.createSession('run-side-effect')
       const transaction = session.beginTransaction()

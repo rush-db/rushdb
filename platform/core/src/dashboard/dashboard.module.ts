@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common'
+import { MiddlewareConsumer, Module } from '@nestjs/common'
 
 import { AuthModule } from '@/dashboard/auth/auth.module'
+import { AuthMiddleware } from '@/dashboard/auth/middlewares/auth.middleware'
 import { BillingModule } from '@/dashboard/billing/billing.module'
 import { MailModule } from '@/dashboard/mail/mail.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
@@ -12,4 +13,8 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
   imports: [WorkspaceModule, ProjectModule, TokenModule, AuthModule, MailModule, UserModule, BillingModule],
   exports: [WorkspaceModule, ProjectModule, TokenModule, AuthModule, MailModule, UserModule, BillingModule]
 })
-export class DashboardModule {}
+export class DashboardModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes('*')
+  }
+}

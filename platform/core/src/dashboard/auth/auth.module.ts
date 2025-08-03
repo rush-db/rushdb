@@ -12,12 +12,12 @@ import { GoogleOAuthService } from '@/dashboard/auth/providers/google/google.ser
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { UserModule } from '@/dashboard/user/user.module'
+import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
 
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { EmailConfirmationService } from './email-confirmation/email-confirmation.service'
 import { EncryptionService } from './encryption/encryption.service'
-import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
 
 @Global()
 @Module({

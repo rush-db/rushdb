@@ -37,18 +37,6 @@ export const Workspace: TWorkspaceParams = {
     edited: {
       type: 'string'
     },
-    s3Url: {
-      type: 'string'
-    },
-    s3Bucket: {
-      type: 'string'
-    },
-    s3User: {
-      type: 'string'
-    },
-    s3Password: {
-      type: 'string'
-    },
     limits: {
       type: 'string',
       required: true

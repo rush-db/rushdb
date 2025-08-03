@@ -1,8 +1,8 @@
 import { ModelRelatedNodesI, NeogmaInstance, NeogmaModel } from 'neogma'
 
+import { TProjectCustomDbPayload } from '@/dashboard/project/project.types'
 import { TUserFactory, TUserInstance } from '@/dashboard/user/model/user.interface'
 import { TWorkspaceInstance, TWorkspaceModel } from '@/dashboard/workspace/model/workspace.interface'
-import { TProjectCustomDbPayload } from '@/dashboard/project/project.types'
 
 type TProjectProperties = {
   id: string
@@ -14,6 +14,12 @@ type TProjectProperties = {
   stats?: string
   customDb?: string
   managedDb?: boolean
+  managedDbPassword?: string
+  validTill?: string
+  planId?: string
+  productId?: string
+  priceId?: string
+  isSubscriptionCancelled?: boolean
 }
 
 interface IProjectProperties extends TProjectProperties {}

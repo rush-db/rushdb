@@ -2,6 +2,8 @@ import { Injectable, OnApplicationShutdown } from '@nestjs/common'
 import { Driver, Session } from 'neo4j-driver'
 import { Neogma, QueryBuilder, QueryRunner } from 'neogma'
 
+import { DEFAULT_INSTANCE_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
+
 import { dbContextStorage } from '../db-context'
 import { NeogmaService } from '../neogma/neogma.service'
 
@@ -11,7 +13,7 @@ export class CompositeNeogmaService implements OnApplicationShutdown {
 
   private getCurrentInstance(): Neogma {
     const dbContext = dbContextStorage.getStore()
-    return dbContext && dbContext.connection && dbContext.projectId !== 'default' ?
+    return dbContext && dbContext.connection && dbContext.projectId !== DEFAULT_INSTANCE_CONNECTION_LITERAL ?
         dbContext.connection
       : this.defaultNeogmaService.getInstance()
   }

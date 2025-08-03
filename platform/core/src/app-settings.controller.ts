@@ -42,6 +42,7 @@ export class AppSettingsController {
   @Get('sdk/settings')
   @ApiBearerAuth()
   @AuthGuard('project', USER_ROLE_EDITOR, true)
+  /* @deprecated */
   async sdkSettings(@TransactionDecorator() transaction: Transaction, @Request() request: PlatformRequest) {
     const projectId = request.projectId
     let customDb = undefined

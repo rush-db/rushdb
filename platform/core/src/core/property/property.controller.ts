@@ -73,7 +73,7 @@ export class PropertyController {
 
   @Post(':propertyId/values')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(IsRelatedToProjectGuard(), CustomDbWriteRestrictionGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
@@ -95,7 +95,7 @@ export class PropertyController {
 
   @Get(':propertyId')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(IsRelatedToProjectGuard(), CustomDbWriteRestrictionGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
@@ -103,7 +103,7 @@ export class PropertyController {
     @Param('propertyId') propertyId: string,
     @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
-  ): Promise<unknown> {
+  ): Promise<Omit<TPropertyProperties, 'projectId'>> {
     const projectId = request.projectId
 
     return await this.propertyService.findById({
@@ -118,9 +118,9 @@ export class PropertyController {
   @Delete(':propertyId')
   @ApiBearerAuth()
   @UseGuards(
-    IsRelatedToProjectGuard()
+    IsRelatedToProjectGuard(),
     // @TODO: Andrew? help
-    // CustomDbWriteRestrictionGuard
+    CustomDbWriteRestrictionGuard
   )
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)

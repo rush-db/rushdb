@@ -5,6 +5,7 @@ import { Neogma } from 'neogma'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { transactionStorage } from '@/core/transactions/transaction-context'
 import { ProjectService } from '@/dashboard/project/project.service'
+import { DEFAULT_INSTANCE_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
 
 import { INeogmaConfig } from '../neogma/neogma-config.interface'
 import { NeogmaService } from '../neogma/neogma.service'
@@ -12,7 +13,7 @@ import { NeogmaDynamicService } from '../neogma-dynamic/neogma-dynamic.service'
 
 export interface ConnectionResult {
   connection: Neogma
-  projectId: string | 'default'
+  projectId: string | typeof DEFAULT_INSTANCE_CONNECTION_LITERAL
 }
 
 @Injectable()
@@ -27,10 +28,10 @@ export class DbConnectionService {
     const context = transactionStorage.getStore()
     const tx: Transaction | undefined = context?.transaction
 
-    if (projectId === 'default') {
+    if (projectId === DEFAULT_INSTANCE_CONNECTION_LITERAL) {
       isDevMode(() => Logger.debug(`Using default connection for project`))
 
-      return { connection: this.neogmaService.getInstance(), projectId: 'default' }
+      return { connection: this.neogmaService.getInstance(), projectId: DEFAULT_INSTANCE_CONNECTION_LITERAL }
     }
 
     const projectNode = await this.projectService.getProject(projectId, tx)
@@ -48,9 +49,9 @@ export class DbConnectionService {
 
         isDevMode(() => Logger.debug(`Using dynamic connection for project ${projectId}`))
 
-        const dynamicConnection = await this.neogmaDynamicService.getConnection(projectId, config)
+        const externalConnection = await this.neogmaDynamicService.getConnection(projectId, config)
 
-        return { connection: dynamicConnection, projectId }
+        return { connection: externalConnection, projectId }
       } catch (error) {
         isDevMode(() =>
           Logger.error(
@@ -65,6 +66,6 @@ export class DbConnectionService {
     }
 
     isDevMode(() => Logger.debug(`Using default connection for project ${projectId}`))
-    return { connection: this.neogmaService.getInstance(), projectId: 'default' }
+    return { connection: this.neogmaService.getInstance(), projectId: DEFAULT_INSTANCE_CONNECTION_LITERAL }
   }
 }

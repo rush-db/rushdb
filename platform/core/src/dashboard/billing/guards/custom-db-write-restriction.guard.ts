@@ -16,6 +16,7 @@ import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
+import { DEFAULT_INSTANCE_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
 import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
@@ -39,7 +40,8 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
     const properties = workspaceInstance.dataValues
 
     const dbContext = dbContextStorage.getStore()
-    const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== 'default'
+    const hasCustomDbContext =
+      dbContext.projectId && dbContext.projectId !== DEFAULT_INSTANCE_CONNECTION_LITERAL
 
     // Check premium plan expiration (if exists)
     if (properties.planId) {
@@ -68,7 +70,8 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
     const workspaceId = request.workspaceId || request.headers['x-workspace-id']
 
     const dbContext = dbContextStorage.getStore()
-    const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== 'default'
+    const hasCustomDbContext =
+      dbContext.projectId && dbContext.projectId !== DEFAULT_INSTANCE_CONNECTION_LITERAL
 
     if (!workspaceId) {
       return false
@@ -83,7 +86,7 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
     const session = this.neogmaService.createSession('custom-db-write-restriction-guard')
     const transaction = session.beginTransaction()
 
-    const canProcessRequest = await this.isCustomDbOptionEnabled(workspaceId, request, transaction)
+    const canProcessRequest = true // await this.isCustomDbOptionEnabled(workspaceId, request, transaction)
 
     if (!canProcessRequest) {
       transaction.close().then(() => session.close())

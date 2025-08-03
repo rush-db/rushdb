@@ -5,8 +5,6 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
-import { EntityService } from '@/core/entity/entity.service'
-import { EntityRepository } from '@/core/entity/model/entity.repository'
 import { PropertyService } from '@/core/property/property.service'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { CreateProjectDto } from '@/dashboard/project/dto/create-project.dto'
@@ -37,10 +35,7 @@ export class ProjectService {
     private readonly compositeNeogmaService: CompositeNeogmaService,
     private readonly neogmaDynamicService: NeogmaDynamicService,
     private readonly projectRepository: ProjectRepository,
-    private readonly entityRepository: EntityRepository,
     private readonly projectQueryService: ProjectQueryService,
-    @Inject(forwardRef(() => EntityService))
-    private readonly entityService: EntityService,
     @Inject(forwardRef(() => PropertyService))
     private readonly propertyService: PropertyService
   ) {}
@@ -251,9 +246,9 @@ export class ProjectService {
         transaction
       })
     } catch (e) {
-      console.log('[cleanUpProject ERROR]', e)
+      Logger.log('[cleanUpProject ERROR]', e)
       if (transaction.isOpen()) {
-        console.log('[ROLLBACK TRANSACTION]: Project service')
+        Logger.log('[ROLLBACK TRANSACTION]: Project service')
         await transaction.rollback()
       }
     } finally {
