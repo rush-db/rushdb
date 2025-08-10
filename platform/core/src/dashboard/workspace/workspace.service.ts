@@ -24,6 +24,7 @@ import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/u
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
 import { UserRepository } from '@/dashboard/user/model/user.repository'
 import { UserService } from '@/dashboard/user/user.service'
+import { validateEmail } from '@/dashboard/user/user.utils'
 import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 import { Workspace } from '@/dashboard/workspace/entity/workspace.entity'
@@ -35,11 +36,12 @@ import {
 import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
 import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
 import {
-  WORKSPACE_LIMITS_DEFAULT,
-  WORKSPACE_LIMITS_PRO,
   WORKSPACE_LIMITS_START,
+  WORKSPACE_LIMITS_TEAM,
+  WORKSPACE_LIMITS_PRO,
   WORKSPACE_LIMITS_SELF_HOSTED
 } from '@/dashboard/workspace/workspace.constants'
+import { WorkspaceContext } from '@/dashboard/workspace/workspace.context'
 import {
   TExtendedWorkspaceProperties,
   TNormalizedPendingInvite,
@@ -49,8 +51,6 @@ import {
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import * as crypto from 'node:crypto'
-import { validateEmail } from '@/dashboard/user/user.utils'
-import { WorkspaceContext } from '@/dashboard/workspace/workspace.context'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -210,17 +210,17 @@ export class WorkspaceService {
     }
 
     if (!toBoolean(key)) {
-      return WORKSPACE_LIMITS_DEFAULT
+      return WORKSPACE_LIMITS_START
     }
 
     // @TODO: remove contract between billing service && workspace service
     switch (key) {
+      case EConfigKeyByPlan.team:
+        return WORKSPACE_LIMITS_TEAM
       case EConfigKeyByPlan.pro:
         return WORKSPACE_LIMITS_PRO
-      case EConfigKeyByPlan.start:
-        return WORKSPACE_LIMITS_START
       default:
-        return WORKSPACE_LIMITS_DEFAULT
+        return WORKSPACE_LIMITS_START
     }
   }
 

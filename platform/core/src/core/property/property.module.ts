@@ -30,6 +30,6 @@ import { PropertyRepository } from './model/property.repository'
 })
 export class PropertyModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(DbContextMiddleware).forRoutes(PropertyController)
+    // consumer.apply(DbContextMiddleware).forRoutes(PropertyController)
   }
 }

@@ -1,4 +1,4 @@
-import { Book, Database, Key, LayoutDashboard, Settings, SettingsIcon, UploadIcon, Users } from 'lucide-react'
+import { Book, Database, Key, Settings, UploadIcon, Wallet2 } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -7,22 +7,25 @@ import type { Project } from '../types'
 import { useStore } from '@nanostores/react'
 import { $user } from '~/features/auth/stores/user.ts'
 import { useState } from 'react'
+import { $platformSettings } from '~/features/auth/stores/settings.ts'
 
-export function ProjectTabs({ projectId }: { projectId: Project['id'] }) {
+export function ProjectTabs({ project }: { project: Project }) {
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
 
+  const { data: platformSettings } = useStore($platformSettings)
+
   const [tabs, setTabs] = useState(() => {
-    const workspaceTabs = [
+    const projectsTabs = [
       {
-        href: getRoutePath('project', { id: projectId }),
+        href: getRoutePath('project', { id: project.id }),
         icon: <Database />,
         label: 'Records'
       },
 
       {
         href: getRoutePath('projectImportData', {
-          id: projectId
+          id: project.id
         }),
         icon: <UploadIcon />,
         label: 'Import Data',
@@ -30,7 +33,7 @@ export function ProjectTabs({ projectId }: { projectId: Project['id'] }) {
       },
       {
         href: getRoutePath('projectTokens', {
-          id: projectId
+          id: project.id
         }),
         icon: <Key />,
         label: 'API Keys',
@@ -39,22 +42,30 @@ export function ProjectTabs({ projectId }: { projectId: Project['id'] }) {
     ]
 
     if (isOwner) {
-      workspaceTabs.push({
+      projectsTabs.push({
         href: getRoutePath('projectSettings', {
-          id: projectId
+          id: project.id
         }),
         icon: <Settings />,
         label: 'Settings'
       })
     }
 
-    workspaceTabs.push({
-      href: getRoutePath('projectHelp', { id: projectId }),
+    projectsTabs.push({
+      href: getRoutePath('projectHelp', { id: project.id }),
       icon: <Book />,
       label: 'Help'
     })
 
-    return workspaceTabs
+    if (!platformSettings?.selfHosted && isOwner && project.managedDb) {
+      projectsTabs.push({
+        href: getRoutePath('projectBilling', { id: project.id }),
+        icon: <Wallet2 />,
+        label: 'Subscription'
+      })
+    }
+
+    return projectsTabs
   })
 
   return (

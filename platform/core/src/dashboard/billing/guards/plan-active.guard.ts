@@ -65,7 +65,6 @@ export class PlanActiveGuard implements CanActivate {
     // if (!workspaceId) {
     //   return false
     // }
-    //
     // const session = this.neogmaService.createSession('plan-limits-guard')
     // const transaction = session.beginTransaction()
     //

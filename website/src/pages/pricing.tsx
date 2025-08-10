@@ -1,6 +1,5 @@
 import { Layout } from '~/components/Layout'
 import { Pricing } from '~/sections/Pricing'
-import { GetServerSideProps } from 'next'
 import { BillingData } from '~/components/pricing-types'
 
 interface PricingPageProps {
@@ -20,7 +19,8 @@ export default function PricingPage({ billingData }: PricingPageProps) {
 
 export const getStaticProps = async () => {
   try {
-    const res = await fetch('https://billing.rushdb.com/api/prices')
+    const res = await fetch('http://localhost:3010/api/prices')
+    // const res = await fetch('https://billing.rushdb.com/api/prices')
 
     let billingData: BillingData | null = null
 

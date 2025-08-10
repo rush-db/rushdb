@@ -22,7 +22,6 @@ import { CreateTokenDto } from '@/dashboard/token/dto/create-token.dto'
 import { ITokenProperties } from '@/dashboard/token/model/token.interface'
 import { TokenService } from '@/dashboard/token/token.service'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 @Controller('tokens')
@@ -31,7 +30,7 @@ import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
   TransformResponseInterceptor,
   NotFoundInterceptor,
   NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
+
   ChangeCorsInterceptor
 )
 export class TokenController {

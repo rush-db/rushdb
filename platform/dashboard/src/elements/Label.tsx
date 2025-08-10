@@ -8,10 +8,7 @@ export const Label = ({
   ...props
 }: PropsWithChildren & TPolymorphicComponentProps<'div'>) => (
   <div
-    className={cn(
-      className,
-      'text-content-secondary w-fit rounded-sm bg-accent/30 px-1 text-xs text-accent'
-    )}
+    className={cn(className, 'text-content-secondary bg-accent/30 text-accent w-fit rounded-sm px-1 text-xs')}
     {...props}
   >
     {children}

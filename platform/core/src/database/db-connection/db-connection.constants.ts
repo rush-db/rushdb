@@ -1,1 +1,1 @@
-export const DEFAULT_INSTANCE_CONNECTION_LITERAL = 'default' as const
+export const LOCAL_PROJECT_CONNECTION_LITERAL = 'default' as const

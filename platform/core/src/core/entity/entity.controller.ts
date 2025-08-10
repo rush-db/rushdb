@@ -48,8 +48,6 @@ import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-p
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
 import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 import { CreateEntityDto } from './dto/create-entity.dto'
@@ -58,13 +56,7 @@ import { EntityService } from './entity.service'
 
 @Controller('records')
 @ApiTags('Records')
-@UseInterceptors(
-  TransformResponseInterceptor,
-  NotFoundInterceptor,
-  NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
-  CustomTransactionInterceptor
-)
+@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, NeogmaDataInterceptor)
 export class EntityController {
   constructor(
     private readonly entityService: EntityService,
@@ -273,6 +265,7 @@ export class EntityController {
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
   async find(
+    // @PreferredTransactionDecorator() transaction: Transaction,
     @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchQuery: SearchDto,
     @Request() request: PlatformRequest

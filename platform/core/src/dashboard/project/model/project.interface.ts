@@ -4,6 +4,8 @@ import { TProjectCustomDbPayload } from '@/dashboard/project/project.types'
 import { TUserFactory, TUserInstance } from '@/dashboard/user/model/user.interface'
 import { TWorkspaceInstance, TWorkspaceModel } from '@/dashboard/workspace/model/workspace.interface'
 
+type ProjectStatus = 'pending' | 'active' | 'provisioning' | 'suspended'
+
 type TProjectProperties = {
   id: string
   name: string
@@ -13,8 +15,10 @@ type TProjectProperties = {
   description?: string
   stats?: string
   customDb?: string
-  managedDb?: boolean
   managedDbPassword?: string
+  managedDbRegion?: string
+  managedDbTier?: string
+  status?: ProjectStatus
   validTill?: string
   planId?: string
   productId?: string
@@ -52,6 +56,7 @@ type TProjectInstance = NeogmaInstance<TProjectProperties, IProjectRelatedNodes>
 type TProjectModel = NeogmaModel<TProjectProperties, IProjectRelatedNodes, IProjectStatics>
 
 export {
+  ProjectStatus,
   TProjectInstance,
   TProjectProperties,
   IProjectRelatedNodes,

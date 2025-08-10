@@ -44,20 +44,6 @@ export const Property: TPropertyParams = {
       model: 'Entity',
       direction: 'out',
       name: RUSHDB_RELATION_VALUE
-      // properties: {
-      //     Value: {
-      //         property: 'value',
-      //         schema: {
-      //             type: ['string', 'number', 'boolean', 'null'],
-      //         },
-      //     },
-      //     Metadata: {
-      //         property: 'metadata',
-      //         schema: {
-      //             type: 'string',
-      //         },
-      //     },
-      // },
     }
   },
   primaryKeyField: 'id',

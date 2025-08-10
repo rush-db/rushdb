@@ -25,14 +25,13 @@ import { UserService } from '@/dashboard/user/user.service'
 import { EditWorkspaceDto } from '@/dashboard/workspace/dto/edit-workspace.dto'
 import { InviteToWorkspaceDto } from '@/dashboard/workspace/dto/invite-to-workspace.dto'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
+import { RemovePendingInviteDto } from '@/dashboard/workspace/dto/remove-pending-invite.dto'
 import { RevokeAccessDto } from '@/dashboard/workspace/dto/revoke-access.dto'
 import { IWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { TExtendedWorkspaceProperties } from '@/dashboard/workspace/workspace.types'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
-import { RemovePendingInviteDto } from '@/dashboard/workspace/dto/remove-pending-invite.dto'
 
 @Controller('workspaces')
 @ApiExcludeController()
@@ -40,7 +39,7 @@ import { RemovePendingInviteDto } from '@/dashboard/workspace/dto/remove-pending
   TransformResponseInterceptor,
   NotFoundInterceptor,
   NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
+
   ChangeCorsInterceptor
 )
 export class WorkspaceController {

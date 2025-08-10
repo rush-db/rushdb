@@ -5,10 +5,10 @@ import { Divider } from '~/elements/Divider'
 import { IconButton } from '~/elements/IconButton'
 import { Menu, MenuItem, MenuTitle } from '~/elements/Menu'
 import { $user, logOut, updateUser } from '~/features/auth/stores/user'
-import { CurrentSubscriptionInfo } from '~/features/billing/components/CurrentSubscriptionInfo'
 import { getRoutePath, openRoute } from '~/lib/router'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { $tourRunning, setTourStep } from '~/features/tour/stores/tour.ts'
+import { CurrentSubscriptionInfo } from '~/components/billing/CurrentSubscriptionInfo.tsx'
 
 export function UserMenu() {
   const currentUser = useStore($user)

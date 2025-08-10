@@ -13,7 +13,6 @@ import {
   IAuthenticatedUser,
   IAuthenticatedUserWithAccess
 } from '@/dashboard/user/interfaces/authenticated-user.interface'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 import { UpdateUserDto } from './dto/update-user.dto'
@@ -22,7 +21,7 @@ import { UserService } from './user.service'
 
 @Controller('user')
 @ApiExcludeController()
-@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, NeogmaTransactionInterceptor)
+@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor)
 export class UserController {
   constructor(
     private readonly authService: AuthService,

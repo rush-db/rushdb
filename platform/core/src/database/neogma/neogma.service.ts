@@ -51,13 +51,17 @@ export class NeogmaService implements OnApplicationShutdown {
   }
 
   async stats(context?: any) {
-    const [activeSessions, activeTransactions] = await Promise.all([
-      this.activeSessions(),
-      this.activeTransactions()
-    ])
-    Logger.debug(
-      `[NEO4J STATS] (context: ${context}): ${JSON.stringify({ activeSessions: activeSessions.records.length, activeTransactions: activeTransactions.records.length })}`
-    )
+    try {
+      const [activeSessions, activeTransactions] = await Promise.all([
+        this.activeSessions(),
+        this.activeTransactions()
+      ])
+      Logger.debug(
+        `[NEO4J STATS] (context: ${context}): ${JSON.stringify({ activeSessions: activeSessions.records.length, activeTransactions: activeTransactions.records.length })}`
+      )
+    } catch (error) {
+      Logger.error(`[NEO4J STATS] (context: ${context}): unable to get stats`)
+    }
   }
 
   createSession(context?: any): Session {

@@ -17,7 +17,7 @@ import {
 } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
-import type { PlanId, PlanPeriod } from '~/features/billing/types'
+import type { BillingData } from '~/features/billing/types'
 import type { Project, ProjectStats, WithProjectID } from '~/features/projects/types'
 import type { ProjectToken } from '~/features/tokens/types'
 import type {
@@ -34,9 +34,8 @@ import { rushDBInstance } from '~/lib/sdk.ts'
 
 import { fetcher } from './fetcher'
 import { BillingErrorCodes } from '~/features/billing/constants.ts'
-import { $limitReachModalOpen } from '~/features/billing/components/LimitReachedDialog.tsx'
-import { IncomingBillingData } from '~/features/billing/types'
 import { AcceptedUserInviteDto } from '~/features/workspaces/types'
+import { $limitReachModalOpen } from '~/components/billing/LimitReachedDialog.tsx'
 
 type WithInit = {
   init?: RequestInit
@@ -410,8 +409,8 @@ export const api = {
       ...body
     }: WithInit & {
       discountCode?: string
-      id: PlanId
-      period: PlanPeriod
+      priceId: string
+      projectId?: string
       returnUrl: string
     }) {
       // TODO: add response
@@ -435,7 +434,7 @@ export const api = {
       })
     },
     async getBillingData() {
-      return fetcher<IncomingBillingData>('https://billing.rushdb.com/api/prices', {
+      return fetcher<BillingData>('http://localhost:3010/api/prices', {
         method: 'GET'
       })
     }

@@ -21,7 +21,6 @@ import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-co
 import { AuthUser } from '@/dashboard/user/decorators/user.decorator'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 import { StripeService } from './stripe.service'
@@ -32,7 +31,7 @@ import { StripeService } from './stripe.service'
   TransformResponseInterceptor,
   NotFoundInterceptor,
   NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
+
   ChangeCorsInterceptor
 )
 export class StripeController {

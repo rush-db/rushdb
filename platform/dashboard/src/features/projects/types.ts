@@ -9,6 +9,14 @@ export type Project = {
   id: string
   name: string
   stats?: ProjectStats
+  // customDb?: string
+  managedDb?: boolean
+  limits: string
+  validTill?: string
+  planId?: string
+  productId?: string
+  priceId?: string
+  isSubscriptionCancelled?: boolean
 }
 
 export type WithProjectID = { projectId: Project['id'] }

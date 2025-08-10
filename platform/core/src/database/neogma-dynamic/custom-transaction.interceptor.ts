@@ -4,6 +4,7 @@ import { catchError } from 'rxjs/operators'
 
 import { isDevMode } from '@/common/utils/isDevMode'
 import { ProjectService } from '@/dashboard/project/project.service'
+import { TProjectCustomDbPayload } from '@/dashboard/project/project.types'
 import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
 
 @Injectable()
@@ -24,7 +25,9 @@ export class CustomTransactionInterceptor implements NestInterceptor {
         const project = projectNode.toJson()
 
         if (project?.customDb) {
-          const customDbPayload = this.projectService.decryptCustomDb(project.customDb)
+          const customDbPayload = this.projectService.decryptSensitiveData<TProjectCustomDbPayload>(
+            project.customDb
+          )
           const config = {
             url: customDbPayload.url,
             username: customDbPayload.username,

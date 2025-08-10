@@ -15,19 +15,22 @@ import { ProjectTokens } from '~/pages/project/tokens'
 import { ProjectRecordsPage } from '~/pages/project/records'
 import { ProjectHelpPage } from '~/pages/project/help'
 import { ImportRecords } from '~/features/records/components/ImportRecords.tsx'
+import { ProjectBillingPage } from '~/pages/project/billing.tsx'
 
-function ProjectRoutes({ id }: { id: Project['id'] }) {
+function ProjectRoutes({ project }: { project: Project }) {
   const page = useStore($router)
 
   switch (page?.route) {
     case 'projectTokens':
-      return <ProjectTokens projectId={id} />
+      return <ProjectTokens projectId={project.id} />
     case 'projectSettings':
-      return <ProjectSettings projectId={id} />
+      return <ProjectSettings projectId={project.id} />
     case 'projectImportData':
       return <ImportRecords />
     case 'projectHelp':
       return <ProjectHelpPage />
+    case 'projectBilling':
+      return project.managedDb ? <ProjectBillingPage /> : null
     default:
       return <ProjectRecordsPage />
   }
@@ -46,7 +49,7 @@ export function ProjectLayout() {
     return null
   }
 
-  if (!data && loading === false) {
+  if (!data || loading) {
     return (
       <NothingFound
         action={
@@ -61,8 +64,8 @@ export function ProjectLayout() {
 
   return (
     <>
-      <ProjectTabs projectId={projectId} />
-      <ProjectRoutes id={projectId} />
+      <ProjectTabs project={data!} />
+      <ProjectRoutes project={data!} />
       <PropertyValueTooltip />
     </>
   )

@@ -3,34 +3,39 @@ import { Response, NextFunction } from 'express'
 
 import { PlatformRequest } from '@/common/types/request'
 import { isDevMode } from '@/common/utils/isDevMode'
+import { LOCAL_PROJECT_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
 import { ConnectionResult, DbConnectionService } from '@/database/db-connection/db-connection.service'
-import { dbContextStorage, DbContext } from '@/database/db-context'
+// import { dbContextStorage, DbContext } from '@/database/db-context'
 
 @Injectable()
 export class DbContextMiddleware implements NestMiddleware {
   constructor(private readonly dbConnectionService: DbConnectionService) {}
 
   async use(request: PlatformRequest, response: Response, next: NextFunction) {
-    const projectId = request.projectId ?? <string>request.headers['x-project-id']
+    const projectId = request.projectId
+    const project = request.project
 
-    let connectionConfig: ConnectionResult
+    request.localDbConnection = await this.dbConnectionService.getConnection(LOCAL_PROJECT_CONNECTION_LITERAL)
 
-    if (projectId) {
+    // let connectionConfig: ConnectionResult
+
+    if (projectId && project?.customDb) {
       try {
-        connectionConfig = await this.dbConnectionService.getConnection(projectId)
+        request.externalDbConnection = await this.dbConnectionService.getConnection(projectId, project)
       } catch (e) {
         isDevMode(() => Logger.error(`Error obtaining connection for project ${projectId}`, e))
       }
     }
 
-    if (!connectionConfig) {
-      connectionConfig = await this.dbConnectionService.getConnection('default')
-    }
+    // const context: DbContext = {
+    //   projectId: connectionConfig.projectId,
+    //   connection: connectionConfig.connection
+    // }
 
-    const context: DbContext = {
-      projectId: connectionConfig.projectId,
-      connection: connectionConfig.connection
-    }
-    dbContextStorage.run(context, () => next())
+    // request.externalDbConnection = connectionConfig.connection
+    // request.localDbConnection = connectionConfig.connection
+
+    // dbContextStorage.run(context, () => next())
+    next()
   }
 }

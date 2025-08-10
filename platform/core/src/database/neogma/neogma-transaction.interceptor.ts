@@ -7,6 +7,7 @@ import { isDevMode } from '@/common/utils/isDevMode'
 import { TransactionService } from '@/core/transactions/transaction.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
+// DEPRECATED?
 @Injectable()
 export class NeogmaTransactionInterceptor implements NestInterceptor {
   constructor(

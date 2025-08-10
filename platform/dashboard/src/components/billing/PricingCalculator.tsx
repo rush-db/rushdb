@@ -1,101 +1,21 @@
-import { MemoryStick, Cpu, Zap, Database } from 'lucide-react'
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useStore } from '@nanostores/react'
+import { $currentPeriod, $currentTierIndex, $pricingData } from '~/features/billing/stores/plans.ts'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import NumberFlow from '@number-flow/react'
-import { CodeBlock } from './CodeBlock'
-import { TieredPricingData } from './pricing-types'
+import { Cpu, Database, MemoryStick, Zap } from 'lucide-react'
 
-interface PricingCalculatorProps {
-  tieredPricingData: TieredPricingData
-  onTierChange?: (recordsCount: number) => void
-  billingType: 'onDemand' | 'reserved'
-}
-
-const generateSampleRecord = (propertyCount: number) => {
-  const baseProperties = {
-    name: 'John Smith'
-  }
-
-  const additionalProperties: Record<string, any> = {
-    id: 'usr_2024_001',
-    email: 'john.smith@example.com',
-    age: 28,
-    city: 'San Francisco',
-    country: 'USA',
-    occupation: 'Software Engineer',
-    company: 'TechCorp Inc',
-    salary: 125000,
-    experience_years: 5,
-    skills: ['JavaScript', 'Python', 'React'],
-    last_login: '2024-01-15T10:30:00Z',
-    subscription_tier: 'premium',
-    account_created: '2023-06-01T00:00:00Z',
-    phone: '+1-555-0123',
-    address: '123 Main St, Apt 4B',
-    zip_code: '94102',
-    timezone: 'America/Los_Angeles',
-    language_preference: 'en-US',
-    email_notifications: true,
-    sms_notifications: false,
-    push_notifications: true,
-    profile_picture: '/avatars/john.jpg',
-    linkedin_url: 'https://linkedin.com/in/johnsmith',
-    twitter_handle: '@johnsmith',
-    theme_preference: 'dark',
-    newsletter_subscribed: true,
-    traffic_source: 'organic_search',
-    campaign_name: 'winter_2023',
-    last_purchase_date: '2023-12-01',
-    last_purchase_amount: 299.99,
-    last_product: 'Premium Plan',
-    activity_score: 85.7,
-    tags: ['high_value', 'active_user', 'developer'],
-    referral_code: 'REF2024JS',
-    two_factor_enabled: true,
-    profile_public: false,
-    show_activity: true,
-    emergency_contact_name: 'Jane Smith',
-    emergency_contact_relation: 'spouse',
-    emergency_contact_phone: '+1-555-0124',
-    work_timezone: 'PST',
-    work_hours: '9AM-5PM',
-    work_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-    certifications: ['AWS Solutions Architect', 'Google Cloud Professional'],
-    interests: ['technology', 'hiking', 'photography', 'cooking'],
-    fitness_goal: 'weight_loss',
-    activity_level: 'moderate',
-    primary_device: 'iPhone 15 Pro',
-    browser: 'Safari',
-    operating_system: 'iOS 17.2',
-    preferred_contact_time: 'morning',
-    preferred_contact_method: 'email'
-  }
-
-  // Start with base properties (always include these)
-  const result: Record<string, any> = { ...baseProperties }
-
-  // Add additional properties up to the specified count
-  const additionalKeys = Object.keys(additionalProperties)
-  const numAdditional = Math.max(0, propertyCount - Object.keys(baseProperties).length)
-
-  for (let i = 0; i < Math.min(numAdditional, additionalKeys.length); i++) {
-    const key = additionalKeys[i]
-    result[key] = additionalProperties[key]
-  }
-
-  return result
-}
-
-export function PricingCalculator({ tieredPricingData, onTierChange, billingType }: PricingCalculatorProps) {
+export function PricingCalculator({ cta }: { cta?: React.ReactNode }) {
   const [recordsCount, setRecordsCount] = useState(10000)
   const [avgProperties, setAvgProperties] = useState(5)
   const leftBlockRef = useRef<HTMLDivElement>(null)
-  const [leftBlockHeight, setLeftBlockHeight] = useState<number | undefined>(undefined)
+  const currentPeriod = useStore($currentPeriod)
 
-  const sampleRecord = useMemo(() => generateSampleRecord(avgProperties), [avgProperties])
+  const data = useStore($pricingData)
+
+  const tieredPricingData = data.data?.team ?? []
 
   function getTierByUsage(recordsCount: number, avgProperties: number) {
     const recordRAM = 15 + avgProperties * 75 + ((avgProperties * 7) / 13) * 128 // bytes
-
     for (const option of tieredPricingData) {
       const pageCacheGB = option.ram / 2
       const pageCacheBytes = pageCacheGB * 1_000_000_000
@@ -113,7 +33,6 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
         }
       }
     }
-    // fallback to largest instance
     const last = tieredPricingData[tieredPricingData.length - 1]
     const pageCacheGB = last.ram / 2
     const pageCacheBytes = pageCacheGB * 1_000_000_000
@@ -130,22 +49,20 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
     }
   }
 
-  useEffect(() => {
-    onTierChange?.(recordsCount)
-  }, [recordsCount, onTierChange])
-
   const handleRecordsSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const sliderValue = Number(e.target.value)
     const actualRecords = sliderToRecords(sliderValue)
     setRecordsCount(actualRecords)
-
-    onTierChange?.(actualRecords)
   }
 
   const pricingInfo = useMemo(
     () => getTierByUsage(recordsCount, avgProperties),
     [recordsCount, avgProperties]
   )
+
+  useEffect(() => {
+    $currentTierIndex.set(tieredPricingData.findIndex((t) => t.tier === pricingInfo.tier))
+  }, [pricingInfo])
 
   const calculatePricing = useCallback(() => {
     const [tierLevel, subTier] = pricingInfo.tier.split('-')
@@ -154,13 +71,13 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
       tierLevel,
       subTier,
       onDemandPrice: tierData.onDemand.amount,
-      price: billingType === 'onDemand' ? tierData.onDemand : tierData.reserved.amount,
+      price: currentPeriod === 'month' ? tierData.onDemand.amount : tierData.reserved.amount,
       discount:
-        billingType === 'reserved' ?
+        currentPeriod === 'annual' ?
           Math.round(((tierData.onDemand.amount - tierData.reserved.amount) / tierData.onDemand.amount) * 100)
         : 0
     }
-  }, [pricingInfo, avgProperties, billingType, tieredPricingData])
+  }, [pricingInfo, avgProperties, currentPeriod, tieredPricingData])
 
   const pricing = calculatePricing()
 
@@ -186,7 +103,6 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
   const snapToClosestPoint = (position: number) => {
     let closestPoint = scalePoints[0]
     let minDistance = Math.abs(position - closestPoint.position)
-
     for (const point of scalePoints) {
       const distance = Math.abs(position - point.position)
       if (distance < minDistance) {
@@ -194,7 +110,6 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
         closestPoint = point
       }
     }
-
     return closestPoint
   }
 
@@ -208,14 +123,8 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
     return point ? point.position : scalePoints[0].position
   }
 
-  useEffect(() => {
-    if (leftBlockRef.current) {
-      setLeftBlockHeight(leftBlockRef.current.offsetHeight)
-    }
-  }, [recordsCount, avgProperties, pricing, pricingInfo])
-
   return (
-    <div className="grid grid-cols-2 gap-8 md:grid-cols-1">
+    <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
       <div className="" ref={leftBlockRef}>
         <div className="mb-6">
           <h3 className="typography-2xl text-content">Find Your Perfect Plan</h3>
@@ -228,7 +137,6 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
             <li>• No hidden fees, no autoscaling traps, transparent pricing</li>
           </ul>
         </div>
-
         <div className="mb-8">
           <label className="text-content2 typography-base mb-4 block font-medium">
             Records Count: <span className="text-accent font-bold">{formatRecordsCount(recordsCount)}</span>
@@ -243,7 +151,7 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
               onChange={handleRecordsSliderChange}
               className="records-slider bg-fill2 h-3 w-full cursor-pointer appearance-none rounded-lg"
               style={{
-                background: `linear-gradient(to right, #3f81ff 0%, #3f81ff ${recordsToSlider(recordsCount)}%, hsl(var(--color-fill2)) ${recordsToSlider(recordsCount)}%, hsl(var(--color-fill2)) 100%)`
+                background: `linear-gradient(to right, hsl(72.96 82.69% 61.55% / var(--tw-text-opacity, 1)) 0%, hsl(72.96 82.69% 61.55% / var(--tw-text-opacity, 1)) ${recordsToSlider(recordsCount)}%, #1d1d1d ${recordsToSlider(recordsCount)}%, #1d1d1d 100%)`
               }}
             />
             <div className="text-content3 mt-2 flex justify-between px-1 text-xs">
@@ -264,7 +172,6 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
             <span className="font-medium">T1 Tier</span>
           </div>
         </div>
-
         <div className="mb-8">
           <label className="text-content2 typography-base mb-4 block font-medium">
             Average Properties per Record: <span className="text-accent font-bold">{avgProperties}</span>
@@ -279,7 +186,7 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
               onChange={(e) => setAvgProperties(Number(e.target.value))}
               className="properties-slider bg-fill2 h-3 w-full cursor-pointer appearance-none rounded-lg"
               style={{
-                background: `linear-gradient(to right, #3f81ff 0%, #3f81ff ${((avgProperties - 1) / 49.5) * 100}%, hsl(var(--color-fill2)) ${((avgProperties - 1) / 49.5) * 100}%, hsl(var(--color-fill2)) 100%)`
+                background: `linear-gradient(to right, hsl(72.96 82.69% 61.55% / var(--tw-text-opacity, 1)) 0%, hsl(72.96 82.69% 61.55% / var(--tw-text-opacity, 1)) ${((avgProperties - 1) / 49.5) * 100}%, #1d1d1d ${((avgProperties - 1) / 49.5) * 100}%, #1d1d1d 100%)`
               }}
             />
             <div className="text-content3 mt-2 flex justify-between text-xs">
@@ -302,8 +209,8 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
             <span className="font-medium">Sub-tier A (31-50)</span>
           </div>
         </div>
-
-        {/* Pricing Result */}
+      </div>
+      <div>
         <div className="bg-accent/5 border-accent rounded-lg border p-6">
           <div className="flex items-start justify-between">
             <div>
@@ -313,19 +220,19 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
             <div className="text-right">
               <p className="text-content3 text-sm">Price per month</p>
               <div className="flex items-baseline justify-end">
-                {billingType === 'reserved' && pricing.discount > 0 && (
+                {currentPeriod === 'annual' && pricing.discount > 0 && (
                   <span className="text-content3 relative mr-2 inline-block text-lg">
-                    <NumberFlow value={pricing.onDemandPrice} prefix="$" duration={1} />
+                    <NumberFlow value={pricing.onDemandPrice} prefix="$" />
                     <span className="pointer-events-none absolute left-0 right-0 top-1/2 h-[1px] bg-current" />
                   </span>
                 )}
-                <span className="text-accent typography-2xl font-bold">
-                  <NumberFlow value={pricing.price} prefix="$" duration={1} />
+                <span className="text-accent typography-2xl text-2xl font-bold">
+                  <NumberFlow value={pricing.price} prefix="$" />
                 </span>
               </div>
               {pricing.discount > 0 && (
                 <p className="text-accent-green text-sm font-medium">
-                  Save <NumberFlow value={pricing.discount} suffix="%" duration={1} /> with 1-year commitment
+                  Save <NumberFlow value={pricing.discount} suffix="%" /> with 1-year commitment
                 </p>
               )}
             </div>
@@ -333,27 +240,26 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
           <div className="text-md mt-8 flex items-center justify-between gap-4 font-bold">
             <span className="text-content3 flex items-center gap-1">
               <Cpu className="text-accent h-5 w-5" />
-              <NumberFlow value={pricingInfo.instanceCPU} duration={1} />{' '}
+              <NumberFlow value={pricingInfo.instanceCPU} />{' '}
               <span className="mb-0.5 self-end text-sm font-medium">CPU</span>
             </span>
             <span className="text-content3 flex items-center gap-1">
               <Database className="text-accent h-5 w-5" />
-              <NumberFlow value={pricingInfo.instanceDisk} duration={1} />{' '}
+              <NumberFlow value={pricingInfo.instanceDisk} />{' '}
               <span className="mb-0.5 self-end text-sm font-medium">GB SSD</span>
             </span>
             <span className="text-content3 flex items-center gap-1">
               <MemoryStick className="text-accent h-5 w-5" />
-              <NumberFlow value={pricingInfo.instanceRAM} duration={1} />{' '}
+              <NumberFlow value={pricingInfo.instanceRAM} />{' '}
               <span className="mb-0.5 self-end text-sm font-medium">GB RAM</span>
             </span>
             <span className="text-content3 flex items-center gap-1">
               <Zap className="text-accent h-5 w-5" />
-              <NumberFlow value={pricingInfo.pageCacheGB} duration={1} />{' '}
+              <NumberFlow value={pricingInfo.pageCacheGB} />{' '}
               <span className="mb-0.5 self-end text-sm font-medium">GB Live Query Cache</span>
             </span>
           </div>
         </div>
-
         <div className="mt-4 rounded-lg p-3">
           <p className="text-content3 text-sm font-medium">
             <strong>Disclaimer:</strong> Performance depends on data complexity{' '}
@@ -361,14 +267,9 @@ export function PricingCalculator({ tieredPricingData, onTierChange, billingType
             calculator provides an overview of recommended tiers tailored to typical workloads. Your specific
             use case may not require an upgrade, or may need to scale up sooner, depending on these factors.
           </p>
+          {cta}
         </div>
       </div>
-      <CodeBlock
-        language="json"
-        className="overflow-y overflow-x-hidden rounded-lg"
-        style={leftBlockHeight ? { maxHeight: leftBlockHeight } : undefined}
-        code={`// Sample User Record with ${avgProperties} properties.\n// Adjust the slider to see how complexity affects pricing.\n${JSON.stringify(sampleRecord, null, 2)}`}
-      />
     </div>
   )
 }

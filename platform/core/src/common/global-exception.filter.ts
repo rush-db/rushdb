@@ -33,12 +33,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
     isDevMode(() => {
       Logger.log('[ROLLBACK TRANSACTION]: Exception filter', JSON.stringify(exception))
+      console.log(exception)
     })
 
     await transaction?.close()
     await customTransaction?.close()
     await this.neogmaService.closeSession(session, ' global-exception-filter')
 
-    response.status(status).send(isHttpException ? exception.getResponse() : {})
+    response.status?.(status).send(isHttpException ? exception.getResponse() : {})
   }
 }

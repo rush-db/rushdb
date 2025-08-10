@@ -25,6 +25,7 @@ import { $user } from '~/features/auth/stores/user.ts'
 import { OnboardingTour } from '~/features/tour/components/OnboardingTour.tsx'
 import { OnboardingInit } from '~/features/tour/components/OnboardingInit.tsx'
 import { ErrorBoundary } from '~/features/tour/components/ErrorBoundary.tsx'
+import { ProjectBillingPage } from '~/pages/project/billing.tsx'
 
 function PublicRoutes() {
   const page = useStore($router)

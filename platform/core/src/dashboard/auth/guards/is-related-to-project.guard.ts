@@ -7,12 +7,10 @@ import { TransactionService } from '@/core/transactions/transaction.service'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
 import { TokenService } from '@/dashboard/token/token.service'
-import { DEFAULT_INSTANCE_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
+import { LOCAL_PROJECT_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
 import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
-
-import * as fs from 'node:fs'
 
 export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerifyOwnershipConfig) => {
   @Injectable()
@@ -31,7 +29,7 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
 
       const dbContext = dbContextStorage.getStore()
       const hasCustomDbContext =
-        dbContext?.projectId && dbContext?.projectId !== DEFAULT_INSTANCE_CONNECTION_LITERAL
+        dbContext?.projectId && dbContext?.projectId !== LOCAL_PROJECT_CONNECTION_LITERAL
       const projectId = request.projectId ?? request.headers['x-project-id']
 
       let transaction: Transaction

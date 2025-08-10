@@ -1,12 +1,15 @@
-import { createParamDecorator, ExecutionContext } from '@nestjs/common'
+import { BadRequestException, createParamDecorator, ExecutionContext, Logger } from '@nestjs/common'
 import { Transaction } from 'neo4j-driver'
-
-import { transactionStorage } from '@/core/transactions/transaction-context'
 
 export const PreferredTransactionDecorator = createParamDecorator<unknown, ExecutionContext, Transaction>(
   (data, ctx) => {
     const request = ctx.switchToHttp().getRequest()
-    const context = transactionStorage.getStore()
-    return request.customTransaction || context?.transaction || request.transaction
+
+    if (!request.raw.transaction || !request.raw.externalTransaction) {
+      Logger.error('[NO TRANSACTION]')
+      throw new BadRequestException('Transaction not found')
+    }
+
+    return request.raw.externalTransaction ?? request.raw.transaction
   }
 )

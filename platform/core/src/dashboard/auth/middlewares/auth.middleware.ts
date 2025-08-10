@@ -2,15 +2,12 @@ import { Injectable, NestMiddleware, Logger } from '@nestjs/common'
 import { Response, NextFunction } from 'express'
 
 import { PlatformRequest } from '@/common/types/request'
+import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { extractMixedPropertiesFromToken } from '@/common/utils/tokenUtils'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { TokenService } from '@/dashboard/token/token.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
-
-type ExtendedPlatformRequest = PlatformRequest & {
-  workspaceId?: string
-}
 
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
@@ -20,9 +17,22 @@ export class AuthMiddleware implements NestMiddleware {
     private readonly neogmaService: NeogmaService
   ) {}
 
-  async use(request: ExtendedPlatformRequest, response: Response, next: NextFunction) {
+  async use(request: PlatformRequest, response: Response, next: NextFunction) {
+    Logger.log('[AuthMiddleware]', getCurrentISO())
+
+    if (request.method === 'OPTIONS') {
+      return next()
+    }
+
+    // Fastify-related workaround.
+    if (request.user || request.projectId) {
+      return next()
+    }
+
     const session = this.neogmaService.createSession('auth-middleware')
     const transaction = session.beginTransaction()
+
+    const shouldPerformCleanUp = false
 
     const cleanUp = async () => {
       await transaction.close()
@@ -42,16 +52,27 @@ export class AuthMiddleware implements NestMiddleware {
             const tokenId = this.tokenService.decrypt(tokenHeader)
             const prefixedToken = extractMixedPropertiesFromToken(tokenHeader)
 
-            const { hasAccess, projectId, workspaceId } = await this.tokenService.validateToken({
-              tokenId,
-              transaction,
-              prefixData: prefixedToken
-            })
+            const { hasAccess, projectId, project, workspaceId, workspace } =
+              await this.tokenService.validateToken({
+                tokenId,
+                transaction,
+                prefixData: prefixedToken
+              })
 
             if (hasAccess) {
               // Custom properties will be accessible at request.raw.*
+              request.project = project
               request.projectId = projectId
+              request.workspace = workspace
               request.workspaceId = workspaceId
+
+              // if (project?.customDb) {
+              //   shouldPerformCleanUp = true
+              // } else {
+              request.session = session
+              request.transaction = transaction
+              // }
+
               return next()
             }
           }
@@ -70,11 +91,27 @@ export class AuthMiddleware implements NestMiddleware {
             // Custom properties will be accessible at request.raw.*
             request.user = user
 
-            // Try to extract project ID from headers for dashboard requests
-            const projectId = request.headers['x-project-id'] as string
-            if (projectId) {
-              request.projectId = projectId
-            }
+            const { hasAccess, projectId, project, workspaceId, workspace } =
+              await this.tokenService.verifyIntegrity({
+                user,
+                projectId: request.headers['x-project-id'] as string,
+                workspaceId: request.headers['x-workspace-id'] as string,
+                transaction
+              })
+
+            // Custom properties will be accessible at request.raw.*
+            request.project = project
+            request.projectId = projectId
+            request.workspace = workspace
+            request.workspaceId = workspaceId
+
+            // Check if a project relies on external db
+            // if (project?.customDb || project?.managedDbPassword) {
+            //   shouldPerformCleanUp = true
+            // } else {
+            request.session = session
+            request.transaction = transaction
+            // }
 
             return next()
           }
@@ -82,14 +119,17 @@ export class AuthMiddleware implements NestMiddleware {
           isDevMode(() => Logger.error('JWT auth failed in middleware', e))
         }
       }
-
       // Continue without authentication for public endpoints
       next()
     } catch (e) {
       isDevMode(() => Logger.error('Auth middleware error', e))
       next()
     } finally {
-      await cleanUp()
+      isDevMode(() => Logger.log('Should perform session and transaction cleanups', shouldPerformCleanUp))
+
+      // if (shouldPerformCleanUp) {
+      //   await cleanUp()
+      // }
     }
   }
 }

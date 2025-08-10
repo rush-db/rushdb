@@ -26,7 +26,6 @@ import { IAuthenticatedUser } from '@/dashboard/user/interfaces/authenticated-us
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { UserService } from '@/dashboard/user/user.service'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 import { AuthService } from './auth.service'
@@ -39,7 +38,7 @@ import { EmailConfirmationService } from './email-confirmation/email-confirmatio
   TransformResponseInterceptor,
   NotFoundInterceptor,
   NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
+
   ChangeCorsInterceptor
 )
 export class AuthController {

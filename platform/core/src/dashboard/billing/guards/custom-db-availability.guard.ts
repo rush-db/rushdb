@@ -69,7 +69,6 @@ export class CustomDbAvailabilityGuard implements CanActivate {
 
     const session = this.neogmaService.createSession('custom-db-write-availability-guard')
     const transaction = session.beginTransaction()
-
     const canProcessRequest = true //await this.isCustomDbOptionEnabled(workspaceId, request, transaction)
 
     if (!canProcessRequest) {
