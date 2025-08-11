@@ -43,6 +43,8 @@ function apocRemoveFromArray(arrayClause: string) {
   return `apoc.coll.removeAll(${arrayClause}, ["${RUSHDB_VALUE_EMPTY_ARRAY}"])`
 }
 
+const INCLUDE_OWN_PROPERTIES = '.*' as const
+
 function parseAggregate(
   aggregate: Aggregate,
   aliasesMap: AliasesMap,
@@ -107,12 +109,42 @@ function parseAggregate(
 
 export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap) {
   if (isObject(aggregate) && Object.keys(aggregate).length) {
-    const isNested = Object.values(aggregate).some((instruction) => isObject(instruction.aggregate))
+    const entries = Object.values(aggregate) as Array<any>
+
+    const isNested = entries.some((instruction) => isObject(instruction?.aggregate))
+    const usesOnlyTopLevelRecordAlias =
+      !isNested && entries.length > 0 && entries.every((instruction) => instruction?.alias === '$record')
+
+    // TOP-LEVEL AGGREGATIONS ONLY: compute global aggregates once and return a single element
+    if (usesOnlyTopLevelRecordAlias) {
+      const withAggregations: string[] = []
+      const orderClauses: string[] = []
+
+      const fieldsInCollect: string[] = [] // unused here
+      parseAggregate(aggregate, aliasesMap, {
+        fieldsInCollect,
+        withAggregations,
+        orderClauses
+      })
+
+      // Build WITH without `record`
+      const withPart = withAggregations.length ? `WITH ${withAggregations.join(', ')}` : ''
+
+      // Build the single map projection out of the aggregate keys
+      const aggKeys = Object.keys(aggregate) // e.g. ["minPrice","maxPrice","avgPrice"]
+      const oneMap = `{ ${aggKeys.map((k) => `${k}: ${k}`).join(', ')} }`
+
+      return {
+        withPart,
+        // Single-element array so downstream expects `records` array but gets exactly one element
+        recordPart: `[ ${oneMap} ] AS records`
+      }
+    }
 
     if (isNested) {
       // Add first level aliases to RETURN clause
       const fieldsInCollect: string[] = [
-        '.*',
+        INCLUDE_OWN_PROPERTIES,
         `${label()}`,
         ...Object.keys(aggregate).map((key) => `\`${key}\``)
       ]
@@ -128,10 +160,10 @@ export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap) {
         recordPart: `collect(DISTINCT record {${fieldsInCollect.join(', ')}}) AS records`
       }
     } else {
-      const fieldsInCollect: string[] = ['.*', `${label()}`]
+      const fieldsInCollect: string[] = [INCLUDE_OWN_PROPERTIES, `${label()}`]
 
-      const withAggregations = []
-      const orderClauses = []
+      const withAggregations: string[] = []
+      const orderClauses: string[] = []
 
       parseAggregate(aggregate, aliasesMap, {
         fieldsInCollect,
@@ -141,7 +173,6 @@ export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap) {
 
       const withPart = withAggregations.length ? `WITH record, ${withAggregations.join(', ')}` : ''
 
-      // Combine the return clause
       return {
         withPart,
         recordPart: `collect(DISTINCT record {${fieldsInCollect.join(', ')}}) AS records`
@@ -149,9 +180,10 @@ export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap) {
     }
   }
 
+  // No aggregations provided
   return {
     withPart: '',
-    recordPart: `collect(DISTINCT record {.*, ${label()}}) AS records`
+    recordPart: `collect(DISTINCT record {${INCLUDE_OWN_PROPERTIES}, ${label()}}) AS records`
   }
 }
 
@@ -242,7 +274,7 @@ export function buildCollectFunction(
   }
 
   return `${apocSortMapsArray(
-    `collect(${uniq}${alias}${propertyName} {.*, ${label(alias)}})`,
+    `collect(${uniq}${alias}${propertyName} {${INCLUDE_OWN_PROPERTIES}, ${label(alias)}})`,
     instruction.orderBy
   )}[${skip}..${limit}] AS \`${returnAlias}\``
 }
@@ -290,7 +322,7 @@ export function parseBottomUpQuery(
     }
 
     const collectPart = `collect(DISTINCT ${currentRecord} {${[
-      '.*',
+      INCLUDE_OWN_PROPERTIES,
       ...collectParts.map((variable) => `\`${variable}\``),
       label(currentRecord)
     ].join(', ')}})`
