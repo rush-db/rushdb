@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 1.10.0
+
+### Minor Changes
+
+- 83b7ee4: Top level aggregations now works in a predicatable manner
+
+### Patch Changes
+
+- Updated dependencies [83b7ee4]
+  - @rushdb/javascript-sdk@1.10.0
+
 ## 1.9.1
 
 ### Patch Changes
