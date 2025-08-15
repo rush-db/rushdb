@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 1.10.1
+
+### Patch Changes
+
+- 3bc1768: Fix processing boolean response at createMany method
+
 ## 1.10.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.10.1
+
+### Patch Changes
+
+- 3bc1768: Fix processing boolean response at createMany method
+- Updated dependencies [3bc1768]
+  - @rushdb/javascript-sdk@1.10.1
+
 ## 1.10.0
 
 ### Minor Changes
