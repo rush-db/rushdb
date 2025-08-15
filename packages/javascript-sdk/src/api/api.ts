@@ -291,9 +291,11 @@ export class RestAPI {
         // If `returnResult` was not explicitly set to `true`, `response.data` may be just `true`.
         // In that case, fallback to an empty array. Otherwise, map records to typed instances.
         const dbRecordInstances =
-          (response.data as Array<DBRecord<S>>)?.map((r) => {
-            return new DBRecordInstance<S>(r)
-          }) ?? []
+          isArray(response.data) ?
+            (<Array<DBRecord<S>>>response.data)?.map((r) => {
+              return new DBRecordInstance<S>(r)
+            })
+          : []
         return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
       }
 

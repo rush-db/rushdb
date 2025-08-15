@@ -1,5 +1,17 @@
 # rushdb-core
 
+## 1.10.1
+
+### Patch Changes
+
+- 3bc1768: Fix processing boolean response at createMany method
+
+## 1.10.0
+
+### Minor Changes
+
+- 83b7ee4: Top level aggregations now works in a predicatable manner
+
 ## 1.9.1
 
 ### Patch Changes
