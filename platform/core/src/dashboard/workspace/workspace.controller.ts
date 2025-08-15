@@ -39,7 +39,6 @@ import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
   TransformResponseInterceptor,
   NotFoundInterceptor,
   NeogmaDataInterceptor,
-
   ChangeCorsInterceptor
 )
 export class WorkspaceController {

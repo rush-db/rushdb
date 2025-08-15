@@ -55,9 +55,13 @@ export class ImportController {
     @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
-    const projectId = request.projectId
+    try {
+      const projectId = request.projectId
 
-    return await this.importService.importRecords(body, projectId, transaction, customTx)
+      return await this.importService.importRecords(body, projectId, transaction, customTx)
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   @Post('/records/import/csv')

@@ -3,9 +3,9 @@ import { ModelFactory } from 'neogma'
 import { NeogmaModel, RelationshipsI } from 'neogma/dist/ModelOps/ModelOps'
 
 import { TAnyObject, TGetFirstArgument } from '@/common/types/utils'
+import { NeogmaService } from '@/database/neogma/neogma.service'
 import { TModelName, TModelSourceType } from '@/database/neogma/repository/types'
 import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
 export class RepositoryService {

@@ -46,7 +46,7 @@ export class TransactionService {
       const rushDBTransaction = this.transactions.get(id)
 
       await rushDBTransaction.transaction.close()
-      await this.compositeNeogmaService.closeSession(rushDBTransaction.session)
+      await rushDBTransaction.session.close()
 
       this.transactions.delete(id)
     }

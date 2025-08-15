@@ -1,4 +1,4 @@
-import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
+import { forwardRef, Module } from '@nestjs/common'
 
 import { EntityModule } from '@/core/entity/entity.module'
 import { SearchController } from '@/core/search/search.controller'
@@ -6,7 +6,6 @@ import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
 import { DbConnectionModule } from '@/database/db-connection/db-connection.module'
-import { DbContextMiddleware } from '@/database/middlewares/db-context.middleware'
 import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
 
 @Module({
@@ -22,8 +21,4 @@ import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.mo
   ],
   controllers: [SearchController]
 })
-export class SearchModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    // consumer.apply(DbContextMiddleware).forRoutes(SearchController)
-  }
-}
+export class SearchModule {}

@@ -27,7 +27,8 @@ import { Label } from '~/elements/Label.tsx'
 
 const statsMap: Record<keyof ProjectStats, string> = {
   properties: 'Properties',
-  records: 'Records'
+  records: 'Records',
+  avgProperties: 'Avg Properties Per Record'
 }
 
 function ProjectCard({ description, id, stats, name, customDb }: Project & { customDb?: string }) {

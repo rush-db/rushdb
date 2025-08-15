@@ -2,7 +2,6 @@ import { Injectable, NestMiddleware, Logger } from '@nestjs/common'
 import { Response, NextFunction } from 'express'
 
 import { PlatformRequest } from '@/common/types/request'
-import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { extractMixedPropertiesFromToken } from '@/common/utils/tokenUtils'
 import { AuthService } from '@/dashboard/auth/auth.service'
@@ -18,8 +17,6 @@ export class AuthMiddleware implements NestMiddleware {
   ) {}
 
   async use(request: PlatformRequest, response: Response, next: NextFunction) {
-    Logger.log('[AuthMiddleware]', getCurrentISO())
-
     if (request.method === 'OPTIONS') {
       return next()
     }

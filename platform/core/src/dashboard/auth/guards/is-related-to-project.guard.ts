@@ -7,10 +7,7 @@ import { TransactionService } from '@/core/transactions/transaction.service'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
 import { TokenService } from '@/dashboard/token/token.service'
-import { LOCAL_PROJECT_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
-import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerifyOwnershipConfig) => {
   @Injectable()
@@ -19,24 +16,23 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
       readonly tokenService: TokenService,
       readonly authService: AuthService,
       readonly neogmaService: NeogmaService,
-      readonly transactionService: TransactionService,
-      readonly compositeNeogmaService: CompositeNeogmaService
+      readonly transactionService: TransactionService
     ) {}
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
       const request = context.switchToHttp().getRequest()
       const txId = request.headers['x-transaction-id']
 
-      const dbContext = dbContextStorage.getStore()
-      const hasCustomDbContext =
-        dbContext?.projectId && dbContext?.projectId !== LOCAL_PROJECT_CONNECTION_LITERAL
-      const projectId = request.projectId ?? request.headers['x-project-id']
+      const externalDbConnection = request?.raw?.externalDbConnection
+      const hasExternalDb = request?.raw?.project?.customDb && externalDbConnection
+
+      const projectId = request.projectId
 
       let transaction: Transaction
       let session: Session
 
-      let customSession: Session
-      let customTransaction: Transaction
+      let externalSession: Session
+      let externalTransaction: Transaction
 
       if (!txId && !request.transaction) {
         session = this.neogmaService.createSession('related-to-project-guard')
@@ -47,12 +43,12 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
         session = clientTransaction?.session ?? request.session
       }
 
-      if (hasCustomDbContext) {
+      if (hasExternalDb) {
         isDevMode(() =>
           Logger.log(`[RTP GUARD]: Custom transaction created for RTP guard for project ${projectId}`)
         )
-        customSession = this.compositeNeogmaService.createSession()
-        customTransaction = customSession.beginTransaction()
+        externalSession = externalDbConnection?.connection?.driver?.session()
+        externalTransaction = externalSession.beginTransaction()
       }
 
       try {
@@ -77,7 +73,7 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
           otherIdsToVerify.push(candidate)
         }
 
-        const targetTransaction = hasCustomDbContext ? customTransaction : transaction
+        const targetTransaction = hasExternalDb ? externalTransaction : transaction
 
         const [recordIdsVerificationResult, otherIdsVerificationResult] = await Promise.all([
           this.authService.verifyRecordsIds(recordIdsToVerify, projectId, targetTransaction),
@@ -96,11 +92,11 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
           await this.neogmaService.closeSession(session, 'is-related-to-project-guard')
         }
 
-        if (hasCustomDbContext && customTransaction?.isOpen()) {
+        if (hasExternalDb && externalTransaction?.isOpen()) {
           isDevMode(() => Logger.log('[RTP GUARD]: Close custom tx and session'))
 
-          await customTransaction.close()
-          await this.compositeNeogmaService.closeSession(session)
+          await externalTransaction.close()
+          await externalSession.close()
         }
       }
     }

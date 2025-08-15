@@ -9,15 +9,12 @@ import {
   Logger
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { FastifyRequest } from 'fastify'
 import { Transaction } from 'neo4j-driver'
 
 import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { LOCAL_PROJECT_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
-import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
@@ -33,14 +30,11 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
 
   async isCustomDbOptionEnabled(
     workspaceId: string,
-    request: FastifyRequest,
+    hasExternalDb: boolean,
     transaction: Transaction
   ): Promise<boolean> {
     const workspaceInstance = await this.workspaceService.getWorkspaceInstance(workspaceId, transaction)
     const properties = workspaceInstance.dataValues
-
-    const dbContext = dbContextStorage.getStore()
-    const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== LOCAL_PROJECT_CONNECTION_LITERAL
 
     // Check premium plan expiration (if exists)
     if (properties.planId) {
@@ -57,7 +51,7 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
       return !(currentDate > increasedValidTillDate)
     }
 
-    return !hasCustomDbContext
+    return !hasExternalDb
   }
 
   async canActivate(context: ExecutionContext) {
@@ -67,15 +61,13 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest()
     const workspaceId = request.workspaceId || request.headers['x-workspace-id']
-
-    const dbContext = dbContextStorage.getStore()
-    const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== LOCAL_PROJECT_CONNECTION_LITERAL
+    const hasExternalDb = request?.raw?.project?.customDb && request?.raw?.externalDbConnection
 
     if (!workspaceId) {
       return false
     }
 
-    if (!hasCustomDbContext) {
+    if (!hasExternalDb) {
       return true
     }
 
@@ -83,7 +75,7 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
 
     const session = this.neogmaService.createSession('custom-db-write-restriction-guard')
     const transaction = session.beginTransaction()
-    const canProcessRequest = true // await this.isCustomDbOptionEnabled(workspaceId, request, transaction)
+    const canProcessRequest = true // await this.isCustomDbOptionEnabled(workspaceId, hasExternalDb, transaction)
 
     if (!canProcessRequest) {
       transaction.close().then(() => session.close())

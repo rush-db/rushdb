@@ -14,6 +14,7 @@ import { $currentWorkspace } from '~/features/workspaces/stores/current-workspac
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { setTourStep } from '~/features/tour/stores/tour.ts'
 import { useEffect, useState } from 'react'
+import { useWatch } from 'react-hook-form'
 
 // Type for form values
 type ProjectFormValues = {
@@ -142,7 +143,8 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
     handleSubmit,
     register,
     watch,
-    reset
+    reset,
+    control
   } = useForm<ProjectFormValues>({
     defaultValues: getDefaultValues(),
     schema: getSchema()
@@ -153,10 +155,15 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
     reset(getDefaultValues())
   }, [selectedTab, reset])
 
-  const watchedPassword = watch('managedDb.password')
+  // Subscribe to managed password changes for real-time strength updates
+  const watchedPassword = useWatch({ control, name: 'managedDb.password' })
   const passwordStrength = watchedPassword ? isStrongPassword(watchedPassword) : false
 
   const handleFormSubmit = (data: ProjectFormValues) => {
+    // Block custom DB submission without valid subscription
+    if (selectedTab === 'custom' && !hasValidSubscription) {
+      return
+    }
     // Transform data to match the expected Project type
     const projectData = {
       name: data.name,
@@ -186,6 +193,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
             {...props}
             className={cn('flex flex-col gap-6', className)}
             onSubmit={handleSubmit(handleFormSubmit)}
+            autoComplete="off"
           >
             {/* Tab Navigation */}
             <div className="mb-6">
@@ -242,17 +250,19 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                 autoFocus
                 error={errors?.name?.message}
                 data-tour="project-name-input"
+                autoComplete="off"
               />
               <TextField
                 label="Description (optional)"
                 {...register('description')}
                 error={errors?.description?.message}
+                autoComplete="off"
               />
             </div>
 
             {/* Tab Content - Fixed height container to prevent jumping */}
             <div className="min-h-[300px]">
-              {selectedTab === 'shared' && (
+              {/* {selectedTab === 'shared' && (
                 <div className="bg-surface-secondary rounded-lg p-4">
                   <h3 className="mb-2 font-semibold">Free Shared Instance</h3>
                   <div className="text-content-secondary space-y-2 text-sm">
@@ -268,7 +278,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                     </ul>
                   </div>
                 </div>
-              )}
+              )} */}
 
               {selectedTab === 'custom' && (
                 <>
@@ -299,16 +309,27 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                         <TextField
                           {...register('customDb.url')}
                           placeholder="bolt://your-database-url:7687"
+                          autoComplete="off"
+                          inputMode="url"
+                          disabled={!hasValidSubscription}
                         />
                       </FormField>
                       <FormField label="Username" error={errors?.customDb?.username?.message}>
-                        <TextField {...register('customDb.username')} placeholder="neo4j" />
+                        <TextField
+                          {...register('customDb.username')}
+                          placeholder="neo4j"
+                          autoComplete="off"
+                          disabled={!hasValidSubscription}
+                        />
                       </FormField>
                       <FormField label="Password" error={errors?.customDb?.password?.message}>
                         <TextField
                           type="password"
                           {...register('customDb.password')}
                           placeholder="your-password"
+                          autoComplete="new-password"
+                          spellCheck={false}
+                          disabled={!hasValidSubscription}
                         />
                       </FormField>
                     </div>
@@ -325,6 +346,8 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                           type="password"
                           {...register('managedDb.password')}
                           placeholder="Create a strong password"
+                          autoComplete="new-password"
+                          spellCheck={false}
                         />
                         <p className="text-content-secondary text-xs">
                           Must contain at least 8 characters with uppercase, lowercase, number, and special
@@ -359,6 +382,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                       <select
                         {...register('managedDb.region')}
                         className="border-border bg-surface text-content focus:ring-accent focus:border-accent w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2"
+                        autoComplete="off"
                       >
                         {AWS_REGIONS.map((region) => (
                           <option key={region.code} value={region.code}>
@@ -373,7 +397,18 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
             </div>
 
             <div className="flex justify-end">
-              <Button loading={isSubmitting} type="submit" variant="accent" data-tour="create-project-btn">
+              <Button
+                loading={isSubmitting}
+                type="submit"
+                variant="accent"
+                data-tour="create-project-btn"
+                disabled={selectedTab === 'custom' && !hasValidSubscription}
+                title={
+                  selectedTab === 'custom' && !hasValidSubscription ?
+                    'Upgrade to connect your own Neo4j instance'
+                  : undefined
+                }
+              >
                 Create Project <ArrowRight className="mr-1 h-4 w-4" />
               </Button>
             </div>

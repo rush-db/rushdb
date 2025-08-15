@@ -493,7 +493,8 @@ export class ProjectService {
       .then((result) => result.records[0])
       .then((record) => ({
         records: toNative(record.get('entities')),
-        properties: toNative(record.get('properties'))
+        properties: toNative(record.get('properties')),
+        avgProperties: toNative(record.get('avg'))
       }))
   }
 

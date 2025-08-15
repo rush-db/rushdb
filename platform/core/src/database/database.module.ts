@@ -19,8 +19,6 @@ import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
 import { NeogmaModule } from '@/database/neogma/neogma.module'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
-import { SessionManagerService } from './session-manager.service'
-
 @Global()
 @Module({
   imports: [
@@ -35,8 +33,8 @@ import { SessionManagerService } from './session-manager.service'
       })
     })
   ],
-  providers: [SessionManagerService],
-  exports: [SessionManagerService]
+  providers: [],
+  exports: []
 })
 export class DatabaseModule implements OnModuleInit {
   constructor(

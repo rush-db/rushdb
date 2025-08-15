@@ -5,7 +5,7 @@ export const PreferredTransactionDecorator = createParamDecorator<unknown, Execu
   (data, ctx) => {
     const request = ctx.switchToHttp().getRequest()
 
-    if (!request.raw.transaction || !request.raw.externalTransaction) {
+    if (!request.raw.transaction && !request.raw.externalTransaction) {
       Logger.error('[NO TRANSACTION]')
       throw new BadRequestException('Transaction not found')
     }

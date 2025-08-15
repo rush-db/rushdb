@@ -1,7 +1,7 @@
 import type { ISO8601 } from '~/types'
 
 export type ProjectLimits = Record<string, number | string>
-export type ProjectStats = Record<'records' | 'properties', number>
+export type ProjectStats = Record<'records' | 'properties' | 'avgProperties', number>
 
 export type Project = {
   created: ISO8601
