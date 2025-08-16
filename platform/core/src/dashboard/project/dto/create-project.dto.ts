@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { ApiModelProperty } from '@nestjs/swagger/dist/decorators/api-model-property.decorator'
 import { IsNotEmpty } from 'class-validator'
+
 import { TProjectCustomDbPayload } from '@/dashboard/project/project.types'
 
 export class CreateProjectDto {
@@ -20,4 +21,11 @@ export class CreateProjectDto {
     }
   })
   customDb: TProjectCustomDbPayload
+
+  @ApiPropertyOptional()
+  managedDbConfig: {
+    password: string
+    region: string
+    tier: string
+  }
 }

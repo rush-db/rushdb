@@ -5,9 +5,7 @@ import { catchError, tap } from 'rxjs/operators'
 
 import { isDevMode } from '@/common/utils/isDevMode'
 import { ProjectService } from '@/dashboard/project/project.service'
-import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 export enum ESideEffectType {
   RECOUNT_PROJECT_STRUCTURE = 'recountProjectNodes'
@@ -18,28 +16,26 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
   class RunSideEffectInterceptor implements NestInterceptor {
     constructor(
       readonly neogmaService: NeogmaService,
-      readonly compositeNeogmaService: CompositeNeogmaService,
       readonly projectService: ProjectService
     ) {}
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-      const { projectId } = context.switchToHttp().getRequest()
-      const dbContext = dbContextStorage.getStore()
-      const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== 'default'
+      const request = context.switchToHttp().getRequest()
 
       const session = this.neogmaService.createSession('run-side-effect')
       const transaction = session.beginTransaction()
 
-      let customSession: Session
-      let customTransaction: Transaction
+      let externalSession: Session
+      let externalTransaction: Transaction
 
-      // @TODO: It's an optimistic way to recompute project with external neo4j.
-      // Source controller should use db-context.middleware, bc project controller doesn't use db context
-      if (hasCustomDbContext) {
+      const projectId = request?.raw?.projectId
+      const hasExternalDb = request?.raw?.project?.customDb && request?.raw?.externalDbConnection
+
+      if (hasExternalDb) {
         isDevMode(() =>
-          Logger.debug(`Custom transaction created for project ${projectId} side effect runner`)
+          Logger.debug(`External transaction created for project ${projectId} side effect runner`)
         )
-        customSession = this.compositeNeogmaService.createSession()
-        customTransaction = customSession.beginTransaction()
+        externalSession = request?.raw?.externalDbConnection.connection?.driver?.session()
+        externalTransaction = externalSession?.beginTransaction()
       }
 
       return next.handle().pipe(
@@ -51,7 +47,7 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
 
             const recountProjectStructureSideEffect = () => {
               const init = async () => {
-                return this.projectService.recomputeProjectNodes(projectId, transaction, customTransaction)
+                return this.projectService.recomputeProjectNodes(projectId, transaction, externalTransaction)
               }
 
               return {
@@ -76,12 +72,12 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
               await this.neogmaService.closeSession(session, 'run-side-effect-interceptor')
             }
 
-            if (hasCustomDbContext && customTransaction?.isOpen()) {
+            if (hasExternalDb && externalTransaction?.isOpen()) {
               isDevMode(() =>
                 Logger.log(`[COMMIT CUSTOM TRANSACTION]: Side effect runner for project ${projectId}`)
               )
-              await customTransaction.commit()
-              await this.compositeNeogmaService.closeSession(customSession)
+              await externalTransaction.commit()
+              await externalSession.close()
             }
           }, 1000)
         }),
@@ -90,12 +86,12 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
           await transaction.rollback()
           await this.neogmaService.closeSession(session, 'run-side-effect-interceptor')
 
-          if (hasCustomDbContext) {
+          if (hasExternalDb) {
             isDevMode(() =>
               Logger.log(`[ROLLBACK CUSTOM TRANSACTION]: Side effect runner for project ${projectId}`)
             )
-            await customTransaction.rollback()
-            await this.compositeNeogmaService.closeSession(customSession)
+            await externalTransaction.rollback()
+            await externalSession.close()
           }
           throw error
         })

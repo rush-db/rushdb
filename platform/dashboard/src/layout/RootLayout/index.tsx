@@ -4,8 +4,7 @@ import { AngledSeparator } from '~/elements/Divider'
 import { Logo } from '~/elements/Logo'
 import { ConfirmEmailNotification } from '~/features/auth/components/ConfirmEmailNotification'
 import { UserMenu } from '~/features/auth/components/UserMenu'
-import { LimitReachedModal } from '~/features/billing/components/LimitReachedDialog'
-import { PaymentCallbackDialog } from '~/features/billing/components/PaymentCallbackDialog'
+
 import { ChangeProjectMenu } from '~/features/projects/components/ChangeProjectMenu'
 import { $currentRecord } from '~/features/projects/stores/current-record'
 import { $currentProjectId } from '~/features/projects/stores/id'
@@ -15,6 +14,8 @@ import { cn } from '~/lib/utils'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { ChangeWorkspaceMenu } from '~/features/workspaces/components/ChangeWorkspaceMenu.tsx'
 import { Button } from '~/elements/Button'
+import { LimitReachedModal } from '~/components/billing/LimitReachedDialog.tsx'
+import { PaymentCallbackDialog } from '~/components/billing/PaymentCallbackDialog.tsx'
 
 function ProjectNav() {
   const page = useStore($router)

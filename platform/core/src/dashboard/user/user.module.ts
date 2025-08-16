@@ -1,4 +1,4 @@
-import { forwardRef, Global, Module, OnApplicationBootstrap } from '@nestjs/common'
+import { forwardRef, Global, Module, OnApplicationBootstrap, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 
 import { toBoolean } from '@/common/utils/toBolean'
@@ -49,7 +49,7 @@ export class UserModule implements OnApplicationBootstrap {
           return
         }
 
-        console.log('Initializing user...')
+        Logger.log('Initializing user...')
         await this.userService.create(
           {
             login: adminLogin,
@@ -59,10 +59,10 @@ export class UserModule implements OnApplicationBootstrap {
           transaction
         )
       } catch (error) {
-        console.log('Initializing user failed.', error)
+        Logger.log('Initializing user failed.', error)
         await transaction.rollback()
       } finally {
-        console.log('Initializing user finished.')
+        Logger.log('Initializing user finished.')
         if (transaction.isOpen()) {
           await transaction.commit()
           await transaction.close()

@@ -11,18 +11,23 @@ type IncomingPlanData = {
   productId: string
 }
 
-export type IncomingBillingData = Record<PaidStartPlanId | PaidPlanId, Record<PlanPeriod, IncomingPlanData>>
-
-export type PaidPlan = {
-  id: PaidPlanId | PaidStartPlanId
-  name: string
-  monthlyPrice: number
-  yearlyPrice: number
+type InstanceSpecs = {
+  ram: number
+  cpu: number
+  disk: number
 }
 
-export type FreePlan = {
-  id: FreePlanId
-  name: string
+type InstancePricing = {
+  onDemand: IncomingPlanData
+  reserved: IncomingPlanData
 }
 
-export type Plan = FreePlan | PaidPlan
+type TieredPricingData = Array<{ tier: string } & InstancePricing & InstanceSpecs>
+
+export type BillingData = {
+  pro: {
+    monthly: { amount: number; priceId: string; productId: string }
+    annual: { amount: number; priceId: string; productId: string }
+  }
+  team: TieredPricingData
+}

@@ -1,6 +1,5 @@
-import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
+import { forwardRef, Module } from '@nestjs/common'
 
-import { DbContextMiddleware } from '@/common/middlewares/db-context.middleware'
 import { EntityModule } from '@/core/entity/entity.module'
 import { ExportController } from '@/core/entity/import-export/export.controller'
 import { ExportService } from '@/core/entity/import-export/export.service'
@@ -32,8 +31,4 @@ import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.mo
   exports: [ImportService, ExportService],
   controllers: [ImportController, ExportController]
 })
-export class ImportExportModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(DbContextMiddleware).forRoutes(ImportController, ExportController)
-  }
-}
+export class ImportExportModule {}

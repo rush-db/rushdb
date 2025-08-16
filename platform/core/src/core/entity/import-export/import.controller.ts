@@ -31,19 +31,11 @@ import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
-import { CustomTransactionDecorator } from '@/database/neogma-dynamic/custom-transaction.decorator'
-import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
+import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 @Controller('')
 @ApiTags('Records')
-@UseInterceptors(
-  NotFoundInterceptor,
-  NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
-  CustomTransactionInterceptor
-)
+@UseInterceptors(NotFoundInterceptor, NeogmaDataInterceptor)
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
 
@@ -59,13 +51,17 @@ export class ImportController {
   @AuthGuard('project')
   async collectJson(
     @Body() body: ImportJsonDto,
-    @TransactionDecorator() transaction: Transaction,
-    @CustomTransactionDecorator() customTx: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
-    const projectId = request.projectId
+    try {
+      const projectId = request.projectId
 
-    return await this.importService.importRecords(body, projectId, transaction, customTx)
+      return await this.importService.importRecords(body, projectId, transaction, customTx)
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   @Post('/records/import/csv')
@@ -80,8 +76,8 @@ export class ImportController {
   @AuthGuard('project')
   async collectCsv(
     @Body() body: ImportCsvDto,
-    @TransactionDecorator() transaction: Transaction,
-    @CustomTransactionDecorator() customTx: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId

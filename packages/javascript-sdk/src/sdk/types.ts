@@ -1,5 +1,5 @@
 import type { HttpClientInterface } from '../network/HttpClient.js'
-import { PlanPrefix } from './constants'
+import type { PlanPrefix } from './constants'
 
 type ApiConnectionConfig =
   | {

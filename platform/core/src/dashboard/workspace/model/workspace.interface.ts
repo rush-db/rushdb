@@ -15,13 +15,7 @@ type TWorkspaceProperties = {
   name: string
   created: string
   edited?: string
-  s3Url?: string
-  s3Bucket?: string
-  s3User?: string
-  s3Password?: string
   pendingInvites?: string
-
-  // @FYI: Andrew - those below are billing related fields:
   limits: string
   stats?: string
   validTill?: string

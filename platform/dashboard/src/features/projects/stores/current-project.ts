@@ -67,6 +67,7 @@ export const $currentProjectLabels = createAsyncStore({
 
 export const $activeLabels = atom<string[]>([])
 
+let cnt = 0
 export const $filteredRecords = createAsyncStore({
   key: '$projectFilteredRecords',
   async fetcher(init) {
@@ -77,6 +78,17 @@ export const $filteredRecords = createAsyncStore({
     const labels = $activeLabels.get()
     const combineMode = $combineFilters.get()
     const properties = filters.map(filterToSearchOperation)
+
+    cnt += 1
+    console.log('$projectFilteredRecords', {
+      cnt,
+      filters,
+      orderBy,
+      skip,
+      limit,
+      labels,
+      combineMode
+    })
 
     const order = Object.entries(orderBy ?? {}).reduce<Sort>((acc, [key, direction]) => {
       if (key === '__id') {

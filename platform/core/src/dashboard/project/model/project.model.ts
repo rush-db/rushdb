@@ -46,10 +46,35 @@ export const Project: TProjectParams = {
     stats: {
       type: 'string'
     },
+    // Below fields are dedicated to be used within external / managed environments
     customDb: {
       type: 'string'
     },
-    managedDb: {
+    managedDbPassword: {
+      type: 'string'
+    },
+    managedDbRegion: {
+      type: 'string'
+    },
+    managedDbTier: {
+      type: 'string'
+    },
+    planId: {
+      type: 'string'
+    },
+    productId: {
+      type: 'string'
+    },
+    priceId: {
+      type: 'string'
+    },
+    status: {
+      type: 'string'
+    },
+    validTill: {
+      type: 'string'
+    },
+    isSubscriptionCancelled: {
       type: 'boolean'
     }
   },

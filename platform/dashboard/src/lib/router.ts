@@ -2,6 +2,7 @@ import type { useStore } from '@nanostores/react'
 import type { ParamsArg } from '@nanostores/router'
 
 import { createRouter, createSearchParams, getPagePath, openPage, redirectPage } from '@nanostores/router'
+// eslint-disable-next-line import/no-cycle
 import { $platformSettings } from '~/features/auth/stores/settings'
 import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
 
@@ -24,7 +25,8 @@ export const projectRoutes = {
   projectImportData: '/projects/:id/import',
   projectTokens: '/projects/:id/tokens',
   projectUsers: '/projects/:id/users',
-  projectHelp: '/projects/:id/help'
+  projectHelp: '/projects/:id/help',
+  projectBilling: !$platformSettings.get().data?.selfHosted ? '/projects/:id/billing' : '/projects/:id'
 } as const
 
 const protectedRoutes = {

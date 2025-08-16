@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { Transaction } from 'neo4j-driver'
 import { Neogma } from 'neogma'
 
 import { isDevMode } from '@/common/utils/isDevMode'
-import { transactionStorage } from '@/core/transactions/transaction-context'
+import { IProjectProperties } from '@/dashboard/project/model/project.interface'
 import { ProjectService } from '@/dashboard/project/project.service'
+import { TProjectCustomDbPayload } from '@/dashboard/project/project.types'
+import { LOCAL_PROJECT_CONNECTION_LITERAL } from '@/database/db-connection/db-connection.constants'
 
 import { INeogmaConfig } from '../neogma/neogma-config.interface'
 import { NeogmaService } from '../neogma/neogma.service'
@@ -12,7 +13,7 @@ import { NeogmaDynamicService } from '../neogma-dynamic/neogma-dynamic.service'
 
 export interface ConnectionResult {
   connection: Neogma
-  projectId: string | 'default'
+  projectId: string | typeof LOCAL_PROJECT_CONNECTION_LITERAL
 }
 
 @Injectable()
@@ -23,22 +24,18 @@ export class DbConnectionService {
     private readonly projectService: ProjectService
   ) {}
 
-  async getConnection(projectId: string): Promise<ConnectionResult> {
-    const context = transactionStorage.getStore()
-    const tx: Transaction | undefined = context?.transaction
-
-    if (projectId === 'default') {
+  async getConnection(projectId: string, project?: IProjectProperties): Promise<ConnectionResult> {
+    if (projectId === LOCAL_PROJECT_CONNECTION_LITERAL) {
       isDevMode(() => Logger.debug(`Using default connection for project`))
 
-      return { connection: this.neogmaService.getInstance(), projectId: 'default' }
+      return { connection: this.neogmaService.getInstance(), projectId: LOCAL_PROJECT_CONNECTION_LITERAL }
     }
-
-    const projectNode = await this.projectService.getProject(projectId, tx)
-    const project = projectNode.toJson()
 
     if (project?.customDb) {
       try {
-        const customDbPayload = this.projectService.decryptCustomDb(project.customDb)
+        const customDbPayload = this.projectService.decryptSensitiveData<TProjectCustomDbPayload>(
+          project.customDb
+        )
 
         const config: INeogmaConfig = {
           url: customDbPayload.url,
@@ -48,9 +45,9 @@ export class DbConnectionService {
 
         isDevMode(() => Logger.debug(`Using dynamic connection for project ${projectId}`))
 
-        const dynamicConnection = await this.neogmaDynamicService.getConnection(projectId, config)
+        const externalConnection = await this.neogmaDynamicService.getConnection(projectId, config)
 
-        return { connection: dynamicConnection, projectId }
+        return { connection: externalConnection, projectId }
       } catch (error) {
         isDevMode(() =>
           Logger.error(
@@ -65,6 +62,6 @@ export class DbConnectionService {
     }
 
     isDevMode(() => Logger.debug(`Using default connection for project ${projectId}`))
-    return { connection: this.neogmaService.getInstance(), projectId: 'default' }
+    return { connection: this.neogmaService.getInstance(), projectId: LOCAL_PROJECT_CONNECTION_LITERAL }
   }
 }

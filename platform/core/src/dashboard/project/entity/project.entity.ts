@@ -1,25 +1,20 @@
 import { IProjectProperties } from '@/dashboard/project/model/project.interface'
 
 export class ProjectEntity {
-  constructor(
-    private readonly id: string,
-    private readonly name: string,
-    private readonly created: string,
-    private readonly description?: string,
-    private readonly edited?: string,
-    private readonly customDb?: string,
-    private readonly managedDb?: boolean
-  ) {}
+  constructor(private readonly projectNode: IProjectProperties) {}
 
   getProperties(): IProjectProperties {
     return {
-      id: this.id,
-      name: this.name,
-      created: this.created,
-      edited: this.edited,
-      description: this.description,
-      customDb: this.customDb,
-      managedDb: this.managedDb
+      id: this.projectNode.id,
+      name: this.projectNode.name,
+      created: this.projectNode.created,
+      edited: this.projectNode.edited,
+      description: this.projectNode.description,
+      customDb: this.projectNode.customDb,
+      managedDbRegion: this.projectNode.managedDbRegion,
+      managedDbTier: this.projectNode.managedDbTier,
+      status: this.projectNode.status,
+      stats: this.projectNode.stats
     }
   }
 

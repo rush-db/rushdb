@@ -6,63 +6,44 @@ import { cn, composeEventHandlers } from '~/lib/utils'
 
 import type { DisclosureOptions } from './Disclosure'
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList
-} from './Command'
-import {
-  DisclosureContext,
-  useDisclosure,
-  useDisclosureContext
-} from './Disclosure'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './Command'
+import { DisclosureContext, useDisclosure, useDisclosureContext } from './Disclosure'
 import { Popover, PopoverAnchor, PopoverContent } from './Popover'
 
 export const Combobox = React.forwardRef<
   React.ElementRef<typeof Command>,
   React.ComponentPropsWithoutRef<typeof Command> & DisclosureOptions
->(
-  (
-    { className, loop = true, onKeyDown, open, onOpenChange, ...props },
-    ref
-  ) => {
-    const ctx = useDisclosure({ open, onOpenChange })
+>(({ className, loop = true, onKeyDown, open, onOpenChange, ...props }, ref) => {
+  const ctx = useDisclosure({ open, onOpenChange })
 
-    const { onPointerDown } = useClickOutside(ctx.close)
-    const { onFocus } = useFocusOutside(ctx.close)
+  const { onPointerDown } = useClickOutside(ctx.close)
+  const { onFocus } = useFocusOutside(ctx.close)
 
-    return (
-      <DisclosureContext.Provider value={ctx}>
-        <Popover modal={false} open={ctx.isOpen}>
-          <Command
-            className={cn('w-full', className)}
-            ref={ref}
-            {...props}
-            onKeyDown={composeEventHandlers(onKeyDown, (event) => {
-              if (event.key === 'Escape') {
-                if (ctx.isOpen) {
-                  event.stopPropagation()
-                  ctx.close()
-                }
-              } else if (event.key !== 'Tab') {
-                ctx.open()
+  return (
+    <DisclosureContext.Provider value={ctx}>
+      <Popover modal={false} open={ctx.isOpen}>
+        <Command
+          className={cn('w-full', className)}
+          ref={ref}
+          {...props}
+          onKeyDown={composeEventHandlers(onKeyDown, (event) => {
+            if (event.key === 'Escape') {
+              if (ctx.isOpen) {
+                event.stopPropagation()
+                ctx.close()
               }
-            })}
-            onPointerDown={composeEventHandlers(
-              props.onPointerDown,
-              onPointerDown
-            )}
-            loop={loop}
-            onFocus={composeEventHandlers(props.onFocus, onFocus)}
-          />
-        </Popover>
-      </DisclosureContext.Provider>
-    )
-  }
-)
+            } else if (event.key !== 'Tab') {
+              ctx.open()
+            }
+          })}
+          onPointerDown={composeEventHandlers(props.onPointerDown, onPointerDown)}
+          loop={loop}
+          onFocus={composeEventHandlers(props.onFocus, onFocus)}
+        />
+      </Popover>
+    </DisclosureContext.Provider>
+  )
+})
 Combobox.displayName = 'Combobox'
 
 export const ComboboxInput = React.forwardRef<
@@ -110,9 +91,7 @@ ComboboxPopover.displayName = 'ComboboxPopover'
 export const ComboboxList = React.forwardRef<
   React.ElementRef<typeof CommandList>,
   React.ComponentPropsWithoutRef<typeof CommandList>
->(({ className, ...props }, ref) => (
-  <CommandList className={cn(className)} ref={ref} {...props} />
-))
+>(({ className, ...props }, ref) => <CommandList className={cn(className)} ref={ref} {...props} />)
 ComboboxList.displayName = 'ComboboxPopover'
 
 export const ComboboxEmpty = CommandEmpty
@@ -124,10 +103,7 @@ export const ComboboxItem = CommandItem
 export const ComboboxTitle = React.forwardRef<HTMLDivElement, TPropsOf<'div'>>(
   ({ className, ...props }, ref) => (
     <div
-      className={cn(
-        'bg-fill px-3 py-1.5 text-xs font-medium uppercase text-content3',
-        className
-      )}
+      className={cn('bg-fill text-content3 px-3 py-1.5 text-xs font-medium uppercase', className)}
       {...props}
       ref={ref}
     />

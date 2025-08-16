@@ -1,6 +1,5 @@
-import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
+import { forwardRef, Module } from '@nestjs/common'
 
-import { DbContextMiddleware } from '@/common/middlewares/db-context.middleware'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import { EntityController } from '@/core/entity/entity.controller'
 import { EntityService } from '@/core/entity/entity.service'
@@ -34,8 +33,4 @@ import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.mo
   exports: [EntityRepository, EntityService, EntityQueryService],
   controllers: [EntityController, LabelsController, RelationshipsController]
 })
-export class EntityModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(DbContextMiddleware).forRoutes(EntityController, LabelsController)
-  }
-}
+export class EntityModule {}

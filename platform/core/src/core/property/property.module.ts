@@ -1,6 +1,5 @@
-import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
+import { forwardRef, Module } from '@nestjs/common'
 
-import { DbContextMiddleware } from '@/common/middlewares/db-context.middleware'
 import { EntityModule } from '@/core/entity/entity.module'
 import { PropertyQueryService } from '@/core/property/property-query.service'
 import { PropertyController } from '@/core/property/property.controller'
@@ -28,8 +27,4 @@ import { PropertyRepository } from './model/property.repository'
   exports: [PropertyRepository, PropertyService, PropertyQueryService],
   controllers: [PropertyController]
 })
-export class PropertyModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(DbContextMiddleware).forRoutes(PropertyController)
-  }
-}
+export class PropertyModule {}

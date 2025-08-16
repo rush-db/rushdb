@@ -1,5 +1,4 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common'
-import Joi from 'joi'
 import { Transaction } from 'neo4j-driver'
 import { QueryRunner } from 'neogma'
 import { uuidv7 } from 'uuidv7'
@@ -14,10 +13,10 @@ import { PropertyService } from '@/core/property/property.service'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
 import { SearchDto } from '@/core/search/dto/search.dto'
+import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 import { CreateEntityDto } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 @Injectable()
 export class EntityService {

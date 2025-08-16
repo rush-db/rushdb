@@ -16,6 +16,7 @@ import { CoreModule } from '@/core/core.module'
 import { DashboardModule } from '@/dashboard/dashboard.module'
 import { ThrottleService } from '@/dashboard/throttle/throttle.service'
 import { DatabaseModule } from '@/database/database.module'
+import { RequestCleanupInterceptor } from '@/database/interceptors/request-cleanup.interceptor'
 
 import { join } from 'path'
 
@@ -46,6 +47,10 @@ import { join } from 'path'
     {
       provide: APP_INTERCEPTOR,
       useClass: ExcludeNullInterceptor
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestCleanupInterceptor
     },
     CliService
   ],

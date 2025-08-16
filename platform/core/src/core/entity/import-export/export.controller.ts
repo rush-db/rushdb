@@ -11,19 +11,11 @@ import { ExportService } from '@/core/entity/import-export/export.service'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
 import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 @Controller('')
 @ApiTags('Records')
-@UseInterceptors(
-  NotFoundInterceptor,
-  TransformResponseInterceptor,
-  NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
-  CustomTransactionInterceptor
-)
+@UseInterceptors(NotFoundInterceptor, TransformResponseInterceptor, NeogmaDataInterceptor)
 export class ExportController {
   constructor(private readonly exportService: ExportService) {}
 

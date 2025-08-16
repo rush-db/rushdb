@@ -11,9 +11,7 @@ export class CompositeNeogmaService implements OnApplicationShutdown {
 
   private getCurrentInstance(): Neogma {
     const dbContext = dbContextStorage.getStore()
-    return dbContext && dbContext.connection && dbContext.projectId !== 'default' ?
-        dbContext.connection
-      : this.defaultNeogmaService.getInstance()
+    return dbContext?.externalConnection ?? this.defaultNeogmaService.getInstance()
   }
 
   getDriver(): Driver {

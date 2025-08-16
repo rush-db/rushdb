@@ -5,8 +5,7 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
-import { EntityService } from '@/core/entity/entity.service'
-import { EntityRepository } from '@/core/entity/model/entity.repository'
+import { toBoolean } from '@/common/utils/toBolean'
 import { PropertyService } from '@/core/property/property.service'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { CreateProjectDto } from '@/dashboard/project/dto/create-project.dto'
@@ -37,16 +36,13 @@ export class ProjectService {
     private readonly compositeNeogmaService: CompositeNeogmaService,
     private readonly neogmaDynamicService: NeogmaDynamicService,
     private readonly projectRepository: ProjectRepository,
-    private readonly entityRepository: EntityRepository,
     private readonly projectQueryService: ProjectQueryService,
-    @Inject(forwardRef(() => EntityService))
-    private readonly entityService: EntityService,
     @Inject(forwardRef(() => PropertyService))
     private readonly propertyService: PropertyService
   ) {}
 
   normalize(node: TProjectInstance) {
-    return new ProjectEntity(node.id, node.name, node.created, node.description, node.edited, node.customDb)
+    return new ProjectEntity(node)
   }
 
   async createProject(
@@ -60,7 +56,11 @@ export class ProjectService {
     const { name, description = '' } = properties
 
     const customDb = await this.attachCustomDb(properties.customDb)
-    const managedDb = this.checkManagedDb(properties.customDb)
+    const managedDb =
+      toBoolean(properties.managedDbConfig) &&
+      toBoolean(properties.managedDbConfig.password) &&
+      toBoolean(properties.managedDbConfig.region) &&
+      toBoolean(properties.managedDbConfig.tier)
 
     const projectNode = await this.projectRepository.model.createOne(
       {
@@ -68,7 +68,12 @@ export class ProjectService {
         name,
         description,
         ...(customDb && { customDb }),
-        ...(customDb && { managedDb }),
+        ...(managedDb && {
+          managedDbPassword: this.encryptSensitiveData(properties.managedDbConfig.password),
+          managedDbRegion: properties.managedDbConfig.region,
+          managedDbTier: properties.managedDbConfig.tier,
+          status: 'pending'
+        }),
         created: currentTime
       },
       { session: transaction }
@@ -105,18 +110,10 @@ export class ProjectService {
 
     await this.neogmaDynamicService.validateConnection(config)
 
-    return this.encryptCustomDb(payload)
+    return this.encryptSensitiveData<TProjectCustomDbPayload>(payload)
   }
 
-  checkManagedDb(payload?: TProjectCustomDbPayload): boolean {
-    if (!payload?.url) {
-      return false
-    }
-
-    return payload.url.includes('rushdb.net')
-  }
-
-  encryptCustomDb(payload: TProjectCustomDbPayload): string {
+  encryptSensitiveData<T>(payload: T): string {
     const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
     const iv = crypto.randomBytes(16)
     const customDbString = JSON.stringify(payload)
@@ -126,7 +123,7 @@ export class ProjectService {
     return iv.toString('hex') + cipher.update(customDbString, 'utf8', 'base64') + cipher.final('base64')
   }
 
-  decryptCustomDb(encrypted: string): TProjectCustomDbPayload {
+  decryptSensitiveData<T>(encrypted: string): T {
     const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
     const iv = encrypted.substring(0, 32)
     const cipherText = encrypted.substring(32)
@@ -135,7 +132,7 @@ export class ProjectService {
     const decrypted = decipher.update(cipherText, 'base64', 'utf8')
     const resultString = decrypted + decipher.final('utf8')
 
-    return JSON.parse(resultString) as TProjectCustomDbPayload
+    return JSON.parse(resultString) as T
   }
 
   async deleteProject(
@@ -150,7 +147,7 @@ export class ProjectService {
     })
 
     if (projectNode.customDb && !shouldStoreCustomDbData) {
-      const customDbPayload = this.decryptCustomDb(projectNode.customDb)
+      const customDbPayload = this.decryptSensitiveData<TProjectCustomDbPayload>(projectNode.customDb)
 
       await this.removeProjectOwnNode(id, transaction)
       this.cleanUpRemoteProject(id, customDbPayload).catch((e) => {
@@ -251,9 +248,9 @@ export class ProjectService {
         transaction
       })
     } catch (e) {
-      console.log('[cleanUpProject ERROR]', e)
+      Logger.log('[cleanUpProject ERROR]', e)
       if (transaction.isOpen()) {
-        console.log('[ROLLBACK TRANSACTION]: Project service')
+        Logger.log('[ROLLBACK TRANSACTION]: Project service')
         await transaction.rollback()
       }
     } finally {
@@ -496,7 +493,8 @@ export class ProjectService {
       .then((result) => result.records[0])
       .then((record) => ({
         records: toNative(record.get('entities')),
-        properties: toNative(record.get('properties'))
+        properties: toNative(record.get('properties')),
+        avgProperties: toNative(record.get('avg'))
       }))
   }
 

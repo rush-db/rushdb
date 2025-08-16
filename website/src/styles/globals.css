@@ -279,3 +279,21 @@ a {
 b {
   font-weight: inherit;
 }
+
+/* In src/css/globals.css or website/src/css/slider.css */
+input[type="range"].records-slider::-webkit-slider-thumb,
+input[type="range"].properties-slider::-webkit-slider-thumb {
+  height: 4rem;
+  width: 4rem;
+  border-radius: 9999px;
+  background: #3f81ff;
+  border: 2px solid #fff;
+  transition: transform 0.2s;
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px rgba(63,129,255,0.2);
+}
+
+input[type="range"].records-slider:hover::-webkit-slider-thumb,
+input[type="range"].properties-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.3);
+}

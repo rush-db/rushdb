@@ -159,7 +159,7 @@ export class PropertyQueryService {
 
     queryBuilder
       .append(`MATCH (property:${RUSHDB_LABEL_PROPERTY} { projectId: $id } )`)
-      .append(`RETURN collect(DISTINCT property { .id, .metadata, .name, .type, .projectId }) as properties`)
+      .append(`RETURN collect(DISTINCT property { .id, .metadata, .name, .type }) as properties`)
 
     return queryBuilder.getQuery()
   }

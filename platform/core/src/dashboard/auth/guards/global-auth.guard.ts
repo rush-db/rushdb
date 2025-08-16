@@ -16,7 +16,6 @@ import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
 import { UserService } from '@/dashboard/user/user.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
-import { extractMixedPropertiesFromToken } from '@/common/utils/tokenUtils'
 
 type TDashboardTargetType = 'project' | 'workspace'
 
@@ -44,6 +43,16 @@ class GlobalAuthGuard implements CanActivate {
     // false by default (will not allow to bypass)
     const optionalGuard = this.reflector.get<boolean>('optionalGuard', context.getHandler()) ?? false
 
+    const authHeader = request.headers['authorization']
+    const bearerToken = authHeader?.split(' ')[1]
+    const isJwt = bearerToken?.split('.').length === 3
+
+    if ((request.headers['token'] || !isJwt) && request.raw.projectId && request.raw.workspaceId) {
+      request.projectId = request.raw.projectId
+      request.workspaceId = request.raw.workspaceId
+      return true
+    }
+
     const session = this.neogmaService.createSession('global-auth-guard')
     const transaction = session.beginTransaction()
 
@@ -52,46 +61,10 @@ class GlobalAuthGuard implements CanActivate {
       await this.neogmaService.closeSession(session, 'global-auth-guard')
     }
 
-    const authHeader = request.headers['authorization']
-    const bearerToken = authHeader?.split(' ')[1]
-
-    const isJwt = bearerToken?.split('.').length === 3
-
-    // Flow for SDK auth
-    if (request.headers['token'] || !isJwt) {
-      try {
-        const authHeader = request.headers['token'] || bearerToken
-        const tokenId = this.tokenService.decrypt(authHeader)
-        const prefixedToken = extractMixedPropertiesFromToken(authHeader)
-
-        const { hasAccess, projectId, workspaceId } = await this.tokenService.validateToken({
-          tokenId,
-          transaction,
-          prefixData: prefixedToken
-        })
-
-        if (hasAccess) {
-          request.projectId = projectId
-          request.workspaceId = workspaceId
-          return true
-        }
-
-        // false by default (will not allow to bypass)
-        return optionalGuard
-      } catch (e) {
-        // false by default (will not allow to bypass)
-        return optionalGuard
-      } finally {
-        await cleanUp()
-      }
-    }
-
     const checkDashboardAccess = async () => {
       try {
         const request = context.switchToHttp().getRequest()
-        const authHeader = request.headers['authorization']
-        const token = authHeader.split(' ')[1]
-        const user = this.authService.verifyJwt(token)
+        const user = request.raw.user
         if (!user) {
           throw new Error('no user')
         }

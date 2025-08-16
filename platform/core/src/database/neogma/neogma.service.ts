@@ -51,30 +51,34 @@ export class NeogmaService implements OnApplicationShutdown {
   }
 
   async stats(context?: any) {
-    const [activeSessions, activeTransactions] = await Promise.all([
-      this.activeSessions(),
-      this.activeTransactions()
-    ])
-    Logger.debug(
-      `[NEO4J STATS] (context: ${context}): ${JSON.stringify({ activeSessions: activeSessions.records.length, activeTransactions: activeTransactions.records.length })}`
-    )
+    try {
+      const [activeSessions, activeTransactions] = await Promise.all([
+        this.activeSessions(),
+        this.activeTransactions()
+      ])
+      Logger.debug(
+        `[NEO4J STATS] (context: ${context}): ${JSON.stringify({ activeSessions: activeSessions.records.length, activeTransactions: activeTransactions.records.length })}`
+      )
+    } catch (error) {
+      Logger.error(`[NEO4J STATS] (context: ${context}): unable to get stats`)
+    }
   }
 
   createSession(context?: any): Session {
     const session = this.getDriver().session()
 
-    isDevMode(() => {
-      this.stats('create session ' + (context ? context : ''))
-    })
+    // isDevMode(() => {
+    //   this.stats('create session ' + (context ? context : ''))
+    // })
 
     return session
   }
 
   async closeSession(session: Session, context?: any) {
     await session?.close()
-    isDevMode(() => {
-      this.stats('close session' + (context ? context : ''))
-    })
+    // isDevMode(() => {
+    //   this.stats('close session ' + (context ? context : ''))
+    // })
   }
 
   getReadSession() {

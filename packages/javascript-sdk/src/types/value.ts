@@ -7,7 +7,6 @@ import type {
   PROPERTY_TYPE_VECTOR
 } from '../common/constants.js'
 import type { MaybeArray } from './utils.js'
-import type { OrderDirection } from './query.js'
 
 // DATETIME
 export type DatetimeObject = {
