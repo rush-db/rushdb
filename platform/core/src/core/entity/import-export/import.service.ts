@@ -274,7 +274,7 @@ export class ImportService {
     const [records, relations] = this.serializeBFS(data, label, options)
 
     // Will throw error if the amount of uploading Records is more than allowed by current plan
-    // await this.checkLimits(records.length, projectId, transaction)
+    await this.checkLimits(records.length, projectId, transaction)
 
     const CHUNK_SIZE = 1000
 

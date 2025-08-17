@@ -392,9 +392,7 @@ export class ProjectService {
     const usersToRevokeAccess: Set<string> = new Set()
 
     if (!userIdsToVerify.length) {
-      actualAccessList.forEach((actualUserId) => {
-        usersToRevokeAccess.add(actualUserId)
-      })
+      actualAccessList.forEach((actualUserId) => {})
     } else {
       userIdsToVerify.forEach((incomeUserId) => {
         if (!actualAccessList.length) {

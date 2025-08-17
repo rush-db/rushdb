@@ -31,6 +31,7 @@ import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
+import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 @Controller('')
@@ -76,7 +77,9 @@ export class ImportController {
   @AuthGuard('project')
   async collectCsv(
     @Body() body: ImportCsvDto,
-    @PreferredTransactionDecorator() transaction: Transaction,
+    // To check limits after BFS parse (performed on default DB)
+    @TransactionDecorator() transaction: Transaction,
+    // Main tx to write data (could be default db or external)
     @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
