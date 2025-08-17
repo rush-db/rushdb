@@ -80,15 +80,6 @@ export const $filteredRecords = createAsyncStore({
     const properties = filters.map(filterToSearchOperation)
 
     cnt += 1
-    console.log('$projectFilteredRecords', {
-      cnt,
-      filters,
-      orderBy,
-      skip,
-      limit,
-      labels,
-      combineMode
-    })
 
     const order = Object.entries(orderBy ?? {}).reduce<Sort>((acc, [key, direction]) => {
       if (key === '__id') {

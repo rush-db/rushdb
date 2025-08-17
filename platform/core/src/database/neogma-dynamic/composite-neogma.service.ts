@@ -31,7 +31,6 @@ export class CompositeNeogmaService implements OnApplicationShutdown {
   }
 
   createSession(): Session {
-    console.log(this.getCurrentInstance().driver)
     return this.getCurrentInstance().driver.session()
   }
 

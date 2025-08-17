@@ -33,7 +33,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     isDevMode(() => {
       Logger.log('[ROLLBACK TRANSACTION]: Exception filter', JSON.stringify(exception))
-      console.log(exception)
     })
 
     // Helper to safely rollback (if open) and close a transaction
