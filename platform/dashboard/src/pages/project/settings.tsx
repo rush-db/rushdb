@@ -110,7 +110,7 @@ export function ProjectSettings({ projectId }: WithProjectID) {
         <SettingsList>
           {statusDescription ?
             <div className="mb-4">
-              <Message as="div" variant="info" size="medium">
+              <Message as="div" variant="info" size="medium" className={'mb-5 w-fit !p-4'}>
                 <Skeleton enabled={loading}>{statusDescription}</Skeleton>
               </Message>
             </div>

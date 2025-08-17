@@ -24,6 +24,7 @@ import { api } from '~/lib/api.ts'
 import { $user } from '~/features/auth/stores/user.ts'
 import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace.ts'
 import { Label } from '~/elements/Label.tsx'
+import { AWS_REGIONS } from '~/features/projects/constants.ts'
 
 const statsMap: Record<keyof ProjectStats, string> = {
   properties: 'Properties',
@@ -31,7 +32,15 @@ const statsMap: Record<keyof ProjectStats, string> = {
   avgProperties: 'Avg Properties Per Record'
 }
 
-function ProjectCard({ description, id, stats, name, customDb, status }: Project & { customDb?: string }) {
+function ProjectCard({
+  description,
+  id,
+  stats,
+  name,
+  customDb,
+  status,
+  managedDbRegion
+}: Project & { customDb?: string }) {
   const isEmpty = isProjectEmpty({
     loading: false,
     totalRecords: stats?.records ?? 0
@@ -49,6 +58,8 @@ function ProjectCard({ description, id, stats, name, customDb, status }: Project
     return getRoutePath('project', { id })
   }
 
+  const managedRegion = AWS_REGIONS.find((r) => r.code === managedDbRegion)
+
   return (
     <a
       className="interaction bg-secondary ring-interaction-ring focus-visible:border-interaction-focus [&:hover:not(:focus-visible)]:bg-secondary-hover rounded-lg border border-transparent focus-visible:ring"
@@ -59,10 +70,22 @@ function ProjectCard({ description, id, stats, name, customDb, status }: Project
           <div className="flex w-full items-center justify-between">
             <h4 className="text-content truncate text-lg font-bold">{name}</h4>
             {customDb && (
-              <Label className="items-center">
+              <Label className="items-center !text-sm">
                 <Link size={18} className="pr-2" />
-                External Neo4j
+                External Instance
               </Label>
+            )}
+
+            {managedDbRegion && (
+              <div className="flex flex-col items-center justify-items-end pr-2">
+                <Label className="items-center !text-sm">
+                  <Link size={18} className="pr-2" />
+                  Managed Instance
+                </Label>
+                <p className="text-content2 mt-2 self-end font-mono text-sm">
+                  {managedRegion?.code} {managedRegion?.flag}
+                </p>
+              </div>
             )}
           </div>
           <p className={cn('text-content2 text-sm')}>{description || 'No description provided'}</p>

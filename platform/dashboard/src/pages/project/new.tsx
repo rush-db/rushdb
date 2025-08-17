@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react'
 import { useWatch } from 'react-hook-form'
 import { Label } from '~/elements/Label'
 import { $showUpgrade } from '~/features/workspaces/stores/projects'
+import { AWS_REGIONS } from '~/features/projects/constants.ts'
 
 // Type for form values
 type ProjectFormValues = {
@@ -46,16 +47,6 @@ const isStrongPassword = (password: string) => {
     !/\s/.test(password)
   )
 }
-
-// Available AWS regions
-const AWS_REGIONS = [
-  { code: 'us-east-1', name: 'N. Virginia', country: 'US', flag: '🇺🇸' },
-  { code: 'us-west-2', name: 'Oregon', country: 'US', flag: '🇺🇸' },
-  { code: 'eu-west-1', name: 'Ireland', country: 'IE', flag: '🇮🇪' },
-  { code: 'eu-central-1', name: 'Frankfurt', country: 'DE', flag: '🇩🇪' },
-  { code: 'ap-southeast-1', name: 'Singapore', country: 'SG', flag: '🇸🇬' },
-  { code: 'ap-northeast-1', name: 'Tokyo', country: 'JP', flag: '🇯🇵' }
-]
 
 // Schema for shared db (free tier)
 const sharedSchema = object({
