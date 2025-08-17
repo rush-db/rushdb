@@ -13,9 +13,9 @@ import { SelectPeriod } from '~/components/billing/SelectPeriod.tsx'
 import { PricingCalculator } from '~/components/billing/PricingCalculator.tsx'
 import { CheckoutButton } from '~/components/billing/CheckoutButton.tsx'
 import { SparklesIcon } from 'lucide-react'
-import React from 'react'
 import { api } from '~/lib/api.ts'
 import { Link } from '~/elements/Link.tsx'
+import { Message } from '~/elements/Message'
 
 export function ProjectBillingPage() {
   const { loading } = useStore($pricingData)
@@ -30,23 +30,28 @@ export function ProjectBillingPage() {
         <SelectPeriod className="items-end justify-end" />
       </PageHeader>
       <PageContent className="gap-5" contained>
-        {paidProject && (
-          <form
-            onSubmit={async (event) => {
-              event.preventDefault()
-              const { redirectUrl } = await api.billing.createPortalSession({
-                returnUrl: window.location.href
-              })
-              if (redirectUrl) {
-                window.location.replace(redirectUrl)
-              }
-            }}
-          >
-            <Link as="button" type="submit">
-              Manage Subscription
-            </Link>
-          </form>
-        )}
+        <div>
+          {paidProject && (
+            <Message variant="info" size="medium" className="mb-5 w-fit !p-4">
+              You're on a paid plan — manage your subscription in the billing portal:
+              <form
+                onSubmit={async (event) => {
+                  event.preventDefault()
+                  const { redirectUrl } = await api.billing.createPortalSession({
+                    returnUrl: window.location.href
+                  })
+                  if (redirectUrl) {
+                    window.location.replace(redirectUrl)
+                  }
+                }}
+              >
+                <Link as="button" type="submit">
+                  Manage Subscription
+                </Link>
+              </form>
+            </Message>
+          )}
+        </div>
 
         {loading ? null : (
           <div className="mb-8">

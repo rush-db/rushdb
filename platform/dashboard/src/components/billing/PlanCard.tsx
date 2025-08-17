@@ -1,11 +1,10 @@
 import { isFreePlan } from '~/features/billing/utils.ts'
 import { useStore } from '@nanostores/react'
-import { $currentPeriod, $paidWorkspace } from '~/features/billing/stores/plans.ts'
+import { $currentPeriod } from '~/features/billing/stores/plans.ts'
 import { cn } from '~/lib/utils.ts'
 import { currencyFormatters } from '~/lib/formatters.ts'
 import { SparklesIcon } from 'lucide-react'
-import { api } from '~/lib/api.ts'
-import { Link } from '~/elements/Link.tsx'
+
 import { Divider } from '~/elements/Divider.tsx'
 import { PlanBenefits } from '~/components/billing/PlanBenefits.tsx'
 import { CheckoutButton } from '~/components/billing/CheckoutButton.tsx'
@@ -20,7 +19,6 @@ export function PlanCard({
 }: TPolymorphicComponentProps<'div', { active: boolean; plan: any; perProject?: boolean }>) {
   const free = isFreePlan(plan)
 
-  const paidUser = useStore($paidWorkspace)
   const currentPeriod = useStore($currentPeriod)
 
   const priceAfterDiscount =
@@ -99,24 +97,6 @@ export function PlanCard({
             {!free && <SparklesIcon />}
           </CheckoutButton>
         }
-
-        {paidUser && active && (
-          <form
-            onSubmit={async (event) => {
-              event.preventDefault()
-              const { redirectUrl } = await api.billing.createPortalSession({
-                returnUrl: window.location.href
-              })
-              if (redirectUrl) {
-                window.location.replace(redirectUrl)
-              }
-            }}
-          >
-            <Link as="button" type="submit">
-              Manage Subscription
-            </Link>
-          </form>
-        )}
       </div>
 
       <Divider className="-mx-5 w-[stretch]" />
