@@ -1,10 +1,26 @@
-export type PlanName = 'pro' | 'start'
-export type PlanPeriod = 'month' | 'annual'
+type InstanceSpecs = {
+  ram: number
+  cpu: number
+  disk: number
+}
 
-type TPlanPayload = {
+type InstancePricing = {
+  onDemand: IncomingPlanData
+  reserved: IncomingPlanData
+}
+
+type TieredPricingData = Array<{ tier: string } & InstancePricing & InstanceSpecs>
+
+type IncomingPlanData = {
   amount: number
   priceId: string
   productId: string
 }
 
-export type TPlan = Record<PlanName, Record<PlanPeriod, TPlanPayload>>
+export type PlansData = {
+  pro: {
+    monthly: { amount: number; priceId: string; productId: string }
+    annual: { amount: number; priceId: string; productId: string }
+  }
+  team: TieredPricingData
+}

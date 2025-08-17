@@ -31,18 +31,28 @@ const statsMap: Record<keyof ProjectStats, string> = {
   avgProperties: 'Avg Properties Per Record'
 }
 
-function ProjectCard({ description, id, stats, name, customDb }: Project & { customDb?: string }) {
+function ProjectCard({ description, id, stats, name, customDb, status }: Project & { customDb?: string }) {
   const isEmpty = isProjectEmpty({
     loading: false,
     totalRecords: stats?.records ?? 0
   })
 
-  const href = isEmpty ? getRoutePath('projectHelp', { id }) : getRoutePath('project', { id })
+  const projectIsInactive = status === 'pending' || status === 'provisioning'
+
+  const getHref = () => {
+    if (isEmpty) {
+      if (projectIsInactive) {
+        return getRoutePath('projectSettings', { id })
+      }
+      return getRoutePath('projectHelp', { id })
+    }
+    return getRoutePath('project', { id })
+  }
 
   return (
     <a
       className="interaction bg-secondary ring-interaction-ring focus-visible:border-interaction-focus [&:hover:not(:focus-visible)]:bg-secondary-hover rounded-lg border border-transparent focus-visible:ring"
-      href={href}
+      href={getHref()}
     >
       <article className={cn('flex flex-col gap-3 p-5 transition')}>
         <header className="flex flex-col items-start justify-between">
@@ -81,7 +91,7 @@ function ProjectsSearchInput(props: TInheritableElementProps<'input'>) {
 
 function Header() {
   const { data: projects } = useStore($workspaceProjects)
-  const showUpgradeButton = useStore($showUpgrade)
+
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
 
@@ -93,17 +103,10 @@ function Header() {
           <span className="text-content2 ml-1">{projects?.length}</span>
         : null}
       </PageTitle>
-      {showUpgradeButton && isOwner ?
-        <Button as="a" href={getRoutePath('workspaceBilling')} variant="accent">
-          <ZapIcon />
-          Upgrade Plan
-        </Button>
-      : isOwner ?
-        <Button data-tour="new-project-btn" as="a" href={getRoutePath('newProject')} variant="primary">
-          <FolderPlus />
-          New Project
-        </Button>
-      : null}
+      <Button data-tour="new-project-btn" as="a" href={getRoutePath('newProject')} variant="primary">
+        <FolderPlus />
+        New Project
+      </Button>
     </PageHeader>
   )
 }

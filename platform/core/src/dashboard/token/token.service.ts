@@ -180,16 +180,10 @@ export class TokenService {
     workspaceId: string
     workspace: IWorkspaceProperties
   }> {
-    const queryRunner = this.neogmaService.createRunner()
-
-    const { token, project, workspace, level } = await queryRunner
-      .run(
-        this.tokenQueryService.traverseTokenData(),
-        {
-          tokenId
-        },
-        transaction
-      )
+    const { token, project, workspace, level } = await transaction
+      .run(this.tokenQueryService.traverseTokenData(), {
+        tokenId
+      })
       .then((result) => {
         return {
           // @FYI: If returning plain nodes from query we need to use '.properties' to access their properties
@@ -243,8 +237,6 @@ export class TokenService {
     workspaceId?: string
     workspace?: IWorkspaceProperties
   }> {
-    const queryRunner = this.neogmaService.createRunner()
-
     const safeGet = (fn: Function) => {
       try {
         return fn()
@@ -252,15 +244,13 @@ export class TokenService {
         return undefined
       }
     }
-    const { project, workspace, level } = await queryRunner
+    const { project, workspace, level } = await transaction
       .run(
         this.tokenQueryService.validateIntegrity({
           userId: user.id,
           workspaceId: workspaceId,
           projectId: projectId
-        }),
-        {},
-        transaction
+        })
       )
       .then((result) => {
         return {

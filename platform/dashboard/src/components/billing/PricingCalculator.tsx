@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import NumberFlow from '@number-flow/react'
 import { Cpu, Database, MemoryStick, Zap } from 'lucide-react'
 
-export function PricingCalculator({ cta }: { cta?: React.ReactNode }) {
+export function PricingCalculator({ cta }: { cta?: (priceId: string) => React.ReactNode }) {
   const [recordsCount, setRecordsCount] = useState(10000)
   const [avgProperties, setAvgProperties] = useState(5)
   const leftBlockRef = useRef<HTMLDivElement>(null)
@@ -27,6 +27,7 @@ export function PricingCalculator({ cta }: { cta?: React.ReactNode }) {
           tier: option.tier,
           instanceCPU: option.cpu,
           instanceDisk: option.disk,
+          priceId: currentPeriod === 'month' ? option.onDemand.priceId : option.reserved.priceId,
           pageCacheGB,
           recordRAM,
           ratio: Math.min(ratio, 1)
@@ -43,6 +44,7 @@ export function PricingCalculator({ cta }: { cta?: React.ReactNode }) {
       instanceRAM: last.ram,
       instanceCPU: last.cpu,
       instanceDisk: last.disk,
+      priceId: currentPeriod === 'month' ? last.onDemand.priceId : last.reserved.priceId,
       pageCacheGB,
       recordRAM,
       ratio: Math.min(ratio, 1)
@@ -267,7 +269,7 @@ export function PricingCalculator({ cta }: { cta?: React.ReactNode }) {
             calculator provides an overview of recommended tiers tailored to typical workloads. Your specific
             use case may not require an upgrade, or may need to scale up sooner, depending on these factors.
           </p>
-          {cta}
+          {cta?.(pricingInfo.priceId)}
         </div>
       </div>
     </div>

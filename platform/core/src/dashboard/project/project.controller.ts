@@ -29,18 +29,12 @@ import { IProjectProperties, TProjectProperties } from '@/dashboard/project/mode
 import { ProjectService } from '@/dashboard/project/project.service'
 import { AuthUser } from '@/dashboard/user/decorators/user.decorator'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 @Controller('projects')
 @ApiExcludeController()
-@UseInterceptors(
-  TransformResponseInterceptor,
-  NotFoundInterceptor,
-  NeogmaDataInterceptor,
-
-  ChangeCorsInterceptor
-)
+@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor, ChangeCorsInterceptor)
 export class ProjectController {
   constructor(private readonly projectService: ProjectService) {}
 

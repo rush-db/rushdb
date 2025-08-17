@@ -53,6 +53,8 @@ export const $availablePlans = computed([$pricingData, $currentTier], (billingDa
     {
       id: 'team',
       name: 'Team',
+      // @TODO: Fix this dirty hack
+      perProject: true,
       monthlyPriceId: teamTier?.onDemand.priceId,
       yearlyPriceId: teamTier?.reserved.priceId,
       monthlyPrice: teamTier?.onDemand.amount,

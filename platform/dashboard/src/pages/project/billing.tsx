@@ -51,16 +51,16 @@ export function ProjectBillingPage() {
         {loading ? null : (
           <div className="mb-8">
             <PricingCalculator
-              cta={
+              cta={(priceId) => (
                 <CheckoutButton
                   variant="accent"
-                  priceId={''}
+                  priceId={priceId}
                   className="mt-8 w-full min-w-48 justify-center font-semibold"
                 >
                   Upgrade Plan
                   <SparklesIcon />
                 </CheckoutButton>
-              }
+              )}
             />
           </div>
         )}

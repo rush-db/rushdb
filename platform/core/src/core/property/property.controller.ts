@@ -30,12 +30,12 @@ import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 @Controller('properties')
 @ApiTags('Properties')
-@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, NeogmaDataInterceptor)
+@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)
 export class PropertyController {
   constructor(
     private readonly propertyService: PropertyService,

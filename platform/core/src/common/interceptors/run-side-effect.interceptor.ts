@@ -5,6 +5,7 @@ import { catchError, tap } from 'rxjs/operators'
 
 import { isDevMode } from '@/common/utils/isDevMode'
 import { ProjectService } from '@/dashboard/project/project.service'
+import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 export enum ESideEffectType {
@@ -27,14 +28,16 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
       let externalSession: Session
       let externalTransaction: Transaction
 
-      const projectId = request?.raw?.projectId
-      const hasExternalDb = request?.raw?.project?.customDb && request?.raw?.externalDbConnection
+      const dbContext = dbContextStorage.getStore()
 
-      if (hasExternalDb) {
+      const projectId = request?.raw?.projectId
+      const externalDbConnection = dbContext.externalConnection
+
+      if (externalDbConnection) {
         isDevMode(() =>
           Logger.debug(`External transaction created for project ${projectId} side effect runner`)
         )
-        externalSession = request?.raw?.externalDbConnection.connection?.driver?.session()
+        externalSession = externalDbConnection.driver?.session()
         externalTransaction = externalSession?.beginTransaction()
       }
 
@@ -72,7 +75,7 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
               await this.neogmaService.closeSession(session, 'run-side-effect-interceptor')
             }
 
-            if (hasExternalDb && externalTransaction?.isOpen()) {
+            if (externalDbConnection && externalTransaction?.isOpen()) {
               isDevMode(() =>
                 Logger.log(`[COMMIT CUSTOM TRANSACTION]: Side effect runner for project ${projectId}`)
               )
@@ -86,7 +89,7 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
           await transaction.rollback()
           await this.neogmaService.closeSession(session, 'run-side-effect-interceptor')
 
-          if (hasExternalDb) {
+          if (externalDbConnection) {
             isDevMode(() =>
               Logger.log(`[ROLLBACK CUSTOM TRANSACTION]: Side effect runner for project ${projectId}`)
             )

@@ -55,6 +55,12 @@ export const Workspace: TWorkspaceParams = {
     },
     pendingInvites: {
       type: 'string'
+    },
+    subscriptionPriceId: {
+      type: 'string'
+    },
+    subscriptionProductId: {
+      type: 'string'
     }
   },
   primaryKeyField: 'id',

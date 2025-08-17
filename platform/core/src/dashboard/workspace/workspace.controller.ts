@@ -30,17 +30,12 @@ import { RevokeAccessDto } from '@/dashboard/workspace/dto/revoke-access.dto'
 import { IWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { TExtendedWorkspaceProperties } from '@/dashboard/workspace/workspace.types'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 @Controller('workspaces')
 @ApiExcludeController()
-@UseInterceptors(
-  TransformResponseInterceptor,
-  NotFoundInterceptor,
-  NeogmaDataInterceptor,
-  ChangeCorsInterceptor
-)
+@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor, ChangeCorsInterceptor)
 export class WorkspaceController {
   constructor(
     private readonly userService: UserService,

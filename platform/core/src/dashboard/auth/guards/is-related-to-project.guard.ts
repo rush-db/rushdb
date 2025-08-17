@@ -7,6 +7,7 @@ import { TransactionService } from '@/core/transactions/transaction.service'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
 import { TokenService } from '@/dashboard/token/token.service'
+import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerifyOwnershipConfig) => {
@@ -23,8 +24,8 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
       const request = context.switchToHttp().getRequest()
       const txId = request.headers['x-transaction-id']
 
-      const externalDbConnection = request?.raw?.externalDbConnection
-      const hasExternalDb = request?.raw?.project?.customDb && externalDbConnection
+      const dbContext = dbContextStorage.getStore()
+      const externalDbConnection = dbContext.externalConnection
 
       const projectId = request.projectId
 
@@ -43,11 +44,11 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
         session = clientTransaction?.session ?? request.session
       }
 
-      if (hasExternalDb) {
+      if (externalDbConnection) {
         isDevMode(() =>
           Logger.log(`[RTP GUARD]: Custom transaction created for RTP guard for project ${projectId}`)
         )
-        externalSession = externalDbConnection?.connection?.driver?.session()
+        externalSession = externalDbConnection.driver?.session()
         externalTransaction = externalSession.beginTransaction()
       }
 
@@ -73,7 +74,7 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
           otherIdsToVerify.push(candidate)
         }
 
-        const targetTransaction = hasExternalDb ? externalTransaction : transaction
+        const targetTransaction = externalDbConnection ? externalTransaction : transaction
 
         const [recordIdsVerificationResult, otherIdsVerificationResult] = await Promise.all([
           this.authService.verifyRecordsIds(recordIdsToVerify, projectId, targetTransaction),
@@ -92,7 +93,7 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
           await this.neogmaService.closeSession(session, 'is-related-to-project-guard')
         }
 
-        if (hasExternalDb && externalTransaction?.isOpen()) {
+        if (externalDbConnection && externalTransaction?.isOpen()) {
           isDevMode(() => Logger.log('[RTP GUARD]: Close custom tx and session'))
 
           await externalTransaction.close()

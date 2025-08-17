@@ -15,31 +15,36 @@ export function ProjectTabs({ project }: { project: Project }) {
 
   const { data: platformSettings } = useStore($platformSettings)
 
-  const [tabs, setTabs] = useState(() => {
-    const projectsTabs = [
-      {
-        href: getRoutePath('project', { id: project.id }),
-        icon: <Database />,
-        label: 'Records'
-      },
+  const projectIsInactive = project.status === 'pending' || project.status === 'provisioning'
 
-      {
-        href: getRoutePath('projectImportData', {
-          id: project.id
-        }),
-        icon: <UploadIcon />,
-        label: 'Import Data',
-        dataTour: 'project-import-data-chip'
-      },
-      {
-        href: getRoutePath('projectTokens', {
-          id: project.id
-        }),
-        icon: <Key />,
-        label: 'API Keys',
-        dataTour: 'project-token-chip'
-      }
-    ]
+  const [tabs, setTabs] = useState(() => {
+    const projectsTabs =
+      projectIsInactive ?
+        []
+      : [
+          {
+            href: getRoutePath('project', { id: project.id }),
+            icon: <Database />,
+            label: 'Records'
+          },
+
+          {
+            href: getRoutePath('projectImportData', {
+              id: project.id
+            }),
+            icon: <UploadIcon />,
+            label: 'Import Data',
+            dataTour: 'project-import-data-chip'
+          },
+          {
+            href: getRoutePath('projectTokens', {
+              id: project.id
+            }),
+            icon: <Key />,
+            label: 'API Keys',
+            dataTour: 'project-token-chip'
+          }
+        ]
 
     if (isOwner) {
       projectsTabs.push({
@@ -51,13 +56,15 @@ export function ProjectTabs({ project }: { project: Project }) {
       })
     }
 
-    projectsTabs.push({
-      href: getRoutePath('projectHelp', { id: project.id }),
-      icon: <Book />,
-      label: 'Help'
-    })
+    if (!projectIsInactive) {
+      projectsTabs.push({
+        href: getRoutePath('projectHelp', { id: project.id }),
+        icon: <Book />,
+        label: 'Help'
+      })
+    }
 
-    if (!platformSettings?.selfHosted && isOwner && project.managedDb) {
+    if (!platformSettings?.selfHosted && isOwner && project.managedDbRegion) {
       projectsTabs.push({
         href: getRoutePath('projectBilling', { id: project.id }),
         icon: <Wallet2 />,

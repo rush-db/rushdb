@@ -30,12 +30,12 @@ import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interfac
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 @Controller('')
 @ApiTags('Records')
-@UseInterceptors(NotFoundInterceptor, NeogmaDataInterceptor)
+@UseInterceptors(NotFoundInterceptor, DataInterceptor)
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
 

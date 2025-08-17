@@ -1,13 +1,10 @@
 import { Injectable } from '@nestjs/common'
 import { Transaction } from 'neo4j-driver'
-import { QueryRunner } from 'neogma'
 
 import { DeletePropertyDto } from '@/core/property/dto/delete-property.dto'
 import { PropertyQueryService } from '@/core/property/property-query.service'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { TSearchSortDirection } from '@/core/search/search.types'
-import { NeogmaService } from '@/database/neogma/neogma.service'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 import { TPropertyProperties } from './model/property.interface'
 import { PropertyRepository } from './model/property.repository'
@@ -15,28 +12,22 @@ import { PropertyRepository } from './model/property.repository'
 @Injectable()
 export class PropertyService {
   constructor(
-    private readonly neogmaService: NeogmaService,
     private readonly propertyRepository: PropertyRepository,
-    private readonly propertyQueryService: PropertyQueryService,
-    private readonly compositeNeogmaService: CompositeNeogmaService
+    private readonly propertyQueryService: PropertyQueryService
   ) {}
 
   async getPropertyValues({
     propertyId,
     searchQuery,
     transaction,
-    projectId,
-    queryRunner
+    projectId
   }: {
     propertyId: string
     searchQuery: SearchDto & { query?: string; orderBy?: TSearchSortDirection }
     transaction: Transaction
     projectId: string
-    queryRunner?: QueryRunner
   }) {
-    const runner = queryRunner || this.compositeNeogmaService.createRunner()
-
-    return await runner
+    return await transaction
       .run(
         this.propertyQueryService.getPropertyValues({
           searchQuery
@@ -44,46 +35,33 @@ export class PropertyService {
         {
           id: propertyId,
           projectId
-        },
-        transaction
+        }
       )
       .then((res) => res.records[0]?.get('result') ?? {})
   }
 
   async getProjectProperties({
     projectId,
-    transaction,
-    queryRunner
+    transaction
   }: {
     projectId: string
     transaction: Transaction
-    queryRunner?: QueryRunner
   }): Promise<TPropertyProperties[]> {
-    const runner = queryRunner || this.compositeNeogmaService.createRunner()
-
-    return await runner
-      .run(this.propertyQueryService.getProjectProperties(), { id: projectId }, transaction)
+    return await transaction
+      .run(this.propertyQueryService.getProjectProperties(), { id: projectId })
       .then((res) => res.records[0].get('properties'))
   }
 
   async deleteOrphanProps({
     projectId,
-    transaction,
-    queryRunner
+    transaction
   }: {
     projectId: string
     transaction: Transaction
-    queryRunner?: QueryRunner
   }): Promise<void> {
-    const runner = queryRunner || this.compositeNeogmaService.createRunner()
-
-    await runner.run(
-      this.propertyQueryService.cleanUpAfterProcessing(),
-      {
-        projectId
-      },
-      transaction
-    )
+    await transaction.run(this.propertyQueryService.cleanUpAfterProcessing(), {
+      projectId
+    })
   }
 
   async deleteProperty({
@@ -97,20 +75,13 @@ export class PropertyService {
     projectId: string
     transaction: Transaction
   }): Promise<boolean> {
-    const runner = this.compositeNeogmaService.createRunner()
-
-    await runner.run(
-      this.propertyQueryService.deletePropertyQuery(),
-      {
-        target: propertyId
-      },
-      transaction
-    )
+    await transaction.run(this.propertyQueryService.deletePropertyQuery(), {
+      target: propertyId
+    })
 
     await this.deleteOrphanProps({
       projectId,
-      transaction,
-      queryRunner: runner
+      transaction
     })
 
     return true

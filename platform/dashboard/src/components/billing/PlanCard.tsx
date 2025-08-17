@@ -8,15 +8,16 @@ import { api } from '~/lib/api.ts'
 import { Link } from '~/elements/Link.tsx'
 import { Divider } from '~/elements/Divider.tsx'
 import { PlanBenefits } from '~/components/billing/PlanBenefits.tsx'
-import React from 'react'
 import { CheckoutButton } from '~/components/billing/CheckoutButton.tsx'
+import { Message } from '~/elements/Message.tsx'
 
 export function PlanCard({
   plan,
   active,
   className,
+  perProject,
   ...props
-}: TPolymorphicComponentProps<'div', { active: boolean; plan: any }>) {
+}: TPolymorphicComponentProps<'div', { active: boolean; plan: any; perProject?: boolean }>) {
   const free = isFreePlan(plan)
 
   const paidUser = useStore($paidWorkspace)
@@ -38,7 +39,7 @@ export function PlanCard({
     <div
       className={cn(
         'rounded-2xl border shadow-lg',
-        free ? 'border-secondary' : 'border-accent',
+        free || plan.id === 'team' ? 'border-secondary' : 'border-accent',
         'flex h-full flex-col items-start gap-5 p-5',
         free ? 'bg-secondary' : 'bg-fill',
         // free ? 'bg-secondary p-0.5' : 'from-accent-hover to-badge-yellow bg-gradient-to-br p-0.5',
@@ -79,19 +80,25 @@ export function PlanCard({
       </div>
 
       <div className="flex w-full items-center gap-5">
-        <CheckoutButton
-          className="w-full min-w-48 justify-center font-semibold"
-          disabled={active || free}
-          priceId={currentPeriod === 'month' ? plan.monthlyPriceId : plan.yearlyPriceId}
-          variant={free ? 'secondary' : 'accent'}
-        >
-          {active ?
-            'Current Plan'
-          : free ?
-            'Free'
-          : 'Upgrade Plan'}
-          {!free && <SparklesIcon />}
-        </CheckoutButton>
+        {perProject ?
+          <Message as="div" variant="info" size="small">
+            This plan bills on a per-project basis. To use it, create a new project and select Managed Setup
+            in the project creation form.
+          </Message>
+        : <CheckoutButton
+            className="w-full min-w-48 justify-center font-semibold"
+            disabled={active || free}
+            priceId={currentPeriod === 'month' ? plan.monthlyPriceId : plan.yearlyPriceId}
+            variant={free ? 'secondary' : 'accent'}
+          >
+            {active ?
+              'Current Plan'
+            : free ?
+              'Free'
+            : 'Upgrade Plan'}
+            {!free && <SparklesIcon />}
+          </CheckoutButton>
+        }
 
         {paidUser && active && (
           <form

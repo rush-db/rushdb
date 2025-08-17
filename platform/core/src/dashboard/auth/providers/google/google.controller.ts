@@ -23,7 +23,7 @@ import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-co
 import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
 import { User } from '@/dashboard/user/user.entity'
 import { UserService } from '@/dashboard/user/user.service'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 @Controller('auth')
@@ -64,7 +64,7 @@ export class GoogleOAuthController {
   @Get('google/callback')
   @ApiTags('Auth')
   @CommonResponseDecorator(GetUserDto)
-  @UseInterceptors(NeogmaDataInterceptor, ChangeCorsInterceptor)
+  @UseInterceptors(DataInterceptor, ChangeCorsInterceptor)
   async googleAuthRedirect(
     @TransactionDecorator() transaction: Transaction,
     @Query()

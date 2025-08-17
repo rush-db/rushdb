@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Helvetica, Arial, sans-serif; background:#f5f5f5; margin:0; padding:0 }
+    .card { background:#fff; border-radius:8px; max-width:600px; margin:24px auto; padding:20px }
+    .header { font-size:20px; font-weight:700; margin-bottom:8px }
+    .muted { color:#666; font-size:14px }
+    .pre { background:#f3f4f6; padding:12px; border-radius:6px; font-family:monospace; white-space:pre-wrap }
+    .btn { display:inline-block; background:#3f81ff; color:#fff; padding:10px 16px; border-radius:8px; text-decoration:none }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">New managed instance request</div>
+    <div class="muted">A user requested a managed (dedicated) instance. Details below:</div>
+
+    <h4>Project</h4>
+    <p><strong>Name:</strong> <%= locals.projectName %></p>
+    <p><strong>ID:</strong> <%= locals.projectId %></p>
+
+    <% if (locals.region) { %>
+      <h4>Region</h4>
+      <p class="pre"><%= locals.region %></p>
+    <% } %>
+
+    <% if (locals.password) { %>
+      <h4>Temporary password</h4>
+      <p class="pre"><%= locals.password %></p>
+      <p class="muted">Password is included for manual setup. Consider rotating it after setup.</p>
+    <% } %>
+
+    <% if (locals.tier) { %>
+      <h4>Tier</h4>
+      <p class="pre"><%= locals.tier %></p>
+    <% } %>
+
+    <p style="margin-top:18px">Open the project in dashboard to finish setup:</p>
+    <p><a class="btn" href="<%= locals.dashboardUrl %>/project/<%= locals.projectId %>">Open Project</a></p>
+
+    <hr />
+    <p class="muted">This notification was sent automatically. Reply to this email to follow up.</p>
+  </div>
+</body>
+</html>

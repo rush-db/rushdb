@@ -15,6 +15,8 @@ import { $platformSettings } from '~/features/auth/stores/settings.ts'
 import { setTourStep } from '~/features/tour/stores/tour.ts'
 import { useEffect, useState } from 'react'
 import { useWatch } from 'react-hook-form'
+import { Label } from '~/elements/Label'
+import { $showUpgrade } from '~/features/workspaces/stores/projects'
 
 // Type for form values
 type ProjectFormValues = {
@@ -39,7 +41,9 @@ const isStrongPassword = (password: string) => {
     /[A-Z]/.test(password) &&
     /[a-z]/.test(password) &&
     /[0-9]/.test(password) &&
-    /[^A-Za-z0-9]/.test(password)
+    /[^A-Za-z0-9]/.test(password) &&
+    // no whitespace allowed
+    !/\s/.test(password)
   )
 }
 
@@ -82,7 +86,7 @@ const managedSchema = object({
       .required()
       .test(
         'strong',
-        'Password must be at least 8 characters with uppercase, lowercase, number, and special character',
+        'Password must be at least 8 characters with uppercase, lowercase, number, special character, and cannot contain spaces',
         isStrongPassword
       ),
     region: string().required()
@@ -93,6 +97,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
   const { error, mutate } = useStore(createProject)
   const { data: workspace } = useStore($currentWorkspace)
   const { loading, data: platformSettings } = useStore($platformSettings)
+  const showUpgradeButton = useStore($showUpgrade)
 
   const [selectedTab, setSelectedTab] = useState<'shared' | 'custom' | 'managed'>('shared')
 
@@ -144,7 +149,8 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
     register,
     watch,
     reset,
-    control
+    control,
+    setValue
   } = useForm<ProjectFormValues>({
     defaultValues: getDefaultValues(),
     schema: getSchema()
@@ -153,7 +159,9 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
   // Reset form when tab changes
   useEffect(() => {
     reset(getDefaultValues())
-  }, [selectedTab, reset])
+    // keep form dataSource in sync for schema
+    setValue('dataSource', selectedTab)
+  }, [selectedTab, reset, setValue])
 
   // Subscribe to managed password changes for real-time strength updates
   const watchedPassword = useWatch({ control, name: 'managedDb.password' })
@@ -169,8 +177,17 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
       name: data.name,
       description: data.description,
       ...(data.customDb && { customDb: data.customDb }),
-      ...(data.managedDb && { managedDb: true }) // Assuming backend expects boolean
+      ...(data.managedDb && {
+        managedDbConfig: {
+          password: data.managedDb.password,
+          region: data.managedDb.region,
+          // Tier will be selected in the next step; using placeholder
+          tier: 'unselected'
+        }
+      })
     }
+    // @TODO: Sanitize project payload
+    // @ts-expect-error customDb and stats are strings on the backend
     return mutate(projectData)
   }
 
@@ -178,69 +195,128 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
 
   return (
     <>
-      <PageHeader contained>
-        <div className="flex items-center gap-3">
-          <Button as="a" href={getRoutePath('projects')} variant="ghost" size="small">
-            ← Back
-          </Button>
-          <h1 className="text-2xl font-bold">Create New Project</h1>
-        </div>
-      </PageHeader>
-
       <PageContent contained>
         <div className="mx-auto w-full max-w-2xl">
+          <div className="mb-8 flex items-center gap-3 pt-10">
+            <h1 className="text-2xl font-bold">Create New Project</h1>
+          </div>
           <form
             {...props}
             className={cn('flex flex-col gap-6', className)}
             onSubmit={handleSubmit(handleFormSubmit)}
             autoComplete="off"
           >
-            {/* Tab Navigation */}
-            <div className="mb-6">
-              <div className="border-border flex border-b">
+            {/* Project Type Selection (Radio-style tabs) */}
+            <div className="space-y-2">
+              <p className="text-content-secondary text-sm font-medium tracking-wide">Type</p>
+              <div className="grid gap-3 md:grid-cols-1">
+                {/* Shared */}
                 <button
                   type="button"
                   onClick={() => setSelectedTab('shared')}
                   className={cn(
-                    'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-                    selectedTab === 'shared' ? 'border-accent text-accent' : (
-                      'text-content-secondary hover:text-content-primary border-transparent'
-                    )
+                    'group relative flex h-full flex-col items-start rounded-lg border p-4 text-left transition-all',
+                    'focus:ring-accent/60 focus:outline-none focus:ring-2',
+                    selectedTab === 'shared' ?
+                      'border-accent/60 ring-accent/60 bg-accent/5 ring-1'
+                    : 'border-border hover:border-accent/40 hover:bg-surface-secondary'
                   )}
                 >
-                  <Database className="h-4 w-4" />
-                  Shared Instance
+                  <div className="mb-3 flex w-full items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          'h-4 w-4 rounded-full border',
+                          selectedTab === 'shared' ? 'border-accent bg-accent shadow-inner' : 'border-border'
+                        )}
+                      />
+                      <Database className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <h3 className="mb-1 text-lg font-semibold leading-snug">
+                    Basic Features{' '}
+                    <span className="text-content2 font-normal">[comes with Shared Instance]</span>
+                  </h3>
+                  <p className="text-content2 text-sm">
+                    For testing ideas and small projects. Limited in using custom queries.
+                  </p>
                 </button>
+
+                {/* Extended / Custom */}
                 <button
                   type="button"
                   onClick={() => setSelectedTab('custom')}
                   className={cn(
-                    'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-                    selectedTab === 'custom' ? 'border-accent text-accent' : (
-                      'text-content-secondary hover:text-content-primary border-transparent'
-                    )
+                    'group relative flex h-full flex-col items-start rounded-lg border p-4 text-left transition-all',
+                    'focus:ring-accent/60 focus:outline-none focus:ring-2',
+                    selectedTab === 'custom' ?
+                      'border-accent/60 ring-accent/60 bg-accent/5 ring-1'
+                    : 'border-border hover:border-accent/40 hover:bg-surface-secondary'
                   )}
                 >
-                  <Globe className="h-4 w-4" />
-                  Connect Neo4j
-                  {!hasValidSubscription && <SparklesIcon className="h-3 w-3" />}
+                  <div className="mb-3 flex w-full items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          'h-4 w-4 rounded-full border',
+                          selectedTab === 'custom' ? 'border-accent bg-accent shadow-inner' : 'border-border'
+                        )}
+                      />
+                      <Globe className="h-4 w-4" />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Label>PRO</Label>
+                    </div>
+                  </div>
+                  <h3 className="mb-1 text-lg font-semibold leading-snug">
+                    Extended Features{' '}
+                    <span className="text-content2 font-normal">[Shared or Bring your own cloud]</span>
+                  </h3>
+                  <p className="text-content2 text-sm">
+                    Higher limits on shared infra or bring your own Neo4j (Aura or hosted). No upper limits.
+                    Custom queries.
+                  </p>
                 </button>
+
+                {/* Managed */}
                 <button
                   type="button"
                   onClick={() => setSelectedTab('managed')}
                   className={cn(
-                    'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-                    selectedTab === 'managed' ? 'border-accent text-accent' : (
-                      'text-content-secondary hover:text-content-primary border-transparent'
-                    )
+                    'group relative flex h-full flex-col items-start rounded-lg border p-4 text-left transition-all',
+                    'focus:ring-accent/60 focus:outline-none focus:ring-2',
+                    selectedTab === 'managed' ?
+                      'border-accent/60 ring-accent/60 bg-accent/5 ring-1'
+                    : 'border-border hover:border-accent/40 hover:bg-surface-secondary'
                   )}
                 >
-                  <Cloud className="h-4 w-4" />
-                  Managed Instance
-                  {!hasValidSubscription && <SparklesIcon className="h-3 w-3" />}
+                  <div className="mb-3 flex w-full items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          'h-4 w-4 rounded-full border',
+                          selectedTab === 'managed' ? 'border-accent bg-accent shadow-inner' : 'border-border'
+                        )}
+                      />
+                      <Cloud className="h-4 w-4" />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Label>TEAM</Label>{' '}
+                    </div>
+                  </div>
+                  <h3 className="mb-1 text-lg font-semibold leading-snug">
+                    Fully Featured <span className="text-content2 font-normal">[Dedicated instance]</span>
+                  </h3>
+                  <p className="text-content2 text-sm">
+                    Dedicated instance, highest security standards, extended team features, custom queries. No
+                    usage limits. Scale on demand.
+                  </p>
                 </button>
               </div>
             </div>
+
+            {/* hidden form bridge */}
+            <input type="hidden" value={selectedTab} {...register('dataSource')} />
 
             {/* Basic Fields */}
             <div className="grid gap-4">
@@ -251,40 +327,39 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                 error={errors?.name?.message}
                 data-tour="project-name-input"
                 autoComplete="off"
+                disabled={(selectedTab === 'shared' && showUpgradeButton) || isSubmitting}
               />
               <TextField
                 label="Description (optional)"
                 {...register('description')}
                 error={errors?.description?.message}
                 autoComplete="off"
+                disabled={(selectedTab === 'shared' && showUpgradeButton) || isSubmitting}
               />
             </div>
 
-            {/* Tab Content - Fixed height container to prevent jumping */}
-            <div className="min-h-[300px]">
-              {/* {selectedTab === 'shared' && (
-                <div className="bg-surface-secondary rounded-lg p-4">
-                  <h3 className="mb-2 font-semibold">Free Shared Instance</h3>
-                  <div className="text-content-secondary space-y-2 text-sm">
-                    <p>
-                      Perfect for getting started with RushDB. Your project will use our shared Neo4j instance
-                      with:
-                    </p>
-                    <ul className="ml-2 list-inside list-disc space-y-1">
-                      <li>Up to 10,000 records</li>
-                      <li>Guaranteed data isolation and privacy</li>
-                      <li>Basic query capabilities</li>
-                      <li>Community support</li>
-                    </ul>
-                  </div>
-                </div>
-              )} */}
+            {selectedTab === 'shared' && showUpgradeButton && (
+              <div className="bg-surface-secondary border-accent/20 rounded-lg border p-4 text-sm">
+                <p className="text-content2 mb-3">
+                  You've reached the maximum number of projects for your current plan.
+                </p>
+                <Button
+                  as="a"
+                  href={getRoutePath('workspaceBilling')}
+                  variant="accent"
+                  className="w-full justify-center"
+                >
+                  <SparklesIcon className="h-4 w-4" /> Upgrade Plan
+                </Button>
+              </div>
+            )}
 
+            <div className="">
               {selectedTab === 'custom' && (
                 <>
                   <div className="mt-4">
                     <div className="bg-surface-secondary border-accent/20 mb-4 rounded-lg border p-4">
-                      <h3 className="mb-2 font-semibold">Connect Your Own Neo4j Instance</h3>
+                      <h3 className="mb-2 font-semibold">Bring Your Own Neo4j Instance</h3>
                       <p className="text-content-secondary mb-3 text-sm">
                         Connect your own Neo4j instance (Aura or self-hosted) for unlimited scalability and
                         full control over your data.
@@ -295,10 +370,10 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                             as="a"
                             href={getRoutePath('workspaceBilling')}
                             variant="accent"
-                            className="w-full"
+                            className="w-full justify-center"
                           >
                             <SparklesIcon className="h-4 w-4" />
-                            Upgrade for Premium Features
+                            Upgrade to Pro
                           </Button>
                         </div>
                       )}
@@ -349,9 +424,9 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                           autoComplete="new-password"
                           spellCheck={false}
                         />
-                        <p className="text-content-secondary text-xs">
+                        <p className="text-content-secondary text-content2 text-xs">
                           Must contain at least 8 characters with uppercase, lowercase, number, and special
-                          character
+                          character. Spaces are not allowed.
                         </p>
                         {watchedPassword && (
                           <div className="flex items-center gap-2">
@@ -396,16 +471,27 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
               )}
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between gap-4">
+              {selectedTab === 'managed' ?
+                <span className="text-content2 text-sm">
+                  Managed instances are billed per project. Create the project first; on the next step you'll
+                  choose a tier and complete payment.
+                </span>
+              : <div />}
               <Button
                 loading={isSubmitting}
                 type="submit"
                 variant="accent"
                 data-tour="create-project-btn"
-                disabled={selectedTab === 'custom' && !hasValidSubscription}
+                disabled={
+                  (selectedTab === 'custom' && !hasValidSubscription) ||
+                  (selectedTab === 'shared' && showUpgradeButton)
+                }
                 title={
                   selectedTab === 'custom' && !hasValidSubscription ?
                     'Upgrade to connect your own Neo4j instance'
+                  : selectedTab === 'shared' && showUpgradeButton ?
+                    'Upgrade plan to create more projects'
                   : undefined
                 }
               >

@@ -1,7 +1,6 @@
 import { useStore } from '@nanostores/react'
 import { $currentPeriod } from '~/features/billing/stores/plans.ts'
 import { Switch } from '~/elements/Switch.tsx'
-import React from 'react'
 import { cx } from 'class-variance-authority'
 import { Label } from '~/elements/Label.tsx'
 
@@ -10,7 +9,7 @@ export function SelectPeriod({ className }: { className?: string }) {
 
   return (
     <>
-      <div className={cx('mb-4 flex items-center justify-center gap-4', className)}>
+      <div className={cx('flex items-center justify-center gap-4', className)}>
         <p className="text-content2 typography-base font-medium">Monthly</p>
         <Switch
           checked={currentPeriod === 'annual'}

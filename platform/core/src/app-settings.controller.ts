@@ -10,11 +10,11 @@ import { toBoolean } from '@/common/utils/toBolean'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 @Controller('')
-@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, NeogmaDataInterceptor)
+@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)
 export class AppSettingsController {
   constructor(
     private readonly configService: ConfigService,

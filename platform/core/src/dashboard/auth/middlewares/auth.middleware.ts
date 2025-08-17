@@ -29,13 +29,6 @@ export class AuthMiddleware implements NestMiddleware {
     const session = this.neogmaService.createSession('auth-middleware')
     const transaction = session.beginTransaction()
 
-    const shouldPerformCleanUp = false
-
-    const cleanUp = async () => {
-      await transaction.close()
-      await this.neogmaService.closeSession(session, 'auth-middleware')
-    }
-
     try {
       const authHeader = request.headers['authorization']
       const bearerToken = authHeader?.split(' ')[1]
@@ -63,12 +56,8 @@ export class AuthMiddleware implements NestMiddleware {
               request.workspace = workspace
               request.workspaceId = workspaceId
 
-              // if (project?.customDb) {
-              //   shouldPerformCleanUp = true
-              // } else {
               request.session = session
               request.transaction = transaction
-              // }
 
               return next()
             }
@@ -101,14 +90,8 @@ export class AuthMiddleware implements NestMiddleware {
             request.projectId = projectId
             request.workspace = workspace
             request.workspaceId = workspaceId
-
-            // Check if a project relies on external db
-            // if (project?.customDb || project?.managedDbPassword) {
-            //   shouldPerformCleanUp = true
-            // } else {
             request.session = session
             request.transaction = transaction
-            // }
 
             return next()
           }
@@ -121,12 +104,6 @@ export class AuthMiddleware implements NestMiddleware {
     } catch (e) {
       isDevMode(() => Logger.error('Auth middleware error', e))
       next()
-    } finally {
-      isDevMode(() => Logger.log('Should perform session and transaction cleanups', shouldPerformCleanUp))
-
-      // if (shouldPerformCleanUp) {
-      //   await cleanUp()
-      // }
     }
   }
 }

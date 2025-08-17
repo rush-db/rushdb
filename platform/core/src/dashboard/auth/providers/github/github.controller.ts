@@ -13,7 +13,7 @@ import { EmailConfirmationService } from '@/dashboard/auth/email-confirmation/em
 import { GithubOAuthService } from '@/dashboard/auth/providers/github/github.service'
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
 import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
 
 @Controller('auth')
@@ -45,7 +45,7 @@ export class GithubOAuthController {
   @Get('github/callback')
   @ApiTags('Auth')
   @CommonResponseDecorator(GetUserDto)
-  @UseInterceptors(NeogmaDataInterceptor, ChangeCorsInterceptor)
+  @UseInterceptors(DataInterceptor, ChangeCorsInterceptor)
   async githubAuthRedirect(@TransactionDecorator() transaction: Transaction, @Query('code') code: string) {
     try {
       const user = await this.githubOAuthService.githubLogin(code, transaction)

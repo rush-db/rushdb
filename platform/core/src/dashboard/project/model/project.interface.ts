@@ -24,6 +24,8 @@ type TProjectProperties = {
   productId?: string
   priceId?: string
   isSubscriptionCancelled?: boolean
+  subscriptionPriceId?: string
+  subscriptionProductId?: string
 }
 
 interface IProjectProperties extends TProjectProperties {}

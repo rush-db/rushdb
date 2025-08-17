@@ -30,7 +30,7 @@ function ProjectRoutes({ project }: { project: Project }) {
     case 'projectHelp':
       return <ProjectHelpPage />
     case 'projectBilling':
-      return project.managedDb ? <ProjectBillingPage /> : null
+      return project.managedDbRegion ? <ProjectBillingPage /> : null
     default:
       return <ProjectRecordsPage />
   }

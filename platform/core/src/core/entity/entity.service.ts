@@ -1,6 +1,5 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common'
 import { Transaction } from 'neo4j-driver'
-import { QueryRunner } from 'neogma'
 import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
@@ -13,7 +12,6 @@ import { PropertyService } from '@/core/property/property.service'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
 import { SearchDto } from '@/core/search/dto/search.dto'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 
 import { CreateEntityDto } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
@@ -21,7 +19,6 @@ import { EditEntityDto } from './dto/edit-entity.dto'
 @Injectable()
 export class EntityService {
   constructor(
-    private readonly compositeNeogmaService: CompositeNeogmaService,
     private readonly entityQueryService: EntityQueryService,
     @Inject(forwardRef(() => PropertyService))
     private readonly propertyService: PropertyService
@@ -30,15 +27,13 @@ export class EntityService {
   async create({
     entity,
     projectId,
-    transaction,
-    queryRunner
+    transaction
   }: {
     entity: CreateEntityDto
     projectId: string
     transaction: Transaction
-    queryRunner?: QueryRunner
   }): Promise<TEntityPropertiesNormalized> {
-    const runner = queryRunner || this.compositeNeogmaService.createRunner()
+    const query = this.entityQueryService.createRecord()
     const { properties, label, id }: CreateEntityDto & { id?: string } = entity
     const entityId = id ?? uuidv7()
 
@@ -49,16 +44,8 @@ export class EntityService {
       properties
     }
 
-    return await runner
-      .run(
-        this.entityQueryService.createRecord(),
-        {
-          record,
-          projectId
-        },
-        transaction
-      )
-      .then((result) => result.records[0]?.get('data'))
+    const result = await transaction.run(query, { record, projectId })
+    return result.records[0]?.get('data')
   }
 
   async getById({
@@ -70,16 +57,9 @@ export class EntityService {
     projectId: string
     transaction: Transaction
   }): Promise<TEntityPropertiesNormalized> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
+    const query = this.entityQueryService.getEntity()
 
-    const result = await queryRunner.run(
-      this.entityQueryService.getEntity(),
-      {
-        id,
-        projectId
-      },
-      transaction
-    )
+    const result = await transaction.run(query, { id, projectId })
     return result.records[0]?.get('data')
   }
 
@@ -87,16 +67,14 @@ export class EntityService {
     entity,
     entityId,
     projectId,
-    queryRunner,
     transaction
   }: {
     entityId: string
     projectId: string
     entity: EditEntityDto
     transaction: Transaction
-    queryRunner?: QueryRunner
   }): Promise<TEntityPropertiesNormalized | undefined> {
-    const runner = queryRunner || this.compositeNeogmaService.createRunner()
+    const query = this.entityQueryService.editRecord()
 
     const { properties, label } = entity
 
@@ -106,14 +84,7 @@ export class EntityService {
       properties
     }
 
-    await runner.run(
-      this.entityQueryService.editRecord(),
-      {
-        record,
-        projectId
-      },
-      transaction
-    )
+    await transaction.run(query, { record, projectId })
 
     return this.getById({ id: entityId, projectId, transaction })
   }
@@ -127,21 +98,13 @@ export class EntityService {
     projectId: string
     transaction: Transaction
   }): Promise<{ message: string }> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
+    const query = this.entityQueryService.deleteRecord()
 
-    await queryRunner.run(
-      this.entityQueryService.deleteRecord(),
-      {
-        id,
-        projectId
-      },
-      transaction
-    )
+    await transaction.run(query, { id, projectId })
 
     await this.propertyService.deleteOrphanProps({
       projectId,
-      transaction,
-      queryRunner
+      transaction
     })
 
     return {
@@ -160,13 +123,11 @@ export class EntityService {
     searchQuery?: SearchDto
     transaction: Transaction
   }): Promise<TEntityPropertiesNormalized[]> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
+    const query = this.entityQueryService.findRecords({ id, searchQuery })
 
-    const queryResponse = await queryRunner.run(
-      this.entityQueryService.findRecords({ id, searchQuery }),
-      { projectId },
-      transaction
-    )
+    const queryResponse = await transaction.run(query, {
+      projectId
+    })
 
     return (queryResponse.records[0]?.get('records') ?? []) as TEntityPropertiesNormalized[]
   }
@@ -182,16 +143,8 @@ export class EntityService {
     searchQuery?: SearchDto
     transaction: Transaction
   }): Promise<number> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
-
-    const result = await queryRunner.run(
-      this.entityQueryService.getRecordsCount({ searchQuery, id }),
-      {
-        projectId
-      },
-      transaction
-    )
-
+    const query = this.entityQueryService.getRecordsCount({ searchQuery, id })
+    const result = await transaction.run(query, { projectId })
     return result.records[0]?.get('total') ?? 0
   }
 
@@ -206,26 +159,15 @@ export class EntityService {
     searchQuery?: SearchDto
     transaction: Transaction
   }): Promise<Record<string, number>> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
-
-    return await queryRunner
-      .run(
-        this.entityQueryService.getEntityLabels(searchQuery),
-        {
-          id,
-          projectId
-        },
-        transaction
-      )
-      .then(({ records }) =>
-        records.reduce(
-          (acc, record) => ({
-            ...acc,
-            [record.get('label')]: record.get('total')
-          }),
-          {}
-        )
-      )
+    const query = this.entityQueryService.getEntityLabels(searchQuery)
+    const result = await transaction.run(query, { id, projectId })
+    return result.records.reduce(
+      (acc, record) => ({
+        ...acc,
+        [record.get('label')]: record.get('total')
+      }),
+      {}
+    )
   }
 
   async findProperties({
@@ -239,15 +181,14 @@ export class EntityService {
     searchQuery?: SearchDto
     transaction: Transaction
   }): Promise<TPropertyProperties[]> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
+    const query = this.entityQueryService.getEntityPropertiesKeys({ searchQuery, id })
     const [allProjectProperties, filteredFields] = await Promise.all([
       this.propertyService.getProjectProperties({
         projectId,
-        transaction,
-        queryRunner
+        transaction
       }),
-      queryRunner
-        .run(this.entityQueryService.getEntityPropertiesKeys({ searchQuery, id }), { projectId }, transaction)
+      transaction
+        .run(query, { projectId })
         .then((result) => result.records[0].get('fields')) as unknown as string[]
     ])
     return allProjectProperties.filter((property) => filteredFields.includes(property.name))
@@ -266,18 +207,9 @@ export class EntityService {
     projectId: string
     transaction: Transaction
   }): Promise<TRecordRelationsResponse['data']> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
+    const query = this.entityQueryService.getRecordRelations({ id, searchQuery, pagination })
 
-    const result = await queryRunner.run(
-      this.entityQueryService.getRecordRelations({
-        id,
-        searchQuery,
-        pagination
-      }),
-      { projectId },
-      transaction
-    )
-
+    const result = await transaction.run(query, { projectId })
     return result.records.map((r) => r.get('relation'))
   }
 
@@ -292,17 +224,9 @@ export class EntityService {
     projectId: string
     transaction: Transaction
   }): Promise<TRecordRelationsResponse['total']> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
+    const query = this.entityQueryService.getRecordRelationsCount({ id, searchQuery })
 
-    const result = await queryRunner.run(
-      this.entityQueryService.getRecordRelationsCount({
-        id,
-        searchQuery
-      }),
-      { projectId },
-      transaction
-    )
-
+    const result = await transaction.run(query, { projectId })
     return result.records[0]?.get('total') ?? 0
   }
 
@@ -312,18 +236,13 @@ export class EntityService {
     projectId: string,
     transaction: Transaction
   ): Promise<{ message: string }> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
     const { targetIds, type, direction } = attachDto
-
-    await queryRunner.run(
-      this.entityQueryService.createRelation(type, direction),
-      {
-        id: entityId,
-        targetIds: isArray(targetIds) ? targetIds : [targetIds],
-        projectId
-      },
-      transaction
-    )
+    const query = this.entityQueryService.createRelation(type, direction)
+    await transaction.run(query, {
+      id: entityId,
+      targetIds: isArray(targetIds) ? targetIds : [targetIds],
+      projectId
+    })
 
     return {
       message: `Relations to Record ${entityId} have been successfully created`
@@ -336,17 +255,13 @@ export class EntityService {
     projectId: string,
     transaction: Transaction
   ): Promise<{ message: string }> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
     const { targetIds, typeOrTypes, direction } = detachDto
-    await queryRunner.run(
-      this.entityQueryService.deleteRelations(typeOrTypes, direction),
-      {
-        id: entityId,
-        targetIds: isArray(targetIds) ? targetIds : [targetIds],
-        projectId
-      },
-      transaction
-    )
+    const query = this.entityQueryService.deleteRelations(typeOrTypes, direction)
+    await transaction.run(query, {
+      id: entityId,
+      targetIds: isArray(targetIds) ? targetIds : [targetIds],
+      projectId
+    })
 
     return {
       message: `Relations to Record ${entityId} have been successfully deleted`
@@ -364,21 +279,13 @@ export class EntityService {
     searchQuery?: SearchDto
     transaction: Transaction
   }): Promise<{ message: string }> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
+    const query = this.entityQueryService.deleteRecords(searchQuery)
 
-    await queryRunner.run(
-      this.entityQueryService.deleteRecords(searchQuery),
-      {
-        id,
-        projectId
-      },
-      transaction
-    )
+    await transaction.run(query, { id, projectId })
 
     await this.propertyService.deleteOrphanProps({
       projectId,
-      transaction,
-      queryRunner
+      transaction
     })
 
     return {

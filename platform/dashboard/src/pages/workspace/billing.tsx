@@ -13,9 +13,9 @@ export function WorkspaceBillingPage() {
 
   return (
     <WorkspacesLayout>
-      <PageHeader contained>
+      <PageHeader contained className="justify-between">
         <PageTitle>Upgrade Plan</PageTitle>
-        <SelectPeriod className="mx-auto" />
+        <SelectPeriod />
       </PageHeader>
       <PageContent className="gap-5" contained>
         <Plans />

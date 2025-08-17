@@ -31,28 +31,34 @@ export class CompositeNeogmaService implements OnApplicationShutdown {
   }
 
   createSession(): Session {
+    console.log(this.getCurrentInstance().driver)
     return this.getCurrentInstance().driver.session()
   }
 
+  /* @deprecated */
   async closeSession(session: Session) {
     await session?.close()
   }
 
+  /* @deprecated */
   getReadSession(): Session {
     return this.getCurrentInstance().driver.session({ defaultAccessMode: 'READ' })
   }
 
+  /* @deprecated */
   getWriteSession(): Session {
     return this.getCurrentInstance().driver.session({ defaultAccessMode: 'WRITE' })
   }
 
+  /* @deprecated */
   createRunner(): QueryRunner {
     const options = this.getConfig().mode === 'production' ? {} : {}
+
     return new QueryRunner({
       driver: this.getDriver()
     })
   }
-
+  /* @deprecated */
   createBuilder(): QueryBuilder {
     return new QueryBuilder()
   }

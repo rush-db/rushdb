@@ -34,7 +34,7 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { pagination } from '@/core/search/parser/pagination'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
 
 // @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach
@@ -43,7 +43,7 @@ import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferr
 
 @Controller('relationships')
 @ApiTags('Relationships')
-@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, NeogmaDataInterceptor)
+@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)
 export class RelationshipsController {
   constructor(private readonly entityService: EntityService) {}
 

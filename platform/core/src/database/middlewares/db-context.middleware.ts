@@ -35,6 +35,5 @@ export class DbContextMiddleware implements NestMiddleware {
     }
 
     dbContextStorage.run(context, () => next())
-    // next()
   }
 }

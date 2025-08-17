@@ -46,7 +46,6 @@ export const Project: TProjectParams = {
     stats: {
       type: 'string'
     },
-    // Below fields are dedicated to be used within external / managed environments
     customDb: {
       type: 'string'
     },
@@ -76,6 +75,12 @@ export const Project: TProjectParams = {
     },
     isSubscriptionCancelled: {
       type: 'boolean'
+    },
+    subscriptionPriceId: {
+      type: 'string'
+    },
+    subscriptionProductId: {
+      type: 'string'
     }
   },
   primaryKeyField: 'id',

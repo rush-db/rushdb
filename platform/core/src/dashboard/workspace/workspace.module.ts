@@ -5,10 +5,9 @@ import { BillingModule } from '@/dashboard/billing/billing.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
+import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
 import { WorkspaceController } from '@/dashboard/workspace/workspace.controller'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
-import { WorkspaceContextCacheService } from '@/dashboard/workspace/workspace-context-cache.service'
 
 @Module({
   imports: [
@@ -17,8 +16,8 @@ import { WorkspaceContextCacheService } from '@/dashboard/workspace/workspace-co
     forwardRef(() => TokenModule),
     forwardRef(() => EntityModule)
   ],
-  providers: [WorkspaceRepository, WorkspaceService, WorkspaceQueryService, WorkspaceContextCacheService],
-  exports: [WorkspaceRepository, WorkspaceService, WorkspaceQueryService, WorkspaceContextCacheService],
+  providers: [WorkspaceRepository, WorkspaceService, WorkspaceQueryService],
+  exports: [WorkspaceRepository, WorkspaceService, WorkspaceQueryService],
   controllers: [WorkspaceController]
 })
 export class WorkspaceModule {}

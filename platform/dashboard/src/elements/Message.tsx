@@ -6,10 +6,11 @@ import { cva } from 'class-variance-authority'
 import { BadgeAlert } from 'lucide-react'
 import { forwardRef } from 'react'
 
-const message = cva('grid grid-flow-col', {
+const message = cva('grid grid-flow-col gap-2', {
   variants: {
     variant: {
-      danger: 'bg-danger/20 text-danger'
+      danger: 'bg-danger/20 text-danger',
+      info: 'bg-badge-blue/10 text-badge-blue'
     },
     size: {
       medium: 'rounded px-2 py-1',
@@ -23,7 +24,8 @@ const message = cva('grid grid-flow-col', {
 })
 
 const icons: Record<NonNullable<VariantProps<typeof message>['variant']>, LucideIcon> = {
-  danger: BadgeAlert
+  danger: BadgeAlert,
+  info: BadgeAlert
 }
 
 type MessageProps = VariantProps<typeof message>

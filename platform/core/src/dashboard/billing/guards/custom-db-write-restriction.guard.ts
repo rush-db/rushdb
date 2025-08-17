@@ -15,6 +15,7 @@ import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
+import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
@@ -61,13 +62,15 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest()
     const workspaceId = request.workspaceId || request.headers['x-workspace-id']
-    const hasExternalDb = request?.raw?.project?.customDb && request?.raw?.externalDbConnection
+
+    const dbContext = dbContextStorage.getStore()
+    const externalDbConnection = dbContext.externalConnection
 
     if (!workspaceId) {
       return false
     }
 
-    if (!hasExternalDb) {
+    if (!externalDbConnection) {
       return true
     }
 

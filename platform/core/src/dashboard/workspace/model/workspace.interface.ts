@@ -21,6 +21,8 @@ type TWorkspaceProperties = {
   validTill?: string
   planId?: string
   isSubscriptionCancelled?: boolean
+  subscriptionPriceId?: string
+  subscriptionProductId?: string
 }
 
 interface IWorkspaceProperties extends TWorkspaceProperties {}

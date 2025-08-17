@@ -8,6 +8,7 @@ import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
 import { PropertyService } from '@/core/property/property.service'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
+import { MailService } from '@/dashboard/mail/mail.service'
 import { CreateProjectDto } from '@/dashboard/project/dto/create-project.dto'
 import { ProjectEntity } from '@/dashboard/project/entity/project.entity'
 import {
@@ -20,10 +21,9 @@ import { ProjectQueryService } from '@/dashboard/project/project-query.service'
 import { TProjectCustomDbPayload, TProjectStats } from '@/dashboard/project/project.types'
 import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
+import { toNative } from '@/database/interceptors/data.interceptor'
 import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
-import { toNative } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaService } from '@/database/neogma/neogma.service'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
 
 import * as crypto from 'node:crypto'
@@ -33,12 +33,13 @@ export class ProjectService {
   constructor(
     private readonly configService: ConfigService,
     private readonly neogmaService: NeogmaService,
-    private readonly compositeNeogmaService: CompositeNeogmaService,
     private readonly neogmaDynamicService: NeogmaDynamicService,
     private readonly projectRepository: ProjectRepository,
     private readonly projectQueryService: ProjectQueryService,
     @Inject(forwardRef(() => PropertyService))
-    private readonly propertyService: PropertyService
+    private readonly propertyService: PropertyService,
+    @Inject(forwardRef(() => MailService))
+    private readonly mailService: MailService
   ) {}
 
   normalize(node: TProjectInstance) {
@@ -93,6 +94,16 @@ export class ProjectService {
     })
 
     await projectNode.save({ session: transaction })
+
+    return this.normalize(projectNode)
+  }
+
+  async dropProjectSubscription(id: string, transaction: Transaction) {
+    const projectNode = await this.getProjectNode(id, transaction)
+    projectNode['isSubscriptionCancelled'] = true
+    projectNode['edited'] = getCurrentISO()
+
+    await projectNode.save()
 
     return this.normalize(projectNode)
   }
@@ -189,7 +200,6 @@ export class ProjectService {
           async () =>
             await this.propertyService.deleteOrphanProps({
               projectId: id,
-              queryRunner: runner,
               transaction
             })
         )
@@ -209,18 +219,12 @@ export class ProjectService {
     }
   }
 
-  async removeProjectOwnNode(projectId: string, currentTxn: Transaction) {
-    const queryRunner = this.neogmaService.createRunner()
-
+  async removeProjectOwnNode(projectId: string, transaction: Transaction) {
     try {
       isDevMode(() => Logger.log('[cleanUpProject LOG]: Running removeProjectOwnNode method'))
-      await queryRunner.run(
-        this.projectQueryService.removeProjectNodeQuery(),
-        {
-          projectId
-        },
-        currentTxn
-      )
+      await transaction.run(this.projectQueryService.removeProjectNodeQuery(), {
+        projectId
+      })
     } catch (e) {
       isDevMode(() =>
         Logger.error('[cleanUpProject ERROR]: failed to process removeProjectOwnNode method', e)
@@ -231,20 +235,14 @@ export class ProjectService {
   async cleanUpProject(projectId: string) {
     const session = this.neogmaService.createSession('cleanUpProject')
     const transaction = session.beginTransaction()
-    const queryRunner = this.neogmaService.createRunner()
 
     try {
-      await queryRunner.run(
-        this.projectQueryService.removeProjectQuery(),
-        {
-          projectId
-        },
-        transaction
-      )
+      await transaction.run(this.projectQueryService.removeProjectQuery(), {
+        projectId
+      })
 
       await this.propertyService.deleteOrphanProps({
         projectId,
-        queryRunner,
         transaction
       })
     } catch (e) {
@@ -270,6 +268,30 @@ export class ProjectService {
 
     await projectNode.save()
     return projectNodePayload
+  }
+
+  async notifyRushDBAdmin(id: string, transaction: Transaction) {
+    const projectNode = await this.getProjectNode(id, transaction)
+
+    const managedDb =
+      projectNode.managedDbPassword &&
+      projectNode.managedDbPassword &&
+      projectNode.managedDbTier &&
+      projectNode.managedDbRegion
+
+    if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED')) && managedDb) {
+      try {
+        await this.mailService.notifyAdminAboutNewProject({
+          projectId: id,
+          name: projectNode.name,
+          region: projectNode.managedDbRegion,
+          tier: projectNode.managedDbTier,
+          password: this.decryptSensitiveData(projectNode.managedDbPassword)
+        })
+      } catch (e) {
+        isDevMode(() => Logger.error('[MAIL ERROR]: Failed to notify admin about managed project', e))
+      }
+    }
   }
 
   async updateProject(
@@ -358,17 +380,12 @@ export class ProjectService {
     projectId: string
     transaction: Transaction
   }): Promise<string[]> {
-    const queryRunner = this.neogmaService.createRunner()
     const role = USER_ROLE_EDITOR
 
-    const result = await queryRunner.run(
-      this.projectQueryService.projectRelatedUserIdsQuery(),
-      {
-        projectId,
-        role
-      },
-      transaction
-    )
+    const result = await transaction.run(this.projectQueryService.projectRelatedUserIdsQuery(), {
+      projectId,
+      role
+    })
 
     const actualAccessList = result.records.map((record) => record.get('usersId')).flat() as string[]
     const usersToAddAccess: Set<string> = new Set()
@@ -464,32 +481,24 @@ export class ProjectService {
     userId: string,
     transaction: Transaction
   ): Promise<ProjectEntity[]> {
-    const queryRunner = this.neogmaService.createRunner()
-    return await queryRunner
-      .run(this.projectQueryService.getUserRelatedProjects(), { id, userId }, transaction)
+    return await transaction
+      .run(this.projectQueryService.getUserRelatedProjects(), { id, userId })
       .then(({ records }) => records[0].get('projects'))
   }
 
   async getProjectsProperties(id: string, transaction: Transaction): Promise<IProjectProperties[]> {
-    const queryRunner = this.neogmaService.createRunner()
-    return await queryRunner
-      .run(this.projectQueryService.getProjectsByWorkspaceId(), { id }, transaction)
+    return await transaction
+      .run(this.projectQueryService.getProjectsByWorkspaceId(), { id })
       .then(({ records }) =>
         records[0].get('projects').map((project) => project.properties as IProjectProperties)
       )
   }
 
   async getNodesCount(projectId: string, transaction: Transaction): Promise<TProjectStats> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
-
-    return await queryRunner
-      .run(
-        this.projectQueryService.getProjectStatsById(),
-        {
-          id: projectId
-        },
-        transaction
-      )
+    return await transaction
+      .run(this.projectQueryService.getProjectStatsById(), {
+        id: projectId
+      })
       .then((result) => result.records[0])
       .then((record) => ({
         records: toNative(record.get('entities')),
@@ -499,17 +508,11 @@ export class ProjectService {
   }
 
   async linkUserToProject(userId: string, projectId: string, since: string, transaction: Transaction) {
-    const runner = this.neogmaService.createRunner()
-
-    await runner.run(
-      this.projectQueryService.getAttachUserToProjectQuery(),
-      {
-        userId,
-        projectId,
-        since,
-        role: USER_ROLE_EDITOR
-      },
-      transaction
-    )
+    await transaction.run(this.projectQueryService.getAttachUserToProjectQuery(), {
+      userId,
+      projectId,
+      since,
+      role: USER_ROLE_EDITOR
+    })
   }
 }
