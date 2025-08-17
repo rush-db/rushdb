@@ -67,7 +67,6 @@ export const $currentProjectLabels = createAsyncStore({
 
 export const $activeLabels = atom<string[]>([])
 
-let cnt = 0
 export const $filteredRecords = createAsyncStore({
   key: '$projectFilteredRecords',
   async fetcher(init) {
