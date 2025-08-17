@@ -434,7 +434,7 @@ export const api = {
       })
     },
     async getBillingData() {
-      return fetcher<BillingData>('http://localhost:3010/api/prices', {
+      return fetcher<BillingData>('https://billing.rushdb.com/api/prices', {
         method: 'GET'
       })
     }

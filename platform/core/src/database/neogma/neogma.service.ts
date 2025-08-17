@@ -67,18 +67,18 @@ export class NeogmaService implements OnApplicationShutdown {
   createSession(context?: any): Session {
     const session = this.getDriver().session()
 
-    // isDevMode(() => {
-    //   this.stats('create session ' + (context ? context : ''))
-    // })
+    isDevMode(() => {
+      this.stats('create session ' + (context ? context : ''))
+    })
 
     return session
   }
 
   async closeSession(session: Session, context?: any) {
     await session?.close()
-    // isDevMode(() => {
-    //   this.stats('close session ' + (context ? context : ''))
-    // })
+    isDevMode(() => {
+      this.stats('close session ' + (context ? context : ''))
+    })
   }
 
   getReadSession() {
