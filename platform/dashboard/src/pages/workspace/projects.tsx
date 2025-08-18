@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { FolderPlus, Link, SearchX, ZapIcon } from 'lucide-react'
+import { FolderPlus, Link, SearchX } from 'lucide-react'
 
 import type { Project, ProjectStats } from '~/features/projects/types'
 
@@ -12,14 +12,13 @@ import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
 import {
   $filteredProjects,
   $projectsQuery,
-  $showUpgrade,
   $workspaceProjects,
   filterProjects
 } from '~/features/workspaces/stores/projects'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { isProjectEmpty } from '~/features/projects/utils'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { api } from '~/lib/api.ts'
 import { $user } from '~/features/auth/stores/user.ts'
 import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace.ts'
@@ -48,7 +47,7 @@ function ProjectCard({
 
   const projectIsInactive = status === 'pending' || status === 'provisioning'
 
-  const getHref = () => {
+  const href = useMemo(() => {
     if (isEmpty) {
       if (projectIsInactive) {
         return getRoutePath('projectSettings', { id })
@@ -56,14 +55,14 @@ function ProjectCard({
       return getRoutePath('projectHelp', { id })
     }
     return getRoutePath('project', { id })
-  }
+  }, [projectIsInactive, isEmpty, id])
 
   const managedRegion = AWS_REGIONS.find((r) => r.code === managedDbRegion)
 
   return (
     <a
       className="interaction bg-secondary ring-interaction-ring focus-visible:border-interaction-focus [&:hover:not(:focus-visible)]:bg-secondary-hover rounded-lg border border-transparent focus-visible:ring"
-      href={getHref()}
+      href={href}
     >
       <article className={cn('flex flex-col gap-3 p-5 transition')}>
         <header className="flex flex-col items-start justify-between">

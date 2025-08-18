@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import {
   RUSHDB_LABEL_PROJECT,
   RUSHDB_LABEL_TOKEN,
@@ -9,6 +8,7 @@ import {
   RUSHDB_RELATION_CONTAINS,
   RUSHDB_RELATION_HAS_ACCESS
 } from '@/dashboard/common/constants'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 @Injectable()
 export class TokenQueryService {

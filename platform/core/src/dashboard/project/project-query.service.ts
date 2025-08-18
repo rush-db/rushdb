@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import { RUSHDB_LABEL_PROPERTY, RUSHDB_KEY_PROJECT_ID, RUSHDB_LABEL_RECORD } from '@/core/common/constants'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 import {
@@ -11,6 +10,7 @@ import {
   RUSHDB_RELATION_CONTAINS,
   RUSHDB_RELATION_HAS_ACCESS
 } from '@/dashboard/common/constants'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 @Injectable()
 export class ProjectQueryService {

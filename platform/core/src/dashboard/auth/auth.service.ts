@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { Transaction } from 'neo4j-driver'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
 import {
@@ -13,6 +12,7 @@ import {
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { User } from '@/dashboard/user/user.entity'
 import { UserService } from '@/dashboard/user/user.service'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 import { EncryptionService } from './encryption/encryption.service'
 

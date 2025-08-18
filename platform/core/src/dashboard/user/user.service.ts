@@ -10,7 +10,6 @@ import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
@@ -38,6 +37,7 @@ import { sanitizeSettings, validateEmail } from '@/dashboard/user/user.utils'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 import * as crypto from 'node:crypto'
 

@@ -78,8 +78,6 @@ export const $filteredRecords = createAsyncStore({
     const combineMode = $combineFilters.get()
     const properties = filters.map(filterToSearchOperation)
 
-    cnt += 1
-
     const order = Object.entries(orderBy ?? {}).reduce<Sort>((acc, [key, direction]) => {
       if (key === '__id') {
         return direction as SortDirection

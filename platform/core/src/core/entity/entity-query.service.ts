@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import { isArray } from '@/common/utils/isArray'
 import { toBoolean } from '@/common/utils/toBolean'
 import {
@@ -29,6 +28,7 @@ import {
 import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQueryPart'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 import { singleLabelPart } from '@/core/search/parser/singleLabelPart'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 import { label } from '../search/parser/pickRecordLabel'
 

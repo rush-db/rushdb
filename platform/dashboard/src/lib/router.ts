@@ -4,7 +4,7 @@ import type { ParamsArg } from '@nanostores/router'
 import { createRouter, createSearchParams, getPagePath, openPage, redirectPage } from '@nanostores/router'
 // eslint-disable-next-line import/no-cycle
 import { $platformSettings } from '~/features/auth/stores/settings'
-import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
+import { $inviteToken } from '~/features/workspaces/stores/invite'
 
 const userConfirmationLeavePublicRoutes = {
   confirmEmail: '/confirm_email'

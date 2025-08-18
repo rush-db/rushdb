@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import { toBoolean } from '@/common/utils/toBolean'
 import {
   RUSHDB_KEY_ID,
@@ -16,6 +15,7 @@ import { projectIdInline } from '@/core/search/parser/projectIdInline'
 import { singleLabelPart } from '@/core/search/parser/singleLabelPart'
 import { SORT_ASC, SORT_DESC } from '@/core/search/search.constants'
 import { TSearchSortDirection } from '@/core/search/search.types'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 @Injectable()
 export class PropertyQueryService {
