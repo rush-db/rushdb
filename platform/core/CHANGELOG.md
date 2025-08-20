@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.11.0
+
+### Minor Changes
+
+- 43109e7: Fix misconfigured identity matching for external databases
+
 ## 1.10.1
 
 ### Patch Changes
