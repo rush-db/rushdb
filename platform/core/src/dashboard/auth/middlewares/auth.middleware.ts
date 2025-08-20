@@ -26,9 +26,6 @@ export class AuthMiddleware implements NestMiddleware {
       return next()
     }
 
-    const session = this.neogmaService.createSession('auth-middleware')
-    const transaction = session.beginTransaction()
-
     try {
       const authHeader = request.headers['authorization']
       const bearerToken = authHeader?.split(' ')[1]
@@ -36,6 +33,8 @@ export class AuthMiddleware implements NestMiddleware {
 
       // Flow for SDK auth (token-based)
       if (request.headers['token'] || !isJwt) {
+        let session = this.neogmaService.createSession('auth-middleware-sdk')
+        let transaction = session.beginTransaction()
         try {
           const tokenHeader = (request.headers['token'] || bearerToken) as string
           if (tokenHeader) {
@@ -51,31 +50,56 @@ export class AuthMiddleware implements NestMiddleware {
 
             if (hasAccess) {
               // Custom properties will be accessible at request.raw.*
-              request.project = project
-              request.projectId = projectId
-              request.workspace = workspace
-              request.workspaceId = workspaceId
-
-              request.session = session
-              request.transaction = transaction
+              // Always attach to fastify raw object so interceptors / filters can see them
+              const raw: any = (request as any).raw ?? request
+              raw.project = project
+              raw.projectId = projectId
+              raw.workspace = workspace
+              raw.workspaceId = workspaceId
+              raw.session = session
+              raw.transaction = transaction
 
               return next()
             }
           }
         } catch (e) {
           isDevMode(() => Logger.error('SDK auth failed in middleware', e))
+          // Rollback & close on failure to avoid leaks
+          try {
+            if (transaction?.isOpen?.()) await transaction.rollback()
+          } catch {}
+          try {
+            await transaction?.close?.()
+          } catch {}
+          try {
+            await session?.close?.()
+          } catch {}
+        } finally {
+          // If not attached (no projectId assigned) ensure session closed
+          const raw: any = (request as any).raw ?? request
+          if (raw.session !== session) {
+            try {
+              await transaction?.close?.()
+            } catch {}
+            try {
+              await session?.close?.()
+            } catch {}
+          }
         }
       }
 
       // Flow for JWT auth (dashboard)
       if (isJwt && authHeader) {
+        let session = this.neogmaService.createSession('auth-middleware-jwt')
+        let transaction = session.beginTransaction()
         try {
           const token = authHeader.split(' ')[1]
           const user = this.authService.verifyJwt(token)
 
           if (user) {
             // Custom properties will be accessible at request.raw.*
-            request.user = user
+            const raw: any = (request as any).raw ?? request
+            raw.user = user
 
             const { hasAccess, projectId, project, workspaceId, workspace } =
               await this.tokenService.verifyIntegrity({
@@ -86,17 +110,36 @@ export class AuthMiddleware implements NestMiddleware {
               })
 
             // Custom properties will be accessible at request.raw.*
-            request.project = project
-            request.projectId = projectId
-            request.workspace = workspace
-            request.workspaceId = workspaceId
-            request.session = session
-            request.transaction = transaction
+            raw.project = project
+            raw.projectId = projectId
+            raw.workspace = workspace
+            raw.workspaceId = workspaceId
+            raw.session = session
+            raw.transaction = transaction
 
             return next()
           }
         } catch (e) {
           isDevMode(() => Logger.error('JWT auth failed in middleware', e))
+          try {
+            if (transaction?.isOpen?.()) await transaction.rollback()
+          } catch {}
+          try {
+            await transaction?.close?.()
+          } catch {}
+          try {
+            await session?.close?.()
+          } catch {}
+        } finally {
+          const raw: any = (request as any).raw ?? request
+          if (raw.session !== session) {
+            try {
+              await transaction?.close?.()
+            } catch {}
+            try {
+              await session?.close?.()
+            } catch {}
+          }
         }
       }
       // Continue without authentication for public endpoints

@@ -9,11 +9,13 @@ export class RequestCleanupInterceptor implements NestInterceptor {
     const reply: any = http.getResponse()
     const res: any = reply?.raw ?? reply
 
+    const raw: any = (request as any).raw ?? request
+
     // Snapshot references; these are set by middlewares prior to interceptors.
-    const internalSession = request.raw.session
-    const internalTransaction = request.raw.transaction
-    const externalSession = request.raw.externalSession
-    const externalTransaction = request.raw.externalTransaction
+    const internalSession = raw.session ?? request.session
+    const internalTransaction = raw.transaction ?? request.transaction
+    const externalSession = raw.externalSession ?? request.externalSession
+    const externalTransaction = raw.externalTransaction ?? request.externalTransaction
 
     let cleaned = false
 
@@ -71,10 +73,12 @@ export class RequestCleanupInterceptor implements NestInterceptor {
       }
 
       // Clear request-bound references to help GC
-      request.raw.session = undefined as any
-      request.raw.transaction = undefined as any
-      request.raw.externalSession = undefined as any
-      request.raw.externalTransaction = undefined as any
+      try {
+        raw.session = undefined
+        raw.transaction = undefined
+        raw.externalSession = undefined
+        raw.externalTransaction = undefined
+      } catch {}
     }
 
     // Prefer to run cleanup after response has been sent to the client.
@@ -83,10 +87,16 @@ export class RequestCleanupInterceptor implements NestInterceptor {
         const statusCode: number = res.statusCode ?? 500
         void doCleanup(statusCode < 400)
       })
+      res.on('error', () => {
+        void doCleanup(false)
+      })
       // Fallback for aborted connections or streaming errors
       res.on('close', () => {
         void doCleanup(false)
       })
+    } else {
+      // As a very last resort, schedule cleanup (should rarely happen)
+      setTimeout(() => void doCleanup(false), 5000)
     }
 
     return next.handle()

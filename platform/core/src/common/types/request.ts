@@ -16,4 +16,5 @@ export type PlatformRequest = FastifyRequest & {
   externalSession?: Session
   externalTransaction?: Transaction
   userDefinedTransaction?: Transaction
+  // NOTE: In fastify context, interceptors and filters should access properties via request.raw.*
 }

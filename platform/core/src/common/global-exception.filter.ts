@@ -27,10 +27,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const status = isHttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR
 
-    const internalSession = request?.raw?.session
-    const internalTransaction = request?.raw?.transaction
-    const externalSession = request?.raw?.externalSession
-    const externalTransaction = request?.raw?.externalTransaction
+    const raw: any = (request as any).raw ?? request
+    const internalSession = raw?.session
+    const internalTransaction = raw?.transaction
+    const externalSession = raw?.externalSession
+    const externalTransaction = raw?.externalTransaction
 
     const userDefinedTransaction = request?.raw?.userDefinedTransaction
     const txId = <string>request.headers['x-transaction-id']
@@ -76,7 +77,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     // Clear request-bound references to help GC and avoid double-closing
     try {
-      const raw: any = (request as any).raw ?? (request as any)
+      raw.__rushdb_cleaned = true
       raw.transaction = undefined
       raw.session = undefined
       raw.externalTransaction = undefined
