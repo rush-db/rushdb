@@ -371,9 +371,6 @@ export const api = {
       searchQuery: SearchQuery & { query?: string; orderBy?: OrderDirection }
       init: RequestInit
     }) {
-      const p = await rushDBInstance.properties.findById(id)
-
-      console.log(p)
       return rushDBInstance.properties.values(id, searchQuery)
     }
   },

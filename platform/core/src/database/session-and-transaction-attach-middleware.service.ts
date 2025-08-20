@@ -32,8 +32,9 @@ export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
         session = externalDbConnection.driver?.session()
         transaction = session?.beginTransaction()
 
-        request.externalSession = session
-        request.externalTransaction = transaction
+        const raw: any = (request as any).raw ?? request
+        raw.externalSession = session
+        raw.externalTransaction = transaction
 
         return next()
       } catch (e) {
@@ -44,8 +45,9 @@ export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
         } catch {
           Logger.error('[SessionAttachMiddleware] Error', e)
         } finally {
-          request.externalSession = undefined
-          request.externalTransaction = undefined
+          const raw: any = (request as any).raw ?? request
+          raw.externalSession = undefined
+          raw.externalTransaction = undefined
         }
 
         return next(e)
