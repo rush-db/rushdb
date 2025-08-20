@@ -35,15 +35,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const userDefinedTransaction = request?.raw?.userDefinedTransaction
     const txId = <string>request.headers['x-transaction-id']
 
-    console.log('has internal transaction', toBoolean(internalTransaction))
-    console.log('has external transaction', toBoolean(externalTransaction))
-    console.log('has external transaction', toBoolean(userDefinedTransaction))
-
     isDevMode(() => {
       Logger.log('[ROLLBACK TRANSACTION]: Exception filter', JSON.stringify(exception))
     })
-
-    console.log(exception)
 
     // Helper to safely rollback (if open) and close a transaction
     const finalizeTx = async (label: string, tx?: Transaction) => {
@@ -62,7 +56,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const hasUserDefinedTransaction = toBoolean(userDefinedTransaction) && txId
     if (hasUserDefinedTransaction) {
-      console.log('rolling back user defined transaction', toBoolean(userDefinedTransaction))
       await this.transactionService.rollbackTransaction(txId)
     }
 
