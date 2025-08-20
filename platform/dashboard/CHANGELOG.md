@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.11.1
+
+### Patch Changes
+
+- 00d100b: Fix leaking transactions pool
+- Updated dependencies [00d100b]
+  - @rushdb/javascript-sdk@1.11.1
+
 ## 1.11.0
 
 ### Minor Changes
