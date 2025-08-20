@@ -23,20 +23,12 @@ import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { CustomDbAvailabilityGuard } from '@/dashboard/billing/guards/custom-db-availability.guard'
 import { PlanActiveGuard } from '@/dashboard/billing/guards/plan-active.guard'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
+import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
 @Controller('search')
 @ApiTags('Search')
-@UseInterceptors(
-  TransformResponseInterceptor,
-  NotFoundInterceptor,
-  NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
-  CustomTransactionInterceptor
-)
+@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)
 export class SearchController {
   constructor(private readonly entityQueryService: EntityQueryService) {}
 

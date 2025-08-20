@@ -4,7 +4,6 @@ import { isArray } from '@/common/utils/isArray'
 import { ISO_8601_REGEX } from '@/core/common/constants'
 import { CreateEntityDtoSimple } from '@/core/entity/dto/create-entity.dto'
 import { TImportOptions } from '@/core/entity/import-export/import.types'
-import { TPropertyPropertiesNormalized } from '@/core/property/model/property.interface'
 import {
   PROPERTY_TYPE_BOOLEAN,
   PROPERTY_TYPE_DATETIME,
@@ -13,7 +12,12 @@ import {
   PROPERTY_TYPE_STRING,
   PROPERTY_TYPE_VECTOR
 } from '@/core/property/property.constants'
-import { TPropertySingleValue, TPropertyType, TPropertyValue } from '@/core/property/property.types'
+import {
+  TPropertyPropertiesWithValue,
+  TPropertySingleValue,
+  TPropertyType,
+  TPropertyValue
+} from '@/core/property/property.types'
 
 export const arrayIsConsistent = (arr: Array<unknown>): boolean =>
   arr.every((item) => typeof item === typeof arr[0])
@@ -80,7 +84,7 @@ export const prepareProperties = (
       isArray(value) ? processArrayValue(value, options) : processNonArrayValue(value, options)
 
     return { name, type, value: processedValue, id: uuidv7() }
-  }) as TPropertyPropertiesNormalized[]
+  }) as TPropertyPropertiesWithValue[]
 
 export const normalizeRecord = ({
   label,

@@ -27,7 +27,7 @@ import { Select } from '~/elements/Select.tsx'
 import { api } from '~/lib/api'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
-import { $paidUser } from '~/features/billing/stores/plans.ts'
+import { $paidWorkspace } from '~/features/billing/stores/plans.ts'
 
 const $recordsData = atom<string>('')
 const $labelsData = atom<string>('')
@@ -346,7 +346,7 @@ export function RawApiView() {
   const query = useStore($editorData)
   const entity = useStore($recordRawApiEntity)
   const platformSettings = useStore($platformSettings)
-  const paidUser = useStore($paidUser)
+  const paidUser = useStore($paidWorkspace)
 
   const { mutate: findRecords, loading: recordsSubmitting } = useStore(rawRecords)
   const { mutate: findLabels, loading: labelsSubmitting } = useStore(rawLabels)

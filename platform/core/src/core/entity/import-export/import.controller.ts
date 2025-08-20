@@ -19,6 +19,7 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { EntityWriteGuard } from '@/core/entity/entity-write.guard'
+import { TEntityPropertiesNormalized } from '@/core/entity/entity.types'
 import { ImportCsvDto } from '@/core/entity/import-export/dto/import-csv.dto'
 import { ImportJsonDto } from '@/core/entity/import-export/dto/import-json.dto'
 import { ImportService } from '@/core/entity/import-export/import.service'
@@ -26,24 +27,16 @@ import {
   importCsvSchema,
   importJsonSchema
 } from '@/core/entity/import-export/validation/schemas/import.schema'
-import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
-import { CustomTransactionDecorator } from '@/database/neogma-dynamic/custom-transaction.decorator'
-import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
+import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
+import { TransactionDecorator } from '@/database/transaction.decorator'
 
 @Controller('')
 @ApiTags('Records')
-@UseInterceptors(
-  NotFoundInterceptor,
-  NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
-  CustomTransactionInterceptor
-)
+@UseInterceptors(NotFoundInterceptor, DataInterceptor)
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
 
@@ -59,13 +52,17 @@ export class ImportController {
   @AuthGuard('project')
   async collectJson(
     @Body() body: ImportJsonDto,
-    @TransactionDecorator() transaction: Transaction,
-    @CustomTransactionDecorator() customTx: Transaction,
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
-    const projectId = request.projectId
+    try {
+      const projectId = request.projectId
 
-    return await this.importService.importRecords(body, projectId, transaction, customTx)
+      return await this.importService.importRecords(body, projectId, transaction, customTx)
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   @Post('/records/import/csv')
@@ -80,8 +77,10 @@ export class ImportController {
   @AuthGuard('project')
   async collectCsv(
     @Body() body: ImportCsvDto,
+    // To check limits after BFS parse (performed on default DB)
     @TransactionDecorator() transaction: Transaction,
-    @CustomTransactionDecorator() customTx: Transaction,
+    // Main tx to write data (could be default db or external)
+    @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId

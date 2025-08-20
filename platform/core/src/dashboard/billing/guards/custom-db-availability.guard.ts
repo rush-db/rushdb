@@ -15,15 +15,13 @@ import { Transaction } from 'neo4j-driver'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
 export class CustomDbAvailabilityGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => WorkspaceService))
-    private readonly workspaceService: WorkspaceService,
-    private readonly neogmaService: NeogmaService
+    private readonly workspaceService: WorkspaceService
   ) {}
 
   async isCustomDbOptionEnabled(
@@ -59,7 +57,7 @@ export class CustomDbAvailabilityGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest()
-    const workspaceId = request.workspaceId || request.headers['x-workspace-id']
+    const workspaceId = request.workspaceId
 
     if (!workspaceId) {
       return false
@@ -67,20 +65,16 @@ export class CustomDbAvailabilityGuard implements CanActivate {
 
     isDevMode(() => Logger.log(`[CDA GUARD]: Transaction created for CDA guard`))
 
-    const session = this.neogmaService.createSession('custom-db-write-availability-guard')
-    const transaction = session.beginTransaction()
+    const transaction = request.transaction || request.raw?.transaction
 
     const canProcessRequest = await this.isCustomDbOptionEnabled(workspaceId, request, transaction)
 
     if (!canProcessRequest) {
-      transaction.close().then(() => session.close())
       isDevMode(() => Logger.log(`[CDA GUARD]: Close transaction and request due to billing settings`))
       throw new HttpException('Cannot attach custom db to the project', HttpStatus.PAYMENT_REQUIRED)
     }
 
     isDevMode(() => Logger.log(`[CDA GUARD]: Close transaction and process request`))
-    transaction.close().then(() => session.close())
-
     return true
   }
 }

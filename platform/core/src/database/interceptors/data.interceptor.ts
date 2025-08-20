@@ -106,7 +106,7 @@ export interface IResponse<T> {
 }
 
 @Injectable()
-export class NeogmaDataInterceptor<T> implements NestInterceptor<T, IResponse<T>> {
+export class DataInterceptor<T> implements NestInterceptor<T, IResponse<T>> {
   private showLabelsOrType = false
   private showIdentity = false
 
@@ -118,7 +118,7 @@ export class NeogmaDataInterceptor<T> implements NestInterceptor<T, IResponse<T>
   }
 
   static withOptions(showLabelsOrType = false, showIdentity = false): NestInterceptor {
-    return new NeogmaDataInterceptor().setOptions(showLabelsOrType, showIdentity)
+    return new DataInterceptor().setOptions(showLabelsOrType, showIdentity)
   }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<IResponse<T>> {

@@ -16,7 +16,6 @@ import { toBoolean } from '@/common/utils/toBolean'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
 export class PlanLimitsGuard implements CanActivate {
@@ -25,8 +24,7 @@ export class PlanLimitsGuard implements CanActivate {
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
     @Inject(forwardRef(() => ProjectService))
-    private readonly projectService: ProjectService,
-    private readonly neogmaService: NeogmaService
+    private readonly projectService: ProjectService
   ) {}
 
   async checkLimits(
@@ -104,22 +102,19 @@ export class PlanLimitsGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest()
-    const workspaceId = request.workspaceId || request.headers['x-workspace-id']
+    const workspaceId = request.workspaceId
 
     if (!workspaceId) {
       return false
     }
 
-    const session = this.neogmaService.createSession('plan-limits-guard')
-    const transaction = session.beginTransaction()
+    const transaction = request.transaction || request.raw?.transaction
 
     const canProcessRequest = await this.checkLimits(workspaceId, request, transaction)
 
     if (!canProcessRequest) {
-      transaction.close().then(() => session.close())
       throw new HttpException('Excess records or projects', HttpStatus.PAYMENT_REQUIRED)
     }
-    transaction.close().then(() => session.close())
 
     return true
   }

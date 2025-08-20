@@ -35,8 +35,7 @@ import {
 } from '@/core/common/constants'
 import { prepareProperties } from '@/core/common/normalizeRecord'
 import { EntityWriteGuard } from '@/core/entity/entity-write.guard'
-import { TRecordSearchResult } from '@/core/entity/entity.types'
-import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
+import { TEntityPropertiesNormalized, TRecordSearchResult } from '@/core/entity/entity.types'
 import { createEntitySchema } from '@/core/entity/validation/schemas/create-entity.schema'
 import { editEntitySchema } from '@/core/entity/validation/schemas/edit-entity.schema'
 import { PropertyService } from '@/core/property/property.service'
@@ -47,10 +46,8 @@ import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { CustomTransactionInterceptor } from '@/database/neogma-dynamic/custom-transaction.interceptor'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
+import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
 import { CreateEntityDto } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
@@ -58,13 +55,7 @@ import { EntityService } from './entity.service'
 
 @Controller('records')
 @ApiTags('Records')
-@UseInterceptors(
-  TransformResponseInterceptor,
-  NotFoundInterceptor,
-  NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
-  CustomTransactionInterceptor
-)
+@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)
 export class EntityController {
   constructor(
     private readonly entityService: EntityService,

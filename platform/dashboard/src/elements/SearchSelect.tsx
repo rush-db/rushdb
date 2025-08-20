@@ -4,27 +4,13 @@ import * as React from 'react'
 import { useControllableState } from '~/hooks/useControllableState'
 import { cn, composeEventHandlers } from '~/lib/utils'
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList
-} from './Command'
-import {
-  DisclosureContext,
-  useDisclosure,
-  useDisclosureContext
-} from './Disclosure'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './Command'
+import { DisclosureContext, useDisclosure, useDisclosureContext } from './Disclosure'
 import { Popover, PopoverContent, PopoverTrigger } from './Popover'
 
 type SelectValue = string
 
-type Props = Pick<
-  React.ComponentPropsWithoutRef<typeof Popover>,
-  'onOpenChange' | 'open'
-> & {
+type Props = Pick<React.ComponentPropsWithoutRef<typeof Popover>, 'onOpenChange' | 'open'> & {
   asChild?: boolean
   children?: React.ReactNode
   onChange?: (value: SelectValue) => void
@@ -57,12 +43,7 @@ export function SearchSelect({
 
         <PopoverContent align="start">
           <Command>
-            <CommandInput
-              className="rounded-none"
-              placeholder="Search..."
-              size="small"
-              variant="ghost"
-            />
+            <CommandInput className="rounded-none" placeholder="Search..." size="small" variant="ghost" />
             <CommandList>
               <CommandEmpty>Nothing found.</CommandEmpty>
               <CommandGroup>{children}</CommandGroup>
@@ -88,11 +69,11 @@ export const SelectItem = React.forwardRef<
       {...props}
       onSelect={composeEventHandlers(
         onSelect,
-        closeOnSelect
-          ? () => {
-              ctx.close()
-            }
-          : undefined
+        closeOnSelect ?
+          () => {
+            ctx.close()
+          }
+        : undefined
       )}
       className={cn('h-9', props.className)}
       ref={ref}

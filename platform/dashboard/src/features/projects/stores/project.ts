@@ -53,6 +53,12 @@ export const createProject = createMutator<Partial<Project>, Project>({
     return project
   },
   onSuccess(project) {
-    redirectRoute('projectHelp', { id: project.id })
+    const projectIsInactive = project.status === 'pending' || project.status === 'provisioning'
+
+    if (!projectIsInactive) {
+      redirectRoute('projectHelp', { id: project.id })
+    } else {
+      redirectRoute('projectSettings', { id: project.id })
+    }
   }
 })

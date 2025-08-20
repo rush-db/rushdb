@@ -57,40 +57,44 @@ export class GoogleOAuthService {
   }
 
   async googleLogin(code: string, transaction: Transaction): Promise<User | undefined> {
-    const token = await this.getAccessTokenFromCode(code)
-    const googleData = await this.getGoogleUserInfo(token)
+    try {
+      const token = await this.getAccessTokenFromCode(code)
+      const googleData = await this.getGoogleUserInfo(token)
 
-    if (token && googleData?.email) {
-      let user = await this.userService.find(googleData.email, transaction)
+      if (token && googleData?.email) {
+        let user = await this.userService.find(googleData.email, transaction)
 
-      if (!user) {
-        const hash = await this.encryptionService.hash(googleData?.id)
-        const { userData } = await this.userService.create(
-          {
-            login: googleData.email,
-            password: randomString(32),
-            firstName: googleData.given_name,
-            lastName: googleData.family_name,
-            googleAuth: hash,
-            confirmed: !!googleData?.verified_email
-          },
-          transaction
-        )
-        user = userData
-        return user
-      } else {
-        if (
-          user.getGoogleAuth() &&
-          (await this.encryptionService.compare(googleData?.id, user.getGoogleAuth()))
-        ) {
+        if (!user) {
+          const hash = await this.encryptionService.hash(googleData?.id)
+          const { userData } = await this.userService.create(
+            {
+              login: googleData.email,
+              password: randomString(32),
+              firstName: googleData.given_name,
+              lastName: googleData.family_name,
+              googleAuth: hash,
+              confirmed: !!googleData?.verified_email
+            },
+            transaction
+          )
+          user = userData
           return user
         } else {
-          const hash = await this.encryptionService.hash(googleData?.id)
-          return await this.userService.update(user.getId(), { googleAuth: hash }, transaction)
+          if (
+            user.getGoogleAuth() &&
+            (await this.encryptionService.compare(googleData?.id, user.getGoogleAuth()))
+          ) {
+            return user
+          } else {
+            const hash = await this.encryptionService.hash(googleData?.id)
+            return await this.userService.update(user.getId(), { googleAuth: hash }, transaction)
+          }
         }
       }
-    }
 
-    return undefined
+      return undefined
+    } catch (e) {
+      console.error(e)
+    }
   }
 }

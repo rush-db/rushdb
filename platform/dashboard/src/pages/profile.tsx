@@ -8,7 +8,7 @@ import { $user, deleteUser, useUser } from '~/features/auth/stores/user'
 import { Button } from '~/elements/Button.tsx'
 
 import { ConfirmDialog } from '~/elements/ConfirmDialog.tsx'
-import { $paidUser } from '~/features/billing/stores/plans.ts'
+import { $paidWorkspace } from '~/features/billing/stores/plans.ts'
 import { api } from '~/lib/api.ts'
 
 import { $currentWorkspace, leaveWorkspace } from '~/features/workspaces/stores/current-workspace.ts'
@@ -18,7 +18,7 @@ import { Divider } from '~/elements/Divider.tsx'
 function DeleteAccount() {
   const { mutate: deleteAccount } = useStore(deleteUser)
   const { mutate: leave } = useStore(leaveWorkspace)
-  const paidUser = useStore($paidUser)
+  const paidUser = useStore($paidWorkspace)
   const { data: workspace } = useStore($currentWorkspace)
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'

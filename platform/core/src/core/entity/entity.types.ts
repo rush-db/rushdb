@@ -1,7 +1,21 @@
+import {
+  RUSHDB_KEY_ID,
+  RUSHDB_KEY_LABEL,
+  RUSHDB_KEY_PROJECT_ID,
+  RUSHDB_KEY_PROPERTIES_META
+} from '@/core/common/constants'
 import { RELATION_DIRECTION_IN, RELATION_DIRECTION_OUT } from '@/core/entity/entity.constants'
-import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
-import { TPropertyType } from '@/core/property/property.types'
+import { TPropertyType, TPropertyValue } from '@/core/property/property.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
+
+export type TEntityPropertiesNormalized = {
+  [RUSHDB_KEY_ID]: string
+  [RUSHDB_KEY_PROJECT_ID]: string
+  [RUSHDB_KEY_LABEL]?: string
+  [RUSHDB_KEY_PROPERTIES_META]?: string
+} & Partial<{
+  [key: string]: TPropertyValue
+}>
 
 export type TRecordSearchResult = {
   total: number

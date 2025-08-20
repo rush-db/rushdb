@@ -24,6 +24,7 @@ import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/u
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
 import { UserRepository } from '@/dashboard/user/model/user.repository'
 import { UserService } from '@/dashboard/user/user.service'
+import { validateEmail } from '@/dashboard/user/user.utils'
 import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 import { Workspace } from '@/dashboard/workspace/entity/workspace.entity'
@@ -35,9 +36,9 @@ import {
 import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
 import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
 import {
-  WORKSPACE_LIMITS_DEFAULT,
-  WORKSPACE_LIMITS_PRO,
   WORKSPACE_LIMITS_START,
+  WORKSPACE_LIMITS_TEAM,
+  WORKSPACE_LIMITS_PRO,
   WORKSPACE_LIMITS_SELF_HOSTED
 } from '@/dashboard/workspace/workspace.constants'
 import {
@@ -49,7 +50,6 @@ import {
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import * as crypto from 'node:crypto'
-import { validateEmail } from '@/dashboard/user/user.utils'
 
 /*
  * Create Workspace --> Attach user that called this endpoint
@@ -209,17 +209,18 @@ export class WorkspaceService {
     }
 
     if (!toBoolean(key)) {
-      return WORKSPACE_LIMITS_DEFAULT
+      return WORKSPACE_LIMITS_START
     }
 
     // @TODO: remove contract between billing service && workspace service
     switch (key) {
+      case EConfigKeyByPlan.team:
+        return WORKSPACE_LIMITS_TEAM
       case EConfigKeyByPlan.pro:
         return WORKSPACE_LIMITS_PRO
-      case EConfigKeyByPlan.start:
-        return WORKSPACE_LIMITS_START
       default:
-        return WORKSPACE_LIMITS_DEFAULT
+        // @TODO: Make Records limits applied only to shared instances (projects)
+        return WORKSPACE_LIMITS_START
     }
   }
 
@@ -255,18 +256,12 @@ export class WorkspaceService {
     preferredRole: TUserRoles,
     transaction: Transaction
   ): Promise<void> {
-    const runner = this.neogmaService.createRunner()
-
-    await runner.run(
-      this.workspaceQueryService.attachUserToWorkspaceQuery(),
-      {
-        workspaceId,
-        userId,
-        since: getCurrentISO(),
-        role: preferredRole
-      },
-      transaction
-    )
+    await transaction.run(this.workspaceQueryService.attachUserToWorkspaceQuery(), {
+      workspaceId,
+      userId,
+      since: getCurrentISO(),
+      role: preferredRole
+    })
 
     isDevMode(() =>
       Logger.log(`[Link user ${userId} to the workspace LOG]: User linked to the workspace ${workspaceId}`)
@@ -356,7 +351,6 @@ export class WorkspaceService {
   }
 
   async inviteMember(payload: TWorkspaceInvitation, transaction: Transaction): Promise<{ message: string }> {
-    const runner = this.neogmaService.createRunner()
     const isEmail = toBoolean(validateEmail(payload.email || ''))
 
     if (!payload.workspaceId || !payload.email || !isEmail) {
@@ -382,14 +376,10 @@ export class WorkspaceService {
           createdAt: getCurrentISO()
         })
 
-        await runner.run(
-          this.workspaceQueryService.setPendingInvitesQuery(),
-          {
-            workspaceId: payload.workspaceId,
-            invites: JSON.stringify(pendingList)
-          },
-          transaction
-        )
+        await transaction.run(this.workspaceQueryService.setPendingInvitesQuery(), {
+          workspaceId: payload.workspaceId,
+          invites: JSON.stringify(pendingList)
+        })
 
         isDevMode(() => Logger.log(`[Invite member LOG]: Invitation ${email} added for user workspace`))
       }
@@ -420,13 +410,9 @@ export class WorkspaceService {
     workspaceId: string,
     transaction: Transaction
   ): Promise<TNormalizedPendingInvite[]> {
-    const runner = this.neogmaService.createRunner()
-
-    const currentPendingInvites = await runner.run(
-      this.workspaceQueryService.getPendingInvitesQuery(),
-      { workspaceId },
-      transaction
-    )
+    const currentPendingInvites = await transaction.run(this.workspaceQueryService.getPendingInvitesQuery(), {
+      workspaceId
+    })
     const result = currentPendingInvites.records[0]?.get('invites')
 
     if (!result) {
@@ -445,20 +431,14 @@ export class WorkspaceService {
     email: string,
     transaction: Transaction
   ): Promise<{ message: string }> {
-    const runner = this.neogmaService.createRunner()
-
     const currentPendingInvites = await this.getPendingInvites(workspaceId, transaction)
 
     const filtered = currentPendingInvites.filter((item) => item.email !== email)
 
-    await runner.run(
-      this.workspaceQueryService.setPendingInvitesQuery(),
-      {
-        workspaceId,
-        invites: JSON.stringify(filtered)
-      },
-      transaction
-    )
+    await transaction.run(this.workspaceQueryService.setPendingInvitesQuery(), {
+      workspaceId,
+      invites: JSON.stringify(filtered)
+    })
 
     isDevMode(() => Logger.log(`[Invite member LOG]: Invitation revoke from the ${email}`))
 
@@ -483,16 +463,10 @@ export class WorkspaceService {
     workspaceId: string,
     transaction: Transaction
   ): Promise<Record<string, string[]>> {
-    const runner = this.neogmaService.createRunner()
-
-    const result = await runner.run(
-      this.workspaceQueryService.getWorkspaceAccessListQuery(),
-      {
-        workspaceId,
-        role: USER_ROLE_EDITOR
-      },
-      transaction
-    )
+    const result = await transaction.run(this.workspaceQueryService.getWorkspaceAccessListQuery(), {
+      workspaceId,
+      role: USER_ROLE_EDITOR
+    })
 
     const accessMap: Record<string, string[]> = {}
 
@@ -505,15 +479,9 @@ export class WorkspaceService {
   }
 
   async getUserList(workspaceId: string, transaction: Transaction): Promise<TShortUserDataWithRole[]> {
-    const runner = this.neogmaService.createRunner()
-
-    const result = await runner.run(
-      this.workspaceQueryService.getWorkspaceUserListQuery(),
-      {
-        workspaceId
-      },
-      transaction
-    )
+    const result = await transaction.run(this.workspaceQueryService.getWorkspaceUserListQuery(), {
+      workspaceId
+    })
 
     return result.records.map((record) => ({
       id: record.get('id'),
@@ -523,14 +491,11 @@ export class WorkspaceService {
   }
 
   async revokeAccessList(workspaceId: string, userIds: string[], transaction: Transaction) {
-    const runner = this.neogmaService.createRunner()
-
     for (const userId of userIds) {
       isDevMode(() => Logger.log(`[Revoke access LOG]: Check other workspaces for user ${userId}`))
-      const countsResult = await runner.run(
+      const countsResult = await transaction.run(
         this.workspaceQueryService.getUserRoleCountsOutsideWorkspaceQuery(),
-        { userId, workspaceId },
-        transaction
+        { userId, workspaceId }
       )
 
       const record = countsResult.records[0]
@@ -543,18 +508,16 @@ export class WorkspaceService {
 
       if (ownerOther > 0 || developerOther > 0) {
         isDevMode(() => Logger.log(`[Revoke access LOG]: Remove ws relation for user ${userId}`))
-        await runner.run(
-          this.workspaceQueryService.getRemoveWorkspaceRelationQuery(),
-          { userId, workspaceId },
-          transaction
-        )
+        await transaction.run(this.workspaceQueryService.getRemoveWorkspaceRelationQuery(), {
+          userId,
+          workspaceId
+        })
 
         isDevMode(() => Logger.log(`[Revoke access LOG]: Remove project relation for user ${userId}`))
-        await runner.run(
-          this.workspaceQueryService.getRemoveProjectRelationsQuery(),
-          { userId, workspaceId },
-          transaction
-        )
+        await transaction.run(this.workspaceQueryService.getRemoveProjectRelationsQuery(), {
+          userId,
+          workspaceId
+        })
       } else {
         isDevMode(() =>
           Logger.log(`[Revoke access LOG]: No other entities found for user ${userId}, delete user data`)
@@ -567,21 +530,17 @@ export class WorkspaceService {
   }
 
   async leaveWorkspace(workspaceId: string, userId: string, transaction: Transaction): Promise<void> {
-    const runner = this.neogmaService.createRunner()
-
     isDevMode(() => Logger.log(`[Revoke access LOG]: Remove ws relation for user ${userId}`))
-    await runner.run(
-      this.workspaceQueryService.getRemoveWorkspaceRelationQuery(),
-      { userId, workspaceId },
-      transaction
-    )
+    await transaction.run(this.workspaceQueryService.getRemoveWorkspaceRelationQuery(), {
+      userId,
+      workspaceId
+    })
 
     isDevMode(() => Logger.log(`[Revoke access LOG]: Remove project relation for user ${userId}`))
-    await runner.run(
-      this.workspaceQueryService.getRemoveProjectRelationsQuery(),
-      { userId, workspaceId },
-      transaction
-    )
+    await transaction.run(this.workspaceQueryService.getRemoveProjectRelationsQuery(), {
+      userId,
+      workspaceId
+    })
   }
 
   async getUserRoleInWorkspace(
@@ -589,13 +548,10 @@ export class WorkspaceService {
     workspaceId: string,
     transaction: Transaction
   ): Promise<TUserRoles> {
-    const runner = this.neogmaService.createRunner()
-
-    const result = await runner.run(
-      this.workspaceQueryService.getUserWorkspaceRoleQuery(),
-      { login, workspaceId },
-      transaction
-    )
+    const result = await transaction.run(this.workspaceQueryService.getUserWorkspaceRoleQuery(), {
+      login,
+      workspaceId
+    })
 
     const rec = result.records[0]
 

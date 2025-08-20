@@ -253,6 +253,19 @@ rushdb update-password admin@example.com newsecurepassword456
 
 We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
 
+
+---
+
+## 📄 License
+
+| Directory                | License             |
+|--------------------------|---------------------|
+| /platform/core           | Elastic License 2.0 |
+| /platform/dashboard      | Elastic License 2.0 |
+| /docs                    | Apache 2.0          |
+| /website                 | Apache 2.0          |
+| /packages/javascript-sdk | Apache 2.0          |
+
 ---
 
 <div align="center">

@@ -1,5 +1,5 @@
 import classNames from 'classnames'
-import { GetServerSideProps } from 'next'
+import { GetStaticProps } from 'next'
 
 import { Layout } from '~/components/Layout'
 import { LetterTypingText } from '~/components/LetterTypingText'
@@ -41,12 +41,13 @@ export default function Index({ posts }: Props) {
   )
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async () => {
+export const getStaticProps: GetStaticProps<Props> = async () => {
   const posts = await getRemoteBlogPosts()
 
   return {
     props: {
       posts
-    }
+    },
+    revalidate: 3600 // Revalidate every hour (3600 seconds)
   }
 }

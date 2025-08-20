@@ -7,26 +7,32 @@ import * as ms from 'ms'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
-import { getCurrentISO } from '@/common/utils/getCurrentISO'
-import { CreateTokenDto } from '@/dashboard/token/dto/create-token.dto'
-import { TokenEntity } from '@/dashboard/token/entity/token.entity'
-import { TTokenInstance } from '@/dashboard/token/model/token.interface'
-import { TokenRepository } from '@/dashboard/token/model/token.repository'
-import { TokenQueryService } from '@/dashboard/token/token-query.service'
-import { ACCESS_WEIGHT, READ_ACCESS, WRITE_ACCESS } from '@/dashboard/token/token.constants'
-import { NeogmaService } from '@/database/neogma/neogma.service'
-
-import * as crypto from 'node:crypto'
-import { ProjectService } from '@/dashboard/project/project.service'
-import { toBoolean } from '@/common/utils/toBolean'
 import { MixedTypeResult, ServerSettings } from '@/common/types/prefix'
+import { getCurrentISO } from '@/common/utils/getCurrentISO'
+import { toBoolean } from '@/common/utils/toBolean'
 import {
   attachMixedProperties,
   extractMixedPropertiesFromToken,
   getNormalizedPrefix,
   getPrefixedPlan
 } from '@/common/utils/tokenUtils'
+import { ProjectService } from '@/dashboard/project/project.service'
+import { CreateTokenDto } from '@/dashboard/token/dto/create-token.dto'
+import { TokenEntity } from '@/dashboard/token/entity/token.entity'
+import { TTokenInstance } from '@/dashboard/token/model/token.interface'
+import { TokenRepository } from '@/dashboard/token/model/token.repository'
+import { TokenQueryService } from '@/dashboard/token/token-query.service'
+import { ACCESS_WEIGHT, READ_ACCESS, WRITE_ACCESS } from '@/dashboard/token/token.constants'
+import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
+import { NeogmaService } from '@/database/neogma/neogma.service'
+
+import * as crypto from 'node:crypto'
+
+import { ProjectEntity } from '../project/entity/project.entity'
+import { IProjectProperties } from '../project/model/project.interface'
+import { Workspace } from '../workspace/entity/workspace.entity'
+import { IWorkspaceProperties } from '../workspace/model/workspace.interface'
 
 @Injectable()
 export class TokenService {
@@ -82,12 +88,12 @@ export class TokenService {
     const expiration = expirationRaw === '*' ? -1 : ms(expirationRaw as string)
     const projectNode = await this.projectService.getProject(projectId, transaction)
     const workspaceNode = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    const { customDb, managedDb } = projectNode.toJson()
+    const { customDb, managedDbTier, status } = projectNode.toJson()
     const { planId } = workspaceNode
     const selfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
     const tokenPrefix = {
-      managedDB: Boolean(managedDb),
-      customDb: Boolean(customDb),
+      managedDB: toBoolean(managedDbTier) && status === 'active',
+      customDb: toBoolean(customDb),
       selfHosted
     } as ServerSettings
     const prefixString = attachMixedProperties(getPrefixedPlan(planId as string), tokenPrefix)
@@ -170,18 +176,14 @@ export class TokenService {
   }): Promise<{
     hasAccess: boolean
     projectId: string
+    project: IProjectProperties
     workspaceId: string
+    workspace: IWorkspaceProperties
   }> {
-    const queryRunner = this.neogmaService.createRunner()
-
-    const { token, project, workspace, level } = await queryRunner
-      .run(
-        this.tokenQueryService.traverseTokenData(),
-        {
-          tokenId
-        },
-        transaction
-      )
+    const { token, project, workspace, level } = await transaction
+      .run(this.tokenQueryService.traverseTokenData(), {
+        tokenId
+      })
       .then((result) => {
         return {
           // @FYI: If returning plain nodes from query we need to use '.properties' to access their properties
@@ -193,42 +195,82 @@ export class TokenService {
       })
 
     const isMalformedPrefix = this.isTokenPrefixMalformed(token, prefixData)
-
-    if (isMalformedPrefix) {
-      return {
-        hasAccess: false,
-        projectId: undefined,
-        workspaceId: undefined
-      }
-    }
-
     const currentTokenRole = level as typeof READ_ACCESS | typeof WRITE_ACCESS
-
-    if (!currentTokenRole) {
-      return {
-        hasAccess: false,
-        projectId: undefined,
-        workspaceId: undefined
-      }
-    }
-
     const isExpired = this.isTokenExpired(token)
 
-    if (isExpired) {
+    if (!currentTokenRole || isExpired || isMalformedPrefix) {
       return {
         hasAccess: false,
         projectId: undefined,
-        workspaceId: undefined
+        project: undefined,
+        workspaceId: undefined,
+        workspace: undefined
       }
     }
 
-    const hasRoleWeight = Boolean(ACCESS_WEIGHT[currentTokenRole])
+    const hasRoleWeight = toBoolean(ACCESS_WEIGHT[currentTokenRole])
     // const minimalAccessLevel = ACCESS_WEIGHT[accessLevel];
 
     return {
       hasAccess: !isExpired && hasRoleWeight,
       projectId: project.id,
-      workspaceId: workspace.id
+      project: project,
+      workspaceId: workspace.id,
+      workspace: workspace
+    }
+  }
+
+  async verifyIntegrity({
+    user,
+    projectId,
+    workspaceId,
+    transaction
+  }: {
+    user: IUserClaims
+    workspaceId?: string
+    projectId?: string
+    transaction: Transaction
+  }): Promise<{
+    hasAccess: boolean
+    projectId?: string
+    project?: IProjectProperties
+    workspaceId?: string
+    workspace?: IWorkspaceProperties
+  }> {
+    const safeGet = (fn: Function) => {
+      try {
+        return fn()
+      } catch {
+        return undefined
+      }
+    }
+    const { project, workspace, level } = await transaction
+      .run(
+        this.tokenQueryService.validateIntegrity({
+          userId: user.id,
+          workspaceId: workspaceId,
+          projectId: projectId
+        })
+      )
+      .then((result) => {
+        return {
+          project: safeGet(() => result.records[0]?.get('project').properties),
+          workspace: safeGet(() => result.records[0]?.get('workspace').properties),
+          level: safeGet(() => result.records[0]?.get('level'))
+        }
+      })
+
+    const currentTokenRole = level as typeof READ_ACCESS | typeof WRITE_ACCESS
+
+    const hasRoleWeight = toBoolean(ACCESS_WEIGHT[currentTokenRole])
+    // const minimalAccessLevel = ACCESS_WEIGHT[accessLevel];
+
+    return {
+      hasAccess: hasRoleWeight,
+      projectId: project?.id,
+      project: project,
+      workspaceId: workspace?.id,
+      workspace: workspace
     }
   }
 

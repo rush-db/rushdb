@@ -1,5 +1,5 @@
 import type { PropertyValue, Schema, InferSchemaTypesWrite } from '../types/index.js'
-import { PlanType, SDKConfig, TokenPublicVariables } from './types.js'
+import type { PlanType, SDKConfig, TokenPublicVariables } from './types.js'
 
 import { isObject } from '../common/utils.js'
 import { ALLOWED_CONFIG_PROPERTIES, PlanPrefix } from './constants.js'

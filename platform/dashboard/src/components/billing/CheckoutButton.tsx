@@ -2,31 +2,33 @@ import type { ComponentPropsWithoutRef } from 'react'
 
 import { useStore } from '@nanostores/react'
 
-import type { PlanId } from '~/features/billing/types'
-
 import { Button } from '~/elements/Button'
 import { $checkout } from '~/features/billing/stores/checkout'
-import { $currentPeriod } from '~/features/billing/stores/plans'
+import { $router, isProjectPage } from '~/lib/router.ts'
+import { $currentProjectId } from '~/features/projects/stores/id.ts'
 
 export const CheckoutButton = ({
   children = 'Checkout',
-  id,
+  priceId,
   loading: loadingProp,
   ...props
 }: ComponentPropsWithoutRef<typeof Button> & {
-  id: PlanId
+  priceId: string
 }) => {
   const { mutate: checkout, loading: checkoutInProgress } = useStore($checkout)
 
-  const period = useStore($currentPeriod)
-
   const loading = loadingProp || checkoutInProgress
+
+  const page = useStore($router)
+  const currentProjectId = useStore($currentProjectId)
+
+  const projectId = isProjectPage(page) ? page?.params.id : (currentProjectId ?? undefined)
 
   return (
     <Button
       {...props}
       loading={loading}
-      onClick={() => checkout({ id, period, returnUrl: window.location.href })}
+      onClick={() => checkout({ priceId, returnUrl: window.location.href, projectId })}
       role="link"
     >
       {children}

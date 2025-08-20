@@ -66,4 +66,28 @@ export class MailService {
       })
     }
   }
+
+  // TODO: Remove this after implementin automation for managed instance requests
+  async notifyAdminAboutNewProject(payload: {
+    projectId: string
+    name: string
+    region?: string
+    tier?: string
+    password?: string
+  }) {
+    const to = this.configService.get('MAIL_USER')
+    await this.mailerService.sendMail({
+      to,
+      subject: `MANAGED INSTANCE REQUEST - ${payload.name}`,
+      template: 'managed-project-notification',
+      context: {
+        projectId: payload.projectId,
+        projectName: payload.name,
+        region: payload.region,
+        tier: payload.tier,
+        password: payload.password,
+        dashboardUrl: this.configService.get('RUSHDB_DASHBOARD_URL')
+      }
+    })
+  }
 }

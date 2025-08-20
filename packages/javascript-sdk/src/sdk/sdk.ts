@@ -3,7 +3,7 @@ import type { Schema } from '../types/index.js'
 
 import type { DBRecord } from './record.js'
 import { DBRecordInstance } from './record.js'
-import { SDKConfig, State, TokenPublicVariables } from './types.js'
+import type { SDKConfig, State, TokenPublicVariables } from './types.js'
 
 import { RestAPI } from '../api/api.js'
 import { DEFAULT_TIMEOUT } from '../common/constants.js'

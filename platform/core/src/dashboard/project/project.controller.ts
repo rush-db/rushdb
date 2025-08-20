@@ -10,14 +10,15 @@ import {
   Post,
   UseGuards,
   UseInterceptors,
-  Headers,
-  Query
+  Query,
+  Request
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiExcludeController, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
+import { PlatformRequest } from '@/common/types/request'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { CustomDbAvailabilityGuard } from '@/dashboard/billing/guards/custom-db-availability.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
@@ -29,19 +30,12 @@ import { IProjectProperties, TProjectProperties } from '@/dashboard/project/mode
 import { ProjectService } from '@/dashboard/project/project.service'
 import { AuthUser } from '@/dashboard/user/decorators/user.decorator'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
-import { NeogmaDataInterceptor } from '@/database/neogma/neogma-data.interceptor'
-import { NeogmaTransactionInterceptor } from '@/database/neogma/neogma-transaction.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { DataInterceptor } from '@/database/interceptors/data.interceptor'
+import { TransactionDecorator } from '@/database/transaction.decorator'
 
 @Controller('projects')
 @ApiExcludeController()
-@UseInterceptors(
-  TransformResponseInterceptor,
-  NotFoundInterceptor,
-  NeogmaDataInterceptor,
-  NeogmaTransactionInterceptor,
-  ChangeCorsInterceptor
-)
+@UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor, ChangeCorsInterceptor)
 export class ProjectController {
   constructor(private readonly projectService: ProjectService) {}
 
@@ -54,10 +48,10 @@ export class ProjectController {
   async createProject(
     @Body() project: CreateProjectDto,
     @AuthUser() { id: userId }: IUserClaims,
-    @Headers() headers,
+    @Request() request: PlatformRequest,
     @TransactionDecorator() transaction: Transaction
   ): Promise<TProjectProperties> {
-    const workspaceId = headers['x-workspace-id']
+    const workspaceId = request.workspaceId
 
     if (!workspaceId) {
       return
@@ -75,10 +69,10 @@ export class ProjectController {
   @HttpCode(HttpStatus.OK)
   async getProjectsList(
     @AuthUser() { id: userId }: IUserClaims,
-    @Headers() headers,
+    @Request() request: PlatformRequest,
     @TransactionDecorator() transaction: Transaction
   ): Promise<ProjectEntity[]> {
-    const workspaceId = headers['x-workspace-id']
+    const workspaceId = request.workspaceId
     return await this.projectService.getProjectsByWorkspaceId(workspaceId, userId, transaction)
   }
 

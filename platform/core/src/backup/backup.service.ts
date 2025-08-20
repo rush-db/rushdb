@@ -1,4 +1,4 @@
-import { CallHandler, ExecutionContext, Injectable } from '@nestjs/common'
+import { CallHandler, ExecutionContext, Injectable, Logger } from '@nestjs/common'
 import axios from 'axios'
 import { Transaction } from 'neo4j-driver'
 import { of } from 'rxjs'
@@ -80,7 +80,7 @@ export class BackupService {
         break // Exit after processing the top-level JSON structure
       }
     }
-    console.log('File processing completed.')
+    Logger.log('File processing completed.')
   }
 
   private async processRelationships({
@@ -92,7 +92,7 @@ export class BackupService {
     projectId: string
     transaction: Transaction
   }): Promise<void> {
-    console.log(`Processing Relationships batch of size: ${batch.length}`)
+    Logger.log(`Processing Relationships batch of size: ${batch.length}`)
     await this.importService.processRelationshipsChunk({ relationsChunk: batch, projectId, transaction })
   }
 
@@ -105,7 +105,7 @@ export class BackupService {
     projectId: string
     transaction: Transaction
   }): Promise<void> {
-    console.log(`Processing Records batch of size: ${batch.length}`)
+    Logger.log(`Processing Records batch of size: ${batch.length}`)
     await this.importService.importRecords({ data: batch, label: '' }, projectId, transaction)
   }
 
