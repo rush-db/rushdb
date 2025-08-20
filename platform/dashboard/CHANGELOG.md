@@ -1,5 +1,16 @@
 # rushdb-dashboard
 
+## 1.11.0
+
+### Minor Changes
+
+- 43109e7: Fix misconfigured identity matching for external databases
+
+### Patch Changes
+
+- Updated dependencies [43109e7]
+  - @rushdb/javascript-sdk@1.11.0
+
 ## 1.10.1
 
 ### Patch Changes
