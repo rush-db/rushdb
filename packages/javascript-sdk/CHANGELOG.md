@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 1.11.1
+
+### Patch Changes
+
+- 00d100b: Fix leaking transactions pool
+
 ## 1.11.0
 
 ### Minor Changes
