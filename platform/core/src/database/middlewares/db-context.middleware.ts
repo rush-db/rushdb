@@ -16,13 +16,11 @@ export class DbContextMiddleware implements NestMiddleware {
     const project = request.project
 
     const localDbConnection = await this.dbConnectionService.getConnection(LOCAL_PROJECT_CONNECTION_LITERAL)
-    request.localDbConnection = localDbConnection
 
     let externalConnection: ConnectionResult
     if (projectId && project?.customDb) {
       try {
         externalConnection = await this.dbConnectionService.getConnection(projectId, project)
-        request.externalDbConnection = externalConnection
       } catch (e) {
         isDevMode(() => Logger.error(`Error obtaining connection for project ${projectId}`, e))
       }

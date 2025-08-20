@@ -24,7 +24,7 @@ import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
 import { User } from '@/dashboard/user/user.entity'
 import { UserService } from '@/dashboard/user/user.service'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { TransactionDecorator } from '@/database/transaction.decorator'
 
 @Controller('auth')
 @ApiExcludeController()

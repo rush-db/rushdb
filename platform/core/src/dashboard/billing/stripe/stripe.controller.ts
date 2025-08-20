@@ -21,7 +21,7 @@ import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-co
 import { AuthUser } from '@/dashboard/user/decorators/user.decorator'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { TransactionDecorator } from '@/database/transaction.decorator'
 
 import { StripeService } from './stripe.service'
 

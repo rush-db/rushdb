@@ -22,7 +22,7 @@ import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
 @Controller('labels')
 @ApiTags('Labels')

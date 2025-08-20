@@ -10,7 +10,7 @@ import { UserModule } from '@/dashboard/user/user.module'
 import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
 import { DbConnectionModule } from '@/database/db-connection/db-connection.module'
 import { DbContextMiddleware } from '@/database/middlewares/db-context.middleware'
-import { SessionAttachMiddleware } from '@/database/session-attach.middleware'
+import { SessionAndTransactionAttachMiddleware } from '@/database/session-and-transaction-attach-middleware.service'
 
 @Module({
   imports: [
@@ -27,6 +27,6 @@ import { SessionAttachMiddleware } from '@/database/session-attach.middleware'
 })
 export class DashboardModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AuthMiddleware, DbContextMiddleware, SessionAttachMiddleware).forRoutes('*')
+    consumer.apply(AuthMiddleware, DbContextMiddleware, SessionAndTransactionAttachMiddleware).forRoutes('*')
   }
 }

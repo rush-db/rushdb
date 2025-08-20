@@ -31,7 +31,7 @@ import { IWorkspaceProperties } from '@/dashboard/workspace/model/workspace.inte
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { TExtendedWorkspaceProperties } from '@/dashboard/workspace/workspace.types'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { TransactionDecorator } from '@/database/transaction.decorator'
 
 @Controller('workspaces')
 @ApiExcludeController()

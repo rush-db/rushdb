@@ -1,12 +1,11 @@
 import { forwardRef, Module } from '@nestjs/common'
 
 import { NeogmaModule } from '@/database/neogma/neogma.module'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
 
 @Module({
   imports: [forwardRef(() => NeogmaModule)],
-  providers: [NeogmaDynamicService, CompositeNeogmaService],
-  exports: [NeogmaDynamicService, CompositeNeogmaService]
+  providers: [NeogmaDynamicService],
+  exports: [NeogmaDynamicService]
 })
 export class NeogmaDynamicModule {}

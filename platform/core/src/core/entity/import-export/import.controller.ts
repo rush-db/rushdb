@@ -19,6 +19,7 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { EntityWriteGuard } from '@/core/entity/entity-write.guard'
+import { TEntityPropertiesNormalized } from '@/core/entity/entity.types'
 import { ImportCsvDto } from '@/core/entity/import-export/dto/import-csv.dto'
 import { ImportJsonDto } from '@/core/entity/import-export/dto/import-json.dto'
 import { ImportService } from '@/core/entity/import-export/import.service'
@@ -26,13 +27,12 @@ import {
   importCsvSchema,
   importJsonSchema
 } from '@/core/entity/import-export/validation/schemas/import.schema'
-import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
+import { TransactionDecorator } from '@/database/transaction.decorator'
 
 @Controller('')
 @ApiTags('Records')

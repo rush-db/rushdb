@@ -55,7 +55,7 @@ export class PlanActiveGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest()
-    const workspaceId = request.workspaceId || request.headers['x-workspace-id']
+    const workspaceId = request.workspaceId
 
     if (!workspaceId) {
       return false

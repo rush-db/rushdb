@@ -24,6 +24,7 @@ import { suggestPropertyType } from '@/core/common/normalizeRecord'
 import { MaybeArray } from '@/core/common/types'
 import { CreateEntityDto } from '@/core/entity/dto/create-entity.dto'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
+import { TEntityPropertiesNormalized } from '@/core/entity/entity.types'
 import { ImportJsonDto } from '@/core/entity/import-export/dto/import-json.dto'
 import {
   TImportOptions,
@@ -32,7 +33,6 @@ import {
   WithId,
   TImportQueue
 } from '@/core/entity/import-export/import.types'
-import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
 import { PropertyDto } from '@/core/property/dto/property.dto'
 import {
   PROPERTY_TYPE_NULL,

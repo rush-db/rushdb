@@ -61,7 +61,7 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest()
-    const workspaceId = request.workspaceId || request.headers['x-workspace-id']
+    const workspaceId = request.workspaceId
 
     const dbContext = dbContextStorage.getStore()
     const externalDbConnection = dbContext.externalConnection
@@ -78,7 +78,11 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
 
     const session = this.neogmaService.createSession('custom-db-write-restriction-guard')
     const transaction = session.beginTransaction()
-    const canProcessRequest = true // await this.isCustomDbOptionEnabled(workspaceId, hasExternalDb, transaction)
+    const canProcessRequest = await this.isCustomDbOptionEnabled(
+      workspaceId,
+      toBoolean(externalDbConnection),
+      transaction
+    )
 
     if (!canProcessRequest) {
       transaction.close().then(() => session.close())

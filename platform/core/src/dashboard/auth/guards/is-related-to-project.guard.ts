@@ -1,56 +1,22 @@
-import { CanActivate, ExecutionContext, Injectable, Logger, mixin } from '@nestjs/common'
-import { Session, Transaction } from 'neo4j-driver'
+import { CanActivate, ExecutionContext, Injectable, mixin } from '@nestjs/common'
+import { Transaction } from 'neo4j-driver'
 
 import { collectValuesByKeysFromObject } from '@/common/utils/collectValuesByKeysFromObject'
-import { isDevMode } from '@/common/utils/isDevMode'
-import { TransactionService } from '@/core/transactions/transaction.service'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
-import { TokenService } from '@/dashboard/token/token.service'
-import { dbContextStorage } from '@/database/db-context'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 
 export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerifyOwnershipConfig) => {
   @Injectable()
   class IsRelatedToProjectMixin implements CanActivate {
-    constructor(
-      readonly tokenService: TokenService,
-      readonly authService: AuthService,
-      readonly neogmaService: NeogmaService,
-      readonly transactionService: TransactionService
-    ) {}
+    constructor(readonly authService: AuthService) {}
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
       const request = context.switchToHttp().getRequest()
-      const txId = request.headers['x-transaction-id']
-
-      const dbContext = dbContextStorage.getStore()
-      const externalDbConnection = dbContext.externalConnection
 
       const projectId = request.projectId
 
-      let transaction: Transaction
-      let session: Session
-
-      let externalSession: Session
-      let externalTransaction: Transaction
-
-      if (!txId && !request.transaction) {
-        session = this.neogmaService.createSession('related-to-project-guard')
-        transaction = session.beginTransaction()
-      } else {
-        const clientTransaction = this.transactionService.getTransaction(txId)
-        transaction = clientTransaction?.transaction ?? request.transaction
-        session = clientTransaction?.session ?? request.session
-      }
-
-      if (externalDbConnection) {
-        isDevMode(() =>
-          Logger.log(`[RTP GUARD]: Custom transaction created for RTP guard for project ${projectId}`)
-        )
-        externalSession = externalDbConnection.driver?.session()
-        externalTransaction = externalSession.beginTransaction()
-      }
+      const transaction: Transaction =
+        request.raw.userDefinedTransaction ?? request.raw.externalTransaction ?? request.raw.transaction
 
       try {
         // @FYI: Records IDS (as they get verified against n.${RUSHDB_KEY_PROJECT_ID} condition
@@ -74,31 +40,13 @@ export const IsRelatedToProjectGuard = (keysToCheck?: string[], config?: TVerify
           otherIdsToVerify.push(candidate)
         }
 
-        const targetTransaction = externalDbConnection ? externalTransaction : transaction
-
         const [recordIdsVerificationResult, otherIdsVerificationResult] = await Promise.all([
-          this.authService.verifyRecordsIds(recordIdsToVerify, projectId, targetTransaction),
-          this.authService.verifyOtherIds(otherIdsToVerify, projectId, config, targetTransaction)
+          this.authService.verifyRecordsIds(recordIdsToVerify, projectId, transaction),
+          this.authService.verifyOtherIds(otherIdsToVerify, projectId, config, transaction)
         ])
-
         return recordIdsVerificationResult && otherIdsVerificationResult
       } catch (e) {
         return false
-      } finally {
-        // Close only if tx was begun locally (in this particular guard)
-        if (!txId) {
-          isDevMode(() => Logger.log('[RTP GUARD]: Close tx and session'))
-
-          await transaction.close()
-          await this.neogmaService.closeSession(session, 'is-related-to-project-guard')
-        }
-
-        if (externalDbConnection && externalTransaction?.isOpen()) {
-          isDevMode(() => Logger.log('[RTP GUARD]: Close custom tx and session'))
-
-          await externalTransaction.close()
-          await externalSession.close()
-        }
       }
     }
   }

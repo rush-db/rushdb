@@ -22,8 +22,8 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { EntityService } from '@/core/entity/entity.service'
-import { TPropertyProperties } from '@/core/property/model/property.interface'
 import { PropertyService } from '@/core/property/property.service'
+import { TPropertyProperties } from '@/core/property/property.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { TSearchSortDirection } from '@/core/search/search.types'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
@@ -31,7 +31,7 @@ import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
 @Controller('properties')
 @ApiTags('Properties')

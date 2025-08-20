@@ -24,7 +24,7 @@ import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-p
 import { CustomDbAvailabilityGuard } from '@/dashboard/billing/guards/custom-db-availability.guard'
 import { PlanActiveGuard } from '@/dashboard/billing/guards/plan-active.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
 @Controller('search')
 @ApiTags('Search')

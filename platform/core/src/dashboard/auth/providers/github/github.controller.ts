@@ -14,7 +14,7 @@ import { GithubOAuthService } from '@/dashboard/auth/providers/github/github.ser
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
 import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { TransactionDecorator } from '@/database/transaction.decorator'
 
 @Controller('auth')
 @ApiExcludeController()

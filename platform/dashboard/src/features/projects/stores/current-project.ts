@@ -51,21 +51,37 @@ export const $currentProject = createAsyncStore({
   deps: [$currentProjectId]
 })
 
-export const $currentProjectFilters = computed([$searchParams], (params: SearchParams) => {
-  if (!('query' in params) || params.query.length < 1) return [] satisfies Filter[]
-
-  return decodeQuery(params.query) as Filter[]
-})
+export const $currentProjectFilters = atom<Filter[]>([])
 
 export const $currentProjectLabels = createAsyncStore({
   key: '$currentProject',
   async fetcher(init) {
     return await api.labels.find({ init })
   },
-  deps: [$currentProjectId]
+  mustHaveDeps: [$currentProjectId]
 })
 
 export const $activeLabels = atom<string[]>([])
+
+$currentProjectId.subscribe(() => {
+  $currentProjectFilters.set([])
+  $activeLabels.set([])
+  $currentProjectRecordsSkip.set(0)
+  $currentProjectRecordsLimit.set(100)
+  $recordsOrderBy.set(undefined)
+  $combineFilters.set('and')
+})
+
+$searchParams.subscribe((value) => {
+  let filters: Filter[]
+  if (!('query' in value) || value.query.length < 1) {
+    filters = [] satisfies Filter[]
+  } else {
+    filters = decodeQuery?.(value.query) as Filter[]
+  }
+  // Workaround to apply filters after project page is loaded and query params isn't empty.
+  setTimeout(() => $currentProjectFilters.set(filters), 10)
+})
 
 export const $filteredRecords = createAsyncStore({
   key: '$projectFilteredRecords',

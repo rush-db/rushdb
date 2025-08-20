@@ -11,7 +11,7 @@ import { ExportService } from '@/core/entity/import-export/export.service'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
 @Controller('')
 @ApiTags('Records')

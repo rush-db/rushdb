@@ -26,7 +26,7 @@ import { IAuthenticatedUser } from '@/dashboard/user/interfaces/authenticated-us
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { UserService } from '@/dashboard/user/user.service'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { TransactionDecorator } from '@/database/transaction.decorator'
 
 import { AuthService } from './auth.service'
 import { LoginDto } from './dto/login.dto'

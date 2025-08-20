@@ -35,8 +35,7 @@ import {
 } from '@/core/common/constants'
 import { prepareProperties } from '@/core/common/normalizeRecord'
 import { EntityWriteGuard } from '@/core/entity/entity-write.guard'
-import { TRecordSearchResult } from '@/core/entity/entity.types'
-import { TEntityPropertiesNormalized } from '@/core/entity/model/entity.interface'
+import { TEntityPropertiesNormalized, TRecordSearchResult } from '@/core/entity/entity.types'
 import { createEntitySchema } from '@/core/entity/validation/schemas/create-entity.schema'
 import { editEntitySchema } from '@/core/entity/validation/schemas/edit-entity.schema'
 import { PropertyService } from '@/core/property/property.service'
@@ -48,7 +47,7 @@ import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-p
 import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
 import { CreateEntityDto } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'

@@ -11,7 +11,7 @@ import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { TransactionDecorator } from '@/database/neogma/transaction.decorator'
+import { TransactionDecorator } from '@/database/transaction.decorator'
 
 @Controller('')
 @UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)

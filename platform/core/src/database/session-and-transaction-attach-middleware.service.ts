@@ -3,13 +3,26 @@ import { NextFunction, Response } from 'express'
 import { Session, Transaction } from 'neo4j-driver'
 
 import { PlatformRequest } from '@/common/types/request'
+import { TransactionService } from '@/core/transactions/transaction.service'
+import { TTransactionObject } from '@/core/transactions/transaction.types'
 import { dbContextStorage } from '@/database/db-context'
 
 @Injectable()
-export class SessionAttachMiddleware implements NestMiddleware {
+export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
+  constructor(private readonly transactionService: TransactionService) {}
+
   async use(request: PlatformRequest, response: Response, next: NextFunction) {
     const dbContext = dbContextStorage.getStore()
     const externalDbConnection = dbContext.externalConnection
+    const txId = <string>request.headers['x-transaction-id']
+
+    let userDefinedTransaction: TTransactionObject
+    if (txId) {
+      userDefinedTransaction = this.transactionService.getTransaction(txId)
+    }
+    if (userDefinedTransaction) {
+      request.userDefinedTransaction = userDefinedTransaction.transaction
+    }
 
     if (externalDbConnection) {
       let session: Session | null = null

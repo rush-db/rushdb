@@ -1,4 +1,4 @@
-import { forwardRef, Global, Module } from '@nestjs/common'
+import { Global, Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { JwtModule } from '@nestjs/jwt'
 
@@ -12,7 +12,6 @@ import { GoogleOAuthService } from '@/dashboard/auth/providers/google/google.ser
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { UserModule } from '@/dashboard/user/user.module'
-import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
 
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
@@ -36,10 +35,7 @@ import { EncryptionService } from './encryption/encryption.service'
     ProjectModule,
     UserModule,
     EntityModule,
-    CaptchaModule,
-
-    //db modules
-    forwardRef(() => NeogmaDynamicModule)
+    CaptchaModule
   ],
   providers: [
     EncryptionService,

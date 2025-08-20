@@ -9,8 +9,6 @@ import { TransactionModule } from '@/core/transactions/transaction.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
-import { DbConnectionModule } from '@/database/db-connection/db-connection.module'
-import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.module'
 
 @Module({
   imports: [
@@ -21,11 +19,7 @@ import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.mo
 
     // Core modules
     forwardRef(() => EntityModule),
-    forwardRef(() => TransactionModule),
-
-    //db modules
-    forwardRef(() => NeogmaDynamicModule),
-    forwardRef(() => DbConnectionModule)
+    forwardRef(() => TransactionModule)
   ],
   providers: [ImportService, ExportService],
   exports: [ImportService, ExportService],

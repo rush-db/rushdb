@@ -31,6 +31,17 @@ export class PropertyQueryService {
     return queryBuilder.getQuery()
   }
 
+  getPropertyQuery() {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder.append(
+      `MATCH (property:${RUSHDB_LABEL_PROPERTY} { id: $propertyId, projectId: $projectId })`
+    )
+    queryBuilder.append(`RETURN property`)
+
+    return queryBuilder.getQuery()
+  }
+
   deletePropertyQuery() {
     const queryBuilder = new QueryBuilder()
 

@@ -3,18 +3,13 @@ import { Transaction } from 'neo4j-driver'
 
 import { DeletePropertyDto } from '@/core/property/dto/delete-property.dto'
 import { PropertyQueryService } from '@/core/property/property-query.service'
+import { TPropertyProperties } from '@/core/property/property.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { TSearchSortDirection } from '@/core/search/search.types'
 
-import { TPropertyProperties } from './model/property.interface'
-import { PropertyRepository } from './model/property.repository'
-
 @Injectable()
 export class PropertyService {
-  constructor(
-    private readonly propertyRepository: PropertyRepository,
-    private readonly propertyQueryService: PropertyQueryService
-  ) {}
+  constructor(private readonly propertyQueryService: PropertyQueryService) {}
 
   async getPropertyValues({
     propertyId,
@@ -97,11 +92,12 @@ export class PropertyService {
     projectId: string
   }) {
     try {
-      const property = await this.propertyRepository.model.findOne({
-        where: { id: propertyId, projectId },
-        throwIfNotFound: true,
-        session: transaction
-      })
+      const property = await transaction
+        .run(this.propertyQueryService.getPropertyQuery(), {
+          propertyId,
+          projectId
+        })
+        .then((res) => res.records[0].get('property')?.properties as TPropertyProperties)
 
       return {
         id: property.id,

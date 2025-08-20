@@ -35,7 +35,7 @@ import { pagination } from '@/core/search/parser/pagination'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
-import { PreferredTransactionDecorator } from '@/database/neogma-dynamic/preferred-transaction.decorator'
+import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
 // @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach
 // for example: { source: { where: { $id: ... } }, target: { where: { $id: ... } }, type?: string }
