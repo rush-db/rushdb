@@ -71,7 +71,6 @@ export const batchDeleteSelected = createMutator({
       ...body
     })
   },
-  invalidates: [$currentProjectLabels, $currentProjectFields, $filteredRecords],
   onSuccess: () => {
     resetRecordsSelection()
     toast({
