@@ -17,3 +17,18 @@ export const deleteRelationsSchema = Joi.object({
     .optional()
     .not('')
 })
+
+export const createRelationsByKeysSchema = Joi.object({
+  source: Joi.object({
+    label: Joi.string().required().not(''),
+    key: Joi.string().required().not(''),
+    where: Joi.object().optional().unknown(true)
+  }).required(),
+  target: Joi.object({
+    label: Joi.string().required().not(''),
+    key: Joi.string().required().not(''),
+    where: Joi.object().optional().unknown(true)
+  }).required(),
+  type: Joi.string().optional().not(''),
+  direction: Joi.string().valid('in', 'out', 'IN', 'OUT').optional()
+})

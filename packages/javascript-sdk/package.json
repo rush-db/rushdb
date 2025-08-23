@@ -51,7 +51,9 @@
     "lint:circularDeps": "madge --circular ./src/*",
     "lint:circularDepsWithImage": "madge --image graph.svg --circular ./src/*"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "dotenv": "^16.0.3"
+  },
   "peerDependencies": {},
   "sideEffects": false,
   "publishConfig": {

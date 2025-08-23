@@ -130,6 +130,38 @@ try {
 }
 ```
 
+### Bulk Relationship Creation by Key Match
+
+Use `relationships.createMany` to create relationships in bulk by matching a key from a source label to a key from a target label. This is useful when you ingest data in batches (e.g., from CSV/JSON) and want to connect records created at different times.
+
+```ts
+// Create USER -[:ORDERED]-> ORDER for all pairs where
+// USER.id = ORDER.userId and both match the given tenant
+await db.relationships.createMany({
+  source: { label: 'USER', key: 'id', where: { tenantId } },
+  target: { label: 'ORDER', key: 'userId', where: { tenantId } },
+  type: 'ORDERED',
+  direction: 'out' // (source) -[:ORDERED]-> (target)
+})
+```
+
+Parameters
+- `source`: Object describing the source side
+  - `label`: Source record label (string)
+  - `key`: Property on the source used for equality match (string)
+  - `where` (optional): Additional filters for source records; same shape as SearchQuery `where`
+- `target`: Object describing the target side
+  - `label`: Target record label (string)
+  - `key`: Property on the target used for equality match (string)
+  - `where` (optional): Additional filters for target records; same shape as SearchQuery `where`
+- `type` (optional): Relationship type. Defaults to the RushDB default type when omitted
+- `direction` (optional): 'in' or 'out'. Defaults to 'out'.
+
+Notes
+- Matching condition is always `source[key] = target[key]` plus any additional `where` constraints.
+- `where` uses the same operators as record search (e.g., plain equality `{ tenantId: 'ACME' }`, or explicit `{ tenantId: 'ACME' }`).
+- Operation can run within a transaction if provided.
+
 ## Removing Relationships
 
 ### Using RushDB's `detach()` Method

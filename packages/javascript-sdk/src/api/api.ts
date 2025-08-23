@@ -639,6 +639,36 @@ export class RestAPI {
    */
   public relationships = {
     /**
+     * Creates many relationships by matching source and target records by keys
+     * @param data - Configuration of source/target match and relation details
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response message
+     */
+    createMany: async (
+      data: {
+        source: { label: string; key: string; where?: AnyObject }
+        target: { label: string; key: string; where?: AnyObject }
+        type?: string
+        direction?: 'in' | 'out'
+      },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/relationships/create-many`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: data ?? {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+    /**
      * Searches for relations matching the query criteria
      * @param searchQuery - Query to identify relations
      * @param transaction - Optional transaction for atomic operations

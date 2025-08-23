@@ -23,6 +23,7 @@ import {
   buildQuery,
   buildQueryClause,
   isOrderByAggregatedField,
+  parseWhereClause,
   sort
 } from '@/core/search/parser/buildQuery'
 import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQueryPart'
@@ -467,6 +468,80 @@ export class EntityQueryService {
       .append(`UNWIND $targetIds AS targetId`)
       .append(`OPTIONAL MATCH ${matchClauses.join(' OPTIONAL MATCH ')}`)
       .append(`DELETE ${deleteClauses.join(', ')}`)
+
+    return queryBuilder.getQuery()
+  }
+
+  createRelationsByKeys({
+    sourceLabel,
+    sourceKey,
+    targetLabel,
+    targetKey,
+    relationType,
+    direction,
+    sourceWhere,
+    targetWhere
+  }: {
+    sourceLabel: string
+    sourceKey: string
+    targetLabel: string
+    targetKey: string
+    relationType?: string
+    direction?: TRelationDirection
+    sourceWhere?: Record<string, any>
+    targetWhere?: Record<string, any>
+  }) {
+    const relType = relationType ? relationType : RUSHDB_RELATION_DEFAULT
+    let arrow = `-[:${relType}]-`
+    if (direction === RELATION_DIRECTION_IN) {
+      arrow = '<' + arrow
+    }
+    if (direction === RELATION_DIRECTION_OUT || !direction) {
+      arrow = arrow + '>'
+    }
+
+    const safeSourceLabel = sourceLabel.replace(/[`\\]/g, '')
+    const safeTargetLabel = targetLabel.replace(/[`\\]/g, '')
+    const safeSourceKey = sourceKey.replace(/[`\\]/g, '')
+    const safeTargetKey = targetKey.replace(/[`\\]/g, '')
+
+    const buildAliasClauses = (whereObj: Record<string, any> | undefined, alias: string) => {
+      if (!whereObj || Object.keys(whereObj).length === 0) {
+        return { first: '', rest: [] as string[] }
+      }
+      const parsed = parseWhereClause(whereObj, { nodeAlias: alias })
+      const sorted = Object.keys(parsed.queryParts)
+        .sort((a, b) => a.localeCompare(b))
+        .map((k) => parsed.queryParts[k])
+      const clauses: string[] = buildQueryClause({ queryParts: sorted })
+      const [first, ...rest] = clauses
+      return { first: first ?? '', rest }
+    }
+
+    const sClauses = buildAliasClauses(sourceWhere as any, 's')
+    const tClauses = buildAliasClauses(targetWhere as any, 't')
+
+    // Prepare pieces for embedding into apoc.periodic.iterate subqueries
+    const sFirst = sClauses.first ? ` ${sClauses.first}` : ''
+    const sRest = sClauses.rest.length ? ` ${sClauses.rest.join(' ')}` : ''
+    const tRest = tClauses.rest.length ? ` ${tClauses.rest.join(' ')}` : ''
+    const tFirstStartsWithWhere = /^\s*WHERE\b/i.test(tClauses.first)
+    const tFirstNoWhere = tFirstStartsWithWhere ? tClauses.first.replace(/^\s*WHERE\s+/i, '') : ''
+    const eqClause = `WHERE s.\`${safeSourceKey}\` = t.\`${safeTargetKey}\``
+    const combinedWhere = tFirstNoWhere ? `${eqClause} AND ${tFirstNoWhere}` : eqClause
+
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append('CALL apoc.periodic.iterate(')
+      .append(
+        `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })${sFirst}${sRest} RETURN s',`
+      )
+      .append(
+        `'WITH s MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest} ${combinedWhere} MERGE (s)${arrow}(t) RETURN count(*)',`
+      )
+      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
+      .append(')')
 
     return queryBuilder.getQuery()
   }

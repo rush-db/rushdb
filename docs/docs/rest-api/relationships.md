@@ -17,6 +17,48 @@ The Relationships API allows you to:
 
 All relationships endpoints require authentication using a token header.
 
+## Create Many Relationships (by key match)
+
+```http
+POST /api/v1/relationships/create-many
+```
+
+Creates relationships in bulk by matching a property from source-labeled records to a property from target-labeled records.
+
+### Request Body
+
+| Field           | Type   | Description                                                                                       |
+|-----------------|--------|---------------------------------------------------------------------------------------------------|
+| `source`        | Object | Source selector: `{ label: string; key: string; where?: object }`                                  |
+| `target`        | Object | Target selector: `{ label: string; key: string; where?: object }`                                  |
+| `type`          | String | Optional. Relationship type to create. Defaults to `__RUSHDB__RELATION__DEFAULT__`                |
+| `direction`     | String | Optional. Relationship direction: `in` or `out`. Defaults to `out`                                |
+
+The matching condition is always `source[key] = target[key]`, combined with optional `where` filters on each side.
+The `where` objects follow the standard SearchQuery `where` syntax used across the platform.
+
+### Example Request
+
+```json
+{
+  "source": { "label": "USER", "key": "id", "where": { "tenantId": "ACME" } },
+  "target": { "label": "ORDER", "key": "userId", "where": { "tenantId": "ACME" } },
+  "type": "ORDERED",
+  "direction": "out"
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Relations have been successfully created"
+  }
+}
+```
+
 ## Create Relationship
 
 ```http

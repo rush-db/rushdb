@@ -153,6 +153,41 @@ response = manager.attach(
 )
 ```
 
+## Bulk Relationship Creation by Key Match
+
+When importing tabular data in separate steps, you can create relationships in bulk by matching a key on the source label to a key on the target label. Use `relationships.create_many` for this.
+
+```python
+# Create USER -[:ORDERED]-> ORDER for all pairs where
+# USER.id = ORDER.userId and both belong to the same tenant
+tenant_id = "ACME"
+
+db.relationships.create_many(
+        source={"label": "USER", "key": "id", "where": {"tenantId": tenant_id}},
+        target={"label": "ORDER", "key": "userId", "where": {"tenantId": tenant_id}},
+        type="ORDERED",
+        direction="out"  # (source) -[:ORDERED]-> (target)
+)
+```
+
+Parameters
+- `source`: Dict describing the source side
+    - `label` (str): Source record label
+    - `key` (str): Property on the source used for equality match
+    - `where` (optional, dict): Additional filters for source records; same shape as SearchQuery `where`
+- `target`: Dict describing the target side
+    - `label` (str): Target record label
+    - `key` (str): Property on the target used for equality match
+    - `where` (optional, dict): Additional filters for target records; same shape as SearchQuery `where`
+- `type` (optional, str): Relationship type. Defaults to the RushDB default type when omitted
+- `direction` (optional, str): 'in' or 'out'. Defaults to 'out'
+- `transaction` (optional): Include to run the operation atomically
+
+Notes
+- The join condition is always `source[key] = target[key]` combined with any additional `where` constraints.
+- `where` follows the same operators as record search (e.g., `{"tenantId": "ACME"}` or `{"tenantId": "ACME"}`).
+- This is efficient for connecting data created in separate imports (e.g., users and orders).
+
 ## Removing Relationships with detach()
 
 You can remove relationships between records without deleting the records themselves using the `detach()` method:

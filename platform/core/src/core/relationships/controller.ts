@@ -28,7 +28,8 @@ import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
 import {
   createRelationSchema,
-  deleteRelationsSchema
+  deleteRelationsSchema,
+  createRelationsByKeysSchema
 } from '@/core/relationships/validation/schemas/relations.schema'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { pagination } from '@/core/search/parser/pagination'
@@ -99,6 +100,34 @@ export class RelationshipsController {
   ): Promise<{ message: string }> {
     const projectId = request.projectId
     return await this.entityService.detach(entityId, detachDto, projectId, transaction)
+  }
+
+  @Post('/create-many')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
+  @HttpCode(HttpStatus.CREATED)
+  async createMany(
+    @Body()
+    body: {
+      source: { label: string; key: string; where?: Record<string, any> }
+      target: { label: string; key: string; where?: Record<string, any> }
+      type?: string
+      direction?: 'IN' | 'OUT' | 'in' | 'out'
+    },
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ): Promise<{ message: string }> {
+    const projectId = request.projectId
+    const normalizedDirection = body.direction?.toLowerCase() as 'in' | 'out' | undefined
+    await this.entityService.createRelationsByKeys({
+      ...body,
+      direction: normalizedDirection,
+      projectId,
+      transaction
+    })
+    return { message: `Relations have been successfully created` }
   }
 
   // @TODO: Remove it in prior of making separate  api

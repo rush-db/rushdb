@@ -267,6 +267,35 @@ export class EntityService {
     }
   }
 
+  async createRelationsByKeys({
+    source,
+    target,
+    type,
+    direction,
+    projectId,
+    transaction
+  }: {
+    source: { label: string; key: string; where?: Record<string, any> }
+    target: { label: string; key: string; where?: Record<string, any> }
+    type?: string
+    direction?: 'in' | 'out'
+    projectId: string
+    transaction: Transaction
+  }): Promise<void> {
+    const query = this.entityQueryService.createRelationsByKeys({
+      sourceLabel: source.label,
+      sourceKey: source.key,
+      targetLabel: target.label,
+      targetKey: target.key,
+      relationType: type,
+      direction: direction === 'in' ? 'in' : 'out',
+      sourceWhere: source.where,
+      targetWhere: target.where
+    })
+
+    await transaction.run(query, { projectId })
+  }
+
   async delete({
     id,
     projectId,
