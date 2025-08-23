@@ -6,6 +6,7 @@ import type {
   DBRecordTarget,
   Relation,
   RelationDetachOptions,
+  RelationDirection,
   RelationOptions,
   RelationTarget
 } from '../sdk/record.js'
@@ -20,7 +21,8 @@ import type {
   PropertyDraft,
   PropertyValuesData,
   Schema,
-  SearchQuery
+  SearchQuery,
+  Where
 } from '../types/index.js'
 import type { ApiResponse } from './types.js'
 
@@ -646,10 +648,10 @@ export class RestAPI {
      */
     createMany: async (
       data: {
-        source: { label: string; key: string; where?: AnyObject }
-        target: { label: string; key: string; where?: AnyObject }
+        source: { label: string; key: string; where?: Where }
+        target: { label: string; key: string; where?: Where }
         type?: string
-        direction?: 'in' | 'out'
+        direction?: RelationDirection
       },
       transaction?: Transaction | string
     ) => {
