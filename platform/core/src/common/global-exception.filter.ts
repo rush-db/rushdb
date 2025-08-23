@@ -7,13 +7,12 @@ import {
   Injectable,
   Logger
 } from '@nestjs/common'
-import { FastifyReply, FastifyRequest } from 'fastify'
+import { FastifyReply } from 'fastify'
 import { Session, Transaction } from 'neo4j-driver'
 
 import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
 import { TransactionService } from '@/core/transactions/transaction.service'
-import e from 'express'
 
 @Injectable()
 @Catch()
@@ -41,7 +40,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       Logger.log('[ROLLBACK TRANSACTION]: Exception filter', JSON.stringify(exception))
     })
 
-    console.log(exception)
     // Helper to safely rollback (if open) and close a transaction
     const finalizeTx = async (label: string, tx?: Transaction) => {
       if (!tx) {
