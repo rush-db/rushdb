@@ -500,10 +500,24 @@ export class EntityQueryService {
       arrow = arrow + '>'
     }
 
-    const safeSourceLabel = sourceLabel.replace(/[`\\]/g, '')
-    const safeTargetLabel = targetLabel.replace(/[`\\]/g, '')
-    const safeSourceKey = sourceKey.replace(/[`\\]/g, '')
-    const safeTargetKey = targetKey.replace(/[`\\]/g, '')
+    // Defensive sanitization for identifiers used in backticked contexts (labels/keys).
+    // Neo4j does not allow parameterizing identifiers, so we strictly filter to a safe subset.
+    const sanitizeNeo4jIdentifier = (value: string) => {
+      if (!value) return ''
+      const normalized = String(value).trim()
+      // Remove backticks and backslashes to prevent breaking out of backticked identifiers
+      const stripped = normalized.replace(/[`\\]/g, '')
+      // Collapse whitespace to underscores
+      const noSpaces = stripped.replace(/\s+/g, '_')
+      // Whitelist: letters, digits, underscore, hyphen. Remove everything else.
+      const safe = noSpaces.replace(/[^A-Za-z0-9_-]/g, '')
+      return safe
+    }
+
+    const safeSourceLabel = sanitizeNeo4jIdentifier(sourceLabel)
+    const safeTargetLabel = sanitizeNeo4jIdentifier(targetLabel)
+    const safeSourceKey = sanitizeNeo4jIdentifier(sourceKey)
+    const safeTargetKey = sanitizeNeo4jIdentifier(targetKey)
 
     const buildAliasClauses = (whereObj: Record<string, any> | undefined, alias: string) => {
       if (!whereObj || Object.keys(whereObj).length === 0) {
