@@ -12,7 +12,7 @@ import {
   RUSHDB_RELATION_DEFAULT,
   DEFAULT_RECORD_ALIAS
 } from '@/core/common/constants'
-import { MaybeArray } from '@/core/common/types'
+import { MaybeArray, Where } from '@/core/common/types'
 import { RELATION_DIRECTION_IN, RELATION_DIRECTION_OUT } from '@/core/entity/entity.constants'
 import { TRelationDirection } from '@/core/entity/entity.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
@@ -488,8 +488,8 @@ export class EntityQueryService {
     targetKey: string
     relationType?: string
     direction?: TRelationDirection
-    sourceWhere?: Record<string, any>
-    targetWhere?: Record<string, any>
+    sourceWhere?: Where
+    targetWhere?: Where
   }) {
     const relType = relationType ? relationType : RUSHDB_RELATION_DEFAULT
     let arrow = `-[:${relType}]-`
@@ -503,11 +503,13 @@ export class EntityQueryService {
     // Defensive sanitization for identifiers used in backticked contexts (labels/keys).
     // Neo4j does not allow parameterizing identifiers, so we strictly filter to a safe subset.
     const sanitizeNeo4jIdentifier = (value: string) => {
-      if (!value) return ''
+      if (!value) {
+        return ''
+      }
       const normalized = String(value).trim()
       // Remove backticks and backslashes to prevent breaking out of backticked identifiers
       const stripped = normalized.replace(/[`\\]/g, '')
-      // Collapse whitespace to underscores
+      // Collapse whitespace to underscore
       const noSpaces = stripped.replace(/\s+/g, '_')
       // Whitelist: letters, digits, underscore, hyphen. Remove everything else.
       const safe = noSpaces.replace(/[^A-Za-z0-9_-]/g, '')
@@ -519,11 +521,11 @@ export class EntityQueryService {
     const safeSourceKey = sanitizeNeo4jIdentifier(sourceKey)
     const safeTargetKey = sanitizeNeo4jIdentifier(targetKey)
 
-    const buildAliasClauses = (whereObj: Record<string, any> | undefined, alias: string) => {
-      if (!whereObj || Object.keys(whereObj).length === 0) {
+    const buildAliasClauses = (where: Where | undefined, alias: string) => {
+      if (!where || Object.keys(where).length === 0) {
         return { first: '', rest: [] as string[] }
       }
-      const parsed = parseWhereClause(whereObj, { nodeAlias: alias })
+      const parsed = parseWhereClause(where, { nodeAlias: alias })
       const sorted = Object.keys(parsed.queryParts)
         .sort((a, b) => a.localeCompare(b))
         .map((k) => parsed.queryParts[k])
@@ -532,8 +534,8 @@ export class EntityQueryService {
       return { first: first ?? '', rest }
     }
 
-    const sClauses = buildAliasClauses(sourceWhere as any, 's')
-    const tClauses = buildAliasClauses(targetWhere as any, 't')
+    const sClauses = buildAliasClauses(sourceWhere, 's')
+    const tClauses = buildAliasClauses(targetWhere, 't')
 
     // Prepare pieces for embedding into apoc.periodic.iterate subqueries
     const sFirst = sClauses.first ? ` ${sClauses.first}` : ''

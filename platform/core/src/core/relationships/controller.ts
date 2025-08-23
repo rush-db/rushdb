@@ -22,8 +22,9 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
+import { Where } from '@/core/common/types'
 import { EntityService } from '@/core/entity/entity.service'
-import { TRecordRelationsResponse } from '@/core/entity/entity.types'
+import { TRecordRelationsResponse, TRelationDirection } from '@/core/entity/entity.types'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
 import {
@@ -111,16 +112,16 @@ export class RelationshipsController {
   async createMany(
     @Body()
     body: {
-      source: { label: string; key: string; where?: Record<string, any> }
-      target: { label: string; key: string; where?: Record<string, any> }
+      source: { label: string; key: string; where?: Where }
+      target: { label: string; key: string; where?: Where }
       type?: string
-      direction?: 'IN' | 'OUT' | 'in' | 'out'
+      direction?: TRelationDirection
     },
     @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
-    const normalizedDirection = body.direction?.toLowerCase() as 'in' | 'out' | undefined
+    const normalizedDirection = body.direction?.toLowerCase() as TRelationDirection | undefined
     await this.entityService.createRelationsByKeys({
       ...body,
       direction: normalizedDirection,

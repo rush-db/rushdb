@@ -4,8 +4,13 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
+import { Where } from '@/core/common/types'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
-import { TEntityPropertiesNormalized, TRecordRelationsResponse } from '@/core/entity/entity.types'
+import {
+  TEntityPropertiesNormalized,
+  TRecordRelationsResponse,
+  TRelationDirection
+} from '@/core/entity/entity.types'
 import { PropertyService } from '@/core/property/property.service'
 import { TPropertyProperties } from '@/core/property/property.types'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
@@ -275,10 +280,10 @@ export class EntityService {
     projectId,
     transaction
   }: {
-    source: { label: string; key: string; where?: Record<string, any> }
-    target: { label: string; key: string; where?: Record<string, any> }
+    source: { label: string; key: string; where?: Where }
+    target: { label: string; key: string; where?: Where }
     type?: string
-    direction?: 'in' | 'out'
+    direction?: TRelationDirection
     projectId: string
     transaction: Transaction
   }): Promise<void> {

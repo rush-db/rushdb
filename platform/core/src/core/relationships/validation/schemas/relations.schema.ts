@@ -30,5 +30,5 @@ export const createRelationsByKeysSchema = Joi.object({
     where: Joi.object().optional().unknown(true)
   }).required(),
   type: Joi.string().optional().not(''),
-  direction: Joi.string().valid('in', 'out', 'IN', 'OUT').optional()
+  direction: Joi.string().valid('in', 'out').optional()
 })
