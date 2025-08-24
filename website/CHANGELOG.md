@@ -1,5 +1,16 @@
 # rushdb-website
 
+## 1.12.0
+
+### Minor Changes
+
+- bd84662: Create many relationships by key(s)
+
+### Patch Changes
+
+- Updated dependencies [bd84662]
+  - @rushdb/javascript-sdk@1.12.0
+
 ## 1.11.1
 
 ### Patch Changes
