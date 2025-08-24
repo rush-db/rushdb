@@ -225,8 +225,8 @@ export const GraphView = () => {
           width={dims.w}
           height={dims.h}
           nodeId="id"
-          linkTarget="id"
-          linkSource="id"
+          linkTarget="target"
+          linkSource="source"
           linkColor={linkColor}
           onNodeDragEnd={(node: NodeObject) => {
             node.fx = node.x
