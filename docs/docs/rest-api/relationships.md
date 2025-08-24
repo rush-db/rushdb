@@ -29,13 +29,20 @@ Creates relationships in bulk by matching a property from source-labeled records
 
 | Field           | Type   | Description                                                                                       |
 |-----------------|--------|---------------------------------------------------------------------------------------------------|
-| `source`        | Object | Source selector: `{ label: string; key: string; where?: object }`                                  |
-| `target`        | Object | Target selector: `{ label: string; key: string; where?: object }`                                  |
+| `source`        | Object | Source selector: `{ label: string; key?: string; where?: object }` — `key` is required unless using `manyToMany` |
+| `target`        | Object | Target selector: `{ label: string; key?: string; where?: object }` — `key` is required unless using `manyToMany` |
 | `type`          | String | Optional. Relationship type to create. Defaults to `__RUSHDB__RELATION__DEFAULT__`                |
 | `direction`     | String | Optional. Relationship direction: `in` or `out`. Defaults to `out`                                |
+| `manyToMany`    | Boolean| Optional. When true, allows creating a cartesian product between matched source and target sets. Requires non-empty `where` on both sides. |
 
 The matching condition is always `source[key] = target[key]`, combined with optional `where` filters on each side.
 The `where` objects follow the standard SearchQuery `where` syntax used across the platform.
+
+Notes on many-to-many/cartesian creation
+
+- If `manyToMany` is set to `true`, the server will not require `source.key`/`target.key` and will create relationships between every matching source and every matching target produced by the `where` filters.
+- `manyToMany=true` requires non-empty `where` filters for both `source` and `target` to avoid accidental unbounded cartesian products.
+- When `manyToMany` is not provided or is false, `source.key` and `target.key` are required and the server joins with `source[key] = target[key]`.
 
 ### Example Request
 

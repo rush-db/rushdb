@@ -112,10 +112,11 @@ export class RelationshipsController {
   async createMany(
     @Body()
     body: {
-      source: { label: string; key: string; where?: Where }
-      target: { label: string; key: string; where?: Where }
+      source: { label: string; key?: string; where?: Where }
+      target: { label: string; key?: string; where?: Where }
       type?: string
       direction?: TRelationDirection
+      manyToMany?: boolean
     },
     @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
@@ -126,7 +127,8 @@ export class RelationshipsController {
       ...body,
       direction: normalizedDirection,
       projectId,
-      transaction
+      transaction,
+      manyToMany: body.manyToMany
     })
     return { message: `Relations have been successfully created` }
   }

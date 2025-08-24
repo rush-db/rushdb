@@ -278,14 +278,16 @@ export class EntityService {
     type,
     direction,
     projectId,
-    transaction
+    transaction,
+    manyToMany
   }: {
-    source: { label: string; key: string; where?: Where }
-    target: { label: string; key: string; where?: Where }
+    source: { label: string; key?: string; where?: Where }
+    target: { label: string; key?: string; where?: Where }
     type?: string
     direction?: TRelationDirection
     projectId: string
     transaction: Transaction
+    manyToMany?: boolean
   }): Promise<void> {
     const query = this.entityQueryService.createRelationsByKeys({
       sourceLabel: source.label,
@@ -295,7 +297,8 @@ export class EntityService {
       relationType: type,
       direction: direction === 'in' ? 'in' : 'out',
       sourceWhere: source.where,
-      targetWhere: target.where
+      targetWhere: target.where,
+      manyToMany
     })
 
     await transaction.run(query, { projectId })

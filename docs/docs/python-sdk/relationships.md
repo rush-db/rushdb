@@ -188,6 +188,40 @@ Notes
 - `where` follows the same operators as record search (e.g., `{"tenantId": "ACME"}` or `{"tenantId": "ACME"}`).
 - This is efficient for connecting data created in separate imports (e.g., users and orders).
 
+Many-to-many (cartesian) creation
+
+If you omit `key` on both `source` and `target` you can opt-in to a many-to-many (cartesian) creation by passing `many_to_many=True`. This will create relationships between every matching source and every matching target produced by the provided `where` filters.
+
+Important safeguards
+
+- `many_to_many=True` requires non-empty `where` filters for both `source` and `target` to avoid accidentally creating an unbounded cartesian product.
+- By default (when `many_to_many` is omitted or false) the server requires `source["key"]` and `target["key"]` to be provided and will join using `source[key] = target[key]`.
+- Many-to-many operations can create large numbers of relationships and may be expensive; use specific filters and limits in your `where` clauses.
+
+Example: key-based join (same as above)
+
+```python
+db.relationships.create_many(
+    source={"label": "USER", "key": "id", "where": {"tenantId": tenant_id}},
+    target={"label": "ORDER", "key": "userId", "where": {"tenantId": tenant_id}},
+    type="ORDERED",
+    direction="out"
+)
+```
+
+Example: explicit many-to-many (cartesian) creation — opt-in
+
+```python
+# Create every USER_MTM × TAG_MTM link where tenantId matches
+db.relationships.create_many(
+    source={"label": "USER_MTM", "where": {"tenantId": tenant_id}},
+    target={"label": "TAG_MTM", "where": {"tenantId": tenant_id}},
+    type="HAS_TAG",
+    direction="out",
+    many_to_many=True
+)
+```
+
 ## Removing Relationships with detach()
 
 You can remove relationships between records without deleting the records themselves using the `detach()` method:

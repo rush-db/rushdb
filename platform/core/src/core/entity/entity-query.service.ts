@@ -480,7 +480,8 @@ export class EntityQueryService {
     relationType,
     direction,
     sourceWhere,
-    targetWhere
+    targetWhere,
+    manyToMany
   }: {
     sourceLabel: string
     sourceKey: string
@@ -490,6 +491,7 @@ export class EntityQueryService {
     direction?: TRelationDirection
     sourceWhere?: Where
     targetWhere?: Where
+    manyToMany?: boolean
   }) {
     const relType = relationType ? relationType : RUSHDB_RELATION_DEFAULT
     let arrow = `-[:${relType}]-`
@@ -543,8 +545,33 @@ export class EntityQueryService {
     const tRest = tClauses.rest.length ? ` ${tClauses.rest.join(' ')}` : ''
     const tFirstStartsWithWhere = /^\s*WHERE\b/i.test(tClauses.first)
     const tFirstNoWhere = tFirstStartsWithWhere ? tClauses.first.replace(/^\s*WHERE\s+/i, '') : ''
-    const eqClause = `WHERE s.\`${safeSourceKey}\` = t.\`${safeTargetKey}\``
-    const combinedWhere = tFirstNoWhere ? `${eqClause} AND ${tFirstNoWhere}` : eqClause
+
+    const hasSourceWhere = sourceWhere && Object.keys(sourceWhere).length > 0
+    const hasTargetWhere = targetWhere && Object.keys(targetWhere).length > 0
+    const hasJoinKeys = Boolean(safeSourceKey && safeTargetKey)
+
+    // Safeguards
+    if (manyToMany) {
+      if (!hasSourceWhere || !hasTargetWhere) {
+        throw new Error(
+          'manyToMany requires non-empty `where` filters for both source and target to avoid cartesian explosion'
+        )
+      }
+    } else {
+      if (!hasJoinKeys) {
+        throw new Error('source.key and target.key are required unless manyToMany=true')
+      }
+    }
+
+    // Build combined WHERE depending on whether join keys exist.
+    let combinedWhere = ''
+    if (hasJoinKeys) {
+      const eqClause = `s.\`${safeSourceKey}\` = t.\`${safeTargetKey}\``
+      combinedWhere = tFirstNoWhere ? `WHERE ${eqClause} AND ${tFirstNoWhere}` : `WHERE ${eqClause}`
+    } else {
+      // manyToMany path: rely solely on target's where (already required to be non-empty)
+      combinedWhere = tFirstNoWhere ? `WHERE ${tFirstNoWhere}` : ''
+    }
 
     const queryBuilder = new QueryBuilder()
 

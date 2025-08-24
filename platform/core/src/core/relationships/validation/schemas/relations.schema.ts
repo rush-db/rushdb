@@ -19,16 +19,34 @@ export const deleteRelationsSchema = Joi.object({
 })
 
 export const createRelationsByKeysSchema = Joi.object({
-  source: Joi.object({
-    label: Joi.string().required().not(''),
-    key: Joi.string().required().not(''),
-    where: Joi.object().optional().unknown(true)
-  }).required(),
-  target: Joi.object({
-    label: Joi.string().required().not(''),
-    key: Joi.string().required().not(''),
-    where: Joi.object().optional().unknown(true)
-  }).required(),
+  // Two allowed shapes:
+  // 1) Key-based join: both source.key and target.key provided
+  // 2) Many-to-many: keys omitted but manyToMany=true and both sides must provide non-empty `where` filters
+  source: Joi.alternatives().try(
+    Joi.object({
+      label: Joi.string().required().not(''),
+      key: Joi.string().required().not(''),
+      where: Joi.object().optional().unknown(true)
+    }).required(),
+    Joi.object({
+      label: Joi.string().required().not(''),
+      key: Joi.string().optional().allow('', null),
+      where: Joi.object().min(1).required().unknown(true)
+    }).required()
+  ),
+  target: Joi.alternatives().try(
+    Joi.object({
+      label: Joi.string().required().not(''),
+      key: Joi.string().required().not(''),
+      where: Joi.object().optional().unknown(true)
+    }).required(),
+    Joi.object({
+      label: Joi.string().required().not(''),
+      key: Joi.string().optional().allow('', null),
+      where: Joi.object().min(1).required().unknown(true)
+    }).required()
+  ),
   type: Joi.string().optional().not(''),
-  direction: Joi.string().valid('in', 'out').optional()
+  direction: Joi.string().valid('in', 'out', 'IN', 'OUT').optional(),
+  manyToMany: Joi.boolean().optional()
 })

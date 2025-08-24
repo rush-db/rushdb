@@ -648,10 +648,11 @@ export class RestAPI {
      */
     createMany: async (
       data: {
-        source: { label: string; key: string; where?: Where }
-        target: { label: string; key: string; where?: Where }
+        source: { label: string; key?: string; where?: Where }
+        target: { label: string; key?: string; where?: Where }
         type?: string
         direction?: RelationDirection
+        manyToMany?: boolean
       },
       transaction?: Transaction | string
     ) => {
