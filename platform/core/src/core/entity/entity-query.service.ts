@@ -601,9 +601,9 @@ export class EntityQueryService {
     manyToMany
   }: {
     sourceLabel: string
-    sourceKey: string
+    sourceKey?: string
     targetLabel: string
-    targetKey: string
+    targetKey?: string
     relationType?: string
     direction?: TRelationDirection
     sourceWhere?: Where
