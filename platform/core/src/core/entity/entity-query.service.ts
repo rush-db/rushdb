@@ -3,14 +3,14 @@ import { Injectable } from '@nestjs/common'
 import { isArray } from '@/common/utils/isArray'
 import { toBoolean } from '@/common/utils/toBolean'
 import {
+  DEFAULT_RECORD_ALIAS,
   RUSHDB_KEY_ID,
-  RUSHDB_LABEL_PROPERTY,
   RUSHDB_KEY_PROJECT_ID,
   RUSHDB_KEY_PROPERTIES_META,
+  RUSHDB_LABEL_PROPERTY,
   RUSHDB_LABEL_RECORD,
-  RUSHDB_RELATION_VALUE,
   RUSHDB_RELATION_DEFAULT,
-  DEFAULT_RECORD_ALIAS
+  RUSHDB_RELATION_VALUE
 } from '@/core/common/constants'
 import { MaybeArray, Where } from '@/core/common/types'
 import { RELATION_DIRECTION_IN, RELATION_DIRECTION_OUT } from '@/core/entity/entity.constants'
@@ -472,7 +472,17 @@ export class EntityQueryService {
     return queryBuilder.getQuery()
   }
 
-  createRelationsByKeys({
+  sanitizeNeo4jIdentifier(value: string) {
+    if (!value) {
+      return ''
+    }
+    const normalized = String(value).trim()
+    const stripped = normalized.replace(/[`\\]/g, '')
+    const noSpaces = stripped.replace(/\s+/g, '_')
+    return noSpaces.replace(/[^A-Za-z0-9_-]/g, '')
+  }
+
+  constructRelationshipQueryArguments({
     sourceLabel,
     sourceKey,
     targetLabel,
@@ -484,9 +494,9 @@ export class EntityQueryService {
     manyToMany
   }: {
     sourceLabel: string
-    sourceKey: string
+    sourceKey?: string
     targetLabel: string
-    targetKey: string
+    targetKey?: string
     relationType?: string
     direction?: TRelationDirection
     sourceWhere?: Where
@@ -494,17 +504,13 @@ export class EntityQueryService {
     manyToMany?: boolean
   }) {
     const relType = relationType ? relationType : RUSHDB_RELATION_DEFAULT
-    let arrow = `-[:${relType}]-`
+    let relPattern = `-[rel:${relType}]-`
     if (direction === RELATION_DIRECTION_IN) {
-      arrow = '<' + arrow
+      relPattern = '<' + relPattern
     }
     if (direction === RELATION_DIRECTION_OUT || !direction) {
-      arrow = arrow + '>'
+      relPattern = relPattern + '>'
     }
-
-    // Defensive sanitization for identifiers used in backticked contexts (labels/keys).
-    // Neo4j does not allow parameterizing identifiers, so we strictly filter to a safe subset.
-    // Use the class private method for sanitization.
 
     const safeSourceLabel = this.sanitizeNeo4jIdentifier(sourceLabel)
     const safeTargetLabel = this.sanitizeNeo4jIdentifier(targetLabel)
@@ -561,33 +567,10 @@ export class EntityQueryService {
       combinedWhere = tFirstNoWhere ? `WHERE ${tFirstNoWhere}` : ''
     }
 
-    const queryBuilder = new QueryBuilder()
-
-    queryBuilder
-      .append('CALL apoc.periodic.iterate(')
-      .append(
-        `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })${sFirst}${sRest} RETURN s',`
-      )
-      .append(
-        `'WITH s MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest} ${combinedWhere} MERGE (s)${arrow}(t) RETURN count(*)',`
-      )
-      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
-      .append(')')
-
-    return queryBuilder.getQuery()
+    return { combinedWhere, safeSourceLabel, safeTargetLabel, sFirst, sRest, tRest, relPattern }
   }
 
-  deleteRelationsByKeys({
-    sourceLabel,
-    sourceKey,
-    targetLabel,
-    targetKey,
-    relationType,
-    direction,
-    sourceWhere,
-    targetWhere,
-    manyToMany
-  }: {
+  createRelationsByKeys(payload: {
     sourceLabel: string
     sourceKey?: string
     targetLabel: string
@@ -598,82 +581,38 @@ export class EntityQueryService {
     targetWhere?: Where
     manyToMany?: boolean
   }) {
-    const relType = relationType ? relationType : RUSHDB_RELATION_DEFAULT
-    // Build a relation pattern with variable name for deletion
-    let relPattern = `-[rel:${relType}]-`
-    if (direction === RELATION_DIRECTION_IN) {
-      relPattern = '<' + relPattern
-    }
-    if (direction === RELATION_DIRECTION_OUT || !direction) {
-      relPattern = relPattern + '>'
-    }
+    const { safeSourceLabel, safeTargetLabel, combinedWhere, sFirst, sRest, tRest, relPattern } =
+      this.constructRelationshipQueryArguments(payload)
 
-    // Defensive sanitization for identifiers used in backticked contexts (labels/keys).
-    const sanitizeNeo4jIdentifier = (value: string) => {
-      if (!value) {
-        return ''
-      }
-      const normalized = String(value).trim()
-      const stripped = normalized.replace(/[`\\]/g, '')
-      const noSpaces = stripped.replace(/\s+/g, '_')
-      const safe = noSpaces.replace(/[^A-Za-z0-9_-]/g, '')
-      return safe
-    }
+    const queryBuilder = new QueryBuilder()
 
-    const safeSourceLabel = sanitizeNeo4jIdentifier(sourceLabel)
-    const safeTargetLabel = sanitizeNeo4jIdentifier(targetLabel)
-    const safeSourceKey = sanitizeNeo4jIdentifier(sourceKey)
-    const safeTargetKey = sanitizeNeo4jIdentifier(targetKey)
+    queryBuilder
+      .append('CALL apoc.periodic.iterate(')
+      .append(
+        `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })${sFirst}${sRest} RETURN s',`
+      )
+      .append(
+        `'WITH s MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest} ${combinedWhere} MERGE (s)${relPattern}(t) RETURN count(*)',`
+      )
+      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
+      .append(')')
 
-    const buildAliasClauses = (where: Where | undefined, alias: string) => {
-      if (!where || Object.keys(where).length === 0) {
-        return { first: '', rest: [] as string[] }
-      }
-      const parsed = parseWhereClause(where, { nodeAlias: alias })
-      const sorted = Object.keys(parsed.queryParts)
-        .sort((a, b) => a.localeCompare(b))
-        .map((k) => parsed.queryParts[k])
-      const clauses: string[] = buildQueryClause({ queryParts: sorted })
-      const [first, ...rest] = clauses
-      return { first: first ?? '', rest }
-    }
+    return queryBuilder.getQuery()
+  }
 
-    const sClauses = buildAliasClauses(sourceWhere, 's')
-    const tClauses = buildAliasClauses(targetWhere, 't')
-
-    // Prepare pieces for embedding into apoc.periodic.iterate subqueries
-    const sFirst = sClauses.first ? ` ${sClauses.first}` : ''
-    const sRest = sClauses.rest.length ? ` ${sClauses.rest.join(' ')}` : ''
-    const tRest = tClauses.rest.length ? ` ${tClauses.rest.join(' ')}` : ''
-    const tFirstStartsWithWhere = /^\s*WHERE\b/i.test(tClauses.first)
-    const tFirstNoWhere = tFirstStartsWithWhere ? tClauses.first.replace(/^\s*WHERE\s+/i, '') : ''
-
-    const hasSourceWhere = sourceWhere && Object.keys(sourceWhere).length > 0
-    const hasTargetWhere = targetWhere && Object.keys(targetWhere).length > 0
-    const hasJoinKeys = Boolean(safeSourceKey && safeTargetKey)
-
-    // Safeguards
-    if (manyToMany) {
-      if (!hasSourceWhere || !hasTargetWhere) {
-        throw new Error(
-          'manyToMany requires non-empty `where` filters for both source and target to avoid cartesian explosion'
-        )
-      }
-    } else {
-      if (!hasJoinKeys) {
-        throw new Error('source.key and target.key are required unless manyToMany=true')
-      }
-    }
-
-    // Build combined WHERE depending on whether join keys exist.
-    let combinedWhere = ''
-    if (hasJoinKeys) {
-      const eqClause = `s.\`${safeSourceKey}\` = t.\`${safeTargetKey}\``
-      combinedWhere = tFirstNoWhere ? `WHERE ${eqClause} AND ${tFirstNoWhere}` : `WHERE ${eqClause}`
-    } else {
-      // manyToMany path: rely solely on target's where (already required to be non-empty)
-      combinedWhere = tFirstNoWhere ? `WHERE ${tFirstNoWhere}` : ''
-    }
+  deleteRelationsByKeys(payload: {
+    sourceLabel: string
+    sourceKey?: string
+    targetLabel: string
+    targetKey?: string
+    relationType?: string
+    direction?: TRelationDirection
+    sourceWhere?: Where
+    targetWhere?: Where
+    manyToMany?: boolean
+  }) {
+    const { safeSourceLabel, safeTargetLabel, combinedWhere, sFirst, sRest, tRest, relPattern } =
+      this.constructRelationshipQueryArguments(payload)
 
     const queryBuilder = new QueryBuilder()
 
