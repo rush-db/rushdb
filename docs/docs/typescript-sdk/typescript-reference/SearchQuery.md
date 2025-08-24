@@ -284,7 +284,7 @@ const users = await UserModel.find({
   where: {
     Post: {
       $relation: { type: 'AUTHORED' },
-      title: { $eq: 'My First Post' }
+      title: 'My First Post'
     }
   }
 });

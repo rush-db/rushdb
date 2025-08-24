@@ -198,7 +198,7 @@ function Projects() {
       <Header />
 
       <PageContent contained>
-        <div className="flex flex-1 flex-col gap-5 pb-10">
+        <div className="grid grid-cols-1 gap-5 pb-10 lg:grid-cols-2">
           <ProjectsCards />
         </div>
       </PageContent>

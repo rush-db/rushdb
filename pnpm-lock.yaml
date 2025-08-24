@@ -144,7 +144,11 @@ importers:
         specifier: 5.7.2
         version: 5.7.2
 
-  packages/javascript-sdk: {}
+  packages/javascript-sdk:
+    devDependencies:
+      dotenv:
+        specifier: ^16.0.3
+        version: 16.0.3
 
   platform/core:
     dependencies:

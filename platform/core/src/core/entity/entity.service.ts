@@ -4,8 +4,13 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
+import { Where } from '@/core/common/types'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
-import { TEntityPropertiesNormalized, TRecordRelationsResponse } from '@/core/entity/entity.types'
+import {
+  TEntityPropertiesNormalized,
+  TRecordRelationsResponse,
+  TRelationDirection
+} from '@/core/entity/entity.types'
 import { PropertyService } from '@/core/property/property.service'
 import { TPropertyProperties } from '@/core/property/property.types'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
@@ -265,6 +270,70 @@ export class EntityService {
     return {
       message: `Relations to Record ${entityId} have been successfully deleted`
     }
+  }
+
+  async createRelationsByKeys({
+    source,
+    target,
+    type,
+    direction,
+    projectId,
+    transaction,
+    manyToMany
+  }: {
+    source: { label: string; key?: string; where?: Where }
+    target: { label: string; key?: string; where?: Where }
+    type?: string
+    direction?: TRelationDirection
+    projectId: string
+    transaction: Transaction
+    manyToMany?: boolean
+  }): Promise<void> {
+    const query = this.entityQueryService.createRelationsByKeys({
+      sourceLabel: source.label,
+      sourceKey: source.key,
+      targetLabel: target.label,
+      targetKey: target.key,
+      relationType: type,
+      direction: direction === 'in' ? 'in' : 'out',
+      sourceWhere: source.where,
+      targetWhere: target.where,
+      manyToMany
+    })
+
+    await transaction.run(query, { projectId })
+  }
+
+  async deleteRelationsByKeys({
+    source,
+    target,
+    type,
+    direction,
+    projectId,
+    transaction,
+    manyToMany
+  }: {
+    source: { label: string; key?: string; where?: Where }
+    target: { label: string; key?: string; where?: Where }
+    type?: string
+    direction?: TRelationDirection
+    projectId: string
+    transaction: Transaction
+    manyToMany?: boolean
+  }): Promise<void> {
+    const query = this.entityQueryService.deleteRelationsByKeys({
+      sourceLabel: source.label,
+      sourceKey: source.key,
+      targetLabel: target.label,
+      targetKey: target.key,
+      relationType: type,
+      direction: direction === 'in' ? 'in' : 'out',
+      sourceWhere: source.where,
+      targetWhere: target.where,
+      manyToMany
+    })
+
+    await transaction.run(query, { projectId })
   }
 
   async delete({
