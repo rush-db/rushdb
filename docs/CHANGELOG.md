@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 1.12.0
+
+### Minor Changes
+
+- bd84662: Create many relationships by key(s)
+
 ## 1.11.1
 
 ### Patch Changes
