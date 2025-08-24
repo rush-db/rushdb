@@ -101,7 +101,6 @@ export class RelationshipsController {
 
   // @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach
   // for example: { source: { where: { $id: ... } }, target: { where: { $id: ... } }, type?: string }
-  // no direction would be needed with this approach as we explicitly defining source & target
   @Post('/create-many')
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
