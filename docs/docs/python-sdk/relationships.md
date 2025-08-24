@@ -153,6 +153,104 @@ response = manager.attach(
 )
 ```
 
+## Bulk Relationship Creation by Key Match
+
+When importing tabular data in separate steps, you can create relationships in bulk by matching a key on the source label to a key on the target label. Use `relationships.create_many` for this.
+
+```python
+# Create USER -[:ORDERED]-> ORDER for all pairs where
+# USER.id = ORDER.userId and both belong to the same tenant
+tenant_id = "ACME"
+
+db.relationships.create_many(
+        source={"label": "USER", "key": "id", "where": {"tenantId": tenant_id}},
+        target={"label": "ORDER", "key": "userId", "where": {"tenantId": tenant_id}},
+        type="ORDERED",
+        direction="out"  # (source) -[:ORDERED]-> (target)
+)
+```
+
+Parameters
+- `source`: Dict describing the source side
+    - `label` (str): Source record label
+    - `key` (str): Property on the source used for equality match
+    - `where` (optional, dict): Additional filters for source records; same shape as SearchQuery `where`
+- `target`: Dict describing the target side
+    - `label` (str): Target record label
+    - `key` (str): Property on the target used for equality match
+    - `where` (optional, dict): Additional filters for target records; same shape as SearchQuery `where`
+- `type` (optional, str): Relationship type. Defaults to the RushDB default type when omitted
+- `direction` (optional, str): 'in' or 'out'. Defaults to 'out'
+- `transaction` (optional): Include to run the operation atomically
+
+Notes
+- The join condition is always `source[key] = target[key]` combined with any additional `where` constraints.
+- `where` follows the same operators as record search (e.g., `{"tenantId": "ACME"}` or `{"tenantId": "ACME"}`).
+- This is efficient for connecting data created in separate imports (e.g., users and orders).
+
+Many-to-many (cartesian) creation
+
+If you omit `key` on both `source` and `target` you can opt-in to a many-to-many (cartesian) creation by passing `many_to_many=True`. This will create relationships between every matching source and every matching target produced by the provided `where` filters.
+
+Important safeguards
+
+- `many_to_many=True` requires non-empty `where` filters for both `source` and `target` to avoid accidentally creating an unbounded cartesian product.
+- By default (when `many_to_many` is omitted or false) the server requires `source["key"]` and `target["key"]` to be provided and will join using `source[key] = target[key]`.
+- Many-to-many operations can create large numbers of relationships and may be expensive; use specific filters and limits in your `where` clauses.
+
+Example: key-based join (same as above)
+
+```python
+db.relationships.create_many(
+    source={"label": "USER", "key": "id", "where": {"tenantId": tenant_id}},
+    target={"label": "ORDER", "key": "userId", "where": {"tenantId": tenant_id}},
+    type="ORDERED",
+    direction="out"
+)
+```
+
+Example: explicit many-to-many (cartesian) creation — opt-in
+
+```python
+# Create every USER_MTM × TAG_MTM link where tenantId matches
+db.relationships.create_many(
+    source={"label": "USER_MTM", "where": {"tenantId": tenant_id}},
+    target={"label": "TAG_MTM", "where": {"tenantId": tenant_id}},
+    type="HAS_TAG",
+    direction="out",
+    many_to_many=True
+)
+```
+
+Deleting relationships in bulk
+
+The API also supports deleting relationships created by a matching condition. Use `relationships.delete_many` with the same arguments as `create_many` to remove relationships in bulk.
+
+Examples mirror the creation API:
+
+Key-based deletion
+
+```python
+db.relationships.delete_many(
+    source={"label": "USER", "key": "id", "where": {"tenantId": tenant_id}},
+    target={"label": "ORDER", "key": "userId", "where": {"tenantId": tenant_id}},
+    type="ORDERED",
+    direction="out"
+)
+```
+
+Many-to-many deletion
+
+```python
+db.relationships.delete_many(
+    source={"label": "USER_MTM", "where": {"tenantId": tenant_id}},
+    target={"label": "TAG_MTM", "where": {"tenantId": tenant_id}},
+    type="HAS_TAG",
+    direction="out",
+    many_to_many=True
+)
+```
+
 ## Removing Relationships with detach()
 
 You can remove relationships between records without deleting the records themselves using the `detach()` method:

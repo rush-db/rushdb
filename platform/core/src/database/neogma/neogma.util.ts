@@ -11,11 +11,11 @@ export const createInstance = async (config: INeogmaConfig): Promise<Neogma> => 
       password: config.password
     },
     {
-      maxConnectionPoolSize: 0,
-      logging: {
-        level: 'debug',
-        logger: (level, message) => Logger.debug(new Date().toISOString() + ': ' + level + ' ' + message)
-      }
+      maxConnectionPoolSize: 0
+      // logging: {
+      //   level: 'debug',
+      //   logger: (level, message) => Logger.debug(new Date().toISOString() + ': ' + level + ' ' + message)
+      // }
     }
   )
 }

@@ -6,6 +6,7 @@ import type {
   DBRecordTarget,
   Relation,
   RelationDetachOptions,
+  RelationDirection,
   RelationOptions,
   RelationTarget
 } from '../sdk/record.js'
@@ -20,7 +21,8 @@ import type {
   PropertyDraft,
   PropertyValuesData,
   Schema,
-  SearchQuery
+  SearchQuery,
+  Where
 } from '../types/index.js'
 import type { ApiResponse } from './types.js'
 
@@ -638,6 +640,65 @@ export class RestAPI {
    * API methods for managing relations between records
    */
   public relationships = {
+    /**
+     * Creates many relationships by matching source and target records by keys
+     * @param data - Configuration of source/target match and relation details
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response message
+     */
+    createMany: async (
+      data: {
+        source: { label: string; key?: string; where?: Where }
+        target: { label: string; key?: string; where?: Where }
+        type?: string
+        direction?: RelationDirection
+        manyToMany?: boolean
+      },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/relationships/create-many`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: data ?? {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+    /**
+     * Deletes many relationships by matching source and target records by keys or by manyToMany filter
+     */
+    deleteMany: async (
+      data: {
+        source: { label: string; key?: string; where?: Where }
+        target: { label: string; key?: string; where?: Where }
+        type?: string
+        direction?: RelationDirection
+        manyToMany?: boolean
+      },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/relationships/delete-many`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: data ?? {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
     /**
      * Searches for relations matching the query criteria
      * @param searchQuery - Query to identify relations

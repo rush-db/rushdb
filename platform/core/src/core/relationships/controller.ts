@@ -22,13 +22,15 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
+import { Where } from '@/core/common/types'
 import { EntityService } from '@/core/entity/entity.service'
-import { TRecordRelationsResponse } from '@/core/entity/entity.types'
+import { TRecordRelationsResponse, TRelationDirection } from '@/core/entity/entity.types'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
 import {
   createRelationSchema,
-  deleteRelationsSchema
+  deleteRelationsSchema,
+  createRelationsByKeysSchema
 } from '@/core/relationships/validation/schemas/relations.schema'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { pagination } from '@/core/search/parser/pagination'
@@ -36,10 +38,6 @@ import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
-
-// @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach
-// for example: { source: { where: { $id: ... } }, target: { where: { $id: ... } }, type?: string }
-// no direction would be needed with this approach as we explicitly defining source & target
 
 @Controller('relationships')
 @ApiTags('Relationships')
@@ -101,7 +99,38 @@ export class RelationshipsController {
     return await this.entityService.detach(entityId, detachDto, projectId, transaction)
   }
 
-  // @TODO: Remove it in prior of making separate  api
+  // @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach
+  // for example: { source: { where: { $id: ... } }, target: { where: { $id: ... } }, type?: string }
+  @Post('/create-many')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
+  @HttpCode(HttpStatus.CREATED)
+  async createMany(
+    @Body()
+    body: {
+      source: { label: string; key?: string; where?: Where }
+      target: { label: string; key?: string; where?: Where }
+      type?: string
+      direction?: TRelationDirection
+      manyToMany?: boolean
+    },
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ): Promise<{ message: string }> {
+    const projectId = request.projectId
+    const normalizedDirection = body.direction?.toLowerCase() as TRelationDirection | undefined
+    await this.entityService.createRelationsByKeys({
+      ...body,
+      direction: normalizedDirection,
+      projectId,
+      transaction,
+      manyToMany: body.manyToMany
+    })
+    return { message: `Relations have been successfully created` }
+  }
+
   @Post('/search')
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
@@ -134,5 +163,35 @@ export class RelationshipsController {
       data,
       total
     }
+  }
+
+  @Post('/delete-many')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
+  @HttpCode(HttpStatus.OK)
+  async deleteMany(
+    @Body()
+    body: {
+      source: { label: string; key?: string; where?: Where }
+      target: { label: string; key?: string; where?: Where }
+      type?: string
+      direction?: TRelationDirection
+      manyToMany?: boolean
+    },
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ): Promise<{ message: string }> {
+    const projectId = request.projectId
+    const normalizedDirection = body.direction?.toLowerCase() as TRelationDirection | undefined
+    await this.entityService.deleteRelationsByKeys({
+      ...body,
+      direction: normalizedDirection,
+      projectId,
+      transaction,
+      manyToMany: body.manyToMany
+    })
+    return { message: `Relations have been successfully deleted` }
   }
 }

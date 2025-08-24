@@ -7,7 +7,7 @@ import {
   Injectable,
   Logger
 } from '@nestjs/common'
-import { FastifyReply, FastifyRequest } from 'fastify'
+import { FastifyReply } from 'fastify'
 import { Session, Transaction } from 'neo4j-driver'
 
 import { isDevMode } from '@/common/utils/isDevMode'
