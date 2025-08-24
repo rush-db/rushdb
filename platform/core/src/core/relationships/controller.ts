@@ -39,10 +39,6 @@ import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-p
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
-// @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach
-// for example: { source: { where: { $id: ... } }, target: { where: { $id: ... } }, type?: string }
-// no direction would be needed with this approach as we explicitly defining source & target
-
 @Controller('relationships')
 @ApiTags('Relationships')
 @UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)
@@ -103,6 +99,9 @@ export class RelationshipsController {
     return await this.entityService.detach(entityId, detachDto, projectId, transaction)
   }
 
+  // @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach
+  // for example: { source: { where: { $id: ... } }, target: { where: { $id: ... } }, type?: string }
+  // no direction would be needed with this approach as we explicitly defining source & target
   @Post('/create-many')
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
@@ -133,7 +132,6 @@ export class RelationshipsController {
     return { message: `Relations have been successfully created` }
   }
 
-  // @TODO: Remove it in prior of making separate  api
   @Post('/search')
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
@@ -166,5 +164,35 @@ export class RelationshipsController {
       data,
       total
     }
+  }
+
+  @Post('/delete-many')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
+  @HttpCode(HttpStatus.OK)
+  async deleteMany(
+    @Body()
+    body: {
+      source: { label: string; key?: string; where?: Where }
+      target: { label: string; key?: string; where?: Where }
+      type?: string
+      direction?: TRelationDirection
+      manyToMany?: boolean
+    },
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ): Promise<{ message: string }> {
+    const projectId = request.projectId
+    const normalizedDirection = body.direction?.toLowerCase() as TRelationDirection | undefined
+    await this.entityService.deleteRelationsByKeys({
+      ...body,
+      direction: normalizedDirection,
+      projectId,
+      transaction,
+      manyToMany: body.manyToMany
+    })
+    return { message: `Relations have been successfully deleted` }
   }
 }

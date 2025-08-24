@@ -222,6 +222,35 @@ db.relationships.create_many(
 )
 ```
 
+Deleting relationships in bulk
+
+The API also supports deleting relationships created by a matching condition. Use `relationships.delete_many` with the same arguments as `create_many` to remove relationships in bulk.
+
+Examples mirror the creation API:
+
+Key-based deletion
+
+```python
+db.relationships.delete_many(
+    source={"label": "USER", "key": "id", "where": {"tenantId": tenant_id}},
+    target={"label": "ORDER", "key": "userId", "where": {"tenantId": tenant_id}},
+    type="ORDERED",
+    direction="out"
+)
+```
+
+Many-to-many deletion
+
+```python
+db.relationships.delete_many(
+    source={"label": "USER_MTM", "where": {"tenantId": tenant_id}},
+    target={"label": "TAG_MTM", "where": {"tenantId": tenant_id}},
+    type="HAS_TAG",
+    direction="out",
+    many_to_many=True
+)
+```
+
 ## Removing Relationships with detach()
 
 You can remove relationships between records without deleting the records themselves using the `detach()` method:

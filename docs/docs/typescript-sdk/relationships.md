@@ -215,6 +215,57 @@ await UserModel.detach({
 });
 ```
 
+### Bulk Relationship Deletion by Key Match
+
+You can remove relationships in bulk with the SDK using `relationships.deleteMany`. It accepts the same shape as `createMany` and supports two modes:
+
+- key-match mode: match source and target records by equality of a pair of properties (e.g. `USER.id = ORDER.userId`) and delete the relationship between matched pairs.
+- many-to-many (cartesian) mode: opt-in operation that deletes relationships between every matching source and target pair that satisfy provided filters — use with extreme caution.
+
+TypeScript example — key match deletion:
+
+```ts
+await db.relationships.deleteMany({
+  source: { label: 'USER', key: 'id', where: { tenantId } },
+  target: { label: 'ORDER', key: 'userId', where: { tenantId } },
+  type: 'ORDERED',
+  direction: 'out'
+})
+```
+
+TypeScript example — many-to-many deletion (explicit opt-in):
+
+```ts
+// WARNING: manyToMany will perform a cartesian-style deletion across the
+// filtered sets. Only use with explicit filters on both sides.
+await db.relationships.deleteMany({
+  source: { label: 'USER', where: { tenantId } },
+  target: { label: 'TAG', where: { tenantId } },
+  type: 'HAS_TAG',
+  direction: 'out',
+  manyToMany: true
+})
+```
+
+Parameters
+- `source`: Object describing the source side
+  - `label`: Source record label (string)
+  - `key` (optional): Property on the source used for equality match (string)
+  - `where` (optional): Additional filters for source records; same shape as SearchQuery `where`
+- `target`: Object describing the target side
+  - `label`: Target record label (string)
+  - `key` (optional): Property on the target used for equality match (string)
+  - `where` (optional): Additional filters for target records; same shape as SearchQuery `where`
+- `type` (optional): Relationship type to restrict deletions
+- `direction` (optional): 'in' or 'out'. Defaults to 'out'.
+- `manyToMany` (optional): boolean. When `true` the operation will perform deletions across all source/target pairs matching provided filters (cartesian). This must be explicitly set.
+
+Important notes and safeguards
+- If `manyToMany` is not provided or is `false`, both `source.key` and `target.key` must be supplied — deletion matches records where `source[key] = target[key]`.
+- If `manyToMany` is `true`, the server requires non-empty `where` filters for both `source` and `target` to avoid accidental full-cartesian deletions.
+- Use `manyToMany` only when you intentionally want to delete relationships across filtered sets. Consider testing on a staging dataset first.
+
+
 ## Finding Relationships
 
 ### Using RushDB's `relationships.find()` Method

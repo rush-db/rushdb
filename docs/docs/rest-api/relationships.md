@@ -64,6 +64,46 @@ Notes on many-to-many/cartesian creation
     "message": "Relations have been successfully created"
   }
 }
+
+## Delete Many Relationships (by key match or filters)
+
+```http
+POST /api/v1/relationships/delete-many
+```
+
+Deletes relationships in bulk that match the provided source/target selectors. The request body mirrors the create-many API.
+
+### Request Body
+
+| Field           | Type   | Description                                                                                       |
+|-----------------|--------|---------------------------------------------------------------------------------------------------|
+| `source`        | Object | Source selector: `{ label: string; key?: string; where?: object }` — `key` is required unless using `manyToMany` |
+| `target`        | Object | Target selector: `{ label: string; key?: string; where?: object }` — `key` is required unless using `manyToMany` |
+| `type`          | String | Optional. Relationship type to delete. If omitted, matches any type                                 |
+| `direction`     | String | Optional. Relationship direction: `in` or `out`. Defaults to `out`                                |
+| `manyToMany`    | Boolean| Optional. When true, allows matching every source to every target produced by the `where` filters. Requires non-empty `where` on both sides. |
+
+### Example Request
+
+```json
+{
+  "source": { "label": "USER", "key": "id", "where": { "tenantId": "ACME" } },
+  "target": { "label": "ORDER", "key": "userId", "where": { "tenantId": "ACME" } },
+  "type": "ORDERED",
+  "direction": "out"
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Relations have been successfully deleted"
+  }
+}
+```
 ```
 
 ## Create Relationship

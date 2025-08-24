@@ -588,4 +588,118 @@ export class EntityQueryService {
 
     return queryBuilder.getQuery()
   }
+
+  deleteRelationsByKeys({
+    sourceLabel,
+    sourceKey,
+    targetLabel,
+    targetKey,
+    relationType,
+    direction,
+    sourceWhere,
+    targetWhere,
+    manyToMany
+  }: {
+    sourceLabel: string
+    sourceKey: string
+    targetLabel: string
+    targetKey: string
+    relationType?: string
+    direction?: TRelationDirection
+    sourceWhere?: Where
+    targetWhere?: Where
+    manyToMany?: boolean
+  }) {
+    const relType = relationType ? relationType : RUSHDB_RELATION_DEFAULT
+    // Build a relation pattern with variable name for deletion
+    let relPattern = `-[rel:${relType}]-`
+    if (direction === RELATION_DIRECTION_IN) {
+      relPattern = '<' + relPattern
+    }
+    if (direction === RELATION_DIRECTION_OUT || !direction) {
+      relPattern = relPattern + '>'
+    }
+
+    // Defensive sanitization for identifiers used in backticked contexts (labels/keys).
+    const sanitizeNeo4jIdentifier = (value: string) => {
+      if (!value) {
+        return ''
+      }
+      const normalized = String(value).trim()
+      const stripped = normalized.replace(/[`\\]/g, '')
+      const noSpaces = stripped.replace(/\s+/g, '_')
+      const safe = noSpaces.replace(/[^A-Za-z0-9_-]/g, '')
+      return safe
+    }
+
+    const safeSourceLabel = sanitizeNeo4jIdentifier(sourceLabel)
+    const safeTargetLabel = sanitizeNeo4jIdentifier(targetLabel)
+    const safeSourceKey = sanitizeNeo4jIdentifier(sourceKey)
+    const safeTargetKey = sanitizeNeo4jIdentifier(targetKey)
+
+    const buildAliasClauses = (where: Where | undefined, alias: string) => {
+      if (!where || Object.keys(where).length === 0) {
+        return { first: '', rest: [] as string[] }
+      }
+      const parsed = parseWhereClause(where, { nodeAlias: alias })
+      const sorted = Object.keys(parsed.queryParts)
+        .sort((a, b) => a.localeCompare(b))
+        .map((k) => parsed.queryParts[k])
+      const clauses: string[] = buildQueryClause({ queryParts: sorted })
+      const [first, ...rest] = clauses
+      return { first: first ?? '', rest }
+    }
+
+    const sClauses = buildAliasClauses(sourceWhere, 's')
+    const tClauses = buildAliasClauses(targetWhere, 't')
+
+    // Prepare pieces for embedding into apoc.periodic.iterate subqueries
+    const sFirst = sClauses.first ? ` ${sClauses.first}` : ''
+    const sRest = sClauses.rest.length ? ` ${sClauses.rest.join(' ')}` : ''
+    const tRest = tClauses.rest.length ? ` ${tClauses.rest.join(' ')}` : ''
+    const tFirstStartsWithWhere = /^\s*WHERE\b/i.test(tClauses.first)
+    const tFirstNoWhere = tFirstStartsWithWhere ? tClauses.first.replace(/^\s*WHERE\s+/i, '') : ''
+
+    const hasSourceWhere = sourceWhere && Object.keys(sourceWhere).length > 0
+    const hasTargetWhere = targetWhere && Object.keys(targetWhere).length > 0
+    const hasJoinKeys = Boolean(safeSourceKey && safeTargetKey)
+
+    // Safeguards
+    if (manyToMany) {
+      if (!hasSourceWhere || !hasTargetWhere) {
+        throw new Error(
+          'manyToMany requires non-empty `where` filters for both source and target to avoid cartesian explosion'
+        )
+      }
+    } else {
+      if (!hasJoinKeys) {
+        throw new Error('source.key and target.key are required unless manyToMany=true')
+      }
+    }
+
+    // Build combined WHERE depending on whether join keys exist.
+    let combinedWhere = ''
+    if (hasJoinKeys) {
+      const eqClause = `s.\`${safeSourceKey}\` = t.\`${safeTargetKey}\``
+      combinedWhere = tFirstNoWhere ? `WHERE ${eqClause} AND ${tFirstNoWhere}` : `WHERE ${eqClause}`
+    } else {
+      // manyToMany path: rely solely on target's where (already required to be non-empty)
+      combinedWhere = tFirstNoWhere ? `WHERE ${tFirstNoWhere}` : ''
+    }
+
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append('CALL apoc.periodic.iterate(')
+      .append(
+        `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })${sFirst}${sRest} RETURN s',`
+      )
+      .append(
+        `'WITH s MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest} ${combinedWhere} OPTIONAL MATCH (s)${relPattern}(t) DELETE rel RETURN count(*)',`
+      )
+      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
+      .append(')')
+
+    return queryBuilder.getQuery()
+  }
 }

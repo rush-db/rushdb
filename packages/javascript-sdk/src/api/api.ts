@@ -157,8 +157,26 @@ export class RestAPI {
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
 
-      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
-      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+      let response
+      try {
+        response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+      } catch (err: any) {
+        // eslint-disable-next-line no-console
+        console.error('RestAPI.relationships.deleteMany fetch error:', err && err.message ? err.message : err)
+        // eslint-disable-next-line no-console
+        console.error('Error stack:', err && err.stack ? err.stack : '(no stack)')
+        if (err && err.response) {
+          try {
+            // eslint-disable-next-line no-console
+            console.error('Error response body:', JSON.stringify(err.response, null, 2))
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.error('Could not stringify response body', e)
+          }
+        }
+        throw err
+      }
 
       return response
     },
@@ -658,6 +676,34 @@ export class RestAPI {
     ) => {
       const txId = pickTransactionId(transaction)
       const path = `/relationships/create-many`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: data ?? {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+    /**
+     * Deletes many relationships by matching source and target records by keys or by manyToMany filter
+     */
+    deleteMany: async (
+      data: {
+        source: { label: string; key?: string; where?: Where }
+        target: { label: string; key?: string; where?: Where }
+        type?: string
+        direction?: RelationDirection
+        manyToMany?: boolean
+      },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/relationships/delete-many`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
