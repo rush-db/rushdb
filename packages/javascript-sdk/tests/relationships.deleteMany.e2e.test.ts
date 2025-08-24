@@ -49,45 +49,12 @@ describe('relationships.deleteMany (e2e)', () => {
     await sleep(2000)
 
     // now delete them
-    let delRes
-    try {
-      delRes = await db.relationships.deleteMany({
-        source: { label: 'USER_DEL', key: 'id', where: { tenantId } },
-        target: { label: 'ORDER_DEL', key: 'userId', where: { tenantId } },
-        type: 'ORDERED',
-        direction: 'out'
-      })
-    } catch (err: any) {
-      // Print full error details for debugging (AggregateError may wrap multiple errors)
-      // eslint-disable-next-line no-console
-      console.error('deleteMany error:', err && err.message ? err.message : err)
-      // eslint-disable-next-line no-console
-      console.error('Error stack:', err && err.stack ? err.stack : '(no stack)')
-      if (err && err.errors && Array.isArray(err.errors)) {
-        // eslint-disable-next-line no-console
-        console.error(
-          'AggregateError inner errors:',
-          err.errors.map((e: any) => ({
-            message: e.message,
-            stack: e.stack,
-            name: e.name,
-            code: e.code,
-            response:
-              e.response && typeof e.response === 'object' ? e.response.body || e.response : e.response
-          }))
-        )
-      }
-      if (err && err.response) {
-        try {
-          // eslint-disable-next-line no-console
-          console.error('Error response body:', JSON.stringify(err.response.body || err.response, null, 2))
-        } catch (e) {
-          // eslint-disable-next-line no-console
-          console.error('Could not stringify response body', e)
-        }
-      }
-      throw err
-    }
+    const delRes = await db.relationships.deleteMany({
+      source: { label: 'USER_DEL', key: 'id', where: { tenantId } },
+      target: { label: 'ORDER_DEL', key: 'userId', where: { tenantId } },
+      type: 'ORDERED',
+      direction: 'out'
+    })
 
     expect(delRes.success).toBe(true)
 

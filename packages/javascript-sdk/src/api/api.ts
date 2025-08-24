@@ -157,13 +157,8 @@ export class RestAPI {
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
 
-      let response
-      try {
-        response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
-        this.logger?.({ requestId, path, ...payload, responseData: response.data })
-      } catch (err: any) {
-        throw err
-      }
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response
     },

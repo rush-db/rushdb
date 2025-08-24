@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:mobile="http://www.google.com/schemas/sitemap-mobile/1.0" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
-<url><loc>https://rushdb.com</loc><lastmod>2025-08-24T08:24:43.142Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/pricing</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog/knowledge-graphs-semantic-reasoning-meets-graph-architecture</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog/labeled-property-graphs-a-comprehensive-guide-to-enhanced-graph-data-modeling</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog/rdf-a-comprehensive-guide-to-semantic-web-data-modeling</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog/rethinking-the-graph-how-labeled-meta-property-graphs-unlock-structure-without-sacrificing-flexibility</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog/breaking-down-the-hidden-costs-of-data-silos-in-scientific-labs</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog/labeled-meta-property-graphs-rushdb-s-revolutionary-approach-to-graph-database-architecture</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog/graph-databases-explained-property-graphs-vs-rdf-vs-knowledge-graphs-complete-developer-guide-2025</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog/backendless-fullstack-development-react-useform-rushdb</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog/rushdb-the-zero-config-database-for-modern-apps-and-ai-solutions</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://rushdb.com/blog/rushdb-selfhosted-quick-setup</loc><lastmod>2025-08-24T08:24:43.143Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com</loc><lastmod>2025-08-24T09:23:51.005Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/pricing</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog/knowledge-graphs-semantic-reasoning-meets-graph-architecture</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog/labeled-property-graphs-a-comprehensive-guide-to-enhanced-graph-data-modeling</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog/rdf-a-comprehensive-guide-to-semantic-web-data-modeling</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog/rethinking-the-graph-how-labeled-meta-property-graphs-unlock-structure-without-sacrificing-flexibility</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog/breaking-down-the-hidden-costs-of-data-silos-in-scientific-labs</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog/labeled-meta-property-graphs-rushdb-s-revolutionary-approach-to-graph-database-architecture</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog/graph-databases-explained-property-graphs-vs-rdf-vs-knowledge-graphs-complete-developer-guide-2025</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog/backendless-fullstack-development-react-useform-rushdb</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog/rushdb-the-zero-config-database-for-modern-apps-and-ai-solutions</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://rushdb.com/blog/rushdb-selfhosted-quick-setup</loc><lastmod>2025-08-24T09:23:51.006Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
 </urlset>
