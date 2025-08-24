@@ -162,19 +162,6 @@ export class RestAPI {
         response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
         this.logger?.({ requestId, path, ...payload, responseData: response.data })
       } catch (err: any) {
-        // eslint-disable-next-line no-console
-        console.error('RestAPI.relationships.deleteMany fetch error:', err && err.message ? err.message : err)
-        // eslint-disable-next-line no-console
-        console.error('Error stack:', err && err.stack ? err.stack : '(no stack)')
-        if (err && err.response) {
-          try {
-            // eslint-disable-next-line no-console
-            console.error('Error response body:', JSON.stringify(err.response, null, 2))
-          } catch (e) {
-            // eslint-disable-next-line no-console
-            console.error('Could not stringify response body', e)
-          }
-        }
         throw err
       }
 
