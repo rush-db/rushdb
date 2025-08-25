@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.12.1
+
+### Patch Changes
+
+- d55ae51: Escape stringified JSON characters fix
+- Updated dependencies [d55ae51]
+  - @rushdb/javascript-sdk@1.12.1
+
 ## 1.12.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.12.1
+
+### Patch Changes
+
+- d55ae51: Escape stringified JSON characters fix
+
 ## 1.12.0
 
 ### Minor Changes
