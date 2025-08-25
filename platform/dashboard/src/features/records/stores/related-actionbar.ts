@@ -71,7 +71,7 @@ export const batchDeleteRelatedSelected = createMutator({
       ...body
     })
   },
-  invalidates: [$currentProjectLabels, $currentProjectFields, $currentRelatedRecords],
+  invalidates: [$currentRelatedRecords],
   onSuccess: () => {
     resetRelatedRecordsSelection()
     toast({

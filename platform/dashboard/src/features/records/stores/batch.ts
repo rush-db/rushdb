@@ -1,10 +1,5 @@
 import type { AnyRecord } from 'dns'
 
-import {
-  $currentProjectFields,
-  $currentProjectLabels,
-  $filteredRecords
-} from '~/features/projects/stores/current-project'
 import { api } from '~/lib/api'
 import { createMutator } from '~/lib/fetcher'
 import { DBRecordCreationOptions } from '@rushdb/javascript-sdk'
@@ -18,6 +13,5 @@ export const createMany = createMutator<{
     return await api.records.createMany({ init, data, label, options })
   },
   throwError: true,
-  onError: (error: unknown) => console.log({ error }),
-  invalidates: [$filteredRecords, $currentProjectLabels, $currentProjectFields]
+  onError: (error: unknown) => console.log({ error })
 })

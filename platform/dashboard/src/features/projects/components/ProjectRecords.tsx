@@ -15,8 +15,9 @@ import {
 } from '../stores/current-project'
 import { $currentProjectVisibleFields } from '../stores/hidden-fields'
 import { $sheetRecordId } from '../stores/id'
-import { GraphView } from '~/features/projects/components/GraphView.tsx'
-import { Paginator } from '~/elements/Paginator.tsx'
+import { Suspense, lazy } from 'react'
+const GraphView = lazy(() => import('~/features/projects/components/GraphView.tsx'))
+import { Spinner } from '~/elements/Spinner.tsx'
 import { RawApiView } from '~/features/projects/components/RawApiView.tsx'
 import { setTourStep } from '~/features/tour/stores/tour.ts'
 import { $router } from '~/lib/router.ts'
@@ -59,19 +60,15 @@ function View() {
 
     case 'graph':
       return (
-        <>
+        <Suspense
+          fallback={
+            <div className="flex h-full w-full items-center justify-center py-10">
+              <Spinner />
+            </div>
+          }
+        >
           <GraphView />
-          {records?.length ?
-            <Paginator
-              className="bg-fill sticky bottom-0 border-t"
-              limit={limit}
-              onNext={incrementRecordsPage}
-              onPrev={decrementRecordsPage}
-              skip={skip}
-              total={total}
-            />
-          : null}
-        </>
+        </Suspense>
       )
 
     default:
