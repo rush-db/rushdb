@@ -20,7 +20,8 @@ import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
 const formatCriteriaValue = (value: unknown): string => {
   if (typeof value === 'string') {
-    return `"${value}"`
+    const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    return `"${escaped}"`
   } else if (value === null) {
     return `"${RUSHDB_VALUE_NULL}"`
   } else {
