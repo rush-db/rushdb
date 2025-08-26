@@ -1,5 +1,16 @@
 # rushdb-website
 
+## 1.13.0
+
+### Minor Changes
+
+- 2b76c22: Add raw cypher query support
+
+### Patch Changes
+
+- Updated dependencies [2b76c22]
+  - @rushdb/javascript-sdk@1.13.0
+
 ## 1.12.1
 
 ### Patch Changes

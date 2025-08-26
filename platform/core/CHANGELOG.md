@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.13.0
+
+### Minor Changes
+
+- 2b76c22: Add raw cypher query support
+
 ## 1.12.1
 
 ### Patch Changes
