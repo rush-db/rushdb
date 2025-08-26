@@ -454,9 +454,9 @@ export const api = {
       })
     }
   },
-  search: {
-    'records-query': async (params: { searchQuery: SearchQuery }) => {
-      return fetcher<string>('/api/v1/search/records-query', {
+  query: {
+    'records-find': async (params: { searchQuery: SearchQuery }) => {
+      return fetcher<string>('/api/v1/query/records/find', {
         method: 'POST',
         body: JSON.stringify(params.searchQuery)
       })

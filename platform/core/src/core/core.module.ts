@@ -3,7 +3,7 @@ import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/comm
 import { EntityModule } from '@/core/entity/entity.module'
 import { ImportExportModule } from '@/core/entity/import-export/import-export.module'
 import { PropertyModule } from '@/core/property/property.module'
-import { SearchModule } from '@/core/search/search.module'
+import { QueryModule } from '@/core/query/query.module'
 import { TransactionModule } from '@/core/transactions/transaction.module'
 import { AuthMiddleware } from '@/dashboard/auth/middlewares/auth.middleware'
 import { TokenModule } from '@/dashboard/token/token.module'
@@ -17,11 +17,11 @@ import { SessionAndTransactionAttachMiddleware } from '@/database/session-and-tr
     PropertyModule,
     ImportExportModule,
     TransactionModule,
-    SearchModule,
+    QueryModule,
     forwardRef(() => TokenModule),
     forwardRef(() => DbConnectionModule)
   ],
-  exports: [EntityModule, PropertyModule, ImportExportModule, TransactionModule, SearchModule]
+  exports: [EntityModule, PropertyModule, ImportExportModule, TransactionModule, QueryModule]
 })
 export class CoreModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

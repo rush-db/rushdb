@@ -394,7 +394,7 @@ export function RawApiView() {
 
     // Fetch the Cypher query if we're doing records.find and the toggle is enabled
     if (operation === 'records.find' && showCypherQuery) {
-      api.search['records-query']({
+      api.query['records-find']({
         searchQuery: searchQueryObj
       })
         .then((cypherQueryStr) => {
