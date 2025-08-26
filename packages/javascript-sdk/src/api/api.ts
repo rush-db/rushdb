@@ -14,6 +14,7 @@ import { DBRecordInstance, DBRecordsArrayInstance } from '../sdk/record.js'
 import type { SDKConfig, State } from '../sdk/types.js'
 import type {
   AnyObject,
+  FlatObject,
   InferSchemaTypesWrite,
   MaybeArray,
   OrderDirection,
@@ -966,6 +967,43 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload })
 
       const response = await this.fetcher<ApiResponse<State['serverSettings']>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    }
+  }
+
+  // Only for managed/custom db instances connected to cloud
+  public query = {
+    /**
+     * Runs a raw Cypher query against the connected Neo4j database.
+     *
+     * NOTE: This endpoint is cloud-only — available only on the RushDB managed
+     * service or when your project is connected to a custom database through
+     * RushDB Cloud. It will not work for self-hosted or local-only deployments.
+     *
+     * @param param0 - Object containing the Cypher query and optional params
+     * @param param0.query - Cypher query string to execute
+     * @param param0.params - Optional parameters to pass to the query
+     * @param transaction - Optional transaction id or Transaction instance to run the query in
+     * @returns ApiResponse<any> - Raw result returned by the server (Neo4j driver result wrapped in ApiResponse)
+     */
+    raw: async <T extends any = any>(
+      { query, params }: { query: string; params?: FlatObject },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/query/raw`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: { query, params }
+      }
+
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<T>>(path, payload)
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response
