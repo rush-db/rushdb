@@ -1,5 +1,13 @@
 # rushdb-website
 
+## 1.13.1
+
+### Patch Changes
+
+- 2e89930: Safely handling properties with spaces in name
+- Updated dependencies [2e89930]
+  - @rushdb/javascript-sdk@1.13.1
+
 ## 1.13.0
 
 ### Minor Changes
