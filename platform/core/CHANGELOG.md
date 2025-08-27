@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.13.1
+
+### Patch Changes
+
+- 2e89930: Safely handling properties with spaces in name
+
 ## 1.13.0
 
 ### Minor Changes
