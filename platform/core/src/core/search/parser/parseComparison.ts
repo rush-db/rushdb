@@ -30,7 +30,7 @@ const formatCriteriaValue = (value: unknown): string => {
 }
 
 const formatField = (field: string, options: TSearchQueryBuilderOptions) => {
-  return options.nodeAlias ? `${options.nodeAlias}.${field}` : field
+  return options.nodeAlias ? `${options.nodeAlias}.\`${field}\`` : `\`${field}\``
 }
 
 const formatVectorForQuery = (
