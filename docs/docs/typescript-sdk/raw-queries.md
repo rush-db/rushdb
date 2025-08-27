@@ -4,8 +4,6 @@ sidebar_position: 7
 
 # Raw Queries
 
-> Available only on managed service or with custom database connected to rushdb.
-
 > **Important (cloud-only):** This endpoint is available only on the RushDB managed cloud service or when your project is connected to a custom database through RushDB Cloud. It is not available for self-hosted or local-only deployments — attempting to use it against a non-cloud instance will fail.
 
 Use this endpoint to run arbitrary Cypher queries against your connected Neo4j database. This is intended for advanced use-cases and requires the managed service or a custom DB connection.

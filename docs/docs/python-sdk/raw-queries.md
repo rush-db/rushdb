@@ -4,8 +4,6 @@ sidebar_position: 6
 
 # Raw Queries
 
-> Available only on managed service or with custom database connected to rushdb.
-
 > **Important (cloud-only):** This endpoint is available only on the RushDB managed cloud service or when your project is connected to a custom database through RushDB Cloud. It is not available for self-hosted or local-only deployments — attempting to use it against a non-cloud instance will fail.
 
 ### Python SDK example
