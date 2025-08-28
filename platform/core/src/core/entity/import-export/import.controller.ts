@@ -52,7 +52,7 @@ export class ImportController {
   @AuthGuard('project')
   async collectJson(
     @Body() body: ImportJsonDto,
-    @PreferredTransactionDecorator() transaction: Transaction,
+    @TransactionDecorator() transaction: Transaction,
     @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
