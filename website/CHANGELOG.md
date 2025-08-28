@@ -1,5 +1,13 @@
 # rushdb-website
 
+## 1.13.2
+
+### Patch Changes
+
+- ed6063d: Fix missmatching transaction in import service
+- Updated dependencies [ed6063d]
+  - @rushdb/javascript-sdk@1.13.2
+
 ## 1.13.1
 
 ### Patch Changes
