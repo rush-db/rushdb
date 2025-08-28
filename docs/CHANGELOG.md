@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 1.13.2
+
+### Patch Changes
+
+- ed6063d: Fix missmatching transaction in import service
+
 ## 1.13.1
 
 ### Patch Changes
