@@ -28,13 +28,14 @@ def import_csv(
     label: str,
     data: str,
     options: Optional[Dict[str, bool]] = None,
+    parse_config: Optional[Dict[str, Any]] = None,
     transaction: Optional[Transaction] = None
 ) -> List[Dict[str, Any]]
 ```
 
 **Arguments:**
 - `label` (str): Label for all imported records
-- `csv_data` (str): CSV data to import as a string
+- `data` (str): CSV data to import as a string
 - `options` (Optional[Dict[str, bool]]): Import options
   - `suggestTypes` (bool): When true, automatically infers data types for properties
   - `castNumberArraysToVectors` (bool): When true, converts numeric arrays to vector type
@@ -42,6 +43,14 @@ def import_csv(
   - `capitalizeLabels` (bool): When true, converts all labels to uppercase
   - `relationshipType` (str): Default relationship type between nodes
   - `returnResult` (bool): When true, returns imported records in response
+- `parse_config` (Optional[Dict[str, Any]]): CSV parsing configuration (PapaParse compatible subset):
+    - `delimiter` (str): Field delimiter character
+    - `header` (bool): Treat first row as header row
+    - `skipEmptyLines` (bool | 'greedy'): Skip empty lines
+    - `dynamicTyping` (bool): Convert numeric/boolean values automatically
+    - `quoteChar` (str): Character used for quoting fields
+    - `escapeChar` (str): Character used for escaping quotes
+    - `newline` (str): Explicit newline sequence
 - `transaction` (Optional[Transaction]): Optional transaction object
 
 **Returns:**
@@ -57,7 +66,7 @@ Bob Wilson,bob@example.com,45"""
 
 records = client.records.import_csv(
     label="CUSTOMER",
-    csv_data=csv_data,
+    data=csv_data,
     options={
         "returnResult": True,
         "suggestTypes": True,
@@ -71,8 +80,9 @@ with open('employees.csv', 'r') as file:
 
 records = client.records.import_csv(
     label="EMPLOYEE",
-    csv_data=csv_content,
-    options={"returnResult": True, "suggestTypes": True}
+    data=csv_content,
+    options={"returnResult": True, "suggestTypes": True},
+    parse_config={"header": True, "skipEmptyLines": True, "dynamicTyping": True}
 )
 ```
 

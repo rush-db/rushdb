@@ -222,7 +222,7 @@ db.relationships.create_many(
 )
 ```
 
-Deleting relationships in bulk
+### Bulk Relationship Deletion by Key Match
 
 The API also supports deleting relationships created by a matching condition. Use `relationships.delete_many` with the same arguments as `create_many` to remove relationships in bulk.
 
