@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { Braces, DatabaseZap, Edit, TestTube2 } from 'lucide-react'
+import { Braces, DatabaseZap, Edit, TestTube2, Table, Settings2 } from 'lucide-react'
 import { atom, onSet } from 'nanostores'
 import { type ReactNode, Suspense, lazy, useState, ChangeEvent, useEffect } from 'react'
 
@@ -8,7 +8,7 @@ import { DialogFooter, DialogLoadingOverlay } from '~/elements/Dialog'
 import { TextField } from '~/elements/Input'
 import { cn } from '~/lib/utils'
 
-import { createMany } from '../stores/batch'
+import { createMany, importCsv } from '../stores/batch'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
 import { $router, getRoutePath } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
@@ -57,6 +57,8 @@ const Editor = lazy(() =>
 )
 
 const $step = atom<IngestModalSteps>('method')
+const $mode = atom<'json' | 'csv'>('json')
+const $csvData = atom<string>('')
 const $editorData = atom<string>('')
 const $label = atom<string>('')
 
@@ -72,7 +74,10 @@ function EditorStep() {
   const [loading, setLoading] = useState(true)
   const defaultValue = useStore($editorData)
   const { mutate, loading: submitting } = useStore(createMany)
+  const { mutate: mutateCsv, loading: csvSubmitting } = useStore(importCsv)
   const projectId = useStore($currentProjectId)
+  const mode = useStore($mode)
+  const csvData = useStore($csvData)
 
   const [suggestTypes, setSuggestTypes] = useState(true)
   const [castNumberArraysToVectors, setCastNumberArraysToVectors] = useState(false)
@@ -99,11 +104,36 @@ function EditorStep() {
     })
   }
 
+  // CSV Parse Config local state
+  const [delimiter, setDelimiter] = useState(',')
+  const [header, setHeader] = useState(true)
+  const [skipEmptyLines, setSkipEmptyLines] = useState(true)
+  const [quoteChar, setQuoteChar] = useState('"')
+  const [escapeChar, setEscapeChar] = useState('"')
+  const [newline, setNewline] = useState<string | undefined>(undefined)
+  const [dynamicTyping, setDynamicTyping] = useState<boolean | undefined>(undefined)
+
+  // When switching to CSV mode, ensure loading overlay is cleared (since Monaco editor isn't mounted)
+  useEffect(() => {
+    if (mode === 'csv' && loading) {
+      setLoading(false)
+    }
+    if (mode === 'json') {
+      // Reset loading so JSON editor can show skeleton until mounted
+      setLoading(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
+
   return (
     <>
       <div className="mt-5 flex gap-5">
         <TextField
-          caption="Specify a Label for the top-level Record(s) parsed from this JSON"
+          caption={
+            mode === 'json' ?
+              'Specify a Label for the top-level Record(s) parsed from this JSON'
+            : 'Specify a Label for the Record(s) created from each CSV row'
+          }
           required={true}
           label="Label *"
           onChange={(event: { target: { value: string } }) => {
@@ -160,55 +190,162 @@ function EditorStep() {
         />
       </div>
 
-      <div
-        data-tour="project-import-data-overview"
-        className={cn('flex h-[70vh] min-h-[300px] flex-col overflow-hidden pb-5', {
-          'opacity-0': loading
-        })}
-      >
-        <Suspense>
-          <Editor
-            onMount={handleEditorMount}
-            defaultLanguage="json"
-            defaultValue={defaultValue}
-            height="100%"
-            onChange={(v) => $editorData.set(v ?? '')}
-            theme="vs-dark"
+      {mode === 'csv' && (
+        <div className="mb-2 rounded border p-4">
+          <div className="mb-3 flex items-center gap-2 font-semibold">
+            <Settings2 size={16} /> CSV Parse Config
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <TextField
+              label="Delimiter"
+              size="small"
+              value={delimiter}
+              onChange={(e: any) => setDelimiter(e.target.value)}
+            />
+            <TextField
+              label="Quote Char"
+              size="small"
+              value={quoteChar}
+              onChange={(e: any) => setQuoteChar(e.target.value)}
+            />
+            <TextField
+              label="Escape Char"
+              size="small"
+              value={escapeChar}
+              onChange={(e: any) => setEscapeChar(e.target.value)}
+            />
+            <TextField
+              label="Newline"
+              size="small"
+              placeholder="auto"
+              value={newline ?? ''}
+              onChange={(e: any) => setNewline(e.target.value || undefined)}
+            />
+            <CheckboxField
+              className="mt-2"
+              label="Header Row"
+              checked={header}
+              onCheckedChange={() => setHeader(!header)}
+            />
+            <CheckboxField
+              className="mt-2"
+              label="Skip Empty"
+              checked={skipEmptyLines}
+              onCheckedChange={() => setSkipEmptyLines(!skipEmptyLines)}
+            />
+            <CheckboxField
+              className="mt-2"
+              label="Dynamic Typing"
+              checked={dynamicTyping ?? false}
+              onCheckedChange={() => setDynamicTyping(dynamicTyping ? undefined : true)}
+            />
+          </div>
+          <div className="text-content2 mt-3 text-xs">
+            Dynamic Typing inherits from Suggest Types when left unchecked.
+          </div>
+        </div>
+      )}
+
+      {mode === 'json' && (
+        <div
+          data-tour="project-import-data-overview"
+          className={cn('flex h-[70vh] min-h-[300px] flex-col overflow-hidden pb-5', {
+            'opacity-0': loading
+          })}
+        >
+          <Suspense>
+            <Editor
+              onMount={handleEditorMount}
+              defaultLanguage="json"
+              defaultValue={defaultValue}
+              height="100%"
+              onChange={(v) => $editorData.set(v ?? '')}
+              theme="vs-dark"
+            />
+          </Suspense>
+        </div>
+      )}
+      {mode === 'csv' && (
+        <div className="mb-5 flex h-[60vh] flex-col">
+          <textarea
+            className="scrollbar-thin bg-secondary h-full w-full resize-none rounded border p-3 font-mono text-sm outline-none focus-visible:ring"
+            placeholder="name,email,age\nJohn Doe,john@example.com,30"
+            value={csvData}
+            onChange={(e) => $csvData.set(e.target.value)}
           />
-        </Suspense>
-      </div>
-      {(loading || submitting) && <DialogLoadingOverlay />}
+        </div>
+      )}
+      {(loading || submitting || csvSubmitting) && <DialogLoadingOverlay />}
       <DialogFooter>
         <Button onClick={() => $step.set('method')} variant="secondary">
           Back
         </Button>
-        <Button
-          data-tour="project-import-data-ingest"
-          onClick={() => {
-            if (!label) {
-              setError('Label is required')
-              return
-            }
-            mutate({
-              data: JSON.parse($editorData.get()),
-              label,
-              options: {
-                suggestTypes,
-                castNumberArraysToVectors,
-                convertNumericValuesToNumbers,
-                capitalizeLabels,
-                relationshipType
+        {mode === 'json' && (
+          <Button
+            data-tour="project-import-data-ingest"
+            onClick={() => {
+              if (!label) {
+                setError('Label is required')
+                return
               }
-            }).then(() => {
-              $router.open(getRoutePath('project', { id: projectId! }))
-              $step.set('method')
-            })
-          }}
-          loading={submitting}
-          variant="accent"
-        >
-          Import Data
-        </Button>
+              mutate({
+                data: JSON.parse($editorData.get()),
+                label,
+                options: {
+                  suggestTypes,
+                  castNumberArraysToVectors,
+                  convertNumericValuesToNumbers,
+                  capitalizeLabels,
+                  relationshipType
+                }
+              }).then(() => {
+                $router.open(getRoutePath('project', { id: projectId! }))
+                $step.set('method')
+              })
+            }}
+            loading={submitting}
+            variant="accent"
+          >
+            Import JSON
+          </Button>
+        )}
+        {mode === 'csv' && (
+          <Button
+            onClick={() => {
+              if (!label) {
+                setError('Label is required')
+                return
+              }
+              mutateCsv({
+                label,
+                data: csvData,
+                options: {
+                  suggestTypes,
+                  castNumberArraysToVectors,
+                  convertNumericValuesToNumbers,
+                  capitalizeLabels,
+                  relationshipType
+                },
+                parseConfig: {
+                  delimiter,
+                  header,
+                  skipEmptyLines,
+                  quoteChar,
+                  escapeChar,
+                  newline: newline || undefined,
+                  dynamicTyping: dynamicTyping
+                }
+              }).then(() => {
+                $router.open(getRoutePath('project', { id: projectId! }))
+                $step.set('method')
+              })
+            }}
+            loading={csvSubmitting}
+            variant="accent"
+          >
+            Import CSV
+          </Button>
+        )}
       </DialogFooter>
     </>
   )
@@ -314,6 +451,7 @@ export function ImportRecords() {
               onClick={() => {
                 $editorData.set(`{}`)
                 $label.set('')
+                $mode.set('json')
               }}
               title="Write from scratch"
             />
@@ -331,6 +469,35 @@ export function ImportRecords() {
               <input
                 onChange={handleJsonUploadChange}
                 accept=".json,.ndjson"
+                className="absolute left-0 top-0 h-full w-full cursor-pointer appearance-none opacity-0"
+                multiple={false}
+                type="file"
+              />
+            </div>
+            <div className="group relative flex">
+              <RadioButton
+                description={<>Upload a CSV file (header row optional). Configure parsing and import.</>}
+                icon={<Table />}
+                title="Upload .csv file"
+                onClick={() => {
+                  $mode.set('csv')
+                  $csvData.set('')
+                  $step.set('editor')
+                }}
+              />
+              <input
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = (ev) => {
+                    $csvData.set((ev.target?.result as string) || '')
+                    $mode.set('csv')
+                    $step.set('editor')
+                  }
+                  reader.readAsText(file)
+                }}
+                accept=".csv"
                 className="absolute left-0 top-0 h-full w-full cursor-pointer appearance-none opacity-0"
                 multiple={false}
                 type="file"

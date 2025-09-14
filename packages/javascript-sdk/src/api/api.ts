@@ -306,6 +306,55 @@ export class RestAPI {
     },
 
     /**
+     * Imports records from CSV data.
+     * @param params - CSV import configuration
+     * @param params.label - Label applied to imported records
+     * @param params.data - Raw CSV string
+     * @param params.options - Import options (type inference etc.)
+     * @param params.parseConfig - CSV parsing configuration (subset allowed by server)
+     * @param params.parentId - Optional parent record id for hierarchical imports
+     */
+    importCsv: async <S extends Schema = any>(
+      params: {
+        label: string
+        data: string
+        options?: DBRecordCreationOptions
+        parseConfig?: {
+          delimiter?: string
+          header?: boolean
+          skipEmptyLines?: boolean | 'greedy'
+          dynamicTyping?: boolean
+          quoteChar?: string
+          escapeChar?: string
+          newline?: string
+        }
+        parentId?: string
+      },
+      transaction?: Transaction | string
+    ): Promise<DBRecordsArrayInstance<S>> => {
+      const txId = pickTransactionId(transaction)
+      const path = `/records/import/csv`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: params
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Array<DBRecord<S>>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      if (response?.success && response?.data) {
+        const dbRecordInstances =
+          isArray(response.data) ? response.data.map((r) => new DBRecordInstance<S>(r)) : []
+        return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
+      }
+
+      return new DBRecordsArrayInstance<S>([])
+    },
+
+    /**
      * Deletes records matching the search query
      * @param searchQuery - Query to identify records to delete
      * @param transaction - Optional transaction for atomic operations
