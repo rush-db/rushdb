@@ -40,7 +40,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       Logger.log('[ROLLBACK TRANSACTION]: Exception filter', JSON.stringify(exception))
     })
 
-    console.log(exception)
+    Logger.error(exception)
 
     // Helper to safely rollback (if open) and close a transaction
     const finalizeTx = async (label: string, tx?: Transaction) => {
