@@ -1,5 +1,16 @@
 # rushdb-website
 
+## 1.14.0
+
+### Minor Changes
+
+- 7cd984c: Added `records.importCsv` method with configurable CSV `parseConfig` and extended import docs.
+
+### Patch Changes
+
+- Updated dependencies [7cd984c]
+  - @rushdb/javascript-sdk@1.14.0
+
 ## 1.13.2
 
 ### Patch Changes
