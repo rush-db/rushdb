@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 
-import { TImportOptions, TImportJsonPayload } from '@/core/entity/import-export/import.types'
+import { TImportOptions, TImportCsvParseConfig } from '@/core/entity/import-export/import.types'
 
 export class ImportCsvDto {
   @ApiPropertyOptional()
@@ -14,4 +14,14 @@ export class ImportCsvDto {
 
   @ApiPropertyOptional({ default: {} })
   options?: TImportOptions
+
+  @ApiPropertyOptional({
+    description: 'CSV parse config (allowed subset)',
+    default: {
+      delimiter: ',',
+      header: true,
+      skipEmptyLines: true
+    }
+  })
+  parseConfig?: TImportCsvParseConfig
 }

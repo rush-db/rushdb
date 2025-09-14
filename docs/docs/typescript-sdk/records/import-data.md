@@ -6,7 +6,7 @@ sidebar_position: 1
 
 When working with RushDB SDK, creating models like Author, Post, and Blog repositories allows us to define clear TypeScript contracts, ensuring type safety and better development experience. However, in many scenarios, you might need to quickly import data from external sources, such as JSON files, without going through the process of registering models.
 
-Using the `createMany` method, you can efficiently import large datasets into RushDB by directly specifying the label and payload data. This approach is ideal for batch imports, data migrations, and integrating external data sources.
+Using the `createMany` method (JSON) or the `importCsv` method (CSV), you can efficiently import large datasets into RushDB by directly specifying the label and payload data. This approach is ideal for batch imports, data migrations, and integrating external data sources.
 
 ## Example: Importing Data from JSON
 In this example, we will demonstrate how to import user, post, and blog data from a JSON file into RushDB SDK using the `createMany` method:
@@ -62,6 +62,50 @@ async function importData() {
 importData();
 ```
 
+## Importing Data from CSV
+
+Use `importCsv` when your data source is a CSV string. You can control both import options (type inference etc.) and a subset of CSV parsing configuration.
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk';
+
+const db = new RushDB(process.env.RUSHDB_API_KEY!);
+
+const csv = `name,email,age\nJohn Doe,john@example.com,30\nJane Smith,jane@example.com,25`;
+
+const customers = await db.records.importCsv({
+  label: 'CUSTOMER',
+  data: csv,
+  options: {
+    suggestTypes: true,
+    convertNumericValuesToNumbers: true,
+    returnResult: true
+  },
+  parseConfig: {
+    delimiter: ',',
+    header: true,
+    skipEmptyLines: true,
+    dynamicTyping: true
+  }
+});
+
+console.log(customers.data.map(c => c.data));
+```
+
+### CSV Parse Configuration (parseConfig)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `delimiter` | string | `,` | Field delimiter |
+| `header` | boolean | `true` | Whether first row contains headers |
+| `skipEmptyLines` | boolean \| `"greedy"` | `true` | Skip empty (or whitespace-only when `greedy`) lines |
+| `dynamicTyping` | boolean | Mirrors `options.suggestTypes` | PapaParse numeric/boolean autodetection |
+| `quoteChar` | string | `"` | Quote character |
+| `escapeChar` | string | `"` | Escape character for quotes |
+| `newline` | string | auto | Explicit newline sequence override |
+
+If `parseConfig.dynamicTyping` is omitted, it inherits from `options.suggestTypes`.
+
 ## Advanced Usage: Import Options
 
 The `createMany` method accepts an optional third parameter to customize how your data is processed and stored:
@@ -78,12 +122,12 @@ const importOptions = {
 
 const importedUsers = await db.records.createMany({
   labels: 'user',
-  data: data.users, 
+  data: data.users,
   options: importOptions
 });
 ```
 
-### Available Options
+### Available Options (JSON & CSV)
 
 | Option                          | Type    | Default                         | Description                                       |
 |---------------------------------|---------|---------------------------------|---------------------------------------------------|
@@ -135,6 +179,7 @@ The TypeScript SDK abstracts this complexity, allowing you to focus on your data
 - For large data imports (>1,000 records), consider batching your requests in chunks
 - Setting `returnResult: false` is recommended for large imports to improve performance
 - For time-critical imports, pre-process your data to ensure type consistency
+- CSV imports currently read the full string; for very large files consider splitting client-side
 
 ## Related Documentation
 

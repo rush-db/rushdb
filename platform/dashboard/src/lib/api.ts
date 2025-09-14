@@ -31,6 +31,10 @@ import type {
 import type { GenericApiResponse, Override } from '~/types'
 
 import { rushDBInstance } from '~/lib/sdk.ts'
+import { $token } from '~/features/auth/stores/token.ts'
+import { $currentProjectId } from '~/features/projects/stores/id.ts'
+import { $currentWorkspaceId } from '~/features/workspaces/stores/current.ts'
+import { BASE_URL } from '~/config.ts'
 
 import { fetcher } from './fetcher'
 import { BillingErrorCodes } from '~/features/billing/constants.ts'
@@ -66,6 +70,62 @@ export const api = {
         if (e.message === BillingErrorCodes.PaymentRequired.toString()) {
           $limitReachModalOpen.set(true)
         }
+        return {}
+      }
+    },
+    async importCsv({
+      init,
+      data,
+      label,
+      options = {},
+      parseConfig
+    }: WithInit & {
+      label: string
+      data: string
+      options?: DBRecordCreationOptions
+      parseConfig?: {
+        delimiter?: string
+        header?: boolean
+        skipEmptyLines?: boolean | 'greedy'
+        dynamicTyping?: boolean
+        quoteChar?: string
+        escapeChar?: string
+        newline?: string
+      }
+    }) {
+      try {
+        const recordsAny = rushDBInstance.records as any
+        if (typeof recordsAny.importCsv === 'function') {
+          const res = await recordsAny.importCsv({ label, data, options, parseConfig })
+          return res
+        }
+
+        // Fallback: direct REST call if SDK method not present (older bundle)
+        const token = $token.get()
+        const projectId = $currentProjectId.get()
+        const workspaceId = $currentWorkspaceId.get()
+        const response = await fetch(`${BASE_URL || ''}/api/v1/records/import/csv`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(projectId ? { 'x-project-id': projectId } : {}),
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+            ...(init?.headers || {})
+          },
+          body: JSON.stringify({ label, data, options, parseConfig })
+        })
+        if (!response.ok) {
+          const text = await response.text().catch(() => '')
+          ;(console.error || (() => undefined))('CSV import failed', response.status, text)
+          throw new Error('CSV import failed')
+        }
+        return await response.json().catch(() => ({}))
+      } catch (e: any) {
+        if (e.message === BillingErrorCodes.PaymentRequired.toString()) {
+          $limitReachModalOpen.set(true)
+        }
+        console.error('importCsv error', e)
         return {}
       }
     },
