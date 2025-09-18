@@ -55,7 +55,7 @@ export class NeogmaDynamicService {
         this.connections.delete(projectId)
         isDevMode(() => Logger.log(`Dynamic connection for project ${projectId} closed due to inactivity`))
       }
-    }, this.inactivityTimeout)
+    }, this.inactivityTimeout).unref()
   }
 
   async validateConnection(config: INeogmaConfig): Promise<void> {
@@ -94,7 +94,7 @@ export class NeogmaDynamicService {
   }> {
     const connection = await this.getConnection(projectId, config)
     const session = connection.driver.session()
-    const transaction = session.beginTransaction()
+    const transaction = session.beginTransaction({ timeout: 10_000 })
 
     const runner = new QueryRunner({
       driver: connection.driver
@@ -105,7 +105,7 @@ export class NeogmaDynamicService {
 
   private async initializeSchema(connection: Neogma): Promise<void> {
     const session = connection.driver.session()
-    const transaction = session.beginTransaction()
+    const transaction = session.beginTransaction({ timeout: 10_000 })
     try {
       const constraints = [
         `CREATE CONSTRAINT constraint_record_id IF NOT EXISTS FOR (record:${RUSHDB_LABEL_RECORD}) REQUIRE record.${RUSHDB_KEY_ID} IS UNIQUE`,

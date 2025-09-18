@@ -37,10 +37,10 @@ export class UserModule implements OnApplicationBootstrap {
     const isSelfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
     const adminLogin = this.configService.get('RUSHDB_LOGIN')
     const adminPassword = this.configService.get('RUSHDB_PASSWORD')
-    const session = this.neogmaService.createSession('init-user')
 
     if (isSelfHosted && adminLogin && adminPassword) {
-      const transaction = session.beginTransaction()
+      const session = this.neogmaService.createSession('init-user')
+      const transaction = session.beginTransaction({ timeout: 10_000 })
 
       try {
         const user = await this.userService.find(adminLogin, transaction)
@@ -67,7 +67,7 @@ export class UserModule implements OnApplicationBootstrap {
           await transaction.commit()
           await transaction.close()
         }
-        await session.close()
+        await this.neogmaService.closeSession(session)
       }
     }
   }
