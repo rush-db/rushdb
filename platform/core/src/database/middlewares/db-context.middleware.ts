@@ -22,7 +22,9 @@ export class DbContextMiddleware implements NestMiddleware {
       try {
         externalConnection = await this.dbConnectionService.getConnection(projectId, project)
       } catch (e) {
-        isDevMode(() => Logger.error(`Error obtaining connection for project ${projectId}`, e))
+        isDevMode(() =>
+          Logger.error(`[DbContextMiddleware] Error obtaining connection for project ${projectId}`, e)
+        )
       }
     }
 

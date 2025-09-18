@@ -4,7 +4,6 @@ import { Session, Transaction } from 'neo4j-driver'
 
 import { PlatformRequest } from '@/common/types/request'
 import { TransactionService } from '@/core/transactions/transaction.service'
-import { TTransactionObject } from '@/core/transactions/transaction.types'
 import { dbContextStorage } from '@/database/db-context'
 
 @Injectable()
@@ -12,16 +11,19 @@ export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
   constructor(private readonly transactionService: TransactionService) {}
 
   async use(request: PlatformRequest, response: Response, next: NextFunction) {
+    if (request.method === 'OPTIONS' || request.method === 'HEAD') {
+      return next()
+    }
+
     const dbContext = dbContextStorage.getStore()
     const externalDbConnection = dbContext.externalConnection
     const txId = <string>request.headers['x-transaction-id']
 
-    let userDefinedTransaction: TTransactionObject
-    if (txId) {
-      userDefinedTransaction = this.transactionService.getTransaction(txId)
-    }
-    if (userDefinedTransaction) {
-      request.userDefinedTransaction = userDefinedTransaction.transaction
+    const raw: any = (request as any).raw ?? request
+
+    if (txId && !raw.userDefinedTransaction) {
+      const userDefinedTransaction = this.transactionService.getTransaction(txId)
+      raw.userDefinedTransaction = userDefinedTransaction.transaction
     }
 
     if (externalDbConnection) {
@@ -29,10 +31,17 @@ export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
       let transaction: Transaction | null = null
 
       try {
-        session = externalDbConnection.driver?.session()
-        transaction = session?.beginTransaction()
+        if (raw.externalSession && raw.externalTransaction) {
+          return next()
+        }
 
-        const raw: any = (request as any).raw ?? request
+        const { body, projectId, originalUrl, method, routerMethod, path, workspaceId } = raw
+
+        session = externalDbConnection.driver?.session()
+        transaction = session?.beginTransaction({
+          metadata: { body, projectId, originalUrl, method, routerMethod, path, workspaceId }
+        })
+
         raw.externalSession = session
         raw.externalTransaction = transaction
 
@@ -45,7 +54,6 @@ export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
         } catch {
           Logger.error('[SessionAttachMiddleware] Error', e)
         } finally {
-          const raw: any = (request as any).raw ?? request
           raw.externalSession = undefined
           raw.externalTransaction = undefined
         }
@@ -53,7 +61,6 @@ export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
         return next(e)
       }
     }
-
-    next()
+    return next()
   }
 }

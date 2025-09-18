@@ -1,8 +1,12 @@
 import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common'
 import { Observable } from 'rxjs'
 
+import { NeogmaService } from '@/database/neogma/neogma.service'
+
 @Injectable()
 export class RequestCleanupInterceptor implements NestInterceptor {
+  constructor(private readonly neogmaService: NeogmaService) {}
+
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const http = context.switchToHttp()
     const request = http.getRequest<any>()
@@ -42,12 +46,18 @@ export class RequestCleanupInterceptor implements NestInterceptor {
       } finally {
         try {
           await internalTransaction.close()
-        } catch {}
+        } catch (e) {
+          Logger.error('[RequestCleanupInterceptor] Internal tx finalize error', e)
+        }
         try {
           if (internalSession) {
-            await internalSession.close()
+            await this.neogmaService.closeSession(internalSession)
           }
-        } catch {}
+        } catch (e) {
+          Logger.error('[RequestCleanupInterceptor] Internal session close error', e)
+        }
+
+        Logger.log('[RequestCleanupInterceptor] Internal session and tx close complete')
       }
 
       try {
@@ -66,10 +76,17 @@ export class RequestCleanupInterceptor implements NestInterceptor {
       } finally {
         try {
           await externalTransaction?.close?.()
-        } catch {}
+        } catch (e) {
+          Logger.error('[RequestCleanupInterceptor] External tx finalize error', e)
+        }
         try {
           await externalSession?.close?.()
-        } catch {}
+        } catch (e) {
+          Logger.error('[RequestCleanupInterceptor] External session finalize error', e)
+        }
+        if (externalTransaction || externalSession) {
+          Logger.log('[RequestCleanupInterceptor] External session and tx close complete')
+        }
       }
 
       // Clear request-bound references to help GC
@@ -78,7 +95,9 @@ export class RequestCleanupInterceptor implements NestInterceptor {
         raw.transaction = undefined
         raw.externalSession = undefined
         raw.externalTransaction = undefined
-      } catch {}
+      } catch {
+        /* empty */
+      }
     }
 
     // Prefer to run cleanup after response has been sent to the client.
@@ -96,7 +115,7 @@ export class RequestCleanupInterceptor implements NestInterceptor {
       })
     } else {
       // As a very last resort, schedule cleanup (should rarely happen)
-      setTimeout(() => void doCleanup(false), 5000)
+      setTimeout(() => void doCleanup(false), 5000).unref()
     }
 
     return next.handle()

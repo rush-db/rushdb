@@ -17,7 +17,7 @@ export class AuthMiddleware implements NestMiddleware {
   ) {}
 
   async use(request: PlatformRequest, response: Response, next: NextFunction) {
-    if (request.method === 'OPTIONS') {
+    if (request.method === 'OPTIONS' || request.method === 'HEAD') {
       return next()
     }
 
@@ -33,8 +33,8 @@ export class AuthMiddleware implements NestMiddleware {
 
       // Flow for SDK auth (token-based)
       if (request.headers['token'] || !isJwt) {
-        let session = this.neogmaService.createSession('auth-middleware-sdk')
-        let transaction = session.beginTransaction()
+        const session = this.neogmaService.createSession('auth-middleware-sdk')
+        const transaction = session.beginTransaction({ timeout: 10_000 })
         try {
           const tokenHeader = (request.headers['token'] || bearerToken) as string
           if (tokenHeader) {
@@ -66,32 +66,44 @@ export class AuthMiddleware implements NestMiddleware {
           isDevMode(() => Logger.error('SDK auth failed in middleware', e))
           // Rollback & close on failure to avoid leaks
           try {
-            if (transaction?.isOpen?.()) await transaction.rollback()
-          } catch {}
+            if (transaction?.isOpen?.()) {
+              await transaction.rollback()
+            }
+          } catch {
+            /* empty */
+          }
           try {
             await transaction?.close?.()
-          } catch {}
+          } catch {
+            /* empty */
+          }
           try {
-            await session?.close?.()
-          } catch {}
+            await this.neogmaService.closeSession(session)
+          } catch {
+            /* empty */
+          }
         } finally {
           // If not attached (no projectId assigned) ensure session closed
           const raw: any = (request as any).raw ?? request
           if (raw.session !== session) {
             try {
               await transaction?.close?.()
-            } catch {}
+            } catch {
+              /* empty */
+            }
             try {
-              await session?.close?.()
-            } catch {}
+              await this.neogmaService.closeSession(session)
+            } catch {
+              /* empty */
+            }
           }
         }
       }
 
       // Flow for JWT auth (dashboard)
       if (isJwt && authHeader) {
-        let session = this.neogmaService.createSession('auth-middleware-jwt')
-        let transaction = session.beginTransaction()
+        const session = this.neogmaService.createSession('auth-middleware-jwt')
+        const transaction = session.beginTransaction({ timeout: 10_000 })
         try {
           const token = authHeader.split(' ')[1]
           const user = this.authService.verifyJwt(token)
@@ -122,23 +134,35 @@ export class AuthMiddleware implements NestMiddleware {
         } catch (e) {
           isDevMode(() => Logger.error('JWT auth failed in middleware', e))
           try {
-            if (transaction?.isOpen?.()) await transaction.rollback()
-          } catch {}
+            if (transaction?.isOpen?.()) {
+              await transaction.rollback()
+            }
+          } catch {
+            /* empty */
+          }
           try {
             await transaction?.close?.()
-          } catch {}
+          } catch {
+            /* empty */
+          }
           try {
             await session?.close?.()
-          } catch {}
+          } catch {
+            /* empty */
+          }
         } finally {
           const raw: any = (request as any).raw ?? request
           if (raw.session !== session) {
             try {
               await transaction?.close?.()
-            } catch {}
+            } catch {
+              /* empty */
+            }
             try {
-              await session?.close?.()
-            } catch {}
+              await this.neogmaService.closeSession(session)
+            } catch {
+              /* empty */
+            }
           }
         }
       }

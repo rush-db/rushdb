@@ -215,7 +215,8 @@ export class ProjectService {
     } finally {
       isDevMode(() => Logger.log('[COMMIT CUSTOM TRANSACTION]: cleanUpRemoteProject'))
       await transaction.commit()
-      await transaction.close().then(() => session.close())
+      await transaction.close()
+      await session.close()
     }
   }
 
@@ -232,6 +233,7 @@ export class ProjectService {
     }
   }
 
+  // @TODO: Use dynamic connection for external data source
   async cleanUpProject(projectId: string) {
     const session = this.neogmaService.createSession('cleanUpProject')
     const transaction = session.beginTransaction()
@@ -253,7 +255,8 @@ export class ProjectService {
       }
     } finally {
       await transaction.commit()
-      await transaction.close().then(() => session.close())
+      await transaction.close()
+      await this.neogmaService.closeSession(session)
     }
   }
 
