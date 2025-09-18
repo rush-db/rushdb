@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 1.14.1
+
+### Patch Changes
+
+- 9cafe44: Transactions management improvements
+
 ## 1.14.0
 
 ### Minor Changes
