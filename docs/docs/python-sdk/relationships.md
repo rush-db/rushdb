@@ -301,9 +301,9 @@ You can find records based on their relationships:
 result = db.records.find({
     "labels": ["EMPLOYEE"],
     "where": {
-        "_in": {  # Use _in to find incoming relationships
-            "relation": "WORKS_IN",  # Relationship type
-            "source": department.id  # The source record ID
+        "DEPARTMENT": {
+            "$relation": "WORKS_IN",  # Relationship type
+            "$id": department.id       # Match the specific related department
         }
     }
 })
@@ -314,9 +314,9 @@ employees = result.data
 result = db.records.find({
     "labels": ["PROJECT"],
     "where": {
-        "_in": {
-            "relation": "MANAGES",
-            "source": user.id
+        "USER": {
+            "$relation": "MANAGES",
+            "$id": user.id
         }
     }
 })
@@ -386,33 +386,32 @@ relationships_api = db.relationships
 
 ### The find() Method
 
-The `find()` method is the primary way to search for relationships in your database. It supports the same powerful SearchQuery pattern used throughout RushDB.
+The `find()` method searches for relationships. It accepts a SearchQuery and returns an API response with the matched relationships.
 
 #### Method Signature
 
 ```python
 async def find(
-    self,
-    search_query: Optional[SearchQuery] = None,
-    pagination: Optional[PaginationParams] = None,
-    transaction: Optional[Union[Transaction, str]] = None,
-) -> List[Relationship]
+        self,
+        search_query: Optional[SearchQuery] = None,
+        transaction: Optional[Union[Transaction, str]] = None,
+) -> ApiResponse[List[Relationship]]
 ```
 
 #### Parameters
 
-- **search_query** (`Optional[SearchQuery]`): Search criteria to filter relationships. Uses a Record-centric approach where the `where` clause contains Record properties to find relationships involving records that match those criteria:
-  - `where`: Filter conditions for record properties (not relationship properties)
-  - `labels`: Filter by record labels to find relationships involving specific record types
-  - `orderBy`: Sort relationships by various criteria
-- **pagination** (`Optional[PaginationParams]`): Control result set size and pagination:
-  - `limit` (int): Maximum number of relationships to return (default: 100, max: 1000)
-  - `skip` (int): Number of relationships to skip for pagination (default: 0)
-- **transaction** (`Optional[Union[Transaction, str]]`): Optional transaction context for the operation
+- **search_query** (`Optional[SearchQuery]`): Search criteria to filter relationships. This uses the same SearchQuery "where" syntax as record queries, including nested label blocks and the `$relation` operator:
+    - `where`: Conditions for records involved in relationships. Examples:
+        - Nested related label with relationship filter: `{ "COMPANY": { "$relation": "WORKS_AT", "industry": "Technology" } }`
+        - Relationship with direction: `{ "POST": { "$relation": { "type": "AUTHORED", "direction": "in" }, "title": {"$contains": "Graph"} } }`
+        - Base-label filtering via `labels`: limit the primary side you’re describing, e.g., `{"labels": ["USER"], "where": {"name": {"$contains": "John"}, "COMPANY": {"$relation": "WORKS_AT"}}}`
+    - `limit` (int, optional): Max number of relationships to return
+    - `skip` (int, optional): Number of relationships to skip (for pagination)
+- **transaction** (`Optional[Union[Transaction, str]]`): Optional transaction context
 
 #### Return Value
 
-Returns a `List[Relationship]` containing relationship objects that match the search criteria. Each relationship object contains information about the source record, target record, relationship type, and direction.
+Returns an `ApiResponse` with shape `{ "success": bool, "data": List[Relationship], "total": Optional[int] }`.
 
 ### Basic Relationship Searching
 
@@ -420,63 +419,65 @@ Returns a `List[Relationship]` containing relationship objects that match the se
 
 ```python
 # Get all relationships in the database
-all_relationships = await db.relationships.find()
+response = await db.relationships.find()
 
-print(f"Total relationships: {len(all_relationships)}")
-for rel in all_relationships[:5]:  # Show first 5
-    print(f"{rel.sourceId} -> {rel.targetId} ({rel.type})")
+print(f"Success: {response['success']}")
+print(f"Total relationships (if provided): {response.get('total')}")
+for rel in response["data"][:5]:  # Show first 5
+    print(f"{rel['sourceId']} -> {rel['targetId']} ({rel['type']})")
 ```
 
 #### Find Relationships with Pagination
 
 ```python
-# Get relationships with pagination
-pagination_params = {
+# Get relationships with pagination (limit/skip)
+first_page = await db.relationships.find({
     "limit": 50,
     "skip": 0
-}
-
-first_page = await db.relationships.find(pagination=pagination_params)
+})
 
 # Get next page
-next_page_params = {
+second_page = await db.relationships.find({
     "limit": 50,
     "skip": 50
-}
-
-second_page = await db.relationships.find(pagination=next_page_params)
+})
 ```
 
 ### Advanced Relationship Queries
 
 #### Filter by Record Properties
 
-The RelationsAPI uses a Record-centric approach. You specify record properties in the `where` clause to find relationships involving records that match those criteria:
+The RelationsAPI uses the same `where` syntax as record queries. Use nested label blocks and `$relation` to describe the connection between entities:
 
 ```python
-# Find relationships involving active users in Engineering department
+# Find relationships where the USER side is active in Engineering
 engineering_relationships = await db.relationships.find({
+    "labels": ["USER"],
     "where": {
         "isActive": True,
         "department": "Engineering"
     }
 })
 
-# Find relationships involving large technology companies
+# Find relationships where the related COMPANY is large and in Technology
 tech_company_relationships = await db.relationships.find({
+    "labels": ["USER"],
     "where": {
-        "industry": "Technology",
-        "employees": {"$gte": 100}
+        "COMPANY": {"industry": "Technology", "employees": {"$gte": 100}}
     }
 })
 
-# Find relationships involving records with specific labels
-user_relationships = await db.relationships.find({
-    "labels": ["USER"]  # Only find relationships involving USER records
+# Find USER -> PROJECT relationships by type (optionally include direction)
+user_project_relationships = await db.relationships.find({
+    "labels": ["USER"],
+    "where": {
+        "PROJECT": {"$relation": {"type": "WORKS_ON", "direction": "out"}}
+    }
 })
 
-# Find relationships involving records matching complex criteria
+# Find relationships involving senior Developer EMPLOYEEs
 senior_dev_relationships = await db.relationships.find({
+    "labels": ["EMPLOYEE"],
     "where": {
         "role": "Developer",
         "experience": {"$gte": 5},
@@ -490,25 +491,26 @@ senior_dev_relationships = await db.relationships.find({
 ```python
 # Find relationships involving engineering employees who are active
 engineering_relationships = await db.relationships.find({
+    "labels": ["EMPLOYEE"],
     "where": {
         "$and": [
             {"department": "Engineering"},
             {"isActive": True},
             {"role": {"$in": ["Developer", "QA Engineer", "DevOps"]}}
         ]
-    },
-    "orderBy": {"name": "asc"}
+    }
 })
 
-# Find relationships involving recently created records
+# Find relationships where the base records were created recently
 recent_record_relationships = await db.relationships.find({
     "where": {
         "createdAt": {"$gte": "2024-01-01T00:00:00Z"}
     },
-    "orderBy": {"createdAt": "desc"}
-}, pagination={"limit": 25, "skip": 0})
+    "limit": 25,
+    "skip": 0
+})
 
-# Find relationships involving records with specific labels and properties
+# Find relationships involving MANAGER records with teams >= 5
 manager_relationships = await db.relationships.find({
     "labels": ["MANAGER"],
     "where": {
@@ -524,12 +526,12 @@ manager_relationships = await db.relationships.find({
 
 ```python
 # Get all relationships and analyze by type
-all_relationships = await db.relationships.find()
+response = await db.relationships.find()
 
 # Count by type
 type_counts = {}
-for rel in all_relationships:
-    rel_type = rel.type
+for rel in response["data"]:
+    rel_type = rel["type"]
     type_counts[rel_type] = type_counts.get(rel_type, 0) + 1
 
 print("Relationship types and counts:")
@@ -541,12 +543,12 @@ for rel_type, count in sorted(type_counts.items()):
 
 ```python
 # Find relationships involving all records first
-all_relationships = await db.relationships.find()
+response = await db.relationships.find()
 
 # Count outgoing relationships per record
 outgoing_counts = {}
-for rel in all_relationships:
-    source_id = rel.sourceId
+for rel in response["data"]:
+    source_id = rel["sourceId"]
     outgoing_counts[source_id] = outgoing_counts.get(source_id, 0) + 1
 
 # Find top 10 most connected records
@@ -574,15 +576,16 @@ The RelationsAPI supports transactions for consistent querying:
 tx = db.tx.begin()
 
 try:
-    # Query relationships involving records in Sales department within the transaction
-    relationships = await db.relationships.find({
+    # Query relationships involving COMPANY related via WORKS_AT within the transaction
+    response = await db.relationships.find({
+        "labels": ["USER"],
         "where": {
-            "department": "Sales"
+            "COMPANY": {"$relation": "WORKS_AT", "department": "Sales"}
         }
     }, transaction=tx)
 
     # Perform additional operations in the same transaction
-    for rel in relationships:
+    for rel in response["data"]:
         # Update related records or create new relationships
         pass
 
@@ -606,10 +609,9 @@ async def process_all_relationships(batch_size=100):
 
     while True:
         # Get next batch
-        relationships = await db.relationships.find(
-            pagination={"limit": batch_size, "skip": skip}
-        )
+        response = await db.relationships.find({"limit": batch_size, "skip": skip})
 
+        relationships = response["data"]
         if not relationships:
             break  # No more relationships
 
@@ -617,12 +619,12 @@ async def process_all_relationships(batch_size=100):
         for rel in relationships:
             # Process individual relationship
             processed_count += 1
-            print(f"Processing relationship {rel.sourceId} -> {rel.targetId}")
+            print(f"Processing relationship {rel['sourceId']} -> {rel['targetId']}")
 
         # Move to next batch
         skip += batch_size
 
-        print(f"Processed {processed_count} relationships so far...")
+    print(f"Processed {processed_count} relationships so far...")
 
     print(f"Finished processing {processed_count} total relationships")
 
@@ -658,7 +660,7 @@ The RelationsAPI works seamlessly with record operations:
 
 ```python
 # 1. Discover relationships involving specific types of records
-management_rels = await db.relationships.find({
+management_rels_resp = await db.relationships.find({
     "labels": ["MANAGER"],
     "where": {
         "department": "Engineering",
@@ -667,45 +669,18 @@ management_rels = await db.relationships.find({
 })
 
 # 2. Extract record IDs from relationships
-manager_ids = [rel.sourceId for rel in management_rels]
-employee_ids = [rel.targetId for rel in management_rels]
+manager_ids = [rel["sourceId"] for rel in management_rels_resp["data"]]
+employee_ids = [rel["targetId"] for rel in management_rels_resp["data"]]
 
 # 3. Query the actual records using RecordsAPI for detailed information
-managers = db.records.find_by_id(manager_ids)
-employees = db.records.find_by_id(employee_ids)
+managers = await db.records.find_by_id(manager_ids)
+employees = await db.records.find_by_id(employee_ids)
 
 # 4. Combine data for analysis
-for rel in management_rels:
-    manager = next(m for m in managers if m.id == rel.sourceId)
-    employee = next(e for e in employees if e.id == rel.targetId)
+for rel in management_rels_resp["data"]:
+    manager = next(m for m in managers if m.id == rel["sourceId"])  # Adjust to your record object shape
+    employee = next(e for e in employees if e.id == rel["targetId"])  # Adjust as needed
     print(f"{manager.name} manages {employee.name}")
-```
-
-## Relationship Direction
-
-Relationships in RushDB have direction. You can specify the direction when creating or querying relationships:
-
-- `"out"` - Relationship goes from source to target (source → target)
-- `"in"` - Relationship goes from target to source (target → source)
-
-```python
-# Creating an outgoing relationship (source → target)
-user.attach(
-    target=group,
-    options={
-        "type": "BELONGS_TO",
-        "direction": "out"
-    }
-)
-
-# Creating an incoming relationship (target → source)
-project.attach(
-    target=employee,
-    options={
-        "type": "WORKS_ON",
-        "direction": "in"  # Employee → Project
-    }
-)
 ```
 
 ## Working with Transactions
@@ -822,18 +797,16 @@ relationships = await db.relationships.find(
 
 ### Relationship Object
 
-When you query relationships using the RelationsAPI, you receive `Relationship` objects with the following structure:
+When you query relationships using the RelationsAPI, each item in `response["data"]` has the following structure:
 
 ```python
-# Example Relationship object attributes
-relationship = relationships[0]
+relationship = response["data"][0]
 
-print(f"Source ID: {relationship.sourceId}")        # ID of the source record
-print(f"Source Label: {relationship.sourceLabel}")  # Label of the source record
-print(f"Target ID: {relationship.targetId}")        # ID of the target record
-print(f"Target Label: {relationship.targetLabel}")  # Label of the target record
-print(f"Type: {relationship.type}")                 # Relationship type (e.g., "MANAGES")
-print(f"Direction: {relationship.direction}")       # Relationship direction
+print(f"Source ID: {relationship['sourceId']}")        # ID of the source record
+print(f"Source Label: {relationship['sourceLabel']}")  # Label of the source record
+print(f"Target ID: {relationship['targetId']}")        # ID of the target record
+print(f"Target Label: {relationship['targetLabel']}")  # Label of the target record
+print(f"Type: {relationship['type']}")                 # Relationship type (e.g., "MANAGES")
 ```
 
 ## Related Documentation

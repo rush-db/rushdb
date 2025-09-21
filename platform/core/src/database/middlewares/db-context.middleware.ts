@@ -12,6 +12,10 @@ export class DbContextMiddleware implements NestMiddleware {
   constructor(private readonly dbConnectionService: DbConnectionService) {}
 
   async use(request: PlatformRequest, response: Response, next: NextFunction) {
+    if (request.method === 'OPTIONS' || request.method === 'HEAD') {
+      return next()
+    }
+
     const projectId = request.projectId
     const project = request.project
 
