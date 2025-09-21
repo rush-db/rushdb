@@ -274,15 +274,12 @@ To search for relationships based on specific criteria, use the `relationships.f
 
 ```typescript
 const relationships = await db.relationships.find({
+  labels: ['USER'],
   where: {
-    type: 'WORKS_AT',
-    source: {
-      label: 'USER',
-      name: { $contains: 'John' }
-    },
-    target: {
-      label: 'COMPANY',
-      industry: 'Technology'
+    name: { $contains: 'John' },
+    COMPANY: {
+      industry: 'Technology',
+      $relation: 'WORKS_AT'
     }
   },
   limit: 10
@@ -293,11 +290,11 @@ console.log(relationships);
 {
   data: [
     {
-      id: 'relation_id_1',
-      type: 'WORKS_AT',
-      source: 'user_123',
-      target: 'company_456',
-      direction: 'out'
+      sourceId: 'user_123',
+      sourceLabel: 'USER',
+      targetId: 'company_456',
+      targetLabel: 'COMPANY',
+      type: 'WORKS_AT'
     },
     // More relationships...
   ],
@@ -316,18 +313,23 @@ console.log(relationships);
 
 #### Returns
 
-- A promise that resolves to an array of relationship objects
+- A promise that resolves to an API response object: `{ success: boolean; data: Array<Relation>; total?: number }`
 
 ### Finding Relationships in Transactions
 
 ```typescript
 const transaction = await db.tx.begin();
 try {
-  const relationships = await db.relationships.find({
+ const relationships = await db.relationships.find({
+    labels: ['USER'],
     where: {
-      type: 'WORKS_AT',
-      direction: 'out'
-    }
+      name: { $contains: 'John' },
+      COMPANY: {
+        industry: 'Technology',
+        $relation: 'WORKS_AT'
+      }
+    },
+    limit: 10
   }, transaction);
 
   // Perform other operations...
