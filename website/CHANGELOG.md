@@ -1,5 +1,13 @@
 # rushdb-website
 
+## 1.14.2
+
+### Patch Changes
+
+- 63823d0: Optimize DbContextMiddleware
+- Updated dependencies [63823d0]
+  - @rushdb/javascript-sdk@1.14.2
+
 ## 1.14.1
 
 ### Patch Changes

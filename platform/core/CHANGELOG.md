@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.14.2
+
+### Patch Changes
+
+- 63823d0: Optimize DbContextMiddleware
+
 ## 1.14.1
 
 ### Patch Changes
