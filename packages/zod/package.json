@@ -1,0 +1,28 @@
+{
+  "name": "@rushdb/zod",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "peerDependencies": {
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5",
+    "zod": "^4.0.0",
+    "@rushdb/javascript-sdk": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -p ./tsconfig.json && node ./scripts/build-cjs.mjs",
+    "test": "vitest run"
+  }
+}

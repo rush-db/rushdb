@@ -26,6 +26,7 @@ import type {
   Where
 } from '../types/index.js'
 import type { ApiResponse } from './types.js'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 
 import {
   getOwnProperties,
@@ -274,15 +275,64 @@ export class RestAPI {
         label: string
         data: MaybeArray<AnyObject>
         options?: DBRecordCreationOptions
+        /** Optional StandardSchemaV1-compatible schema (via adapters) to validate/coerce each item before sending. */
+        schema?: StandardSchemaV1<any, any>
+        /** Enable/disable validation when schema provided (default true). */
+        validate?: boolean
+        /** Validation behavior controls. */
+        validateOptions?: { failFast?: boolean; collectErrors?: boolean }
       },
       transaction?: Transaction | string
     ): Promise<DBRecordsArrayInstance<S>> => {
       const txId = pickTransactionId(transaction)
       const path = `/records/import/json`
+
+      // Prepare payload to send to server (strip client-only keys)
+      let requestData: { label: string; data: MaybeArray<AnyObject>; options?: DBRecordCreationOptions } = {
+        label: data.label,
+        data: data.data,
+        options: data.options
+      }
+
+      // Optional client-side validation/coercion when a StandardSchemaV1 schema is provided
+      if (data?.schema && (data.validate ?? true)) {
+        const items = isArray(data.data) ? data.data : [data.data]
+        const failFast = data.validateOptions?.failFast ?? false
+        const collectErrors = data.validateOptions?.collectErrors ?? true
+        const errors: Array<{ index: number; issues: readonly unknown[] }> = []
+        const outputs: AnyObject[] = []
+
+        for (let i = 0; i < items.length; i++) {
+          const r = data.schema['~standard'].validate(items[i])
+          const resolved = r instanceof Promise ? await r : r
+          if ('issues' in resolved) {
+            const entry = { index: i, issues: (resolved.issues ?? []) as readonly unknown[] }
+            if (failFast) {
+              throw new Error(
+                `Validation failed for one or more items (first at index ${i}). Issues: ${JSON.stringify(resolved.issues)}`
+              )
+            }
+            if (collectErrors) errors.push(entry)
+            continue
+          }
+          outputs.push(resolved.value as AnyObject)
+        }
+
+        if (errors.length) {
+          throw new Error(`Validation failed for ${errors.length} item(s): ${JSON.stringify(errors)}`)
+        }
+
+        // Replace input with validated/coerced outputs
+        requestData = {
+          label: data.label,
+          options: data.options,
+          data: isArray(data.data) ? outputs : outputs[0]
+        }
+      }
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: data
+        requestData
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
