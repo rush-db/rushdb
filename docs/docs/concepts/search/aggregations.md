@@ -36,7 +36,7 @@ All aggregation clauses are defined in the `aggregate` key of the SearchQuery DT
 The following aggregation functions are supported:
 
 - `avg` - Calculate average value of a numeric field
-- `count` - Count records (with optional `uniq` parameter)
+- `count` - Count records (with optional `unique` parameter)
 - `max` - Get maximum value from a field
 - `min` - Get minimum value from a field
 - `sum` - Calculate sum of a numeric field
@@ -48,6 +48,22 @@ The following aggregation functions are supported:
   - `jaccard` - Jaccard similarity [0,1]
   - `overlap` - Overlap coefficient [0,1]
   - `pearson` - Pearson correlation [-1,1]
+
+  ## Grouping Results (groupBy)
+
+  For full coverage of grouping semantics, patterns, and limitations see the dedicated [Grouping guide](./group-by.md). Below is a minimal teaser example:
+
+  ```typescript
+  {
+    labels: ['ORDER'],
+    aggregate: {
+      count: { fn: 'count', alias: '$record' },
+      avgTotal: { fn: 'avg', field: 'total', alias: '$record' }
+    },
+    groupBy: ['$record.status'],
+    orderBy: { count: 'desc' }
+  }
+  ```
 
 
 ## Aliases
@@ -124,7 +140,7 @@ graph LR
 - `fn`: 'count' - The aggregation function name
 - `alias`: string - The record alias to use
 - `field?`: string - Optional field to count
-- `uniq?`: boolean - Optional flag to count unique values
+- `unique?`: boolean - Optional flag to count unique values
 
 ```typescript
 {
@@ -137,7 +153,7 @@ graph LR
   aggregate: {
     employeesCount: {
       fn: 'count',
-      uniq: true,  // Count unique employees
+      unique: true,  // Count unique employees
       alias: '$employee'
     }
   }
@@ -221,7 +237,7 @@ graph LR
 - `fn`: 'collect' - The aggregation function name
 - `alias`: string - The record alias to use
 - `field?`: string - Optional field to collect (if not provided, collects entire records)
-- `uniq?`: boolean - Optional flag to collect unique values only. True by default.
+- `unique?`: boolean - Optional flag to collect unique values only. True by default.
 - `limit?`: number - Optional maximum number of items to collect
 - `skip?`: number - Optional number of items to skip
 - `orderBy?`: TSearchSort - Optional sorting configuration
@@ -239,7 +255,7 @@ graph LR
       fn: 'collect',
       field: 'name',
       alias: '$employee',
-      uniq: true  // Optional: true by default
+      unique: true  // Optional: true by default
     }
   }
 }
@@ -267,7 +283,7 @@ graph LR
     // Count unique employees using the defined alias
     employeesCount: {
       fn: 'count',
-      uniq: true,
+      unique: true,
       alias: '$employee'
     },
 
@@ -619,7 +635,7 @@ The `collect` operator supports additional options for pagination and sorting:
 - `limit` - Maximum number of records to collect
 - `skip` - Number of records to skip
 - `orderBy` - Sort collected records by specified fields
-- `uniq` - Collect only unique values (when collecting field values)
+- `unique` - Collect only unique values (when collecting field values)
 - `field` - Collect specific field values instead of entire records
 
 Example:
@@ -637,7 +653,7 @@ Example:
       fn: 'collect',
       alias: '$department',
       field: 'tags',    // Collect only tags field
-      uniq: true,       // Remove duplicates
+      unique: true,       // Remove duplicates
       limit: 100,       // Collect up to 100 tags
       orderBy: {        // Sort alphabetically
         name: 'asc'

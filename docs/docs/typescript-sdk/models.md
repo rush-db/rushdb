@@ -16,7 +16,7 @@ type Schema = Record<string, {
     multiple?: boolean;
     required?: boolean;
     type: PropertyType;
-    uniq?: boolean;
+    unique?: boolean;
 }>;
 ```
 
@@ -32,7 +32,7 @@ type Schema = Record<string, {
   - `number`
   - `string`
   - `vector` (for embedding vectors used in similarity search)
-- `uniq`: If set to true, the field must have a unique value across all records in the database, useful for fields like email addresses or custom identifiers.
+- `unique`: If set to true, the field must have a unique value across all records in the database, useful for fields like email addresses or custom identifiers.
 
 ### Working with Default Values
 
@@ -46,7 +46,7 @@ const getCurrentISO = () => new Date().toISOString();
 const UserModel = new Model('USER', {
   name: { type: 'string' },
   avatar: { type: 'string' },
-  login: { type: 'string', uniq: true },
+  login: { type: 'string', unique: true },
   password: { type: 'string' },
   active: { type: 'boolean', default: true },  // Static default
   createdAt: { type: 'datetime', default: getCurrentISO },  // Dynamic default
@@ -71,7 +71,7 @@ Default value functions can also be asynchronous, allowing for operations like f
 
 ```typescript
 const ConfigModel = new Model('CONFIG', {
-  key: { type: 'string', uniq: true },
+  key: { type: 'string', unique: true },
   value: { type: 'string' },
   expiresAt: {
     type: 'datetime',
@@ -92,7 +92,7 @@ With an understanding of `Schema`, you can define a model in the RushDB system. 
 ```typescript
 const Author = new Model('author', {
   name: { type: 'string' },
-  email: { type: 'string', uniq: true }
+  email: { type: 'string', unique: true }
 });
 ```
 
@@ -132,7 +132,7 @@ export const USER = 'USER' as const;
 export const UserModel = new Model(USER, {
     name: { type: 'string' },
     avatar: { type: 'string' },
-    login: { type: 'string', uniq: true },
+    login: { type: 'string', unique: true },
     password: { type: 'string' },
     createdAt: { type: 'datetime', default: getCurrentISO },
     tags: { type: 'string', multiple: true, required: false },
@@ -218,7 +218,7 @@ Models in RushDB don't need to be registered explicitly. When you create a model
 // Create the model
 const AuthorModel = new Model('author', {
   name: { type: 'string' },
-  email: { type: 'string', uniq: true }
+  email: { type: 'string', unique: true }
 });
 
 // Start using it directly
@@ -366,7 +366,7 @@ import { Model } from '@rushdb/javascript-sdk'
 // Create models
 const AuthorModel = new Model('author', {
   name: { type: 'string' },
-  email: { type: 'string', uniq: true }
+  email: { type: 'string', unique: true }
 });
 
 const PostModel = new Model('post', {

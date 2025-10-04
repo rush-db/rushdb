@@ -11,7 +11,7 @@ export type SchemaField<T extends PropertyType = PropertyType> = {
   multiple?: boolean
   required?: boolean
   type: T
-  uniq?: boolean
+  unique?: boolean
 }
 
 export type Schema = Record<string, SchemaField>

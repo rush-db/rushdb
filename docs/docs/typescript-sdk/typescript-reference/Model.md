@@ -14,7 +14,7 @@ import { Model } from '@rushdb/javascript-sdk';
 // Define a schema
 const UserSchema = {
   name: { type: 'string', required: true },
-  email: { type: 'string', required: true, uniq: true },
+  email: { type: 'string', required: true, unique: true },
   age: { type: 'number' },
   active: { type: 'boolean', default: true }
 };

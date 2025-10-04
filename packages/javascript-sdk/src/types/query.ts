@@ -91,7 +91,7 @@ export type AggregateCollectFn = {
   limit?: number
   orderBy?: Order
   skip?: number
-  uniq?: boolean
+  unique?: boolean
 }
 
 export type AggregateCollectNestedFn = Omit<AggregateCollectFn, 'field'> & {
@@ -104,7 +104,7 @@ export type AggregateFn<S extends Schema = Schema> =
   | { alias: string; field: string; fn: 'max' }
   | { alias: string; field: string; fn: 'min' }
   | { alias: string; field: string; fn: 'sum' }
-  | { alias: string; field?: string; fn: 'count'; uniq?: boolean }
+  | { alias: string; field?: string; fn: 'count'; unique?: boolean }
   | { field: string; fn: `gds.similarity.${VectorSearchFn}`; alias: string; query: number[] }
   | AggregateCollectFn
 
@@ -149,11 +149,16 @@ export type AggregateClause = {
   aggregate?: Aggregate
 }
 
+export type GroupByClause = {
+  groupBy?: Array<string>
+}
+
 export type SearchQuery<S extends Schema = any> = SearchQueryLabelsClause &
   PaginationClause &
   OrderClause<S> &
   WhereClause<S> &
-  AggregateClause
+  AggregateClause &
+  GroupByClause
 
 /** Redeclare Models type in order to have suggestions over related records fields **/
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

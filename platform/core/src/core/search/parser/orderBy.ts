@@ -1,5 +1,5 @@
 import { toBoolean } from '@/common/utils/toBolean'
-import { RUSHDB_KEY_ID, DEFAULT_RECORD_ALIAS } from '@/core/common/constants'
+import { RUSHDB_KEY_ID, ROOT_RECORD_ALIAS } from '@/core/common/constants'
 
 import { SORT_DESC, SORT_ASC } from '../search.constants'
 import { TSearchSort, TSearchSortMap } from '../search.types'
@@ -18,7 +18,7 @@ export const buildSortCriteria = (orderBy: TSearchSort) => {
   return sortCriteria
 }
 
-export const buildOrderByClause = (orderBy: TSearchSort, alias: string | null = DEFAULT_RECORD_ALIAS) => {
+export const buildOrderByClause = (orderBy: TSearchSort, alias: string | null = ROOT_RECORD_ALIAS) => {
   const sortCriteria = buildSortCriteria(orderBy)
 
   return Object.entries(sortCriteria).map(([property, direction]) => {

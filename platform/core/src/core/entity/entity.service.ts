@@ -1,9 +1,11 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common'
 import { Transaction } from 'neo4j-driver'
+import { groupBy } from 'rxjs'
 import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
+import { isObject } from '@/common/utils/isObject'
 import { Where } from '@/core/common/types'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import {
@@ -133,7 +135,14 @@ export class EntityService {
       projectId
     })
 
-    return (queryResponse.records[0]?.get('records') ?? []) as TEntityPropertiesNormalized[]
+    // if (isObject(searchQuery.groupBy)) {
+    return queryResponse.records.reduce((acc, r) => {
+      acc.push(r.get('records'))
+      return acc
+    }, [])
+    // }
+
+    // return (queryResponse.records[0]?.get('records') ?? []) as TEntityPropertiesNormalized[]
   }
 
   async getCount({

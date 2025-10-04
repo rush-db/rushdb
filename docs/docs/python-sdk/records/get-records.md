@@ -23,6 +23,7 @@ result = db.records.find({
     },
     "limit": 10,
     "orderBy": {"createdAt": "desc"}
+
 })
 
 # Access the returned records
@@ -232,6 +233,63 @@ total = result.total
 ```
 
 For comprehensive details on available aggregation functions and usage, see the [Aggregations documentation](../../concepts/search/aggregations).
+
+### Grouping Results (groupBy)
+
+You can group aggregated results with the `groupBy` field at the root of your search query. A group key references an alias plus a property (root alias is implicitly `$record`). The Python SDK follows the same semantics as the core SearchQuery.
+
+See the dedicated [Grouping guide](../../concepts/search/group-by) for deeper patterns and edge cases.
+
+```python
+result = db.records.find({
+    "labels": ["ORDER"],
+    "aggregate": {
+        "count": {"fn": "count", "alias": "$record"},
+        "avgTotal": {"fn": "avg", "field": "total", "alias": "$record"}
+    },
+    "groupBy": ["$record.status"],
+    "orderBy": {"count": "desc"},
+    "limit": 1000
+})
+
+for row in result:
+    # Each row represents one status group
+    print(row['status'], row['count'], row['avgTotal'])
+```
+
+Group by a related alias (declare the alias in where traversal):
+
+```python
+result = db.records.find({
+    "labels": ["DEPARTMENT"],
+    "where": {
+        "PROJECT": {"$alias": "$project"}
+    },
+    "aggregate": {
+        "projectCount": {"fn": "count", "alias": "$project"},
+        "projects": {"fn": "collect", "field": "name", "alias": "$project", "unique": True}
+    },
+    "groupBy": ["$record.name"],
+    "orderBy": {"projectCount": "desc"}
+})
+```
+
+Multiple grouping keys (pivot style):
+
+```python
+result = db.records.find({
+    "labels": ["PROJECT"],
+    "aggregate": {"count": {"fn": "count", "alias": "$record"}},
+    "groupBy": ["$record.category", "$record.active"],
+    "orderBy": {"count": "desc"}
+})
+```
+
+Notes:
+- At least one aggregation is required for `groupBy` to take effect.
+- Group keys appear in each result row by their property name (without the alias prefix).
+- To retain nested arrays while grouping, use `collect` inside `aggregate` and group only on the parent alias.
+- `collect` is unique by default; set `"unique": False` to allow duplicates.
 
 ### Searching Within a Record's Context
 

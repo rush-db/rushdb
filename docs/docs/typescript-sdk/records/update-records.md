@@ -315,7 +315,7 @@ We'll use the following model definitions for these examples:
 ```typescript
 const AuthorRepo = new Model('author', {
   name: { type: 'string' },
-  email: { type: 'string', uniq: true }
+  email: { type: 'string', unique: true }
 });
 ```
 

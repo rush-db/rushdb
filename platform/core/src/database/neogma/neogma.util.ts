@@ -15,15 +15,15 @@ export const createInstance = async (config: INeogmaConfig): Promise<Neogma> => 
       password: config.password
     },
     {
-      maxConnectionPoolSize: 0,
-      logging: {
-        level: 'debug',
-        logger:
-          // LOG External Connections only
-          config.url === process.env.NEO4J_URL ?
-            () => {}
-          : (level, message) => Logger.debug(new Date().toISOString() + ': ' + level + ' ' + message)
-      }
+      maxConnectionPoolSize: 0
+      // logging: {
+      // level: 'debug',
+      // logger:
+      // LOG External Connections only
+      // config.url === process.env.NEO4J_URL ?
+      //   () => {}
+      // : (level, message) => Logger.debug(new Date().toISOString() + ': ' + level + ' ' + message)
+      // }
     }
   )
 }

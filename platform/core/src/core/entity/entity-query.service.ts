@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common'
 import { isArray } from '@/common/utils/isArray'
 import { toBoolean } from '@/common/utils/toBolean'
 import {
-  DEFAULT_RECORD_ALIAS,
+  ROOT_RECORD_ALIAS,
   RUSHDB_KEY_ID,
   RUSHDB_KEY_PROJECT_ID,
   RUSHDB_KEY_PROPERTIES_META,
@@ -27,6 +27,7 @@ import {
   sort
 } from '@/core/search/parser/buildQuery'
 import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQueryPart'
+import { PROPERTY_WILDCARD_PROJECTION } from '@/core/search/parser/constants'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 import { singleLabelPart } from '@/core/search/parser/singleLabelPart'
 import { QueryBuilder } from '@/database/QueryBuilder'
@@ -46,7 +47,7 @@ export class EntityQueryService {
         `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as labelCreationResult`
       )
       .append(this.processProps())
-      .append(`RETURN record {.*, ${label()}} as data`)
+      .append(`RETURN record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}} as data`)
 
     return queryBuilder.getQuery()
   }
@@ -56,7 +57,7 @@ export class EntityQueryService {
 
     queryBuilder
       .append(`MATCH (record:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: $id, ${projectIdInline()} })`)
-      .append(`RETURN record {.*, ${label()}} as data`)
+      .append(`RETURN record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}} as data`)
 
     return queryBuilder.getQuery()
   }
@@ -105,7 +106,9 @@ export class EntityQueryService {
       .append(this.processProps())
 
     if (withResults) {
-      queryBuilder.append(`RETURN collect(DISTINCT record {.*, ${label()}}) as data`)
+      queryBuilder.append(
+        `RETURN collect(DISTINCT record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}}) as data`
+      )
     }
 
     return queryBuilder.getQuery()
@@ -119,12 +122,13 @@ export class EntityQueryService {
 
     const pagination = buildPagination(searchQuery)
     const orderByAggregatedField = isOrderByAggregatedField(searchQuery)
-    const sortParams = sort(searchQuery.orderBy, orderByAggregatedField ? null : DEFAULT_RECORD_ALIAS)
+    const sortParams = sort(searchQuery.orderBy, orderByAggregatedField ? null : ROOT_RECORD_ALIAS)
 
-    const { withPart: aggregateProjections, recordPart: returnPart } = buildAggregation(
-      searchQuery?.aggregate,
-      aliasesMap
-    )
+    const {
+      withPart: aggregateProjections,
+      returnPart
+      // refs
+    } = buildAggregation(searchQuery?.aggregate, aliasesMap, searchQuery?.groupBy ?? [])
 
     // convert a clause array to string
     const normalizedQueryClauses = queryClauses

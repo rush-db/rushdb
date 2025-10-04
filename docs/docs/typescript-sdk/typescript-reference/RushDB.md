@@ -113,7 +113,7 @@ const db = new RushDB('RUSHDB_API_KEY', {
 // Define schemas
 const UserSchema = {
   name: { type: 'string', required: true },
-  email: { type: 'string', required: true, uniq: true },
+  email: { type: 'string', required: true, unique: true },
   age: { type: 'number' }
 };
 

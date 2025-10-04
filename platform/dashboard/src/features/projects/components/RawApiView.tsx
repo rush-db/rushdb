@@ -49,7 +49,7 @@ const aggregateExample0 = `{
         "departmentDescription": "$record.description",
         "projects": {
             "fn": "collect",
-            "uniq": true,
+            "unique": true,
             "field": "name",
             "alias": "$project"
         }
@@ -76,7 +76,7 @@ const aggregateExample1 = `{
         "projectBudget": "$record.budget",
         "employeesCount": {
             "fn": "count",
-            "uniq": true,
+            "unique": true,
             "alias": "$employee"
         },
         "totalWage": {

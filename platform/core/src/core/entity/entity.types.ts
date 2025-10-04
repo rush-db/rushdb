@@ -39,7 +39,7 @@ type TCreateRecordSchemaField<T extends TPropertyType = TPropertyType> = {
   multiple?: boolean
   required?: boolean
   type: T
-  uniq?: boolean
+  unique?: boolean
 }
 
 export type TCreateRecordSchema = Record<string, TCreateRecordSchemaField>
