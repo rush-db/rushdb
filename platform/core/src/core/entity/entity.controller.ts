@@ -288,7 +288,6 @@ export class EntityController {
       }
     } catch (e) {
       isDevMode(() => Logger.error(e))
-      console.log(e)
     }
   }
 
