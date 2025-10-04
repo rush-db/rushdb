@@ -660,7 +660,7 @@ const q21 = {
   aggregate: {
     projects: {
       fn: 'collect',
-      uniq: true,
+      unique: true,
       field: 'name',
       alias: '$project'
     },
