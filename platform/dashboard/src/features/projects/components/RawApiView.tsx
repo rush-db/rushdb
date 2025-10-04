@@ -231,6 +231,22 @@ const queryExample2 = `{
     "limit": 1000
 }`
 
+const queryExample3 = `{
+  "labels": ["PROJECT"],
+  "aggregate": {
+    "count": {
+      "fn": "count",
+      "alias": "$record"
+    }
+  },
+  "groupBy": ["$record.active"],
+  "orderBy": {
+    "count": "desc"
+  },
+  "skip": 0,
+  "limit": 1000
+}`
+
 const ExampleSelector = () => {
   return (
     <Menu
@@ -254,6 +270,15 @@ const ExampleSelector = () => {
         <div className="text-left">
           Advanced Query
           <p className="text-content3 text-xs">Use complex criteria with logical grouping</p>
+        </div>
+      </MenuItem>
+      <Divider />
+      <MenuItem className="h-[64px]" icon={<ClipboardPaste />} onClick={() => $editorData.set(queryExample3)}>
+        <div className="text-left">
+          GroupBy Query
+          <p className="text-content3 text-xs">
+            Pivot results by one or more properties (groupBy + aggregations)
+          </p>
         </div>
       </MenuItem>
       <Divider />
@@ -303,42 +328,6 @@ const ExampleSelector = () => {
         </div>
       </MenuItem>
     </Menu>
-  )
-}
-
-const OperationSelector = () => {
-  const operation = useStore($selectedOperation)
-
-  const options: Array<{ value: ReturnType<typeof $selectedOperation.get>; label: string }> = [
-    { value: 'records.find', label: 'records.find' },
-    { value: 'records.findOne', label: 'records.findOne' },
-    { value: 'records.findById', label: 'records.findById' },
-    { value: 'records.findUniq', label: 'records.findUniq' },
-    { value: 'records.deleteById', label: 'records.deleteById' },
-    { value: 'records.delete', label: 'records.delete' },
-    { value: 'records.createMany', label: 'records.createMany' },
-    { value: 'records.export', label: 'records.export' },
-    { value: 'records.set', label: 'records.set' },
-    { value: 'records.update', label: 'records.update' },
-    { value: 'records.attach', label: 'records.attach' },
-    { value: 'records.detach', label: 'records.detach' },
-    { value: 'labels.find', label: 'labels.find' },
-    { value: 'properties.values', label: 'properties.values' },
-    { value: 'properties.find', label: 'properties.find' },
-    { value: 'relations.find', label: 'relations.find' }
-  ]
-
-  return (
-    <Select
-      onChange={(value: ChangeEvent<HTMLSelectElement>) => {
-        $selectedOperation.set(
-          (value.target as unknown as { value: ReturnType<typeof $selectedOperation.get> }).value
-        )
-      }}
-      size="small"
-      value={operation}
-      options={options}
-    />
   )
 }
 
