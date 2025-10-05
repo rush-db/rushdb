@@ -65,6 +65,82 @@ The following aggregation functions are supported:
   }
   ```
 
+  You can also "self-group" by an aggregation key itself when you only need the aggregated value(s) and no natural dimension. Example:
+
+  ```typescript
+  {
+    labels: ['ORDER'],
+    aggregate: {
+      totalRevenue: { fn: 'sum', field: 'total', alias: '$record' },
+      orderCount: { fn: 'count', alias: '$record' }
+    },
+    groupBy: ['totalRevenue', 'orderCount']
+  }
+  ```
+  This produces a single-row result array with both metrics. See the [Grouping guide](./group-by.md#grouping-only-by-an-aggregated-value-self-group) for details.
+
+### Ordering by Aggregated Keys (Late Order & Pagination)
+
+When you reference an aggregated key explicitly in `orderBy`, RushDB defers the `ORDER BY` and pagination (`SKIP` / `LIMIT`) until *after* aggregation is performed. This guarantees that the aggregation is calculated across the full qualifying record set before any limiting occurs.
+
+If you omit an explicit `orderBy` on aggregated keys, the engine applies the default ordering (by internal ID, descending) and pagination *before* the aggregation step. In self‑group or small group scenarios this can produce misleading or incomplete aggregate values because only the first page of raw records (according to default ordering) is fed into the aggregation pipeline.
+
+Example (explicit ordering on aggregated key – correct full aggregation):
+
+```jsonc
+// Request
+{
+  "labels": ["HS_DEAL"],
+  "aggregate": {
+    "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" }
+  },
+  "orderBy": { "totalAmount": "asc" },
+  "groupBy": ["totalAmount"]
+}
+```
+
+Produces Cypher (ORDER BY after aggregation):
+
+```cypher
+MATCH (record:__RUSHDB__LABEL__RECORD__:`HS_DEAL` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH sum(record.`amount`) AS `totalAmount`
+ORDER BY `totalAmount` ASC SKIP 0 LIMIT 100
+RETURN {`totalAmount`:`totalAmount`} as records
+```
+
+Example (no explicit aggregated ordering – pagination happens early):
+
+```jsonc
+// Request
+{
+  "labels": ["HS_DEAL"],
+  "aggregate": {
+    "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" }
+  },
+  "groupBy": ["totalAmount"]
+}
+```
+
+Produces Cypher (ORDER BY / LIMIT before aggregation):
+
+```cypher
+MATCH (record:__RUSHDB__LABEL__RECORD__:`HS_DEAL` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.`__RUSHDB__KEY__ID__` DESC SKIP 0 LIMIT 100
+WITH sum(record.`amount`) AS `totalAmount`
+RETURN {`totalAmount`:`totalAmount`} as records
+```
+
+Why this matters:
+- First version sums across all matching deals, then orders/paginates the *result rows* (one row here).
+- Second version limits the input rows *before* summing; result may exclude records beyond the first page, giving an underreported total.
+
+Guidelines:
+- Always specify `orderBy` with aggregated keys you care about when using `groupBy` (including self-group) if you need accurate totals across the entire match set.
+- Omit the aggregated `orderBy` only if you intentionally want to aggregate over a pre-sliced subset of records (rare).
+- The late ordering rule applies to any aggregated field listed in `orderBy`, not only self-group patterns.
+
+See also: [Pagination & Order guide](./pagination-order.md#ordering-with-aggregations) for broader pagination implications.
+
 
 ## Aliases
 

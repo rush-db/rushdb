@@ -71,6 +71,61 @@ To group by related data, first traverse it in `where` and assign an alias via `
 
 Produces one row per (category, active) combination.
 
+## Grouping Only by an Aggregated Value (Self Group)
+
+Sometimes you only want the aggregated metric itself (e.g. total sum or total count) without grouping by any actual property of the records. RushDB supports a lightweight pattern for this: list the aggregation key name itself inside `groupBy`.
+
+Why is this needed? The aggregation engine always emits rows; normally those rows must include at least one group key. If you have only aggregations (e.g. total count) and no natural dimension to group on, you can instruct the planner to treat the aggregation output as the sole grouping key – effectively returning just that metric.
+
+Example – total deal amount across all deals:
+
+```typescript
+{
+  labels: ['HS_DEAL'],
+  aggregate: {
+    totalAmount: { fn: 'sum', field: 'amount', alias: '$record' }
+  },
+  groupBy: ['totalAmount']
+}
+```
+
+Result shape (conceptual):
+```json
+[{ "totalAmount": 123456.78 }]
+```
+
+Notes:
+- You still get an array (with one row) for consistency.
+- If the aggregation key appears in `groupBy`, it is not redundantly projected again as a normal field – it serves as both key and value.
+- Add more aggregation keys the same way if you want multiple single-value metrics (each must be repeated in `groupBy`).
+
+Multiple metrics example:
+
+```typescript
+{
+  labels: ['ORDER'],
+  aggregate: {
+    totalRevenue: { fn: 'sum', field: 'total', alias: '$record' },
+    orderCount: { fn: 'count', alias: '$record' }
+  },
+  groupBy: ['totalRevenue', 'orderCount']
+}
+```
+
+Conceptual result:
+```json
+[{ "totalRevenue": 987654.32, "orderCount": 420 }]
+```
+
+When to use:
+- KPI endpoints needing a compact payload
+- Dashboards showing headline numbers
+- Reducing post-processing (no need to pluck values out of nested objects)
+
+Avoid if:
+- You actually need per-dimension breakdown (then group by a property instead)
+- The metric might be extremely large cardinality (self-group is for single or tiny row counts)
+
 ## Mixing `collect` with Grouping
 
 Use `collect` to retain arrays inside grouped rows:

@@ -98,13 +98,15 @@ function parseAggregate(aggregate: Aggregate, aliasesMap: AliasesMap, ctx: Aggre
   }
 
   for (const groupAlias of ctx.groupBy) {
-    const [recordAlias, ...fieldDescriptors] = groupAlias.split('.')
-    const propertyNameRaw = fieldDescriptors.join('.')
-    const recordQueryVariable = aliasesMap[recordAlias]
+    if (!Object.keys(aggregate).includes(groupAlias)) {
+      const [recordAlias, ...fieldDescriptors] = groupAlias.split('.')
+      const propertyNameRaw = fieldDescriptors.join('.')
+      const recordQueryVariable = aliasesMap[recordAlias]
 
-    const propertyName = propertyNameRaw === RUSHDB_KEY_ID_ALIAS ? RUSHDB_KEY_ID : propertyNameRaw
+      const propertyName = propertyNameRaw === RUSHDB_KEY_ID_ALIAS ? RUSHDB_KEY_ID : propertyNameRaw
 
-    ctx.withAggregations.push(`${recordQueryVariable}.\`${propertyName}\` AS \`${propertyName}\``)
+      ctx.withAggregations.push(`${recordQueryVariable}.\`${propertyName}\` AS \`${propertyName}\``)
+    }
   }
 }
 
@@ -128,8 +130,7 @@ export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap, g
 
       return {
         withPart: nestedAggregation.map((projection) => projection.withStatement).join('\n'),
-        returnPart: `DISTINCT record {${fieldsInCollect.join(', ')}} AS records`,
-        refs: fieldsInCollect
+        returnPart: `DISTINCT record {${fieldsInCollect.join(', ')}} AS records`
       }
     }
 
@@ -155,6 +156,21 @@ export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap, g
         wrapInCurlyBraces(
           [...ctx.fieldsInCollect, ...ctx.groupBy]
             .map((variable, index) => {
+              // We may want to get aggregated value as-is, for example:
+              // {"labels":["HS_DEAL"],"aggregate":{"totalAmount":{"fn":"sum","field":"amount","alias":"$record"}},"groupBy":["totalAmount"]}
+              // In this example we only care about the aggregated value (totalAmount) itself and do not
+              // want to introduce an additional grouping dimension (e.g. a field like status or stage).
+              // Listing the aggregation key inside groupBy tells the query planner to treat the
+              // aggregation output as the grouping key so no extra key projection is added.
+              // Pattern:
+              //   aggregate: { totalAmount: { fn: 'sum', field: 'amount', alias: '$record' } }
+              //   groupBy:  [ 'totalAmount' ]
+              // This yields a single row (or one row per distinct aggregated value if multiple appear),
+              // exposing the aggregated metric without forcing you to pick a real property key.
+              if (Object.keys(aggregate).includes(variable)) {
+                return undefined
+              }
+
               if (ctx.groupBy.indexOf(variable) !== -1) {
                 const [recordAlias, ...fieldDescriptors] = variable.split('.')
                 const propertyNameRaw = fieldDescriptors.join('.')
@@ -166,16 +182,17 @@ export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap, g
 
                 return `\`${propertyName}\`:\`${propertyName}\``
               }
+
               return `${variable}:${variable}`
             })
+            .filter(toBoolean)
             .join(', ')
         ) + ' as records'
       : `DISTINCT record {${ctx.fieldsInCollect.join(', ')}} as records`
 
     return {
       withPart,
-      returnPart,
-      refs: ctx.fieldsInCollect
+      returnPart
     }
   }
 

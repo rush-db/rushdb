@@ -705,6 +705,23 @@ WITH count(DISTINCT record) AS \`count\`, record.\`active\` AS \`active\`
 ORDER BY \`count\` DESC SKIP 0 LIMIT 1000
 RETURN {\`count\`:\`count\`, \`active\`:\`active\`} as records`
 
+const q23 = {
+  labels: ['HS_DEAL'],
+  aggregate: {
+    totalAmount: {
+      fn: 'sum',
+      field: 'amount',
+      alias: '$record'
+    }
+  },
+  groupBy: ['totalAmount']
+}
+
+const r23 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`HS_DEAL\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+WITH sum(record.\`amount\`) AS \`totalAmount\`
+RETURN {\`totalAmount\`:\`totalAmount\`} as records`
+
 describe('build complete query', () => {
   let queryService: EntityQueryService
 
@@ -848,5 +865,11 @@ describe('build complete query', () => {
     const result = queryService.findRecords({ searchQuery: q22 })
 
     expect(result).toEqual(r22)
+  })
+
+  it('23', () => {
+    const result = queryService.findRecords({ searchQuery: q23 })
+
+    expect(result).toEqual(r23)
   })
 })

@@ -124,11 +124,11 @@ export class EntityQueryService {
     const orderByAggregatedField = isOrderByAggregatedField(searchQuery)
     const sortParams = sort(searchQuery.orderBy, orderByAggregatedField ? null : ROOT_RECORD_ALIAS)
 
-    const {
-      withPart: aggregateProjections,
-      returnPart
-      // refs
-    } = buildAggregation(searchQuery?.aggregate, aliasesMap, searchQuery?.groupBy ?? [])
+    const { withPart: aggregateProjections, returnPart } = buildAggregation(
+      searchQuery?.aggregate,
+      aliasesMap,
+      searchQuery?.groupBy ?? []
+    )
 
     // convert a clause array to string
     const normalizedQueryClauses = queryClauses
