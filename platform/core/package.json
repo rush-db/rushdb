@@ -1,6 +1,6 @@
 {
   "name": "rushdb-core",
-  "version": "1.14.2",
+  "version": "1.15.0",
   "description": "RushDB Core",
   "private": true,
   "license": "Elastic License 2.0",
