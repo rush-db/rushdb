@@ -304,7 +304,7 @@ export function buildCountFunction(
   returnAlias: string,
   aliasesMap: AliasesMap
 ): string {
-  const unique = 'unique' in instruction && instruction.unique === false ? '' : 'DISTINCT '
+  const unique = instruction.unique === false ? '' : 'DISTINCT '
 
   const hasFieldDescriptor = toBoolean(instruction.field)
 
