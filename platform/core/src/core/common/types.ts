@@ -177,9 +177,11 @@ export type AggregateCollectNestedFn = Omit<AggregateCollectFn, 'field'> & {
 
 export type AliasesMap = Record<string, string>
 
+export type AggregateCountFn = { field?: string; fn: 'count'; unique?: boolean; alias: string }
+
 export type AggregateFn<S extends Schema = Schema> =
   | { field: string; fn: 'avg'; alias: string; precision?: number }
-  | { field?: string; fn: 'count'; unique?: boolean; alias: string }
+  | AggregateCountFn
   | { field: string; fn: 'max'; alias: string }
   | { field: string; fn: 'min'; alias: string }
   | { field: string; fn: 'sum'; alias: string }

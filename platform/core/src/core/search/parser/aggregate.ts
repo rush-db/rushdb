@@ -12,7 +12,8 @@ import {
   Aggregate,
   AggregateCollectFn,
   AggregateCollectNestedFn,
-  AliasesMap
+  AliasesMap,
+  AggregateCountFn
 } from '@/core/common/types'
 import { PROPERTY_WILDCARD_PROJECTION } from '@/core/search/parser/constants'
 import { AggregateContext } from '@/core/search/parser/types'
@@ -300,7 +301,7 @@ export function buildCollectFunction(
 
 // Handle count function
 export function buildCountFunction(
-  instruction: AggregateFn,
+  instruction: AggregateCountFn,
   returnAlias: string,
   aliasesMap: AliasesMap
 ): string {
