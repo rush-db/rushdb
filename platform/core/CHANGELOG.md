@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.15.1
+
+### Patch Changes
+
+- 954ab72: Fix ts bug in aggregations
+
 ## 1.15.0
 
 ### Minor Changes

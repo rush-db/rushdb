@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 1.15.1
+
+### Patch Changes
+
+- 954ab72: Fix ts bug in aggregations
+- Updated dependencies [954ab72]
+  - @rushdb/javascript-sdk@1.15.1
+
 ## 1.15.0
 
 ### Minor Changes
