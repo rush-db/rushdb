@@ -200,13 +200,13 @@ This method searches for records that match the specified criteria, with support
 
 | Field     | Type             | Description                                                                                     |
 |-----------|------------------|-------------------------------------------------------------------------------------------------|
-| `where`   | Object           | Filter conditions for records ([learn more](../../concepts/search/where))                       |
-| `orderBy` | String or Object | Sorting criteria ([learn more](../../concepts/search/pagination-order))                         |
-| `skip`    | Number           | Number of records to skip for pagination ([learn more](../../concepts/search/pagination-order)) |
-| `limit`   | Number           | Maximum number of records to return (default: 1000)                                             |
-| `labels`  | Array            | Optional array of labels to filter records by ([learn more](../../concepts/search/labels))      |
-| `aggregate` | Object         | Optional aggregations map ([learn more](../../concepts/search/aggregations))                  |
-| `groupBy` | Array<string>    | Optional grouping keys (e.g. `["$record.status"]`) used with aggregations                    |
+| `where`   | `Object`           | Filter conditions for records ([learn more](../../concepts/search/where))                       |
+| `orderBy` | `String` or `Object` | Sorting criteria ([learn more](../../concepts/search/pagination-order))                         |
+| `skip`    | `Number`           | Number of records to skip for pagination ([learn more](../../concepts/search/pagination-order)) |
+| `limit`   | `Number`           | Maximum number of records to return (default: 1000)                                             |
+| `labels`  | `Array`            | Optional array of labels to filter records by ([learn more](../../concepts/search/labels))      |
+| `aggregate` | `Object`         | Optional aggregations map ([learn more](../../concepts/search/aggregations))                  |
+| `groupBy` | `Array<string>`    | Optional grouping keys (e.g. `["$record.status"]`) used with aggregations                    |
 
 ### Return Value
 
