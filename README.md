@@ -302,14 +302,6 @@ rushdb update-password admin@example.com newsecurepassword456
 | TypeScript SDK | https://docs.rushdb.com/typescript-sdk/introduction |
 | REST API | https://docs.rushdb.com/rest-api/introduction |
 
-## 🔄 Migration Notes (Selected)
-
-| Change | Since | Action |
-|--------|-------|--------|
-| `uniq` → `unique` in schemas & aggregations | recent | Rename usages |
-| Added `groupBy` | recent | Add aggregations + group keys for pivot rows |
-| `collect` unique by default | recent | Set `unique: false` for duplicates |
-
 ## 🤝 Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Issues & PRs welcome.
