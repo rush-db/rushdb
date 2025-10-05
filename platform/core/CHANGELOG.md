@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.15.2
+
+### Patch Changes
+
+- 9b25c07: Make int txn optionally closed after commit
+
 ## 1.15.1
 
 ### Patch Changes
