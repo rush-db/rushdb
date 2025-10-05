@@ -1,4 +1,5 @@
 <div align="center">
+  
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
 # RushDB
