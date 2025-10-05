@@ -45,7 +45,7 @@ export class RequestCleanupInterceptor implements NestInterceptor {
         }
       } finally {
         try {
-          await internalTransaction.close()
+          await internalTransaction?.close()
         } catch (e) {
           Logger.error('[RequestCleanupInterceptor] Internal tx finalize error', e)
         }
