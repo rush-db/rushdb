@@ -1,12 +1,11 @@
-<!-- filepath: /Users/onepx/personal/rushdb/README.md -->
 <div align="center">
-
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# 🚀 RushDB 1.0
+# RushDB
 
-### The Instant Graph Database for Modern Apps
+### Developer‑first property‑centric graph store
 
+RushDB lets you push raw JSON/CSV, auto-normalize it into a labeled meta property graph, and query records, schema, relationships, values, vectors and aggregations through one JSON search interface. No upfront schema design, no new query language to learn.
 RushDB transforms how you work with graph data — no schema required, no complex queries, just push your data and go.
 
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
@@ -17,34 +16,89 @@ RushDB transforms how you work with graph data — no schema required, no comple
 </div>
 
 ---
+## ✨ Core Capabilities
 
-## ✨ Key Features
+- **Zero-Friction Ingest**: Push arbitrary nested JSON / CSV; RushDB performs BFS normalization into a labeled meta property graph (LMPG)
+- **Unified Search DTO**: One JSON structure for filtering, traversing, grouping (`groupBy`), aggregating, vector similarity & introspection (records / labels / properties / values / relationships)
+- **Property‑Centric Indexing**: Properties become first-class nodes ("HyperProperties") enabling dynamic schema discovery & integrity checks
+- **Vector & Hybrid Search**: Embed, store, and query semantic similarity side‑by‑side with structured predicates
+- **Aggregation & Grouping**: `aggregate` + `groupBy` for pivot tables, KPIs and multi-key rollups without pre-modeling
+- **Self‑Describing Graph**: Auto-discover labels, properties, value ranges and relationship topology for UI generation & AI agents
+- **Incremental Complexity**: Start with naïve data push; evolve into deep traversals & analytical queries—no migrations
+- **Polyglot SDKs**: TypeScript/JavaScript, Python & REST all share identical semantics
 
-- **Instant Setup**: Be productive in seconds, not days
-- **Push Any JSON**: Nested objects are automatically normalized into a graph
-- **Fractal API**: Same query syntax everywhere - learn once, use everywhere
-- **Vector Search**: Comprehensive similarity search for AI-powered applications
-- **Zero Schema Headaches**: We handle the data structure so you can focus on building
+## 💼 Use Cases
 
-## 🌟 What's New in 1.0?
+1. **AI Memory & Agentic Trails**
+  Persist multi-turn conversations, reasoning chains and tool outputs. Property overlap inference auto-connects sessions, enabling retrieval, summarization and context window reconstruction without manual relationship modeling.
 
-- **Vector Search**: Comprehensive vector search with similarity aggregates and query builder support
-- **Member Management**: Complete workspace membership system with invitations and access controls
-- **Remote Database**: Connect to existing Neo4j/Aura databases
-- **Enhanced Auth**: Google OAuth support and improved authorization flows
-- **Documentation**: Reworked docs with clear tutorials and guides
+2. **Small Team → Big Ambition**
+  Ship PoCs / MVPs fast: push raw data now, refine model later. Avoid schema migration churn while scaling query sophistication and data volume.
+
+3. **Search & Intelligence over Connected Catalogs**
+  Product catalogs, knowledge bases (RAG), fraud patterns, biotech entities: traverse, filter, vector match, aggregate & group in one DTO—no separate systems for metadata vs content.
+
+4. **Make Flat Data Breathe**
+  Turn CSV/JSON dumps into a navigable graph in minutes. BFS import + property linking + lightweight aliasing gives relationship intelligence without hand-curating edges.
+
+5. **Fullstack Apps without CRUD Boilerplate**
+  "What you see is what you push": nested create mirrors nested query. Auto-discovered labels/properties power dynamic forms, filters and analytics—no ORMs, no bespoke resolver layer.
+
+6. **Operational + Analytical Unification**
+  Real-time user-facing features and exploratory analytics run on the same query surface—no ETL lag or duplicated modeling.
+
+7. **Adaptive Schema Exploration for AI Agents**
+  Agents enumerate labels, properties & value distributions programmatically to self-orient and generate safe follow-up queries.
+
+## 🧪 Architecture: LMPG & HyperProperties
+
+Traditional property graphs bind you to early labeling, manual relationship planning, and separate APIs for schema vs data. RushDB’s **Labeled Meta Property Graph (LMPG)** model inverts this: properties are elevated to graph nodes (HyperProperties) capturing:
+
+| Dimension | Tracked Meta (Examples) | Benefit |
+|-----------|-------------------------|---------|
+| Type distribution | inferred scalar kinds, vector dims | Detect drift & inconsistent ingestion |
+| Cardinality & sparsity | distinct counts, null ratios | Index heuristics & UI filter hints |
+| Value ranges / histograms | min / max / buckets | Instant range sliders & anomaly bounds |
+| Relationship incidence | cross-label co-occurrence | Emergent data model visualization |
+| Temporal evolution | first/last seen timestamps | Freshness & lineage checks |
+
+### Data Observability
+One JSON SearchQuery can retrieve perspectives (records, labels, properties, value ranges, relationships) sharing identical filter semantics. This unified projection removes the “N+1 inspection” pattern and enables:
+* Schema drift detection (compare property sets over time)
+* Automatic filter UI generation (value domains & type inference)
+* Programmatic cataloging for governance & AI agents
+
+### Data Integrity
+HyperProperties enable soft constraints without rigid upfront schemas:
+* Type cohesion scoring & anomaly flagging
+* Optional uniqueness & frequency analysis guiding index strategy
+* Automatic relationship inference via shared property linkage (reduces orphan edges)
+* Consistent vector dimension enforcement at ingestion
+
+### Query Semantics & Data Model
+Let G = (R, P, E_rp, E_pp) where R are record nodes, P are property (HyperProperty) nodes. Edges encode (record ↔ property assignments) and (property ↔ property co-occurrence). Query evaluation leverages property-level adjacency to: (a) prune traversal (perforating execution), (b) derive emergent schema, (c) compose multi-perspective responses in a single pass.
+
+This yields sub-linear schema introspection relative to naïve per-aspect scans because shared filter evaluation is amortized across all requested perspectives.
+
+### Example: Single DTO, Multiple Perspectives
+```ts
+// Pseudocode: obtain records + property stats + grouped aggregations
+const result = await db.records.find({
+  labels: ['TRANSACTION'],
+  where: { status: 'posted', amount: { $gte: 100 } },
+  aggregate: { total: { fn: 'sum', field: 'amount', alias: '$record' } },
+  groupBy: ['$record.category']
+})
+// Parallel: db.properties.find({ same filter })
+```
+
+For deeper architectural exposition see the blog article on [LMPG](https://rushdb.com/blog/labeled-meta-property-graphs-rushdb-s-revolutionary-approach-to-graph-database-architecture).
 
 ## 🚀 Quick Start
 
-### 1. Get RushDB
-
-**Option A: Use RushDB Cloud (Free Tier Available)**
-```bash
-# Sign up and get an API key at app.rushdb.com
-# No installation required!
-```
-
-**Option B: Self-Host with Docker**
+### 1. Get an API Key (Cloud) or Run Locally
+RushDB Cloud: create a project at https://app.rushdb.com → copy API key.
+Self-host (requires Neo4j 5.25.1+ with APOC & GDS):
 ```bash
 docker run -p 3000:3000 \
   --name rushdb \
@@ -54,7 +108,7 @@ docker run -p 3000:3000 \
   rushdb/platform
 ```
 
-### 2. Start Building
+### 2. Ingest Nested Data
 
 #### Python
 ```python
@@ -133,9 +187,9 @@ const aiExperts = await db.records.find({
 });
 ```
 
-## 💡 The Power of RushDB's Fractal API
+## 💡 Unified Search DTO
 
-RushDB uses a consistent query structure across all operations:
+One structure for all perspectives & operations:
 
 ```typescript
 interface SearchQuery {
@@ -148,20 +202,20 @@ interface SearchQuery {
 }
 ```
 
-This approach means:
-- **Learn Once, Use Everywhere**: The same pattern works across records, relationships, labels, and properties
-- **Predictable API**: No surprises as you build more complex features
-- **Self-Discovering Database**: The graph knows its own structure and exposes it consistently
-- **Perfect for AI & RAG**: AI agents can explore and generate queries on-the-fly
+Benefits:
+- Learn once—identical across SDKs & REST
+- Automatic schema / property / relationship discovery
+- AI & tooling friendliness (introspect before generating follow-up queries)
+- Operational + analytical reuse (no ETL / view duplication)
 
-## 🛠️ Self-Hosting Options
+## 🛠️ Self-Hosting
 
 ### Requirements
-- **Neo4j**: Version `5.25.1` or higher
-- **APOC Plugin**: Required and can be installed either via volume mount or auto-install
-- **Graph Data Science Plugin**: Required for advanced features like vector search and aggregations
+- Neo4j 5.25.1+
+- APOC plugin
+- Graph Data Science plugin (for vector similarity & advanced aggregates)
 
-### Docker Compose Setup
+### Minimal Docker Compose
 ```yaml
 version: '3.8'
 services:
@@ -179,19 +233,21 @@ services:
 ```
 
 <details>
-  <summary>View all environment variables</summary>
+  <summary>Environment variables</summary>
 
-  - **`NEO4J_URL`**: Connection string for Neo4j
-  - **`NEO4J_USERNAME`**: Neo4j username (default: `neo4j`)
-  - **`NEO4J_PASSWORD`**: Neo4j password
-  - **`RUSHDB_PORT`**: Server port (default: `3000`)
-  - **`RUSHDB_AES_256_ENCRYPTION_KEY`**: Encryption key for API tokens (32 chars)
-  - **`RUSHDB_LOGIN`**: Admin username (default: `admin`)
-  - **`RUSHDB_PASSWORD`**: Admin password (default: `password`)
+| Name | Description | Required | Default |
+|------|-------------|----------|---------|
+| `NEO4J_URL` | Neo4j connection URL | yes | - |
+| `NEO4J_USERNAME` | Neo4j username | yes | neo4j |
+| `NEO4J_PASSWORD` | Neo4j password | yes | - |
+| `RUSHDB_PORT` | HTTP port | no | 3000 |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | 32 char encryption key for API tokens | yes (prod) | - |
+| `RUSHDB_LOGIN` | Admin login | no | admin |
+| `RUSHDB_PASSWORD` | Admin password | no | password |
 </details>
 
 <details>
-  <summary>Development setup with local Neo4j</summary>
+  <summary>Local development (bundled Neo4j)</summary>
 
 ```yaml
 version: '3.8'
@@ -225,53 +281,52 @@ services:
 ```
 </details>
 
-### CLI Commands
-
-<details>
-  <summary>View available CLI commands</summary>
-
-#### Create a New User
+### CLI (container exec)
 ```bash
+# Create user
 rushdb create-user admin@example.com securepassword123
-```
-
-#### Update User Password
-```bash
+# Update password
 rushdb update-password admin@example.com newsecurepassword456
 ```
-</details>
 
-## 📚 Learn More
+## 📚 Key Docs
 
-- [Quick Tutorial](https://docs.rushdb.com/get-started/quick-tutorial): Create a mini social network in minutes
-- [Reusable SearchQuery](https://docs.rushdb.com/tutorials/reusable-search-query): Harness the power of RushDB's fractal architecture
-- [Python SDK](https://docs.rushdb.com/python-sdk/introduction): Comprehensive Python API documentation
-- [TypeScript SDK](https://docs.rushdb.com/typescript-sdk/introduction): Complete TypeScript/JavaScript guide
-- [REST API](https://docs.rushdb.com/rest-api/introduction): Full HTTP API reference
+| Topic | Link |
+|-------|------|
+| Quick Tutorial | https://docs.rushdb.com/get-started/quick-tutorial |
+| Grouping & Aggregations | https://docs.rushdb.com/concepts/search/group-by |
+| Where / Filtering | https://docs.rushdb.com/concepts/search/where |
+| Vector Search | https://docs.rushdb.com/concepts/search/where#vector-operators |
+| Python SDK | https://docs.rushdb.com/python-sdk/introduction |
+| TypeScript SDK | https://docs.rushdb.com/typescript-sdk/introduction |
+| REST API | https://docs.rushdb.com/rest-api/introduction |
+
+## 🔄 Migration Notes (Selected)
+
+| Change | Since | Action |
+|--------|-------|--------|
+| `uniq` → `unique` in schemas & aggregations | recent | Rename usages |
+| Added `groupBy` | recent | Add aggregations + group keys for pivot rows |
+| `collect` unique by default | recent | Set `unique: false` for duplicates |
 
 ## 🤝 Contributing
 
-We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Issues & PRs welcome.
 
 
 ---
 
 ## 📄 License
 
-| Directory                | License             |
-|--------------------------|---------------------|
-| /platform/core           | Elastic License 2.0 |
-| /platform/dashboard      | Elastic License 2.0 |
-| /docs                    | Apache 2.0          |
-| /website                 | Apache 2.0          |
-| /packages/javascript-sdk | Apache 2.0          |
+| Path | License |
+|------|---------|
+| platform/core | Elastic License 2.0 |
+| platform/dashboard | Elastic License 2.0 |
+| docs | Apache 2.0 |
+| website | Apache 2.0 |
+| packages/javascript-sdk | Apache 2.0 |
 
 ---
 
-<div align="center">
-  <p>
-    <a href="https://rushdb.com">
-      <img src="https://img.shields.io/badge/Learn_more-rushdb.com-6D28D9?style=for-the-badge" alt="Learn more" />
-    </a>
-  </p>
-</div>
+---
+Need something not supported yet? Open an issue—design discussions are welcome.

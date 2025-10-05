@@ -13,3 +13,5 @@ export const allowedKeys = [
   ...typeOperators,
   ...vectorOperators
 ]
+
+export const PROPERTY_WILDCARD_PROJECTION = '.*' as const

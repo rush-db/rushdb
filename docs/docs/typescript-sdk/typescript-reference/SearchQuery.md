@@ -226,7 +226,7 @@ export type AggregateFn<S extends Schema = Schema> =
   | { alias: string; field: string; fn: 'max' }
   | { alias: string; field: string; fn: 'min' }
   | { alias: string; field: string; fn: 'sum' }
-  | { alias: string; field?: string; fn: 'count'; uniq?: boolean }
+  | { alias: string; field?: string; fn: 'count'; unique?: boolean }
   | { field: string; fn: `gds.similarity.${VectorSearchFn}`; alias: string; vector: number }
   | AggregateCollectFn
 ```
@@ -301,7 +301,7 @@ const results = await UserModel.find({
       fn: 'collect',
       field: 'country',
       alias: 'countries',
-      uniq: true
+      unique: true
     }
   }
 });

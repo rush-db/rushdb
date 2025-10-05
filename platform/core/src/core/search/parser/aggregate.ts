@@ -1,8 +1,9 @@
+import { isArray } from '@/common/utils/isArray'
 import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
 import {
   RUSHDB_KEY_ID,
-  DEFAULT_RECORD_ALIAS,
+  ROOT_RECORD_ALIAS,
   RUSHDB_KEY_ID_ALIAS,
   RUSHDB_VALUE_EMPTY_ARRAY
 } from '@/core/common/constants'
@@ -13,7 +14,9 @@ import {
   AggregateCollectNestedFn,
   AliasesMap
 } from '@/core/common/types'
-import { safeGdsSimilarity, vectorConditionQueryPrefix } from '@/core/search/parser/utils'
+import { PROPERTY_WILDCARD_PROJECTION } from '@/core/search/parser/constants'
+import { AggregateContext } from '@/core/search/parser/types'
+import { isNestedAggregate, safeGdsSimilarity, wrapInCurlyBraces } from '@/core/search/parser/utils'
 import { SORT_ASC } from '@/core/search/search.constants'
 import { TSearchSort } from '@/core/search/search.types'
 
@@ -43,19 +46,7 @@ function apocRemoveFromArray(arrayClause: string) {
   return `apoc.coll.removeAll(${arrayClause}, ["${RUSHDB_VALUE_EMPTY_ARRAY}"])`
 }
 
-const INCLUDE_OWN_PROPERTIES = '.*' as const
-
-function parseAggregate(
-  aggregate: Aggregate,
-  aliasesMap: AliasesMap,
-  ctx: {
-    fieldsInCollect: string[]
-    withAggregations: string[]
-    orderClauses: string[]
-    alias?: string
-    returnAlias?: string
-  }
-) {
+function parseAggregate(aggregate: Aggregate, aliasesMap: AliasesMap, ctx: AggregateContext) {
   // Process each aggregation instruction
   for (const [returnAlias, instruction] of Object.entries(aggregate)) {
     if (typeof instruction === 'string') {
@@ -105,85 +96,113 @@ function parseAggregate(
       }
     }
   }
+
+  for (const groupAlias of ctx.groupBy) {
+    if (!Object.keys(aggregate).includes(groupAlias)) {
+      const [recordAlias, ...fieldDescriptors] = groupAlias.split('.')
+      const propertyNameRaw = fieldDescriptors.join('.')
+      const recordQueryVariable = aliasesMap[recordAlias]
+
+      const propertyName = propertyNameRaw === RUSHDB_KEY_ID_ALIAS ? RUSHDB_KEY_ID : propertyNameRaw
+
+      ctx.withAggregations.push(`${recordQueryVariable}.\`${propertyName}\` AS \`${propertyName}\``)
+    }
+  }
 }
 
-export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap) {
+export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap, groupBy: string[]) {
   if (isObject(aggregate) && Object.keys(aggregate).length) {
-    const entries = Object.values(aggregate) as Array<any>
-
-    const isNested = entries.some((instruction) => isObject(instruction?.aggregate))
-    const usesOnlyTopLevelRecordAlias =
-      !isNested && entries.length > 0 && entries.every((instruction) => instruction?.alias === '$record')
-
-    // TOP-LEVEL AGGREGATIONS ONLY: compute global aggregates once and return a single element
-    if (usesOnlyTopLevelRecordAlias) {
-      const withAggregations: string[] = []
-      const orderClauses: string[] = []
-
-      const fieldsInCollect: string[] = [] // unused here
-      parseAggregate(aggregate, aliasesMap, {
-        fieldsInCollect,
-        withAggregations,
-        orderClauses
-      })
-
-      // Build WITH without `record`
-      const withPart = withAggregations.length ? `WITH ${withAggregations.join(', ')}` : ''
-
-      // Build the single map projection out of the aggregate keys
-      const aggKeys = Object.keys(aggregate) // e.g. ["minPrice","maxPrice","avgPrice"]
-      const oneMap = `{ ${aggKeys.map((k) => `${k}: ${k}`).join(', ')} }`
-
-      return {
-        withPart,
-        // Single-element array so downstream expects `records` array but gets exactly one element
-        recordPart: `[ ${oneMap} ] AS records`
-      }
-    }
+    const isNested = isNestedAggregate(aggregate)
 
     if (isNested) {
       // Add first level aliases to RETURN clause
       const fieldsInCollect: string[] = [
-        INCLUDE_OWN_PROPERTIES,
+        PROPERTY_WILDCARD_PROJECTION,
         `${label()}`,
         ...Object.keys(aggregate).map((key) => `\`${key}\``)
       ]
 
       const nestedAggregation = parseBottomUpQuery(
         aggregate as Record<string, AggregateCollectNestedFn>,
-        DEFAULT_RECORD_ALIAS,
+        ROOT_RECORD_ALIAS,
         aliasesMap
       )
 
       return {
         withPart: nestedAggregation.map((projection) => projection.withStatement).join('\n'),
-        recordPart: `collect(DISTINCT record {${fieldsInCollect.join(', ')}}) AS records`
-      }
-    } else {
-      const fieldsInCollect: string[] = [INCLUDE_OWN_PROPERTIES, `${label()}`]
-
-      const withAggregations: string[] = []
-      const orderClauses: string[] = []
-
-      parseAggregate(aggregate, aliasesMap, {
-        fieldsInCollect,
-        withAggregations,
-        orderClauses
-      })
-
-      const withPart = withAggregations.length ? `WITH record, ${withAggregations.join(', ')}` : ''
-
-      return {
-        withPart,
-        recordPart: `collect(DISTINCT record {${fieldsInCollect.join(', ')}}) AS records`
+        returnPart: `DISTINCT record {${fieldsInCollect.join(', ')}} AS records`
       }
     }
+
+    const ctx: AggregateContext = {
+      fieldsInCollect: toBoolean(groupBy) ? [] : [PROPERTY_WILDCARD_PROJECTION, `${label()}`],
+      withAggregations: [],
+      orderClauses: [],
+      groupBy
+    }
+
+    parseAggregate(aggregate, aliasesMap, ctx)
+
+    const groupByApplied = ctx.groupBy && toBoolean(ctx.groupBy) && isArray(ctx.groupBy)
+
+    const withPart =
+      ctx.withAggregations.length ?
+        groupByApplied ? `WITH ${ctx.withAggregations.join(', ')}`
+        : `WITH record, ${ctx.withAggregations.join(', ')}`
+      : ''
+
+    const returnPart =
+      groupByApplied ?
+        wrapInCurlyBraces(
+          [...ctx.fieldsInCollect, ...ctx.groupBy]
+            .map((variable, index) => {
+              // We may want to get aggregated value as-is, for example:
+              // {"labels":["HS_DEAL"],"aggregate":{"totalAmount":{"fn":"sum","field":"amount","alias":"$record"}},"groupBy":["totalAmount"]}
+              // In this example we only care about the aggregated value (totalAmount) itself and do not
+              // want to introduce an additional grouping dimension (e.g. a field like status or stage).
+              // Listing the aggregation key inside groupBy tells the query planner to treat the
+              // aggregation output as the grouping key so no extra key projection is added.
+              // Pattern:
+              //   aggregate: { totalAmount: { fn: 'sum', field: 'amount', alias: '$record' } }
+              //   groupBy:  [ 'totalAmount' ]
+              // This yields a single row (or one row per distinct aggregated value if multiple appear),
+              // exposing the aggregated metric without forcing you to pick a real property key.
+              if (Object.keys(aggregate).includes(variable)) {
+                return undefined
+              }
+
+              if (ctx.groupBy.indexOf(variable) !== -1) {
+                const [recordAlias, ...fieldDescriptors] = variable.split('.')
+                const propertyNameRaw = fieldDescriptors.join('.')
+
+                // @TODO: throw error if alias is missing
+                // const recordQueryVariable = aliasesMap[recordAlias]
+
+                const propertyName = propertyNameRaw === RUSHDB_KEY_ID_ALIAS ? RUSHDB_KEY_ID : propertyNameRaw
+
+                return `\`${propertyName}\`:\`${propertyName}\``
+              }
+
+              return `${variable}:${variable}`
+            })
+            .filter(toBoolean)
+            .join(', ')
+        ) + ' as records'
+      : `DISTINCT record {${ctx.fieldsInCollect.join(', ')}} as records`
+
+    return {
+      withPart,
+      returnPart
+    }
   }
+
+  const fieldsInCollect: string[] = [PROPERTY_WILDCARD_PROJECTION, `${label()}`]
 
   // No aggregations provided
   return {
     withPart: '',
-    recordPart: `collect(DISTINCT record {${INCLUDE_OWN_PROPERTIES}, ${label()}}) AS records`
+    returnPart: `DISTINCT record {${fieldsInCollect.join(', ')}} AS records`,
+    refs: fieldsInCollect
   }
 }
 
@@ -249,8 +268,8 @@ export function buildCollectFunction(
   returnAlias: string,
   aliasesMap: AliasesMap
 ): string {
-  // by default uniq = true
-  const uniq = instruction.uniq === false ? '' : 'DISTINCT '
+  // by default, unique = true
+  const unique = instruction.unique === false ? '' : 'DISTINCT '
 
   const { skip, limit } = pagination(instruction.skip, instruction.limit)
 
@@ -261,12 +280,12 @@ export function buildCollectFunction(
   const alias = aliasesMap[instruction.alias]
 
   if (hasFieldDescriptor) {
-    const clause = apocRemoveFromArray(apocSortArray(`collect(${uniq}${alias}${propertyName})`))
+    const clause = apocRemoveFromArray(apocSortArray(`collect(${unique}${alias}${propertyName})`))
 
     const pagination = `[${skip}..${limit}]`
     const variableAssertion = ` AS \`${returnAlias}\``
 
-    if (uniq) {
+    if (unique) {
       return apocUniqArray(clause) + pagination + variableAssertion
     }
 
@@ -274,7 +293,7 @@ export function buildCollectFunction(
   }
 
   return `${apocSortMapsArray(
-    `collect(${uniq}${alias}${propertyName} {${INCLUDE_OWN_PROPERTIES}, ${label(alias)}})`,
+    `collect(${unique}${alias}${propertyName} {${PROPERTY_WILDCARD_PROJECTION}, ${label(alias)}})`,
     instruction.orderBy
   )}[${skip}..${limit}] AS \`${returnAlias}\``
 }
@@ -285,7 +304,7 @@ export function buildCountFunction(
   returnAlias: string,
   aliasesMap: AliasesMap
 ): string {
-  const uniq = 'uniq' in instruction && instruction.uniq ? 'DISTINCT ' : ''
+  const unique = instruction.unique === false ? '' : 'DISTINCT '
 
   const hasFieldDescriptor = toBoolean(instruction.field)
 
@@ -293,7 +312,7 @@ export function buildCountFunction(
 
   const propertyName = hasFieldDescriptor ? `.${instruction.field}` : ''
 
-  return `count(${uniq}${alias}${propertyName}) AS \`${returnAlias}\``
+  return `count(${unique}${alias}${propertyName}) AS \`${returnAlias}\``
 }
 
 interface ParsedStatement {
@@ -303,7 +322,7 @@ interface ParsedStatement {
 
 export function parseBottomUpQuery(
   queryAggregate: Record<string, AggregateCollectNestedFn>,
-  baseRecordName = DEFAULT_RECORD_ALIAS,
+  baseRecordName = ROOT_RECORD_ALIAS,
   aliasesMap: AliasesMap
 ): ParsedStatement[] {
   const statements: ParsedStatement[] = []
@@ -322,7 +341,7 @@ export function parseBottomUpQuery(
     }
 
     const collectPart = `collect(DISTINCT ${currentRecord} {${[
-      INCLUDE_OWN_PROPERTIES,
+      PROPERTY_WILDCARD_PROJECTION,
       ...collectParts.map((variable) => `\`${variable}\``),
       label(currentRecord)
     ].join(', ')}})`

@@ -4,13 +4,15 @@ import { isEmptyObject } from '@/common/utils/isEmptyObject'
 import { isObject } from '@/common/utils/isObject'
 import { isPrimitive } from '@/common/utils/isPrimitive'
 import { RUSHDB_KEY_PROPERTIES_META } from '@/core/common/constants'
-import { Where, MaybeArray, TVectorSearchFn } from '@/core/common/types'
+import { Where, MaybeArray, TVectorSearchFn, Aggregate } from '@/core/common/types'
 import { allowedKeys } from '@/core/search/parser/constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
 import { RELATION_CLAUSE_OPERATOR, ALIAS_CLAUSE_OPERATOR, ID_CLAUSE_OPERATOR } from '../search.constants'
 
 export const wrapInParentheses = (input: string) => `(${input})`
+
+export const wrapInCurlyBraces = (input: string) => `{${input}}`
 
 export const isSubQuery = (input: Where) => {
   if (!isObject(input)) {
@@ -19,17 +21,22 @@ export const isSubQuery = (input: Where) => {
     return (
       // has `$id` in query object
       ID_CLAUSE_OPERATOR in input ||
-      // has empty object `{}` in query object behind property
+      // has an empty object `{}` in a query object behind property
       isEmptyObject(input) ||
-      // has `$relation` in query object behind property
+      // has `$relation` in a query object behind property
       RELATION_CLAUSE_OPERATOR in input ||
-      // has `$alias` in query object behind property
+      // has `$alias` in a query object behind property
       ALIAS_CLAUSE_OPERATOR in input ||
       // Input object is current level criteria (like date-related operators or comparison)
       !isPropertyCriteria(input) ||
       !containsAllowedKeys(input, allowedKeys)
     )
   }
+}
+
+export const isNestedAggregate = (aggregate: Aggregate) => {
+  const entries = Object.values(aggregate) as Array<any>
+  return entries.some((instruction) => isObject(instruction?.aggregate))
 }
 
 export function splitCriteria(input: Where) {
@@ -82,7 +89,7 @@ export function isCurrentLevelCriteria(input: MaybeArray<Where>) {
 }
 
 export const vectorConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {
-  return `\`${options.nodeAlias}\`.\`${field}\` IS NOT NULL AND apoc.convert.fromJsonMap(\`${options.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "vector"`
+  return `${options.nodeAlias}.\`${field}\` IS NOT NULL AND apoc.convert.fromJsonMap(${options.nodeAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "vector"`
 }
 
 export function safeGdsSimilarity(
@@ -94,9 +101,9 @@ export function safeGdsSimilarity(
 ) {
   const nodeVec = `\`${recordAlias}\`.\`${field}\``
   const queryVec = `[${query}]`
-  return `CASE 
-    WHEN ${vectorConditionQueryPrefix(field, { nodeAlias: recordAlias })} AND size(${nodeVec}) = size(${queryVec}) 
-    THEN ${method}(${nodeVec}, ${queryVec}) 
-    ELSE null 
+  return `CASE
+    WHEN ${vectorConditionQueryPrefix(field, { nodeAlias: recordAlias })} AND size(${nodeVec}) = size(${queryVec})
+    THEN ${method}(${nodeVec}, ${queryVec})
+    ELSE null
   END AS ${asPart}`
 }

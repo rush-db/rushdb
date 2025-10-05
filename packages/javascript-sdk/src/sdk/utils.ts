@@ -44,7 +44,7 @@ export const pickUniqFieldsFromRecord = <S extends Schema = Schema>(
   data: Partial<InferSchemaTypesWrite<S>>
 ) => {
   return Object.entries(data)
-    .filter(([key]) => schema[key]?.uniq)
+    .filter(([key]) => schema[key]?.unique)
     .reduce(
       (acc, [key, value]) => {
         if (key in schema) {
@@ -64,7 +64,7 @@ export const pickUniqFieldsFromRecords = <S extends Schema = Schema>(
   const properties = {} as Record<string, Array<PropertyValue>>
 
   const uniqFields = Object.entries(schema)
-    .filter(([, config]) => config.uniq)
+    .filter(([, config]) => config.unique)
     .reduce(
       (acc, [key]) => {
         acc[key] = true

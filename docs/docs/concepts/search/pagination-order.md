@@ -170,3 +170,61 @@ You can combine pagination and sorting to implement sophisticated data access pa
 - Consider using filtering conditions that leverage indexes for better performance with larger offsets
 - When possible, structure your application to use smaller page sizes (lower `limit` values)
 - The maximum allowed `limit` value (1000) is designed to prevent excessive resource consumption
+
+## Ordering with Aggregations
+
+Ordering interacts with aggregation execution order. RushDB distinguishes between:
+
+1. Early ordering/pagination – Happens before aggregation when you don't explicitly sort by an aggregated key.
+2. Late ordering/pagination – Happens after aggregation when you sort by one (or more) aggregated keys.
+
+Why it matters: Early ordering limits the raw input rows feeding the aggregation. Late ordering allows the aggregation to consider the entire matched set first, then applies `ORDER BY`, `SKIP`, `LIMIT` to the aggregated result rows.
+
+### Example: Late Order (Accurate Total)
+
+```jsonc
+{
+  "labels": ["HS_DEAL"],
+  "aggregate": { "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" } },
+  "orderBy": { "totalAmount": "asc" },
+  "groupBy": ["totalAmount"]
+}
+```
+
+Generated Cypher:
+
+```cypher
+MATCH (record:__RUSHDB__LABEL__RECORD__:`HS_DEAL` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH sum(record.`amount`) AS `totalAmount`
+ORDER BY `totalAmount` ASC SKIP 0 LIMIT 100
+RETURN {`totalAmount`:`totalAmount`} as records
+```
+
+### Example: Early Order (Potentially Incomplete Total)
+
+```jsonc
+{
+  "labels": ["HS_DEAL"],
+  "aggregate": { "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" } },
+  "groupBy": ["totalAmount"]
+}
+```
+
+Generated Cypher:
+
+```cypher
+MATCH (record:__RUSHDB__LABEL__RECORD__:`HS_DEAL` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.`__RUSHDB__KEY__ID__` DESC SKIP 0 LIMIT 100
+WITH sum(record.`amount`) AS `totalAmount`
+RETURN {`totalAmount`:`totalAmount`} as records
+```
+
+In the early order case, only the first 100 deals (by default ID ordering) contribute to `sum`, potentially underreporting the true total.
+
+### Guidelines
+
+- Specify `orderBy` on aggregated fields whenever the aggregate should reflect the entire match set.
+- Use early ordering intentionally only when you want to aggregate a *windowed* subset (e.g., rolling sample of newest records).
+- The behavior applies to any grouped aggregation, not just the self-group pattern.
+
+See also: [Aggregations guide](./aggregations.md#ordering-by-aggregated-keys-late-order--pagination) for more context.

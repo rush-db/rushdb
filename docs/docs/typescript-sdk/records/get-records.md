@@ -200,11 +200,13 @@ This method searches for records that match the specified criteria, with support
 
 | Field     | Type             | Description                                                                                     |
 |-----------|------------------|-------------------------------------------------------------------------------------------------|
-| `where`   | Object           | Filter conditions for records ([learn more](../../concepts/search/where))                       |
-| `orderBy` | String or Object | Sorting criteria ([learn more](../../concepts/search/pagination-order))                         |
-| `skip`    | Number           | Number of records to skip for pagination ([learn more](../../concepts/search/pagination-order)) |
-| `limit`   | Number           | Maximum number of records to return (default: 1000)                                             |
-| `labels`  | Array            | Optional array of labels to filter records by ([learn more](../../concepts/search/labels))      |
+| `where`   | `Object`           | Filter conditions for records ([learn more](../../concepts/search/where))                       |
+| `orderBy` | `String` or `Object` | Sorting criteria ([learn more](../../concepts/search/pagination-order))                         |
+| `skip`    | `Number`           | Number of records to skip for pagination ([learn more](../../concepts/search/pagination-order)) |
+| `limit`   | `Number`           | Maximum number of records to return (default: 1000)                                             |
+| `labels`  | `Array`            | Optional array of labels to filter records by ([learn more](../../concepts/search/labels))      |
+| `aggregate` | `Object`         | Optional aggregations map ([learn more](../../concepts/search/aggregations))                  |
+| `groupBy` | `Array<string>`    | Optional grouping keys (e.g. `["$record.status"]`) used with aggregations                    |
 
 ### Return Value
 
@@ -415,7 +417,7 @@ const companySalaryStats = await db.records.find({
     // Count unique employees using the defined alias
     employeesCount: {
       fn: 'count',
-      uniq: true,
+      unique: true,
       alias: '$employee'
     },
 
@@ -457,6 +459,56 @@ const companySalaryStats = await db.records.find({
 ```
 
 For comprehensive details on available aggregation functions and usage, see the [Aggregations documentation](../../concepts/search/aggregations).
+
+### Grouping Results (groupBy)
+
+`groupBy` lets you pivot / summarize records. Each key references an alias plus a property. The root alias is `$record`.
+
+Full reference & advanced patterns: [Grouping guide](../../concepts/search/group-by)
+
+Basic grouping:
+```typescript
+const byStage = await db.records.find({
+  labels: ['HS_DEAL'],
+  aggregate: {
+    count: { fn: 'count', alias: '$record' },
+    avgAmount: { fn: 'avg', field: 'amount', alias: '$record' }
+  },
+  groupBy: ['$record.dealstage'],
+  orderBy: { count: 'desc' }
+});
+// byStage.data example: [{ dealstage: 'prospecting', count: 120, avgAmount: 3400 }, ...]
+```
+
+Grouping by related alias:
+```typescript
+const byDepartment = await db.records.find({
+  labels: ['DEPARTMENT'],
+  where: { PROJECT: { $alias: '$project' } },
+  aggregate: {
+    projectCount: { fn: 'count', alias: '$project' },
+    projects: { fn: 'collect', field: 'name', alias: '$project', unique: true }
+  },
+  groupBy: ['$record.name'],
+  orderBy: { projectCount: 'desc' }
+});
+```
+
+Multiple group keys (pivot style):
+```typescript
+const pivot = await db.records.find({
+  labels: ['PROJECT'],
+  aggregate: { count: { fn: 'count', alias: '$record' } },
+  groupBy: ['$record.category', '$record.active'],
+  orderBy: { count: 'desc' }
+});
+```
+
+Notes:
+* Requires at least one aggregation.
+* Output rows contain group fields + aggregated fields (no raw record body unless grouped / aggregated).
+* `collect` is unique by default; set `unique: false` to allow duplicates.
+* For hierarchical drill-down: group at parent, use nested `collect` for children instead of adding children to `groupBy`.
 
 ## Model-Based Search
 

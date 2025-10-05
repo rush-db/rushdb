@@ -36,7 +36,7 @@ All aggregation clauses are defined in the `aggregate` key of the SearchQuery DT
 The following aggregation functions are supported:
 
 - `avg` - Calculate average value of a numeric field
-- `count` - Count records (with optional `uniq` parameter)
+- `count` - Count records (with optional `unique` parameter)
 - `max` - Get maximum value from a field
 - `min` - Get minimum value from a field
 - `sum` - Calculate sum of a numeric field
@@ -48,6 +48,98 @@ The following aggregation functions are supported:
   - `jaccard` - Jaccard similarity [0,1]
   - `overlap` - Overlap coefficient [0,1]
   - `pearson` - Pearson correlation [-1,1]
+
+  ## Grouping Results (groupBy)
+
+  For full coverage of grouping semantics, patterns, and limitations see the dedicated [Grouping guide](./group-by.md). Below is a minimal teaser example:
+
+  ```typescript
+  {
+    labels: ['ORDER'],
+    aggregate: {
+      count: { fn: 'count', alias: '$record' },
+      avgTotal: { fn: 'avg', field: 'total', alias: '$record' }
+    },
+    groupBy: ['$record.status'],
+    orderBy: { count: 'desc' }
+  }
+  ```
+
+  You can also "self-group" by an aggregation key itself when you only need the aggregated value(s) and no natural dimension. Example:
+
+  ```typescript
+  {
+    labels: ['ORDER'],
+    aggregate: {
+      totalRevenue: { fn: 'sum', field: 'total', alias: '$record' },
+      orderCount: { fn: 'count', alias: '$record' }
+    },
+    groupBy: ['totalRevenue', 'orderCount']
+  }
+  ```
+  This produces a single-row result array with both metrics. See the [Grouping guide](./group-by.md#grouping-only-by-an-aggregated-value-self-group) for details.
+
+### Ordering by Aggregated Keys (Late Order & Pagination)
+
+When you reference an aggregated key explicitly in `orderBy`, RushDB defers the `ORDER BY` and pagination (`SKIP` / `LIMIT`) until *after* aggregation is performed. This guarantees that the aggregation is calculated across the full qualifying record set before any limiting occurs.
+
+If you omit an explicit `orderBy` on aggregated keys, the engine applies the default ordering (by internal ID, descending) and pagination *before* the aggregation step. In self‑group or small group scenarios this can produce misleading or incomplete aggregate values because only the first page of raw records (according to default ordering) is fed into the aggregation pipeline.
+
+Example (explicit ordering on aggregated key – correct full aggregation):
+
+```jsonc
+// Request
+{
+  "labels": ["HS_DEAL"],
+  "aggregate": {
+    "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" }
+  },
+  "orderBy": { "totalAmount": "asc" },
+  "groupBy": ["totalAmount"]
+}
+```
+
+Produces Cypher (ORDER BY after aggregation):
+
+```cypher
+MATCH (record:__RUSHDB__LABEL__RECORD__:`HS_DEAL` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH sum(record.`amount`) AS `totalAmount`
+ORDER BY `totalAmount` ASC SKIP 0 LIMIT 100
+RETURN {`totalAmount`:`totalAmount`} as records
+```
+
+Example (no explicit aggregated ordering – pagination happens early):
+
+```jsonc
+// Request
+{
+  "labels": ["HS_DEAL"],
+  "aggregate": {
+    "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" }
+  },
+  "groupBy": ["totalAmount"]
+}
+```
+
+Produces Cypher (ORDER BY / LIMIT before aggregation):
+
+```cypher
+MATCH (record:__RUSHDB__LABEL__RECORD__:`HS_DEAL` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.`__RUSHDB__KEY__ID__` DESC SKIP 0 LIMIT 100
+WITH sum(record.`amount`) AS `totalAmount`
+RETURN {`totalAmount`:`totalAmount`} as records
+```
+
+Why this matters:
+- First version sums across all matching deals, then orders/paginates the *result rows* (one row here).
+- Second version limits the input rows *before* summing; result may exclude records beyond the first page, giving an underreported total.
+
+Guidelines:
+- Always specify `orderBy` with aggregated keys you care about when using `groupBy` (including self-group) if you need accurate totals across the entire match set.
+- Omit the aggregated `orderBy` only if you intentionally want to aggregate over a pre-sliced subset of records (rare).
+- The late ordering rule applies to any aggregated field listed in `orderBy`, not only self-group patterns.
+
+See also: [Pagination & Order guide](./pagination-order.md#ordering-with-aggregations) for broader pagination implications.
 
 
 ## Aliases
@@ -124,7 +216,7 @@ graph LR
 - `fn`: 'count' - The aggregation function name
 - `alias`: string - The record alias to use
 - `field?`: string - Optional field to count
-- `uniq?`: boolean - Optional flag to count unique values
+- `unique?`: boolean - Optional flag to count unique values
 
 ```typescript
 {
@@ -137,7 +229,7 @@ graph LR
   aggregate: {
     employeesCount: {
       fn: 'count',
-      uniq: true,  // Count unique employees
+      unique: true,  // Count unique employees
       alias: '$employee'
     }
   }
@@ -221,7 +313,7 @@ graph LR
 - `fn`: 'collect' - The aggregation function name
 - `alias`: string - The record alias to use
 - `field?`: string - Optional field to collect (if not provided, collects entire records)
-- `uniq?`: boolean - Optional flag to collect unique values only. True by default.
+- `unique?`: boolean - Optional flag to collect unique values only. True by default.
 - `limit?`: number - Optional maximum number of items to collect
 - `skip?`: number - Optional number of items to skip
 - `orderBy?`: TSearchSort - Optional sorting configuration
@@ -239,7 +331,7 @@ graph LR
       fn: 'collect',
       field: 'name',
       alias: '$employee',
-      uniq: true  // Optional: true by default
+      unique: true  // Optional: true by default
     }
   }
 }
@@ -267,7 +359,7 @@ graph LR
     // Count unique employees using the defined alias
     employeesCount: {
       fn: 'count',
-      uniq: true,
+      unique: true,
       alias: '$employee'
     },
 
@@ -619,7 +711,7 @@ The `collect` operator supports additional options for pagination and sorting:
 - `limit` - Maximum number of records to collect
 - `skip` - Number of records to skip
 - `orderBy` - Sort collected records by specified fields
-- `uniq` - Collect only unique values (when collecting field values)
+- `unique` - Collect only unique values (when collecting field values)
 - `field` - Collect specific field values instead of entire records
 
 Example:
@@ -637,7 +729,7 @@ Example:
       fn: 'collect',
       alias: '$department',
       field: 'tags',    // Collect only tags field
-      uniq: true,       // Remove duplicates
+      unique: true,       // Remove duplicates
       limit: 100,       // Collect up to 100 tags
       orderBy: {        // Sort alphabetically
         name: 'asc'

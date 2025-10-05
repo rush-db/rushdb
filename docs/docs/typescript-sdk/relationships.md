@@ -63,7 +63,7 @@ If you're using models, you can use the model's `attach` method:
 // Define models
 const UserModel = new Model('USER', {
   name: { type: 'string' },
-  email: { type: 'string', uniq: true }
+  email: { type: 'string', unique: true }
 });
 
 const CompanyModel = new Model('COMPANY', {

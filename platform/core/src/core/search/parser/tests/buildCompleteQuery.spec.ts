@@ -27,11 +27,11 @@ const q0 = {
 }
 
 const r0 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((any(value IN record.stage WHERE value = "seed")) OR (any(value IN record.stage WHERE value = "roundA"))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:EMPLOYEE) WHERE (any(value IN record1.salary WHERE value >= 500000))
+WHERE ((any(value IN record.\`stage\` WHERE value = "seed")) OR (any(value IN record.\`stage\` WHERE value = "roundA"))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\`) WHERE (any(value IN record1.\`salary\` WHERE value >= 500000))
 WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
 WITH record, apoc.coll.sortMaps(collect(DISTINCT record1 {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "salary")[0..10] AS \`employees\`
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`employees\`}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`employees\`} as records`
 
 const q1 = {
   where: {
@@ -84,15 +84,15 @@ const q1 = {
 }
 
 const r1 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE (any(value IN record.rating WHERE value >= 1)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:departments)
-OPTIONAL MATCH (record1)--(record2:projects)
-OPTIONAL MATCH (record2)--(record3:employees) WHERE (any(value IN record3.salary WHERE value >= 499500))
+WHERE (any(value IN record.\`rating\` WHERE value >= 1)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`departments\`)
+OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:\`projects\`)
+OPTIONAL MATCH (record2)--(record3:__RUSHDB__LABEL__RECORD__:\`employees\`) WHERE (any(value IN record3.\`salary\` WHERE value >= 499500))
 WITH record, record1, record2, record3 WHERE record IS NOT NULL AND (record1 IS NOT NULL AND (record2 IS NOT NULL AND record3 IS NOT NULL))
 WITH record, record1, record2, apoc.coll.sortMaps(collect(DISTINCT record3 {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record3) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "salary")[0..3] AS \`employees\`
 WITH record, record1, apoc.coll.sortMaps(collect(DISTINCT record2 {.*, \`employees\`, __RUSHDB__KEY__LABEL__: [label IN labels(record2) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "^projectName")[0..100] AS \`projects\`
 WITH record, apoc.coll.sortMaps(collect(DISTINCT record1 {.*, \`projects\`, __RUSHDB__KEY__LABEL__: [label IN labels(record1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "__RUSHDB__KEY__ID__")[0..100] AS \`departments\`
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departments\`}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departments\`} AS records`
 
 const q2 = {
   where: {
@@ -118,7 +118,7 @@ const q2 = {
   labels: ['COMPANY'],
   aggregate: {
     companyName: '$record.name',
-    employeesCount: { fn: 'count', uniq: true, alias: '$employee' },
+    employeesCount: { fn: 'count', unique: true, alias: '$employee' },
     totalWage: { fn: 'sum', field: 'salary', alias: '$employee' },
     avgSalary: {
       fn: 'avg',
@@ -132,13 +132,13 @@ const q2 = {
 }
 
 const r2 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE (any(value IN record.rating WHERE value >= 1)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:departments)
-OPTIONAL MATCH (record1)--(record2:projects)
-OPTIONAL MATCH (record2)--(record3:employees) WHERE (any(value IN record3.salary WHERE value >= 499500))
+WHERE (any(value IN record.\`rating\` WHERE value >= 1)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`departments\`)
+OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:\`projects\`)
+OPTIONAL MATCH (record2)--(record3:__RUSHDB__LABEL__RECORD__:\`employees\`) WHERE (any(value IN record3.\`salary\` WHERE value >= 499500))
 WITH record, record1, record2, record3 WHERE record IS NOT NULL AND (record1 IS NOT NULL AND (record2 IS NOT NULL AND record3 IS NOT NULL))
 WITH record, count(DISTINCT record3) AS \`employeesCount\`, sum(record3.\`salary\`) AS \`totalWage\`, toInteger(avg(record3.\`salary\`)) AS \`avgSalary\`, min(record3.\`salary\`) AS \`minSalary\`, max(record3.\`salary\`) AS \`maxSalary\`
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`companyName\`: record.\`name\`, \`employeesCount\`, \`totalWage\`, \`avgSalary\`, \`minSalary\`, \`maxSalary\`}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`companyName\`: record.\`name\`, \`employeesCount\`, \`totalWage\`, \`avgSalary\`, \`minSalary\`, \`maxSalary\`} as records`
 
 const q3 = {
   where: {
@@ -222,7 +222,7 @@ const q3 = {
   labels: ['COMPANY'],
   aggregate: {
     companyName: '$record.name',
-    employeesCount: { fn: 'count', uniq: true, alias: '$employee' },
+    employeesCount: { fn: 'count', unique: true, alias: '$employee' },
     totalWage: { fn: 'sum', field: 'salary', alias: '$employee' },
     avgSalary: {
       fn: 'avg',
@@ -236,19 +236,19 @@ const q3 = {
 }
 
 const r3 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE (any(value IN record.tag WHERE value = "top-sellers")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)<-[:AUTHORED]-(record1:AUTHOR) WHERE ((any(value IN record1.name WHERE value STARTS WITH "Jack") AND any(value IN record1.name WHERE value ENDS WITH "Rooney") OR any(value IN record1.name WHERE apoc.convert.fromJsonMap(\`record1\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`name\` = "datetime" AND datetime(value) = datetime({year: 1984}))))
-OPTIONAL MATCH (record)--(record2:POST) WHERE (any(value IN record2.created WHERE apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`created\` = "datetime" AND datetime(value) = datetime({year: 2011, month: 11, day: 11}))) AND (((any(value IN record2.rating WHERE value > 4.5) AND any(value IN record2.rating WHERE value < 6)) OR any(value IN record2.rating WHERE value <> 3) OR (NOT(any(value IN record2.rating WHERE value >= 4))))) AND (any(value IN record2.title WHERE value <> "Forest"))
-OPTIONAL MATCH (record2)-[:COMMENT_TO_POST]->(record3:COMMENT) WHERE (any(value IN record3.authoredBy WHERE value =~ "(?i).*Sam.*"))
-OPTIONAL MATCH (record2)--(record4:CAR) WHERE (any(value IN record4.color WHERE value = "red"))
-OPTIONAL MATCH (record4)--(record5:SPOUSE) WHERE (any(value IN record5.gender WHERE value = "male"))
-OPTIONAL MATCH (record2)--(record6:JOB) WHERE (any(value IN record6.title WHERE value = "Manager"))
-OPTIONAL MATCH (record)--(record7:departments)
-OPTIONAL MATCH (record7)--(record8:projects)
-OPTIONAL MATCH (record8)--(record9:employees) WHERE (any(value IN record9.salary WHERE value >= 499500))
+WHERE (any(value IN record.\`tag\` WHERE value = "top-sellers")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)<-[:AUTHORED]-(record1:__RUSHDB__LABEL__RECORD__:\`AUTHOR\`) WHERE ((any(value IN record1.\`name\` WHERE value STARTS WITH "Jack") AND any(value IN record1.\`name\` WHERE value ENDS WITH "Rooney") OR any(value IN record1.\`name\` WHERE apoc.convert.fromJsonMap(record1.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`name\` = "datetime" AND datetime(value) = datetime({year: 1984}))))
+OPTIONAL MATCH (record)--(record2:__RUSHDB__LABEL__RECORD__:\`POST\`) WHERE (any(value IN record2.\`created\` WHERE apoc.convert.fromJsonMap(record2.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`created\` = "datetime" AND datetime(value) = datetime({year: 2011, month: 11, day: 11}))) AND (((any(value IN record2.\`rating\` WHERE value > 4.5) AND any(value IN record2.\`rating\` WHERE value < 6)) OR any(value IN record2.\`rating\` WHERE value <> 3) OR (NOT(any(value IN record2.\`rating\` WHERE value >= 4))))) AND (any(value IN record2.\`title\` WHERE value <> "Forest"))
+OPTIONAL MATCH (record2)-[:COMMENT_TO_POST]->(record3:__RUSHDB__LABEL__RECORD__:\`COMMENT\`) WHERE (any(value IN record3.\`authoredBy\` WHERE value =~ "(?i).*Sam.*"))
+OPTIONAL MATCH (record2)--(record4:__RUSHDB__LABEL__RECORD__:\`CAR\`) WHERE (any(value IN record4.\`color\` WHERE value = "red"))
+OPTIONAL MATCH (record4)--(record5:__RUSHDB__LABEL__RECORD__:\`SPOUSE\`) WHERE (any(value IN record5.\`gender\` WHERE value = "male"))
+OPTIONAL MATCH (record2)--(record6:__RUSHDB__LABEL__RECORD__:\`JOB\`) WHERE (any(value IN record6.\`title\` WHERE value = "Manager"))
+OPTIONAL MATCH (record)--(record7:__RUSHDB__LABEL__RECORD__:\`departments\`)
+OPTIONAL MATCH (record7)--(record8:__RUSHDB__LABEL__RECORD__:\`projects\`)
+OPTIONAL MATCH (record8)--(record9:__RUSHDB__LABEL__RECORD__:\`employees\`) WHERE (any(value IN record9.\`salary\` WHERE value >= 499500))
 WITH record, record1, record2, record3, record4, record5, record6, record7, record8, record9 WHERE record IS NOT NULL AND record1 IS NOT NULL AND (record2 IS NOT NULL AND record3 IS NOT NULL) AND (record4 IS NOT NULL AND (record5 IS NOT NULL AND record6 IS NOT NULL))
 WITH record, count(DISTINCT record9) AS \`employeesCount\`, sum(record9.\`salary\`) AS \`totalWage\`, toInteger(avg(record9.\`salary\`)) AS \`avgSalary\`, min(record9.\`salary\`) AS \`minSalary\`, max(record9.\`salary\`) AS \`maxSalary\`
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`companyName\`: record.\`name\`, \`employeesCount\`, \`totalWage\`, \`avgSalary\`, \`minSalary\`, \`maxSalary\`}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`companyName\`: record.\`name\`, \`employeesCount\`, \`totalWage\`, \`avgSalary\`, \`minSalary\`, \`maxSalary\`} as records`
 
 const q4 = {
   labels: ['COMPANY'],
@@ -258,8 +258,8 @@ const q4 = {
 }
 
 const r4 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((any(value IN record.stage WHERE value = "seed") OR any(value IN record.stage WHERE value = "roundA"))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+WHERE ((any(value IN record.\`stage\` WHERE value = "seed") OR any(value IN record.\`stage\` WHERE value = "roundA"))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
 
 const q5 = {
   labels: ['COMPANY'],
@@ -269,8 +269,8 @@ const q5 = {
 }
 
 const r5 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((any(value IN record.stage WHERE value = "seed")) OR (any(value IN record.stage WHERE value = "roundA"))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+WHERE ((any(value IN record.\`stage\` WHERE value = "seed")) OR (any(value IN record.\`stage\` WHERE value = "roundA"))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
 
 const q6 = {
   labels: ['COMPANY'],
@@ -284,10 +284,10 @@ const q6 = {
 }
 
 const r6 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((any(value IN record.__RUSHDB__KEY__ID__ WHERE value = "1234567890") OR any(value IN record.__RUSHDB__KEY__ID__ WHERE value = "0987654321"))) AND (any(value IN record.name WHERE value = "alex")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:USER) WHERE (any(value IN record1.__RUSHDB__KEY__ID__ WHERE value IN ["1234567890", "0987654321"]))
+WHERE ((any(value IN record.\`__RUSHDB__KEY__ID__\` WHERE value = "1234567890") OR any(value IN record.\`__RUSHDB__KEY__ID__\` WHERE value = "0987654321"))) AND (any(value IN record.\`name\` WHERE value = "alex")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`USER\`) WHERE (any(value IN record1.\`__RUSHDB__KEY__ID__\` WHERE value IN ["1234567890", "0987654321"]))
 WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
 
 const q7 = {
   where: {
@@ -312,11 +312,11 @@ const q7 = {
 }
 
 const r7 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE (any(value IN record.rating WHERE value >= 1)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:departments)
+WHERE (any(value IN record.\`rating\` WHERE value >= 1)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`departments\`)
 WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
 WITH record, apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.\`tags\`))), ["__RUSHDB__VALUE__EMPTY__ARRAY__"]))[0..100] AS \`tags\`
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`tags\`}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`tags\`} as records`
 
 const q8 = {
   where: {
@@ -335,9 +335,9 @@ const q8 = {
 
 const r8 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:departments)
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`departments\`)
 WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departmentId\`: record1.\`__RUSHDB__KEY__ID__\`}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departmentId\`: record1.\`__RUSHDB__KEY__ID__\`} as records`
 
 const q9 = {
   where: {
@@ -356,8 +356,8 @@ const q9 = {
 }
 
 const r9 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((\`record\`.\`emb\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`emb\` = "vector" AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <> 0.75)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+WHERE ((record.\`emb\` IS NOT NULL AND apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`emb\` = "vector" AND gds.similarity.cosine(record.\`emb\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(record.\`emb\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(record.\`emb\`, [1,2,3,4,5]) <> 0.75)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
 
 const q10 = {
   where: {
@@ -381,10 +381,10 @@ const q10 = {
 
 const r10 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:DOCUMENT)
-OPTIONAL MATCH (record1)--(record2:CHUNK) WHERE ((\`record2\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) <> 0.75))
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`DOCUMENT\`)
+OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:\`CHUNK\`) WHERE ((record2.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(record2.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(record2.\`embedding\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(record2.\`embedding\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(record2.\`embedding\`, [1,2,3,4,5]) <> 0.75))
 WITH record, record1, record2 WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
 
 const q11 = {
   where: {
@@ -404,10 +404,10 @@ const q11 = {
 
 const r11 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:DOCUMENT)
-OPTIONAL MATCH (record1)--(record2:CHUNK) WHERE ((\`record2\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record2\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(\`record2\`.\`embedding\`, [1,2,3,4,5]) >= 0.75))
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`DOCUMENT\`)
+OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:\`CHUNK\`) WHERE ((record2.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(record2.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.cosine(record2.\`embedding\`, [1,2,3,4,5]) >= 0.75))
 WITH record, record1, record2 WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
 
 const q12 = {
   where: {
@@ -441,13 +441,13 @@ const q12 = {
 }
 
 const r12 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((\`record\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) <= 0.93)) ORDER BY record.\`__RUSHDB__KEY__ID__\` ASC SKIP 0 LIMIT 1000
-WITH record, CASE 
-    WHEN \`record\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND size(\`record\`.\`embedding\`) = size([0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) 
-    THEN gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) 
-    ELSE null 
+WHERE ((record.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND gds.similarity.euclidean(record.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) <= 0.93)) ORDER BY record.\`__RUSHDB__KEY__ID__\` ASC SKIP 0 LIMIT 1000
+WITH record, CASE
+    WHEN record.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND size(\`record\`.\`embedding\`) = size([0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
+    THEN gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
+    ELSE null
   END AS \`similarity\`
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`} as records`
 
 const q13 = {
   where: {},
@@ -469,13 +469,13 @@ const q13 = {
 }
 
 const r13 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH record, CASE 
-    WHEN \`record\`.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND size(\`record\`.\`embedding\`) = size([0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) 
-    THEN gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) 
-    ELSE null 
+WITH record, CASE
+    WHEN record.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND size(\`record\`.\`embedding\`) = size([0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
+    THEN gds.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
+    ELSE null
   END AS \`similarity\`
 ORDER BY \`similarity\` DESC SKIP 0 LIMIT 1000
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`} as records`
 
 const q14 = {
   labels: ['COMPANY'],
@@ -498,11 +498,11 @@ const q14 = {
 }
 
 const r14 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-OPTIONAL MATCH (record)--(record1:EMPLOYEE)
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\`)
 WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
-WITH record, count(record1) AS \`employeeCount\`
+WITH record, count(DISTINCT record1) AS \`employeeCount\`
 ORDER BY \`employeeCount\` DESC SKIP 0 LIMIT 1000
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`employeeCount\`}) AS records`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`employeeCount\`} as records`
 
 const q15 = {
   labels: ['COMPANY'],
@@ -532,8 +532,8 @@ const q15 = {
 }
 
 const r15 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((any(value IN record.active WHERE value = true)) AND ((any(value IN record.email WHERE value ENDS WITH "@gmail.com")) OR (any(value IN record.email WHERE value ENDS WITH "@outlook.com")))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+WHERE ((any(value IN record.\`active\` WHERE value = true)) AND ((any(value IN record.\`email\` WHERE value ENDS WITH "@gmail.com")) OR (any(value IN record.\`email\` WHERE value ENDS WITH "@outlook.com")))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
 
 const q16 = {
   where: {
@@ -546,8 +546,8 @@ const q16 = {
 }
 
 const r16 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE (apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`title\` = "string") ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+WHERE (apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`title\` = "string") ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
 
 const q17 = {
   where: {
@@ -560,8 +560,8 @@ const q17 = {
 }
 
 const r17 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE (record.title IS NOT NULL) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+WHERE (record.\`title\` IS NOT NULL) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
 
 const q18 = {
   where: {
@@ -579,28 +579,148 @@ const q18 = {
 }
 
 const r18 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((record.title IS NOT NULL) AND (apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`title\` = "string")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+WHERE ((record.\`title\` IS NOT NULL) AND (apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`title\` = "string")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
 
 const q19 = {
   where: {
-    emb: {
-      $vector: {
-        fn: 'gds.similarity.cosine',
-        query: [1, 2, 3, 4, 5],
-        threshold: {
-          $gte: 0.5,
-          $lte: 0.8,
-          $ne: 0.75
-        }
-      }
+    HS_APPOINTMENT: {
+      $alias: '$appointment'
     }
-  }
+  },
+  aggregate: {
+    count: {
+      alias: '$record',
+      fn: 'count'
+    },
+    avgAmount: {
+      alias: '$record',
+      fn: 'avg',
+      field: 'amount'
+    }
+  },
+  groupBy: ['$record.dealstage'],
+  orderBy: {
+    count: 'desc'
+  },
+  skip: 0,
+  limit: 1000,
+  labels: ['HS_DEAL']
 }
 
-const r19 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((\`record\`.\`emb\` IS NOT NULL AND apoc.convert.fromJsonMap(\`record\`.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`emb\` = "vector" AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) >= 0.5 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <= 0.8 AND gds.similarity.cosine(\`record\`.\`emb\`, [1,2,3,4,5]) <> 0.75)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-RETURN collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}) AS records`
+const r19 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`HS_DEAL\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`HS_APPOINTMENT\`)
+WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
+WITH count(DISTINCT record) AS \`count\`, avg(record.\`amount\`) AS \`avgAmount\`, record.\`dealstage\` AS \`dealstage\`
+ORDER BY \`count\` DESC SKIP 0 LIMIT 1000
+RETURN {\`count\`:\`count\`, \`avgAmount\`:\`avgAmount\`, \`dealstage\`:\`dealstage\`} as records`
+
+const q20 = {
+  where: {
+    dealstage: 'closedwon',
+    HS_APPOINTMENT: {
+      $alias: '$appointment'
+    }
+  },
+  aggregate: {
+    count: {
+      alias: '$record',
+      fn: 'count'
+    },
+    avgAmount: {
+      alias: '$record',
+      fn: 'sum',
+      field: 'amount'
+    }
+  },
+  groupBy: ['$appointment.hs_meeting_location'],
+  orderBy: {
+    count: 'desc'
+  },
+  skip: 0,
+  limit: 1000,
+  labels: ['HS_DEAL']
+}
+
+const r20 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`HS_DEAL\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE (any(value IN record.\`dealstage\` WHERE value = "closedwon"))
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`HS_APPOINTMENT\`)
+WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
+WITH count(DISTINCT record) AS \`count\`, sum(record.\`amount\`) AS \`avgAmount\`, record1.\`hs_meeting_location\` AS \`hs_meeting_location\`
+ORDER BY \`count\` DESC SKIP 0 LIMIT 1000
+RETURN {\`count\`:\`count\`, \`avgAmount\`:\`avgAmount\`, \`hs_meeting_location\`:\`hs_meeting_location\`} as records`
+
+const q21 = {
+  labels: ['DEPARTMENT'],
+  where: {
+    PROJECT: {
+      $alias: '$project'
+    }
+  },
+  aggregate: {
+    projects: {
+      fn: 'collect',
+      unique: true,
+      field: 'name',
+      alias: '$project'
+    },
+    projectsCount: {
+      fn: 'count',
+      alias: '$project'
+    }
+  },
+  groupBy: ['$record.name'],
+  orderBy: {
+    projectsCount: 'desc'
+  },
+  skip: 0,
+  limit: 1000
+}
+
+const r21 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`DEPARTMENT\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`PROJECT\`)
+WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
+WITH apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.\`name\`))), ["__RUSHDB__VALUE__EMPTY__ARRAY__"]))[0..100] AS \`projects\`, count(DISTINCT record1) AS \`projectsCount\`, record.\`name\` AS \`name\`
+ORDER BY \`projectsCount\` DESC SKIP 0 LIMIT 1000
+RETURN {\`projects\`:\`projects\`, \`projectsCount\`:\`projectsCount\`, \`name\`:\`name\`} as records`
+
+const q22 = {
+  labels: ['PROJECT'],
+  aggregate: {
+    count: {
+      fn: 'count',
+      alias: '$record'
+    }
+  },
+  groupBy: ['$record.active'],
+  orderBy: {
+    count: 'desc'
+  },
+  skip: 0,
+  limit: 1000
+}
+
+const r22 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`PROJECT\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH count(DISTINCT record) AS \`count\`, record.\`active\` AS \`active\`
+ORDER BY \`count\` DESC SKIP 0 LIMIT 1000
+RETURN {\`count\`:\`count\`, \`active\`:\`active\`} as records`
+
+const q23 = {
+  labels: ['HS_DEAL'],
+  aggregate: {
+    totalAmount: {
+      fn: 'sum',
+      field: 'amount',
+      alias: '$record'
+    }
+  },
+  groupBy: ['totalAmount']
+}
+
+const r23 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`HS_DEAL\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+WITH sum(record.\`amount\`) AS \`totalAmount\`
+RETURN {\`totalAmount\`:\`totalAmount\`} as records`
 
 describe('build complete query', () => {
   let queryService: EntityQueryService
@@ -721,5 +841,35 @@ describe('build complete query', () => {
     const result = queryService.findRecords({ searchQuery: q18 })
 
     expect(result).toEqual(r18)
+  })
+
+  it('19', () => {
+    const result = queryService.findRecords({ searchQuery: q19 })
+
+    expect(result).toEqual(r19)
+  })
+
+  it('20', () => {
+    const result = queryService.findRecords({ searchQuery: q20 })
+
+    expect(result).toEqual(r20)
+  })
+
+  it('21', () => {
+    const result = queryService.findRecords({ searchQuery: q21 })
+
+    expect(result).toEqual(r21)
+  })
+
+  it('22', () => {
+    const result = queryService.findRecords({ searchQuery: q22 })
+
+    expect(result).toEqual(r22)
+  })
+
+  it('23', () => {
+    const result = queryService.findRecords({ searchQuery: q23 })
+
+    expect(result).toEqual(r23)
   })
 })

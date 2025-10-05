@@ -1,7 +1,7 @@
 import { isArray } from '@/common/utils/isArray'
 import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
-import { DEFAULT_RECORD_ALIAS } from '@/core/common/constants'
+import { ROOT_RECORD_ALIAS, RUSHDB_LABEL_RECORD } from '@/core/common/constants'
 import { Relation, Where } from '@/core/common/types'
 import { parseLevel } from '@/core/search/parser/buildQuery'
 import { ParseContext } from '@/core/search/parser/types'
@@ -47,7 +47,7 @@ export const parseSubQuery = (
   const { $relation, $alias, ...other } = input as any
 
   ctx.level += 1
-  const nodeAlias = DEFAULT_RECORD_ALIAS + ctx.level
+  const nodeAlias = ROOT_RECORD_ALIAS + ctx.level
   ctx.nodeAliases.push(nodeAlias)
 
   if ($alias) {
@@ -74,7 +74,8 @@ export const parseSubQuery = (
   // @FYI: OPTIONAL MATCH is crucial for handling logical grouping between Nodes
   // where: { $or: { CAR: {...}, BIKE: {...} } }
   // Strict MATCH will cause empty result unless target record relates to both (car and bike)
-  ctx.result[nodeAlias] = `OPTIONAL MATCH (${options.nodeAlias})${rel}(${nodeAlias}:${key})${
-    toBoolean(condition) ? ` WHERE ${condition}` : ''
-  }`
+  ctx.result[nodeAlias] =
+    `OPTIONAL MATCH (${options.nodeAlias})${rel}(${nodeAlias}:${RUSHDB_LABEL_RECORD}:\`${key}\`)${
+      toBoolean(condition) ? ` WHERE ${condition}` : ''
+    }`
 }

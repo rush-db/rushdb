@@ -26,12 +26,14 @@ describe('parseQuery', () => {
     )
 
     expect(result1).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
-        record: '(any(value IN record.tag WHERE value = "top-sellers"))',
+        record: '(any(value IN record.`tag` WHERE value = "top-sellers"))',
         record1:
-          'OPTIONAL MATCH (record)<-[:AUTHORED]-(record1:AUTHOR) WHERE (any(value IN record1.name WHERE value = "James Brown"))'
+          'OPTIONAL MATCH (record)<-[:AUTHORED]-(record1:__RUSHDB__LABEL__RECORD__:`AUTHOR`) WHERE (any(value IN record1.`name` WHERE value = "James Brown"))'
       },
       where: 'record IS NOT NULL AND record1 IS NOT NULL'
     })
@@ -77,14 +79,17 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result2).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1', 'record2'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
         record:
-          '((any(value IN record.name WHERE value STARTS WITH "Jack") AND any(value IN record.name WHERE value ENDS WITH "Rooney")) OR (any(value IN record.dateOfBirth WHERE apoc.convert.fromJsonMap(`record`.`__RUSHDB__KEY__PROPERTIES__META__`).`dateOfBirth` = "datetime" AND datetime(value) = datetime({year: 1984}))))',
+          '((any(value IN record.`name` WHERE value STARTS WITH "Jack") AND any(value IN record.`name` WHERE value ENDS WITH "Rooney")) OR (any(value IN record.`dateOfBirth` WHERE apoc.convert.fromJsonMap(record.`__RUSHDB__KEY__PROPERTIES__META__`).`dateOfBirth` = "datetime" AND datetime(value) = datetime({year: 1984}))))',
         record1:
-          'OPTIONAL MATCH (record)--(record1:POST) WHERE (any(value IN record1.created WHERE apoc.convert.fromJsonMap(`record1`.`__RUSHDB__KEY__PROPERTIES__META__`).`created` = "datetime" AND datetime(value) = datetime({year: 2011, month: 11, day: 11}))) AND (((any(value IN record1.rating WHERE value > 4.5) AND any(value IN record1.rating WHERE value < 6)) OR any(value IN record1.rating WHERE value <> 3) OR (NOT(any(value IN record1.rating WHERE value >= 4))))) AND (any(value IN record1.title WHERE value <> "Forest"))',
-        record2: `OPTIONAL MATCH (record1)-[:COMMENT_TO_POST]->(record2:COMMENT) WHERE (any(value IN record2.authoredBy WHERE value =~ "(?i).*Sam.*"))`
+          'OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:`POST`) WHERE (any(value IN record1.`created` WHERE apoc.convert.fromJsonMap(record1.`__RUSHDB__KEY__PROPERTIES__META__`).`created` = "datetime" AND datetime(value) = datetime({year: 2011, month: 11, day: 11}))) AND (((any(value IN record1.`rating` WHERE value > 4.5) AND any(value IN record1.`rating` WHERE value < 6)) OR any(value IN record1.`rating` WHERE value <> 3) OR (NOT(any(value IN record1.`rating` WHERE value >= 4))))) AND (any(value IN record1.`title` WHERE value <> "Forest"))',
+        record2:
+          'OPTIONAL MATCH (record1)-[:COMMENT_TO_POST]->(record2:__RUSHDB__LABEL__RECORD__:`COMMENT`) WHERE (any(value IN record2.`authoredBy` WHERE value =~ "(?i).*Sam.*"))'
       },
       where: 'record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)'
     })
@@ -118,15 +123,17 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result3).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1', 'record2'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
         record:
-          '(any(value IN record.created WHERE apoc.convert.fromJsonMap(`record`.`__RUSHDB__KEY__PROPERTIES__META__`).`created` = "datetime" AND datetime(value) = datetime({year: 2011, month: 11, day: 11}))) AND (((any(value IN record.rating WHERE value > 4.5) AND any(value IN record.rating WHERE value < 6)) OR any(value IN record.rating WHERE value <> 3) OR (NOT(any(value IN record.rating WHERE value >= 4))))) AND (any(value IN record.title WHERE value <> "Forest"))',
+          '(any(value IN record.`created` WHERE apoc.convert.fromJsonMap(record.`__RUSHDB__KEY__PROPERTIES__META__`).`created` = "datetime" AND datetime(value) = datetime({year: 2011, month: 11, day: 11}))) AND (((any(value IN record.`rating` WHERE value > 4.5) AND any(value IN record.`rating` WHERE value < 6)) OR any(value IN record.`rating` WHERE value <> 3) OR (NOT(any(value IN record.`rating` WHERE value >= 4))))) AND (any(value IN record.`title` WHERE value <> "Forest"))',
         record1:
-          'OPTIONAL MATCH (record)-[:COMMENT_TO_POST]->(record1:COMMENT) WHERE (any(value IN record1.authoredBy WHERE value =~ "(?i).*Sam.*") AND any(value IN record1.authoredBy WHERE value ENDS WITH "Altman"))',
+          'OPTIONAL MATCH (record)-[:COMMENT_TO_POST]->(record1:__RUSHDB__LABEL__RECORD__:`COMMENT`) WHERE (any(value IN record1.`authoredBy` WHERE value =~ "(?i).*Sam.*") AND any(value IN record1.`authoredBy` WHERE value ENDS WITH "Altman"))',
         record2:
-          'OPTIONAL MATCH (record1)--(record2:POST) WHERE (any(value IN record2.title WHERE value = "Hey"))'
+          'OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:`POST`) WHERE (any(value IN record2.`title` WHERE value = "Hey"))'
       },
       where: 'record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)'
     })
@@ -173,22 +180,24 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result4).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1', 'record2', 'record3', 'record4'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
         record:
-          '(any(value IN record.created WHERE value = true)) AND (any(value IN record.rating WHERE value = 5))',
+          '(any(value IN record.`created` WHERE value = true)) AND (any(value IN record.`rating` WHERE value = 5))',
         record1:
-          'OPTIONAL MATCH (record)-[:COMMENT_TO_POST]->(record1:COMMENT) WHERE (any(value IN record1.authoredBy WHERE value =~ "(?i).*Sam.*") AND any(value IN record1.authoredBy WHERE value ENDS WITH "Altman"))',
+          'OPTIONAL MATCH (record)-[:COMMENT_TO_POST]->(record1:__RUSHDB__LABEL__RECORD__:`COMMENT`) WHERE (any(value IN record1.`authoredBy` WHERE value =~ "(?i).*Sam.*") AND any(value IN record1.`authoredBy` WHERE value ENDS WITH "Altman"))',
         record2:
-          'OPTIONAL MATCH (record1)--(record2:POST) WHERE (any(value IN record2.title WHERE value = "Hey"))',
+          'OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:`POST`) WHERE (any(value IN record2.`title` WHERE value = "Hey"))',
         record3:
-          'OPTIONAL MATCH (record)--(record3:POST) WHERE (any(value IN record3.title WHERE value = "Hey"))',
+          'OPTIONAL MATCH (record)--(record3:__RUSHDB__LABEL__RECORD__:`POST`) WHERE (any(value IN record3.`title` WHERE value = "Hey"))',
         record4:
-          'OPTIONAL MATCH (record3)-[:COMMENT_TO_POST]->(record4:COMMENT) WHERE (any(value IN record4.authoredBy WHERE value =~ "(?i).*Sam.*") AND any(value IN record4.authoredBy WHERE value ENDS WITH "Altman"))'
+          'OPTIONAL MATCH (record3)-[:COMMENT_TO_POST]->(record4:__RUSHDB__LABEL__RECORD__:`COMMENT`) WHERE (any(value IN record4.`authoredBy` WHERE value =~ "(?i).*Sam.*") AND any(value IN record4.`authoredBy` WHERE value ENDS WITH "Altman"))'
       },
       where:
-        'record IS NOT NULL AND (NOT((record1 IS NOT NULL AND record2 IS NOT NULL) OR (any(value IN record.title WHERE value <> "Forest")) OR (record3 IS NOT NULL AND record4 IS NOT NULL)))'
+        'record IS NOT NULL AND (NOT((record1 IS NOT NULL AND record2 IS NOT NULL) OR (any(value IN record.`title` WHERE value <> "Forest")) OR (record3 IS NOT NULL AND record4 IS NOT NULL)))'
     })
   })
 
@@ -208,14 +217,16 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result2).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1', 'record2'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
         record: '',
         record1:
-          'OPTIONAL MATCH (record)--(record1:COMMENT) WHERE (any(value IN record1.authoredBy WHERE value =~ "(?i).*Sam.*") AND any(value IN record1.authoredBy WHERE value ENDS WITH "Altman"))',
+          'OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:`COMMENT`) WHERE (any(value IN record1.`authoredBy` WHERE value =~ "(?i).*Sam.*") AND any(value IN record1.`authoredBy` WHERE value ENDS WITH "Altman"))',
         record2:
-          'OPTIONAL MATCH (record1)--(record2:POST) WHERE (any(value IN record2.title WHERE value = "Hey"))'
+          'OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:`POST`) WHERE (any(value IN record2.`title` WHERE value = "Hey"))'
       },
       where: 'record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)'
     })
@@ -248,18 +259,20 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result6).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1', 'record2'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
         record:
-          '(any(value IN record.created WHERE value = true)) AND (any(value IN record.rating WHERE value = 5))',
+          '(any(value IN record.`created` WHERE value = true)) AND (any(value IN record.`rating` WHERE value = 5))',
         record1:
-          'OPTIONAL MATCH (record)--(record1:CAR) WHERE (any(value IN record1.color WHERE value = "red"))',
+          'OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:`CAR`) WHERE (any(value IN record1.`color` WHERE value = "red"))',
         record2:
-          'OPTIONAL MATCH (record)--(record2:SPOUSE) WHERE (any(value IN record2.gender WHERE value = "male"))'
+          'OPTIONAL MATCH (record)--(record2:__RUSHDB__LABEL__RECORD__:`SPOUSE`) WHERE (any(value IN record2.`gender` WHERE value = "male"))'
       },
       where:
-        'record IS NOT NULL AND (record1 IS NOT NULL OR record2 IS NOT NULL OR (any(value IN record.title WHERE value <> "Forest")))'
+        'record IS NOT NULL AND (record1 IS NOT NULL OR record2 IS NOT NULL OR (any(value IN record.`title` WHERE value <> "Forest")))'
     })
   })
 
@@ -292,18 +305,20 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result7).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1', 'record2'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
         record:
-          '(any(value IN record.created WHERE value = true)) AND (any(value IN record.rating WHERE value = 5))',
+          '(any(value IN record.`created` WHERE value = true)) AND (any(value IN record.`rating` WHERE value = 5))',
         record1:
-          'OPTIONAL MATCH (record)--(record1:CAR) WHERE (any(value IN record1.color WHERE value = "red"))',
+          'OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:`CAR`) WHERE (any(value IN record1.`color` WHERE value = "red"))',
         record2:
-          'OPTIONAL MATCH (record1)--(record2:SPOUSE) WHERE (any(value IN record2.gender WHERE value = "male"))'
+          'OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:`SPOUSE`) WHERE (any(value IN record2.`gender` WHERE value = "male"))'
       },
       where:
-        'record IS NOT NULL AND ((record1 IS NOT NULL AND (record2 IS NOT NULL XOR (any(value IN record1.title WHERE value <> "Forest")))))'
+        'record IS NOT NULL AND ((record1 IS NOT NULL AND (record2 IS NOT NULL XOR (any(value IN record1.`title` WHERE value <> "Forest")))))'
     })
   })
 
@@ -330,18 +345,20 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result8).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1', 'record2'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
         record:
-          '(any(value IN record.created WHERE value = true)) AND (any(value IN record.rating WHERE value = 5))',
+          '(any(value IN record.`created` WHERE value = true)) AND (any(value IN record.`rating` WHERE value = 5))',
         record1:
-          'OPTIONAL MATCH (record)--(record1:CAR) WHERE (any(value IN record1.color WHERE value = "red"))',
+          'OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:`CAR`) WHERE (any(value IN record1.`color` WHERE value = "red"))',
         record2:
-          'OPTIONAL MATCH (record1)--(record2:SPOUSE) WHERE (any(value IN record2.gender WHERE value = "male"))'
+          'OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:`SPOUSE`) WHERE (any(value IN record2.`gender` WHERE value = "male"))'
       },
       where:
-        'record IS NOT NULL AND ((record1 IS NOT NULL AND (record2 IS NOT NULL XOR (any(value IN record1.title WHERE value <> "Forest")))))'
+        'record IS NOT NULL AND ((record1 IS NOT NULL AND (record2 IS NOT NULL XOR (any(value IN record1.`title` WHERE value <> "Forest")))))'
     })
   })
 
@@ -360,14 +377,16 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result9).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1', 'record2'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
         record: '',
         record1:
-          'OPTIONAL MATCH (record)--(record1:CAR) WHERE (any(value IN record1.color WHERE value = "red"))',
+          'OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:`CAR`) WHERE (any(value IN record1.`color` WHERE value = "red"))',
         record2:
-          'OPTIONAL MATCH (record)--(record2:SPOUSE) WHERE (any(value IN record2.gender WHERE value = "male"))'
+          'OPTIONAL MATCH (record)--(record2:__RUSHDB__LABEL__RECORD__:`SPOUSE`) WHERE (any(value IN record2.`gender` WHERE value = "male"))'
       },
       where: 'record IS NOT NULL AND (record1 IS NOT NULL OR record2 IS NOT NULL)'
     })
@@ -381,10 +400,12 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result10).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
-        record: `(any(value IN record.${RUSHDB_KEY_ID} WHERE value = "123"))`
+        record: '(any(value IN record.`__RUSHDB__KEY__ID__` WHERE value = "123"))'
       },
       where: ''
     })
@@ -401,12 +422,14 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result10).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
-        record: '(any(value IN record.__RUSHDB__KEY__ID__ WHERE value = "123"))',
+        record: '(any(value IN record.`__RUSHDB__KEY__ID__` WHERE value = "123"))',
         record1:
-          'OPTIONAL MATCH (record)--(record1:CAR) WHERE (any(value IN record1.__RUSHDB__KEY__ID__ WHERE value = "567"))'
+          'OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:`CAR`) WHERE (any(value IN record1.`__RUSHDB__KEY__ID__` WHERE value = "567"))'
       },
       where: 'record IS NOT NULL AND record1 IS NOT NULL'
     })
@@ -442,15 +465,17 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result10).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record', 'record1', 'record2', 'record3'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
         record: '',
         record1:
-          'OPTIONAL MATCH (record)--(record1:CAR) WHERE (any(value IN record1.color WHERE value = "red"))',
+          'OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:`CAR`) WHERE (any(value IN record1.`color` WHERE value = "red"))',
         record2:
-          'OPTIONAL MATCH (record)--(record2:SPOUSE) WHERE (any(value IN record2.gender WHERE value = "male"))',
-        record3: 'OPTIONAL MATCH (record2)--(record3:CAR)'
+          'OPTIONAL MATCH (record)--(record2:__RUSHDB__LABEL__RECORD__:`SPOUSE`) WHERE (any(value IN record2.`gender` WHERE value = "male"))',
+        record3: 'OPTIONAL MATCH (record2)--(record3:__RUSHDB__LABEL__RECORD__:`CAR`)'
       },
       where:
         'record IS NOT NULL AND (record1 IS NOT NULL OR (record2 IS NOT NULL AND (NOT(record3 IS NOT NULL))))'
@@ -465,11 +490,13 @@ describe('parseQuery', () => {
       queryBuilderOptions
     )
     expect(result10).toEqual({
+      aliasesMap: {
+        $record: 'record'
+      },
       nodeAliases: ['record'],
-      aliasesMap: { $record: 'record' },
       queryParts: {
         record:
-          '((any(value IN record.foundingDate WHERE apoc.convert.fromJsonMap(`record`.`__RUSHDB__KEY__PROPERTIES__META__`).`foundingDate` = "datetime" AND datetime(value) >= datetime("1989-10-01T19:05:17.780Z"))) XOR (any(value IN record.city WHERE value = "Doral")))'
+          '((any(value IN record.`foundingDate` WHERE apoc.convert.fromJsonMap(record.`__RUSHDB__KEY__PROPERTIES__META__`).`foundingDate` = "datetime" AND datetime(value) >= datetime("1989-10-01T19:05:17.780Z"))) XOR (any(value IN record.`city` WHERE value = "Doral")))'
       },
       where: ''
     })
