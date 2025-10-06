@@ -437,8 +437,8 @@ The following environment variables can be used to configure your RushDB deploym
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `RATE_LIMITER_REQUESTS_LIMIT` | Max requests within time frame | `10` | No |
-| `RATE_LIMITER_TTL` | Time frame for rate limiting (ms) | `1000` | No |
+| `RATE_LIMITER_REQUESTS_LIMIT` | Max requests within time frame | `100`   | No |
+| `RATE_LIMITER_TTL` | Time frame for rate limiting (ms) | `1000`  | No |
 
 ### OAuth and Authentication
 

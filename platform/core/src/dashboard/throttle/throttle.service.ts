@@ -13,7 +13,7 @@ export class ThrottleService implements ThrottlerOptionsFactory {
     const ttl = this.configService.get('RATE_LIMITER_TTL') || 1000
     const limit =
       toBoolean(this.configService.get('RUSHDB_SELF_HOSTED')) ? 1000 : (
-        this.configService.get('RATE_LIMITER_REQUESTS_LIMIT') || 10
+        this.configService.get('RATE_LIMITER_REQUESTS_LIMIT') || 100
       )
 
     return {

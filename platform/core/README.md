@@ -83,7 +83,7 @@ You can customize the application by setting environment variables. Below are th
   - A find of allowed login usernames. Leave empty to allow all logins.
 
 ### Rate Limiting
-- `RATE_LIMITER_REQUESTS_LIMIT=10`
+- `RATE_LIMITER_REQUESTS_LIMIT=100`
   - Maximum number of requests allowed within a specific time frame.
 - `RATE_LIMITER_TTL=1000`
   - Time-to-live (TTL) for the rate limiter.
