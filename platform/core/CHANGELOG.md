@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.15.3
+
+### Patch Changes
+
+- 32bd9c1: Increased requests limits for Throttler
+
 ## 1.15.2
 
 ### Patch Changes

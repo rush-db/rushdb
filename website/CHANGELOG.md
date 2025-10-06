@@ -1,5 +1,13 @@
 # rushdb-website
 
+## 1.15.3
+
+### Patch Changes
+
+- 32bd9c1: Increased requests limits for Throttler
+- Updated dependencies [32bd9c1]
+  - @rushdb/javascript-sdk@1.15.3
+
 ## 1.15.2
 
 ### Patch Changes
