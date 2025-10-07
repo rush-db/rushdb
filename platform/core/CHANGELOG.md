@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.16.0
+
+### Minor Changes
+
+- fb311f9: Add timeBucket aggregations
+
 ## 1.15.3
 
 ### Patch Changes
