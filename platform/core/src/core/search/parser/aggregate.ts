@@ -5,7 +5,8 @@ import {
   RUSHDB_KEY_ID,
   ROOT_RECORD_ALIAS,
   RUSHDB_KEY_ID_ALIAS,
-  RUSHDB_VALUE_EMPTY_ARRAY
+  RUSHDB_VALUE_EMPTY_ARRAY,
+  RUSHDB_KEY_PROPERTIES_META
 } from '@/core/common/constants'
 import {
   AggregateFn,
@@ -13,7 +14,8 @@ import {
   AggregateCollectFn,
   AggregateCollectNestedFn,
   AliasesMap,
-  AggregateCountFn
+  AggregateCountFn,
+  AggregateTimeBucketFn
 } from '@/core/common/types'
 import { PROPERTY_WILDCARD_PROJECTION } from '@/core/search/parser/constants'
 import { AggregateContext } from '@/core/search/parser/types'
@@ -60,15 +62,19 @@ function parseAggregate(aggregate: Aggregate, aliasesMap: AliasesMap, ctx: Aggre
 
       ctx.fieldsInCollect.push(`\`${returnAlias}\`: ${recordQueryVariable}.\`${propertyName}\``)
     } else {
-      if (aliasesMap[instruction.alias]) {
+      const aggAlias = instruction.alias || '$record'
+      if (aliasesMap[aggAlias]) {
         // Handle aggregation functions
-
-        ctx.withAggregations.push(buildAggregationFunction(instruction, returnAlias, aliasesMap))
+        // Mutate a shallow copy to avoid side effects if we need the resolved alias downstream
+        const resolvedInstruction = { ...instruction, alias: aggAlias }
+        ctx.withAggregations.push(
+          buildAggregationFunction(resolvedInstruction as AggregateFn, returnAlias, aliasesMap)
+        )
 
         if ('aggregate' in instruction) {
           parseAggregate(instruction.aggregate, aliasesMap, {
             ...ctx,
-            alias: instruction.alias,
+            alias: aggAlias,
             returnAlias
           })
         } else {
@@ -84,12 +90,12 @@ function parseAggregate(aggregate: Aggregate, aliasesMap: AliasesMap, ctx: Aggre
                 acc[key] = sortDirection
                 return acc
               }, {}),
-              aliasesMap[instruction.alias]
+              aliasesMap[aggAlias]
             )
           }
 
           if (typeof instruction.orderBy === 'string') {
-            orderClause = buildOrderByClause(instruction.orderBy, aliasesMap[instruction.alias])
+            orderClause = buildOrderByClause(instruction.orderBy, aliasesMap[aggAlias])
           }
 
           ctx.orderClauses.push(orderClause)
@@ -213,8 +219,9 @@ export function buildAggregationFunction(
   returnAlias: string,
   aliasesMap: AliasesMap
 ): string {
-  if (aliasesMap[instruction.alias]) {
-    const recordAlias = aliasesMap[instruction.alias]
+  const alias = instruction.alias || '$record'
+  if (aliasesMap[alias]) {
+    const recordAlias = aliasesMap[alias]
     const fieldAlias = `\`${instruction.field}\``
     const asPart = `\`${returnAlias}\``
 
@@ -223,6 +230,8 @@ export function buildAggregationFunction(
         return buildCollectFunction(instruction, returnAlias, aliasesMap)
       case 'count':
         return buildCountFunction(instruction, returnAlias, aliasesMap)
+      case 'timeBucket':
+        return buildTimeBucketFunction(instruction, returnAlias, aliasesMap)
       case 'sum':
         return `sum(${recordAlias}.${fieldAlias}) AS ${asPart}`
       case 'avg':
@@ -278,7 +287,7 @@ export function buildCollectFunction(
 
   const propertyName = hasFieldDescriptor ? `.\`${instruction.field}\`` : ''
 
-  const alias = aliasesMap[instruction.alias]
+  const alias = aliasesMap[instruction.alias || '$record']
 
   if (hasFieldDescriptor) {
     const clause = apocRemoveFromArray(apocSortArray(`collect(${unique}${alias}${propertyName})`))
@@ -309,11 +318,69 @@ export function buildCountFunction(
 
   const hasFieldDescriptor = toBoolean(instruction.field)
 
-  const alias = aliasesMap[instruction.alias]
+  const alias = aliasesMap[instruction.alias || '$record']
 
   const propertyName = hasFieldDescriptor ? `.${instruction.field}` : ''
 
   return `count(${unique}${alias}${propertyName}) AS \`${returnAlias}\``
+}
+
+// Handle timeBucket function
+export function buildTimeBucketFunction(
+  instruction: AggregateTimeBucketFn,
+  returnAlias: string,
+  aliasesMap: AliasesMap
+): string {
+  const fieldAlias = `\`${instruction.field}\``
+  const recordAlias = aliasesMap[instruction.alias || '$record']
+
+  const granularity = instruction.granularity
+  if (granularity === 'months') {
+    if (!instruction.size || instruction.size <= 0 || !Number.isInteger(instruction.size)) {
+      throw new Error('timeBucket: size must be a positive integer when granularity = months')
+    }
+  }
+
+  // We assume the field is stored either as a temporal type or ISO8601 string. We always convert to datetime
+  // Neo4j: datetime() will parse ISO8601; if already temporal it is idempotent.
+  const dtExpr = `datetime(${recordAlias}.${fieldAlias})`
+
+  // Guard
+  const datetimeMetaCheck = `apoc.convert.fromJsonMap(${recordAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${instruction.field}\` = "datetime"`
+
+  let bucketStartExpr: string
+  switch (granularity) {
+    case 'day':
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: ${dtExpr}.month, day: ${dtExpr}.day})`
+      break
+    case 'week':
+      // ISO week: derive Monday as start of the week
+      bucketStartExpr = `datetime.truncate('week', ${dtExpr})`
+      break
+    case 'month':
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: ${dtExpr}.month, day: 1})`
+      break
+    case 'quarter':
+      // Quarter start month = 1 + 3 * floor((month-1)/3)
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: 1 + 3 * toInteger(floor((${dtExpr}.month - 1)/3)), day: 1})`
+      break
+    case 'year':
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: 1, day: 1})`
+      break
+    case 'months': {
+      const size = instruction.size as number
+      // Compute bucket index starting from month 1. Example size=2: months 1-2 -> bucket 0, 3-4 -> bucket1
+      // bucketStartMonth = 1 + size * floor((month-1)/size)
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: 1 + ${size} * toInteger(floor((${dtExpr}.month - 1)/${size})), day: 1})`
+      break
+    }
+    default:
+      throw new Error(`Unsupported timeBucket granularity: ${granularity}`)
+  }
+
+  // We return the bucket start value itself. The caller can groupBy this alias to roll up counts, sums, etc.
+  // Format as ISO8601 string to have stable comparison if needed
+  return `CASE WHEN ${datetimeMetaCheck} THEN ${bucketStartExpr} ELSE null END AS ${returnAlias}`
 }
 
 interface ParsedStatement {

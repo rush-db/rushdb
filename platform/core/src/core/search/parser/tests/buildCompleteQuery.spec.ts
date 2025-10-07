@@ -722,6 +722,115 @@ ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
 WITH sum(record.\`amount\`) AS \`totalAmount\`
 RETURN {\`totalAmount\`:\`totalAmount\`} as records`
 
+const q24 = {
+  aggregate: {
+    byYear: {
+      field: 'dob',
+      alias: '$record',
+      fn: 'timeBucket',
+      granularity: 'year'
+    },
+    count: {
+      fn: 'count',
+      alias: '$record'
+    }
+  },
+  groupBy: ['byYear'],
+  orderBy: {
+    byYear: 'asc'
+  },
+  skip: 0,
+  limit: 100,
+  labels: ['EMPLOYEE']
+}
+
+const r24 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1, day: 1}) ELSE null END AS byYear, count(DISTINCT record) AS \`count\`
+ORDER BY \`byYear\` ASC SKIP 0 LIMIT 100
+RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
+
+const q25 = {
+  aggregate: {
+    byYear: {
+      field: 'dob',
+      alias: '$record',
+      fn: 'timeBucket',
+      granularity: 'week'
+    },
+    count: {
+      fn: 'count',
+      alias: '$record'
+    }
+  },
+  groupBy: ['byYear'],
+  orderBy: {
+    byYear: 'asc'
+  },
+  skip: 0,
+  limit: 1000,
+  labels: ['EMPLOYEE']
+}
+
+const r25 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime.truncate('week', datetime(record.\`dob\`)) ELSE null END AS byYear, count(DISTINCT record) AS \`count\`
+ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
+RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
+
+const q26 = {
+  aggregate: {
+    byYear: {
+      field: 'dob',
+      alias: '$record',
+      fn: 'timeBucket',
+      granularity: 'months',
+      size: 6
+    },
+    count: {
+      fn: 'count',
+      alias: '$record'
+    }
+  },
+  groupBy: ['byYear'],
+  orderBy: {
+    byYear: 'asc'
+  },
+  skip: 0,
+  limit: 1000,
+  labels: ['EMPLOYEE']
+}
+
+const r26 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1 + 6 * toInteger(floor((datetime(record.\`dob\`).month - 1)/6)), day: 1}) ELSE null END AS byYear, count(DISTINCT record) AS \`count\`
+ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
+RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
+
+const q27 = {
+  aggregate: {
+    byYear: {
+      field: 'dob',
+      alias: '$record',
+      fn: 'timeBucket',
+      granularity: 'quarter'
+    },
+    count: {
+      fn: 'count',
+      alias: '$record'
+    }
+  },
+  groupBy: ['byYear'],
+  orderBy: {
+    byYear: 'asc'
+  },
+  skip: 0,
+  limit: 1000,
+  labels: ['EMPLOYEE']
+}
+
+const r27 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1 + 3 * toInteger(floor((datetime(record.\`dob\`).month - 1)/3)), day: 1}) ELSE null END AS byYear, count(DISTINCT record) AS \`count\`
+ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
+RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
+
 describe('build complete query', () => {
   let queryService: EntityQueryService
 
@@ -871,5 +980,29 @@ describe('build complete query', () => {
     const result = queryService.findRecords({ searchQuery: q23 })
 
     expect(result).toEqual(r23)
+  })
+
+  it('24', () => {
+    const result = queryService.findRecords({ searchQuery: q24 })
+
+    expect(result).toEqual(r24)
+  })
+
+  it('25', () => {
+    const result = queryService.findRecords({ searchQuery: q25 })
+
+    expect(result).toEqual(r25)
+  })
+
+  it('26', () => {
+    const result = queryService.findRecords({ searchQuery: q26 })
+
+    expect(result).toEqual(r26)
+  })
+
+  it('27', () => {
+    const result = queryService.findRecords({ searchQuery: q27 })
+
+    expect(result).toEqual(r27)
   })
 })
