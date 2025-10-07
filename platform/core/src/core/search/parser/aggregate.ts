@@ -380,7 +380,7 @@ export function buildTimeBucketFunction(
 
   // We return the bucket start value itself. The caller can groupBy this alias to roll up counts, sums, etc.
   // Format as ISO8601 string to have stable comparison if needed
-  return `CASE WHEN ${datetimeMetaCheck} THEN ${bucketStartExpr} ELSE null END AS ${returnAlias}`
+  return `CASE WHEN ${datetimeMetaCheck} THEN ${bucketStartExpr} ELSE null END AS \`${returnAlias}\``
 }
 
 interface ParsedStatement {
