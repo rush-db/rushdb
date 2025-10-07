@@ -1,5 +1,16 @@
 # rushdb-website
 
+## 1.16.0
+
+### Minor Changes
+
+- fb311f9: Add timeBucket aggregations
+
+### Patch Changes
+
+- Updated dependencies [fb311f9]
+  - @rushdb/javascript-sdk@1.16.0
+
 ## 1.15.3
 
 ### Patch Changes
