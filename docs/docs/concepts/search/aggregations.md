@@ -41,6 +41,7 @@ The following aggregation functions are supported:
 - `min` - Get minimum value from a field
 - `sum` - Calculate sum of a numeric field
 - `collect` - Gather field values or entire records into an array
+- `timeBucket` - Bucket a datetime field into calendar intervals (day/week/month/quarter/year or custom N-month size)
 - `gds.similarity.*` - Calculate vector similarity using various algorithms:
   - `cosine` - Cosine similarity [-1,1]
   - `euclidean` - Euclidean distance normalized to (0,1]
@@ -57,8 +58,8 @@ The following aggregation functions are supported:
   {
     labels: ['ORDER'],
     aggregate: {
-      count: { fn: 'count', alias: '$record' },
-      avgTotal: { fn: 'avg', field: 'total', alias: '$record' }
+      count: { fn: 'count' },
+      avgTotal: { fn: 'avg', field: 'total' }
     },
     groupBy: ['$record.status'],
     orderBy: { count: 'desc' }
@@ -71,8 +72,8 @@ The following aggregation functions are supported:
   {
     labels: ['ORDER'],
     aggregate: {
-      totalRevenue: { fn: 'sum', field: 'total', alias: '$record' },
-      orderCount: { fn: 'count', alias: '$record' }
+      totalRevenue: { fn: 'sum', field: 'total' },
+      orderCount: { fn: 'count' }
     },
     groupBy: ['totalRevenue', 'orderCount']
   }
@@ -144,7 +145,7 @@ See also: [Pagination & Order guide](./pagination-order.md#ordering-with-aggrega
 
 ## Aliases
 
-Every aggregation clause requires an `alias` parameter that specifies which record from graph traversal should be used. To reference fields from related records in aggregations, you need to define aliases in the `where` clause using the `$alias` parameter. By default, the root record has alias `$record`:
+Each aggregation function can specify an `alias` indicating which traversed record to read from. If you omit `alias`, RushDB defaults to the root record alias `$record`. To pull values from related records, introduce aliases in the `where` clause with `$alias` and then reference them in aggregations.
 
 ```typescript
 {
@@ -164,11 +165,7 @@ Every aggregation clause requires an `alias` parameter that specifies which reco
     // Referencing to root record using '$record' alias
     companyName: '$record.name',
     // Now can use $employee in aggregations
-    avgSalary: {
-      fn: 'avg',
-      field: 'salary',
-      alias: '$employee'
-    }
+    avgSalary: { fn: 'avg', field: 'salary', alias: '$employee' }
   }
 }
 ```
@@ -186,7 +183,7 @@ graph LR
 **Parameters:**
 - `fn`: 'avg' - The aggregation function name
 - `field`: string - The field to calculate average for
-- `alias`: string - The record alias to use
+- `alias?`: string - Record alias (defaults to `$record`)
 - `precision?`: number - Optional decimal precision for the result
 
 ```typescript
@@ -214,7 +211,7 @@ graph LR
 ###  count
 **Parameters:**
 - `fn`: 'count' - The aggregation function name
-- `alias`: string - The record alias to use
+- `alias?`: string - Record alias (defaults to `$record`)
 - `field?`: string - Optional field to count
 - `unique?`: boolean - Optional flag to count unique values
 
@@ -240,7 +237,7 @@ graph LR
 **Parameters:**
 - `fn`: 'max' - The aggregation function name
 - `field`: string - The field to find maximum value from
-- `alias`: string - The record alias to use
+- `alias?`: string - Record alias (defaults to `$record`)
 
 ```typescript
 {
@@ -264,7 +261,7 @@ graph LR
 **Parameters:**
 - `fn`: 'min' - The aggregation function name
 - `field`: string - The field to find minimum value from
-- `alias`: string - The record alias to use
+- `alias?`: string - Record alias (defaults to `$record`)
 
 ```typescript
 {
@@ -288,7 +285,7 @@ graph LR
 **Parameters:**
 - `fn`: 'sum' - The aggregation function name
 - `field`: string - The field to calculate sum for
-- `alias`: string - The record alias to use
+- `alias?`: string - Record alias (defaults to `$record`)
 
 ```typescript
 {
@@ -311,7 +308,7 @@ graph LR
 ###  collect
 **Parameters:**
 - `fn`: 'collect' - The aggregation function name
-- `alias`: string - The record alias to use
+- `alias?`: string - Record alias (defaults to `$record`)
 - `field?`: string - Optional field to collect (if not provided, collects entire records)
 - `unique?`: boolean - Optional flag to collect unique values only. True by default.
 - `limit?`: number - Optional maximum number of items to collect
@@ -337,6 +334,99 @@ graph LR
 }
 ```
 
+  ###  timeBucket
+  Temporal bucketing for datetime fields. Produces a normalized bucket start `datetime` value you can group by (and then apply other aggregations like `count`, `sum`, etc.).
+
+  **Parameters:**
+  - `fn`: 'timeBucket' – Function name
+  - `field`: string – Datetime field to bucket (must be typed as `"datetime"` in the record metadata)
+  - `alias?`: string – Record alias to read from (defaults to `$record`)
+  - `granularity`: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'months'
+    - Use `'months'` when you need a custom N‑month window size (see `size` below)
+  - `size?`: number – Positive integer required only when `granularity: 'months'` (e.g. 2 = bi‑monthly, 3 = quarterly equivalent, 6 = half‑year)
+
+  **Behavior & Guardrails:**
+  - RushDB checks the field's type metadata (`datetime`) before computing the bucket; if it is not a datetime field the bucket value becomes `null`.
+  - Bucket value is the start of the interval (e.g. month bucket -> first day of month at 00:00:00, quarter -> first day of the quarter, week uses Neo4j `datetime.truncate('week', ...)`).
+  - For `granularity: 'months'` the bucket start month is computed with: `1 + size * floor((month - 1)/size)`.
+    - Setting `size: 3` is equivalent to `granularity: 'quarter'`.
+    - `quarter` is provided as a semantic shortcut (3‑month periods starting at months 1,4,7,10).
+  - Difference example: `quarter` -> buckets start at 1,4,7,10; `months` + `size:4` -> buckets start at 1,5,9 (three 4‑month buckets per year). Use `size:3` for quarter‑like grouping when using the generic mode.
+
+  #### Example: Daily record counts
+  ```typescript
+  {
+    labels: ['EVENT'],
+    aggregate: {
+  day: { fn: 'timeBucket', field: 'createdAt', granularity: 'day' },
+  count: { fn: 'count' }
+    },
+    groupBy: ['day'],
+    orderBy: { day: 'asc' }
+  }
+  ```
+
+  #### Example: Quarterly revenue (semantic `quarter`)
+  ```typescript
+  {
+    labels: ['INVOICE'],
+    aggregate: {
+  quarterStart: { fn: 'timeBucket', field: 'issuedAt', granularity: 'quarter' },
+  quarterlyRevenue: { fn: 'sum', field: 'amount' }
+    },
+    groupBy: ['quarterStart'],
+    orderBy: { quarterStart: 'asc' }
+  }
+  ```
+
+  #### Example: Custom bi‑monthly (every 2 months) active user count
+  ```typescript
+  {
+    labels: ['SESSION'],
+    where: { status: 'active' },
+    aggregate: {
+  periodStart: { fn: 'timeBucket', field: 'startedAt', granularity: 'months', size: 2 },
+  activeSessions: { fn: 'count' }
+    },
+    groupBy: ['periodStart'],
+    orderBy: { periodStart: 'asc' }
+  }
+  ```
+
+  #### Example: Half‑year (size=6) average deal value
+  ```typescript
+  {
+    labels: ['DEAL'],
+    aggregate: {
+  halfYear: { fn: 'timeBucket', field: 'closedAt', granularity: 'months', size: 6 },
+  avgDeal: { fn: 'avg', field: 'amount', precision: 2 }
+    },
+    groupBy: ['halfYear'],
+    orderBy: { halfYear: 'asc' }
+  }
+  ```
+
+  #### Filtering / Null Buckets
+  If some records lack the datetime type metadata for the chosen field, their bucket will be `null`. To exclude them, add a `where` condition ensuring the field exists and is properly typed, or post‑filter client side. (A future enhancement could expose `$notNull` filtering on aggregation outputs.)
+
+  #### Combining with Other Aggregations (Self‑Group)
+  You can self‑group just by the bucket and one or more metrics:
+  ```typescript
+  {
+    labels: ['ORDER'],
+    aggregate: {
+  monthStart: { fn: 'timeBucket', field: 'createdAt', granularity: 'month' },
+  monthlyRevenue: { fn: 'sum', field: 'total' },
+  orderCount: { fn: 'count' }
+    },
+    groupBy: ['monthStart'],
+    orderBy: { monthStart: 'asc' }
+  }
+  ```
+  Result rows each represent one calendar month start with aggregated metrics.
+
+  ---
+
 ---
 
 ### Complete Example
@@ -357,45 +447,20 @@ graph LR
     companyName: '$record.name',
 
     // Count unique employees using the defined alias
-    employeesCount: {
-      fn: 'count',
-      unique: true,
-      alias: '$employee'
-    },
+    employeesCount: { fn: 'count', unique: true, alias: '$employee' },
 
     // Calculate total salary using the defined alias
-    totalWage: {
-      fn: 'sum',
-      field: 'salary',
-      alias: '$employee'
-    },
+    totalWage: { fn: 'sum', field: 'salary', alias: '$employee' },
 
     // Collect unique employees names
-    employeeNames: {
-      fn: 'collect',
-      field: 'name',
-      alias: '$employee'
-    },
+    employeeNames: { fn: 'collect', field: 'name', alias: '$employee' },
 
     // Get average salary with precision
-    avgSalary: {
-      fn: 'avg',
-      field: 'salary',
-      alias: '$employee',
-      precision: 0
-    },
+    avgSalary: { fn: 'avg', field: 'salary', alias: '$employee', precision: 0 },
 
     // Get min and max salary
-    minSalary: {
-      fn: 'min',
-      field: 'salary',
-      alias: '$employee'
-    },
-    maxSalary: {
-      fn: 'max',
-      field: 'salary',
-      alias: '$employee'
-    }
+    minSalary: { fn: 'min', field: 'salary', alias: '$employee' },
+    maxSalary: { fn: 'max', field: 'salary', alias: '$employee' }
   }
 }
 ```
