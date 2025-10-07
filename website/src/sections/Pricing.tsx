@@ -159,6 +159,7 @@ export function Pricing({ billingData }: PricingProps) {
           featured={featuredCard === 'start'}
           description="Perfect for side projects and learning"
           headline="Everything you need to start:"
+          pricePlaceholder={'FREE'}
           action={
             <Button size="small" variant="outline" as={Link} href={links.app} target="_blank">
               Start Building Free
