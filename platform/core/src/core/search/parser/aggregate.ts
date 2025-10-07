@@ -337,7 +337,7 @@ export function buildTimeBucketFunction(
   const granularity = instruction.granularity
   if (granularity === 'months') {
     if (!instruction.size || instruction.size <= 0 || !Number.isInteger(instruction.size)) {
-      throw new Error('timeBucket: size must be a positive integer when granularity = months')
+      throw new Error('timeBucket: size must be a positive integer when granularity = "months"')
     }
   }
 
