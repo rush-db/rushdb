@@ -337,7 +337,7 @@ export function buildTimeBucketFunction(
   const granularity = instruction.granularity
   if (granularity === 'months') {
     if (!instruction.size || instruction.size <= 0 || !Number.isInteger(instruction.size)) {
-      throw new Error('timeBucket: size must be a positive integer when granularity = months')
+      throw new Error('timeBucket: size must be a positive integer when granularity = "months"')
     }
   }
 
@@ -380,7 +380,7 @@ export function buildTimeBucketFunction(
 
   // We return the bucket start value itself. The caller can groupBy this alias to roll up counts, sums, etc.
   // Format as ISO8601 string to have stable comparison if needed
-  return `CASE WHEN ${datetimeMetaCheck} THEN ${bucketStartExpr} ELSE null END AS ${returnAlias}`
+  return `CASE WHEN ${datetimeMetaCheck} THEN ${bucketStartExpr} ELSE null END AS \`${returnAlias}\``
 }
 
 interface ParsedStatement {
