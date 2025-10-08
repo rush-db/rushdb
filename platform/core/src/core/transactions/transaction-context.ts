@@ -1,5 +1,6 @@
-import { AsyncLocalStorage } from 'async_hooks'
 import { Transaction } from 'neo4j-driver'
+
+import { AsyncLocalStorage } from 'async_hooks'
 
 export interface TransactionContext {
   transaction: Transaction

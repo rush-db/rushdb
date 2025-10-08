@@ -5,10 +5,10 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
-import { EntityService } from '@/core/entity/entity.service'
-import { EntityRepository } from '@/core/entity/model/entity.repository'
+import { toBoolean } from '@/common/utils/toBolean'
 import { PropertyService } from '@/core/property/property.service'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
+import { MailService } from '@/dashboard/mail/mail.service'
 import { CreateProjectDto } from '@/dashboard/project/dto/create-project.dto'
 import { ProjectEntity } from '@/dashboard/project/entity/project.entity'
 import {
@@ -21,10 +21,9 @@ import { ProjectQueryService } from '@/dashboard/project/project-query.service'
 import { TProjectCustomDbPayload, TProjectStats } from '@/dashboard/project/project.types'
 import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
+import { toNative } from '@/database/interceptors/data.interceptor'
 import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
-import { toNative } from '@/database/neogma/neogma-data.interceptor'
 import { NeogmaService } from '@/database/neogma/neogma.service'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
 import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
 
 import * as crypto from 'node:crypto'
@@ -34,19 +33,17 @@ export class ProjectService {
   constructor(
     private readonly configService: ConfigService,
     private readonly neogmaService: NeogmaService,
-    private readonly compositeNeogmaService: CompositeNeogmaService,
     private readonly neogmaDynamicService: NeogmaDynamicService,
     private readonly projectRepository: ProjectRepository,
-    private readonly entityRepository: EntityRepository,
     private readonly projectQueryService: ProjectQueryService,
-    @Inject(forwardRef(() => EntityService))
-    private readonly entityService: EntityService,
     @Inject(forwardRef(() => PropertyService))
-    private readonly propertyService: PropertyService
+    private readonly propertyService: PropertyService,
+    @Inject(forwardRef(() => MailService))
+    private readonly mailService: MailService
   ) {}
 
   normalize(node: TProjectInstance) {
-    return new ProjectEntity(node.id, node.name, node.created, node.description, node.edited, node.customDb)
+    return new ProjectEntity(node)
   }
 
   async createProject(
@@ -60,6 +57,11 @@ export class ProjectService {
     const { name, description = '' } = properties
 
     const customDb = await this.attachCustomDb(properties.customDb)
+    const managedDb =
+      toBoolean(properties.managedDbConfig) &&
+      toBoolean(properties.managedDbConfig.password) &&
+      toBoolean(properties.managedDbConfig.region) &&
+      toBoolean(properties.managedDbConfig.tier)
 
     const projectNode = await this.projectRepository.model.createOne(
       {
@@ -67,6 +69,12 @@ export class ProjectService {
         name,
         description,
         ...(customDb && { customDb }),
+        ...(managedDb && {
+          managedDbPassword: this.encryptSensitiveData(properties.managedDbConfig.password),
+          managedDbRegion: properties.managedDbConfig.region,
+          managedDbTier: properties.managedDbConfig.tier,
+          status: 'pending'
+        }),
         created: currentTime
       },
       { session: transaction }
@@ -90,6 +98,16 @@ export class ProjectService {
     return this.normalize(projectNode)
   }
 
+  async dropProjectSubscription(id: string, transaction: Transaction) {
+    const projectNode = await this.getProjectNode(id, transaction)
+    projectNode['isSubscriptionCancelled'] = true
+    projectNode['edited'] = getCurrentISO()
+
+    await projectNode.save()
+
+    return this.normalize(projectNode)
+  }
+
   async attachCustomDb(payload?: TProjectCustomDbPayload): Promise<string | null> {
     if (!payload || !payload.url || !payload.username || !payload.password) {
       return null
@@ -103,10 +121,10 @@ export class ProjectService {
 
     await this.neogmaDynamicService.validateConnection(config)
 
-    return this.encryptCustomDb(payload)
+    return this.encryptSensitiveData<TProjectCustomDbPayload>(payload)
   }
 
-  encryptCustomDb(payload: TProjectCustomDbPayload): string {
+  encryptSensitiveData<T>(payload: T): string {
     const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
     const iv = crypto.randomBytes(16)
     const customDbString = JSON.stringify(payload)
@@ -116,7 +134,7 @@ export class ProjectService {
     return iv.toString('hex') + cipher.update(customDbString, 'utf8', 'base64') + cipher.final('base64')
   }
 
-  decryptCustomDb(encrypted: string): TProjectCustomDbPayload {
+  decryptSensitiveData<T>(encrypted: string): T {
     const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
     const iv = encrypted.substring(0, 32)
     const cipherText = encrypted.substring(32)
@@ -125,7 +143,7 @@ export class ProjectService {
     const decrypted = decipher.update(cipherText, 'base64', 'utf8')
     const resultString = decrypted + decipher.final('utf8')
 
-    return JSON.parse(resultString) as TProjectCustomDbPayload
+    return JSON.parse(resultString) as T
   }
 
   async deleteProject(
@@ -140,7 +158,7 @@ export class ProjectService {
     })
 
     if (projectNode.customDb && !shouldStoreCustomDbData) {
-      const customDbPayload = this.decryptCustomDb(projectNode.customDb)
+      const customDbPayload = this.decryptSensitiveData<TProjectCustomDbPayload>(projectNode.customDb)
 
       await this.removeProjectOwnNode(id, transaction)
       this.cleanUpRemoteProject(id, customDbPayload).catch((e) => {
@@ -182,7 +200,6 @@ export class ProjectService {
           async () =>
             await this.propertyService.deleteOrphanProps({
               projectId: id,
-              queryRunner: runner,
               transaction
             })
         )
@@ -198,22 +215,17 @@ export class ProjectService {
     } finally {
       isDevMode(() => Logger.log('[COMMIT CUSTOM TRANSACTION]: cleanUpRemoteProject'))
       await transaction.commit()
-      await transaction.close().then(() => session.close())
+      await transaction.close()
+      await session.close()
     }
   }
 
-  async removeProjectOwnNode(projectId: string, currentTxn: Transaction) {
-    const queryRunner = this.neogmaService.createRunner()
-
+  async removeProjectOwnNode(projectId: string, transaction: Transaction) {
     try {
       isDevMode(() => Logger.log('[cleanUpProject LOG]: Running removeProjectOwnNode method'))
-      await queryRunner.run(
-        this.projectQueryService.removeProjectNodeQuery(),
-        {
-          projectId
-        },
-        currentTxn
-      )
+      await transaction.run(this.projectQueryService.removeProjectNodeQuery(), {
+        projectId
+      })
     } catch (e) {
       isDevMode(() =>
         Logger.error('[cleanUpProject ERROR]: failed to process removeProjectOwnNode method', e)
@@ -221,34 +233,30 @@ export class ProjectService {
     }
   }
 
+  // @TODO: Use dynamic connection for external data source
   async cleanUpProject(projectId: string) {
     const session = this.neogmaService.createSession('cleanUpProject')
     const transaction = session.beginTransaction()
-    const queryRunner = this.neogmaService.createRunner()
 
     try {
-      await queryRunner.run(
-        this.projectQueryService.removeProjectQuery(),
-        {
-          projectId
-        },
-        transaction
-      )
+      await transaction.run(this.projectQueryService.removeProjectQuery(), {
+        projectId
+      })
 
       await this.propertyService.deleteOrphanProps({
         projectId,
-        queryRunner,
         transaction
       })
     } catch (e) {
-      console.log('[cleanUpProject ERROR]', e)
+      Logger.log('[cleanUpProject ERROR]', e)
       if (transaction.isOpen()) {
-        console.log('[ROLLBACK TRANSACTION]: Project service')
+        Logger.log('[ROLLBACK TRANSACTION]: Project service')
         await transaction.rollback()
       }
     } finally {
       await transaction.commit()
-      await transaction.close().then(() => session.close())
+      await transaction.close()
+      await this.neogmaService.closeSession(session)
     }
   }
 
@@ -263,6 +271,30 @@ export class ProjectService {
 
     await projectNode.save()
     return projectNodePayload
+  }
+
+  async notifyRushDBAdmin(id: string, transaction: Transaction) {
+    const projectNode = await this.getProjectNode(id, transaction)
+
+    const managedDb =
+      projectNode.managedDbPassword &&
+      projectNode.managedDbPassword &&
+      projectNode.managedDbTier &&
+      projectNode.managedDbRegion
+
+    if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED')) && managedDb) {
+      try {
+        await this.mailService.notifyAdminAboutNewProject({
+          projectId: id,
+          name: projectNode.name,
+          region: projectNode.managedDbRegion,
+          tier: projectNode.managedDbTier,
+          password: this.decryptSensitiveData(projectNode.managedDbPassword)
+        })
+      } catch (e) {
+        isDevMode(() => Logger.error('[MAIL ERROR]: Failed to notify admin about managed project', e))
+      }
+    }
   }
 
   async updateProject(
@@ -351,26 +383,19 @@ export class ProjectService {
     projectId: string
     transaction: Transaction
   }): Promise<string[]> {
-    const queryRunner = this.neogmaService.createRunner()
     const role = USER_ROLE_EDITOR
 
-    const result = await queryRunner.run(
-      this.projectQueryService.projectRelatedUserIdsQuery(),
-      {
-        projectId,
-        role
-      },
-      transaction
-    )
+    const result = await transaction.run(this.projectQueryService.projectRelatedUserIdsQuery(), {
+      projectId,
+      role
+    })
 
     const actualAccessList = result.records.map((record) => record.get('usersId')).flat() as string[]
     const usersToAddAccess: Set<string> = new Set()
     const usersToRevokeAccess: Set<string> = new Set()
 
     if (!userIdsToVerify.length) {
-      actualAccessList.forEach((actualUserId) => {
-        usersToRevokeAccess.add(actualUserId)
-      })
+      actualAccessList.forEach((actualUserId) => {})
     } else {
       userIdsToVerify.forEach((incomeUserId) => {
         if (!actualAccessList.length) {
@@ -457,51 +482,38 @@ export class ProjectService {
     userId: string,
     transaction: Transaction
   ): Promise<ProjectEntity[]> {
-    const queryRunner = this.neogmaService.createRunner()
-    return await queryRunner
-      .run(this.projectQueryService.getUserRelatedProjects(), { id, userId }, transaction)
+    return await transaction
+      .run(this.projectQueryService.getUserRelatedProjects(), { id, userId })
       .then(({ records }) => records[0].get('projects'))
   }
 
   async getProjectsProperties(id: string, transaction: Transaction): Promise<IProjectProperties[]> {
-    const queryRunner = this.neogmaService.createRunner()
-    return await queryRunner
-      .run(this.projectQueryService.getProjectsByWorkspaceId(), { id }, transaction)
+    return await transaction
+      .run(this.projectQueryService.getProjectsByWorkspaceId(), { id })
       .then(({ records }) =>
         records[0].get('projects').map((project) => project.properties as IProjectProperties)
       )
   }
 
   async getNodesCount(projectId: string, transaction: Transaction): Promise<TProjectStats> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
-
-    return await queryRunner
-      .run(
-        this.projectQueryService.getProjectStatsById(),
-        {
-          id: projectId
-        },
-        transaction
-      )
+    return await transaction
+      .run(this.projectQueryService.getProjectStatsById(), {
+        id: projectId
+      })
       .then((result) => result.records[0])
       .then((record) => ({
         records: toNative(record.get('entities')),
-        properties: toNative(record.get('properties'))
+        properties: toNative(record.get('properties')),
+        avgProperties: toNative(record.get('avg'))
       }))
   }
 
   async linkUserToProject(userId: string, projectId: string, since: string, transaction: Transaction) {
-    const runner = this.neogmaService.createRunner()
-
-    await runner.run(
-      this.projectQueryService.getAttachUserToProjectQuery(),
-      {
-        userId,
-        projectId,
-        since,
-        role: USER_ROLE_EDITOR
-      },
-      transaction
-    )
+    await transaction.run(this.projectQueryService.getAttachUserToProjectQuery(), {
+      userId,
+      projectId,
+      since,
+      role: USER_ROLE_EDITOR
+    })
   }
 }

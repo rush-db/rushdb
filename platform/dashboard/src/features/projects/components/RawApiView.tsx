@@ -27,7 +27,7 @@ import { Select } from '~/elements/Select.tsx'
 import { api } from '~/lib/api'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
-import { $paidUser } from '~/features/billing/stores/plans.ts'
+import { $paidWorkspace } from '~/features/billing/stores/plans.ts'
 
 const $recordsData = atom<string>('')
 const $labelsData = atom<string>('')
@@ -49,7 +49,7 @@ const aggregateExample0 = `{
         "departmentDescription": "$record.description",
         "projects": {
             "fn": "collect",
-            "uniq": true,
+            "unique": true,
             "field": "name",
             "alias": "$project"
         }
@@ -76,7 +76,7 @@ const aggregateExample1 = `{
         "projectBudget": "$record.budget",
         "employeesCount": {
             "fn": "count",
-            "uniq": true,
+            "unique": true,
             "alias": "$employee"
         },
         "totalWage": {
@@ -231,6 +231,22 @@ const queryExample2 = `{
     "limit": 1000
 }`
 
+const queryExample3 = `{
+  "labels": ["PROJECT"],
+  "aggregate": {
+    "count": {
+      "fn": "count",
+      "alias": "$record"
+    }
+  },
+  "groupBy": ["$record.active"],
+  "orderBy": {
+    "count": "desc"
+  },
+  "skip": 0,
+  "limit": 1000
+}`
+
 const ExampleSelector = () => {
   return (
     <Menu
@@ -254,6 +270,15 @@ const ExampleSelector = () => {
         <div className="text-left">
           Advanced Query
           <p className="text-content3 text-xs">Use complex criteria with logical grouping</p>
+        </div>
+      </MenuItem>
+      <Divider />
+      <MenuItem className="h-[64px]" icon={<ClipboardPaste />} onClick={() => $editorData.set(queryExample3)}>
+        <div className="text-left">
+          GroupBy Query
+          <p className="text-content3 text-xs">
+            Pivot results by one or more properties (groupBy + aggregations)
+          </p>
         </div>
       </MenuItem>
       <Divider />
@@ -306,47 +331,11 @@ const ExampleSelector = () => {
   )
 }
 
-const OperationSelector = () => {
-  const operation = useStore($selectedOperation)
-
-  const options: Array<{ value: ReturnType<typeof $selectedOperation.get>; label: string }> = [
-    { value: 'records.find', label: 'records.find' },
-    { value: 'records.findOne', label: 'records.findOne' },
-    { value: 'records.findById', label: 'records.findById' },
-    { value: 'records.findUniq', label: 'records.findUniq' },
-    { value: 'records.deleteById', label: 'records.deleteById' },
-    { value: 'records.delete', label: 'records.delete' },
-    { value: 'records.createMany', label: 'records.createMany' },
-    { value: 'records.export', label: 'records.export' },
-    { value: 'records.set', label: 'records.set' },
-    { value: 'records.update', label: 'records.update' },
-    { value: 'records.attach', label: 'records.attach' },
-    { value: 'records.detach', label: 'records.detach' },
-    { value: 'labels.find', label: 'labels.find' },
-    { value: 'properties.values', label: 'properties.values' },
-    { value: 'properties.find', label: 'properties.find' },
-    { value: 'relations.find', label: 'relations.find' }
-  ]
-
-  return (
-    <Select
-      onChange={(value: ChangeEvent<HTMLSelectElement>) => {
-        $selectedOperation.set(
-          (value.target as unknown as { value: ReturnType<typeof $selectedOperation.get> }).value
-        )
-      }}
-      size="small"
-      value={operation}
-      options={options}
-    />
-  )
-}
-
 export function RawApiView() {
   const query = useStore($editorData)
   const entity = useStore($recordRawApiEntity)
   const platformSettings = useStore($platformSettings)
-  const paidUser = useStore($paidUser)
+  const paidUser = useStore($paidWorkspace)
 
   const { mutate: findRecords, loading: recordsSubmitting } = useStore(rawRecords)
   const { mutate: findLabels, loading: labelsSubmitting } = useStore(rawLabels)
@@ -394,7 +383,7 @@ export function RawApiView() {
 
     // Fetch the Cypher query if we're doing records.find and the toggle is enabled
     if (operation === 'records.find' && showCypherQuery) {
-      api.search['records-query']({
+      api.query['records-find']({
         searchQuery: searchQueryObj
       })
         .then((cypherQueryStr) => {

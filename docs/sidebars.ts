@@ -62,7 +62,8 @@ const sidebars: SidebarsConfig = {
         'tutorials/configuring-dashboard',
         'tutorials/deployment',
         'tutorials/local-setup',
-        'tutorials/reusable-search-query'
+        'tutorials/reusable-search-query',
+        'tutorials/importing-data'
       ]
     }
   ]

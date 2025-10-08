@@ -59,11 +59,13 @@ You can use search parameters to filter the data you want to retrieve:
 
 | Field     | Type             | Description                                                                                  |
 |-----------|------------------|----------------------------------------------------------------------------------------------|
-| `where`   | Object           | Filter conditions for records ([learn more](../../concepts/search/where))                    |
-| `orderBy` | String or Object | Sorting criteria ([learn more](../../concepts/search/pagination-order))                         |
-| `skip`    | Number           | Number of records to skip for pagination ([learn more](../../concepts/search/pagination-order)) |
-| `limit`   | Number           | Maximum number of records to return (default: 1000)                                          |
-| `labels`  | Array            | Optional array of labels to filter records by ([learn more](../../concepts/search/labels))      |
+| `where`   | `Object`           | Filter conditions for records ([learn more](../../concepts/search/where))                    |
+| `orderBy` | `String` or `Object` | Sorting criteria ([learn more](../../concepts/search/pagination-order))                         |
+| `skip`    | `Number`           | Number of records to skip for pagination ([learn more](../../concepts/search/pagination-order)) |
+| `limit`   | `Number`           | Maximum number of records to return (default: 1000)                                          |
+| `labels`  | `Array`            | Optional array of labels to filter records by ([learn more](../../concepts/search/labels))      |
+| `aggregate` | `Object`           | Optional aggregation map ([learn more](../../concepts/search/aggregations))                     |
+| `groupBy` | `Array<String>`       | Optional grouping keys (e.g. `["$record.status"]`) applied with aggregations                   |
 
 ### Example Request
 
@@ -198,6 +200,59 @@ You can check for field existence and data types:
 This query finds records that have an email address, don't have a phone number, and where age is stored as a number.
 
 See the [Where Clause documentation](../../concepts/search/where) for a complete reference of available operators.
+
+## Grouping & Aggregations
+
+Use `aggregate` together with `groupBy` to transform raw record search into aggregated row sets.
+
+Comprehensive details: [Grouping guide](../../concepts/search/group-by)
+
+Example: Count deals per stage.
+```json
+{
+  "labels": ["HS_DEAL"],
+  "aggregate": {
+    "count": { "fn": "count", "alias": "$record" },
+    "avgAmount": { "fn": "avg", "field": "amount", "alias": "$record" }
+  },
+  "groupBy": ["$record.dealstage"],
+  "orderBy": { "count": "desc" },
+  "limit": 1000
+}
+```
+
+Group by a related record property (declare alias in traversal):
+```json
+{
+  "labels": ["DEPARTMENT"],
+  "where": {
+    "PROJECT": { "$alias": "$project" }
+  },
+  "aggregate": {
+    "projectCount": { "fn": "count", "alias": "$project" },
+    "projects": { "fn": "collect", "field": "name", "alias": "$project", "unique": true }
+  },
+  "groupBy": ["$record.name"],
+  "orderBy": { "projectCount": "desc" }
+}
+```
+
+Multiple grouping keys (pivot style):
+```json
+{
+  "labels": ["PROJECT"],
+  "aggregate": { "count": { "fn": "count", "alias": "$record" } },
+  "groupBy": ["$record.category", "$record.active"],
+  "orderBy": { "count": "desc" }
+}
+```
+
+Rules:
+- At least one aggregation is required for `groupBy` to have an effect.
+- Each `groupBy` element uses syntax `<alias>.<property>`; root alias is `$record`.
+- Output contains one object per distinct combination of group keys plus aggregation outputs.
+- Aggregated `collect` arrays are unique by default; set `"unique": false` to allow duplicates.
+- To emulate hierarchical drill-down, group only at the parent layer and use nested `collect` for children.
 
 ## Performance Considerations
 

@@ -1,4 +1,4 @@
-import { Global, Module, OnModuleInit } from '@nestjs/common'
+import { Global, Module, OnModuleInit, Logger } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 
 import { fetchRetry } from '@/common/utils/fetchRetry'
@@ -32,7 +32,9 @@ import { NeogmaService } from '@/database/neogma/neogma.service'
         mode: configService.get('NODE_ENV')
       })
     })
-  ]
+  ],
+  providers: [],
+  exports: []
 })
 export class DatabaseModule implements OnModuleInit {
   constructor(
@@ -42,15 +44,15 @@ export class DatabaseModule implements OnModuleInit {
 
   async onModuleInit() {
     if (isDevMode()) {
-      console.log('Checking if DB is ready...')
+      Logger.log('Checking if DB is ready...')
       const { hostname } = new URL(this.configService.get('NEO4J_URL'))
       const healthCheckUrl = `http://${hostname}:7474`
       await fetchRetry(healthCheckUrl, 5000, 15)
-      console.log('DB is ready')
+      Logger.log('DB is ready')
     }
 
-    const session = this.neogmaService.createSession()
-    const transaction = session.beginTransaction()
+    const session = this.neogmaService.createSession('database-seed')
+    const transaction = session.beginTransaction({ timeout: 10_000 })
     try {
       const constraints = [
         `CREATE CONSTRAINT constraint_user_login IF NOT EXISTS FOR (user:${RUSHDB_LABEL_USER}) REQUIRE user.login IS UNIQUE`,
@@ -69,25 +71,25 @@ export class DatabaseModule implements OnModuleInit {
         `CREATE INDEX index_property_mergerer IF NOT EXISTS FOR (n:${RUSHDB_LABEL_PROPERTY}) ON (n.name, n.type, n.projectId, n.metadata)`
       ]
 
-      console.log('Creating constraints...')
+      Logger.log('Creating constraints...')
       for (const constraint of constraints) {
         await transaction.run(constraint)
       }
 
-      console.log('Creating indexes...')
+      Logger.log('Creating indexes...')
       for (const index of indexes) {
         await transaction.run(index)
       }
     } catch (error) {
-      console.log('Initializing RushDB failed.', error)
+      Logger.log('Initializing RushDB failed.', error)
       await transaction.rollback()
     } finally {
-      console.log('Initializing RushDB finished.')
+      Logger.log('Initializing RushDB finished.')
       if (transaction.isOpen()) {
         await transaction.commit()
         await transaction.close()
       }
-      await session.close()
+      await this.neogmaService.closeSession(session)
     }
   }
 }

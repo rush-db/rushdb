@@ -63,7 +63,7 @@ If you're using models, you can use the model's `attach` method:
 // Define models
 const UserModel = new Model('USER', {
   name: { type: 'string' },
-  email: { type: 'string', uniq: true }
+  email: { type: 'string', unique: true }
 });
 
 const CompanyModel = new Model('COMPANY', {
@@ -130,6 +130,38 @@ try {
 }
 ```
 
+### Bulk Relationship Creation by Key Match
+
+Use `relationships.createMany` to create relationships in bulk by matching a key from a source label to a key from a target label. This is useful when you ingest data in batches (e.g., from CSV/JSON) and want to connect records created at different times.
+
+```ts
+// Create USER -[:ORDERED]-> ORDER for all pairs where
+// USER.id = ORDER.userId and both match the given tenant
+await db.relationships.createMany({
+  source: { label: 'USER', key: 'id', where: { tenantId } },
+  target: { label: 'ORDER', key: 'userId', where: { tenantId } },
+  type: 'ORDERED',
+  direction: 'out' // (source) -[:ORDERED]-> (target)
+})
+```
+
+Parameters
+- `source`: Object describing the source side
+  - `label`: Source record label (string)
+  - `key`: Property on the source used for equality match (string)
+  - `where` (optional): Additional filters for source records; same shape as SearchQuery `where`
+- `target`: Object describing the target side
+  - `label`: Target record label (string)
+  - `key`: Property on the target used for equality match (string)
+  - `where` (optional): Additional filters for target records; same shape as SearchQuery `where`
+- `type` (optional): Relationship type. Defaults to the RushDB default type when omitted
+- `direction` (optional): 'in' or 'out'. Defaults to 'out'.
+
+Notes
+- Matching condition is always `source[key] = target[key]` plus any additional `where` constraints.
+- `where` uses the same operators as record search (e.g., plain equality `{ tenantId: 'ACME' }`, or explicit `{ tenantId: 'ACME' }`).
+- Operation can run within a transaction if provided.
+
 ## Removing Relationships
 
 ### Using RushDB's `detach()` Method
@@ -183,6 +215,57 @@ await UserModel.detach({
 });
 ```
 
+### Bulk Relationship Deletion by Key Match
+
+You can remove relationships in bulk with the SDK using `relationships.deleteMany`. It accepts the same shape as `createMany` and supports two modes:
+
+- key-match mode: match source and target records by equality of a pair of properties (e.g. `USER.id = ORDER.userId`) and delete the relationship between matched pairs.
+- many-to-many (cartesian) mode: opt-in operation that deletes relationships between every matching source and target pair that satisfy provided filters — use with extreme caution.
+
+TypeScript example — key match deletion:
+
+```ts
+await db.relationships.deleteMany({
+  source: { label: 'USER', key: 'id', where: { tenantId } },
+  target: { label: 'ORDER', key: 'userId', where: { tenantId } },
+  type: 'ORDERED',
+  direction: 'out'
+})
+```
+
+TypeScript example — many-to-many deletion (explicit opt-in):
+
+```ts
+// WARNING: manyToMany will perform a cartesian-style deletion across the
+// filtered sets. Only use with explicit filters on both sides.
+await db.relationships.deleteMany({
+  source: { label: 'USER', where: { tenantId } },
+  target: { label: 'TAG', where: { tenantId } },
+  type: 'HAS_TAG',
+  direction: 'out',
+  manyToMany: true
+})
+```
+
+Parameters
+- `source`: Object describing the source side
+  - `label`: Source record label (string)
+  - `key` (optional): Property on the source used for equality match (string)
+  - `where` (optional): Additional filters for source records; same shape as SearchQuery `where`
+- `target`: Object describing the target side
+  - `label`: Target record label (string)
+  - `key` (optional): Property on the target used for equality match (string)
+  - `where` (optional): Additional filters for target records; same shape as SearchQuery `where`
+- `type` (optional): Relationship type to restrict deletions
+- `direction` (optional): 'in' or 'out'. Defaults to 'out'.
+- `manyToMany` (optional): boolean. When `true` the operation will perform deletions across all source/target pairs matching provided filters (cartesian). This must be explicitly set.
+
+Important notes and safeguards
+- If `manyToMany` is not provided or is `false`, both `source.key` and `target.key` must be supplied — deletion matches records where `source[key] = target[key]`.
+- If `manyToMany` is `true`, the server requires non-empty `where` filters for both `source` and `target` to avoid accidental full-cartesian deletions.
+- Use `manyToMany` only when you intentionally want to delete relationships across filtered sets. Consider testing on a staging dataset first.
+
+
 ## Finding Relationships
 
 ### Using RushDB's `relationships.find()` Method
@@ -191,15 +274,12 @@ To search for relationships based on specific criteria, use the `relationships.f
 
 ```typescript
 const relationships = await db.relationships.find({
+  labels: ['USER'],
   where: {
-    type: 'WORKS_AT',
-    source: {
-      label: 'USER',
-      name: { $contains: 'John' }
-    },
-    target: {
-      label: 'COMPANY',
-      industry: 'Technology'
+    name: { $contains: 'John' },
+    COMPANY: {
+      industry: 'Technology',
+      $relation: 'WORKS_AT'
     }
   },
   limit: 10
@@ -210,11 +290,11 @@ console.log(relationships);
 {
   data: [
     {
-      id: 'relation_id_1',
-      type: 'WORKS_AT',
-      source: 'user_123',
-      target: 'company_456',
-      direction: 'out'
+      sourceId: 'user_123',
+      sourceLabel: 'USER',
+      targetId: 'company_456',
+      targetLabel: 'COMPANY',
+      type: 'WORKS_AT'
     },
     // More relationships...
   ],
@@ -233,18 +313,23 @@ console.log(relationships);
 
 #### Returns
 
-- A promise that resolves to an array of relationship objects
+- A promise that resolves to an API response object: `{ success: boolean; data: Array<Relation>; total?: number }`
 
 ### Finding Relationships in Transactions
 
 ```typescript
 const transaction = await db.tx.begin();
 try {
-  const relationships = await db.relationships.find({
+ const relationships = await db.relationships.find({
+    labels: ['USER'],
     where: {
-      type: 'WORKS_AT',
-      direction: 'out'
-    }
+      name: { $contains: 'John' },
+      COMPANY: {
+        industry: 'Technology',
+        $relation: 'WORKS_AT'
+      }
+    },
+    limit: 10
   }, transaction);
 
   // Perform other operations...

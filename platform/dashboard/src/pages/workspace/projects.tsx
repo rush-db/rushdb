@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { FolderPlus, Link, SearchX, ZapIcon } from 'lucide-react'
+import { FolderPlus, Link, SearchX } from 'lucide-react'
 
 import type { Project, ProjectStats } from '~/features/projects/types'
 
@@ -12,31 +12,52 @@ import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
 import {
   $filteredProjects,
   $projectsQuery,
-  $showUpgrade,
   $workspaceProjects,
   filterProjects
 } from '~/features/workspaces/stores/projects'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { isProjectEmpty } from '~/features/projects/utils'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { api } from '~/lib/api.ts'
 import { $user } from '~/features/auth/stores/user.ts'
 import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace.ts'
 import { Label } from '~/elements/Label.tsx'
+import { AWS_REGIONS } from '~/features/projects/constants.ts'
 
 const statsMap: Record<keyof ProjectStats, string> = {
   properties: 'Properties',
-  records: 'Records'
+  records: 'Records',
+  avgProperties: 'Avg Properties Per Record'
 }
 
-function ProjectCard({ description, id, stats, name, customDb }: Project & { customDb?: string }) {
+function ProjectCard({
+  description,
+  id,
+  stats,
+  name,
+  customDb,
+  status,
+  managedDbRegion
+}: Project & { customDb?: string }) {
   const isEmpty = isProjectEmpty({
     loading: false,
     totalRecords: stats?.records ?? 0
   })
 
-  const href = isEmpty ? getRoutePath('projectHelp', { id }) : getRoutePath('project', { id })
+  const projectIsInactive = status === 'pending' || status === 'provisioning'
+
+  const href = useMemo(() => {
+    if (isEmpty) {
+      if (projectIsInactive) {
+        return getRoutePath('projectSettings', { id })
+      }
+      return getRoutePath('projectHelp', { id })
+    }
+    return getRoutePath('project', { id })
+  }, [projectIsInactive, isEmpty, id])
+
+  const managedRegion = AWS_REGIONS.find((r) => r.code === managedDbRegion)
 
   return (
     <a
@@ -48,10 +69,22 @@ function ProjectCard({ description, id, stats, name, customDb }: Project & { cus
           <div className="flex w-full items-center justify-between">
             <h4 className="text-content truncate text-lg font-bold">{name}</h4>
             {customDb && (
-              <Label className="items-center">
+              <Label className="items-center !text-sm">
                 <Link size={18} className="pr-2" />
-                External Neo4j
+                External Instance
               </Label>
+            )}
+
+            {managedDbRegion && (
+              <div className="flex flex-col items-center justify-items-end pr-2">
+                <Label className="items-center !text-sm">
+                  <Link size={18} className="pr-2" />
+                  Managed Instance
+                </Label>
+                <p className="text-content2 mt-2 self-end font-mono text-sm">
+                  {managedRegion?.code} {managedRegion?.flag}
+                </p>
+              </div>
             )}
           </div>
           <p className={cn('text-content2 text-sm')}>{description || 'No description provided'}</p>
@@ -80,7 +113,7 @@ function ProjectsSearchInput(props: TInheritableElementProps<'input'>) {
 
 function Header() {
   const { data: projects } = useStore($workspaceProjects)
-  const showUpgradeButton = useStore($showUpgrade)
+
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
 
@@ -92,17 +125,10 @@ function Header() {
           <span className="text-content2 ml-1">{projects?.length}</span>
         : null}
       </PageTitle>
-      {showUpgradeButton && isOwner ?
-        <Button as="a" href={getRoutePath('workspaceBilling')} variant="accent">
-          <ZapIcon />
-          Upgrade Plan
-        </Button>
-      : isOwner ?
-        <Button data-tour="new-project-btn" as="a" href={getRoutePath('newProject')} variant="primary">
-          <FolderPlus />
-          New Project
-        </Button>
-      : null}
+      <Button data-tour="new-project-btn" as="a" href={getRoutePath('newProject')} variant="primary">
+        <FolderPlus />
+        New Project
+      </Button>
     </PageHeader>
   )
 }
@@ -172,7 +198,7 @@ function Projects() {
       <Header />
 
       <PageContent contained>
-        <div className="flex flex-1 flex-col gap-5 pb-10">
+        <div className="grid grid-cols-1 gap-5 pb-10 lg:grid-cols-2">
           <ProjectsCards />
         </div>
       </PageContent>

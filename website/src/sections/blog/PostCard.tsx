@@ -31,7 +31,7 @@ export function PostCard({ post, className }: { post: Post['data']; className?: 
       <div className="z-5 absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/10"></div>
 
       <div className="relative z-10 flex h-full w-full flex-col justify-end p-6">
-        <h4 className="text-md mb-1 font-bold leading-tight text-white">{post.title}</h4>
+        <h3 className="text-md mb-1 font-bold leading-tight text-white">{post.title}</h3>
 
         {/* Meta information row below title */}
         <div className="mb-2 flex flex-wrap items-center gap-x-3 text-white/80">

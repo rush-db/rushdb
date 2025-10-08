@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import fastifyRawBody from 'fastify-raw-body'
 
 import { GlobalExceptionFilter } from '@/common/global-exception.filter'
+import { TransactionService } from '@/core/transactions/transaction.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import { AppModule } from './app.module'
@@ -58,9 +59,9 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config)
   SwaggerModule.setup('api', app, document)
 
-  const neogmaService = app.get<NeogmaService>(NeogmaService)
+  const transactionService = app.get<TransactionService>(TransactionService)
 
-  app.useGlobalFilters(new GlobalExceptionFilter(neogmaService))
+  app.useGlobalFilters(new GlobalExceptionFilter(transactionService))
 
   await app.listen(process.env['RUSHDB_PORT'] || 3000, '0.0.0.0')
 }

@@ -115,7 +115,7 @@ export class Model<S extends Schema = any> {
     const instance = RushDB.getInstance()
     if (instance) {
       // If an instance exists, wait for it to be fully initialized
-      return await RushDB.init()
+      return RushDB.init()
     }
 
     throw new Error(

@@ -17,7 +17,7 @@ import {
 } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
-import type { PlanId, PlanPeriod } from '~/features/billing/types'
+import type { BillingData } from '~/features/billing/types'
 import type { Project, ProjectStats, WithProjectID } from '~/features/projects/types'
 import type { ProjectToken } from '~/features/tokens/types'
 import type {
@@ -31,12 +31,15 @@ import type {
 import type { GenericApiResponse, Override } from '~/types'
 
 import { rushDBInstance } from '~/lib/sdk.ts'
+import { $token } from '~/features/auth/stores/token.ts'
+import { $currentProjectId } from '~/features/projects/stores/id.ts'
+import { $currentWorkspaceId } from '~/features/workspaces/stores/current.ts'
+import { BASE_URL } from '~/config.ts'
 
 import { fetcher } from './fetcher'
 import { BillingErrorCodes } from '~/features/billing/constants.ts'
-import { $limitReachModalOpen } from '~/features/billing/components/LimitReachedDialog.tsx'
-import { IncomingBillingData } from '~/features/billing/types'
 import { AcceptedUserInviteDto } from '~/features/workspaces/types'
+import { $limitReachModalOpen } from '~/components/billing/LimitReachedDialog.tsx'
 
 type WithInit = {
   init?: RequestInit
@@ -67,6 +70,62 @@ export const api = {
         if (e.message === BillingErrorCodes.PaymentRequired.toString()) {
           $limitReachModalOpen.set(true)
         }
+        return {}
+      }
+    },
+    async importCsv({
+      init,
+      data,
+      label,
+      options = {},
+      parseConfig
+    }: WithInit & {
+      label: string
+      data: string
+      options?: DBRecordCreationOptions
+      parseConfig?: {
+        delimiter?: string
+        header?: boolean
+        skipEmptyLines?: boolean | 'greedy'
+        dynamicTyping?: boolean
+        quoteChar?: string
+        escapeChar?: string
+        newline?: string
+      }
+    }) {
+      try {
+        const recordsAny = rushDBInstance.records as any
+        if (typeof recordsAny.importCsv === 'function') {
+          const res = await recordsAny.importCsv({ label, data, options, parseConfig })
+          return res
+        }
+
+        // Fallback: direct REST call if SDK method not present (older bundle)
+        const token = $token.get()
+        const projectId = $currentProjectId.get()
+        const workspaceId = $currentWorkspaceId.get()
+        const response = await fetch(`${BASE_URL || ''}/api/v1/records/import/csv`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(projectId ? { 'x-project-id': projectId } : {}),
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+            ...(init?.headers || {})
+          },
+          body: JSON.stringify({ label, data, options, parseConfig })
+        })
+        if (!response.ok) {
+          const text = await response.text().catch(() => '')
+          ;(console.error || (() => undefined))('CSV import failed', response.status, text)
+          throw new Error('CSV import failed')
+        }
+        return await response.json().catch(() => ({}))
+      } catch (e: any) {
+        if (e.message === BillingErrorCodes.PaymentRequired.toString()) {
+          $limitReachModalOpen.set(true)
+        }
+        console.error('importCsv error', e)
         return {}
       }
     },
@@ -410,8 +469,8 @@ export const api = {
       ...body
     }: WithInit & {
       discountCode?: string
-      id: PlanId
-      period: PlanPeriod
+      priceId: string
+      projectId?: string
       returnUrl: string
     }) {
       // TODO: add response
@@ -435,7 +494,7 @@ export const api = {
       })
     },
     async getBillingData() {
-      return fetcher<IncomingBillingData>('https://billing.rushdb.com/api/prices', {
+      return fetcher<BillingData>('https://billing.rushdb.com/api/prices', {
         method: 'GET'
       })
     }
@@ -455,9 +514,9 @@ export const api = {
       })
     }
   },
-  search: {
-    'records-query': async (params: { searchQuery: SearchQuery }) => {
-      return fetcher<string>('/api/v1/search/records-query', {
+  query: {
+    'records-find': async (params: { searchQuery: SearchQuery }) => {
+      return fetcher<string>('/api/v1/query/records/find', {
         method: 'POST',
         body: JSON.stringify(params.searchQuery)
       })

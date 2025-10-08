@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import { toBoolean } from '@/common/utils/toBolean'
 import {
   RUSHDB_KEY_ID,
@@ -16,6 +15,7 @@ import { projectIdInline } from '@/core/search/parser/projectIdInline'
 import { singleLabelPart } from '@/core/search/parser/singleLabelPart'
 import { SORT_ASC, SORT_DESC } from '@/core/search/search.constants'
 import { TSearchSortDirection } from '@/core/search/search.types'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 @Injectable()
 export class PropertyQueryService {
@@ -27,6 +27,17 @@ export class PropertyQueryService {
       .append(
         `(record)<-[relation:${RUSHDB_RELATION_VALUE}]-(property:${RUSHDB_LABEL_PROPERTY} { id: $target })`
       )
+
+    return queryBuilder.getQuery()
+  }
+
+  getPropertyQuery() {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder.append(
+      `MATCH (property:${RUSHDB_LABEL_PROPERTY} { id: $propertyId, projectId: $projectId })`
+    )
+    queryBuilder.append(`RETURN property`)
 
     return queryBuilder.getQuery()
   }
@@ -159,7 +170,7 @@ export class PropertyQueryService {
 
     queryBuilder
       .append(`MATCH (property:${RUSHDB_LABEL_PROPERTY} { projectId: $id } )`)
-      .append(`RETURN collect(DISTINCT property { .id, .metadata, .name, .type, .projectId }) as properties`)
+      .append(`RETURN collect(DISTINCT property { .id, .metadata, .name, .type }) as properties`)
 
     return queryBuilder.getQuery()
   }

@@ -7,7 +7,8 @@ export class TokenEntity {
     private readonly created: string,
     private readonly expiration: number,
     private readonly value: string,
-    private readonly description?: string
+    private readonly description?: string,
+    private readonly prefixValue?: string
   ) {}
 
   getProperties(): ITokenProperties & { value: string } {
@@ -16,7 +17,7 @@ export class TokenEntity {
       name: this.name,
       created: this.created,
       expiration: this.expiration,
-      value: this.value,
+      value: this.prefixValue ? `${this.prefixValue}${this.value}` : this.value,
       description: this.description
     }
   }

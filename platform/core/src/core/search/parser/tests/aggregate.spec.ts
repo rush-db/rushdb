@@ -1,4 +1,4 @@
-import { DEFAULT_RECORD_ALIAS } from '@/core/common/constants'
+import { ROOT_RECORD_ALIAS } from '@/core/common/constants'
 import { Aggregate } from '@/core/common/types'
 import { buildAggregation, parseBottomUpQuery } from '@/core/search/parser/aggregate'
 
@@ -9,7 +9,7 @@ describe('Aggregate', () => {
       employee_count: { fn: 'count', alias: '$employee' },
       departments: {
         fn: 'collect',
-        uniq: true,
+        unique: true,
         field: 'name',
         alias: '$department'
       },
@@ -23,7 +23,7 @@ describe('Aggregate', () => {
     })
 
     expect(result1).toEqual({
-      recordPart:
+      returnPart:
         'collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], `projectName`: undefined.`name`, `employee_count`, `departments`, `totalStoryPoints`}) AS records',
       withPart:
         'WITH record, count(record2) AS `employee_count`, apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.`name`))), ["__RUSHDB__VALUE__EMPTY__ARRAY__"]))[0..100] AS `departments`, sum(record3.`storyPoints`) AS `totalStoryPoints`'
@@ -34,17 +34,17 @@ describe('Aggregate', () => {
     const queryAggregate: Aggregate = {
       departments: {
         fn: 'collect',
-        uniq: true,
+        unique: true,
         alias: '$department',
         aggregate: {
           projects: {
             fn: 'collect',
-            uniq: true,
+            unique: true,
             alias: '$project',
             aggregate: {
               employees: {
                 fn: 'collect',
-                uniq: true,
+                unique: true,
                 alias: '$employee'
               }
             }
@@ -53,7 +53,7 @@ describe('Aggregate', () => {
       }
     }
 
-    const result1 = parseBottomUpQuery(queryAggregate, DEFAULT_RECORD_ALIAS, {
+    const result1 = parseBottomUpQuery(queryAggregate, ROOT_RECORD_ALIAS, {
       $employee: 'record3',
       $department: 'record1',
       $project: 'record2',
@@ -83,24 +83,24 @@ describe('Aggregate', () => {
     const queryAggregate: Aggregate = {
       departments: {
         fn: 'collect',
-        uniq: true,
+        unique: true,
         alias: '$department',
         aggregate: {
           projects: {
             fn: 'collect',
-            uniq: true,
+            unique: true,
             alias: '$project',
             aggregate: {
               employees: {
                 fn: 'collect',
-                uniq: true,
+                unique: true,
                 alias: '$employee',
                 orderBy: { salary: 'asc' },
                 limit: 5
               },
               tasks: {
                 fn: 'collect',
-                uniq: true,
+                unique: true,
                 alias: '$task'
               }
             }
@@ -109,7 +109,7 @@ describe('Aggregate', () => {
       }
     }
 
-    const result1 = parseBottomUpQuery(queryAggregate, DEFAULT_RECORD_ALIAS, {
+    const result1 = parseBottomUpQuery(queryAggregate, ROOT_RECORD_ALIAS, {
       $employee: 'record3',
       $department: 'record1',
       $project: 'record2',

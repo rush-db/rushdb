@@ -10,7 +10,6 @@ import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
@@ -38,6 +37,7 @@ import { sanitizeSettings, validateEmail } from '@/dashboard/user/user.utils'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 import * as crypto from 'node:crypto'
 
@@ -129,18 +129,17 @@ export class UserService {
   }
 
   async markEmailAsConfirmed(login: string, transaction: Transaction): Promise<User> {
-    const queryRunner = this.neogmaService.createRunner()
+    const queryBuilder = new QueryBuilder()
 
-    const result = await queryRunner.run(
-      `
-                MATCH (u:${RUSHDB_LABEL_USER} { login: $login })
-                SET u.confirmed = true
-                RETURN u`,
-      {
-        login
-      },
-      transaction
-    )
+    const query = queryBuilder
+      .append(`MATCH (u:${RUSHDB_LABEL_USER} { login: $login })`)
+      .append(`SET u.confirmed = true`)
+      .append(`RETURN u`)
+      .getQuery()
+
+    const result = await transaction.run(query, {
+      login
+    })
 
     return result?.records?.map((v) => v.get('u'))[0]
   }
@@ -267,8 +266,9 @@ export class UserService {
     }
 
     const isEmail = toBoolean(validateEmail(properties.login || ''))
+    const isOnlyEmailLoginAllowed = !toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
 
-    if (!isEmail) {
+    if (!isEmail && isOnlyEmailLoginAllowed) {
       isDevMode(() => Logger.error('[Create user ERROR]: Bad email provided'))
       throw new BadRequestException('Bad email data provided')
     }
@@ -384,8 +384,6 @@ export class UserService {
     accessLevel?: TUserRoles
     transaction: Transaction
   }): Promise<boolean> {
-    const queryRunner = this.neogmaService.createRunner()
-
     const queryBuilder = new QueryBuilder()
 
     const targetPart =
@@ -397,14 +395,10 @@ export class UserService {
       .append(`MATCH (:${RUSHDB_LABEL_USER} { id: $userId })${targetPart}`)
       .append(`RETURN rel.role as accessRole`)
 
-    const result = await queryRunner.run(
-      queryBuilder.build(),
-      {
-        targetId,
-        userId
-      },
-      transaction
-    )
+    const result = await transaction.run(queryBuilder.build(), {
+      targetId,
+      userId
+    })
 
     if (!result.records[0]) {
       return false

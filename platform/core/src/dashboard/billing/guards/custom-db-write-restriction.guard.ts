@@ -5,41 +5,30 @@ import {
   HttpException,
   HttpStatus,
   Inject,
-  Injectable,
-  Logger
+  Injectable
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { FastifyRequest } from 'fastify'
 import { Transaction } from 'neo4j-driver'
 
-import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
-import { ProjectService } from '@/dashboard/project/project.service'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { dbContextStorage } from '@/database/db-context'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
 export class CustomDbWriteRestrictionGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => WorkspaceService))
-    private readonly workspaceService: WorkspaceService,
-    @Inject(forwardRef(() => ProjectService))
-    private readonly projectService: ProjectService,
-    private readonly neogmaService: NeogmaService
+    private readonly workspaceService: WorkspaceService
   ) {}
 
   async isCustomDbOptionEnabled(
     workspaceId: string,
-    request: FastifyRequest,
+    hasExternalDb: boolean,
     transaction: Transaction
   ): Promise<boolean> {
     const workspaceInstance = await this.workspaceService.getWorkspaceInstance(workspaceId, transaction)
     const properties = workspaceInstance.dataValues
-
-    const dbContext = dbContextStorage.getStore()
-    const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== 'default'
 
     // Check premium plan expiration (if exists)
     if (properties.planId) {
@@ -56,7 +45,7 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
       return !(currentDate > increasedValidTillDate)
     }
 
-    return !hasCustomDbContext
+    return !hasExternalDb
   }
 
   async canActivate(context: ExecutionContext) {
@@ -65,37 +54,32 @@ export class CustomDbWriteRestrictionGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest()
-    const workspaceId = request.workspaceId || request.headers['x-workspace-id']
+    const workspaceId = request.workspaceId
 
     const dbContext = dbContextStorage.getStore()
-    const hasCustomDbContext = dbContext.projectId && dbContext.projectId !== 'default'
+    const externalDbConnection = dbContext.externalConnection
 
     if (!workspaceId) {
       return false
     }
 
-    if (!hasCustomDbContext) {
+    if (!externalDbConnection) {
       return true
     }
 
-    isDevMode(() => Logger.log(`[CDWR GUARD]: Transaction created for CDWR guard`))
-
-    const session = this.neogmaService.createSession('custom-db-write-restriction-guard')
-    const transaction = session.beginTransaction()
-
-    const canProcessRequest = await this.isCustomDbOptionEnabled(workspaceId, request, transaction)
+    const transaction = request.transaction || request.raw?.transaction
+    const canProcessRequest = await this.isCustomDbOptionEnabled(
+      workspaceId,
+      toBoolean(externalDbConnection),
+      transaction
+    )
 
     if (!canProcessRequest) {
-      transaction.close().then(() => session.close())
-      isDevMode(() => Logger.log(`[CDWR GUARD]: Close transaction and request due to billing settings`))
       throw new HttpException(
         'Cannot process data creation due to billing settings',
         HttpStatus.PAYMENT_REQUIRED
       )
     }
-
-    isDevMode(() => Logger.log(`[CDWR GUARD]: Close transaction and process request`))
-    transaction.close().then(() => session.close())
 
     return true
   }

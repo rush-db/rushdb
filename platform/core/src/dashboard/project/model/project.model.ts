@@ -48,6 +48,39 @@ export const Project: TProjectParams = {
     },
     customDb: {
       type: 'string'
+    },
+    managedDbPassword: {
+      type: 'string'
+    },
+    managedDbRegion: {
+      type: 'string'
+    },
+    managedDbTier: {
+      type: 'string'
+    },
+    planId: {
+      type: 'string'
+    },
+    productId: {
+      type: 'string'
+    },
+    priceId: {
+      type: 'string'
+    },
+    status: {
+      type: 'string'
+    },
+    validTill: {
+      type: 'string'
+    },
+    isSubscriptionCancelled: {
+      type: 'boolean'
+    },
+    subscriptionPriceId: {
+      type: 'string'
+    },
+    subscriptionProductId: {
+      type: 'string'
     }
   },
   primaryKeyField: 'id',

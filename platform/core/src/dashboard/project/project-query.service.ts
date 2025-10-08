@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import { RUSHDB_LABEL_PROPERTY, RUSHDB_KEY_PROJECT_ID, RUSHDB_LABEL_RECORD } from '@/core/common/constants'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 import {
@@ -11,6 +10,7 @@ import {
   RUSHDB_RELATION_CONTAINS,
   RUSHDB_RELATION_HAS_ACCESS
 } from '@/dashboard/common/constants'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 @Injectable()
 export class ProjectQueryService {
@@ -141,13 +141,15 @@ export class ProjectQueryService {
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
-      .append(`MATCH (n)`)
-      .append(`WHERE (n:${RUSHDB_LABEL_RECORD} AND n.${RUSHDB_KEY_PROJECT_ID} = $id)`)
-      .append(`OR (n:${RUSHDB_LABEL_PROPERTY} AND n.projectId = $id)`)
-      .append(`WITH`)
-      .append(`count(DISTINCT CASE WHEN n:${RUSHDB_LABEL_PROPERTY} THEN n END) AS properties,`)
-      .append(`count(DISTINCT CASE WHEN n:${RUSHDB_LABEL_RECORD} THEN n END) as entities`)
-      .append(`RETURN properties, entities`)
+      .append(`CALL {`)
+      .append(`   MATCH (p:${RUSHDB_LABEL_PROPERTY} {projectId: $id})`)
+      .append(`   RETURN count(p) AS properties`)
+      .append(`}`)
+      .append(`CALL {`)
+      .append(`   MATCH (r:${RUSHDB_LABEL_RECORD} {${RUSHDB_KEY_PROJECT_ID}: $id})`)
+      .append(`   RETURN count(r) AS entities, round(avg(size(keys(r))), 2) AS avg`)
+      .append(`}`)
+      .append(`RETURN properties, entities, avg`)
 
     return queryBuilder.getQuery()
   }

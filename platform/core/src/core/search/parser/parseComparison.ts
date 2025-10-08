@@ -20,7 +20,8 @@ import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
 const formatCriteriaValue = (value: unknown): string => {
   if (typeof value === 'string') {
-    return `"${value}"`
+    const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    return `"${escaped}"`
   } else if (value === null) {
     return `"${RUSHDB_VALUE_NULL}"`
   } else {
@@ -29,7 +30,7 @@ const formatCriteriaValue = (value: unknown): string => {
 }
 
 const formatField = (field: string, options: TSearchQueryBuilderOptions) => {
-  return options.nodeAlias ? `${options.nodeAlias}.${field}` : field
+  return options.nodeAlias ? `${options.nodeAlias}.\`${field}\`` : `\`${field}\``
 }
 
 const formatVectorForQuery = (
@@ -37,7 +38,7 @@ const formatVectorForQuery = (
   field: string,
   options: TSearchQueryBuilderOptions
 ) => {
-  const criteria = `${expression.fn}(\`${options.nodeAlias}\`.\`${field}\`, [${expression.query}])`
+  const criteria = `${expression.fn}(${options.nodeAlias}.\`${field}\`, [${expression.query}])`
   const isComplexQuery =
     isObject(expression.threshold) &&
     containsAllowedKeys(expression.threshold, Object.keys(COMPARISON_OPERATORS_MAP))
@@ -63,7 +64,7 @@ const formatVectorForQuery = (
 }
 
 const datetimeConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {
-  return `apoc.convert.fromJsonMap(\`${options.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "datetime"`
+  return `apoc.convert.fromJsonMap(${options.nodeAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "datetime"`
 }
 
 const formatDateTimeForQuery = (value: string | DatetimeObject) => {
@@ -125,7 +126,7 @@ export const parseComparison = (
         switch (operator) {
           case '$type': {
             if (typeof value === 'string') {
-              return `apoc.convert.fromJsonMap(\`${options.nodeAlias}\`.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${key}\` = "${value}"`
+              return `apoc.convert.fromJsonMap(${options.nodeAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${key}\` = "${value}"`
             } else {
               throw new QueryCriteriaParsingError(operator, value)
             }

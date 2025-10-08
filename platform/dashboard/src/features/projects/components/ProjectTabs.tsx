@@ -1,4 +1,4 @@
-import { Book, Database, Key, LayoutDashboard, Settings, SettingsIcon, UploadIcon, Users } from 'lucide-react'
+import { Book, Database, Key, Settings, UploadIcon, Wallet2 } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -7,54 +7,72 @@ import type { Project } from '../types'
 import { useStore } from '@nanostores/react'
 import { $user } from '~/features/auth/stores/user.ts'
 import { useState } from 'react'
+import { $platformSettings } from '~/features/auth/stores/settings.ts'
 
-export function ProjectTabs({ projectId }: { projectId: Project['id'] }) {
+export function ProjectTabs({ project }: { project: Project }) {
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
 
-  const [tabs, setTabs] = useState(() => {
-    const workspaceTabs = [
-      {
-        href: getRoutePath('project', { id: projectId }),
-        icon: <Database />,
-        label: 'Records'
-      },
+  const { data: platformSettings } = useStore($platformSettings)
 
-      {
-        href: getRoutePath('projectImportData', {
-          id: projectId
-        }),
-        icon: <UploadIcon />,
-        label: 'Import Data',
-        dataTour: 'project-import-data-chip'
-      },
-      {
-        href: getRoutePath('projectTokens', {
-          id: projectId
-        }),
-        icon: <Key />,
-        label: 'API Keys',
-        dataTour: 'project-token-chip'
-      }
-    ]
+  const projectIsInactive = project.status === 'pending' || project.status === 'provisioning'
+
+  const [tabs, setTabs] = useState(() => {
+    const projectsTabs =
+      projectIsInactive ?
+        []
+      : [
+          {
+            href: getRoutePath('project', { id: project.id }),
+            icon: <Database />,
+            label: 'Records'
+          },
+
+          {
+            href: getRoutePath('projectImportData', {
+              id: project.id
+            }),
+            icon: <UploadIcon />,
+            label: 'Import Data',
+            dataTour: 'project-import-data-chip'
+          },
+          {
+            href: getRoutePath('projectTokens', {
+              id: project.id
+            }),
+            icon: <Key />,
+            label: 'API Keys',
+            dataTour: 'project-token-chip'
+          }
+        ]
 
     if (isOwner) {
-      workspaceTabs.push({
+      projectsTabs.push({
         href: getRoutePath('projectSettings', {
-          id: projectId
+          id: project.id
         }),
         icon: <Settings />,
         label: 'Settings'
       })
     }
 
-    workspaceTabs.push({
-      href: getRoutePath('projectHelp', { id: projectId }),
-      icon: <Book />,
-      label: 'Help'
-    })
+    if (!projectIsInactive) {
+      projectsTabs.push({
+        href: getRoutePath('projectHelp', { id: project.id }),
+        icon: <Book />,
+        label: 'Help'
+      })
+    }
 
-    return workspaceTabs
+    if (!platformSettings?.selfHosted && isOwner && project.managedDbRegion) {
+      projectsTabs.push({
+        href: getRoutePath('projectBilling', { id: project.id }),
+        icon: <Wallet2 />,
+        label: 'Subscription'
+      })
+    }
+
+    return projectsTabs
   })
 
   return (

@@ -1,7 +1,7 @@
 import { isArray } from '@/common/utils/isArray'
 import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
-import { DEFAULT_RECORD_ALIAS } from '@/core/common/constants'
+import { ROOT_RECORD_ALIAS } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { buildWhereClause } from '@/core/search/parser/buildWhereClause'
@@ -44,7 +44,7 @@ export function buildPagination({ skip: skipRaw = 0, limit: limitRaw = 100 }: Se
   return `SKIP ${skip} LIMIT ${limit}`
 }
 
-export function sort(orderBy: TSearchSort, alias: string | null = DEFAULT_RECORD_ALIAS) {
+export function sort(orderBy: TSearchSort, alias: string | null = ROOT_RECORD_ALIAS) {
   const orderClauses = buildOrderByClause(orderBy, alias)
   return `ORDER BY ${orderClauses.join(', ')}`
 }
@@ -71,7 +71,7 @@ export const buildQueryClause = ({
 
 export const parseWhereClause = (
   input: Where,
-  options: TSearchQueryBuilderOptions = { nodeAlias: DEFAULT_RECORD_ALIAS }
+  options: TSearchQueryBuilderOptions = { nodeAlias: ROOT_RECORD_ALIAS }
 ) => {
   const normalizedInput = processCriteria(input)
 

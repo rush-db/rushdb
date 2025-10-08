@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { Transaction } from 'neo4j-driver'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
 import {
@@ -13,8 +12,7 @@ import {
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { User } from '@/dashboard/user/user.entity'
 import { UserService } from '@/dashboard/user/user.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
-import { CompositeNeogmaService } from '@/database/neogma-dynamic/composite-neogma.service'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 import { EncryptionService } from './encryption/encryption.service'
 
@@ -23,9 +21,7 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly encryptionService: EncryptionService,
-    private readonly jwtService: JwtService,
-    private readonly neogmaService: NeogmaService,
-    private readonly compositeNeogmaService: CompositeNeogmaService
+    private readonly jwtService: JwtService
   ) {}
 
   createToken(user: User): string {
@@ -52,19 +48,16 @@ export class AuthService {
   // async isOwnerMatch(
   //     idsToVerify: string[],
   //     userId: string,
-  //     neogmaTransaction?: Transaction
+  //     transaction?: Transaction
   // ): Promise<boolean> {
-  //     const queryRunner = this.neogmaService.createRunner();
-  //
-  //     const result = await queryRunner.run(
+  //     const result = await transaction.run(
   //         `
   //             UNWIND $idsToVerify as entityId
   //             MATCH (n) WHERE n.id = entityId RETURN collect(n.ownerId) as ownershipList
   //         `,
   //         {
   //             idsToVerify,
-  //         },
-  //         neogmaTransaction
+  //         }
   //     );
   //
   //     const ownershipList = result.records[0].get('ownershipList');
@@ -76,8 +69,6 @@ export class AuthService {
   // }
 
   async hasProjectAccess(projectId: string, userId: string, transaction: Transaction): Promise<boolean> {
-    const queryRunner = this.neogmaService.createRunner()
-
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
@@ -86,14 +77,10 @@ export class AuthService {
       )
       .append(`RETURN COUNT(rel) as accessRelationCount`)
 
-    const result = await queryRunner.run(
-      queryBuilder.getQuery(),
-      {
-        projectId,
-        userId
-      },
-      transaction
-    )
+    const result = await transaction.run(queryBuilder.getQuery(), {
+      projectId,
+      userId
+    })
 
     const relations = result.records[0].get('accessRelationCount')
 
@@ -105,8 +92,6 @@ export class AuthService {
     projectId: string,
     transaction: Transaction
   ): Promise<boolean> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
-
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
@@ -115,20 +100,13 @@ export class AuthService {
         `MATCH (n) WHERE n.${RUSHDB_KEY_ID} = entityId RETURN collect(n.${RUSHDB_KEY_PROJECT_ID}) as projectIdsList`
       )
 
-    const projectIdsList = (await queryRunner
-      .run(
-        queryBuilder.getQuery(),
-        {
-          idsToVerify
-        },
-        transaction
-      )
+    const projectIdsList = (await transaction
+      .run(queryBuilder.getQuery(), {
+        idsToVerify
+      })
       .then((result) => result.records[0].get('projectIdsList'))) as string[]
 
-    const result =
-      projectIdsList.length === idsToVerify.length && projectIdsList.every((pid) => pid === projectId)
-
-    return result
+    return projectIdsList.length === idsToVerify.length && projectIdsList.every((pid) => pid === projectId)
   }
 
   async verifyOtherIds(
@@ -137,7 +115,6 @@ export class AuthService {
     config: TVerifyOwnershipConfig,
     transaction: Transaction
   ): Promise<boolean> {
-    const queryRunner = this.compositeNeogmaService.createRunner()
     const { nodeProperty, projectIdProperty } = config ?? {
       nodeProperty: 'id',
       projectIdProperty: 'projectId'
@@ -151,19 +128,12 @@ export class AuthService {
         `MATCH (n) WHERE n.${nodeProperty} = entityId RETURN collect(n.${projectIdProperty}) as projectIdsList`
       )
 
-    const projectIdsList = (await queryRunner
-      .run(
-        queryBuilder.getQuery(),
-        {
-          idsToVerify
-        },
-        transaction
-      )
+    const projectIdsList = (await transaction
+      .run(queryBuilder.getQuery(), {
+        idsToVerify
+      })
       .then((result) => result.records[0].get('projectIdsList'))) as string[]
 
-    const result =
-      projectIdsList.length === idsToVerify.length && projectIdsList.every((pid) => pid === projectId)
-
-    return result
+    return projectIdsList.length === idsToVerify.length && projectIdsList.every((pid) => pid === projectId)
   }
 }

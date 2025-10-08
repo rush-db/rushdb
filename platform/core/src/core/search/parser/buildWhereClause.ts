@@ -1,7 +1,7 @@
 import { isArray } from '@/common/utils/isArray'
 import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
-import { DEFAULT_RECORD_ALIAS } from '@/core/common/constants'
+import { ROOT_RECORD_ALIAS } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
 import { ParseContext } from '@/core/search/parser/types'
 import { splitCriteria, wrapInParentheses } from '@/core/search/parser/utils'
@@ -39,8 +39,8 @@ const parseCurrentLevel = (input: Where, options?: TSearchQueryBuilderOptions, c
         // `WHERE record IS NOT NULL AND (record1 IS NOT NULL OR record2 IS NOT NULL)`
         // SO THIS {record.title <> 'Forest'} clause will be checked lately along with existence of record1 OR record2
 
-        const nodeAlias = DEFAULT_RECORD_ALIAS + index
-        const nodeAliasAtCurrentLevel = DEFAULT_RECORD_ALIAS + ctx.level
+        const nodeAlias = ROOT_RECORD_ALIAS + index
+        const nodeAliasAtCurrentLevel = ROOT_RECORD_ALIAS + ctx.level
         const withQueryQueuePart =
           ctx.withQueryQueue[nodeAlias] ?? ctx.withQueryQueue[nodeAliasAtCurrentLevel] ?? []
 
@@ -154,7 +154,7 @@ const parseSubQuery = (input: any, options?: TSearchQueryBuilderOptions, ctx?: P
   const { $relation, $alias, ...other } = input as any
 
   ctx.level += 1
-  const nodeAlias = DEFAULT_RECORD_ALIAS + ctx.level
+  const nodeAlias = ROOT_RECORD_ALIAS + ctx.level
 
   const result = parseCurrentLevel(other, options, ctx)
 

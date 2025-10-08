@@ -6,6 +6,7 @@ import type {
   DBRecordTarget,
   Relation,
   RelationDetachOptions,
+  RelationDirection,
   RelationOptions,
   RelationTarget
 } from '../sdk/record.js'
@@ -13,6 +14,7 @@ import { DBRecordInstance, DBRecordsArrayInstance } from '../sdk/record.js'
 import type { SDKConfig, State } from '../sdk/types.js'
 import type {
   AnyObject,
+  FlatObject,
   InferSchemaTypesWrite,
   MaybeArray,
   OrderDirection,
@@ -20,7 +22,8 @@ import type {
   PropertyDraft,
   PropertyValuesData,
   Schema,
-  SearchQuery
+  SearchQuery,
+  Where
 } from '../types/index.js'
 import type { ApiResponse } from './types.js'
 
@@ -291,9 +294,60 @@ export class RestAPI {
         // If `returnResult` was not explicitly set to `true`, `response.data` may be just `true`.
         // In that case, fallback to an empty array. Otherwise, map records to typed instances.
         const dbRecordInstances =
-          (response.data as Array<DBRecord<S>>)?.map((r) => {
-            return new DBRecordInstance<S>(r)
-          }) ?? []
+          isArray(response.data) ?
+            (<Array<DBRecord<S>>>response.data)?.map((r) => {
+              return new DBRecordInstance<S>(r)
+            })
+          : []
+        return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
+      }
+
+      return new DBRecordsArrayInstance<S>([])
+    },
+
+    /**
+     * Imports records from CSV data.
+     * @param params - CSV import configuration
+     * @param params.label - Label applied to imported records
+     * @param params.data - Raw CSV string
+     * @param params.options - Import options (type inference etc.)
+     * @param params.parseConfig - CSV parsing configuration (subset allowed by server)
+     * @param params.parentId - Optional parent record id for hierarchical imports
+     */
+    importCsv: async <S extends Schema = any>(
+      params: {
+        label: string
+        data: string
+        options?: DBRecordCreationOptions
+        parseConfig?: {
+          delimiter?: string
+          header?: boolean
+          skipEmptyLines?: boolean | 'greedy'
+          dynamicTyping?: boolean
+          quoteChar?: string
+          escapeChar?: string
+          newline?: string
+        }
+        parentId?: string
+      },
+      transaction?: Transaction | string
+    ): Promise<DBRecordsArrayInstance<S>> => {
+      const txId = pickTransactionId(transaction)
+      const path = `/records/import/csv`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: params
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Array<DBRecord<S>>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      if (response?.success && response?.data) {
+        const dbRecordInstances =
+          isArray(response.data) ? response.data.map((r) => new DBRecordInstance<S>(r)) : []
         return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
       }
 
@@ -637,6 +691,65 @@ export class RestAPI {
    */
   public relationships = {
     /**
+     * Creates many relationships by matching source and target records by keys
+     * @param data - Configuration of source/target match and relation details
+     * @param transaction - Optional transaction for atomic operations
+     * @returns Promise with the API response message
+     */
+    createMany: async (
+      data: {
+        source: { label: string; key?: string; where?: Where }
+        target: { label: string; key?: string; where?: Where }
+        type?: string
+        direction?: RelationDirection
+        manyToMany?: boolean
+      },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/relationships/create-many`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: data ?? {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+    /**
+     * Deletes many relationships by matching source and target records by keys or by manyToMany filter
+     */
+    deleteMany: async (
+      data: {
+        source: { label: string; key?: string; where?: Where }
+        target: { label: string; key?: string; where?: Where }
+        type?: string
+        direction?: RelationDirection
+        manyToMany?: boolean
+      },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/relationships/delete-many`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: data ?? {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<{ message: string }>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+    /**
      * Searches for relations matching the query criteria
      * @param searchQuery - Query to identify relations
      * @param transaction - Optional transaction for atomic operations
@@ -903,6 +1016,43 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload })
 
       const response = await this.fetcher<ApiResponse<State['serverSettings']>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    }
+  }
+
+  // Only for managed/custom db instances connected to cloud
+  public query = {
+    /**
+     * Runs a raw Cypher query against the connected Neo4j database.
+     *
+     * NOTE: This endpoint is cloud-only — available only on the RushDB managed
+     * service or when your project is connected to a custom database through
+     * RushDB Cloud. It will not work for self-hosted or local-only deployments.
+     *
+     * @param param0 - Object containing the Cypher query and optional params
+     * @param param0.query - Cypher query string to execute
+     * @param param0.params - Optional parameters to pass to the query
+     * @param transaction - Optional transaction id or Transaction instance to run the query in
+     * @returns ApiResponse<any> - Raw result returned by the server (Neo4j driver result wrapped in ApiResponse)
+     */
+    raw: async <T extends any = any>(
+      { query, params }: { query: string; params?: FlatObject },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/query/raw`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: { query, params }
+      }
+
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<T>>(path, payload)
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response

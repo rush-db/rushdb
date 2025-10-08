@@ -168,7 +168,7 @@ export type AggregateCollectFn = {
   field?: string
   fn: 'collect'
   orderBy?: TSearchSort
-  uniq?: boolean
+  unique?: boolean
 }
 
 export type AggregateCollectNestedFn = Omit<AggregateCollectFn, 'field'> & {
@@ -177,13 +177,30 @@ export type AggregateCollectNestedFn = Omit<AggregateCollectFn, 'field'> & {
 
 export type AliasesMap = Record<string, string>
 
+export type AggregateCountFn = {
+  field?: string
+  fn: 'count'
+  unique?: boolean
+  /** Defaults to '$record' */ alias?: string
+}
+
+export type AggregateTimeBucketFn = {
+  field: string
+  fn: 'timeBucket'
+  alias?: string
+  granularity: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'months'
+  // When granularity === 'months', size (>0) defines the number of months per bucket (e.g. 2, 3, 6, 12)
+  size?: number
+}
+
 export type AggregateFn<S extends Schema = Schema> =
-  | { field: string; fn: 'avg'; alias: string; precision?: number }
-  | { field?: string; fn: 'count'; uniq?: boolean; alias: string }
-  | { field: string; fn: 'max'; alias: string }
-  | { field: string; fn: 'min'; alias: string }
-  | { field: string; fn: 'sum'; alias: string }
-  | { field: string; fn: `gds.similarity.${TVectorSearchFn}`; alias: string; query: number[] }
+  | { field: string; fn: 'avg'; alias?: string; precision?: number }
+  | AggregateCountFn
+  | { field: string; fn: 'max'; alias?: string }
+  | { field: string; fn: 'min'; alias?: string }
+  | { field: string; fn: 'sum'; alias?: string }
+  | { field: string; fn: `gds.similarity.${TVectorSearchFn}`; alias?: string; query: number[] }
+  | AggregateTimeBucketFn
   | AggregateCollectFn
 
 export type Aggregate =

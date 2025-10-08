@@ -1,11 +1,11 @@
 import { BASE_URL } from '~/config'
 import { toast } from '~/elements/Toast'
 import { $token } from '~/features/auth/stores/token'
-import { $limitReachModalOpen } from '~/features/billing/components/LimitReachedDialog'
 import { BillingErrorCodes } from '~/features/billing/constants'
 import { $currentProjectId } from '~/features/projects/stores/id'
 import { $currentWorkspaceId } from '~/features/workspaces/stores/current'
 import { createApiStores } from '~/lib/nanorequest'
+import { $limitReachModalOpen } from '~/components/billing/LimitReachedDialog'
 
 type FetcherInit = RequestInit & { transformResponse?: boolean }
 

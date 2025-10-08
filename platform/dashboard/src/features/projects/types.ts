@@ -1,7 +1,8 @@
 import type { ISO8601 } from '~/types'
 
-export type ProjectLimits = Record<string, number | string>
-export type ProjectStats = Record<'records' | 'properties', number>
+export type ProjectStats = Record<'records' | 'properties' | 'avgProperties', number>
+
+type ProjectStatus = 'pending' | 'active' | 'provisioning' | 'suspended'
 
 export type Project = {
   created: ISO8601
@@ -9,6 +10,15 @@ export type Project = {
   id: string
   name: string
   stats?: ProjectStats
+  isSubscriptionCancelled?: boolean
+  customDb?: string
+  managedDbRegion?: string
+  managedDbTier?: string
+  status?: ProjectStatus
+  validTill?: string
+  planId?: string
+  productId?: string
+  priceId?: string
 }
 
 export type WithProjectID = { projectId: Project['id'] }

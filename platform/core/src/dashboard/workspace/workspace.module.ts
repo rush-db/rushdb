@@ -5,9 +5,9 @@ import { BillingModule } from '@/dashboard/billing/billing.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
+import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
 import { WorkspaceController } from '@/dashboard/workspace/workspace.controller'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
 
 @Module({
   imports: [

@@ -21,4 +21,7 @@ export class SearchDto {
 
   @ApiPropertyOptional({ default: [] })
   labels?: string[]
+
+  @ApiPropertyOptional({ default: [] })
+  groupBy?: string[]
 }

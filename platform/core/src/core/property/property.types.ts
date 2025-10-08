@@ -42,3 +42,15 @@ export type TPropertyMultipleValue<TType extends TPropertyType = TPropertyType> 
 export type TPropertyValue<TType extends TPropertyType = TPropertyType> =
   | TPropertySingleValue<TType>
   | TPropertyMultipleValue<TType>
+
+export type TPropertyPropertiesWithValue = TPropertyProperties & {
+  value: TPropertyValue
+}
+
+export type TPropertyProperties = {
+  id: string
+  name: string
+  type: TPropertyType
+  projectId: string
+  metadata?: string
+}

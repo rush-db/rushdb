@@ -1,7 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
+import { Session, Transaction } from 'neo4j-driver'
 import { Neogma, QueryRunner } from 'neogma'
-import { INeogmaConfig } from '../neogma/neogma-config.interface'
-import { createInstance } from '../neogma/neogma.util'
+
 import { isDevMode } from '@/common/utils/isDevMode'
 import {
   RUSHDB_KEY_ID,
@@ -9,7 +9,9 @@ import {
   RUSHDB_LABEL_PROPERTY,
   RUSHDB_LABEL_RECORD
 } from '@/core/common/constants'
-import { Session, Transaction } from 'neo4j-driver'
+
+import { INeogmaConfig } from '../neogma/neogma-config.interface'
+import { createInstance } from '../neogma/neogma.util'
 
 interface ConnectionEntry {
   connection: Neogma
@@ -20,7 +22,7 @@ interface ConnectionEntry {
 @Injectable()
 export class NeogmaDynamicService {
   private connections = new Map<string, ConnectionEntry>()
-  private readonly inactivityTimeout = 5 * 60 * 1000
+  private readonly inactivityTimeout = 5 * 60 * 1000 // 5 mins
 
   async getConnection(projectId: string, config: INeogmaConfig): Promise<Neogma> {
     const now = Date.now()
@@ -53,7 +55,7 @@ export class NeogmaDynamicService {
         this.connections.delete(projectId)
         isDevMode(() => Logger.log(`Dynamic connection for project ${projectId} closed due to inactivity`))
       }
-    }, this.inactivityTimeout)
+    }, this.inactivityTimeout).unref()
   }
 
   async validateConnection(config: INeogmaConfig): Promise<void> {
@@ -80,7 +82,7 @@ export class NeogmaDynamicService {
     }
   }
 
-  // Just hacky way to use in services which controllers don't have customDb support
+  // Just a hacky way to use in services which controllers don't have customDb support
   // Main use case is to batch update/delete custom db data from workspace/organization/project
   async getTempRunner(
     projectId: string,
@@ -92,7 +94,7 @@ export class NeogmaDynamicService {
   }> {
     const connection = await this.getConnection(projectId, config)
     const session = connection.driver.session()
-    const transaction = session.beginTransaction()
+    const transaction = session.beginTransaction({ timeout: 10_000 })
 
     const runner = new QueryRunner({
       driver: connection.driver
@@ -103,7 +105,7 @@ export class NeogmaDynamicService {
 
   private async initializeSchema(connection: Neogma): Promise<void> {
     const session = connection.driver.session()
-    const transaction = session.beginTransaction()
+    const transaction = session.beginTransaction({ timeout: 10_000 })
     try {
       const constraints = [
         `CREATE CONSTRAINT constraint_record_id IF NOT EXISTS FOR (record:${RUSHDB_LABEL_RECORD}) REQUIRE record.${RUSHDB_KEY_ID} IS UNIQUE`,

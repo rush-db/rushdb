@@ -1,6 +1,6 @@
 import { isEmptyObject } from '@/common/utils/isEmptyObject'
 import { toBoolean } from '@/common/utils/toBolean'
-import { DEFAULT_RECORD_ALIAS } from '@/core/common/constants'
+import { ROOT_RECORD_ALIAS } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
 import { parseCurrentLevel } from '@/core/search/parser/parseCurrentLevel'
 import { ParseContext } from '@/core/search/parser/types'
@@ -54,7 +54,7 @@ export const processLogicalGroupedCriteria = (
   const nextSubQueriesCount = Object.keys(subQueries).length
 
   if (nextSubQueriesCount && !isEmptyObject(currentLevel)) {
-    ctx.withQueryQueue[DEFAULT_RECORD_ALIAS + nextSubQueriesCount] = [
+    ctx.withQueryQueue[ROOT_RECORD_ALIAS + nextSubQueriesCount] = [
       ...(ctx.withQueryQueue[options.nodeAlias] ?? []),
       ...parseCurrentLevel(key, currentLevel, options, ctx).flat().filter(toBoolean)
     ]

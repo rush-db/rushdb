@@ -14,6 +14,18 @@ export type TImportOptions = {
   relationshipType?: string
   returnResult?: boolean
 }
+
+// Subset of PapaParse config we allow clients to control (explicit allow-list)
+export type TImportCsvParseConfig = {
+  delimiter?: string
+  header?: boolean
+  skipEmptyLines?: boolean | 'greedy'
+  dynamicTyping?: boolean
+  quoteChar?: string
+  escapeChar?: string
+  newline?: string
+}
+
 export type WithId<T> = T & {
   id: string
 }

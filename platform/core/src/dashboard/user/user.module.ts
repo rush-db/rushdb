@@ -1,4 +1,4 @@
-import { forwardRef, Global, Module, OnApplicationBootstrap } from '@nestjs/common'
+import { forwardRef, Global, Module, OnApplicationBootstrap, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 
 import { toBoolean } from '@/common/utils/toBolean'
@@ -37,10 +37,10 @@ export class UserModule implements OnApplicationBootstrap {
     const isSelfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
     const adminLogin = this.configService.get('RUSHDB_LOGIN')
     const adminPassword = this.configService.get('RUSHDB_PASSWORD')
-    const session = this.neogmaService.createSession('init-user')
 
     if (isSelfHosted && adminLogin && adminPassword) {
-      const transaction = session.beginTransaction()
+      const session = this.neogmaService.createSession('init-user')
+      const transaction = session.beginTransaction({ timeout: 10_000 })
 
       try {
         const user = await this.userService.find(adminLogin, transaction)
@@ -49,7 +49,7 @@ export class UserModule implements OnApplicationBootstrap {
           return
         }
 
-        console.log('Initializing user...')
+        Logger.log('Initializing user...')
         await this.userService.create(
           {
             login: adminLogin,
@@ -59,15 +59,15 @@ export class UserModule implements OnApplicationBootstrap {
           transaction
         )
       } catch (error) {
-        console.log('Initializing user failed.', error)
+        Logger.log('Initializing user failed.', error)
         await transaction.rollback()
       } finally {
-        console.log('Initializing user finished.')
+        Logger.log('Initializing user finished.')
         if (transaction.isOpen()) {
           await transaction.commit()
           await transaction.close()
         }
-        await session.close()
+        await this.neogmaService.closeSession(session)
       }
     }
   }

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import {
   RUSHDB_LABEL_PROJECT,
   RUSHDB_LABEL_USER,
@@ -10,6 +9,7 @@ import {
   RUSHDB_RELATION_MEMBER_OF
 } from '@/dashboard/common/constants'
 import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 @Injectable()
 export class WorkspaceQueryService {

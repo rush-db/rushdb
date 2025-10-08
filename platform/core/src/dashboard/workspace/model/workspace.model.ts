@@ -37,18 +37,6 @@ export const Workspace: TWorkspaceParams = {
     edited: {
       type: 'string'
     },
-    s3Url: {
-      type: 'string'
-    },
-    s3Bucket: {
-      type: 'string'
-    },
-    s3User: {
-      type: 'string'
-    },
-    s3Password: {
-      type: 'string'
-    },
     limits: {
       type: 'string',
       required: true
@@ -66,6 +54,12 @@ export const Workspace: TWorkspaceParams = {
       type: 'boolean'
     },
     pendingInvites: {
+      type: 'string'
+    },
+    subscriptionPriceId: {
+      type: 'string'
+    },
+    subscriptionProductId: {
       type: 'string'
     }
   },

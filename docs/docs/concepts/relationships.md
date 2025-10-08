@@ -51,6 +51,15 @@ This capability allows you to:
 - Build complex graph structures that evolve over time
 - Restructure relationships as your data model changes
 
+Bulk creation and many-to-many caution
+
+RushDB supports a bulk relationship creation endpoint (`POST /relationships/create-many`) that can either:
+
+- join source and target records by equality on provided keys (the common case), or
+- when explicitly requested, create a many-to-many (cartesian) set of relationships between all matched sources and targets.
+
+The many-to-many mode is opt-in and guarded: the request must set a flag (e.g. `manyToMany`) and provide non-empty `where` filters for both sides; otherwise the server requires keys to perform a safe equality join. This prevents accidental, unbounded cartesian products which can be expensive to execute and store.
+
 ## Nested Data Example
 
 Consider this JSON structure:

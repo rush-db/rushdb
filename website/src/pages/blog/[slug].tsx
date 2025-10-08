@@ -2,7 +2,7 @@ import { MDXRemoteSerializeResult } from 'next-mdx-remote'
 import { serialize } from 'next-mdx-remote/serialize'
 
 import { Layout } from '~/components/Layout'
-import { GetServerSideProps } from 'next'
+import { GetStaticProps } from 'next'
 import { LetterTypingText } from '~/components/LetterTypingText'
 import { getRemoteBlogPost, getRemoteBlogPosts } from '~/sections/blog/remote-utils'
 import { Post } from '~/sections/blog/types'
@@ -15,7 +15,7 @@ import { CallToAction } from '~/components/CallToAction'
 import remarkGfm from 'remark-gfm'
 import { generateJsonLd } from '~/utils/jsonLd'
 import { useRouter } from 'next/router'
-import mermaidPlugin from 'mdx-mermaid' // this might bring commonJS vs ESM problems, I am not 100% sure
+import mermaidPlugin from 'mdx-mermaid'
 
 type Props = {
   serializedPost: MDXRemoteSerializeResult
@@ -70,7 +70,21 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
   )
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async ({ params, query }) => {
+export const getStaticPaths = async () => {
+  // Get all published posts for static generation
+  const posts = await getRemoteBlogPosts()
+
+  const paths = posts.map((post) => ({
+    params: { slug: post.slug }
+  }))
+
+  return {
+    paths,
+    fallback: 'blocking' // Enable ISR for new posts
+  }
+}
+
+export const getStaticProps: GetStaticProps<Props, Params> = async ({ params }) => {
   if (!params?.slug) {
     return {
       notFound: true
@@ -78,14 +92,13 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params, qu
   }
 
   try {
-    const previewId = query.preview as string | undefined
+    const previewId = undefined
 
     // Fetch post and all posts in parallel
     const [post, allPosts] = await Promise.all([
       getRemoteBlogPost(params.slug as string, previewId),
       getRemoteBlogPosts()
     ])
-
     if (!post?.__id) {
       return {
         notFound: true
@@ -108,10 +121,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ params, qu
         serializedPost,
         data: post,
         morePosts
-      }
+      },
+      revalidate: 3600 // Revalidate every hour
     }
   } catch (error) {
-    console.error('Error in getServerSideProps:', error)
+    console.error('Error in getStaticProps:', error)
     return {
       notFound: true
     }

@@ -1,6 +1,6 @@
 {
   "name": "rushdb-website",
-  "version": "1.8.0",
+  "version": "1.16.0",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
@@ -12,6 +12,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@number-flow/react": "^0.5.10",
     "@radix-ui/react-portal": "^1.1.2",
     "@radix-ui/react-switch": "^1.1.2",
     "@radix-ui/react-tabs": "^1.1.2",

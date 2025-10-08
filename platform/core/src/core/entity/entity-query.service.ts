@@ -1,19 +1,18 @@
 import { Injectable } from '@nestjs/common'
 
-import { QueryBuilder } from '@/common/QueryBuilder'
 import { isArray } from '@/common/utils/isArray'
 import { toBoolean } from '@/common/utils/toBolean'
 import {
+  ROOT_RECORD_ALIAS,
   RUSHDB_KEY_ID,
-  RUSHDB_LABEL_PROPERTY,
   RUSHDB_KEY_PROJECT_ID,
   RUSHDB_KEY_PROPERTIES_META,
+  RUSHDB_LABEL_PROPERTY,
   RUSHDB_LABEL_RECORD,
-  RUSHDB_RELATION_VALUE,
   RUSHDB_RELATION_DEFAULT,
-  DEFAULT_RECORD_ALIAS
+  RUSHDB_RELATION_VALUE
 } from '@/core/common/constants'
-import { MaybeArray } from '@/core/common/types'
+import { MaybeArray, Where } from '@/core/common/types'
 import { RELATION_DIRECTION_IN, RELATION_DIRECTION_OUT } from '@/core/entity/entity.constants'
 import { TRelationDirection } from '@/core/entity/entity.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
@@ -24,11 +23,14 @@ import {
   buildQuery,
   buildQueryClause,
   isOrderByAggregatedField,
+  parseWhereClause,
   sort
 } from '@/core/search/parser/buildQuery'
 import { buildRelatedQueryPart } from '@/core/search/parser/buildRelatedRecordQueryPart'
+import { PROPERTY_WILDCARD_PROJECTION } from '@/core/search/parser/constants'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 import { singleLabelPart } from '@/core/search/parser/singleLabelPart'
+import { QueryBuilder } from '@/database/QueryBuilder'
 
 import { label } from '../search/parser/pickRecordLabel'
 
@@ -45,7 +47,7 @@ export class EntityQueryService {
         `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as labelCreationResult`
       )
       .append(this.processProps())
-      .append(`RETURN record {.*, ${label()}} as data`)
+      .append(`RETURN record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}} as data`)
 
     return queryBuilder.getQuery()
   }
@@ -55,7 +57,7 @@ export class EntityQueryService {
 
     queryBuilder
       .append(`MATCH (record:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: $id, ${projectIdInline()} })`)
-      .append(`RETURN record {.*, ${label()}} as data`)
+      .append(`RETURN record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}} as data`)
 
     return queryBuilder.getQuery()
   }
@@ -104,7 +106,9 @@ export class EntityQueryService {
       .append(this.processProps())
 
     if (withResults) {
-      queryBuilder.append(`RETURN collect(DISTINCT record {.*, ${label()}}) as data`)
+      queryBuilder.append(
+        `RETURN collect(DISTINCT record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}}) as data`
+      )
     }
 
     return queryBuilder.getQuery()
@@ -118,11 +122,12 @@ export class EntityQueryService {
 
     const pagination = buildPagination(searchQuery)
     const orderByAggregatedField = isOrderByAggregatedField(searchQuery)
-    const sortParams = sort(searchQuery.orderBy, orderByAggregatedField ? null : DEFAULT_RECORD_ALIAS)
+    const sortParams = sort(searchQuery.orderBy, orderByAggregatedField ? null : ROOT_RECORD_ALIAS)
 
-    const { withPart: aggregateProjections, recordPart: returnPart } = buildAggregation(
+    const { withPart: aggregateProjections, returnPart } = buildAggregation(
       searchQuery?.aggregate,
-      aliasesMap
+      aliasesMap,
+      searchQuery?.groupBy ?? []
     )
 
     // convert a clause array to string
@@ -467,6 +472,164 @@ export class EntityQueryService {
       .append(`UNWIND $targetIds AS targetId`)
       .append(`OPTIONAL MATCH ${matchClauses.join(' OPTIONAL MATCH ')}`)
       .append(`DELETE ${deleteClauses.join(', ')}`)
+
+    return queryBuilder.getQuery()
+  }
+
+  sanitizeNeo4jIdentifier(value: string) {
+    if (!value) {
+      return ''
+    }
+    const normalized = String(value).trim()
+    const stripped = normalized.replace(/[`\\]/g, '')
+    const noSpaces = stripped.replace(/\s+/g, '_')
+    return noSpaces.replace(/[^A-Za-z0-9_-]/g, '')
+  }
+
+  constructRelationshipQueryArguments({
+    sourceLabel,
+    sourceKey,
+    targetLabel,
+    targetKey,
+    relationType,
+    direction,
+    sourceWhere,
+    targetWhere,
+    manyToMany
+  }: {
+    sourceLabel: string
+    sourceKey?: string
+    targetLabel: string
+    targetKey?: string
+    relationType?: string
+    direction?: TRelationDirection
+    sourceWhere?: Where
+    targetWhere?: Where
+    manyToMany?: boolean
+  }) {
+    const relType = relationType ? relationType : RUSHDB_RELATION_DEFAULT
+    let relPattern = `-[rel:${relType}]-`
+    if (direction === RELATION_DIRECTION_IN) {
+      relPattern = '<' + relPattern
+    }
+    if (direction === RELATION_DIRECTION_OUT || !direction) {
+      relPattern = relPattern + '>'
+    }
+
+    const safeSourceLabel = this.sanitizeNeo4jIdentifier(sourceLabel)
+    const safeTargetLabel = this.sanitizeNeo4jIdentifier(targetLabel)
+    const safeSourceKey = this.sanitizeNeo4jIdentifier(sourceKey)
+    const safeTargetKey = this.sanitizeNeo4jIdentifier(targetKey)
+
+    const buildAliasClauses = (where: Where | undefined, alias: string) => {
+      if (!where || Object.keys(where).length === 0) {
+        return { first: '', rest: [] as string[] }
+      }
+      const parsed = parseWhereClause(where, { nodeAlias: alias })
+      const sorted = Object.keys(parsed.queryParts)
+        .sort((a, b) => a.localeCompare(b))
+        .map((k) => parsed.queryParts[k])
+      const clauses: string[] = buildQueryClause({ queryParts: sorted })
+      const [first, ...rest] = clauses
+      return { first: first ?? '', rest }
+    }
+
+    const sClauses = buildAliasClauses(sourceWhere, 's')
+    const tClauses = buildAliasClauses(targetWhere, 't')
+
+    // Prepare pieces for embedding into apoc.periodic.iterate subqueries
+    const sFirst = sClauses.first ? ` ${sClauses.first}` : ''
+    const sRest = sClauses.rest.length ? ` ${sClauses.rest.join(' ')}` : ''
+    const tRest = tClauses.rest.length ? ` ${tClauses.rest.join(' ')}` : ''
+    const tFirstStartsWithWhere = /^\s*WHERE\b/i.test(tClauses.first)
+    const tFirstNoWhere = tFirstStartsWithWhere ? tClauses.first.replace(/^\s*WHERE\s+/i, '') : ''
+
+    const hasSourceWhere = sourceWhere && Object.keys(sourceWhere).length > 0
+    const hasTargetWhere = targetWhere && Object.keys(targetWhere).length > 0
+    const hasJoinKeys = Boolean(safeSourceKey && safeTargetKey)
+
+    // Safeguards
+    if (manyToMany) {
+      if (!hasSourceWhere || !hasTargetWhere) {
+        throw new Error(
+          'manyToMany requires non-empty `where` filters for both source and target to avoid cartesian explosion'
+        )
+      }
+    } else {
+      if (!hasJoinKeys) {
+        throw new Error('source.key and target.key are required unless manyToMany=true')
+      }
+    }
+
+    // Build combined WHERE depending on whether join keys exist.
+    let combinedWhere = ''
+    if (hasJoinKeys) {
+      const eqClause = `s.\`${safeSourceKey}\` = t.\`${safeTargetKey}\``
+      combinedWhere = tFirstNoWhere ? `WHERE ${eqClause} AND ${tFirstNoWhere}` : `WHERE ${eqClause}`
+    } else {
+      // manyToMany path: rely solely on target's where (already required to be non-empty)
+      combinedWhere = tFirstNoWhere ? `WHERE ${tFirstNoWhere}` : ''
+    }
+
+    return { combinedWhere, safeSourceLabel, safeTargetLabel, sFirst, sRest, tRest, relPattern }
+  }
+
+  createRelationsByKeys(payload: {
+    sourceLabel: string
+    sourceKey?: string
+    targetLabel: string
+    targetKey?: string
+    relationType?: string
+    direction?: TRelationDirection
+    sourceWhere?: Where
+    targetWhere?: Where
+    manyToMany?: boolean
+  }) {
+    const { safeSourceLabel, safeTargetLabel, combinedWhere, sFirst, sRest, tRest, relPattern } =
+      this.constructRelationshipQueryArguments(payload)
+
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append('CALL apoc.periodic.iterate(')
+      .append(
+        `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })${sFirst}${sRest} RETURN s',`
+      )
+      .append(
+        `'WITH s MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest} ${combinedWhere} MERGE (s)${relPattern}(t) RETURN count(*)',`
+      )
+      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
+      .append(')')
+
+    return queryBuilder.getQuery()
+  }
+
+  deleteRelationsByKeys(payload: {
+    sourceLabel: string
+    sourceKey?: string
+    targetLabel: string
+    targetKey?: string
+    relationType?: string
+    direction?: TRelationDirection
+    sourceWhere?: Where
+    targetWhere?: Where
+    manyToMany?: boolean
+  }) {
+    const { safeSourceLabel, safeTargetLabel, combinedWhere, sFirst, sRest, tRest, relPattern } =
+      this.constructRelationshipQueryArguments(payload)
+
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append('CALL apoc.periodic.iterate(')
+      .append(
+        `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })${sFirst}${sRest} RETURN s',`
+      )
+      .append(
+        `'WITH s MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest} ${combinedWhere} OPTIONAL MATCH (s)${relPattern}(t) DELETE rel RETURN count(*)',`
+      )
+      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
+      .append(')')
 
     return queryBuilder.getQuery()
   }

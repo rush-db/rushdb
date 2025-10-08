@@ -21,3 +21,26 @@ export const createMany = createMutator<{
   onError: (error: unknown) => console.log({ error }),
   invalidates: [$filteredRecords, $currentProjectLabels, $currentProjectFields]
 })
+
+export const importCsv = createMutator<{
+  label: string
+  data: string
+  options?: DBRecordCreationOptions
+  parseConfig?: {
+    delimiter?: string
+    header?: boolean
+    skipEmptyLines?: boolean | 'greedy'
+    dynamicTyping?: boolean
+    quoteChar?: string
+    escapeChar?: string
+    newline?: string
+  }
+}>({
+  async fetcher({ init, data, label, options, parseConfig }) {
+    // The SDK method expects params object; we pass init manually for auth/context
+    return await api.records.importCsv({ init, label, data, options, parseConfig })
+  },
+  throwError: true,
+  onError: (error: unknown) => console.log({ error }),
+  invalidates: [$filteredRecords, $currentProjectLabels, $currentProjectFields]
+})

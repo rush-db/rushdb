@@ -11,19 +11,14 @@ import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 
 import { toBoolean } from '@/common/utils/toBolean'
-import { ProjectService } from '@/dashboard/project/project.service'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
 export class PlanActiveGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => WorkspaceService))
-    private readonly workspaceService: WorkspaceService,
-    @Inject(forwardRef(() => ProjectService))
-    private readonly projectService: ProjectService,
-    private readonly neogmaService: NeogmaService
+    private readonly workspaceService: WorkspaceService
   ) {}
 
   async checkHasSubscription(workspaceId: string, transaction: Transaction): Promise<boolean> {
@@ -60,22 +55,18 @@ export class PlanActiveGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest()
-    const workspaceId = request.workspaceId || request.headers['x-workspace-id']
+    const workspaceId = request.workspaceId
 
     if (!workspaceId) {
       return false
     }
-
-    const session = this.neogmaService.createSession('plan-limits-guard')
-    const transaction = session.beginTransaction()
+    const transaction = request.transaction || request.raw?.transaction
 
     const canProcessRequest = await this.checkHasSubscription(workspaceId, transaction)
 
     if (!canProcessRequest) {
-      transaction.close().then(() => session.close())
       throw new HttpException('This feature available with subscription enabled', HttpStatus.PAYMENT_REQUIRED)
     }
-    transaction.close().then(() => session.close())
 
     return true
   }

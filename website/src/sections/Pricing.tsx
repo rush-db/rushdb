@@ -4,28 +4,18 @@ import { Section, SectionHeader, SectionSubtitle, SectionTitle } from '~/compone
 import { ComponentPropsWithoutRef, ReactNode } from 'react'
 import cx from 'classnames'
 import { Button } from '~/components/Button'
-import { ArrowUpRight, Check, Loader } from 'lucide-react'
+import { ArrowUpRight, Check } from 'lucide-react'
 
 import Link from 'next/link'
 import { links } from '~/config/urls'
-import { useBillingData } from '~/hooks/useBillingData'
 import { Switch } from '~/components/Switch'
 import { PricingComparison } from '~/components/PricingComparison'
-
-type PaidStartPlanId = 'start'
-type PaidPlanId = 'pro'
-type PlanPeriod = 'annual' | 'month'
-
-type IncomingPlanData = {
-  amount: number
-  priceId: string
-  productId: string
-}
-
-type BillingData = Record<PaidStartPlanId | PaidPlanId, Record<PlanPeriod, IncomingPlanData>>
+import { PricingCalculator } from '~/components/PricingCalculator'
+import { BillingData } from '~/components/pricing-types'
+import NumberFlow from '@number-flow/react'
 
 interface PricingProps {
-  initialBillingData?: BillingData | null
+  billingData?: BillingData | null
 }
 
 function Feat({ title, subtitle }: { title: ReactNode; subtitle?: ReactNode }) {
@@ -39,7 +29,7 @@ function Feat({ title, subtitle }: { title: ReactNode; subtitle?: ReactNode }) {
         </span>
       </div>
 
-      {subtitle && <div className="text-content3 pl-7 text-start text-sm">{subtitle}</div>}
+      {subtitle && <div className="text-content3 pl-7 text-start text-sm font-medium">{subtitle}</div>}
     </li>
   )
 }
@@ -53,6 +43,7 @@ function PricingCard({
   children,
   headline,
   pricePlaceholder,
+  pricePrefix,
   featured,
   ...props
 }: ComponentPropsWithoutRef<'div'> & {
@@ -60,6 +51,7 @@ function PricingCard({
   description: ReactNode
   action: ReactNode
   headline?: string
+  pricePrefix?: string
   price?: number | 'free'
   pricePlaceholder?: string
   featured?: boolean
@@ -80,84 +72,94 @@ function PricingCard({
         )}
       >
         <div className="w-full p-4">
-          <h3 className="typography-sm text-accent h-5 font-bold">{title}</h3>
-
-          <span className="typography-2xl font-bold capitalize">
-            {price !== 'free' && price !== undefined && '$'}
-            {price ?? pricePlaceholder ?? 'Custom'}
-          </span>
-
-          <p className="text-content3">{description}</p>
+          <h3 className="typography-md text-accent h-4 font-bold">{title}</h3>
+          <div className="mt-2 flex flex-col">
+            <p className="typography-sm text-content3 font-bold capitalize">
+              {pricePrefix ? pricePrefix : ' '}{' '}
+            </p>
+            <span className="typography-2xl font-bold capitalize">
+              {typeof price === 'number' ?
+                <NumberFlow value={price} decimals={0} prefix="$" duration={1} />
+              : (pricePlaceholder ?? 'Custom')}
+            </span>
+          </div>
+          <p className="text-content3 text-sm font-medium">{description}</p>
         </div>
-
+        <div className="mb-2 grid w-full">{action}</div>
         <div className="w-full flex-auto text-left">
-          <p className="text-content3 mb-2">&nbsp;{headline}</p>
+          <p className="text-content3 mb-2 text-sm font-medium">{headline}</p>
 
           <ul className="flex w-full flex-col divide-y">{children}</ul>
         </div>
-        <div className="grid w-full">{action}</div>
       </div>
     </article>
   )
 }
 
-enum Variants {
-  Cloud = 'cloud',
-  OnPremise = 'on-premise'
-}
+export function Pricing({ billingData }: PricingProps) {
+  const [annual, setAnnual] = useState(true)
+  const [calculatorBillingType, setCalculatorBillingType] = useState<'onDemand' | 'reserved'>('reserved')
+  const [recordsCount, setRecordsCount] = useState(10000)
+  const [calculatorTouched, setCalculatorTouched] = useState(false)
 
-export function Pricing({ initialBillingData }: PricingProps) {
-  const [variant] = useState<Variants>(Variants.Cloud)
-  const { loading, data } = useBillingData(initialBillingData)
-
-  const [annual, setAnnual] = useState(false)
-
-  const prices = useMemo(
-    () => ({
-      start: {
-        month: data?.start?.month?.amount,
-        annual: data?.start?.annual?.amount
-      },
-      pro: {
-        month: data?.pro?.month?.amount,
-        annual: data?.pro?.annual?.amount
-      }
-    }),
-    [data]
-  )
-
-  const startPrice = useMemo(() => prices.start[annual ? 'annual' : 'month'], [annual, prices])
-  const proPrice = useMemo(() => prices.pro[annual ? 'annual' : 'month'], [annual, prices])
-
-  if (loading) {
-    return (
-      <div className="container grid h-full min-h-dvh w-full place-content-center items-center">
-        <Loader />
-      </div>
-    )
+  const handleBillingTypeChange = (billingType: 'onDemand' | 'reserved') => {
+    setCalculatorBillingType(billingType)
+    setAnnual(billingType === 'reserved')
   }
 
+  const handleTierChange = (recordsCount: number) => {
+    setCalculatorTouched(true)
+    setRecordsCount(recordsCount)
+  }
+
+  const getFeaturedCard = () => {
+    if (!calculatorTouched) return 'team'
+    if (recordsCount <= 10000) return 'start'
+    if (recordsCount <= 200000) return 'pro'
+    return 'team'
+  }
+
+  const featuredCard = getFeaturedCard()
+
+  const proPrice = useMemo(
+    () => (annual ? billingData?.pro.annual.amount : billingData?.pro.monthly.amount),
+    [annual, billingData]
+  )
+  const teamPrice = useMemo(
+    () => (annual ? billingData!.team[0].reserved.amount : billingData!.team[0].onDemand.amount),
+    [annual, billingData]
+  )
+
   return (
-    <Section className="container">
+    <Section className="container gap-8">
       <SectionHeader className="text-center">
         <SectionTitle className="m-auto max-w-3xl">Simple, Transparent Pricing</SectionTitle>
         <SectionSubtitle className="text-content3">
           Start building for free. Scale when you're ready. No hidden fees.
         </SectionSubtitle>
       </SectionHeader>
-
-      <div className="mx-auto flex items-center gap-4">
-        <p className="text-content3">Monthly</p>
-        <Switch checked={annual} onCheckedChange={setAnnual} aria-readonly />
-        <p className="text-content3">Annually</p>
+      <div className="mx-auto mb-4 flex items-center justify-center gap-4">
+        <p className="text-content2 typography-base font-medium">Monthly</p>
+        <Switch
+          checked={calculatorBillingType === 'reserved'}
+          onCheckedChange={(checked) => handleBillingTypeChange(checked ? 'reserved' : 'onDemand')}
+        />
+        <p className="text-content2 typography-base font-medium">
+          Annual
+          <span className="text-accent-green bg-accent-green/10 ml-2 rounded-full px-2 py-0.5 text-sm font-bold">
+            Save up to 36%
+          </span>
+        </p>
       </div>
-      <div className="grid grid-cols-4 gap-4 sm:grid-cols-1 md:grid-cols-2">
-        {' '}
+      <div className="mb-8 grid grid-cols-4 gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <PricingCard
           price="free"
-          title="Free Forever"
-          description="Perfect for side projects"
+          pricePrefix="forever"
+          title="Start"
+          featured={featuredCard === 'start'}
+          description="Perfect for side projects and learning"
           headline="Everything you need to start:"
+          pricePlaceholder={'FREE'}
           action={
             <Button size="small" variant="outline" as={Link} href={links.app} target="_blank">
               Start Building Free
@@ -165,70 +167,91 @@ export function Pricing({ initialBillingData }: PricingProps) {
             </Button>
           }
         >
-          <Feat title="2 Projects" subtitle="No time limits, no feature restrictions" />
-          <Feat title="10,000 Records" subtitle="Enough for most MVPs and prototypes" />
-          <Feat title="Full REST API" subtitle="Complete access to all query capabilities" />
-          <Feat title="Community Support" subtitle="Get help from our developer community" />
+          <Feat title="Up to 10,000 records" subtitle="Perfect for prototypes and small apps" />
+          <Feat title="2 projects" subtitle="No time limits, no feature restrictions" />
+          <Feat title="Full REST API and SDKs" subtitle="Complete access to all query capabilities" />
+          <Feat title="Smart CDN" subtitle="Global API endpoints for faster access" />
+          <Feat title="Community support" subtitle="Get help from our developer community" />
         </PricingCard>
-        {startPrice && (
-          <PricingCard
-            price={startPrice}
-            title="Start"
-            description={annual ? 'Annually' : 'Monthly'}
-            headline="Everything in Free, plus:"
-            action={
-              <Button size="small" variant="outline" as={Link} href={links.app}>
-                Start Building
-                <ArrowUpRight />
-              </Button>
-            }
-          >
-            <Feat title="Unlimited Projects" />
-            <Feat title="Bring Your Own Neo4j Database" />
-            <Feat title="Cypher Query Preview" />
-            <Feat title="100 000 Records" subtitle="No limits with your own Neo4j instance" />
-            <Feat title="7-Day Backup" subtitle="Coming soon" />
-            <Feat title="3 Team Members" subtitle="Additional seats $5/month each" />
-          </PricingCard>
-        )}
-        {proPrice && (
-          <PricingCard
-            price={proPrice}
-            title="Pro"
-            featured
-            description={annual ? 'Annually' : 'Monthly'}
-            headline="Everything in Start, plus:"
-            action={
-              <Button size="small" variant="accent" as={Link} href={links.app}>
-                Start Building
-                <ArrowUpRight />
-              </Button>
-            }
-          >
-            <Feat title="Unlimited Projects" />
-            <Feat title="Bring Your Own Neo4j Database" />
-            <Feat title="Cypher Query Preview" />
-            <Feat title="1 000 000 Records" subtitle="No limits with your own Neo4j instance" />
-            <Feat title="30-Day Backup" subtitle="Coming soon" />
-            <Feat title="10 Team Members" subtitle="Additional seats $5/month each" />
-            <Feat title="Priority Support" />
-          </PricingCard>
-        )}
+
         <PricingCard
-          className="opacity-50"
-          title="Enterprise"
-          pricePlaceholder={'Custom'}
-          description="Coming soon"
-          headline="Everything in Pro, plus:"
-          action={null}
+          price={proPrice}
+          pricePrefix="from"
+          title="Pro"
+          featured={featuredCard === 'pro'}
+          description="Perfect for growing projects"
+          headline="Everything in Start, plus:"
+          action={
+            <Button
+              size="small"
+              variant={featuredCard === 'pro' ? 'accent' : 'outline'}
+              as={Link}
+              href={links.app}
+            >
+              Upgrade Now
+              <ArrowUpRight />
+            </Button>
+          }
         >
-          <Feat title="Unlimited Everything" />
-          <Feat title="Premium Support" />
-          <Feat title="Uptime SLAs" />
-          <Feat title="Customizations" />
+          <Feat
+            title="Up to 200,000 records"
+            subtitle="On shared infrastructure. Unlimited with your own Neo4j instance"
+          />
+          <Feat title="Unlimited projects" subtitle="Record limit applies collectively across all projects" />
+          <Feat title="Bring your Neo4j" subtitle="Connect Neo4j Aura or own instance" />
+          <Feat title="3 team members" subtitle="then $10 per member" />
+        </PricingCard>
+
+        <PricingCard
+          price={teamPrice}
+          pricePrefix="from"
+          title="Team"
+          featured={featuredCard === 'team'}
+          description="For teams and advanced features"
+          headline="Everything in Pro, plus:"
+          action={
+            <Button
+              size="small"
+              variant={featuredCard === 'team' ? 'accent' : 'outline'}
+              as={Link}
+              href="mailto:hello@rushdb.com"
+            >
+              Upgrade Now
+              <ArrowUpRight />
+            </Button>
+          }
+        >
+          <Feat title="Up to 1B+ records" subtitle="Instant scale up with a single click—grow as needed" />
+          <Feat title="Dedicated instances" subtitle="Guaranteed performance, security, and throughput" />
+          <Feat title="10 team members" subtitle="then $25 per member" />
+          <Feat title="Daily backups stored for 14 days" subtitle="Coming soon" />
+          <Feat title="SSO" subtitle="Enterprise-grade authentication (coming soon)" />
+          <Feat title="Priority support" subtitle="Fast-track access to expert help" />
+        </PricingCard>
+        <PricingCard
+          pricePlaceholder="Contact Us"
+          title="Enterprise"
+          pricePrefix="&nbsp;"
+          description="For large-scale deployments"
+          headline="Everything in Team, plus:"
+          action={
+            <Button size="small" variant="outline" as={Link} href="mailto:hi@rushdb.com">
+              Contact Us
+              <ArrowUpRight />
+            </Button>
+          }
+        >
+          <Feat title="Unlimited everything" subtitle="No limits on records, projects, or usage" />
+          <Feat title="Dedicated support" subtitle="Phone and chat support" />
+          <Feat title="SLA guarantees" subtitle="Uptime and performance guarantees" />
+          <Feat title="Custom deployment" subtitle="On-premise or private cloud options" />
         </PricingCard>
       </div>
-
+      <PricingCalculator
+        tieredPricingData={billingData!.team}
+        onTierChange={handleTierChange}
+        billingType={'reserved'}
+      />
       <PricingComparison className="mt-16" />
     </Section>
   )
