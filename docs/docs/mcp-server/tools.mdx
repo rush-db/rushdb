@@ -1,0 +1,534 @@
+---
+id: tools
+title: Tools
+sidebar_label: Tools
+sidebar_position: 4
+---
+
+The RushDB MCP server exposes a comprehensive set of tools. Each tool includes a `name`, `description`, and `inputSchema`. Below is a summary of the available tools and example usages.
+
+## Database discovery
+
+- FindLabels — List/filter record labels and counts
+- FindProperties — List/filter properties
+- FindRelationships — Search for relationships
+
+## Record operations
+
+- CreateRecord — Create a new record
+- UpdateRecord — Update an existing record (partial)
+- SetRecord — Replace all fields of a record
+- DeleteRecord — Delete a record (alias of DeleteRecordById)
+- DeleteRecordById — Delete a record by ID
+- GetRecord — Get a record by ID
+- GetRecordsByIds — Get multiple records by their IDs
+- FindRecords — Search for records with where/limit/skip/orderBy/aggregate/groupBy
+- FindOneRecord — Find a single record matching criteria
+- FindUniqRecord — Find a unique record matching criteria
+
+## Relationship management
+
+- AttachRelation — Attach relationships between records
+- DetachRelation — Detach relationships between records
+- FindRelationships — Search for relationships
+
+## Bulk operations
+
+- BulkCreateRecords — Create multiple records at once
+- BulkDeleteRecords — Delete multiple records by query
+
+## Data export
+
+- ExportRecords — Export records to CSV format
+
+## Transactions
+
+- TransactionBegin — Begin a transaction
+- TransactionCommit — Commit a transaction
+- TransactionRollback — Roll back a transaction
+- TransactionGet — Get info about a transaction
+
+## Utilities
+
+- GetSettings — Get current database settings
+- OpenBrowser — Open a URL in a browser
+- HelpAddToClient — Setup instructions for adding this server to MCP clients
+
+---
+
+## Examples
+
+### Find labels
+
+Ask your MCP client:
+
+> Use the RushDB MCP server to run FindLabels with limit=10.
+
+### Create a record
+
+> Use CreateRecord to add a record with label "Task" and data `{"title": "Write docs", "status": "open"}`.
+
+### Find records
+
+> Call FindRecords where `{"status": "open"}` orderBy `{"createdAt": "desc"}` limit 5.
+
+### Attach relationships
+
+> AttachRelation from sourceId `"<id1>"` to targetIds `["<id2>", "<id3>"]` with relationType `"references"`.
+
+### Transactions
+
+> Begin a transaction, create two records, attach a relation, then commit.
+
+If needed, your client can call `TransactionRollback` to undo the changes.
+
+---
+
+For detailed input schemas, see the tool definitions in the MCP server source (`packages/mcp-server/tools.ts`).
+
+---
+
+## Tool reference
+
+Below, each tool is described with its purpose and arguments. Types reflect the MCP input schema; required flags and defaults are noted.
+
+### FindLabels
+
+List or filter record labels and their counts.
+
+Arguments:
+
+| Name    | Type    | Required | Default | Description |
+|---------|---------|----------|---------|-------------|
+| where   | object  | no       | —       | Filter conditions for labels (e.g., by activity flags, counts) |
+| limit   | number  | no       | —       | Maximum number of labels to return |
+| skip    | number  | no       | —       | Number of labels to skip |
+| orderBy | object  | no       | —       | Sorting: key = field, value = `asc` or `desc` |
+
+Example prompt:
+
+> Run `FindLabels` with `limit=10` ordered by `{ "count": "desc" }`.
+
+---
+
+### CreateRecord
+
+Create a new record with the specified label and data.
+
+Arguments:
+
+| Name          | Type   | Required | Default | Description |
+|---------------|--------|----------|---------|-------------|
+| label         | string | yes      | —       | Label for the record |
+| data          | object | yes      | —       | Record data to insert |
+| transactionId | string | no       | —       | Optional transaction ID for atomic creation |
+
+Example prompt:
+
+> Call `CreateRecord` with `label="Task"` and `data={"title":"Write docs","status":"open"}`.
+
+---
+
+### UpdateRecord
+
+Partially update fields of an existing record.
+
+Arguments:
+
+| Name          | Type   | Required | Default | Description |
+|---------------|--------|----------|---------|-------------|
+| recordId      | string | yes      | —       | ID of the record to update |
+| label         | string | yes      | —       | Label for the record |
+| data          | object | yes      | —       | Partial data to update |
+| transactionId | string | no       | —       | Optional transaction ID |
+
+Example prompt:
+
+> Use `UpdateRecord` with `recordId="<id>"`, `label="Task"`, and `data={"status":"done"}`.
+
+---
+
+### SetRecord
+
+Replace all fields of a record (full update).
+
+Arguments:
+
+| Name          | Type   | Required | Default | Description |
+|---------------|--------|----------|---------|-------------|
+| recordId      | string | yes      | —       | ID of the record to set |
+| label         | string | yes      | —       | Label for the record |
+| data          | object | yes      | —       | Full record data (replaces existing fields) |
+| transactionId | string | no       | —       | Optional transaction ID |
+
+Example prompt:
+
+> Call `SetRecord` for `recordId="<id>"`, `label="Task"`, data `{"title":"Polish docs","status":"in-progress"}`.
+
+---
+
+### DeleteRecord / DeleteRecordById
+
+Delete a record by its ID. `DeleteRecord` is an alias of `DeleteRecordById`.
+
+Arguments:
+
+| Name          | Type   | Required | Default | Description |
+|---------------|--------|----------|---------|-------------|
+| recordId      | string | yes      | —       | ID of the record to delete |
+| transactionId | string | no       | —       | Optional transaction ID |
+
+Example prompt:
+
+> Use `DeleteRecordById` with `recordId="<id>"`.
+
+---
+
+### GetRecord
+
+Retrieve a specific record by ID.
+
+Arguments:
+
+| Name     | Type   | Required | Default | Description |
+|----------|--------|----------|---------|-------------|
+| recordId | string | yes      | —       | ID of the record to retrieve |
+
+Example prompt:
+
+> Call `GetRecord` for `recordId="<id>"`.
+
+---
+
+### GetRecordsByIds
+
+Retrieve multiple records by an array of IDs.
+
+Arguments:
+
+| Name      | Type              | Required | Default | Description |
+|-----------|-------------------|----------|---------|-------------|
+| recordIds | array of strings  | yes      | —       | IDs of records to retrieve |
+
+Example prompt:
+
+> Call `GetRecordsByIds` with `recordIds=["<id1>","<id2>"]`.
+
+---
+
+### FindRecords
+
+Search for records with advanced filtering, sorting, paging, grouping, and aggregation.
+
+Arguments:
+
+| Name       | Type               | Required | Default | Description |
+|------------|--------------------|----------|---------|-------------|
+| labels     | array of strings   | no       | —       | Filter by record labels |
+| where      | object             | no       | —       | Query conditions |
+| limit      | number             | no       | 10      | Max records to return |
+| skip       | number             | no       | 0       | Records to skip |
+| orderBy    | object             | no       | —       | Sorting: key = field, value = `asc` or `desc` |
+| aggregate  | object of objects  | no       | —       | Aggregations: each key maps to `{ fn, field?, alias?, granularity? }`. `fn` in `count,sum,avg,min,max,timeBucket`. For `timeBucket`, provide `granularity` like `day`, `week`, `month`, `quarter`, or `year`. |
+| groupBy    | array of strings   | no       | —       | Fields to group by (records only) |
+
+Example prompt:
+
+> Run `FindRecords` with `where={"status":"open"}`, `orderBy={"createdAt":"desc"}`, `limit=5`.
+
+---
+
+### FindOneRecord
+
+Find a single record that matches the criteria (returns one or none).
+
+Arguments:
+
+| Name   | Type             | Required | Default | Description |
+|--------|------------------|----------|---------|-------------|
+| labels | array of strings | no       | —       | Filter by labels |
+| where  | object           | no       | —       | Query conditions |
+
+Example prompt:
+
+> Use `FindOneRecord` with `where={"email":"user@example.com"}`.
+
+---
+
+### FindUniqRecord
+
+Find a unique record that matches the criteria (errors if multiple match in some clients; the server returns not-found text if none).
+
+Arguments:
+
+| Name   | Type             | Required | Default | Description |
+|--------|------------------|----------|---------|-------------|
+| labels | array of strings | no       | —       | Filter by labels |
+| where  | object           | no       | —       | Query conditions expected to match a single record |
+
+Example prompt:
+
+> Use `FindUniqRecord` with `labels=["User"]` and `where={"username":"alice"}`.
+
+---
+
+### AttachRelation
+
+Create relationships from a source record to one or more target records.
+
+Arguments:
+
+| Name          | Type                      | Required | Default   | Description |
+|---------------|---------------------------|----------|-----------|-------------|
+| sourceId      | string                    | yes      | —         | ID of the source record |
+| targetId      | string                    | no       | —         | ID of a single target (deprecated if `targetIds` provided) |
+| targetIds     | array of strings          | no       | —         | IDs of multiple targets |
+| relationType  | string                    | no       | —         | Relationship type label |
+| direction     | `outgoing|incoming|bidirectional` | no | outgoing | Direction of the relation |
+| transactionId | string                    | no       | —         | Optional transaction ID |
+
+Example prompt:
+
+> Call `AttachRelation` from `sourceId="<id1>"` to `targetIds=["<id2>","<id3>"]` with `relationType="references"`.
+
+---
+
+### DetachRelation
+
+Remove relationships between records.
+
+Arguments:
+
+| Name          | Type                      | Required | Default   | Description |
+|---------------|---------------------------|----------|-----------|-------------|
+| sourceId      | string                    | yes      | —         | ID of the source record |
+| targetId      | string                    | no       | —         | ID of a single target (deprecated if `targetIds` provided) |
+| targetIds     | array of strings          | no       | —         | IDs of multiple targets |
+| relationType  | string                    | no       | —         | Relationship type to remove |
+| direction     | `outgoing|incoming|bidirectional` | no | outgoing | Direction filter |
+| transactionId | string                    | no       | —         | Optional transaction ID |
+
+Example prompt:
+
+> Use `DetachRelation` with `sourceId="<id1>"`, `targetId="<id2>"`, and `relationType="references"`.
+
+---
+
+### FindRelationships
+
+Search for relationships with filters, sorting, and paging.
+
+Arguments:
+
+| Name    | Type   | Required | Default | Description |
+|---------|--------|----------|---------|-------------|
+| where   | object | no       | —       | Query conditions for relationships |
+| limit   | number | no       | 10      | Max number to return |
+| skip    | number | no       | 0       | Number to skip |
+| orderBy | object | no       | —       | Sorting: key = field, value = `asc` or `desc` |
+
+Example prompt:
+
+> Run `FindRelationships` with `limit=20`.
+
+---
+
+### BulkCreateRecords
+
+Create multiple records in a single operation.
+
+Arguments:
+
+| Name          | Type             | Required | Default | Description |
+|---------------|------------------|----------|---------|-------------|
+| label         | string           | yes      | —       | Label for all records |
+| data          | array of objects | yes      | —       | Array of record payloads |
+| transactionId | string           | no       | —       | Optional transaction ID |
+
+Example prompt:
+
+> Call `BulkCreateRecords` for `label="Task"` with `data=[{"title":"A"},{"title":"B"}]`.
+
+---
+
+### BulkDeleteRecords
+
+Delete multiple records matching a query.
+
+Arguments:
+
+| Name          | Type             | Required | Default | Description |
+|---------------|------------------|----------|---------|-------------|
+| labels        | array of strings | no       | —       | Filter by labels |
+| where         | object           | yes      | —       | Criteria for records to delete |
+| transactionId | string           | no       | —       | Optional transaction ID |
+
+Example prompt:
+
+> Use `BulkDeleteRecords` with `where={"status":"obsolete"}`.
+
+---
+
+### ExportRecords
+
+Export records to CSV.
+
+Arguments:
+
+| Name    | Type             | Required | Default | Description |
+|---------|------------------|----------|---------|-------------|
+| labels  | array of strings | no       | —       | Filter by labels |
+| where   | object           | no       | —       | Criteria for records to export |
+| limit   | number           | no       | —       | Max records to export |
+| orderBy | object           | no       | —       | Sorting for export: key = field, value = `asc` or `desc` |
+
+Example prompt:
+
+> Call `ExportRecords` with `labels=["Task"]` and `limit=100`.
+
+---
+
+### PropertyValues
+
+Get values for a specific property.
+
+Arguments:
+
+| Name       | Type                     | Required | Default | Description |
+|------------|--------------------------|----------|---------|-------------|
+| propertyId | string                   | yes      | —       | ID of the property |
+| query      | string                   | no       | —       | Filter values (search term) |
+| orderBy    | `asc|desc`               | no       | —       | Ordering of values |
+| limit      | number                   | no       | —       | Max number of values |
+| skip       | number                   | no       | —       | Number of values to skip |
+
+Example prompt:
+
+> Run `PropertyValues` with `propertyId="<property-id>"` and `limit=20`.
+
+---
+
+### FindProperties
+
+Search for properties with filters, sorting, and paging.
+
+Arguments:
+
+| Name    | Type   | Required | Default | Description |
+|---------|--------|----------|---------|-------------|
+| where   | object | no       | —       | Filter conditions |
+| limit   | number | no       | 10      | Max properties to return |
+| skip    | number | no       | 0       | Number to skip |
+| orderBy | object | no       | —       | Sorting: key = field, value = `asc` or `desc` |
+
+Example prompt:
+
+> Call `FindProperties` with `limit=25` ordered by `{ "count": "desc" }`.
+
+---
+
+### FindPropertyById
+
+Retrieve a specific property by ID.
+
+Arguments:
+
+| Name       | Type   | Required | Default | Description |
+|------------|--------|----------|---------|-------------|
+| propertyId | string | yes      | —       | ID of the property |
+
+Example prompt:
+
+> Use `FindPropertyById` with `propertyId="<property-id>"`.
+
+---
+
+### DeleteProperty
+
+Delete a property by ID.
+
+Arguments:
+
+| Name       | Type   | Required | Default | Description |
+|------------|--------|----------|---------|-------------|
+| propertyId | string | yes      | —       | ID of the property to delete |
+
+Example prompt:
+
+> Call `DeleteProperty` with `propertyId="<property-id>"`.
+
+---
+
+### TransactionBegin
+
+Begin a new database transaction.
+
+Arguments:
+
+| Name | Type   | Required | Default | Description |
+|------|--------|----------|---------|-------------|
+| ttl  | number | no       | —       | Time-to-live in milliseconds |
+
+Example prompt:
+
+> Run `TransactionBegin` with `ttl=60000` (1 minute).
+
+---
+
+### TransactionCommit
+
+Commit a transaction.
+
+Arguments:
+
+| Name          | Type   | Required | Default | Description |
+|---------------|--------|----------|---------|-------------|
+| transactionId | string | yes      | —       | Transaction ID to commit |
+
+Example prompt:
+
+> Call `TransactionCommit` with `transactionId="<tx-id>"`.
+
+---
+
+### TransactionRollback
+
+Rollback a transaction.
+
+Arguments:
+
+| Name          | Type   | Required | Default | Description |
+|---------------|--------|----------|---------|-------------|
+| transactionId | string | yes      | —       | Transaction ID to rollback |
+
+Example prompt:
+
+> Use `TransactionRollback` with `transactionId="<tx-id>"`.
+
+---
+
+### TransactionGet
+
+Get information about a transaction.
+
+Arguments:
+
+| Name          | Type   | Required | Default | Description |
+|---------------|--------|----------|---------|-------------|
+| transactionId | string | yes      | —       | Transaction ID to inspect |
+
+Example prompt:
+
+> Run `TransactionGet` with `transactionId="<tx-id>"`.
+
+---
+
+### GetSettings
+
+Return current database settings and configuration.
+
+Arguments: none
+
+Example prompt:
+
+> Call `GetSettings`.

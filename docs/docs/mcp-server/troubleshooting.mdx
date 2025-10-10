@@ -1,0 +1,52 @@
+---
+id: troubleshooting
+title: Troubleshooting
+sidebar_label: Troubleshooting
+sidebar_position: 6
+---
+
+Common issues and how to fix them.
+
+## Missing API key
+
+Error:
+
+```
+RUSHDB_API_KEY environment variable is required. Set it in a .env file (packages/mcp-server/.env) or export it before running the server.
+```
+
+Fix:
+- Provide `RUSHDB_API_KEY` in your MCP client config under `env`, or
+- Create a `.env` file with `RUSHDB_API_KEY=...`, or
+- `export RUSHDB_API_KEY=...` in your shell
+
+## Wrong or unreachable API URL
+
+Errors like:
+- `Invalid URL`
+- `Failed to fetch`
+- `Network error`
+
+Fix:
+- Verify `RUSHDB_API_URL` (if set) points to a valid RushDB API endpoint.
+- If you’re self-hosting, make sure your server is reachable from your machine.
+- Remove `RUSHDB_API_URL` to use the default `https://api.rushdb.com/api/v1`.
+
+## "RushDB is not a constructor"
+
+Cause:
+- Some environments/bundlers differ in how CJS/ESM default exports are exposed, causing the constructor to be missing.
+
+Fix:
+- The MCP server now resolves the constructor from `default`, `RushDB`, or the module itself, so updating to the latest version should address this.
+- If building from source, rebuild the package and restart your MCP client.
+
+## Permissions or timeouts
+
+- Check your network/firewall configuration.
+- Increase client timeouts if your environment is slow.
+- Try smaller `limit` values on large queries.
+
+## Still stuck?
+
+Open an issue with logs at https://github.com/rush-db/rushdb/issues

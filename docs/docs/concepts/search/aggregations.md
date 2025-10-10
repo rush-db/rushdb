@@ -41,7 +41,7 @@ The following aggregation functions are supported:
 - `min` - Get minimum value from a field
 - `sum` - Calculate sum of a numeric field
 - `collect` - Gather field values or entire records into an array
-- `timeBucket` - Bucket a datetime field into calendar intervals (day/week/month/quarter/year or custom N-month size)
+- `timeBucket` - Bucket a datetime field into calendar intervals (day/week/month/quarter/year/hour/minute/second or custom N-sized months/hours/minutes/seconds/years)
 - `gds.similarity.*` - Calculate vector similarity using various algorithms:
   - `cosine` - Cosine similarity [-1,1]
   - `euclidean` - Euclidean distance normalized to (0,1]
@@ -341,14 +341,15 @@ graph LR
   - `fn`: 'timeBucket' – Function name
   - `field`: string – Datetime field to bucket (must be typed as `"datetime"` in the record metadata)
   - `alias?`: string – Record alias to read from (defaults to `$record`)
-  - `granularity`: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'months'
-    - Use `'months'` when you need a custom N‑month window size (see `size` below)
-  - `size?`: number – Positive integer required only when `granularity: 'months'` (e.g. 2 = bi‑monthly, 3 = quarterly equivalent, 6 = half‑year)
+  - `granularity`: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'hour' | 'minute' | 'second' | 'months' | 'hours' | 'minutes' | 'seconds' | 'years'
+    - Use plural forms `'months' | 'hours' | 'minutes' | 'seconds' | 'years'` when you need a custom N‑sized window (see `size` below)
+  - `size?`: number – Positive integer required only when using plural forms (e.g. months: 2 = bi‑monthly, hours: 6 = 6‑hour windows, minutes: 5 = 5‑minute windows, seconds: 30 = 30‑second windows, years: 5 = 5‑year windows)
 
   **Behavior & Guardrails:**
   - RushDB checks the field's type metadata (`datetime`) before computing the bucket; if it is not a datetime field the bucket value becomes `null`.
-  - Bucket value is the start of the interval (e.g. month bucket -> first day of month at 00:00:00, quarter -> first day of the quarter, week uses Neo4j `datetime.truncate('week', ...)`).
+  - Bucket value is the start of the interval (e.g. month bucket -> first day of month at 00:00:00; hour bucket -> `HH:00:00`; minute bucket -> `MM:00`; second bucket -> start second). `week` uses Neo4j `datetime.truncate('week', ...)`.
   - For `granularity: 'months'` the bucket start month is computed with: `1 + size * floor((month - 1)/size)`.
+  - For `granularity: 'years'` the bucket start year is computed with: `size * floor(year/size)` (starts Jan 1 of the computed year).
     - Setting `size: 3` is equivalent to `granularity: 'quarter'`.
     - `quarter` is provided as a semantic shortcut (3‑month periods starting at months 1,4,7,10).
   - Difference example: `quarter` -> buckets start at 1,4,7,10; `months` + `size:4` -> buckets start at 1,5,9 (three 4‑month buckets per year). Use `size:3` for quarter‑like grouping when using the generic mode.
@@ -371,8 +372,8 @@ graph LR
   {
     labels: ['INVOICE'],
     aggregate: {
-  quarterStart: { fn: 'timeBucket', field: 'issuedAt', granularity: 'quarter' },
-  quarterlyRevenue: { fn: 'sum', field: 'amount' }
+      quarterStart: { fn: 'timeBucket', field: 'issuedAt', granularity: 'quarter' },
+      quarterlyRevenue: { fn: 'sum', field: 'amount' }
     },
     groupBy: ['quarterStart'],
     orderBy: { quarterStart: 'asc' }
@@ -385,8 +386,8 @@ graph LR
     labels: ['SESSION'],
     where: { status: 'active' },
     aggregate: {
-  periodStart: { fn: 'timeBucket', field: 'startedAt', granularity: 'months', size: 2 },
-  activeSessions: { fn: 'count' }
+      periodStart: { fn: 'timeBucket', field: 'startedAt', granularity: 'months', size: 2 },
+      activeSessions: { fn: 'count' }
     },
     groupBy: ['periodStart'],
     orderBy: { periodStart: 'asc' }
@@ -398,8 +399,8 @@ graph LR
   {
     labels: ['DEAL'],
     aggregate: {
-  halfYear: { fn: 'timeBucket', field: 'closedAt', granularity: 'months', size: 6 },
-  avgDeal: { fn: 'avg', field: 'amount', precision: 2 }
+      halfYear: { fn: 'timeBucket', field: 'closedAt', granularity: 'months', size: 6 },
+      avgDeal: { fn: 'avg', field: 'amount', precision: 2 }
     },
     groupBy: ['halfYear'],
     orderBy: { halfYear: 'asc' }
@@ -415,9 +416,9 @@ graph LR
   {
     labels: ['ORDER'],
     aggregate: {
-  monthStart: { fn: 'timeBucket', field: 'createdAt', granularity: 'month' },
-  monthlyRevenue: { fn: 'sum', field: 'total' },
-  orderCount: { fn: 'count' }
+      monthStart: { fn: 'timeBucket', field: 'createdAt', granularity: 'month' },
+      monthlyRevenue: { fn: 'sum', field: 'total' },
+      orderCount: { fn: 'count' }
     },
     groupBy: ['monthStart'],
     orderBy: { monthStart: 'asc' }
@@ -426,6 +427,71 @@ graph LR
   Result rows each represent one calendar month start with aggregated metrics.
 
   ---
+
+  #### Example: Hourly event counts
+  ```typescript
+  {
+    labels: ['EVENT'],
+    aggregate: {
+      hour: { fn: 'timeBucket', field: 'createdAt', granularity: 'hour' },
+      count: { fn: 'count' }
+    },
+    groupBy: ['hour'],
+    orderBy: { hour: 'asc' }
+  }
+  ```
+
+  #### Example: 6‑hour windows
+  ```typescript
+  {
+    labels: ['EVENT'],
+    aggregate: {
+      windowStart: { fn: 'timeBucket', field: 'createdAt', granularity: 'hours', size: 6 },
+      count: { fn: 'count' }
+    },
+    groupBy: ['windowStart'],
+    orderBy: { windowStart: 'asc' }
+  }
+  ```
+
+  #### Example: 5‑minute windows
+  ```typescript
+  {
+    labels: ['EVENT'],
+    aggregate: {
+      windowStart: { fn: 'timeBucket', field: 'createdAt', granularity: 'minutes', size: 5 },
+      count: { fn: 'count' }
+    },
+    groupBy: ['windowStart'],
+    orderBy: { windowStart: 'asc' }
+  }
+  ```
+
+  #### Example: 30‑second windows
+  ```typescript
+  {
+    labels: ['EVENT'],
+    aggregate: {
+      windowStart: { fn: 'timeBucket', field: 'createdAt', granularity: 'seconds', size: 30 },
+      count: { fn: 'count' }
+    },
+    groupBy: ['windowStart'],
+    orderBy: { windowStart: 'asc' }
+  }
+  ```
+
+  #### Example: 5‑year windows
+  ```typescript
+  {
+    labels: ['INVOICE'],
+    aggregate: {
+      cohort: { fn: 'timeBucket', field: 'issuedAt', granularity: 'years', size: 5 },
+      revenue: { fn: 'sum', field: 'amount' }
+    },
+    groupBy: ['cohort'],
+    orderBy: { cohort: 'asc' }
+  }
+  ```
 
 ---
 

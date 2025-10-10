@@ -1,0 +1,32 @@
+---
+id: examples
+title: Examples
+sidebar_label: Examples
+sidebar_position: 5
+---
+
+Here are some concrete prompts you can use with your MCP client to interact with RushDB.
+
+## Listing labels
+
+> Ask the RushDB MCP server to run `FindLabels` with `limit=20`.
+
+## Creating and querying records
+
+> Use `CreateRecord` to add a `Task` with data `{"title": "Write docs", "status": "open"}`.
+
+> Now use `FindRecords` with `where={"status": "open"}` and `orderBy={"createdAt": "desc"}` limit 5.
+
+## Setting records
+
+> Use `SetRecord` for `recordId="<id>"` with label `Task` and data `{"title": "Polish docs", "status": "in-progress"}`.
+
+## Attaching relationships
+
+> Call `AttachRelation` from `sourceId="<sourceId>"` to `targetIds=["<target1>", "<target2>"]` with `relationType="references"`.
+
+## Transactions
+
+> Start a transaction, create two `Task` records, attach a relation, and commit.
+
+If something goes wrong, you can ask your client to call `TransactionRollback` with the `transactionId` returned from `TransactionBegin`.

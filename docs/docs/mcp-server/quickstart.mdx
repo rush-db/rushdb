@@ -1,0 +1,67 @@
+---
+id: quickstart
+title: Quickstart
+sidebar_label: Quickstart
+sidebar_position: 2
+---
+
+Get up and running with the RushDB MCP server in minutes.
+
+## Prerequisites
+
+- A RushDB account and API key from https://rushdb.com (Dashboard: https://app.rushdb.com)
+- An MCP client (for example, Claude Desktop)
+- Node.js 18+ installed locally
+
+## Install
+
+```bash
+npm install -g @rushdb/mcp-server
+```
+
+Alternatively, you can run the server with `npx` from your MCP client configuration.
+
+## Configure your MCP client (Claude Desktop example)
+
+Add or update your Claude Desktop config (e.g., `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "your-rushdb-api-key-here",
+        "RUSHDB_API_URL": "https://api.rushdb.com/api/v1"
+      }
+    }
+  }
+}
+```
+
+Notes:
+- `RUSHDB_API_KEY` is required.
+- `RUSHDB_API_URL` is optional and defaults to `https://api.rushdb.com/api/v1`. Override it for self-hosted/staging.
+
+## Verify
+
+Restart your MCP client. Ask it something like:
+
+> Use the RushDB MCP server to list labels.
+
+You should see a tool call response listing labels, or a helpful message if your credentials are missing.
+
+## Enable the Query Builder prompt (recommended)
+
+To make discovery-first behavior automatic, your MCP client should:
+
+1) Call `ListPrompts` → find `rushdb.queryBuilder`.
+2) Call `GetPrompt` with that name.
+3) Set the returned system message for the model session that will use RushDB tools.
+
+Once enabled, the agent will first discover labels/properties and then construct validated SearchQuery objects for find-related calls.
+
+No Prompts support? Use the fallback tool:
+
+> Call `GetQueryBuilderPrompt` and set the response as the system message for your RushDB session.

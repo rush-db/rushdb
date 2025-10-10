@@ -18,6 +18,7 @@ async function generateCategorizedContentFiles(
     'typescript-sdk': [] as string[],
     'python-sdk': [] as string[],
     'rest-api': [] as string[],
+    'mcp-server': [] as string[],
     tutorials: [] as string[],
     'get-started': [] as string[]
   }
@@ -33,6 +34,8 @@ async function generateCategorizedContentFiles(
       categories['python-sdk'].push(content)
     } else if (filePath.startsWith('rest-api/')) {
       categories['rest-api'].push(content)
+    } else if (filePath.startsWith('mcp-server/')) {
+      categories['mcp-server'].push(content)
     } else if (filePath.startsWith('tutorials/')) {
       categories.tutorials.push(content)
     } else if (filePath.startsWith('get-started/')) {
@@ -222,6 +225,7 @@ const config: Config = {
             'typescript-sdk': [] as string[],
             'python-sdk': [] as string[],
             'rest-api': [] as string[],
+            'mcp-server': [] as string[],
             tutorials: [] as string[],
             'get-started': [] as string[]
           }
@@ -243,6 +247,8 @@ const config: Config = {
               categories['python-sdk'].push(docEntry)
             } else if (path.startsWith('rest-api/')) {
               categories['rest-api'].push(docEntry)
+            } else if (path.startsWith('mcp-server/')) {
+              categories['mcp-server'].push(docEntry)
             } else if (path.startsWith('tutorials/')) {
               categories.tutorials.push(docEntry)
             } else if (path.startsWith('get-started/')) {
@@ -358,6 +364,13 @@ const config: Config = {
             activeBaseRegex: '/rest-api/'
           },
           {
+            label: 'MCP Server',
+            href: '/mcp-server/introduction',
+            className: 'mcp-server',
+            position: 'left',
+            activeBaseRegex: '/mcp-server/'
+          },
+          {
             href: 'https://github.com/rush-db/rushdb',
             // label: 'GitHub',
             position: 'right',
@@ -393,7 +406,7 @@ const config: Config = {
             ]
           },
           {
-            title: 'SDKs',
+            title: 'APIs & Integrations',
             items: [
               {
                 label: 'REST API',
@@ -406,6 +419,10 @@ const config: Config = {
               {
                 label: 'TypeScript SDK',
                 to: '/typescript-sdk/introduction'
+              },
+              {
+                label: 'MCP Server',
+                to: '/mcp-server/introduction'
               }
             ]
           },

@@ -335,9 +335,17 @@ export function buildTimeBucketFunction(
   const recordAlias = aliasesMap[instruction.alias || '$record']
 
   const granularity = instruction.granularity
-  if (granularity === 'months') {
+  if (
+    granularity === 'months' ||
+    granularity === 'hours' ||
+    granularity === 'minutes' ||
+    granularity === 'seconds' ||
+    granularity === 'years'
+  ) {
     if (!instruction.size || instruction.size <= 0 || !Number.isInteger(instruction.size)) {
-      throw new Error('timeBucket: size must be a positive integer when granularity = "months"')
+      throw new Error(
+        'timeBucket: size must be a positive integer when granularity is months, hours, minutes, seconds, or years'
+      )
     }
   }
 
@@ -360,6 +368,15 @@ export function buildTimeBucketFunction(
     case 'month':
       bucketStartExpr = `datetime({year: ${dtExpr}.year, month: ${dtExpr}.month, day: 1})`
       break
+    case 'hour':
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: ${dtExpr}.month, day: ${dtExpr}.day, hour: ${dtExpr}.hour})`
+      break
+    case 'minute':
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: ${dtExpr}.month, day: ${dtExpr}.day, hour: ${dtExpr}.hour, minute: ${dtExpr}.minute})`
+      break
+    case 'second':
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: ${dtExpr}.month, day: ${dtExpr}.day, hour: ${dtExpr}.hour, minute: ${dtExpr}.minute, second: ${dtExpr}.second})`
+      break
     case 'quarter':
       // Quarter start month = 1 + 3 * floor((month-1)/3)
       bucketStartExpr = `datetime({year: ${dtExpr}.year, month: 1 + 3 * toInteger(floor((${dtExpr}.month - 1)/3)), day: 1})`
@@ -372,6 +389,30 @@ export function buildTimeBucketFunction(
       // Compute bucket index starting from month 1. Example size=2: months 1-2 -> bucket 0, 3-4 -> bucket1
       // bucketStartMonth = 1 + size * floor((month-1)/size)
       bucketStartExpr = `datetime({year: ${dtExpr}.year, month: 1 + ${size} * toInteger(floor((${dtExpr}.month - 1)/${size})), day: 1})`
+      break
+    }
+    case 'years': {
+      const size = instruction.size as number
+      // Start year = size * floor(year/size)
+      bucketStartExpr = `datetime({year: ${size} * toInteger(floor(${dtExpr}.year / ${size})), month: 1, day: 1})`
+      break
+    }
+    case 'hours': {
+      const size = instruction.size as number
+      // Start hour = size * floor(hour/size)
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: ${dtExpr}.month, day: ${dtExpr}.day, hour: ${size} * toInteger(floor(${dtExpr}.hour / ${size}))})`
+      break
+    }
+    case 'minutes': {
+      const size = instruction.size as number
+      // Start minute = size * floor(minute/size)
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: ${dtExpr}.month, day: ${dtExpr}.day, hour: ${dtExpr}.hour, minute: ${size} * toInteger(floor(${dtExpr}.minute / ${size}))})`
+      break
+    }
+    case 'seconds': {
+      const size = instruction.size as number
+      // Start second = size * floor(second/size)
+      bucketStartExpr = `datetime({year: ${dtExpr}.year, month: ${dtExpr}.month, day: ${dtExpr}.day, hour: ${dtExpr}.hour, minute: ${dtExpr}.minute, second: ${size} * toInteger(floor(${dtExpr}.second / ${size}))})`
       break
     }
     default:

@@ -1,0 +1,33 @@
+---
+id: introduction
+title: MCP Server for RushDB
+sidebar_label: Introduction
+sidebar_position: 1
+---
+
+Welcome to the RushDB MCP (Model Context Protocol) server. This server exposes RushDB's Labeled Meta Property Graph (LMPG) database to MCP-compatible clients like Claude Desktop, Cursor, or any MCP tooling.
+
+With the MCP server you can:
+
+- Browse labels and properties
+- Create, read, update, and delete records
+- Attach/Detach relationships
+- Perform flexible queries with filtering, ordering, pagination, and aggregations
+- Run bulk operations
+- Export data to CSV
+- Manage transactions
+
+This section covers setup, configuration, available tools, examples, and troubleshooting.
+
+> Looking for SDKs instead? See the TypeScript SDK and Python SDK sections in the sidebar.
+
+## Discovery-first Query Builder (Prompts)
+
+The MCP server exposes a built-in system prompt via the MCP Prompts API:
+
+- Name: `rushdb.queryBuilder`
+- Goal: ensure the agent discovers actual labels/properties first (FindLabels/FindProperties), then builds validated SearchQuery objects (with correct use of where/orderBy/aggregate/groupBy) before calling find-related tools.
+
+MCP clients that support Prompts should fetch this prompt at session start and set it as the system message. This makes natural language requests like “How many workers in my company?” resolve reliably without hallucinating labels or fields.
+
+If your client doesn’t support Prompts yet, call the utility tool `GetQueryBuilderPrompt` and use the returned text as your session’s system message.
