@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.17.0
+
+### Minor Changes
+
+- 71ca63f: Add MCP Server package
+
 ## 1.16.0
 
 ### Minor Changes
