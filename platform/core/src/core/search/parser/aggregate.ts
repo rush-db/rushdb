@@ -344,7 +344,7 @@ export function buildTimeBucketFunction(
   ) {
     if (!instruction.size || instruction.size <= 0 || !Number.isInteger(instruction.size)) {
       throw new Error(
-        'timeBucket: size must be a positive integer when granularity = "months|hours|minutes|seconds|years"'
+        'timeBucket: size must be a positive integer when granularity is months, hours, minutes, seconds, or years'
       )
     }
   }
