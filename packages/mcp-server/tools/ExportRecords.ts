@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ensureInitialized } from '../util/db.js'
+import { db } from '../util/db.js'
 
 export async function ExportRecords(params: {
   labels?: string[]
@@ -20,7 +20,6 @@ export async function ExportRecords(params: {
   limit?: number
 }) {
   const { labels, where, limit } = params
-  const db = await ensureInitialized()
 
   const searchQuery: any = {}
   if (labels && labels.length > 0) {

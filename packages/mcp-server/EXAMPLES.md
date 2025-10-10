@@ -41,6 +41,18 @@ If you're using a VS Code MCP extension, add this to your settings:
 ## Example Usage
 
 Once configured, you can use the RushDB MCP server like this:
+### Use the Query Builder prompt (recommended)
+
+If your client supports MCP Prompts:
+
+1. List prompts and select `rushdb.queryBuilder`.
+2. Ask: `How many workers in my company?`
+
+If your client does not support Prompts:
+
+1. Call `GetQueryBuilderPrompt`.
+2. Paste the response as the session system message, then ask your question.
+
 
 ### Create a record
 ```

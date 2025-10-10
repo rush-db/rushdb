@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ensureInitialized } from '../util/db.js'
+import { db } from '../util/db.js'
 
-export async function CreateRecord(params: { label: string; data: Record<string, any> }) {
-  const { label, data } = params
-  const db = await ensureInitialized()
+export async function CreateRecord(params: {
+  label: string
+  data: Record<string, any>
+  transactionId?: string
+}) {
+  const { label, data, transactionId } = params
 
-  const result = await db.records.create({ label, data })
+  const result = await db.records.create({ label, data }, transactionId)
 
   return {
     success: true,

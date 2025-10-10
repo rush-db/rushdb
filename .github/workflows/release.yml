@@ -45,8 +45,9 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
-      - name: Build SDK
-        run: pnpm --filter ./packages/javascript-sdk... build
+      - name: Build packages
+        run: |
+          pnpm --filter ./packages/javascript-sdk... --filter ./packages/mcp-server... build
 
       - name: Setup .npmrc
         run: |
@@ -60,7 +61,11 @@ jobs:
       - name: Determine Upcoming Version
         id: determine-version
         run: |
-          VERSION=$(pnpm changeset status --no-color --verbose | grep '@rushdb/javascript-sdk' | awk '{print $NF}' | sed 's/[^[:print:]]//g')
+          STATUS=$(pnpm changeset status --no-color --verbose || true)
+          VERSION=$(echo "$STATUS" | grep -E '@rushdb/(javascript-sdk|mcp-server)' | awk '{print $NF}' | sed 's/[^[:print:]]//g' | head -n1)
+          if [ -z "$VERSION" ]; then
+            echo "No upcoming version detected for javascript-sdk or mcp-server; leaving empty"
+          fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Create Release PR or Publish
@@ -68,7 +73,7 @@ jobs:
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
-          publish: pnpm release --filter ./packages/javascript-sdk...
+          publish: pnpm release --filter ./packages/javascript-sdk... --filter ./packages/mcp-server...
           commit: "chore(release): version packages v${{ steps.determine-version.outputs.version }}"
           title: "chore(release): version packages v${{ steps.determine-version.outputs.version }}"
         env:

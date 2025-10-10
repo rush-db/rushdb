@@ -1,7 +1,6 @@
 {
   "$schema": "https://glama.ai/mcp/schemas/server.json",
   "maintainers": [
-    "1pxone",
-    "h3yAlias"
+    "1pxone"
   ]
 }

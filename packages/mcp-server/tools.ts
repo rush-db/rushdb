@@ -15,27 +15,28 @@
 import type { Schema } from 'jsonschema'
 
 export type ToolName =
-  | 'GetLabels'
-  | 'GetProperties'
+  | 'FindLabels'
   | 'CreateRecord'
   | 'UpdateRecord'
   | 'DeleteRecord'
   | 'FindRecords'
   | 'GetRecord'
+  | 'GetRecordsByIds'
   | 'AttachRelation'
   | 'DetachRelation'
-  | 'FindRelations'
+  | 'FindRelationships'
   | 'BulkCreateRecords'
   | 'BulkDeleteRecords'
   | 'ExportRecords'
   | 'OpenBrowser'
   | 'HelpAddToClient'
+  | 'GetQueryBuilderPrompt'
   | 'SetRecord'
   | 'FindOneRecord'
   | 'FindUniqRecord'
   | 'DeleteRecordById'
   | 'PropertyValues'
-  | 'FindProperty'
+  | 'FindProperties'
   | 'FindPropertyById'
   | 'DeleteProperty'
   | 'TransactionBegin'
@@ -52,20 +53,23 @@ type Tool = {
 
 export const tools: Tool[] = [
   {
-    name: 'GetLabels',
-    description: 'Get all record labels in the RushDB database',
+    name: 'FindLabels',
+    description: 'Find / filter record labels (supports where, limit, skip, orderBy). Superset of GetLabels.',
     inputSchema: {
       type: 'object',
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: 'GetProperties',
-    description: 'Get all properties in the RushDB database',
-    inputSchema: {
-      type: 'object',
-      properties: {},
+      properties: {
+        where: {
+          type: 'object',
+          description: 'Filter conditions for labels (e.g., by activity flags, counts)'
+        },
+        limit: { type: 'number', description: 'Maximum number of labels to return' },
+        skip: { type: 'number', description: 'Number of labels to skip' },
+        orderBy: {
+          type: 'object',
+          description: 'Sorting configuration: key = field, value = asc|desc',
+          additionalProperties: { type: 'string', enum: ['asc', 'desc'] }
+        }
+      },
       required: []
     }
   },
@@ -75,50 +79,35 @@ export const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        label: {
-          type: 'string',
-          description: 'Label for the record'
-        },
-        data: {
-          type: 'object',
-          description: 'The record data to insert'
-        }
+        label: { type: 'string', description: 'Label for the record' },
+        data: { type: 'object', description: 'The record data to insert' },
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic creation' }
       },
       required: ['label', 'data']
     }
   },
   {
     name: 'UpdateRecord',
-    description: 'Update an existing record in the database',
+    description: 'Update an existing record (partial update)',
     inputSchema: {
       type: 'object',
       properties: {
-        recordId: {
-          type: 'string',
-          description: 'ID of the record to update'
-        },
-        label: {
-          type: 'string',
-          description: 'Label for the record'
-        },
-        data: {
-          type: 'object',
-          description: 'The updated record data'
-        }
+        recordId: { type: 'string', description: 'ID of the record to update' },
+        label: { type: 'string', description: 'Label for the record' },
+        data: { type: 'object', description: 'The updated (partial) record data' },
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic update' }
       },
       required: ['recordId', 'label', 'data']
     }
   },
   {
     name: 'DeleteRecord',
-    description: 'Delete a record from the database',
+    description: 'Delete a record from the database (alias of DeleteRecordById)',
     inputSchema: {
       type: 'object',
       properties: {
-        recordId: {
-          type: 'string',
-          description: 'ID of the record to delete'
-        }
+        recordId: { type: 'string', description: 'ID of the record to delete' },
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic deletion' }
       },
       required: ['recordId']
     }
@@ -129,24 +118,39 @@ export const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        labels: {
+        labels: { type: 'array', items: { type: 'string' }, description: 'Filter by record labels' },
+        where: { type: 'object', description: 'Search conditions for finding records' },
+        limit: { type: 'number', description: 'Maximum number of records to return', default: 10 },
+        skip: { type: 'number', description: 'Number of records to skip', default: 0 },
+        orderBy: {
+          type: 'object',
+          description: 'Sorting configuration: key = field, value = asc|desc',
+          additionalProperties: { type: 'string', enum: ['asc', 'desc'] }
+        },
+        aggregate: {
+          type: 'object',
+          description: 'Aggregation definitions (records only)',
+          additionalProperties: {
+            type: 'object',
+            properties: {
+              fn: {
+                type: 'string',
+                description: 'Aggregation function (count,sum,avg,min,max,timeBucket)'
+              },
+              field: { type: 'string', description: 'Field to aggregate' },
+              alias: { type: 'string', description: 'Optional alias override' },
+              granularity: {
+                type: 'string',
+                description: 'For timeBucket, the time granularity (e.g., day, week, month, quarter, year)'
+              }
+            },
+            required: ['fn']
+          }
+        },
+        groupBy: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Filter by record labels'
-        },
-        where: {
-          type: 'object',
-          description: 'Search conditions for finding records'
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum number of records to return',
-          default: 10
-        },
-        skip: {
-          type: 'number',
-          description: 'Number of records to skip',
-          default: 0
+          description: 'Fields to group by (records only)'
         }
       },
       required: []
@@ -157,85 +161,94 @@ export const tools: Tool[] = [
     description: 'Get a specific record by ID',
     inputSchema: {
       type: 'object',
-      properties: {
-        recordId: {
-          type: 'string',
-          description: 'ID of the record to retrieve'
-        }
-      },
+      properties: { recordId: { type: 'string', description: 'ID of the record to retrieve' } },
       required: ['recordId']
     }
   },
   {
-    name: 'AttachRelation',
-    description: 'Create a relationship between two records',
+    name: 'GetRecordsByIds',
+    description: 'Get multiple records by their IDs',
     inputSchema: {
       type: 'object',
       properties: {
-        sourceId: {
-          type: 'string',
-          description: 'ID of the source record'
-        },
+        recordIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of record IDs to retrieve'
+        }
+      },
+      required: ['recordIds']
+    }
+  },
+  {
+    name: 'AttachRelation',
+    description: 'Create a relationship between records (single or multiple targets)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceId: { type: 'string', description: 'ID of the source record' },
         targetId: {
           type: 'string',
-          description: 'ID of the target record'
+          description: 'ID of one target record (deprecated if targetIds provided)'
         },
-        relationType: {
-          type: 'string',
-          description: 'Type of the relationship'
+        targetIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'IDs of multiple target records'
         },
+        relationType: { type: 'string', description: 'Type of the relationship' },
         direction: {
           type: 'string',
           enum: ['outgoing', 'incoming', 'bidirectional'],
           description: 'Direction of the relationship',
           default: 'outgoing'
-        }
+        },
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic relation creation' }
       },
-      required: ['sourceId', 'targetId']
+      required: ['sourceId']
     }
   },
   {
     name: 'DetachRelation',
-    description: 'Remove a relationship between two records',
+    description: 'Remove a relationship between records (single or multiple targets)',
     inputSchema: {
       type: 'object',
       properties: {
-        sourceId: {
-          type: 'string',
-          description: 'ID of the source record'
-        },
+        sourceId: { type: 'string', description: 'ID of the source record' },
         targetId: {
           type: 'string',
-          description: 'ID of the target record'
+          description: 'ID of one target record (deprecated if targetIds provided)'
         },
-        relationType: {
-          type: 'string',
-          description: 'Type of the relationship to remove'
+        targetIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'IDs of multiple target records'
         },
+        relationType: { type: 'string', description: 'Type of the relationship to remove' },
         direction: {
           type: 'string',
           enum: ['outgoing', 'incoming', 'bidirectional'],
           description: 'Direction of the relationship',
           default: 'outgoing'
-        }
+        },
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic relation removal' }
       },
-      required: ['sourceId', 'targetId']
+      required: ['sourceId']
     }
   },
   {
-    name: 'FindRelations',
+    name: 'FindRelationships',
     description: 'Find relationships in the database',
     inputSchema: {
       type: 'object',
       properties: {
-        where: {
+        where: { type: 'object', description: 'Search conditions for finding relationships' },
+        limit: { type: 'number', description: 'Maximum number of relationships to return', default: 10 },
+        skip: { type: 'number', description: 'Number of relationships to skip', default: 0 },
+        orderBy: {
           type: 'object',
-          description: 'Search conditions for finding relationships'
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum number of relationships to return',
-          default: 10
+          description: 'Sorting configuration: key = field, value = asc|desc',
+          additionalProperties: { type: 'string', enum: ['asc', 'desc'] }
         }
       },
       required: []
@@ -247,17 +260,9 @@ export const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        label: {
-          type: 'string',
-          description: 'Label for all records'
-        },
-        data: {
-          type: 'array',
-          description: 'Array of record data to insert',
-          items: {
-            type: 'object'
-          }
-        }
+        label: { type: 'string', description: 'Label for all records' },
+        data: { type: 'array', items: { type: 'object' }, description: 'Array of record data to insert' },
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic bulk creation' }
       },
       required: ['label', 'data']
     }
@@ -268,15 +273,9 @@ export const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        labels: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Filter by record labels'
-        },
-        where: {
-          type: 'object',
-          description: 'Search conditions for records to delete'
-        }
+        labels: { type: 'array', items: { type: 'string' }, description: 'Filter by record labels' },
+        where: { type: 'object', description: 'Search conditions for records to delete' },
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic bulk deletion' }
       },
       required: ['where']
     }
@@ -287,18 +286,13 @@ export const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        labels: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Filter by record labels'
-        },
-        where: {
+        labels: { type: 'array', items: { type: 'string' }, description: 'Filter by record labels' },
+        where: { type: 'object', description: 'Search conditions for records to export' },
+        limit: { type: 'number', description: 'Maximum number of records to export' },
+        orderBy: {
           type: 'object',
-          description: 'Search conditions for records to export'
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum number of records to export'
+          description: 'Sorting configuration for export',
+          additionalProperties: { type: 'string', enum: ['asc', 'desc'] }
         }
       },
       required: []
@@ -309,42 +303,31 @@ export const tools: Tool[] = [
     description: 'Open a web browser to a specific URL',
     inputSchema: {
       type: 'object',
-      properties: {
-        url: {
-          type: 'string',
-          description: 'The URL to open in the browser'
-        }
-      },
+      properties: { url: { type: 'string', description: 'The URL to open' } },
       required: ['url']
     }
   },
   {
     name: 'HelpAddToClient',
     description: 'Help the user add the RushDB MCP server to their MCP client',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      required: []
-    }
+    inputSchema: { type: 'object', properties: {}, required: [] }
+  },
+  {
+    name: 'GetQueryBuilderPrompt',
+    description:
+      'Return the RushDB Query Builder system prompt. Use this if your MCP client does not support Prompts API.',
+    inputSchema: { type: 'object', properties: {}, required: [] }
   },
   {
     name: 'SetRecord',
-    description: 'Set all fields of a record to the provided values (replaces existing values)',
+    description: 'Replace all fields of a record with provided values',
     inputSchema: {
       type: 'object',
       properties: {
-        recordId: {
-          type: 'string',
-          description: 'ID of the record to set'
-        },
-        label: {
-          type: 'string',
-          description: 'Label for the record'
-        },
-        data: {
-          type: 'object',
-          description: 'The new record data to set'
-        }
+        recordId: { type: 'string', description: 'ID of the record to set' },
+        label: { type: 'string', description: 'Label for the record' },
+        data: { type: 'object', description: 'The new record data to set' },
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic set' }
       },
       required: ['recordId', 'label', 'data']
     }
@@ -355,15 +338,8 @@ export const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        labels: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Filter by record labels'
-        },
-        where: {
-          type: 'object',
-          description: 'Search conditions for finding the record'
-        }
+        labels: { type: 'array', items: { type: 'string' }, description: 'Filter by record labels' },
+        where: { type: 'object', description: 'Search conditions for finding the record' }
       },
       required: []
     }
@@ -374,15 +350,8 @@ export const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        labels: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Filter by record labels'
-        },
-        where: {
-          type: 'object',
-          description: 'Search conditions for finding the unique record'
-        }
+        labels: { type: 'array', items: { type: 'string' }, description: 'Filter by record labels' },
+        where: { type: 'object', description: 'Search conditions for finding the unique record' }
       },
       required: []
     }
@@ -393,64 +362,40 @@ export const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        recordId: {
-          type: 'string',
-          description: 'ID of the record to delete'
-        }
+        recordId: { type: 'string', description: 'ID of the record to delete' },
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic deletion' }
       },
       required: ['recordId']
     }
   },
   {
     name: 'PropertyValues',
-    description: 'Get all values for a specific property',
+    description: 'Get values for a specific property',
     inputSchema: {
       type: 'object',
       properties: {
-        propertyId: {
-          type: 'string',
-          description: 'ID of the property to get values for'
-        },
-        query: {
-          type: 'string',
-          description: 'Optional search query for filtering values'
-        },
-        orderBy: {
-          type: 'string',
-          enum: ['asc', 'desc'],
-          description: 'Order direction for the values'
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum number of values to return'
-        },
-        skip: {
-          type: 'number',
-          description: 'Number of values to skip'
-        }
+        propertyId: { type: 'string', description: 'ID of the property to get values for' },
+        query: { type: 'string', description: 'Optional search query for filtering values' },
+        orderBy: { type: 'string', enum: ['asc', 'desc'], description: 'Ordering for value results' },
+        limit: { type: 'number', description: 'Max number of values to return' },
+        skip: { type: 'number', description: 'Number of values to skip' }
       },
       required: ['propertyId']
     }
   },
   {
-    name: 'FindProperty',
+    name: 'FindProperties',
     description: 'Find properties in the database using a search query',
     inputSchema: {
       type: 'object',
       properties: {
-        where: {
+        where: { type: 'object', description: 'Search conditions for finding properties' },
+        limit: { type: 'number', description: 'Maximum number of properties to return', default: 10 },
+        skip: { type: 'number', description: 'Number of properties to skip', default: 0 },
+        orderBy: {
           type: 'object',
-          description: 'Search conditions for finding properties'
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum number of properties to return',
-          default: 10
-        },
-        skip: {
-          type: 'number',
-          description: 'Number of properties to skip',
-          default: 0
+          description: 'Sorting configuration: key = field, value = asc|desc',
+          additionalProperties: { type: 'string', enum: ['asc', 'desc'] }
         }
       },
       required: []
@@ -461,12 +406,7 @@ export const tools: Tool[] = [
     description: 'Find a specific property by ID',
     inputSchema: {
       type: 'object',
-      properties: {
-        propertyId: {
-          type: 'string',
-          description: 'ID of the property to retrieve'
-        }
-      },
+      properties: { propertyId: { type: 'string', description: 'ID of the property to retrieve' } },
       required: ['propertyId']
     }
   },
@@ -475,12 +415,7 @@ export const tools: Tool[] = [
     description: 'Delete a property from the database',
     inputSchema: {
       type: 'object',
-      properties: {
-        propertyId: {
-          type: 'string',
-          description: 'ID of the property to delete'
-        }
-      },
+      properties: { propertyId: { type: 'string', description: 'ID of the property to delete' } },
       required: ['propertyId']
     }
   },
@@ -489,12 +424,7 @@ export const tools: Tool[] = [
     description: 'Begin a new database transaction',
     inputSchema: {
       type: 'object',
-      properties: {
-        ttl: {
-          type: 'number',
-          description: 'Time to live for the transaction in seconds'
-        }
-      },
+      properties: { ttl: { type: 'number', description: 'TTL in milliseconds' } },
       required: []
     }
   },
@@ -503,12 +433,7 @@ export const tools: Tool[] = [
     description: 'Commit a database transaction',
     inputSchema: {
       type: 'object',
-      properties: {
-        transactionId: {
-          type: 'string',
-          description: 'ID of the transaction to commit'
-        }
-      },
+      properties: { transactionId: { type: 'string', description: 'Transaction ID' } },
       required: ['transactionId']
     }
   },
@@ -517,40 +442,22 @@ export const tools: Tool[] = [
     description: 'Rollback a database transaction',
     inputSchema: {
       type: 'object',
-      properties: {
-        transactionId: {
-          type: 'string',
-          description: 'ID of the transaction to rollback'
-        }
-      },
+      properties: { transactionId: { type: 'string', description: 'Transaction ID' } },
       required: ['transactionId']
     }
   },
   {
     name: 'TransactionGet',
-    description: 'Get information about a database transaction',
+    description: 'Get information about a transaction',
     inputSchema: {
       type: 'object',
-      properties: {
-        transactionId: {
-          type: 'string',
-          description: 'ID of the transaction to get information for'
-        }
-      },
+      properties: { transactionId: { type: 'string', description: 'Transaction ID' } },
       required: ['transactionId']
     }
   },
   {
     name: 'GetSettings',
     description: 'Get the current database settings and configuration',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      required: []
-    }
+    inputSchema: { type: 'object', properties: {}, required: [] }
   }
-] as const satisfies {
-  name: ToolName
-  description: string
-  inputSchema: Schema
-}[]
+] as const satisfies { name: ToolName; description: string; inputSchema: Schema }[]

@@ -1,5 +1,5 @@
 <div align="center">
-  
+
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
 # RushDB
@@ -318,6 +318,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Issues & PRs welcome.
 | docs | Apache 2.0 |
 | website | Apache 2.0 |
 | packages/javascript-sdk | Apache 2.0 |
+| packages/mcp-server | Apache 2.0 |
 
 ---
 

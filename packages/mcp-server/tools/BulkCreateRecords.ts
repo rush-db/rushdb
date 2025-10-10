@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ensureInitialized } from '../util/db.js'
+import { db } from '../util/db.js'
 
 type BulkCreateRecordsArgs = {
   label: string
   data: Record<string, any>[]
+  transactionId?: string
 }
 
 type BulkCreateRecordsResult = {
@@ -26,11 +27,10 @@ type BulkCreateRecordsResult = {
 
 export async function BulkCreateRecords({
   label,
-  data
+  data,
+  transactionId
 }: BulkCreateRecordsArgs): Promise<BulkCreateRecordsResult> {
-  const db = await ensureInitialized()
-
-  const result = await db.records.createMany({ label, data })
+  const result = await db.records.createMany({ label, data }, transactionId)
   const ids = result.data.map((record: any) => record.id())
 
   return {

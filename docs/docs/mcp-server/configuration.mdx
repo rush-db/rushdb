@@ -1,0 +1,60 @@
+---
+id: configuration
+title: Configuration
+sidebar_label: Configuration
+sidebar_position: 4
+---
+
+The MCP server reads configuration from environment variables (via `.env` or your MCP client config).
+
+## Environment variables
+
+- `RUSHDB_API_KEY` (required): Your API key from the RushDB dashboard.
+- `RUSHDB_API_URL` (optional): Base URL for the RushDB API. Defaults to `https://api.rushdb.com/api/v1`.
+
+You can provide these in several ways:
+
+### 1) In MCP client configuration
+
+Put them under the `env` key for the server entry, for example in Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "your-rushdb-api-key-here",
+        "RUSHDB_API_URL": "https://api.rushdb.com/api/v1"
+      }
+    }
+  }
+}
+```
+
+### 2) Using a `.env` file
+
+Create a `.env` file in `packages/mcp-server` (or your working directory) with:
+
+```
+RUSHDB_API_KEY=your-rushdb-api-key-here
+# Optional (self-hosted/staging):
+RUSHDB_API_URL=https://your-hosted/api/v1
+```
+
+The MCP server attempts fallback resolution for `.env` when launched from different CWDs, so it can find your env vars reliably.
+
+### 3) Export in your shell
+
+```bash
+export RUSHDB_API_KEY="your-rushdb-api-key-here"
+# Optional
+export RUSHDB_API_URL="https://your-hosted/api/v1"
+```
+
+## Security tips
+
+- Treat your API key like a password; do not commit it to version control.
+- Prefer client-level `env` injection or OS keychains when possible.
+- Rotate keys periodically and revoke keys you no longer need.

@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ensureInitialized } from '../util/db.js'
+import { db } from '../util/db.js'
 
 export async function AttachRelation(params: {
   sourceId: string
-  targetId: string
+  targetId?: string
+  targetIds?: string[]
   relationType?: string
   direction?: 'outgoing' | 'incoming' | 'bidirectional'
+  transactionId?: string
 }) {
-  const { sourceId, targetId, relationType, direction = 'outgoing' } = params
-  const db = await ensureInitialized()
+  const { sourceId, targetId, targetIds, relationType, direction = 'outgoing', transactionId } = params
 
   const options: any = {}
   if (relationType) {
@@ -31,14 +32,18 @@ export async function AttachRelation(params: {
     options.direction = direction
   }
 
-  await db.records.attach({
-    source: sourceId,
-    target: targetId,
-    options
-  })
+  const targets: string[] =
+    targetIds && targetIds.length > 0 ? targetIds
+    : targetId ? [targetId]
+    : []
+  if (targets.length === 0) {
+    return { success: false, message: 'No targetId(s) provided' }
+  }
+
+  await db.records.attach({ source: sourceId, target: targets, options }, transactionId)
 
   return {
     success: true,
-    message: `Relationship attached from '${sourceId}' to '${targetId}'`
+    message: `Relationship attached from '${sourceId}' to ${targets.length} target record(s)`
   }
 }

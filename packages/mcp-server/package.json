@@ -1,7 +1,19 @@
 {
   "name": "@rushdb/mcp-server",
-  "version": "1.0.0",
+  "version": "1.16.0",
   "description": "RushDB MCP Server - Model Context Protocol server for RushDB",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "rushdb",
+    "database",
+    "graph-database",
+    "neo4j",
+    "llm",
+    "ai-agents",
+    "tools"
+  ],
   "type": "module",
   "main": "./build/index.js",
   "bin": {
@@ -22,7 +34,7 @@
   },
   "dependencies": {
     "@rushdb/javascript-sdk": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.6.1",
+    "@modelcontextprotocol/sdk": "1.20.0",
     "dotenv": "^16.4.7",
     "jsonschema": "^1.5.0"
   },

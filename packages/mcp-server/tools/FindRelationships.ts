@@ -12,16 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ensureInitialized } from '../util/db.js'
+import { db } from '../util/db.js'
 
-export async function GetProperties() {
-  const db = await ensureInitialized()
+export async function FindRelationships(params: {
+  where?: Record<string, any>
+  limit?: number
+  skip?: number
+  orderBy?: Record<string, 'asc' | 'desc'>
+}) {
+  const { where, limit = 10, skip = 0, orderBy } = params
 
-  const response = await db.properties.find({})
+  const searchQuery: any = { limit, skip }
+  if (where) searchQuery.where = where
+  if (orderBy && Object.keys(orderBy).length > 0) searchQuery.orderBy = orderBy
 
-  if (response.success && response.data) {
-    return response.data
-  }
-
+  const result = await db.relationships.find(searchQuery)
+  if (result.success && result.data) return result.data
   return []
 }

@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ensureInitialized } from '../util/db.js'
+import { db } from '../util/db.js'
 
 export async function FindOneRecord(params: { labels?: string[]; where?: Record<string, any> }) {
   const { labels, where } = params
-  const db = await ensureInitialized()
 
   const result = await db.records.findOne({
     ...(labels && { labels }),

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { build } from 'esbuild'
+import { build, context } from 'esbuild'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 import fs from 'fs'
@@ -47,41 +47,39 @@ const buildOptions = {
   logLevel: 'info'
 }
 
+// Simple plugin to make output executable & log results
+const chmodAndLogPlugin = {
+  name: 'chmod-and-log',
+  setup(build) {
+    build.onEnd((result) => {
+      try {
+        if (fs.existsSync('build/index.js')) {
+          fs.chmodSync('build/index.js', '755')
+        }
+      } catch (e) {
+        console.warn('Failed to chmod output:', e)
+      }
+      if (result.errors.length === 0) {
+        console.log('Build succeeded', new Date().toLocaleTimeString())
+      } else {
+        console.error('Build ended with errors.')
+      }
+    })
+  }
+}
+
+buildOptions.plugins = [chmodAndLogPlugin]
+
 async function runBuild() {
   try {
     if (isWatch) {
-      // Watch mode
-      const ctx = await build({
-        ...buildOptions,
-        watch: {
-          onRebuild(error, result) {
-            if (error) {
-              console.error('Watch build failed:', error)
-            } else {
-              // Make the output file executable
-              fs.chmodSync('build/index.js', '755')
-              console.log('Watch build succeeded:', new Date().toLocaleTimeString())
-            }
-          }
-        }
-      })
-
-      // Make the output file executable after initial build
-      fs.chmodSync('build/index.js', '755')
-      console.log('Watch mode started, waiting for changes...')
-
-      // Keep the process running
-      process.stdin.on('close', () => {
-        ctx.stop()
-        process.exit(0)
-      })
+      // New esbuild 0.25+ context watch API
+      const ctx = await context(buildOptions)
+      await ctx.watch()
+      console.log('Watch mode started (esbuild context). Press Ctrl+C to exit.')
     } else {
       // One-time build
       await build(buildOptions)
-
-      // Make the output file executable
-      fs.chmodSync('build/index.js', '755')
-
       console.log(`Build completed successfully in ${isProd ? 'production' : 'development'} mode!`)
     }
   } catch (error) {

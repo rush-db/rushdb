@@ -18,11 +18,12 @@ import {
   CallToolRequestSchema,
   ErrorCode,
   ListToolsRequestSchema,
-  McpError
+  McpError,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { ToolName, tools } from './tools.js'
-import { GetLabels } from './tools/GetLabels.js'
-import { GetProperties } from './tools/GetProperties.js'
+import { FindLabels } from './tools/FindLabels.js'
 import { CreateRecord } from './tools/CreateRecord.js'
 import { UpdateRecord } from './tools/UpdateRecord.js'
 import { DeleteRecord } from './tools/DeleteRecord.js'
@@ -30,7 +31,7 @@ import { FindRecords } from './tools/FindRecords.js'
 import { GetRecord } from './tools/GetRecord.js'
 import { AttachRelation } from './tools/AttachRelation.js'
 import { DetachRelation } from './tools/DetachRelation.js'
-import { FindRelations } from './tools/FindRelations.js'
+import { FindRelationships } from './tools/FindRelationships.js'
 import { BulkCreateRecords } from './tools/BulkCreateRecords.js'
 import { BulkDeleteRecords } from './tools/BulkDeleteRecords.js'
 import { ExportRecords } from './tools/ExportRecords.js'
@@ -41,7 +42,7 @@ import { FindOneRecord } from './tools/FindOneRecord.js'
 import { FindUniqRecord } from './tools/FindUniqRecord.js'
 import { DeleteRecordById } from './tools/DeleteRecordById.js'
 import { PropertyValues } from './tools/PropertyValues.js'
-import { FindProperty } from './tools/FindProperty.js'
+import { FindProperties } from './tools/FindProperties.js'
 import { FindPropertyById } from './tools/FindPropertyById.js'
 import { DeleteProperty } from './tools/DeleteProperty.js'
 import { TransactionBegin } from './tools/TransactionBegin.js'
@@ -49,6 +50,8 @@ import { TransactionCommit } from './tools/TransactionCommit.js'
 import { TransactionRollback } from './tools/TransactionRollback.js'
 import { TransactionGet } from './tools/TransactionGet.js'
 import { GetSettings } from './tools/GetSettings.js'
+import { GetRecordsByIds } from './tools/GetRecordsByIds.js'
+import SYSTEM_PROMPT from './systemPrompt.js'
 
 const server = new Server(
   {
@@ -60,7 +63,8 @@ const server = new Server(
       tools: {
         list: true,
         call: true
-      }
+      },
+      prompts: {}
     }
   }
 )
@@ -71,33 +75,61 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   }
 })
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+// Expose RushDB system prompt via MCP Prompts so clients can fetch and inject it
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+  return {
+    prompts: [
+      {
+        name: 'rushdb.queryBuilder',
+        description:
+          'RushDB Query Builder system prompt: guides the model to discover labels/properties first and construct validated SearchQuery objects before calling find-related tools.',
+        arguments: []
+      }
+    ]
+  }
+})
+
+server.setRequestHandler(GetPromptRequestSchema, async (request: any) => {
+  const name = request.params.name as string
+  if (name !== 'rushdb.queryBuilder') {
+    throw new McpError(ErrorCode.InvalidRequest, `Unknown prompt: ${name}`)
+  }
+  return {
+    description:
+      'RushDB Query Builder system prompt to enable discovery-first, schema-safe SearchQuery construction before find-related tool calls.',
+    messages: [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text: SYSTEM_PROMPT
+        }
+      }
+    ]
+  }
+})
+
+server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
   const toolName = request.params.name as ToolName
   const args = request.params.arguments || {}
 
   try {
     switch (toolName) {
-      case 'GetLabels':
-        const labels = await GetLabels()
+      case 'FindLabels':
+        const foundLabels = await FindLabels({
+          where: args.where as Record<string, any> | undefined,
+          limit: args.limit as number | undefined,
+          skip: args.skip as number | undefined,
+          orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
+        })
         return {
           content: [
             {
               type: 'text',
               text:
-                labels.length > 0 ?
-                  labels.map((l) => `${l.name}: ${l.count} records`).join('\n')
+                foundLabels.length > 0 ?
+                  foundLabels.map((l: any) => `${l.name}: ${l.count} records`).join('\n')
                 : 'No labels found'
-            }
-          ]
-        }
-
-      case 'GetProperties':
-        const properties = await GetProperties()
-        return {
-          content: [
-            {
-              type: 'text',
-              text: properties.length > 0 ? JSON.stringify(properties, null, 2) : 'No properties found'
             }
           ]
         }
@@ -105,7 +137,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'CreateRecord':
         const createResult = await CreateRecord({
           label: args.label as string,
-          data: args.data as Record<string, any>
+          data: args.data as Record<string, any>,
+          transactionId: args.transactionId as string | undefined
         })
         return {
           content: [
@@ -120,7 +153,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const updateResult = await UpdateRecord({
           recordId: args.recordId as string,
           label: args.label as string,
-          data: args.data as Record<string, any>
+          data: args.data as Record<string, any>,
+          transactionId: args.transactionId as string | undefined
         })
         return {
           content: [
@@ -133,7 +167,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'DeleteRecord':
         const deleteResult = await DeleteRecord({
-          recordId: args.recordId as string
+          recordId: args.recordId as string,
+          transactionId: args.transactionId as string | undefined
         })
         return {
           content: [
@@ -149,15 +184,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           labels: args.labels as string[] | undefined,
           where: args.where as Record<string, any> | undefined,
           limit: args.limit as number | undefined,
-          skip: args.skip as number | undefined
+          skip: args.skip as number | undefined,
+          orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined,
+          aggregate: args.aggregate as
+            | Record<string, { fn: string; field?: string; alias?: string; where?: any }>
+            | undefined,
+          groupBy: args.groupBy as string[] | undefined
         })
 
+        const isAggregate = Boolean(args.aggregate) || Boolean(args.groupBy)
         return {
           content: [
             {
               type: 'text',
               text:
-                foundRecords.length === 0 ?
+                Array.isArray(foundRecords) && foundRecords.length === 0 ?
                   'No matching records found.'
                 : JSON.stringify(foundRecords, null, 2)
             }
@@ -180,9 +221,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'AttachRelation':
         const attachResult = await AttachRelation({
           sourceId: args.sourceId as string,
-          targetId: args.targetId as string,
+          targetId: args.targetId as string | undefined,
+          targetIds: args.targetIds as string[] | undefined,
           relationType: args.relationType as string | undefined,
-          direction: args.direction as 'outgoing' | 'incoming' | 'bidirectional' | undefined
+          direction: args.direction as 'outgoing' | 'incoming' | 'bidirectional' | undefined,
+          transactionId: args.transactionId as string | undefined
         })
         return {
           content: [
@@ -196,9 +239,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'DetachRelation':
         const detachResult = await DetachRelation({
           sourceId: args.sourceId as string,
-          targetId: args.targetId as string,
+          targetId: args.targetId as string | undefined,
+          targetIds: args.targetIds as string[] | undefined,
           relationType: args.relationType as string | undefined,
-          direction: args.direction as 'outgoing' | 'incoming' | 'bidirectional' | undefined
+          direction: args.direction as 'outgoing' | 'incoming' | 'bidirectional' | undefined,
+          transactionId: args.transactionId as string | undefined
         })
         return {
           content: [
@@ -209,10 +254,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ]
         }
 
-      case 'FindRelations':
-        const relations = await FindRelations({
+      case 'FindRelationships':
+        const relations = await FindRelationships({
           where: args.where as Record<string, any> | undefined,
-          limit: args.limit as number | undefined
+          limit: args.limit as number | undefined,
+          skip: args.skip as number | undefined,
+          orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
         })
         return {
           content: [
@@ -226,7 +273,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'BulkCreateRecords':
         const bulkCreateResult = await BulkCreateRecords({
           label: args.label as string,
-          data: args.data as Record<string, any>[]
+          data: args.data as Record<string, any>[],
+          transactionId: args.transactionId as string | undefined
         })
         return {
           content: [
@@ -240,7 +288,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'BulkDeleteRecords':
         const bulkDeleteResult = await BulkDeleteRecords({
           labels: args.labels as string[] | undefined,
-          where: args.where as Record<string, any>
+          where: args.where as Record<string, any>,
+          transactionId: args.transactionId as string | undefined
         })
         return {
           content: [
@@ -290,11 +339,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ]
         }
 
+      case 'GetQueryBuilderPrompt':
+        return {
+          content: [
+            {
+              type: 'text',
+              text: SYSTEM_PROMPT
+            }
+          ]
+        }
+
       case 'SetRecord':
         const setResult = await SetRecord({
           recordId: args.recordId as string,
           label: args.label as string,
-          data: args.data as Record<string, any>
+          data: args.data as Record<string, any>,
+          transactionId: args.transactionId as string | undefined
         })
         return {
           content: [
@@ -335,7 +395,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'DeleteRecordById':
         const deleteByIdResult = await DeleteRecordById({
-          recordId: args.recordId as string
+          recordId: args.recordId as string,
+          transactionId: args.transactionId as string | undefined
         })
         return {
           content: [
@@ -363,11 +424,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ]
         }
 
-      case 'FindProperty':
-        const foundProperties = await FindProperty({
+      case 'FindProperties':
+        const foundProperties = await FindProperties({
           where: args.where as Record<string, any> | undefined,
           limit: args.limit as number | undefined,
-          skip: args.skip as number | undefined
+          skip: args.skip as number | undefined,
+          orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
         })
         return {
           content: [
@@ -375,6 +437,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: 'text',
               text:
                 foundProperties.length > 0 ? JSON.stringify(foundProperties, null, 2) : 'No properties found'
+            }
+          ]
+        }
+      case 'GetRecordsByIds':
+        const recordsByIds = await GetRecordsByIds({ recordIds: args.recordIds as string[] })
+        return {
+          content: [
+            {
+              type: 'text',
+              text: recordsByIds.count > 0 ? JSON.stringify(recordsByIds.data, null, 2) : 'No records found'
             }
           ]
         }

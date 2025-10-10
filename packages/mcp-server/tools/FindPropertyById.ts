@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ensureInitialized } from '../util/db.js'
+import { db } from '../util/db.js'
 
 export async function FindPropertyById(params: { propertyId: string }) {
   const { propertyId } = params
-  const db = await ensureInitialized()
 
   const result = await db.properties.findById(propertyId)
 

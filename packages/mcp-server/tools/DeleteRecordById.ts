@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ensureInitialized } from '../util/db.js'
+import { db } from '../util/db.js'
 
-export async function DeleteRecordById(params: { recordId: string }) {
-  const { recordId } = params
-  const db = await ensureInitialized()
+export async function DeleteRecordById(params: { recordId: string; transactionId?: string }) {
+  const { recordId, transactionId } = params
 
-  await db.records.deleteById(recordId)
+  await db.records.deleteById(recordId, transactionId)
 
   return {
     success: true,

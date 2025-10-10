@@ -12,19 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ensureInitialized } from '../util/db.js'
+import { db } from '../util/db.js'
 
-export async function GetLabels() {
-  const db = await ensureInitialized()
+export async function FindProperties(params: {
+  where?: Record<string, any>
+  limit?: number
+  skip?: number
+  orderBy?: Record<string, 'asc' | 'desc'>
+}) {
+  const { where, limit, skip, orderBy } = params
 
-  const response = await db.labels.find({})
+  const searchQuery: Record<string, any> = {}
+  if (where) searchQuery.where = where
+  if (limit) searchQuery.limit = limit
+  if (skip) searchQuery.skip = skip
+  if (orderBy && Object.keys(orderBy).length > 0) searchQuery.orderBy = orderBy
 
-  if (response.success && response.data) {
-    return Object.entries(response.data).map(([name, count]) => ({
-      name,
-      count
-    }))
-  }
-
-  return []
+  const result = await db.properties.find(searchQuery)
+  return result.data
 }
