@@ -831,6 +831,61 @@ WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
 RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
 
+const q28 = {
+  aggregate: {
+    byHour: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'hour' },
+    byMinute: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'minute' },
+    bySecond: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'second' },
+    count: { fn: 'count', alias: '$record' }
+  },
+  groupBy: ['byHour', 'byMinute', 'bySecond'],
+  orderBy: { byHour: 'asc' },
+  skip: 0,
+  limit: 1000,
+  labels: ['EMPLOYEE']
+}
+
+const r28 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour}) ELSE null END AS \`byHour\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: datetime(record.\`dob\`).minute}) ELSE null END AS \`byMinute\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: datetime(record.\`dob\`).minute, second: datetime(record.\`dob\`).second}) ELSE null END AS \`bySecond\`, count(DISTINCT record) AS \`count\`
+ORDER BY \`byHour\` ASC SKIP 0 LIMIT 1000
+RETURN {\`byHour\`:\`byHour\`, \`byMinute\`:\`byMinute\`, \`bySecond\`:\`bySecond\`, \`count\`:\`count\`} as records`
+
+const q29 = {
+  aggregate: {
+    by6Hours: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'hours', size: 6 },
+    by15Min: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'minutes', size: 15 },
+    by30Sec: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'seconds', size: 30 },
+    count: { fn: 'count', alias: '$record' }
+  },
+  groupBy: ['by6Hours', 'by15Min', 'by30Sec'],
+  orderBy: { by6Hours: 'asc' },
+  skip: 0,
+  limit: 1000,
+  labels: ['EMPLOYEE']
+}
+
+const r29 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: 6 * toInteger(floor(datetime(record.\`dob\`).hour / 6))}) ELSE null END AS \`by6Hours\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: 15 * toInteger(floor(datetime(record.\`dob\`).minute / 15))}) ELSE null END AS \`by15Min\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: datetime(record.\`dob\`).minute, second: 30 * toInteger(floor(datetime(record.\`dob\`).second / 30))}) ELSE null END AS \`by30Sec\`, count(DISTINCT record) AS \`count\`
+ORDER BY \`by6Hours\` ASC SKIP 0 LIMIT 1000
+RETURN {\`by6Hours\`:\`by6Hours\`, \`by15Min\`:\`by15Min\`, \`by30Sec\`:\`by30Sec\`, \`count\`:\`count\`} as records`
+
+const q30 = {
+  aggregate: {
+    by5Years: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'years', size: 5 },
+    count: { fn: 'count', alias: '$record' }
+  },
+  groupBy: ['by5Years'],
+  orderBy: { by5Years: 'asc' },
+  skip: 0,
+  limit: 1000,
+  labels: ['EMPLOYEE']
+}
+
+const r30 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: 5 * toInteger(floor(datetime(record.\`dob\`).year / 5)), month: 1, day: 1}) ELSE null END AS \`by5Years\`, count(DISTINCT record) AS \`count\`
+ORDER BY \`by5Years\` ASC SKIP 0 LIMIT 1000
+RETURN {\`by5Years\`:\`by5Years\`, \`count\`:\`count\`} as records`
+
 describe('build complete query', () => {
   let queryService: EntityQueryService
 
@@ -1004,5 +1059,22 @@ describe('build complete query', () => {
     const result = queryService.findRecords({ searchQuery: q27 })
 
     expect(result).toEqual(r27)
+  })
+
+  it('28 - timeBucket hour/minute/second', () => {
+    const result = queryService.findRecords({ searchQuery: q28 })
+
+    expect(result).toEqual(r28)
+  })
+
+  it('29 - timeBucket hours/minutes/seconds with size', () => {
+    const result = queryService.findRecords({ searchQuery: q29 })
+    expect(result).toEqual(r29)
+  })
+
+  it('30 - timeBucket years with size', () => {
+    const result = queryService.findRecords({ searchQuery: q30 })
+
+    expect(result).toEqual(r30)
   })
 })

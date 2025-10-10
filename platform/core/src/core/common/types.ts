@@ -188,8 +188,21 @@ export type AggregateTimeBucketFn = {
   field: string
   fn: 'timeBucket'
   alias?: string
-  granularity: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'months'
-  // When granularity === 'months', size (>0) defines the number of months per bucket (e.g. 2, 3, 6, 12)
+  granularity:
+    | 'day'
+    | 'week'
+    | 'month'
+    | 'quarter'
+    | 'year'
+    | 'months'
+    | 'hour'
+    | 'minute'
+    | 'second'
+    | 'hours'
+    | 'minutes'
+    | 'seconds'
+    | 'years'
+  // When granularity === 'months' | 'hours' | 'minutes' | 'seconds', size (>0) defines the number of units per bucket (e.g. months: 2, 3, 6; hours: 1, 6, 12; minutes: 5, 15; seconds: 10, 30)
   size?: number
 }
 
