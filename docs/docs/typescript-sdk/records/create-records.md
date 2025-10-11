@@ -165,9 +165,9 @@ Each property draft object supports the following properties:
 
 ## Creating Multiple Records
 
-When you need to create multiple records in a single operation, use the `records.createMany` method.
+When you need to create multiple flat records (CSV-like rows) in a single operation, use the `records.createMany` method. For nested or complex JSON, use `records.importJson`.
 
-### Using RushDB's `createMany()` Method
+### Using RushDB's `createMany()` Method (flat rows only)
 
 ```typescript
 const authors = await db.records.createMany({
@@ -206,7 +206,7 @@ console.log(authors);
 #### Parameters
 
 - `label`: The [label](../../concepts/labels.md)/type for all records
-- `data`: Object (nested too) or an array of objects, each representing a record to create
+- `data`: An object or array of objects, each a flat record (no nested objects/arrays)
 - `options` (optional): Configuration options for record creation:
   - `suggestTypes` (boolean, default: `true`): When true, automatically infers data types for [properties](../../concepts/properties.md)
   - `castNumberArraysToVectors` (boolean, default: `false`): When true, converts numeric arrays to vector type
@@ -214,6 +214,50 @@ console.log(authors);
   - `capitalizeLabels` (bool): When true, converts all labels to uppercase
   - `relationshipType` (str): Default relationship type between nodes
   - `returnResult` (bool, default: `false`): When true, returns imported records in response
+  - Throws if any record contains nested objects/arrays. Use `records.importJson` for that.
+
+  ### Using RushDB's `importJson()` Method (nested JSON)
+
+  Use `importJson` for nested objects, arrays of nested objects, or hash-map like payloads.
+
+  Signature:
+
+  ```ts
+  db.records.importJson({ data, label?: string, options?: ImportOptions }, tx?)
+  ```
+
+  Behavior:
+  - If `label` is provided, it's used for the import.
+  - If `label` is omitted, the input must be an object with a single top-level key whose name becomes the label, e.g. `{ ITEM: [ {...}, {...} ] }`.
+  - If `label` is omitted and the object has multiple top-level keys (e.g. `{ some: 'key', data: 1, nested: { level: 2 } }`), an error is thrown.
+
+  Multiple top-level keys:
+  - Without `label`: not allowed — importJson requires a single top-level key to infer the label and will throw.
+  - With `label`: allowed — the provided `label` becomes the root label; the multiple keys are treated as nested structure under that root.
+  - If you want each top-level key to become its own label root, call `importJson` separately per key or pass single-key objects per call.
+
+  Examples:
+  - OK (label inferred):
+    ```json
+    { "ITEM": [ { /*...*/ }, { /*...*/ } ] }
+    ```
+  - OK (label inferred with object):
+    ```json
+    { "ITEM": { /*...*/ } }
+    ```
+  - OK with explicit label (multiple top-level keys):
+    ```json
+    { "ITEM": { /*...*/ }, "PRODUCT": { /*...*/ } }
+    ```
+    Call as: `db.records.importJson({ label: 'INVENTORY', data: { ITEM: {...}, PRODUCT: {...} } })`
+  - Will throw without label (multiple top-level keys):
+    ```json
+    { "ITEM": { /*...*/ }, "PRODUCT": { /*...*/ } }
+    ```
+  - Will throw without label (mixed keys):
+    ```json
+    { "ITEM": { /*...*/ }, "notNestedProp": "12" }
+    ```
 - `transaction` (optional): A [transaction](../../concepts/transactions.mdx) object or string to include the operation within a transaction
 
 #### Returns

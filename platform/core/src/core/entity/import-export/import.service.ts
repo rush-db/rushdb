@@ -159,16 +159,29 @@ export class ImportService {
       data.forEach((value: WithId<CreateEntityDto>) =>
         queue.push({
           ...options,
-          key: options.capitalizeLabels ? label.toUpperCase() : label,
+          key: options.capitalizeLabels ? label?.toUpperCase() : label,
           value,
           target: null
         })
       )
     } else {
-      const skip = !toBoolean(Object.keys(pickPrimitives(data)).length)
+      // Determine whether to skip creating the root node.
+      // If no explicit label provided, always skip the root to avoid creating an empty-labeled node.
+      // If label is provided, create root only when meaningful (has primitives or multiple complex children).
+      const hasExplicitLabel = toBoolean((label ?? '').trim())
+      const hasPrimitiveAtRoot = toBoolean(Object.keys(pickPrimitives(data)).length)
+      let complexChildrenCount = 0
+      if (isObject(data)) {
+        for (const [, v] of Object.entries(data)) {
+          if (isObject(v) || (isArray(v) && !isPrimitiveArray(v))) {
+            complexChildrenCount += 1
+          }
+        }
+      }
+      const skip = !hasExplicitLabel || !(hasPrimitiveAtRoot || complexChildrenCount > 1)
       queue.push({
         ...options,
-        key: options.capitalizeLabels ? label.toUpperCase() : label,
+        key: options.capitalizeLabels ? label?.toUpperCase() : label,
         value: data,
         target: null,
         // @FYI: Skip creation redundant start Record with no meaningful data:
@@ -180,27 +193,29 @@ export class ImportService {
 
     const parse = ({
       value: valuePart,
-      target
+      target,
+      parentId
     }: {
       value: TImportJsonPayload
       target: WithId<CreateEntityDto>
+      parentId?: string
     }) => {
       Object.entries(valuePart).forEach(([key, value]) => {
         if (isObject(value)) {
           queue.push({
             ...options,
-            key: options.capitalizeLabels ? key.toUpperCase() : key,
+            key: options.capitalizeLabels ? key?.toUpperCase() : key,
             value,
-            parentId: target.id,
+            parentId,
             target
           })
         } else if (isArray(value) && !isPrimitiveArray(value)) {
           value.forEach((val: WithId<CreateEntityDto>) =>
             queue.push({
               ...options,
-              key: options.capitalizeLabels ? key.toUpperCase() : key,
+              key: options.capitalizeLabels ? key?.toUpperCase() : key,
               value: val,
-              parentId: target.id,
+              parentId,
               target
             })
           )
@@ -216,19 +231,27 @@ export class ImportService {
       const recordDraft: WithId<CreateEntityDto> = {
         id: uuidv7(),
         properties: [],
-        label: options.capitalizeLabels ? key.toUpperCase() : key
+        label: options.capitalizeLabels ? key?.toUpperCase() : key
       } as WithId<CreateEntityDto>
 
+      // If we do not skip, create the entity and relation from parent (if parent exists)
       if (!toBoolean(current?.skip)) {
-        relations.push({
-          source: parentId,
-          target: recordDraft.id,
-          type: options.relationshipType?.trim() || RUSHDB_RELATION_DEFAULT
-        })
+        if (toBoolean(parentId)) {
+          relations.push({
+            source: parentId,
+            target: recordDraft.id,
+            type: options.relationshipType?.trim() || RUSHDB_RELATION_DEFAULT
+          })
+        }
         entities.push(recordDraft)
       }
 
-      parse({ value, target: recordDraft })
+      // Determine the parent id to pass to children:
+      // - If we skipped current, bubble up the existing parentId so children become siblings at that level
+      // - If not skipped, current recordDraft becomes the parent for its children
+      const childParentId = toBoolean(current?.skip) ? parentId : recordDraft.id
+
+      parse({ value, target: recordDraft, parentId: childParentId })
     }
 
     return [entities, relations]

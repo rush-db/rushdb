@@ -14,6 +14,16 @@
 
 import { db } from '../util/db.js'
 
+function isFlatObject(obj: any): boolean {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false
+  return Object.values(obj).every((v) => {
+    const t = typeof v
+    if (v === null) return true
+    if (Array.isArray(v)) return false
+    return t !== 'object'
+  })
+}
+
 type BulkCreateRecordsArgs = {
   label: string
   data: Record<string, any>[]
@@ -30,7 +40,12 @@ export async function BulkCreateRecords({
   data,
   transactionId
 }: BulkCreateRecordsArgs): Promise<BulkCreateRecordsResult> {
-  const result = await db.records.createMany({ label, data }, transactionId)
+  // Route to the correct SDK method based on data shape
+  const allFlat = Array.isArray(data) && data.every(isFlatObject)
+  const result =
+    allFlat ?
+      await db.records.createMany({ label, data, options: { returnResult: true } }, transactionId)
+    : await db.records.importJson({ label, data, options: { returnResult: true } }, transactionId)
   const ids = result.data.map((record: any) => record.id())
 
   return {

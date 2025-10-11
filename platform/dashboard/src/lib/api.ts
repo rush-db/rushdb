@@ -54,7 +54,7 @@ export type ApiResult<Method extends AnyFunction> = Awaited<ReturnType<Method>>
 
 export const api = {
   records: {
-    async createMany({
+    async importJson({
       init,
       data,
       label,
@@ -65,7 +65,7 @@ export const api = {
       options?: DBRecordCreationOptions
     }) {
       try {
-        return await rushDBInstance.records.createMany({ label, options, data })
+        return await rushDBInstance.records.importJson({ label, options, data })
       } catch (e: any) {
         if (e.message === BillingErrorCodes.PaymentRequired.toString()) {
           $limitReachModalOpen.set(true)

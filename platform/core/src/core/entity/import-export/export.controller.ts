@@ -36,6 +36,29 @@ export class ExportController {
       transaction
     })
 
-    return { fileContent: unparse(data), dateTime: getCurrentISO() }
+    const fieldSet = new Set<string>()
+    for (const row of data) {
+      Object.keys(row || {}).forEach((k) => {
+        fieldSet.add(k)
+      })
+    }
+
+    const first = ['__id']
+    const last = ['__label']
+    const others = Array.from(fieldSet)
+      .filter((k) => !first.includes(k) && !last.includes(k))
+      .sort()
+    const fields = [
+      ...first.filter((f) => fieldSet.has(f)),
+      ...last.filter((l) => fieldSet.has(l)),
+      ...others
+    ]
+
+    const rows = data.map((row) => fields.map((f) => (row?.[f] ?? '') as any))
+
+    return {
+      fileContent: unparse({ fields, data: rows }),
+      dateTime: getCurrentISO()
+    }
   }
 }

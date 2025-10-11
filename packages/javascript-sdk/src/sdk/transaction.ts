@@ -31,7 +31,7 @@ export class Transaction {
    * @returns Promise resolving to the result of the rollback operation
    */
   async rollback() {
-    const instance = RushDB.init()
+    const instance = RushDB.getInstance()
     return await instance.tx.rollback(this.id)
   }
 
@@ -42,7 +42,7 @@ export class Transaction {
    * @returns Promise resolving to the result of the commit operation
    */
   async commit() {
-    const instance = RushDB.init()
+    const instance = RushDB.getInstance()
     return await instance.tx.commit(this.id)
   }
 }

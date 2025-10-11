@@ -4,62 +4,32 @@ sidebar_position: 1
 
 # Import Data
 
-When working with RushDB SDK, creating models like Author, Post, and Blog repositories allows us to define clear TypeScript contracts, ensuring type safety and better development experience. However, in many scenarios, you might need to quickly import data from external sources, such as JSON files, without going through the process of registering models.
+When importing data into RushDB, choose the method that matches your data shape:
 
-Using the `createMany` method (JSON) or the `importCsv` method (CSV), you can efficiently import large datasets into RushDB by directly specifying the label and payload data. This approach is ideal for batch imports, data migrations, and integrating external data sources.
+- createMany — arrays of flat rows only (CSV-like). No nested objects or arrays inside items.
+- importJson — real JSON: nested, messy, arrays with nested data, or a hash-map-like top-level structure.
 
-## Example: Importing Data from JSON
-In this example, we will demonstrate how to import user, post, and blog data from a JSON file into RushDB SDK using the `createMany` method:
+This page explains when to use each and shows practical examples. Keep using createMany where you already import flat arrays; use importJson for everything else.
+
+## createMany: arrays of flat rows (CSV-like)
+Use createMany when your input is an array (or single object) of flat rows. Nested objects/arrays are not allowed.
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
-import fs from 'fs';
+const db = new RushDB(process.env.RUSHDB_API_KEY!);
 
-// Initialize the SDK
-const db = new RushDB('RUSHDB_API_KEY');
+const authors = [
+  { name: 'Alice Johnson', email: 'alice@example.com', age: 30 },
+  { name: 'Bob Smith', email: 'bob@example.com', age: 25 }
+];
 
-// Load data from a JSON file
-const data = JSON.parse(fs.readFileSync('data.json', 'utf8'));
+const result = await db.records.createMany({
+  label: 'AUTHOR',
+  data: authors,
+  options: { suggestTypes: true }
+});
 
-// Example JSON structure
-/*
-{
-  "users": [
-    { "name": "Alice Johnson", "email": "alice@example.com", "age": 30 },
-    { "name": "Bob Smith", "email": "bob@example.com", "age": 25 }
-  ],
-  "posts": [
-    { "title": "Introduction to RushDB SDK", "content": "This is a post about RushDB SDK...", "authorEmail": "alice@example.com" },
-    { "title": "Advanced RushDB SDK Usage", "content": "This post covers advanced usage of RushDB SDK...", "authorEmail": "bob@example.com" }
-  ],
-  "blogs": [
-    { "title": "Alice's Tech Blog", "description": "A blog about tech by Alice.", "ownerEmail": "alice@example.com" },
-    { "title": "Bob's Coding Adventures", "description": "Bob shares his coding journey.", "ownerEmail": "bob@example.com" }
-  ]
-}
-*/
-
-// Function to import data
-async function importData() {
-  try {
-    // Import users
-    const importedUsers = await db.records.createMany({label: 'user', data: data.users});
-    console.log('Imported Users:', importedUsers.data);
-
-    // Import posts
-    const importedPosts = await db.records.createMany({label: 'post', data: data.posts});
-    console.log('Imported Posts:', importedPosts.data);
-
-    // Import blogs
-    const importedBlogs = await db.records.createMany({label: 'blog', data: data.blogs});
-    console.log('Imported Blogs:', importedBlogs.data);
-  } catch (error) {
-    console.error('Error importing data:', error);
-  }
-}
-
-// Run the import function
-importData();
+console.log(result.data.map(r => r.data));
 ```
 
 ## Importing Data from CSV
@@ -96,19 +66,71 @@ console.log(customers.data.map(c => c.data));
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `delimiter` | string | `,` | Field delimiter |
-| `header` | boolean | `true` | Whether first row contains headers |
-| `skipEmptyLines` | boolean \| `"greedy"` | `true` | Skip empty (or whitespace-only when `greedy`) lines |
-| `dynamicTyping` | boolean | Mirrors `options.suggestTypes` | PapaParse numeric/boolean autodetection |
-| `quoteChar` | string | `"` | Quote character |
-| `escapeChar` | string | `"` | Escape character for quotes |
-| `newline` | string | auto | Explicit newline sequence override |
+| `delimiter` | `string` | `,` | Field delimiter |
+| `header` | `boolean` | `true` | Whether first row contains headers |
+| `skipEmptyLines` | `boolean` \| `"greedy"` | `true` | Skip empty (or whitespace-only when `greedy`) lines |
+| `dynamicTyping` | `boolean` | Mirrors `options.suggestTypes` | PapaParse numeric/boolean autodetection |
+| `quoteChar` | `string` | `"` | Quote character |
+| `escapeChar` | `string` | `"` | Escape character for quotes |
+| `newline` | `string` | auto | Explicit newline sequence override |
 
 If `parseConfig.dynamicTyping` is omitted, it inherits from `options.suggestTypes`.
 
-## Advanced Usage: Import Options
+## importJson: nested or hash-map-like JSON
+Use importJson when your data is nested or “messy” (arrays with nested objects, objects-within-objects, etc.), or when your top-level input is a hash map of label -> items.
 
-The `createMany` method accepts an optional third parameter to customize how your data is processed and stored:
+importJson works in two modes:
+
+1) With label provided — you explicitly set the top-level label.
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk';
+import fs from 'fs';
+
+const db = new RushDB(process.env.RUSHDB_API_KEY!);
+const data = JSON.parse(fs.readFileSync('data.json', 'utf8'));
+
+// data.json can be nested/messy. importJson will BFS through and create
+// records and relationships according to structure.
+const imported = await db.records.importJson({
+  label: 'BLOG',
+  data,
+  options: { suggestTypes: true }
+});
+
+console.log(imported.data.length);
+```
+
+2) Without label — pass a single top-level key used as the label:
+
+```typescript
+const payload = {
+  ITEM: [
+    { name: 'Sprocket', specs: { size: 'M', weight: 1.2 }, images: ['a.jpg', 'b.jpg'] },
+    { name: 'Cog', specs: { size: 'S', weight: 0.7 } }
+  ]
+}
+
+// Label is inferred as 'ITEM'
+await db.records.importJson({ data: payload });
+```
+
+Unlabeled invalid root object — if you don’t provide label and the top level is not a single-key map, importJson throws:
+
+```typescript
+await db.records.importJson({
+  data: {
+    some: 'key',
+    data: 1,
+    nested: { level: 2 }
+  }
+});
+// Error: importJson requires either an explicit label or a single top-level key to infer the label
+```
+
+### Advanced Usage: Import Options
+
+The `importJson` method accepts an optional `options` parameter to customize how your data is processed and stored:
 
 ```typescript
 const importOptions = {
@@ -120,11 +142,7 @@ const importOptions = {
   castNumberArraysToVectors: false
 };
 
-const importedUsers = await db.records.createMany({
-  labels: 'user',
-  data: data.users,
-  options: importOptions
-});
+const importedUsers = await db.records.importJson({ label: 'user', data: data.users, options: importOptions })
 ```
 
 ### Available Options (JSON & CSV)
@@ -138,7 +156,13 @@ const importedUsers = await db.records.createMany({
 | `relationshipType`              | String  | `__RUSHDB__RELATION__DEFAULT__` | Default relationship type between Records (nodes) |
 | `returnResult`                  | Boolean | `false`                         | Returns imported records in response              |
 
-## How RushDB Import Works
+## Quick rules recap
+
+- createMany: arrays of flat rows only. Nested objects or arrays inside items are not allowed and will cause an error — use importJson instead.
+- importJson: nested/mixed JSON. Provide label explicitly, or pass a single-key object like `{ LABEL: [...] }` to infer the label.
+- importCsv: CSV string input with parseConfig; dynamicTyping inherits from options.suggestTypes when omitted.
+
+## How RushDB JSON Import Works
 
 When you import data through the TypeScript SDK, RushDB applies a breadth-first search (BFS) algorithm to parse and transform your data:
 

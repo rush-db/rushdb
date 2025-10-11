@@ -8,6 +8,7 @@ import type { SDKConfig, State, TokenPublicVariables } from './types.js'
 import { RestAPI } from '../api/api.js'
 import { DEFAULT_TIMEOUT } from '../common/constants.js'
 import { extractMixedPropertiesFromToken, parseConfig, validateInteger } from './utils.js'
+import { toBoolean } from '../common/utils.js'
 
 let httpClient: HttpClient
 
@@ -50,11 +51,9 @@ export class RushDB extends RestAPI {
   }
 
   /**
-   * Static method to get instance
-   * This is the preferred way to get an initialized RushDB instance
+   * Synchronous getInstance that returns instance or null
    */
-  static init(): RushDB {
-    // If an instance exists but is not yet initialized, wait for it
+  public static getInstance(): RushDB {
     if (RushDB.instance) {
       return RushDB.instance
     }
@@ -65,17 +64,10 @@ export class RushDB extends RestAPI {
   }
 
   /**
-   * Synchronous getInstance that returns instance or null
-   */
-  public static getInstance(): RushDB | null {
-    return RushDB.instance
-  }
-
-  /**
    * Check if the SDK is initialized
    */
   public static isInitialized(): boolean {
-    return RushDB.instance !== null
+    return toBoolean(RushDB.instance)
   }
 
   public toDBRecordInstance<S extends Schema = Schema>(record: DBRecord<S>) {

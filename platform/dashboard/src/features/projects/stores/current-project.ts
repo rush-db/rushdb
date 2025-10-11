@@ -370,6 +370,9 @@ export const $export = createMutator({
     const labels = $activeLabels.get()
     const combineMode = $combineFilters.get()
     const orderBy = $recordsOrderBy.get()
+    const skip = $currentProjectRecordsSkip.get()
+    const limit = $currentProjectRecordsLimit.get()
+
     let properties
 
     if (combineMode === 'and') {
@@ -380,7 +383,9 @@ export const $export = createMutator({
       {
         labels,
         where: convertToSearchQuery(properties),
-        orderBy
+        orderBy,
+        skip,
+        limit
       },
       init
     )
