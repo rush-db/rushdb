@@ -110,18 +110,6 @@ export class Model<S extends Schema = any> {
    * @returns Promise resolving to the initialized RushDB instance
    * @throws Error if no RushDB instance has been created yet
    */
-  public async getRushDBInstance(): Promise<RushDB> {
-    // First check if there's already an instance
-    const instance = RushDB.getInstance()
-    if (instance) {
-      // If an instance exists, wait for it to be fully initialized
-      return RushDB.init()
-    }
-
-    throw new Error(
-      'No RushDB instance found. Please create a RushDB instance first: new RushDB("RUSHDB_API_KEY")'
-    )
-  }
 
   /**
    * Converts a database record to a record instance (DBRecordInstance) with additional methods.
@@ -132,7 +120,7 @@ export class Model<S extends Schema = any> {
    */
   public async toDBRecordInstance(record: DBRecord<S>) {
     try {
-      const instance = await this.getRushDBInstance()
+      const instance = RushDB.getInstance()
       return instance.toDBRecordInstance(record)
     } catch (error) {
       throw new Error('No RushDB instance was provided during model initialization.')
@@ -151,7 +139,7 @@ export class Model<S extends Schema = any> {
     transaction?: Transaction | string
   ) {
     const query = (searchQuery ?? {}) as Q
-    const instance = await this.getRushDBInstance()
+    const instance = RushDB.getInstance()
     return instance.records.find<S, Q>({ ...query, labels: [this.label] }, transaction)
   }
 
@@ -175,7 +163,7 @@ export class Model<S extends Schema = any> {
       limit?: never
       skip?: never
     }
-    const instance = await this.getRushDBInstance()
+    const instance = RushDB.getInstance()
     return instance.records.findOne<S, Q>({ ...query, labels: [this.label] }, transaction)
   }
 
@@ -210,7 +198,7 @@ export class Model<S extends Schema = any> {
       limit?: never
       skip?: never
     }
-    const instance = await this.getRushDBInstance()
+    const instance = RushDB.getInstance()
     return instance.records.findUniq<S, Q>({ ...query, labels: [this.label] }, transaction)
   }
 
@@ -227,7 +215,7 @@ export class Model<S extends Schema = any> {
 
     const uniqFields = pickUniqFieldsFromRecord(this.schema, data)
     const hasUniqFields = toBoolean(uniqFields)
-    const instance = await this.getRushDBInstance()
+    const instance = RushDB.getInstance()
 
     if (hasUniqFields) {
       const tx = transaction ?? (await instance.tx.begin())
@@ -273,7 +261,7 @@ export class Model<S extends Schema = any> {
     },
     transaction?: Transaction | string
   ) {
-    const instance = await this.getRushDBInstance()
+    const instance = RushDB.getInstance()
     return await instance.records.attach({ source, target, options }, transaction)
   }
 
@@ -296,7 +284,7 @@ export class Model<S extends Schema = any> {
     },
     transaction?: Transaction | string
   ) {
-    const instance = await this.getRushDBInstance()
+    const instance = RushDB.getInstance()
     return await instance.records.detach({ source, target, options }, transaction)
   }
 
@@ -323,7 +311,7 @@ export class Model<S extends Schema = any> {
       throw new Error(`Model.${method} with Array<PropertyDraft> as payload is not implemented yet.`)
     }
 
-    const instance = await this.getRushDBInstance()
+    const instance = RushDB.getInstance()
     const data = await mergeDefaultsWithPayload<S>(this.schema, record)
     const uniqFields = pickUniqFieldsFromRecord(this.schema, data)
 
@@ -397,7 +385,7 @@ export class Model<S extends Schema = any> {
    * @throws UniquenessError if any record violates uniqueness constraints
    */
   async createMany(records: Array<InferSchemaTypesWrite<S>>, transaction?: Transaction | string) {
-    const instance = await this.getRushDBInstance()
+    const instance = RushDB.getInstance()
 
     // Begin a transaction if one isn't provided.
     const hasOwnTransaction = typeof transaction !== 'undefined'
@@ -468,7 +456,7 @@ export class Model<S extends Schema = any> {
         `You must specify criteria to delete records of type '${this.label}'. Empty criteria are not allowed. If this was intentional, use the Dashboard instead.`
       )
     }
-    const instance = await this.getRushDBInstance()
+    const instance = RushDB.getInstance()
     return await instance.records.delete({ ...searchQuery, labels: [this.label] }, transaction)
   }
 
@@ -480,7 +468,7 @@ export class Model<S extends Schema = any> {
    * @returns Promise resolving to the result of the delete operation
    */
   async deleteById(idOrIds: MaybeArray<string>, transaction?: Transaction | string) {
-    const instance = await this.getRushDBInstance()
+    const instance = RushDB.getInstance()
     return await instance.records.deleteById(idOrIds, transaction)
   }
 }

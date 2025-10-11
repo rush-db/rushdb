@@ -149,23 +149,15 @@ export type UserSearchQuery = SearchQuery<typeof UserModel.schema>;
 
 ### Model Implementation Architecture
 
-The `Model` class uses the same architectural pattern as other SDK components like `Transaction` and `DBRecordInstance`. It uses the static `RushDB.init()` method to access the API:
+The `Model` class uses the same architectural pattern as other SDK components like `Transaction` and `DBRecordInstance`. It uses the static `RushDB.getInstance()` method to access the API:
 
 ```typescript
 // Internal implementation pattern (from model.ts)
 async someMethod(params) {
-  const instance = await this.getRushDBInstance()
+  const instance = RushDB.getInstance()
   return await instance.someApi.someMethod(params)
 }
 
-// getRushDBInstance method in Model class
-public async getRushDBInstance(): Promise<RushDB> {
-  const instance = RushDB.getInstance()
-  if (instance) {
-    return await RushDB.init()
-  }
-  throw new Error('No RushDB instance found. Please create a RushDB instance first: new RushDB("RUSHDB_API_KEY")')
-}
 ```
 
 This architecture ensures consistent API access across all SDK components.
@@ -248,8 +240,8 @@ import RushDB from '@rushdb/javascript-sdk';
 export const db = new RushDB('RUSHDB_API_KEY');
 
 // You can also export a helper function to access the instance
-export const getRushDBInstance = async () => {
-  return await RushDB.init();
+export const getRushDBInstance = () => {
+  return RushDB.getInstance();
 };
 ```
 

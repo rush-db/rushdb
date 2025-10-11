@@ -229,7 +229,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
       throw new Error('DBRecordInstance: Unable to delete Record. The Record data is undefined.')
     }
 
-    const instance = RushDB.init()
+    const instance = RushDB.getInstance()
     return await instance.records.deleteById(this.id(), transaction)
   }
 
@@ -249,7 +249,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
       throw new Error('DBRecordInstance: Unable to update Record. The Record data is undefined.')
     }
 
-    const instance = RushDB.init()
+    const instance = RushDB.getInstance()
     return instance.records.update({ label: this.label(), target: this.id(), data }, transaction)
   }
 
@@ -270,7 +270,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
       throw new Error('DBRecordInstance: Unable to set. The Record data is undefined.')
     }
 
-    const instance = RushDB.init()
+    const instance = RushDB.getInstance()
     return instance.records.set({ label: this.label(), target: this.id(), data }, transaction)
   }
 
@@ -288,7 +288,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
       throw new Error('DBRecordInstance: Unable to attach Record. The Record data is undefined.')
     }
 
-    const instance = RushDB.init()
+    const instance = RushDB.getInstance()
     return instance.records.attach({ source: this.id(), target, options }, transaction)
   }
 
@@ -306,7 +306,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
       throw new Error('DBRecordInstance: Unable to detach Record. The Record data is undefined.')
     }
 
-    const instance = RushDB.init()
+    const instance = RushDB.getInstance()
     return instance.records.detach({ source: this.id(), target, options }, transaction)
   }
 }

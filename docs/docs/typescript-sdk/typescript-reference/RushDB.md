@@ -64,25 +64,6 @@ Gets the singleton instance of the RushDB class.
 
 **Returns**: The RushDB instance
 
-### init()
-
-```typescript
-public static async init(): Promise<RushDB>
-```
-
-Initializes and returns the RushDB instance. This method is used internally by other SDK components (like Transaction and DBRecordInstance) to access the API.
-
-**Returns**: A Promise that resolves to the RushDB instance
-
-**Example**:
-```typescript
-// Internal usage in SDK components
-async someMethod() {
-  const instance = await RushDB.init()
-  return await instance.someApi.someMethod()
-}
-```
-
 ## Instance Methods
 
 ### toInstance()

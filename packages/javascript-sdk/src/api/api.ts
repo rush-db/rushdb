@@ -261,13 +261,17 @@ export class RestAPI {
     },
 
     /**
-     * Creates multiple records in a single operation
-     * @param data - Object containing label, options and data array or object for multiple records
+     * Creates multiple flat records in a single operation.
+     * Use this only for CSV-like flat rows (no nested objects/arrays).
+     * For nested/complex JSON, use `records.importJson`.
+     *
+     * @param data - Object containing label, options and data array (or single flat object)
      * @param data.label - The label/type for all records
      * @param data.options - Optional write configuration
-     * @param data.data - Array of record data to create
+     * @param data.data - Array (or single) of flat record data to create
      * @param transaction - Optional transaction for atomic operations
      * @returns Promise resolving to DBRecordsArrayInstance containing created records
+     * @throws Error if any record is not flat. Use `records.importJson` for nested JSON.
      */
     createMany: async <S extends Schema = any>(
       data: {
@@ -277,12 +281,21 @@ export class RestAPI {
       },
       transaction?: Transaction | string
     ): Promise<DBRecordsArrayInstance<S>> => {
+      // Normalize to array and validate flatness
+      const items = isArray(data.data) ? data.data : [data.data]
+      const allFlat = items.every((r) => isFlatObject(r))
+      if (!allFlat) {
+        throw new Error(
+          'records.createMany supports only flat records (no nested objects/arrays). Use records.importJson for nested JSON.'
+        )
+      }
+
       const txId = pickTransactionId(transaction)
       const path = `/records/import/json`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: data
+        requestData: { ...data, data: items }
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -298,6 +311,83 @@ export class RestAPI {
             (<Array<DBRecord<S>>>response.data)?.map((r) => {
               return new DBRecordInstance<S>(r)
             })
+          : []
+        return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
+      }
+
+      return new DBRecordsArrayInstance<S>([])
+    },
+
+    /**
+     * Import nested or complex JSON payloads.
+     * Works in two modes:
+     *  - With `label` provided
+     *  - Without `label`: expects an object with a single top-level key used as the label, e.g. { ITEM: [...] }
+     *
+     * Throws if `label` is missing and the input does not conform to the single-key rule
+     * (e.g. { some: 'key', data: 1, nested: { level: 2 } }).
+     *
+     * @example
+     * // with label
+     * await db.records.importJson({ label: 'ITEM', data: [{...}, {...}] })
+     * // without label
+     * await db.records.importJson({ data: { ITEM: [{...}, {...}] } })
+     */
+    importJson: async <S extends Schema = any>(
+      params: {
+        data: any
+        label?: string
+        options?: DBRecordCreationOptions
+      },
+      transaction?: Transaction | string
+    ): Promise<DBRecordsArrayInstance<S>> => {
+      const { data: rawData, options } = params
+      let { label } = params
+
+      let payloadData: any = rawData
+
+      if (!label) {
+        // Derive label from single top-level key: { LABEL: [...] | {...} }
+        if (isObject(rawData) && !isArray(rawData)) {
+          const own = getOwnProperties(rawData as AnyObject)
+          const keys = Object.keys(own)
+          if (keys.length === 1) {
+            label = keys[0]
+            payloadData = (own as any)[label]
+          } else {
+            throw new Error(
+              'records.importJson: Missing `label`. Provide `label` or pass an object with a single top-level key that determines the label, e.g. { ITEM: [...] }'
+            )
+          }
+        } else {
+          throw new Error(
+            'records.importJson: Missing `label`. Provide `label` or pass an object with a single top-level key that determines the label, e.g. { ITEM: [...] }'
+          )
+        }
+      }
+
+      const txId = pickTransactionId(transaction)
+      const path = `/records/import/json`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: {
+          label,
+          data: payloadData,
+          options
+        }
+      }
+
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<Array<DBRecord<S>>>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      if (response?.success && response?.data) {
+        const dbRecordInstances =
+          isArray(response.data) ?
+            (<Array<DBRecord<S>>>response.data)?.map((r) => new DBRecordInstance<S>(r))
           : []
         return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total)
       }

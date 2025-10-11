@@ -69,6 +69,40 @@ export class ExportService {
     return allData
   }
 
+  async collectDataBySkipLimit({
+    id,
+    projectId,
+    searchQuery,
+    transaction
+  }: {
+    id?: string
+    projectId: string
+    searchQuery?: SearchDto
+    transaction: Transaction
+  }): Promise<any[]> {
+    const pageData = await this.entityService.find({
+      id,
+      projectId,
+      searchQuery: {
+        where: searchQuery?.where,
+        orderBy: searchQuery?.orderBy,
+        skip: typeof searchQuery?.skip === 'number' ? searchQuery?.skip : 0,
+        limit: typeof searchQuery?.limit === 'number' ? searchQuery?.limit : 100
+      },
+      transaction
+    })
+
+    return pageData.map((record) =>
+      Object.entries(record).reduce((acc, [key, value]) => {
+        const propertyName = RUSHDB_INTERNALS_ALIASES[key] ?? key
+        if (key !== RUSHDB_KEY_PROPERTIES_META && key !== RUSHDB_KEY_PROJECT_ID) {
+          acc[propertyName] = value
+        }
+        return acc
+      }, {} as any)
+    )
+  }
+
   async exportRecords({
     id,
     projectId,
@@ -80,19 +114,18 @@ export class ExportService {
     searchQuery?: SearchDto
     transaction: Transaction
   }) {
-    const total = await this.entityService.getCount({
+    // const total = await this.entityService.getCount({
+    //   id,
+    //   projectId,
+    //   searchQuery,
+    //   transaction
+    // })
+
+    return await this.collectDataBySkipLimit({
       id,
       projectId,
       searchQuery,
       transaction
-    })
-
-    return await this.collectAllDataFromDB({
-      id,
-      projectId,
-      searchQuery,
-      transaction,
-      total
     })
   }
 }

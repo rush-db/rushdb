@@ -15,7 +15,7 @@ export const createMany = createMutator<{
   data: AnyRecord | Array<unknown>
 }>({
   async fetcher({ init, data, label, options }) {
-    return await api.records.createMany({ init, data, label, options })
+    return await api.records.importJson({ init, data, label, options })
   },
   throwError: true,
   onError: (error: unknown) => console.log({ error }),
