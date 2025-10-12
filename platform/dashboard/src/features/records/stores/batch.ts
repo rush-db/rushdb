@@ -9,7 +9,7 @@ import { api } from '~/lib/api'
 import { createMutator } from '~/lib/fetcher'
 import { DBRecordCreationOptions } from '@rushdb/javascript-sdk'
 
-export const createMany = createMutator<{
+export const importJson = createMutator<{
   label: string
   options?: DBRecordCreationOptions
   data: AnyRecord | Array<unknown>

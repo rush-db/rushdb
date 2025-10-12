@@ -57,7 +57,7 @@ const db = new RushDB("RUSHDB_API_KEY");
 
 // Push any data, and RushDB will automatically flatten it into Records
 // and establish relationships between them accordingly.
-await db.records.createMany({
+await db.records.importJson({
   label: "COMPANY",
   data: {
     name: 'Google LLC',

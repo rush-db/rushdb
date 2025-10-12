@@ -160,7 +160,7 @@ import RushDB from '@rushdb/javascript-sdk';
 const db = new RushDB("RUSHDB_API_KEY");
 
 // Push data with automatic relationship creation
-await db.records.createMany({
+await db.records.importJson({
    label: "COMPANY",
    payload: {
       name: 'Google LLC',
