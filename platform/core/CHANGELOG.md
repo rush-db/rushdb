@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.18.0
+
+### Minor Changes
+
+- 488c1d1: createMany & importJson separation plus minor export and import improvements
+
 ## 1.17.0
 
 ### Minor Changes
