@@ -13,16 +13,7 @@
 // limitations under the License.
 
 import { db } from '../util/db.js'
-
-function isFlatObject(obj: any): boolean {
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false
-  return Object.values(obj).every((v) => {
-    const t = typeof v
-    if (v === null) return true
-    if (Array.isArray(v)) return false
-    return t !== 'object'
-  })
-}
+import { isFlatObject } from '../util/isFlatObject.js'
 
 type BulkCreateRecordsArgs = {
   label: string
