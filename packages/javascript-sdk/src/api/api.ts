@@ -265,10 +265,10 @@ export class RestAPI {
      * Use this only for CSV-like flat rows (no nested objects/arrays).
      * For nested/complex JSON, use `records.importJson`.
      *
-     * @param data - Object containing label, options and data array (or single flat object)
+     * @param data - Object containing label, options and data array (of flat objects)
      * @param data.label - The label/type for all records
      * @param data.options - Optional write configuration
-     * @param data.data - Array (or single) of flat record data to create
+     * @param data.data - Array of flat record data to create
      * @param transaction - Optional transaction for atomic operations
      * @returns Promise resolving to DBRecordsArrayInstance containing created records
      * @throws Error if any record is not flat. Use `records.importJson` for nested JSON.
@@ -276,7 +276,7 @@ export class RestAPI {
     createMany: async <S extends Schema = any>(
       data: {
         label: string
-        data: MaybeArray<AnyObject>
+        data: Array<InferSchemaTypesWrite<S>>
         options?: DBRecordCreationOptions
       },
       transaction?: Transaction | string
