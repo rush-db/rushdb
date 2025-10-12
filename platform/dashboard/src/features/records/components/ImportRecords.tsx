@@ -8,7 +8,7 @@ import { DialogFooter, DialogLoadingOverlay } from '~/elements/Dialog'
 import { TextField } from '~/elements/Input'
 import { cn } from '~/lib/utils'
 
-import { createMany, importCsv } from '../stores/batch'
+import { importJson, importCsv } from '../stores/batch'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
 import { $router, getRoutePath } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
@@ -73,7 +73,7 @@ onSet($editorData, ({ newValue }) => {
 function EditorStep() {
   const [loading, setLoading] = useState(true)
   const defaultValue = useStore($editorData)
-  const { mutate, loading: submitting } = useStore(createMany)
+  const { mutate, loading: submitting } = useStore(importJson)
   const { mutate: mutateCsv, loading: csvSubmitting } = useStore(importCsv)
   const projectId = useStore($currentProjectId)
   const mode = useStore($mode)

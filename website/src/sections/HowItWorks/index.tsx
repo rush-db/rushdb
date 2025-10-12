@@ -18,7 +18,7 @@ const code1 = `import RushDB from '@rushdb/javascript-sdk'
 
 const db = new RushDB('RUSHDB_API_KEY')
 
-await db.records.createMany({
+await db.records.importJson({
   label: "COMPANY",
   data: {
     name: 'Google LLC',
@@ -182,7 +182,7 @@ async function generateAndStoreData() {
   const parsedContent = JSON.parse(generatedContent)
 
   // Step 3: Store the output in RushDB
-  const record = await db.records.createMany({
+  const record = await db.records.importJson({
     label: 'AI_RESPONSE',
     data: parsedContent
   })

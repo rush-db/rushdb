@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { db } from '../util/db.js'
+import { isFlatObject } from '../util/isFlatObject.js'
 
 type BulkCreateRecordsArgs = {
   label: string
@@ -30,7 +31,12 @@ export async function BulkCreateRecords({
   data,
   transactionId
 }: BulkCreateRecordsArgs): Promise<BulkCreateRecordsResult> {
-  const result = await db.records.createMany({ label, data }, transactionId)
+  // Route to the correct SDK method based on data shape
+  const allFlat = Array.isArray(data) && data.every(isFlatObject)
+  const result =
+    allFlat ?
+      await db.records.createMany({ label, data, options: { returnResult: true } }, transactionId)
+    : await db.records.importJson({ label, data, options: { returnResult: true } }, transactionId)
   const ids = result.data.map((record: any) => record.id())
 
   return {

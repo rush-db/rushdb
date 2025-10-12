@@ -68,7 +68,7 @@ Get instant guidance through our **[RushDB Docs Chat](https://chatgpt.com/g/g-67
   const db = new RushDB("RUSHDB_API_KEY");
 
   // Push data with any structure you need
-  await db.records.createMany({
+  await db.records.importJson({
     label: "PRODUCT",
     data: {
       title: "Ergonomic Chair",

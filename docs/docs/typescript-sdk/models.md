@@ -149,23 +149,15 @@ export type UserSearchQuery = SearchQuery<typeof UserModel.schema>;
 
 ### Model Implementation Architecture
 
-The `Model` class uses the same architectural pattern as other SDK components like `Transaction` and `DBRecordInstance`. It uses the static `RushDB.init()` method to access the API:
+The `Model` class uses the same architectural pattern as other SDK components like `Transaction` and `DBRecordInstance`. It uses the static `RushDB.getInstance()` method to access the API:
 
 ```typescript
 // Internal implementation pattern (from model.ts)
 async someMethod(params) {
-  const instance = await this.getRushDBInstance()
+  const instance = RushDB.getInstance()
   return await instance.someApi.someMethod(params)
 }
 
-// getRushDBInstance method in Model class
-public async getRushDBInstance(): Promise<RushDB> {
-  const instance = RushDB.getInstance()
-  if (instance) {
-    return await RushDB.init()
-  }
-  throw new Error('No RushDB instance found. Please create a RushDB instance first: new RushDB("RUSHDB_API_KEY")')
-}
 ```
 
 This architecture ensures consistent API access across all SDK components.
@@ -248,8 +240,8 @@ import RushDB from '@rushdb/javascript-sdk';
 export const db = new RushDB('RUSHDB_API_KEY');
 
 // You can also export a helper function to access the instance
-export const getRushDBInstance = async () => {
-  return await RushDB.init();
+export const getRushDBInstance = () => {
+  return RushDB.getInstance();
 };
 ```
 
@@ -351,82 +343,9 @@ await AuthorModel.detach({
 
 ## Advanced TypeScript Support
 
-When working with RushDB SDK, achieving perfect TypeScript contracts ensures a seamless development experience. TypeScript's strong typing system allows for precise autocomplete suggestions and error checking, particularly when dealing with complex queries and nested models. This section will guide you on how to enhance TypeScript support by defining comprehensive type definitions for your models.
+For a complete, up-to-date guide on configuring declaration merging, path aliases, and schema-aware intellisense (including typed related queries), see the Model reference: [TypeScript: extend SDK types for schema-aware suggestions](./typescript-reference/Model#typescript-extend-sdk-types-for-schema-aware-suggestions).
 
-### Defining Comprehensive TypeScript Types
-
-To fully leverage TypeScript's capabilities, you can define types that include all schemas you've registered with `Model`. This will allow you to perform complex queries with nested model fields, ensuring type safety and better autocompletion.
-
-#### Step 1: Create Models with Model
-
-First, define your models using `Model`:
-```typescript
-import { Model } from '@rushdb/javascript-sdk'
-
-// Create models
-const AuthorModel = new Model('author', {
-  name: { type: 'string' },
-  email: { type: 'string', unique: true }
-});
-
-const PostModel = new Model('post', {
-  created: { type: 'datetime', default: () => new Date().toISOString() },
-  title: { type: 'string' },
-  content: { type: 'string' },
-  rating: { type: 'number' }
-});
-
-const BlogModel = new Model('blog', {
-  title: { type: 'string' },
-  description: { type: 'string' }
-});
-```
-
-#### Step 2: Create an Exportable Type for All Schemas
-
-Next, create an exportable type that includes all the schemas defined in your application:
-```typescript
-export type MyModels = {
-  author: typeof AuthorModel.schema
-  post: typeof PostModel.schema
-  blog: typeof BlogModel.schema
-}
-```
-
-#### Step 3: Extend the Models Interface
-
-Add this type declaration to your project. This ensures that RushDB SDK is aware of your models:
-```typescript
-// index.d.ts or other d.ts file added to include in tsconfig.json
-
-import { MyModels } from './types';
-
-declare module '@rushdb/javascript-sdk' {
-  export interface Models extends MyModels {}
-}
-```
-
-### Example Usage: Complex Queries with Type Safety
-
-By following these steps, you can now write complex queries with confidence, knowing that TypeScript will help you avoid errors and provide accurate autocomplete suggestions. Here's an example demonstrating how you can leverage this setup:
-
-```typescript
-const query = await db.records.find({
-  labels: ['post'],
-  where: {
-    author: {
-      name: { $contains: 'John' }, // Checking if the author's name contains 'John'
-      post: {
-        rating: { $gt: 5 } // Posts with rating greater than 5
-      }
-    }
-  }
-});
-```
-
-In this example, the `db.records.find` method allows you to use nested fields in the `where` condition, thanks to the enhanced TypeScript definitions. This ensures that you can easily and accurately query your data, leveraging the full power of TypeScript.
-
-By defining comprehensive type definitions for your models and extending the `Models` interface, you can significantly enhance your TypeScript support when working with RushDB SDK. This approach ensures type safety, better autocompletion, and a more efficient development experience.
+Note on result typing with aggregations/grouping: when you use `aggregate` or `groupBy`, the result shape can differ from your schema. You can augment the instance type as `typeof Model.recordInstance & { data: T }` to describe the returned payload. See the dedicated explanation and examples in the Model reference, and the concepts for [Aggregations](../concepts/search/aggregations) and [Grouping](../concepts/search/group-by).
 
 ## Working with Transactions
 

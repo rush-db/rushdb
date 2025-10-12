@@ -57,7 +57,7 @@ const db = new RushDB("RUSHDB_API_KEY");
 
 // Push any data, and RushDB will automatically flatten it into Records
 // and establish relationships between them accordingly.
-await db.records.createMany({
+await db.records.importJson({
   label: "COMPANY",
   data: {
     name: 'Google LLC',
@@ -164,7 +164,7 @@ const db = new RushDB('RUSHDB_API_KEY', {
 
 ## SDK Architecture
 
-The RushDB SDK uses a consistent approach for accessing the RushDB API instance across all SDK components. Classes like `Transaction`, `DBRecordInstance`, `DBRecordsArrayInstance` and `Model` all use the static `RushDB.init()` method to obtain the API instance, ensuring a uniform pattern throughout the SDK.
+The RushDB SDK uses a consistent approach for accessing the RushDB API instance across all SDK components. Classes like `Transaction`, `DBRecordInstance`, `DBRecordsArrayInstance` and `Model` all use the static `RushDB.getInstance()` method to obtain the API instance, ensuring a uniform pattern throughout the SDK.
 
 This architecture provides several benefits:
 
@@ -177,7 +177,7 @@ Example of the implementation pattern:
 ```typescript
 // Internal implementation example
 async someMethod(param: string): Promise<ApiResponse> {
-  const instance = await RushDB.init()  // Get the RushDB instance
+  const instance = RushDB.getInstance()  // Get the RushDB instance
   return await instance.someApi.someMethod(param)  // Use the instance to make API calls
 }
 ```
