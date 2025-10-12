@@ -130,6 +130,34 @@ export type UserSearchQuery = SearchQuery<typeof UserModel.schema>;
 
 If you need an actual instance at runtime, work with query results (e.g., `find`, `findOne`, `create`) or convert a raw record via `toDBRecordInstance`.
 
+### Typing results when using aggregations and groupBy
+
+When you add aggregations or grouping to a SearchQuery, the result shape may no longer match your model schema. To accommodate this, the helper type uses a wildcard extension: `typeof Model.recordInstance & { data: T }`.
+
+How it works:
+- `typeof Model.recordInstance` gives you the instance methods and base record metadata.
+- `& { data: T }` lets you “overlay” the actual data payload you expect back from an aggregated/grouped query, bypassing strict schema checks in those scenarios.
+
+Example:
+
+```ts
+// Self-group on an aggregated value
+const deals = await DealModel.find({
+  aggregate: {
+    totalAmount: { fn: 'sum', field: 'amount', alias: '$record' }
+  },
+  groupBy: ['totalAmount']
+});
+
+// Tell TS what the aggregated row contains
+type DealAggRow = typeof DealModel.recordInstance & { data: { totalAmount: number } };
+const firstRow = deals.data[0] as DealAggRow;
+```
+
+Notes:
+- Use this pattern whenever [`aggregate`](../../concepts/search/aggregations) and/or [`groupBy`](../../concepts/search/group-by) change the returned columns.
+- For regular record fetches (no aggregation/grouping), prefer the plain `typeof Model.recordInstance` without augmenting `data`.
+
 ## Methods
 
 ### getLabel()
