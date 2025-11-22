@@ -505,7 +505,6 @@ export class EntityQueryService {
 
     return queryBuilder.getQuery()
   }
-  //
 
   processPropsAppend() {
     const queryBuilder = new QueryBuilder()
