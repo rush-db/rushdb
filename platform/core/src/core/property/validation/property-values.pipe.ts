@@ -57,8 +57,15 @@ export class PropertyValuesPipe implements PipeTransform {
       return { ...value, properties: normalizeProperties(value.properties) }
     } else if (metadata.type === 'body' && 'data' in value) {
       // @TODO: Implement schema schema validation https://github.com/rush-db/rushdb/issues/43
+      const normalized = normalizeRecord(value as CreateEntityDtoSimple)
+      const passthrough: Pick<CreateEntityDtoSimple, 'options'> = {}
 
-      return normalizeRecord(value as CreateEntityDtoSimple)
+      // Preserve options (e.g., mergeBy/mergeStrategy for upsert) while normalizing `data` to `properties`.
+      if ((value as CreateEntityDtoSimple).options) {
+        passthrough.options = (value as CreateEntityDtoSimple).options
+      }
+
+      return { ...normalized, ...passthrough }
     }
     return value
   }

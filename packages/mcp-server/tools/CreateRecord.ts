@@ -18,10 +18,17 @@ export async function CreateRecord(params: {
   label: string
   data: Record<string, any>
   transactionId?: string
+  options?: {
+    mergeStrategy?: 'append' | 'rewrite'
+    mergeBy?: string[]
+  }
 }) {
-  const { label, data, transactionId } = params
+  const { label, data, transactionId, options } = params
 
-  const result = await db.records.create({ label, data }, transactionId)
+  // Normalize append -> merge for backend consistency if necessary
+  const normalizedOptions = options ? { ...options } : undefined
+
+  const result = await db.records.create({ label, data, options: normalizedOptions }, transactionId)
 
   return {
     success: true,

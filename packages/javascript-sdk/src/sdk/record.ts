@@ -112,6 +112,8 @@ export type DBRecordCreationOptions = {
   convertNumericValuesToNumbers?: boolean
   capitalizeLabels?: boolean
   relationshipType?: string
+  mergeStrategy?: 'append' | 'rewrite'
+  mergeBy?: string[]
 }
 
 export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S> = SearchQuery<S>> {

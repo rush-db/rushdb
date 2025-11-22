@@ -82,6 +82,7 @@ function EditorStep() {
   const [suggestTypes, setSuggestTypes] = useState(true)
   const [castNumberArraysToVectors, setCastNumberArraysToVectors] = useState(false)
   const [convertNumericValuesToNumbers, setConvertNumericValuesToNumbers] = useState(false)
+  const [mergeMode, setMergeMode] = useState(false)
   const [capitalizeLabels, setCapitalizeLabels] = useState(true)
   const [relationshipType, setRelationshipType] = useState('__RUSHDB__RELATION__DEFAULT__')
   const label = useStore($label)
@@ -187,6 +188,14 @@ function EditorStep() {
             setConvertNumericValuesToNumbers(!convertNumericValuesToNumbers)
           }}
           checked={convertNumericValuesToNumbers}
+        />
+        <CheckboxField
+          className="mb-5 mt-5"
+          label="Merge mode for upsert imports"
+          onCheckedChange={() => {
+            setMergeMode(!mergeMode)
+          }}
+          checked={mergeMode}
         />
       </div>
 
@@ -296,7 +305,8 @@ function EditorStep() {
                   castNumberArraysToVectors,
                   convertNumericValuesToNumbers,
                   capitalizeLabels,
-                  relationshipType
+                  relationshipType,
+                  mergeBy: mergeMode ? [] : undefined
                 }
               }).then(() => {
                 $router.open(getRoutePath('project', { id: projectId! }))
@@ -324,7 +334,8 @@ function EditorStep() {
                   castNumberArraysToVectors,
                   convertNumericValuesToNumbers,
                   capitalizeLabels,
-                  relationshipType
+                  relationshipType,
+                  mergeBy: mergeMode ? [] : undefined
                 },
                 parseConfig: {
                   delimiter,

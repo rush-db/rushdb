@@ -11,6 +11,9 @@ export class CreateEntityDto {
 
   @ApiPropertyOptional({ type: [PropertyDto] })
   properties?: Array<PropertyDto>
+
+  @ApiPropertyOptional()
+  options?: Omit<TImportOptions, 'returnResult'>
 }
 
 export class CreateEntityDtoSimple {

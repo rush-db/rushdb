@@ -36,6 +36,58 @@ import { label } from '../search/parser/pickRecordLabel'
 
 @Injectable()
 export class EntityQueryService {
+  upsertRecord({ rewrite = false }: { rewrite?: boolean } = {}) {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(`WITH $record as r, datetime() as time`)
+      .append(
+        `WITH *, apoc.map.fromPairs([property IN r.properties | [property.name, property.type]]) AS typesMap,`
+      )
+      .append(
+        `apoc.map.fromPairs([property IN r.properties | [property.name, property.value]]) AS valuesMap,`
+      )
+      .append(`coalesce($mergeBy, []) as mergeBy`)
+      .append(`WITH *, CASE WHEN size(mergeBy)=0 THEN keys(valuesMap) ELSE mergeBy END as keysToMatch`)
+      .append(`OPTIONAL MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
+      .append(
+        `WHERE (r.label IS NULL OR ANY(l IN labels(record) WHERE l = r.label)) AND ALL(k IN keysToMatch WHERE record[k] = valuesMap[k])`
+      )
+      .append(
+        `WITH * CALL apoc.do.when(record IS NULL, 'CREATE (newRecord:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} }) RETURN newRecord', 'RETURN NULL', { r:r, projectId: $projectId }) YIELD value`
+      )
+
+      // @TODO: Use this instead `apoc.do.when` after migrating prod db to Neo4j 2025.06 or higher
+      // .append(
+      //   `CALL (*) {
+      //     WHEN record IS NULL THEN {
+      //       CREATE (newRecord:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} }) RETURN newRecord AS record
+      //     } ELSE {
+      //       RETURN record
+      //     }
+      //   }`
+      // )
+      .append(`WITH *, coalesce(value.newRecord, record) AS record`)
+      .append(
+        `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as upsertLabelResult`
+      )
+
+    if (rewrite) {
+      queryBuilder
+        .append(
+          `OPTIONAL MATCH (record)-[oldValue:${RUSHDB_RELATION_VALUE}]-(oldProperty:${RUSHDB_LABEL_PROPERTY})`
+        )
+        .append(`DELETE oldValue`)
+        .append(this.processProps())
+    } else {
+      queryBuilder.append(this.processPropsAppend())
+    }
+
+    queryBuilder.append(`RETURN record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}} as data`)
+
+    return queryBuilder.getQuery()
+  }
+
   createRecord() {
     const queryBuilder = new QueryBuilder()
 
@@ -67,7 +119,7 @@ export class EntityQueryService {
 
     queryBuilder
       .append(`WITH $record as r, datetime() as time`)
-      .append(`MATCH (record:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id })`)
+      .append(`MATCH (record:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} })`)
       .append(`WITH *`)
       .append(
         `OPTIONAL MATCH (record)-[oldValue:${RUSHDB_RELATION_VALUE}]-(oldProperty:${RUSHDB_LABEL_PROPERTY})`
@@ -104,6 +156,67 @@ export class EntityQueryService {
       .append(`UNWIND recordsToCreate as r`)
       .append(`CREATE (record:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} })`)
       .append(this.processProps())
+
+    if (withResults) {
+      queryBuilder.append(
+        `RETURN collect(DISTINCT record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}}) as data`
+      )
+    }
+
+    return queryBuilder.getQuery()
+  }
+
+  /**
+   * Batch upsert of Records produced by import.
+   * Global mergeBy semantics:
+   *  - If $mergeBy is empty OR null -> use all property keys for each record.
+   *  - Otherwise restrict match to provided list.
+   * mergeStrategy:
+   *  - 'rewrite' removes existing value relationships before applying new ones.
+   *  - 'append' (default) appends without deleting existing ones.
+   * Parameters expected:
+   *  - records: [{ id, label, properties: [{name, value, type, id, created}] }, ...]
+   *  - projectId
+   *  - mergeBy (array<string>|null)
+   *  - rewrite (boolean)
+   *  - returnResult (boolean)
+   */
+  importUpsertRecords({
+    withResults = false,
+    rewrite = false
+  }: { withResults?: boolean; rewrite?: boolean } = {}) {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(`WITH $records as recordsToUpsert, datetime() as time, coalesce($mergeBy, []) as mergeBy`)
+      .append(`UNWIND recordsToUpsert as r`)
+      .append(
+        `WITH *, apoc.map.fromPairs([property IN r.properties | [property.name, property.type]]) AS typesMap,`
+      )
+      .append(`apoc.map.fromPairs([property IN r.properties | [property.name, property.value]]) AS valuesMap`)
+      .append(`WITH *, CASE WHEN size(mergeBy)=0 THEN keys(valuesMap) ELSE mergeBy END as keysToMatch`)
+      .append(`OPTIONAL MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
+      .append(
+        `WHERE (r.label IS NULL OR ANY(l IN labels(record) WHERE l = r.label)) AND ALL(k IN keysToMatch WHERE record[k] = valuesMap[k])`
+      )
+      .append(
+        `WITH * CALL apoc.do.when(record IS NULL, 'CREATE (newRecord:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} }) RETURN newRecord', 'RETURN NULL', { r:r, projectId: $projectId }) YIELD value`
+      )
+      .append(`WITH *, coalesce(value.newRecord, record) AS record`)
+      .append(
+        `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as upsertLabelResult`
+      )
+
+    if (rewrite) {
+      queryBuilder
+        .append(
+          `OPTIONAL MATCH (record)-[oldValue:${RUSHDB_RELATION_VALUE}]-(oldProperty:${RUSHDB_LABEL_PROPERTY})`
+        )
+        .append(`DELETE oldValue`)
+        .append(this.processProps())
+    } else {
+      queryBuilder.append(this.processPropsAppend())
+    }
 
     if (withResults) {
       queryBuilder.append(
@@ -383,7 +496,43 @@ export class EntityQueryService {
       .append(`WITH *`)
       .append(`UNWIND r.properties as prop`)
       .append(
-        `MERGE (p:${RUSHDB_LABEL_PROPERTY} { name: prop.name, type: prop.type, projectId: $projectId, metadata: coalesce(prop.metadata, "")})`
+        `MERGE (p:${RUSHDB_LABEL_PROPERTY} { name: prop.name, type: coalesce(prop.type, 'string'), projectId: $projectId, metadata: coalesce(prop.metadata, "")})`
+      )
+      .append(
+        `ON CREATE SET p.created = coalesce(prop.created, time), p.id = prop.id, p.metadata = coalesce(prop.metadata, "")`
+      )
+      .append(`MERGE (p)-[rel:${RUSHDB_RELATION_VALUE}]->(record)`)
+
+    return queryBuilder.getQuery()
+  }
+  //
+
+  processPropsAppend() {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(`WITH *,`)
+      .append(`apoc.map.fromPairs([property IN r.properties | [property.name, property.type]]) AS typesMap,`)
+      .append(
+        `apoc.map.fromPairs([property IN r.properties | [property.name, property.value]]) AS valuesMap,`
+      )
+      .append(`[label IN labels(record) WHERE label <> "${RUSHDB_LABEL_RECORD}"] as recordLabels`)
+      .append(`WITH *, CASE WHEN size(recordLabels) > 0 THEN [recordLabels[0]] ELSE [] END as labelsToRemove`)
+      .append(`CALL apoc.create.removeLabels(record, labelsToRemove) YIELD node as recordLabelRemove`)
+      .append(
+        `CALL apoc.create.addLabels(record, [coalesce(r.label, recordLabels[0])]) YIELD node as recordLabelUpdate`
+      )
+      .append(
+        `WITH *, coalesce(apoc.convert.fromJsonMap(record.${RUSHDB_KEY_PROPERTIES_META}), {}) as existingTypesMap`
+      )
+      .append(
+        `SET record.${RUSHDB_KEY_PROPERTIES_META} = apoc.convert.toJson(apoc.map.merge(existingTypesMap, typesMap))`
+      )
+      .append(`SET record += valuesMap`)
+      .append(`WITH *`)
+      .append(`UNWIND r.properties as prop`)
+      .append(
+        `MERGE (p:${RUSHDB_LABEL_PROPERTY} { name: prop.name, type: coalesce(prop.type, 'string'), projectId: $projectId, metadata: coalesce(prop.metadata, "")})`
       )
       .append(
         `ON CREATE SET p.created = coalesce(prop.created, time), p.id = prop.id, p.metadata = coalesce(prop.metadata, "")`

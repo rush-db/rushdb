@@ -11,8 +11,31 @@ When importing data into RushDB, choose the method that matches your data shape:
 
 This page explains when to use each and shows practical examples. Keep using createMany where you already import flat arrays; use importJson for everything else.
 
-## createMany: arrays of flat rows (CSV-like)
+## createMany: arrays of flat rows (CSV-like) + optional upsert
 Use createMany when your input is an array (or single object) of flat rows. Nested objects/arrays are not allowed.
+
+You can also perform an upsert during creation by supplying `options.mergeBy` and/or `options.mergeStrategy`:
+
+- If `mergeBy` (array) is provided (even empty) OR `mergeStrategy` is provided, RushDB will attempt to match existing records.
+- If `mergeBy` is empty or omitted but `mergeStrategy` is present, all incoming property keys are used for matching.
+- `mergeStrategy: 'append'` (default) adds/updates incoming properties, preserving unspecified ones.
+- `mergeStrategy: 'rewrite'` replaces all existing properties with incoming ones (unmentioned properties are removed).
+
+```typescript
+// Upsert (append) by email
+await db.records.createMany({
+  label: 'AUTHOR',
+  data: authors,
+  options: { mergeBy: ['email'], mergeStrategy: 'append', suggestTypes: true }
+})
+
+// Rewrite (replace) by email
+await db.records.createMany({
+  label: 'AUTHOR',
+  data: authors,
+  options: { mergeBy: ['email'], mergeStrategy: 'rewrite' }
+})
+```
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
@@ -34,7 +57,7 @@ console.log(result.data.map(r => r.data));
 
 ## Importing Data from CSV
 
-Use `importCsv` when your data source is a CSV string. You can control both import options (type inference etc.) and a subset of CSV parsing configuration.
+Use `importCsv` when your data source is a CSV string. You can control both import options (type inference etc.), upsert behavior, and a subset of CSV parsing configuration.
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
@@ -49,7 +72,9 @@ const customers = await db.records.importCsv({
   options: {
     suggestTypes: true,
     convertNumericValuesToNumbers: true,
-    returnResult: true
+    returnResult: true,
+    mergeBy: ['email'],            // upsert match key(s)
+    mergeStrategy: 'append'        // or 'rewrite'
   },
   parseConfig: {
     delimiter: ',',
@@ -145,16 +170,29 @@ const importOptions = {
 const importedUsers = await db.records.importJson({ label: 'user', data: data.users, options: importOptions })
 ```
 
-### Available Options (JSON & CSV)
+### Available Options (JSON, CSV & createMany)
 
 | Option                          | Type    | Default                         | Description                                       |
 |---------------------------------|---------|---------------------------------|---------------------------------------------------|
-| `suggestTypes`                  | Boolean | `true`                          | Automatically infers data types for properties    |
+| `suggestTypes`                  | Boolean | `true`                          | **Default is `true`** - Automatically infers data types for properties. Set to `false` to disable type inference and store all values as strings |
 | `castNumberArraysToVectors`     | Boolean | `false`                         | Converts numeric arrays to vector type            |
 | `convertNumericValuesToNumbers` | Boolean | `false`                         | Converts string numbers to number type            |
 | `capitalizeLabels`              | Boolean | `false`                         | Converts all labels to uppercase                  |
 | `relationshipType`              | String  | `__RUSHDB__RELATION__DEFAULT__` | Default relationship type between Records (nodes) |
 | `returnResult`                  | Boolean | `false`                         | Returns imported records in response              |
+| `mergeBy`                       | String[] | `undefined` / `[]`              | Property names used to locate existing records. If omitted and `mergeStrategy` provided, all incoming property keys are used. Empty array means “use all incoming keys”. |
+| `mergeStrategy`                 | `'append' \| 'rewrite'` | `'append'`              | Upsert behavior: append updates/adds properties; rewrite replaces all existing properties. Providing either option triggers upsert semantics. |
+
+:::info Default Type Inference
+By default, `suggestTypes` is `true` for all import operations (importJson, importCsv, createMany). RushDB automatically infers data types from your values. To disable this and store all properties as strings, explicitly set `suggestTypes: false`.
+:::
+
+### Upsert Matching Rules Recap
+
+- Triggered when `mergeStrategy` or `mergeBy` is present in `options`.
+- If `mergeBy` omitted and `mergeStrategy` supplied → all incoming keys form the match fingerprint.
+- If `mergeBy` is an empty array (`[]`) → also treated as “all incoming keys”.
+- `append` preserves unspecified properties; `rewrite` removes them.
 
 ## Quick rules recap
 
@@ -204,6 +242,7 @@ The TypeScript SDK abstracts this complexity, allowing you to focus on your data
 - Setting `returnResult: false` is recommended for large imports to improve performance
 - For time-critical imports, pre-process your data to ensure type consistency
 - CSV imports currently read the full string; for very large files consider splitting client-side
+- Upsert on large batches may benefit from using stable unique keys in `mergeBy` to minimize match cost.
 
 ## Related Documentation
 

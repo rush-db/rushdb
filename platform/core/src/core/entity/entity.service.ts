@@ -4,7 +4,6 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
-import { isObject } from '@/common/utils/isObject'
 import { Where } from '@/core/common/types'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import {
@@ -18,7 +17,7 @@ import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
 import { SearchDto } from '@/core/search/dto/search.dto'
 
-import { CreateEntityDto } from './dto/create-entity.dto'
+import { CreateEntityDto, CreateEntityDtoSimple } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
 
 @Injectable()
@@ -92,6 +91,44 @@ export class EntityService {
     await transaction.run(query, { record, projectId })
 
     return this.getById({ id: entityId, projectId, transaction })
+  }
+
+  async upsert({
+    entity,
+    projectId,
+    transaction
+  }: {
+    entity: CreateEntityDto | CreateEntityDtoSimple
+    projectId: string
+    transaction: Transaction
+  }): Promise<TEntityPropertiesNormalized> {
+    const { properties, label, id } = entity as CreateEntityDto & { id?: string }
+
+    const entityId = id ?? uuidv7()
+
+    const mergeStrategy = entity.options?.mergeStrategy
+    const mergeBy = entity.options?.mergeBy ?? []
+
+    const rewrite = mergeStrategy === 'rewrite'
+
+    const query = this.entityQueryService.upsertRecord({ rewrite })
+
+    const record = {
+      id: entityId,
+      label,
+      properties
+    }
+
+    const result = await transaction.run(query, {
+      record,
+      mergeBy,
+      projectId
+    })
+
+    // clean orphan props regardless of path
+    await this.propertyService.deleteOrphanProps({ projectId, transaction })
+
+    return result.records[0]?.get('data')
   }
 
   async deleteById({

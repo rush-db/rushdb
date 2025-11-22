@@ -81,7 +81,26 @@ export const tools: Tool[] = [
       properties: {
         label: { type: 'string', description: 'Label for the record' },
         data: { type: 'object', description: 'The record data to insert' },
-        transactionId: { type: 'string', description: 'Optional transaction ID for atomic creation' }
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic creation' },
+        options: {
+          type: 'object',
+          description: 'Optional creation/upsert options',
+          properties: {
+            mergeStrategy: {
+              type: 'string',
+              enum: ['append', 'rewrite'],
+              description:
+                'Upsert strategy when matching an existing record: append/merge keeps unspecified existing properties; rewrite replaces.'
+            },
+            mergeBy: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'Fields used to match an existing record. Empty array => all incoming keys. Presence (even empty) triggers upsert when combined with mergeStrategy or alone.'
+            }
+          },
+          required: []
+        }
       },
       required: ['label', 'data']
     }
@@ -262,7 +281,30 @@ export const tools: Tool[] = [
       properties: {
         label: { type: 'string', description: 'Label for all records' },
         data: { type: 'array', items: { type: 'object' }, description: 'Array of record data to insert' },
-        transactionId: { type: 'string', description: 'Optional transaction ID for atomic bulk creation' }
+        transactionId: { type: 'string', description: 'Optional transaction ID for atomic bulk creation' },
+        options: {
+          type: 'object',
+          description: 'Optional bulk creation/upsert options',
+          properties: {
+            mergeStrategy: {
+              type: 'string',
+              enum: ['append', 'rewrite'],
+              description:
+                'Global upsert strategy for the batch: append/merge keeps existing unspecified properties; rewrite replaces.'
+            },
+            mergeBy: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'Global fields used to match existing records. Empty array => all keys of each record. Presence triggers upsert semantics.'
+            },
+            returnResult: {
+              type: 'boolean',
+              description: 'Return created/upserted records instead of just OK message'
+            }
+          },
+          required: []
+        }
       },
       required: ['label', 'data']
     }

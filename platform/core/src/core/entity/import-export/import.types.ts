@@ -13,6 +13,8 @@ export type TImportOptions = {
   capitalizeLabels?: boolean
   relationshipType?: string
   returnResult?: boolean
+  mergeStrategy?: 'append' | 'rewrite'
+  mergeBy?: string[]
 }
 
 // Subset of PapaParse config we allow clients to control (explicit allow-list)

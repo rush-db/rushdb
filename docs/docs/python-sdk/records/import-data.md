@@ -14,6 +14,7 @@ The import functionality in the Python SDK allows you to:
 - Control data type inference and handling
 - Set default relationship types
 - Configure property value handling
+- Perform batch upsert (create-or-update) during import using `mergeBy` / `mergeStrategy`
 
 ## Importing CSV Data
 
@@ -37,12 +38,18 @@ def import_csv(
 - `label` (str): Label for all imported records
 - `data` (str): CSV data to import as a string
 - `options` (Optional[Dict[str, bool]]): Import options
-  - `suggestTypes` (bool): When true, automatically infers data types for properties
+  - `suggestTypes` (bool, **default: `True`**): Automatically infers data types for properties. Set to `False` to disable type inference and store all values as strings
   - `castNumberArraysToVectors` (bool): When true, converts numeric arrays to vector type
   - `convertNumericValuesToNumbers` (bool): When true, converts string numbers to number type
   - `capitalizeLabels` (bool): When true, converts all labels to uppercase
   - `relationshipType` (str): Default relationship type between nodes
   - `returnResult` (bool): When true, returns imported records in response
+  - `mergeBy` (List[str]): Optional list of property names for matching existing records (upsert). If omitted and `mergeStrategy` provided, all incoming property keys are used. Empty list also means all keys.
+  - `mergeStrategy` (str): `'append'` (default) to add/update properties preserving others, or `'rewrite'` to replace all existing properties.
+
+:::info Default Behavior
+By default, `suggestTypes` is set to `True` for all import operations (CSV and JSON). This means RushDB automatically infers data types from your values. To store all properties as strings without type inference, you must explicitly set `suggestTypes=False` in the options.
+:::
 - `parse_config` (Optional[Dict[str, Any]]): CSV parsing configuration (PapaParse compatible subset):
     - `delimiter` (str): Field delimiter character
     - `header` (bool): Treat first row as header row
@@ -70,7 +77,9 @@ records = client.records.import_csv(
     options={
         "returnResult": True,
         "suggestTypes": True,
-        "convertNumericValuesToNumbers": True
+        "convertNumericValuesToNumbers": True,
+        "mergeBy": ["email"],            # upsert match key
+        "mergeStrategy": "append"         # or "rewrite"
     }
 )
 
@@ -81,7 +90,11 @@ with open('employees.csv', 'r') as file:
 records = client.records.import_csv(
     label="EMPLOYEE",
     data=csv_content,
-    options={"returnResult": True, "suggestTypes": True},
+    options={
+        "returnResult": True,
+        "suggestTypes": True,
+        "mergeStrategy": "rewrite"  # replace properties for matched employees
+    },
     parse_config={"header": True, "skipEmptyLines": True, "dynamicTyping": True}
 )
 ```
@@ -107,12 +120,14 @@ def create_many(
 - `label` (str): Label for the root node(s)
 - `data` (Union[Dict[str, Any], List[Dict[str, Any]]]): JSON data to import as dict or find of dicts
 - `options` (Optional[Dict[str, Any]]): Import options
-  - `suggestTypes` (bool): When true, automatically infers data types for properties
+  - `suggestTypes` (bool, **default: `True`**): Automatically infers data types for properties. Set to `False` to disable type inference and store all values as strings
   - `castNumberArraysToVectors` (bool): When true, converts numeric arrays to vector type
   - `convertNumericValuesToNumbers` (bool): When true, converts string numbers to number type
   - `capitalizeLabels` (bool): When true, converts all labels to uppercase
   - `relationshipType` (str): Default relationship type between nodes
   - `returnResult` (bool): When true, returns imported records in response
+  - `mergeBy` (List[str]): Upsert match keys for batch create/import; empty or omitted with `mergeStrategy` means all keys.
+  - `mergeStrategy` (str): `'append'` (default) or `'rewrite'`.
 - `transaction` (Optional[Transaction]): Optional transaction object
 
 **Returns:**
@@ -168,22 +183,35 @@ employees_data = [
 records = client.records.create_many(
     label="EMPLOYEE",
     data=employees_data,
-    options={"returnResult": True, "suggestTypes": True}
+    options={
+        "returnResult": True,
+        "suggestTypes": True,
+        "mergeBy": ["name", "department"],  # composite match
+        "mergeStrategy": "append"
+    }
 )
 ```
 
 ## Data Type Handling
 
-When the `suggestTypes` option is enabled, RushDB will infer the following types:
+### Automatic Type Inference
+
+**By default, `suggestTypes` is set to `True` for all import operations** (import_csv and create_many). This means RushDB automatically infers the following data types from your values:
 
 - `string`: Text values
-- `number`: Number values (& numeric values when `convertNumericValuesToNumbers` is true)
-- `boolean`: True/false values
-- `null`: Null values
-- `vector`: Arrays of numbers (when `castNumberArraysToVectors` is true)
-- `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z") will be automatically cast to datetime values
+- `number`: Numeric values
+- `boolean`: `True`/`False` values
+- `null`: `None` values
+- `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
+- `vector`: Arrays of numbers (when `castNumberArraysToVectors` is `True`)
+
+To disable automatic type inference and store all values as strings, you must **explicitly set `suggestTypes=False`** in your options dictionary.
+
+### Additional Type Conversions
 
 When `convertNumericValuesToNumbers` is enabled, string values that represent numbers (e.g., '123') will be automatically converted to their numeric equivalents (e.g., 123).
+
+### Array Handling
 
 Arrays with consistent data types (e.g., all numbers, all strings) will be handled seamlessly according to their type. However, for inconsistent arrays (e.g., `[1, 'two', None, False]`), all values will be automatically converted to strings to mitigate data loss, and the property type will be stored as `string`.
 
@@ -203,3 +231,4 @@ This allows you to maintain complex data structures in a graph database format w
 - Imports are processed in batches for optimal database performance
 - Consider using transactions for large imports to ensure data consistency
 - For very large datasets (millions of records), consider breaking the import into multiple smaller operations
+- For upsert imports, prefer stable unique keys in `mergeBy` to reduce match overhead.

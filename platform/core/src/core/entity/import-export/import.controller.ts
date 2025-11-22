@@ -90,7 +90,7 @@ export class ImportController {
       header: true,
       delimiter: ',',
       skipEmptyLines: true,
-      dynamicTyping: body?.options?.suggestTypes ?? false
+      dynamicTyping: body?.options?.suggestTypes ?? true
     }
     const config = Object.assign({}, defaultConfig, body.parseConfig ?? {}, {
       // ensure dynamicTyping precedence from parseConfig if explicitly provided

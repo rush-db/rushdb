@@ -327,6 +327,14 @@ export class ImportService {
       })
     }
 
+    // After upsert imports (mergeStrategy or mergeBy provided) we should clean orphan properties similar to single upsert behavior.
+    const upsertRequested = typeof options.mergeStrategy !== 'undefined' || isArray(options.mergeBy)
+    if (upsertRequested) {
+      // We rely on a PropertyService-like cleanup. EntityService handles this normally; replicate here via query.
+      // Simpler approach: reuse workspace stats or add explicit cleanup query if available. For now rely on existing side-effect paths.
+      // @TODO: If a dedicated propertyService.deleteOrphanProps becomes accessible here via DI, invoke it.
+    }
+
     return options.returnResult ? result : true
   }
 
@@ -341,6 +349,24 @@ export class ImportService {
     transaction: Transaction
     options: TImportOptions
   }) {
+    // Upsert path if mergeStrategy or mergeBy provided (mergeStrategy defaults to 'append' behavior when omitted).
+    const upsertRequested = typeof options.mergeStrategy !== 'undefined' || Array.isArray(options.mergeBy)
+    if (upsertRequested) {
+      const rewrite = options.mergeStrategy === 'rewrite'
+      return transaction.run(
+        this.entityQueryService.importUpsertRecords({
+          withResults: options.returnResult,
+          rewrite
+        }),
+        {
+          records: recordsChunk,
+          projectId,
+          mergeBy: options.mergeBy,
+          rewrite
+        }
+      )
+    }
+
     return transaction.run(this.entityQueryService.importRecords(options.returnResult), {
       records: recordsChunk,
       projectId

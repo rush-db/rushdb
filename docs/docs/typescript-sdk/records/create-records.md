@@ -13,6 +13,7 @@ This guide covers different approaches to creating records, from the most basic 
 The create record methods in the SDK enable you to:
 - Create a single [record](../../concepts/records.md) with [properties](../../concepts/properties.md) and a [label](../../concepts/labels.md)
 - Create multiple records in one operation
+- Upsert records (create or update based on matching criteria)
 - Control data type inference and other formatting options
 - Create records with precise type control
 - Create records within [transactions](../../concepts/transactions.mdx) for data consistency
@@ -54,10 +55,14 @@ console.log(newAuthor);
 - `label`: The [label](../../concepts/labels.md)/type for the record
 - `data`: The data for the record as a flat object
 - `options` (optional): Configuration options for record creation:
-  - `suggestTypes` (boolean, default: `true`): When true, automatically infers data types for [properties](../../concepts/properties.md)
+  - `suggestTypes` (boolean, **default: `true`**): Automatically infers data types for [properties](../../concepts/properties.md). Set to `false` to disable type inference and store all values as strings
   - `castNumberArraysToVectors` (boolean, default: `false`): When true, converts numeric arrays to vector type
   - `convertNumericValuesToNumbers` (boolean, default: `false`): When true, converts string numbers to number type
 - `transaction` (optional): A [transaction](../../concepts/transactions.mdx) object or string to include the operation within a transaction
+
+:::info Default Type Inference
+By default, `suggestTypes` is `true` for all write operations. RushDB automatically infers data types from your values. To disable this and store all properties as strings, explicitly set `suggestTypes: false`.
+:::
 
 #### Returns
 
@@ -208,7 +213,7 @@ console.log(authors);
 - `label`: The [label](../../concepts/labels.md)/type for all records
 - `data`: An object or array of objects, each a flat record (no nested objects/arrays)
 - `options` (optional): Configuration options for record creation:
-  - `suggestTypes` (boolean, default: `true`): When true, automatically infers data types for [properties](../../concepts/properties.md)
+  - `suggestTypes` (boolean, **default: `true`**): Automatically infers data types for [properties](../../concepts/properties.md). Set to `false` to disable type inference
   - `castNumberArraysToVectors` (boolean, default: `false`): When true, converts numeric arrays to vector type
   - `convertNumericValuesToNumbers` (boolean, default: `false`): When true, converts string numbers to number type
   - `capitalizeLabels` (bool): When true, converts all labels to uppercase
@@ -286,6 +291,297 @@ try {
   throw error;
 }
 ```
+
+## Upserting Records
+
+The `upsert` method provides a powerful way to create or update records in a single operation. It attempts to find an existing record based on specified properties and either creates a new one or updates the existing record according to your chosen strategy.
+
+### Using RushDB's `upsert()` Method
+
+```typescript
+const product = await db.records.upsert({
+  label: 'Product',
+  data: {
+    sku: 'SKU-001',
+    name: 'Laptop Pro',
+    price: 1299.99,
+    category: 'Electronics'
+  },
+  options: {
+    mergeBy: ['sku'],
+    mergeStrategy: 'append',
+    suggestTypes: true
+  }
+});
+
+console.log(product);
+/*
+{
+  __id: 'generated_id',
+  __label: 'Product',
+  sku: 'SKU-001',
+  name: 'Laptop Pro',
+  price: 1299.99,
+  category: 'Electronics'
+}
+*/
+```
+
+#### Parameters
+
+- `label` (optional): The [label](../../concepts/labels.md)/type for the record
+- `data`: Flat object or array of property drafts containing the record data
+- `options` (optional): Configuration options for the upsert operation:
+  - `mergeBy` (string[], optional): Property names to match on. If empty/undefined, matches on all incoming properties
+  - `mergeStrategy` ('rewrite' | 'append', default: 'append'): Strategy for handling updates
+  - `suggestTypes` (boolean, **default: `true`**): Automatically infers data types for [properties](../../concepts/properties.md). Set to `false` to disable type inference
+  - `castNumberArraysToVectors` (boolean, default: `false`): Converts numeric arrays to vector type
+  - `convertNumericValuesToNumbers` (boolean, default: `false`): Converts string numbers to number type
+- `transaction` (optional): A [transaction](../../concepts/transactions.mdx) object or string to include the operation within a transaction
+
+:::info Default Type Inference
+By default, `suggestTypes` is `true` for all write operations including upsert. RushDB automatically infers data types from your values. To disable this and store all properties as strings, explicitly set `suggestTypes: false`.
+:::
+
+#### Returns
+
+- A promise that resolves to a `DBRecordInstance` containing the created or updated [record](../../concepts/records.md)
+
+### Merge Strategies
+
+#### Append Strategy
+
+The `append` strategy (default) updates or adds properties while preserving existing ones:
+
+```typescript
+// Initial create
+const product = await db.records.upsert({
+  label: 'Product',
+  data: { sku: 'SKU-001', name: 'Widget', price: 10, category: 'Tools' },
+  options: { mergeBy: ['sku'], mergeStrategy: 'append', suggestTypes: true }
+});
+
+// Update price and add stock - name and category are preserved
+const updated = await db.records.upsert({
+  label: 'Product',
+  data: { sku: 'SKU-001', price: 15, stock: 100 },
+  options: { mergeBy: ['sku'], mergeStrategy: 'append', suggestTypes: true }
+});
+
+console.log(updated.data);
+/*
+{
+  sku: 'SKU-001',
+  name: 'Widget',        // Preserved
+  category: 'Tools',     // Preserved
+  price: 15,             // Updated
+  stock: 100             // Added
+}
+*/
+```
+
+#### Rewrite Strategy
+
+The `rewrite` strategy replaces all properties with the incoming data:
+
+```typescript
+// Rewrite - removes unspecified fields
+const rewritten = await db.records.upsert({
+  label: 'Product',
+  data: { sku: 'SKU-001', name: 'New Widget', price: 20 },
+  options: { mergeBy: ['sku'], mergeStrategy: 'rewrite', suggestTypes: true }
+});
+
+console.log(rewritten.data);
+/*
+{
+  sku: 'SKU-001',
+  name: 'New Widget',
+  price: 20
+  // category and stock are removed
+}
+*/
+```
+
+### Common Use Cases
+
+#### Idempotent Data Imports
+
+```typescript
+// Can be safely run multiple times without creating duplicates
+const user = await db.records.upsert({
+  label: 'User',
+  data: {
+    email: 'john@example.com',
+    name: 'John Doe',
+    lastLogin: new Date().toISOString()
+  },
+  options: {
+    mergeBy: ['email'],
+    mergeStrategy: 'append',
+    suggestTypes: true
+  }
+});
+```
+
+#### Multi-Tenant Applications
+
+```typescript
+// Match on both tenant and entity identifiers
+const setting = await db.records.upsert({
+  label: 'Setting',
+  data: {
+    tenantId: 'tenant-123',
+    userId: 'user-456',
+    theme: 'dark',
+    notifications: true
+  },
+  options: {
+    mergeBy: ['tenantId', 'userId'],
+    mergeStrategy: 'append',
+    suggestTypes: true
+  }
+});
+```
+
+#### Configuration Management
+
+```typescript
+// Update configuration by key
+const config = await db.records.upsert({
+  label: 'Config',
+  data: {
+    key: 'api_timeout',
+    value: 30000,
+    updatedAt: new Date().toISOString()
+  },
+  options: {
+    mergeBy: ['key'],
+    mergeStrategy: 'append',
+    suggestTypes: true
+  }
+});
+```
+
+#### Inventory Updates
+
+```typescript
+// Update stock while preserving product details
+const inventory = await db.records.upsert({
+  label: 'Product',
+  data: {
+    productCode: 'PROD-789',
+    stock: 50,
+    lastRestocked: new Date().toISOString()
+  },
+  options: {
+    mergeBy: ['productCode'],
+    mergeStrategy: 'append',
+    suggestTypes: true
+  }
+});
+```
+
+### Matching Behavior
+
+#### With Specific MergeBy Fields
+
+When `mergeBy` contains specific field names, only those fields are used for matching:
+
+```typescript
+// Matches only on 'email'
+const user = await db.records.upsert({
+  label: 'User',
+  data: { email: 'user@example.com', name: 'John', age: 30 },
+  options: { mergeBy: ['email'], mergeStrategy: 'append' }
+});
+```
+
+#### Without MergeBy (All Properties Match)
+
+When `mergeBy` is empty or undefined, matching is performed on all incoming properties:
+
+```typescript
+// Matches only if ALL properties (email, name, age) match exactly
+const user = await db.records.upsert({
+  label: 'User',
+  data: { email: 'user@example.com', name: 'John', age: 30 },
+  options: { mergeStrategy: 'append' }
+});
+
+// This would create a new record (age doesn't match)
+const different = await db.records.upsert({
+  label: 'User',
+  data: { email: 'user@example.com', name: 'John', age: 31 },
+  options: { mergeStrategy: 'append' }
+});
+```
+
+### Using with Transactions
+
+```typescript
+const transaction = await db.tx.begin();
+try {
+  const product = await db.records.upsert({
+    label: 'Product',
+    data: { sku: 'SKU-001', name: 'Widget', price: 10 },
+    options: { mergeBy: ['sku'], mergeStrategy: 'append' }
+  }, transaction);
+
+  const inventory = await db.records.upsert({
+    label: 'Inventory',
+    data: { productSku: 'SKU-001', quantity: 100, warehouse: 'A' },
+    options: { mergeBy: ['productSku', 'warehouse'], mergeStrategy: 'append' }
+  }, transaction);
+
+  await transaction.commit();
+} catch (error) {
+  await transaction.rollback();
+  throw error;
+}
+```
+
+### Property-Based Upsert
+
+For precise type control, you can use property drafts:
+
+```typescript
+const record = await db.records.upsert({
+  label: 'Product',
+  data: [
+    { name: 'sku', type: 'string', value: 'SKU-001' },
+    { name: 'price', type: 'number', value: 99.99 },
+    { name: 'tags', type: 'string', value: 'electronics,sale', valueSeparator: ',' },
+    { name: 'inStock', type: 'boolean', value: true }
+  ],
+  options: {
+    mergeBy: ['sku'],
+    mergeStrategy: 'append'
+  }
+});
+```
+
+### Best Practices for Upsert
+
+1. **Choose Appropriate MergeBy Fields**
+   - Use fields that uniquely identify your records (like `email`, `sku`, `userId`)
+   - Consider multi-field matching for multi-tenant scenarios
+
+2. **Select the Right Strategy**
+   - Use `append` when you want to preserve existing data and only update specific fields
+   - Use `rewrite` when you need a complete replacement of the record
+
+3. **Use with Transactions for Related Updates**
+   - Combine multiple upserts in a [transaction](../../concepts/transactions.mdx) to ensure atomicity
+   - Roll back if any operation fails
+
+4. **Handle Edge Cases**
+   - Be aware that empty `mergeBy` means matching on all properties
+   - Consider performance implications when matching on many fields
+
+5. **Idempotent Operations**
+   - Upsert is ideal for data synchronization and import operations
+   - Safely re-run operations without creating duplicates
 
 ## Creating Records with Models
 
@@ -470,9 +766,22 @@ RushDB supports the following property types:
 - `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
 - `vector`: Arrays of numbers (when `castNumberArraysToVectors` is true)
 
-When `suggestTypes` is enabled (default), RushDB automatically infers these types from your data.
+### Automatic Type Inference
+
+**By default, `suggestTypes` is set to `true` for all write operations** (create, createMany, upsert, importJson). This means RushDB automatically infers data types from your values:
+- Numeric values become `number` type
+- `true`/`false` become `boolean` type
+- ISO8601 strings become `datetime` type
+- `null` becomes `null` type
+- All other values become `string` type
+
+To disable automatic type inference and store all values as strings, you must **explicitly set `suggestTypes: false`** in your options.
+
+### Additional Type Conversions
 
 When `convertNumericValuesToNumbers` is enabled, string values that represent numbers (e.g., '30') will be converted to their numeric equivalents (e.g., 30).
+
+When `castNumberArraysToVectors` is enabled, numeric arrays will be stored as `vector` type instead of `number` arrays.
 
 For more complex data import operations, refer to the [Import Data](./import-data.md) documentation.
 
