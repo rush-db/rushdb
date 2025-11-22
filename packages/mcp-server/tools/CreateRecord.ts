@@ -25,7 +25,6 @@ export async function CreateRecord(params: {
 }) {
   const { label, data, transactionId, options } = params
 
-  // Normalize append -> merge for backend consistency if necessary
   const normalizedOptions = options ? { ...options } : undefined
 
   const result = await db.records.create({ label, data, options: normalizedOptions }, transactionId)
