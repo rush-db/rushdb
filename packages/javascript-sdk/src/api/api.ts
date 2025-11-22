@@ -244,7 +244,7 @@ export class RestAPI {
       } else if (isFlatObject(data)) {
         payload.requestData = { label, data, options }
       } else if (isObject(data)) {
-        throw new Error('Provided data is not a flat object. Consider to use `importJson` method.')
+        throw new Error('Provided data is not a flat object. Consider using the `importJson` method for non-flat objects, or `createMany` for arrays of flat objects.')
       } else {
         throw new Error('Provided data is not valid.')
       }
