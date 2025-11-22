@@ -295,7 +295,7 @@ export class RestAPI {
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: { ...data, data: items, options: data.options }
+        requestData: { ...data, data: items }
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
