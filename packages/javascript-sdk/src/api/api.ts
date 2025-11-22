@@ -244,7 +244,9 @@ export class RestAPI {
       } else if (isFlatObject(data)) {
         payload.requestData = { label, data, options }
       } else if (isObject(data)) {
-        throw new Error('Provided data is not a flat object. Consider using the `importJson` method for non-flat objects, or `createMany` for arrays of flat objects.')
+        throw new Error(
+          'Provided data is not a flat object. Consider using the `importJson` method for non-flat objects, or `createMany` for arrays of flat objects.'
+        )
       } else {
         throw new Error('Provided data is not valid.')
       }
@@ -782,7 +784,7 @@ export class RestAPI {
      * If not found: creates a new record.
      * @param label - The label/type of the record
      * @param data - Flat object or array of property drafts
-     * @param options.mergeBy - Property names to match on; empty/undefined means all incoming keys
+     * @param options.mergeBy - Property names to match on; If `[]`, all incoming keys are used for matching.
      * @param options.mergeStrategy - 'rewrite' | 'append'
      * @param transaction - Optional transaction for atomic operations
      */

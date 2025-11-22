@@ -24,8 +24,10 @@ import { ESideEffectType, RunSideEffectMixin } from '@/common/interceptors/run-s
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
 import { asyncAssertExistsOrThrow } from '@/common/utils/asyncAssertExistsOrThrow'
+import { isArray } from '@/common/utils/isArray'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { omit } from '@/common/utils/omit'
+import { toBoolean } from '@/common/utils/toBolean'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import {
   RUSHDB_KEY_ID,
@@ -99,21 +101,11 @@ export class EntityController {
     @Request() request: PlatformRequest
   ): Promise<TEntityPropertiesNormalized> {
     const projectId = request.projectId
-    const wantsUpsert = Boolean((entity as any)?.options?.mergeStrategy || (entity as any)?.options?.mergeBy)
+    const wantsUpsert = toBoolean(entity.options?.mergeStrategy) || isArray(entity.options?.mergeBy)
 
     if (wantsUpsert) {
-      // Reuse upsert pipeline when upsert options are provided
-      // Adapt payload shape to UpsertEntityDto-compatible structure
-      const upsertPayload: any = {
-        label: entity.label,
-        // Support both shapes: properties[] or data {}
-        ...((entity as any).properties ? { properties: (entity as any).properties } : {}),
-        ...((entity as any).data ? { data: (entity as any).data } : {}),
-        options: (entity as any).options
-      }
-
       return await this.entityService.upsert({
-        entity: upsertPayload,
+        entity,
         projectId,
         transaction
       })

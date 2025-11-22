@@ -66,7 +66,6 @@ POST /api/v1/records/import/json
 By default, `suggestTypes` is set to `true` for all import operations (JSON and CSV). This means RushDB automatically infers data types from your values. To store all properties as strings without type inference, you must explicitly set `suggestTypes: false` in the options.
 :::
 
-### Example Request (Plain Import)
 ### Example Request (Batch Upsert Import)
 
 ```json
