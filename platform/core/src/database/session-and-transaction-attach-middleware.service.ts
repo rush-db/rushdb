@@ -47,7 +47,6 @@ export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
         raw.externalTransaction = transaction
 
         return next()
-        //
       } catch (e) {
         Logger.error('[SessionAttachMiddleware] Error', e)
         try {
