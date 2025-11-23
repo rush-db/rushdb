@@ -307,6 +307,8 @@ export class ImportService {
 
     // @TODO: Accumulate result only if records <= 1000. Otherwise - ignore options.returnResult
     let result = []
+    // Map draft record ids (generated during serialization) to actual persisted record ids after upsert/create
+    const draftToPersistedId = new Map<string, string>()
     for (let i = 0; i < records.length; i += CHUNK_SIZE) {
       const recordsChunk = records.slice(i, i + CHUNK_SIZE)
 
@@ -317,13 +319,33 @@ export class ImportService {
         projectId
       })
 
+      // Extract id map and results (if requested)
+      const idmap = data.records?.[0]?.get('idmap') ?? []
+      if (Array.isArray(idmap)) {
+        for (const item of idmap) {
+          if (item && item.draftId && item.persistedId) {
+            draftToPersistedId.set(item.draftId, item.persistedId)
+          }
+        }
+      }
+
       if (options.returnResult) {
-        result = result.concat(data.records?.[0]?.get('data'))
+        const chunkData = data.records?.[0]?.get('data')
+        if (Array.isArray(chunkData)) {
+          result = result.concat(chunkData)
+        }
       }
     }
 
-    for (let i = 0; i < relations.length; i += CHUNK_SIZE) {
-      const relationsChunk = relations.slice(i, i + CHUNK_SIZE)
+    // Remap relations to persisted IDs in case upsert matched existing records
+    const remappedRelations = relations.map((rel) => ({
+      source: draftToPersistedId.get(rel.source) ?? rel.source,
+      target: draftToPersistedId.get(rel.target) ?? rel.target,
+      type: rel.type
+    }))
+
+    for (let i = 0; i < remappedRelations.length; i += CHUNK_SIZE) {
+      const relationsChunk = remappedRelations.slice(i, i + CHUNK_SIZE)
       await this.processRelationshipsChunk({
         relationsChunk,
         projectId,

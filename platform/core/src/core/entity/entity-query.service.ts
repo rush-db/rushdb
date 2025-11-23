@@ -159,8 +159,10 @@ export class EntityQueryService {
 
     if (withResults) {
       queryBuilder.append(
-        `RETURN collect(DISTINCT record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}}) as data`
+        `RETURN collect({draftId: r.id, persistedId: record.${RUSHDB_KEY_ID}}) as idmap, collect(DISTINCT record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}}) as data`
       )
+    } else {
+      queryBuilder.append(`RETURN collect({draftId: r.id, persistedId: record.${RUSHDB_KEY_ID}}) as idmap`)
     }
 
     return queryBuilder.getQuery()
@@ -220,8 +222,10 @@ export class EntityQueryService {
 
     if (withResults) {
       queryBuilder.append(
-        `RETURN collect(DISTINCT record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}}) as data`
+        `RETURN collect({draftId: r.id, persistedId: record.${RUSHDB_KEY_ID}}) as idmap, collect(DISTINCT record {${PROPERTY_WILDCARD_PROJECTION}, ${label()}}) as data`
       )
+    } else {
+      queryBuilder.append(`RETURN collect({draftId: r.id, persistedId: record.${RUSHDB_KEY_ID}}) as idmap`)
     }
 
     return queryBuilder.getQuery()
