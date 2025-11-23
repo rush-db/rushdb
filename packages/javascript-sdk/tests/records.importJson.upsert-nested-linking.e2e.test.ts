@@ -59,7 +59,7 @@ describe('records.importJson upsert nested linking (e2e)', () => {
 
     const departments = await db.records.find({ labels: ['department'], where: { tenantId } })
     // label normalization in service uses original key; depending on capitalization option it might be 'department'
-    // Allow 1 department entry
+    // The label comes from the original key 'department' in the payload
     expect(departments.total).toBe(1)
 
     // Fetch relations and ensure both companies are connected to the same department
