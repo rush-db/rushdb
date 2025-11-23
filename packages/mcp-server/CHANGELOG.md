@@ -1,5 +1,13 @@
 # @rushdb/mcp-server
 
+## 1.19.1
+
+### Patch Changes
+
+- 78e6672: Fix deduplication issue for nested upsert
+- Updated dependencies [78e6672]
+  - @rushdb/javascript-sdk@1.19.1
+
 ## 1.19.0
 
 ### Minor Changes
