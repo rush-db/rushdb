@@ -25,9 +25,7 @@ export async function CreateRecord(params: {
 }) {
   const { label, data, transactionId, options } = params
 
-  const normalizedOptions = options ? { ...options } : undefined
-
-  const result = await db.records.create({ label, data, options: normalizedOptions }, transactionId)
+  const result = await db.records.create({ label, data, options }, transactionId)
 
   return {
     success: true,
