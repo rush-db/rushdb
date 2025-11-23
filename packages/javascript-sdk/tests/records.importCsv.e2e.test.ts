@@ -9,9 +9,7 @@ import { DBRecordInstance } from '../src/sdk/record.js'
 jest.setTimeout(60_000)
 
 describe('records.importCsv (e2e)', () => {
-  const apiKey =
-    process.env.RUSHDB_API_KEY ||
-    'in_0010000_d9af59b63a8b269904a5343ebf72b9c2Sr/UjX1uCxe4aIq1B4k/8ZfETx7f8jLcvV5dCeb/plfUixuu6Elg+d/q2lJAcafi'
+  const apiKey = process.env.RUSHDB_API_KEY
   const apiUrl = process.env.RUSHDB_API_URL || 'http://localhost:3000'
 
   if (!apiKey) {
