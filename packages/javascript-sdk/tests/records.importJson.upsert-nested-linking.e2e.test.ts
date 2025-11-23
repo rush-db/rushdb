@@ -63,7 +63,7 @@ describe('records.importJson upsert nested linking (e2e)', () => {
     expect(departments.total).toBe(1)
 
     // Fetch relations and ensure both companies are connected to the same department
-    const relationsResp = await db.relationships.find({})
+    const relationsResp = await db.relationships.find({ where: { tenantId } })
     const rels = relationsResp.data.filter(
       (r) =>
         r.type &&
