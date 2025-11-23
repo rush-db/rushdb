@@ -1,6 +1,6 @@
 {
   "name": "rushdb-dashboard",
-  "version": "1.19.0",
+  "version": "1.19.1",
   "description": "RushDB Dashboard",
   "type": "module",
   "private": true,

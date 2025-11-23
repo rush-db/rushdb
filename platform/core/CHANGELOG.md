@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 1.19.1
+
+### Patch Changes
+
+- 78e6672: Fix deduplication issue for nested upsert
+
 ## 1.19.0
 
 ### Minor Changes
