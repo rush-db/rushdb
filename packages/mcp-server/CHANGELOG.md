@@ -1,5 +1,16 @@
 # @rushdb/mcp-server
 
+## 1.19.0
+
+### Minor Changes
+
+- 865ba18: Add merge/upsert for bulk importing or single record creation
+
+### Patch Changes
+
+- Updated dependencies [865ba18]
+  - @rushdb/javascript-sdk@1.19.0
+
 ## 1.18.0
 
 ### Minor Changes
