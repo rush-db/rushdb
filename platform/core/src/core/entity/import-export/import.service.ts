@@ -40,6 +40,7 @@ import {
   PROPERTY_TYPE_STRING,
   PROPERTY_TYPE_VECTOR
 } from '@/core/property/property.constants'
+import { PropertyService } from '@/core/property/property.service'
 import { TPropertyPrimitiveValue } from '@/core/property/property.types'
 import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
@@ -51,7 +52,10 @@ export class ImportService {
     private readonly entityQueryService: EntityQueryService,
 
     @Inject(forwardRef(() => WorkspaceService))
-    private readonly workspaceService: WorkspaceService
+    private readonly workspaceService: WorkspaceService,
+
+    @Inject(forwardRef(() => PropertyService))
+    private readonly propertyService: PropertyService
   ) {}
 
   getValueParameters(value: MaybeArray<TPropertyPrimitiveValue>) {
@@ -327,6 +331,15 @@ export class ImportService {
       })
     }
 
+    const upsertRequested = toBoolean(options.mergeStrategy) || isArray(options.mergeBy)
+
+    if (upsertRequested) {
+      await this.propertyService.deleteOrphanProps({
+        projectId,
+        transaction
+      })
+    }
+
     return options.returnResult ? result : true
   }
 
@@ -341,6 +354,24 @@ export class ImportService {
     transaction: Transaction
     options: TImportOptions
   }) {
+    // Upsert path if mergeStrategy or mergeBy provided (mergeStrategy defaults to 'append' behavior when omitted).
+    const upsertRequested = typeof options.mergeStrategy !== 'undefined' || Array.isArray(options.mergeBy)
+    if (upsertRequested) {
+      const rewrite = options.mergeStrategy === 'rewrite'
+      return transaction.run(
+        this.entityQueryService.importUpsertRecords({
+          withResults: options.returnResult,
+          rewrite
+        }),
+        {
+          records: recordsChunk,
+          projectId,
+          mergeBy: options.mergeBy,
+          rewrite
+        }
+      )
+    }
+
     return transaction.run(this.entityQueryService.importRecords(options.returnResult), {
       records: recordsChunk,
       projectId

@@ -40,7 +40,7 @@ export class UserModule implements OnApplicationBootstrap {
 
     if (isSelfHosted && adminLogin && adminPassword) {
       const session = this.neogmaService.createSession('init-user')
-      const transaction = session.beginTransaction({ timeout: 10_000 })
+      const transaction = session.beginTransaction({ timeout: 30_000 })
 
       try {
         const user = await this.userService.find(adminLogin, transaction)

@@ -240,11 +240,13 @@ export class RestAPI {
       const data = getOwnProperties(removeUndefinedDeep(rawData))
 
       if (isArray(data) && data.every(isPropertyDraft)) {
-        payload.requestData = { label, properties: data }
+        payload.requestData = { label, properties: data, options }
       } else if (isFlatObject(data)) {
         payload.requestData = { label, data, options }
       } else if (isObject(data)) {
-        throw new Error('Provided data is not a flat object. Consider to use `createMany` method.')
+        throw new Error(
+          'Provided data is not a flat object. Consider using the `importJson` method for nested objects or arrays of nested objects, or use `createMany` for arrays of flat objects.'
+        )
       } else {
         throw new Error('Provided data is not valid.')
       }
@@ -702,7 +704,7 @@ export class RestAPI {
       } else if (isFlatObject(data)) {
         payload.requestData = { label, data, options }
       } else if (isObject(data)) {
-        throw new Error('Provided data is not a flat object. Consider to use `createMany` method.')
+        throw new Error('Provided data is not a flat object. Consider to use `importJson` method.')
       } else {
         throw new Error('Provided data is not valid.')
       }
@@ -759,7 +761,72 @@ export class RestAPI {
       } else if (isFlatObject(data)) {
         payload.requestData = { label, data, options }
       } else if (isObject(data)) {
-        throw new Error('Provided data is not a flat object. Consider to use `createMany` method.')
+        throw new Error('Provided data is not a flat object. Consider to use `importJson` method.')
+      } else {
+        throw new Error('Provided data is not valid.')
+      }
+
+      this.logger?.({ requestId, path, ...payload })
+      const response = await this.fetcher<ApiResponse<DBRecord<S> | undefined>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      if (response?.success && response?.data) {
+        return new DBRecordInstance<S>(response.data)
+      }
+
+      return new DBRecordInstance<S>()
+    },
+    /**
+     * Upserts a record: attempts to find an existing record matching mergeBy property values (and optional label)
+     * If found: mergeStrategy determines behavior.
+     *  - 'rewrite': replaces all existing own properties with incoming (like set)
+     *  - 'append': updates/adds provided properties, keeps others
+     * If not found: creates a new record.
+     * @param label - The label/type of the record
+     * @param data - Flat object or array of property drafts
+     * @param options.mergeBy - Property names to match on; If `[]`, all incoming keys are used for matching.
+     * @param options.mergeStrategy - 'rewrite' | 'append'
+     * @param transaction - Optional transaction for atomic operations
+     */
+    upsert: async <S extends Schema = any>(
+      {
+        label,
+        data: rawData,
+        options
+      }: {
+        label?: string
+        data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
+        options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'> & {
+          mergeBy?: string[]
+          mergeStrategy?: 'rewrite' | 'append'
+        }
+      },
+      transaction?: Transaction | string
+    ): Promise<DBRecordInstance<S>> => {
+      const txId = pickTransactionId(transaction)
+      const path = `/records`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+
+      const data = getOwnProperties(removeUndefinedDeep(rawData))
+
+      const defaultOptions = {
+        ...options,
+        mergeBy: options?.mergeBy ?? []
+      }
+
+      if (isArray(data) && data.every(isPropertyDraft)) {
+        payload.requestData = { label, properties: data, options: defaultOptions }
+      } else if (isFlatObject(data)) {
+        payload.requestData = { label, data, options: defaultOptions }
+      } else if (isObject(data)) {
+        throw new Error(
+          'Provided data is not a flat object. Upsert supports flat objects or property drafts array.'
+        )
       } else {
         throw new Error('Provided data is not valid.')
       }

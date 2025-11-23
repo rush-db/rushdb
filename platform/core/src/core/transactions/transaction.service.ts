@@ -26,7 +26,7 @@ export class TransactionService {
       startTime: getCurrentISO(),
       session,
       transaction: session.beginTransaction({
-        timeout: config?.ttl,
+        timeout: config?.ttl ?? 30_000,
         metadata: {
           id,
           projectId

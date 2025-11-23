@@ -8,7 +8,7 @@ import {
   Logger
 } from '@nestjs/common'
 import { FastifyReply } from 'fastify'
-import { Session, Transaction } from 'neo4j-driver'
+import { Neo4jError, Session, Transaction } from 'neo4j-driver'
 
 import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
@@ -24,6 +24,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<FastifyReply>()
     const request = ctx.getRequest<any>()
     const isHttpException = exception instanceof HttpException
+    const isNeo4jError = exception.constructor.name === 'Neo4jError' || exception instanceof Neo4jError
 
     const status = isHttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR
 
@@ -40,7 +41,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       Logger.log('[ROLLBACK TRANSACTION]: Exception filter', JSON.stringify(exception))
     })
 
-    console.log(exception)
+    console.error('GlobalExceptionFilter: ', exception)
 
     Logger.error(exception)
 
@@ -88,6 +89,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       raw.externalSession = undefined
     } catch {}
 
-    response.status?.(status).send(isHttpException ? exception.getResponse() : {})
+    response.status?.(status).send(
+      isHttpException ? exception.getResponse()
+      : isNeo4jError ? { statusCode: status, message: 'Neo4j database error occurred' }
+      : {}
+    )
   }
 }

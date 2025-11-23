@@ -28,7 +28,7 @@ export class NeogmaService implements OnApplicationShutdown {
 
   async activeSessions() {
     const session = this.getDriver().session()
-    const transaction = session.beginTransaction({ timeout: 10_000 })
+    const transaction = session.beginTransaction({ timeout: 30_000 })
 
     const res = await transaction.run('CALL dbms.listConnections()')
 
@@ -40,7 +40,7 @@ export class NeogmaService implements OnApplicationShutdown {
 
   async activeTransactions() {
     const session = this.getDriver().session()
-    const transaction = session.beginTransaction({ timeout: 10_000 })
+    const transaction = session.beginTransaction({ timeout: 30_000 })
 
     const res = await transaction.run('SHOW TRANSACTIONS')
 

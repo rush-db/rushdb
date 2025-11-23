@@ -75,24 +75,32 @@ const processNonArrayValue = (value: TPropertySingleValue, options: Omit<TImport
   return { type, value: type === PROPERTY_TYPE_NULL ? null : value }
 }
 
+const buildDefaultOptions = (options: Omit<TImportOptions, 'returnResult'> = {}) => ({
+  ...options,
+  suggestTypes: options.suggestTypes ?? true
+})
+
 export const prepareProperties = (
   data: Record<string, TPropertyValue>,
-  options: Omit<TImportOptions, 'returnResult'> = { suggestTypes: true }
-) =>
-  Object.entries(data).map(([name, value]) => {
+  options: Omit<TImportOptions, 'returnResult'> = {}
+) => {
+  const defaultOptions = buildDefaultOptions(options)
+
+  return Object.entries(data).map(([name, value]) => {
     const { type, value: processedValue } =
-      isArray(value) ? processArrayValue(value, options) : processNonArrayValue(value, options)
+      isArray(value) ? processArrayValue(value, defaultOptions) : processNonArrayValue(value, defaultOptions)
 
     return { name, type, value: processedValue, id: uuidv7() }
   }) as TPropertyPropertiesWithValue[]
+}
 
 export const normalizeRecord = ({
   label,
-  options = { suggestTypes: true },
+  options = {},
   data
 }: CreateEntityDtoSimple & {
   parentId?: string
 }) => ({
   label,
-  properties: prepareProperties(data, options)
+  properties: prepareProperties(data, buildDefaultOptions(options))
 })

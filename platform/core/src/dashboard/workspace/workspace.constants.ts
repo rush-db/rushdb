@@ -8,7 +8,7 @@ export const WORKSPACE_LIMITS_SELF_HOSTED: TWorkspaceLimits = {
 }
 
 export const WORKSPACE_LIMITS_START: TWorkspaceLimits = {
-  records: 10_000,
+  records: 30_000,
   projects: 2,
   importSize: 5 * 1024 * 1024, // 5 MB
   users: 1

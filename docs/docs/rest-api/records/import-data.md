@@ -14,6 +14,7 @@ The import endpoints allow you to:
 - Control data type inference and handling
 - Set default relationship types
 - Configure property value handling
+- Perform batch upsert (create-or-update) using `mergeBy` / `mergeStrategy` on import options
 
 All import endpoints require authentication using a token header.
 
@@ -52,14 +53,56 @@ POST /api/v1/records/import/json
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `suggestTypes` | Boolean | `true` | When true, automatically infers data types for properties |
+| `suggestTypes` | Boolean | `true` | **Default is `true`** - Automatically infers data types for properties. To disable type inference and store all values as strings, explicitly set to `false` |
 | `castNumberArraysToVectors` | Boolean | `false` | When true, converts numeric arrays to vector type |
 | `convertNumericValuesToNumbers` | Boolean | `false` | When true, converts string numbers to number type |
 | `capitalizeLabels` | Boolean | `false` | When true, converts all labels to uppercase |
 | `relationshipType` | String | `__RUSHDB__RELATION__DEFAULT__` | Default relationship type between nodes |
 | `returnResult` | Boolean | `false` | When true, returns imported records in response |
+| `mergeBy` | Array of Strings | `[]` / omitted | Upsert match keys for batch import. Empty or omitted (with mergeStrategy present) means all incoming property keys per record. |
+| `mergeStrategy` | String | `'append'` | Upsert behavior: `'append'` adds/updates provided properties; `'rewrite'` replaces all existing properties. Providing either this or `mergeBy` triggers upsert path. |
 
-### Example Request
+:::info Default Behavior
+By default, `suggestTypes` is set to `true` for all import operations (JSON and CSV). This means RushDB automatically infers data types from your values. To store all properties as strings without type inference, you must explicitly set `suggestTypes: false` in the options.
+:::
+
+### Example Request (Batch Upsert Import)
+
+```json
+{
+  "label": "Product",
+  "data": [
+    { "sku": "SKU-001", "name": "Gadget", "price": 99.99 },
+    { "sku": "SKU-002", "name": "Widget", "price": 149.99 }
+  ],
+  "options": {
+    "suggestTypes": true,
+    "mergeBy": ["sku"],
+    "mergeStrategy": "append",
+    "returnResult": true
+  }
+}
+```
+
+If later you send:
+
+```json
+{
+  "label": "Product",
+  "data": [
+    { "sku": "SKU-001", "price": 89.99 },
+    { "sku": "SKU-002", "price": 139.99, "category": "Tools" }
+  ],
+  "options": {
+    "mergeBy": ["sku"],
+    "mergeStrategy": "append"
+  }
+}
+```
+
+SKU-001 price updates; SKU-002 price updates and category is added; all other properties preserved.
+
+Using `"mergeStrategy": "rewrite"` would replace properties entirely for each matched record (unmentioned fields removed).
 
 ```json
 {
@@ -163,16 +206,24 @@ When importing data, RushDB processes your data through the following steps:
 
 ## Data Type Handling
 
-When `suggestTypes` is enabled, RushDB will infer the following types:
+### Automatic Type Inference
+
+**By default, `suggestTypes` is set to `true` for all import operations** (JSON and CSV). This means RushDB automatically infers the following data types from your values:
 
 - `string`: Text values
-- `number`: Number values (& numeric values when `convertNumericValuesToNumbers` is true)
-- `boolean`: True/false values
+- `number`: Numeric values
+- `boolean`: `true`/`false` values
 - `null`: Null values
+- `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
 - `vector`: Arrays of numbers (when `castNumberArraysToVectors` is true)
-- `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z") will be automatically cast to Neo4j datetime values
+
+To disable automatic type inference and store all values as strings, you must **explicitly set `suggestTypes: false`** in your request options.
+
+### Additional Type Conversions
 
 When `convertNumericValuesToNumbers` is enabled, string values that represent numbers (e.g., '123') will be automatically converted to their numeric equivalents (e.g., 123).
+
+### Array Handling
 
 Arrays with consistent data types (e.g., all numbers, all strings) will be handled seamlessly according to their type. However, for inconsistent arrays (e.g., `[1, 'two', null, false]`), all values will be automatically converted to strings to mitigate data loss, and the property type will be stored as `string`.
 
@@ -181,3 +232,4 @@ Arrays with consistent data types (e.g., all numbers, all strings) will be handl
 - Imports are processed in chunks of 1000 records for optimal performance
 - For large imports (>25MB), consider splitting into multiple requests
 - Setting `returnResult: false` is recommended for large imports to improve performance
+- Batch upsert performance depends on match selectivity; prefer stable unique or near-unique keys in `mergeBy`.

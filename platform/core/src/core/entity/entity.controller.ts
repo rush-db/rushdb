@@ -24,8 +24,10 @@ import { ESideEffectType, RunSideEffectMixin } from '@/common/interceptors/run-s
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
 import { asyncAssertExistsOrThrow } from '@/common/utils/asyncAssertExistsOrThrow'
+import { isArray } from '@/common/utils/isArray'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { omit } from '@/common/utils/omit'
+import { toBoolean } from '@/common/utils/toBolean'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import {
   RUSHDB_KEY_ID,
@@ -99,11 +101,19 @@ export class EntityController {
     @Request() request: PlatformRequest
   ): Promise<TEntityPropertiesNormalized> {
     const projectId = request.projectId
+    const wantsUpsert = toBoolean(entity.options?.mergeStrategy) || isArray(entity.options?.mergeBy)
+
+    if (wantsUpsert) {
+      return await this.entityService.upsert({
+        entity,
+        projectId,
+        transaction
+      })
+    }
 
     const result = await this.entityService.create({
       entity,
       projectId,
-      // we need smart switcher between customTx and default service tx, maybe new decorator
       transaction
     })
 

@@ -19,6 +19,11 @@ type BulkCreateRecordsArgs = {
   label: string
   data: Record<string, any>[]
   transactionId?: string
+  options?: {
+    mergeStrategy?: 'append' | 'rewrite'
+    mergeBy?: string[]
+    returnResult?: boolean
+  }
 }
 
 type BulkCreateRecordsResult = {
@@ -29,14 +34,22 @@ type BulkCreateRecordsResult = {
 export async function BulkCreateRecords({
   label,
   data,
-  transactionId
+  transactionId,
+  options
 }: BulkCreateRecordsArgs): Promise<BulkCreateRecordsResult> {
   // Route to the correct SDK method based on data shape
   const allFlat = Array.isArray(data) && data.every(isFlatObject)
+  const normalizedOptions = options ? { ...options } : {}
+
+  // Ensure returnResult default true for MCP convenience if not specified
+  if (normalizedOptions.returnResult === undefined) {
+    normalizedOptions.returnResult = true
+  }
+
   const result =
     allFlat ?
-      await db.records.createMany({ label, data, options: { returnResult: true } }, transactionId)
-    : await db.records.importJson({ label, data, options: { returnResult: true } }, transactionId)
+      await db.records.createMany({ label, data, options: normalizedOptions }, transactionId)
+    : await db.records.importJson({ label, data, options: normalizedOptions }, transactionId)
   const ids = result.data.map((record: any) => record.id())
 
   return {

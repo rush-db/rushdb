@@ -12,7 +12,12 @@ import {
 export const createEntitySchema = Joi.alternatives().try(
   Joi.object({
     label: Joi.string(),
-    properties: Joi.array().items(propertySchema).optional()
+    properties: Joi.array().items(propertySchema).optional(),
+    options: Joi.object({
+      suggestTypes: Joi.boolean().optional(),
+      mergeStrategy: Joi.string().valid('append', 'rewrite').optional(),
+      mergeBy: Joi.array().items(Joi.string().min(1).max(100)).optional()
+    }).optional()
   }),
   Joi.object({
     label: Joi.string(),
@@ -26,6 +31,10 @@ export const createEntitySchema = Joi.alternatives().try(
         stringValueSchema
       )
     ),
-    options: Joi.object({ suggestTypes: Joi.boolean().optional() }).optional()
+    options: Joi.object({
+      suggestTypes: Joi.boolean().optional(),
+      mergeStrategy: Joi.string().valid('append', 'rewrite').optional(),
+      mergeBy: Joi.array().items(Joi.string().min(1).max(100)).optional()
+    }).optional()
   })
 )

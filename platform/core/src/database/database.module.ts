@@ -52,7 +52,7 @@ export class DatabaseModule implements OnModuleInit {
     }
 
     const session = this.neogmaService.createSession('database-seed')
-    const transaction = session.beginTransaction({ timeout: 10_000 })
+    const transaction = session.beginTransaction({ timeout: 30_000 })
     try {
       const constraints = [
         `CREATE CONSTRAINT constraint_user_login IF NOT EXISTS FOR (user:${RUSHDB_LABEL_USER}) REQUIRE user.login IS UNIQUE`,
