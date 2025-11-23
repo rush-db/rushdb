@@ -39,7 +39,7 @@ export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
 
         session = externalDbConnection.driver?.session()
         transaction = session?.beginTransaction({
-          timeout: 10_000,
+          timeout: 30_000,
           metadata: { body, projectId, originalUrl, method, routerMethod, path, workspaceId }
         })
 

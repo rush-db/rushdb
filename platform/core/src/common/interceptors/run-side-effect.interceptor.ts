@@ -23,7 +23,7 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
       const request = context.switchToHttp().getRequest()
 
       const session = this.neogmaService.createSession('run-side-effect')
-      const transaction = session.beginTransaction({ timeout: 10_000 })
+      const transaction = session.beginTransaction({ timeout: 30_000 })
 
       let externalSession: Session
       let externalTransaction: Transaction
@@ -38,7 +38,7 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
           Logger.debug(`External transaction created for project ${projectId} side effect runner`)
         )
         externalSession = externalDbConnection.driver?.session()
-        externalTransaction = externalSession?.beginTransaction({ timeout: 10_000 })
+        externalTransaction = externalSession?.beginTransaction({ timeout: 30_000 })
       }
 
       return next.handle().pipe(

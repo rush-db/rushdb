@@ -7,7 +7,6 @@ import fastifyRawBody from 'fastify-raw-body'
 
 import { GlobalExceptionFilter } from '@/common/global-exception.filter'
 import { TransactionService } from '@/core/transactions/transaction.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import { AppModule } from './app.module'
 

@@ -13,7 +13,7 @@ export class WorkspacesCountGuard implements CanActivate {
   private async validateRequest(request: any): Promise<boolean> {
     const userId: string = request?.user?.id
     const session = this.neogmaService.createSession('workspaces-count-guard')
-    const transaction = session.beginTransaction({ timeout: 10_000 })
+    const transaction = session.beginTransaction({ timeout: 30_000 })
 
     const workspaces = await this.workspaceService.getWorkspacesList(userId, transaction)
 

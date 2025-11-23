@@ -40,7 +40,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       Logger.log('[ROLLBACK TRANSACTION]: Exception filter', JSON.stringify(exception))
     })
 
-    console.log(exception)
+    console.error('GlobalExceptionFilter: ', exception)
 
     Logger.error(exception)
 
