@@ -9,8 +9,8 @@ import {
   UseInterceptors,
   UsePipes
 } from '@nestjs/common'
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { BadRequestException } from '@nestjs/common'
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 import { parse } from 'papaparse'
 
@@ -59,10 +59,9 @@ export class ImportController {
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     try {
       const projectId = request.projectId
-
       return await this.importService.importRecords(body, projectId, transaction, customTx)
     } catch (error) {
-      console.error(error)
+      throw new BadRequestException('Import failed: ' + error.message, { cause: error })
     }
   }
 
@@ -90,7 +89,7 @@ export class ImportController {
       header: true,
       delimiter: ',',
       skipEmptyLines: true,
-      dynamicTyping: body?.options?.suggestTypes ?? true
+      dynamicTyping: body?.options?.suggestTypes ?? false
     }
     const config = Object.assign({}, defaultConfig, body.parseConfig ?? {}, {
       // ensure dynamicTyping precedence from parseConfig if explicitly provided
@@ -115,16 +114,22 @@ export class ImportController {
     const fieldReplacements: Record<string, string> = {}
     const sanitizedFields = originalFields.map((raw, idx) => {
       let name = (raw ?? '').replace(/\0/g, '').trim()
-      if (!name) name = `column_${idx + 1}`
+      if (!name) {
+        name = `column_${idx + 1}`
+      }
       // Replace whitespace with underscore for stability
       name = name.replace(/\s+/g, '_')
       // Prevent starting with non-letter by prefixing underscore (optional safeguard)
-      if (!/^[A-Za-z_]/.test(name)) name = `_${name}`
+      if (!/^[A-Za-z_]/.test(name)) {
+        name = `_${name}`
+      }
       // Deduplicate
       if (seen.has(name)) {
-        let base = name
+        const base = name
         let counter = 2
-        while (seen.has(`${base}_${counter}`)) counter++
+        while (seen.has(`${base}_${counter}`)) {
+          counter++
+        }
         name = `${base}_${counter}`
       }
       seen.add(name)

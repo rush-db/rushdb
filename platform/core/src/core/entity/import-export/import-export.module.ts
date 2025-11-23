@@ -5,6 +5,7 @@ import { ExportController } from '@/core/entity/import-export/export.controller'
 import { ExportService } from '@/core/entity/import-export/export.service'
 import { ImportController } from '@/core/entity/import-export/import.controller'
 import { ImportService } from '@/core/entity/import-export/import.service'
+import { PropertyModule } from '@/core/property/property.module'
 import { TransactionModule } from '@/core/transactions/transaction.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
@@ -19,6 +20,7 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
 
     // Core modules
     forwardRef(() => EntityModule),
+    forwardRef(() => PropertyModule),
     forwardRef(() => TransactionModule)
   ],
   providers: [ImportService, ExportService],
