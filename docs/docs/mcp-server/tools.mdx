@@ -122,10 +122,18 @@ Arguments:
 | label         | string | yes      | —       | Label for the record |
 | data          | object | yes      | —       | Record data to insert |
 | transactionId | string | no       | —       | Optional transaction ID for atomic creation |
+| options.mergeStrategy | `append|rewrite` | no | append | Upsert strategy: `append` keeps unspecified existing properties; `rewrite` replaces existing property relations |
+| options.mergeBy | array of strings | no | all keys (if empty array provided) | Fields used to match an existing record. Presence (even empty array) triggers upsert semantics |
+
+Upsert behavior:
+- Provide either `options.mergeStrategy` or `options.mergeBy` (or both) to switch from pure create to upsert.
+- If `mergeBy` is omitted and `mergeStrategy` is present, all incoming keys are used to match.
+- Empty `mergeBy: []` explicitly means "use all keys".
+- `append` merges new properties while retaining existing unspecified ones; `rewrite` deletes prior property value relationships first.
 
 Example prompt:
 
-> Call `CreateRecord` with `label="Task"` and `data={"title":"Write docs","status":"open"}`.
+> Call `CreateRecord` with `label="User"`, `data={"email":"a@b.com","name":"Ann"}`, and `options={"mergeBy":["email"],"mergeStrategy":"append"}` to upsert by email.
 
 ---
 
@@ -342,12 +350,20 @@ Arguments:
 | Name          | Type             | Required | Default | Description |
 |---------------|------------------|----------|---------|-------------|
 | label         | string           | yes      | —       | Label for all records |
-| data          | array of objects | yes      | —       | Array of record payloads |
+| data          | array of objects | yes      | —       | Array of record payloads (flat objects use batch create; nested objects use JSON import path) |
 | transactionId | string           | no       | —       | Optional transaction ID |
+| options.mergeStrategy | `append|rewrite` | no | append | Upsert strategy applied globally: `append` merges, `rewrite` replaces existing property relations |
+| options.mergeBy | array of strings | no | all keys (if empty array) | Global match fields; empty array means all keys per record; presence triggers upsert |
+| options.returnResult | boolean | no | true | Return created/upserted records (IDs always returned separately) |
+
+Upsert notes:
+- Same semantics as `CreateRecord`, but applied across the batch.
+- If records are flat objects, uses the `createMany` path; otherwise falls back to JSON import BFS with upsert.
+- For large batches consider reducing the size or increasing transaction TTL if timeouts occur.
 
 Example prompt:
 
-> Call `BulkCreateRecords` for `label="Task"` with `data=[{"title":"A"},{"title":"B"}]`.
+> Call `BulkCreateRecords` for `label="User"` with `data=[{"email":"a@b.com","name":"Ann"},{"email":"b@c.com","name":"Bill"}]` and `options={"mergeBy":["email"],"mergeStrategy":"append"}`.
 
 ---
 
