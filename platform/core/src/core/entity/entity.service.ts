@@ -11,11 +11,14 @@ import {
   TRecordRelationsResponse,
   TRelationDirection
 } from '@/core/entity/entity.types'
+import { KuOperation } from '@/core/ku-events/ku-events.constants'
+import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { PropertyService } from '@/core/property/property.service'
 import { TPropertyProperties } from '@/core/property/property.types'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
 import { SearchDto } from '@/core/search/dto/search.dto'
+import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
 import { CreateEntityDto, CreateEntityDtoSimple } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
@@ -24,8 +27,11 @@ import { EditEntityDto } from './dto/edit-entity.dto'
 export class EntityService {
   constructor(
     private readonly entityQueryService: EntityQueryService,
+    private readonly kuEventsService: KuEventsService,
     @Inject(forwardRef(() => PropertyService))
-    private readonly propertyService: PropertyService
+    private readonly propertyService: PropertyService,
+    @Inject(forwardRef(() => WorkspaceService))
+    private readonly workspaceService: WorkspaceService
   ) {}
 
   async create({
@@ -49,7 +55,14 @@ export class EntityService {
     }
 
     const result = await transaction.run(query, { record, projectId })
-    return result.records[0]?.get('data')
+    const data = result.records[0]?.get('data')
+
+    const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
+    this.kuEventsService.emit(workspace.dataValues.id, projectId, KuOperation.ENTITY_CREATED, {
+      propertyCount: properties?.length ?? 0
+    })
+
+    return data
   }
 
   async getById({
@@ -128,7 +141,15 @@ export class EntityService {
     // clean orphan props regardless of path
     await this.propertyService.deleteOrphanProps({ projectId, transaction })
 
-    return result.records[0]?.get('data')
+    const data = result.records[0]?.get('data')
+
+    const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
+    this.kuEventsService.emit(workspace.dataValues.id, projectId, KuOperation.ENTITY_CREATED, {
+      propertyCount: properties?.length ?? 0,
+      upsert: true
+    })
+
+    return data
   }
 
   async deleteById({
@@ -148,6 +169,9 @@ export class EntityService {
       projectId,
       transaction
     })
+
+    const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
+    this.kuEventsService.emit(workspace.dataValues.id, projectId, KuOperation.KNOWLEDGE_DELETED, { id })
 
     return {
       message: `Record ${id} was successfully deleted`

@@ -3,26 +3,20 @@ import { ModelRelatedNodesI, NeogmaInstance, NeogmaModel } from 'neogma'
 import { TProjectInstance, TProjectModel } from '@/dashboard/project/model/project.interface'
 import { TUserFactory, TUserInstance } from '@/dashboard/user/model/user.interface'
 
-type TWorkspaceLimits = {
-  records: number
-  importSize: number
-  projects?: number
-  users?: number
-}
-
+/**
+ * Workspace properties stored in Neo4j.
+ *
+ * This model stores only operational data. All billing-related fields
+ * (planId, subscriptions, KU usage, limits) are managed by the billing service
+ * and injected at runtime via enrichWithBillingData().
+ */
 type TWorkspaceProperties = {
   id: string
   name: string
   created: string
   edited?: string
   pendingInvites?: string
-  limits: string
   stats?: string
-  validTill?: string
-  planId?: string
-  isSubscriptionCancelled?: boolean
-  subscriptionPriceId?: string
-  subscriptionProductId?: string
 }
 
 interface IWorkspaceProperties extends TWorkspaceProperties {}
@@ -55,6 +49,5 @@ export {
   TWorkspaceProperties,
   IWorkspaceRelatedNodes,
   TWorkspaceModel,
-  IWorkspaceProperties,
-  TWorkspaceLimits
+  IWorkspaceProperties
 }

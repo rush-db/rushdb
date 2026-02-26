@@ -5,22 +5,30 @@ import {
   HttpException,
   HttpStatus,
   Inject,
-  Injectable,
-  PayloadTooLargeException
+  Injectable
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { FastifyRequest } from 'fastify'
 import { Transaction } from 'neo4j-driver'
 
 import { toBoolean } from '@/common/utils/toBolean'
+import { BillingClientService } from '@/core/billing-client/billing-client.service'
 import { ProjectService } from '@/dashboard/project/project.service'
-import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
+/**
+ * PlanLimitsGuard - enforces billing and operational limits.
+ *
+ * All limits (KU, projects, users) are now managed by the billing service.
+ * The platform queries the billing service for all limit checks.
+ *
+ * Self-hosted mode bypasses all limits.
+ */
 @Injectable()
 export class PlanLimitsGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
+    private readonly billingClientService: BillingClientService,
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
     @Inject(forwardRef(() => ProjectService))
@@ -32,68 +40,20 @@ export class PlanLimitsGuard implements CanActivate {
     request: FastifyRequest,
     transaction: Transaction
   ): Promise<boolean> {
-    const workspaceInstance = await this.workspaceService.getWorkspaceInstance(workspaceId, transaction)
-
-    if (!workspaceInstance) {
-      throw new HttpException('No workspace ID provided', HttpStatus.BAD_REQUEST)
-    }
-
-    const properties = workspaceInstance.dataValues
-    const limits = JSON.parse(properties.limits) as TWorkspaceLimits
-
-    const requestSize = Number(
-      request?.raw?.headers?.['content-length'] ??
-        request?.raw?.headers?.['Content-Length'] ??
-        request?.headers?.['Content-Length'] ??
-        request?.headers?.['content-length'] ??
-        request?.socket?.bytesRead
-    )
-
-    // By default, we check import size limits
-    // For binary data uploads we must check formdata and compare its size against limits.fileSize
-    const targetLimit = limits.importSize
-
-    // Check body size limits
-    if (requestSize > targetLimit) {
-      throw new PayloadTooLargeException(
-        `Reduce size to ${targetLimit / 1024}KB. Got ${requestSize / 1024}KB`
-      )
-    }
-
-    // Check premium plan expiration (if exists)
-    if (properties.planId) {
-      // we don't want to touch our active subscribers
-      // @TODO
-      if (!properties.isSubscriptionCancelled) {
-        return true
-      }
-
-      const validTillDate = new Date(properties.validTill)
-      const increasedValidTillDate = new Date(validTillDate)
-      increasedValidTillDate.setDate(increasedValidTillDate.getDate() + 30)
-      const currentDate = new Date()
-
-      return !(currentDate > increasedValidTillDate)
-    }
-
+    // Get current counts for operational limits
     const workspaceSummaryState = await this.projectService.getProjectsProperties(workspaceId, transaction)
-    const projectsCount = workspaceSummaryState.length
+    const projectCount = workspaceSummaryState.length
 
-    const accumulatedWorkspaceStats = await this.workspaceService.getAccumulatedWorkspaceStats(
-      workspaceInstance,
-      transaction
-    )
+    // TODO: Implement user count when user management is ready
+    // const userCount = await this.workspaceService.getUsersCount(workspaceId, transaction)
 
-    // Check project count limits
-    if (!accumulatedWorkspaceStats.records) {
-      return !(limits.projects && projectsCount > limits.projects)
-    }
+    // Check all limits (KU + operational) via billing service
+    const limitsCheck = await this.billingClientService.checkLimits(workspaceId, {
+      projectCount
+      // userCount  // Uncomment when user management is implemented
+    })
 
-    // Check Records limits
-    return !(
-      accumulatedWorkspaceStats.records >= limits.records ||
-      (limits.projects && projectsCount > limits.projects)
-    )
+    return limitsCheck.allowed
   }
 
   async canActivate(context: ExecutionContext) {
@@ -113,7 +73,7 @@ export class PlanLimitsGuard implements CanActivate {
     const canProcessRequest = await this.checkLimits(workspaceId, request, transaction)
 
     if (!canProcessRequest) {
-      throw new HttpException('Excess records or projects', HttpStatus.PAYMENT_REQUIRED)
+      throw new HttpException('Plan limits exceeded', HttpStatus.PAYMENT_REQUIRED)
     }
 
     return true

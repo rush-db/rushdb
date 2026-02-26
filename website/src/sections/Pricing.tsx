@@ -4,7 +4,7 @@ import { Section, SectionHeader, SectionSubtitle, SectionTitle } from '~/compone
 import { ComponentPropsWithoutRef, ReactNode } from 'react'
 import cx from 'classnames'
 import { Button } from '~/components/Button'
-import { ArrowUpRight, Check } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronDown, Database, GitBranch, Search, Zap } from 'lucide-react'
 
 import Link from 'next/link'
 import { links } from '~/config/urls'
@@ -31,6 +31,66 @@ function Feat({ title, subtitle }: { title: ReactNode; subtitle?: ReactNode }) {
 
       {subtitle && <div className="text-content3 pl-7 text-start text-sm font-medium">{subtitle}</div>}
     </li>
+  )
+}
+
+function KuDefinition() {
+  return (
+    <div className="border-accent/30 bg-accent/5 w-full rounded-2xl border p-6 md:p-8">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="mb-1 flex items-center gap-2">
+            <Zap className="text-accent h-5 w-5" />
+            <h4 className="text-content text-lg font-bold">What is a Knowledge Unit (KU)?</h4>
+          </div>
+          <p className="text-content3 max-w-2xl text-sm font-medium">
+            A <strong className="text-content2">Knowledge Unit</strong> is RushDB's atomic measure of
+            structured knowledge stored during a write operation. KU accumulates from records created,
+            properties stored, and relationships formed between records. Standard reads and queries are always
+            free. Compute-intensive operations (vector search, raw Cypher, multi-hop traversals) consume a
+            small amount of KU.
+          </p>
+        </div>
+        <span className="text-accent border-accent/40 shrink-0 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide">
+          KU = records · properties · links
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-4 sm:grid-cols-1 md:grid-cols-3">
+        <div className="bg-fill2 rounded-xl p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Database className="text-accent h-4 w-4 shrink-0" />
+            <span className="text-content text-sm font-semibold">Flat records</span>
+          </div>
+          <p className="text-content3 text-xs leading-relaxed">
+            A record with <strong className="text-content2">10 properties</strong> costs{' '}
+            <strong className="text-accent">10 KU</strong> per write. Simple and predictable.
+          </p>
+        </div>
+        <div className="bg-fill2 rounded-xl p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <GitBranch className="text-accent h-4 w-4 shrink-0" />
+            <span className="text-content text-sm font-semibold">Nested objects</span>
+          </div>
+          <p className="text-content3 text-xs leading-relaxed">
+            Nested objects are{' '}
+            <strong className="text-content2">decomposed into separate linked records</strong>. Each child
+            record contributes its own property KU, and each link between records adds a small relationship
+            cost.
+          </p>
+        </div>
+        <div className="bg-fill2 rounded-xl p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Search className="text-accent h-4 w-4 shrink-0" />
+            <span className="text-content text-sm font-semibold">Standard reads free</span>
+          </div>
+          <p className="text-content3 text-xs leading-relaxed">
+            Standard queries and reads <strong className="text-content2">never consume KU</strong>.
+            Compute-intensive operations (vector search, raw Cypher, multi-hop traversals) consume a small
+            amount of KU. A small daily storage footprint applies to data at rest.
+          </p>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -96,69 +156,177 @@ function PricingCard({
   )
 }
 
+function FaqItem({ question, answer }: { question: string; answer: ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <div className="border-stroke border-b last:border-b-0">
+      <button
+        className="text-content hover:text-accent flex w-full items-center justify-between py-5 text-left font-medium transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="text-base font-semibold">{question}</span>
+        <ChevronDown className={cx('text-accent h-5 w-5 transition-transform', isOpen && 'rotate-180')} />
+      </button>
+      {isOpen && <div className="text-content3 pb-5 text-sm leading-relaxed">{answer}</div>}
+    </div>
+  )
+}
+
+function PricingFaq() {
+  return (
+    <div className="bg-fill2 mx-auto w-full max-w-4xl rounded-2xl border p-8">
+      <div className="mb-8 text-center">
+        <h3 className="text-content mb-2 text-2xl font-bold">Frequently Asked Questions</h3>
+        <p className="text-content3 text-sm font-medium">Everything you need to know about RushDB pricing</p>
+      </div>
+      <div className="divide-y">
+        <FaqItem
+          question="What happens when I hit my KU limit on the Free plan?"
+          answer={
+            <>
+              On the Free plan (100K KU/month), once you reach your limit, writes pause until your next
+              billing period — reads and standard queries always continue. We'll send you email notifications
+              at 75%, 90%, and 100% usage to keep you informed.
+            </>
+          }
+        />
+        <FaqItem
+          question="How does overage billing work on the Pro plan?"
+          answer={
+            <>
+              Pro includes 10 million KU per month for ${' '}
+              <span className="text-content font-semibold">$29/month</span>. If you exceed this allowance,
+              you&apos;ll be charged{' '}
+              <span className="text-content font-semibold">$3 per additional million KU</span>. There's no
+              hard limit — your applications keep running, and we bill you for actual usage at the end of the
+              month. For example, if you use 12M KU in a month: $29 base + (2M × $3) = $35 total.
+            </>
+          }
+        />
+        <FaqItem
+          question="What's the difference between Pro and Scale plans?"
+          answer={
+            <>
+              <div className="mb-3">
+                <strong className="text-content">Pro plan:</strong> Best for predictable workloads. Pay
+                $29/month for 10M KU included, plus $3 per million KU beyond that. Ideal when you know your
+                approximate usage.
+              </div>
+              <div>
+                <strong className="text-content">Scale plan:</strong> Pure usage-based pricing. Pay a minimum
+                $99/month platform fee plus $2 per million KU consumed (cheaper per-KU rate than Pro). Perfect
+                for high-volume or highly variable workloads where you want the lowest per-KU cost without
+                worrying about tiers.
+              </div>
+            </>
+          }
+        />
+        <FaqItem
+          question="When does my billing period reset?"
+          answer={
+            <>
+              Your KU usage resets at the start of each billing period. For monthly subscriptions, this is the
+              same day each month that you subscribed. For annual subscriptions, usage resets monthly but
+              you&apos;re billed annually at a discounted rate (save up to 20%).
+            </>
+          }
+        />
+        <FaqItem
+          question="Are standard reads really free?"
+          answer={
+            <>
+              Yes! Standard queries and read operations consume zero KU. You only pay for write operations
+              (creating or updating records, generating embeddings, forming relationships). Compute-intensive
+              operations — vector similarity search, raw Cypher execution, and deep multi-hop traversals —
+              consume a small amount of KU because they scale with dataset size rather than data written. A
+              small daily storage footprint charge applies to data at rest.
+            </>
+          }
+        />
+        <FaqItem
+          question="Can I set spending limits to avoid unexpected charges?"
+          answer={
+            <>
+              Yes. In your dashboard, you can set custom KU usage alerts and optional hard spending caps. For
+              example, you can configure an alert at 10M KU and a hard cap at 15M KU to prevent overage
+              charges. When a hard cap is reached, write operations will be blocked until the next billing
+              period (similar to the Free plan behavior).
+            </>
+          }
+        />
+        <FaqItem
+          question="How do I estimate my KU usage?"
+          answer={
+            <>
+              Use our interactive pricing calculator above! As a rough guide:
+              <ul className="mt-2 list-inside list-disc space-y-1">
+                <li>A simple record with 10 properties = 10 KU</li>
+                <li>Creating 1,000 flat records (10 fields each) = 10,000 KU</li>
+                <li>Generating an embedding = 5 KU per record</li>
+                <li>Nested objects are decomposed into linked records (each contributes its own KU)</li>
+              </ul>
+              <div className="mt-3">
+                The Free plan (100K KU) typically supports ~3,000 records with 10 fields each. Pro (10M KU)
+                supports ~300,000 similar records per month.
+              </div>
+            </>
+          }
+        />
+        <FaqItem
+          question="What if I need more than Scale can offer?"
+          answer={
+            <>
+              BYOC (Bring Your Own Cloud) is available on all plans — simply connect RushDB to your own Neo4j
+              or Aura instance. Enterprise adds dedicated infrastructure, embedded/OEM licensing, custom
+              contracts, and hands-on deployment support for organisations with compliance requirements or
+              very high volume needs. Contact us at{' '}
+              <a href="mailto:hi@rushdb.com" className="text-accent hover:underline">
+                hi@rushdb.com
+              </a>{' '}
+              to discuss your requirements.
+            </>
+          }
+        />
+      </div>
+    </div>
+  )
+}
+
 export function Pricing({ billingData }: PricingProps) {
   const [annual, setAnnual] = useState(true)
-  const [calculatorBillingType, setCalculatorBillingType] = useState<'onDemand' | 'reserved'>('reserved')
-  const [recordsCount, setRecordsCount] = useState(10000)
-  const [calculatorTouched, setCalculatorTouched] = useState(false)
-
-  const handleBillingTypeChange = (billingType: 'onDemand' | 'reserved') => {
-    setCalculatorBillingType(billingType)
-    setAnnual(billingType === 'reserved')
-  }
-
-  const handleTierChange = (recordsCount: number) => {
-    setCalculatorTouched(true)
-    setRecordsCount(recordsCount)
-  }
-
-  const getFeaturedCard = () => {
-    if (!calculatorTouched) return 'team'
-    if (recordsCount <= 10000) return 'start'
-    if (recordsCount <= 200000) return 'pro'
-    return 'team'
-  }
-
-  const featuredCard = getFeaturedCard()
 
   const proPrice = useMemo(
     () => (annual ? billingData?.pro.annual.amount : billingData?.pro.monthly.amount),
-    [annual, billingData]
-  )
-  const teamPrice = useMemo(
-    () => (annual ? billingData!.team[0].reserved.amount : billingData!.team[0].onDemand.amount),
     [annual, billingData]
   )
 
   return (
     <Section className="container gap-8">
       <SectionHeader className="text-center">
-        <SectionTitle className="m-auto max-w-3xl">Simple, Transparent Pricing</SectionTitle>
+        <SectionTitle className="m-auto max-w-3xl">Simple, Predictable Pricing</SectionTitle>
         <SectionSubtitle className="text-content3">
-          Start building for free. Scale when you're ready. No hidden fees.
+          Pay for knowledge created — not infrastructure. Start free, scale when ready.
         </SectionSubtitle>
       </SectionHeader>
       <div className="mx-auto mb-4 flex items-center justify-center gap-4">
         <p className="text-content2 typography-base font-medium">Monthly</p>
-        <Switch
-          checked={calculatorBillingType === 'reserved'}
-          onCheckedChange={(checked) => handleBillingTypeChange(checked ? 'reserved' : 'onDemand')}
-        />
+        <Switch checked={annual} onCheckedChange={(checked) => setAnnual(checked)} />
         <p className="text-content2 typography-base font-medium">
           Annual
           <span className="text-accent-green bg-accent-green/10 ml-2 rounded-full px-2 py-0.5 text-sm font-bold">
-            Save up to 36%
+            Save up to 20%
           </span>
         </p>
       </div>
+      <KuDefinition />
       <div className="mb-8 grid grid-cols-4 gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <PricingCard
           price="free"
           pricePrefix="forever"
-          title="Start"
-          featured={featuredCard === 'start'}
+          title="Free"
           description="Perfect for side projects and learning"
-          headline="Everything you need to start:"
+          headline="Get started instantly:"
           pricePlaceholder={'FREE'}
           action={
             <Button size="small" variant="outline" as={Link} href={links.app} target="_blank">
@@ -167,10 +335,11 @@ export function Pricing({ billingData }: PricingProps) {
             </Button>
           }
         >
-          <Feat title="Up to 10,000 records" subtitle="Perfect for prototypes and small apps" />
+          <Feat title="100K KU / month" subtitle="~3,000 records with 10 fields each" />
           <Feat title="2 projects" subtitle="No time limits, no feature restrictions" />
-          <Feat title="Full REST API and SDKs" subtitle="Complete access to all query capabilities" />
-          <Feat title="Smart CDN" subtitle="Global API endpoints for faster access" />
+          <Feat title="Full REST API and SDKs" subtitle="Complete access to all query capabilities" />{' '}
+          <Feat title="Self-hosted &amp; BYOC" subtitle="Connect to your own Neo4j or Aura instance" />{' '}
+          <Feat title="Vector & AI search" subtitle="Native support for embeddings and similarity" />
           <Feat title="Community support" subtitle="Get help from our developer community" />
         </PricingCard>
 
@@ -178,62 +347,49 @@ export function Pricing({ billingData }: PricingProps) {
           price={proPrice}
           pricePrefix="from"
           title="Pro"
-          featured={featuredCard === 'pro'}
-          description="Perfect for growing projects"
-          headline="Everything in Start, plus:"
+          featured
+          description="Perfect for production applications"
+          headline="Everything in Free, plus:"
           action={
-            <Button
-              size="small"
-              variant={featuredCard === 'pro' ? 'accent' : 'outline'}
-              as={Link}
-              href={links.app}
-            >
+            <Button size="small" variant="accent" as={Link} href={links.app}>
               Upgrade Now
               <ArrowUpRight />
             </Button>
           }
         >
-          <Feat
-            title="Up to 200,000 records"
-            subtitle="On shared infrastructure. Unlimited with your own Neo4j instance"
-          />
-          <Feat title="Unlimited projects" subtitle="Record limit applies collectively across all projects" />
-          <Feat title="Bring your Neo4j" subtitle="Connect Neo4j Aura or own instance" />
+          <Feat title="10M KU / month" subtitle="~300,000 records with 10 fields each" />
+          <Feat title="Overage billing" subtitle="Continue beyond 10M KU at a per-KU rate" />
+          <Feat title="Unlimited projects" subtitle="No per-project limits" />
           <Feat title="3 team members" subtitle="then $10 per member" />
+          <Feat title="Self-hosted &amp; BYOC" subtitle="Connect to your own Neo4j or Aura instance" />
         </PricingCard>
 
         <PricingCard
-          price={teamPrice}
-          pricePrefix="from"
-          title="Team"
-          featured={featuredCard === 'team'}
-          description="For teams and advanced features"
+          pricePlaceholder="Usage-based"
+          pricePrefix="&nbsp;"
+          title="Scale"
+          description="For high-volume and data-intensive apps"
           headline="Everything in Pro, plus:"
           action={
-            <Button
-              size="small"
-              variant={featuredCard === 'team' ? 'accent' : 'outline'}
-              as={Link}
-              href="mailto:hello@rushdb.com"
-            >
-              Upgrade Now
+            <Button size="small" variant="outline" as={Link} href="mailto:hello@rushdb.com">
+              Talk to Us
               <ArrowUpRight />
             </Button>
           }
         >
-          <Feat title="Up to 1B+ records" subtitle="Instant scale up with a single click—grow as needed" />
-          <Feat title="Dedicated instances" subtitle="Guaranteed performance, security, and throughput" />
-          <Feat title="10 team members" subtitle="then $25 per member" />
-          <Feat title="Daily backups stored for 14 days" subtitle="Coming soon" />
-          <Feat title="SSO" subtitle="Enterprise-grade authentication (coming soon)" />
+          <Feat title="Unlimited KU" subtitle="Usage-based billing — pay only for what you consume" />
+          <Feat title="Unlimited team members" subtitle="No per-seat limit" />
+          <Feat title="Self-hosted &amp; BYOC" subtitle="Connect to your own Neo4j or Aura instance" />
+          <Feat title="SLA guarantee" subtitle="Uptime and performance guarantees" />
           <Feat title="Priority support" subtitle="Fast-track access to expert help" />
         </PricingCard>
+
         <PricingCard
           pricePlaceholder="Contact Us"
           title="Enterprise"
           pricePrefix="&nbsp;"
-          description="For large-scale deployments"
-          headline="Everything in Team, plus:"
+          description="For organisations and embedded use"
+          headline="Everything in Scale, plus:"
           action={
             <Button size="small" variant="outline" as={Link} href="mailto:hi@rushdb.com">
               Contact Us
@@ -241,18 +397,18 @@ export function Pricing({ billingData }: PricingProps) {
             </Button>
           }
         >
-          <Feat title="Unlimited everything" subtitle="No limits on records, projects, or usage" />
-          <Feat title="Dedicated support" subtitle="Phone and chat support" />
-          <Feat title="SLA guarantees" subtitle="Uptime and performance guarantees" />
-          <Feat title="Custom deployment" subtitle="On-premise or private cloud options" />
+          <Feat title="Platform license" subtitle="Unlimited KU, flat-fee pricing" />
+          <Feat
+            title="BYOC — Dedicated deployment"
+            subtitle="Managed setup in your private cloud with dedicated support"
+          />
+          <Feat title="Embedded / OEM use" subtitle="Build RushDB into your own product" />
+          <Feat title="Dedicated support" subtitle="Phone, chat, and dedicated account manager" />
         </PricingCard>
       </div>
-      <PricingCalculator
-        tieredPricingData={billingData!.team}
-        onTierChange={handleTierChange}
-        billingType={'reserved'}
-      />
+      <PricingCalculator />
       <PricingComparison className="mt-16" />
+      <PricingFaq />
     </Section>
   )
 }

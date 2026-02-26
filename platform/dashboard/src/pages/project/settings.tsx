@@ -86,21 +86,6 @@ function DeleteProjectSetting({ projectId }: WithProjectID) {
 export function ProjectSettings({ projectId }: WithProjectID) {
   const { data: project, loading } = useStore($currentProject)
 
-  const statusDescription = (() => {
-    if (!project) return null
-
-    if (project.status === 'pending') {
-      return `Subscription pending — please check your project subscription page to complete activation.`
-    }
-
-    if (project.status === 'provisioning') {
-      const region = project.managedDbRegion || 'your selected region'
-      return `Your project instance is currently provisioning in ${region}. Once provisioning finishes, your project will be ready to use.`
-    }
-
-    return null
-  })()
-
   return (
     <>
       <PageHeader contained>
@@ -108,14 +93,6 @@ export function ProjectSettings({ projectId }: WithProjectID) {
       </PageHeader>
       <PageContent contained>
         <SettingsList>
-          {statusDescription ?
-            <div className="mb-4">
-              <Message as="div" variant="info" size="medium" className={'mb-5 w-fit !p-4'}>
-                <Skeleton enabled={loading}>{statusDescription}</Skeleton>
-              </Message>
-            </div>
-          : null}
-
           <ProjectNameSetting projectId={projectId} />
           <DeleteProjectSetting projectId={projectId} />
         </SettingsList>

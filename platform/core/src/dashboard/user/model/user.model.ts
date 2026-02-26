@@ -88,13 +88,15 @@ export const User: TPropertyParams = {
         Since: {
           property: 'since',
           schema: {
-            type: 'string'
+            type: 'string',
+            required: false
           }
         },
         Role: {
           property: 'role',
           schema: {
-            type: 'string'
+            type: 'string',
+            required: false
           }
         }
       }
@@ -107,13 +109,15 @@ export const User: TPropertyParams = {
         Since: {
           property: 'since',
           schema: {
-            type: 'string'
+            type: 'string',
+            required: false
           }
         },
         Role: {
           property: 'role',
           schema: {
-            type: 'string'
+            type: 'string',
+            required: false
           }
         }
       }

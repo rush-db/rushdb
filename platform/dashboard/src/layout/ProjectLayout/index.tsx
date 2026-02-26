@@ -15,7 +15,6 @@ import { ProjectTokens } from '~/pages/project/tokens'
 import { ProjectRecordsPage } from '~/pages/project/records'
 import { ProjectHelpPage } from '~/pages/project/help'
 import { ImportRecords } from '~/features/records/components/ImportRecords.tsx'
-import { ProjectBillingPage } from '~/pages/project/billing.tsx'
 
 function ProjectRoutes({ project }: { project: Project }) {
   const page = useStore($router)
@@ -29,8 +28,6 @@ function ProjectRoutes({ project }: { project: Project }) {
       return <ImportRecords />
     case 'projectHelp':
       return <ProjectHelpPage />
-    case 'projectBilling':
-      return project.managedDbRegion ? <ProjectBillingPage /> : null
     default:
       return <ProjectRecordsPage />
   }

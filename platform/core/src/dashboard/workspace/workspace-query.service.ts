@@ -96,6 +96,18 @@ export class WorkspaceQueryService {
     return queryBuilder.getQuery()
   }
 
+  getUserWorkspaceRoleByIdQuery(): string {
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(
+        `MATCH (u:${RUSHDB_LABEL_USER} { id: $id })-[rel:${RUSHDB_RELATION_MEMBER_OF}]->(w:${RUSHDB_LABEL_WORKSPACE} { id: $workspaceId })`
+      )
+      .append(`RETURN rel.role AS role`)
+
+    return queryBuilder.getQuery()
+  }
+
   getPendingInvitesQuery(): string {
     const queryBuilder = new QueryBuilder()
 

@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common'
 
+import { BillingClientModule } from '@/core/billing-client/billing-client.module'
 import { EntityModule } from '@/core/entity/entity.module'
 import { BillingModule } from '@/dashboard/billing/billing.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
@@ -11,6 +12,7 @@ import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
 @Module({
   imports: [
+    BillingClientModule,
     forwardRef(() => ProjectModule),
     forwardRef(() => BillingModule),
     forwardRef(() => TokenModule),

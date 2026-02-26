@@ -1,7 +1,6 @@
 export type TProjectStats = {
   records: number
   properties: number
-  avgProperties: number
 }
 
 export type TProjectCustomDbPayload = {

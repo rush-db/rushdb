@@ -1182,17 +1182,17 @@ export class RestAPI {
   // Only for managed/custom db instances connected to cloud
   public query = {
     /**
-     * Runs a raw Cypher query against the connected Neo4j database.
+     * Executes a raw query against the underlying database engine.
      *
      * NOTE: This endpoint is cloud-only — available only on the RushDB managed
      * service or when your project is connected to a custom database through
      * RushDB Cloud. It will not work for self-hosted or local-only deployments.
      *
-     * @param param0 - Object containing the Cypher query and optional params
-     * @param param0.query - Cypher query string to execute
+     * @param param0 - Object containing the query and optional params
+     * @param param0.query - Query string to execute
      * @param param0.params - Optional parameters to pass to the query
      * @param transaction - Optional transaction id or Transaction instance to run the query in
-     * @returns ApiResponse<any> - Raw result returned by the server (Neo4j driver result wrapped in ApiResponse)
+     * @returns ApiResponse<any> - Raw result returned by the server (wrapped in ApiResponse)
      */
     raw: async <T extends any = any>(
       { query, params }: { query: string; params?: FlatObject },

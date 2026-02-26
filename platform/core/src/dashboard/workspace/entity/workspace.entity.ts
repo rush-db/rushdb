@@ -9,10 +9,8 @@ export class Workspace {
       name: this.node.dataValues.name,
       created: this.node.dataValues.created,
       edited: this.node.dataValues.edited,
-      limits: this.node.dataValues.limits,
-      planId: this.node.dataValues.planId,
-      validTill: this.node.dataValues.validTill,
-      isSubscriptionCancelled: this.node.dataValues.isSubscriptionCancelled
+      pendingInvites: this.node.dataValues.pendingInvites,
+      stats: this.node.dataValues.stats
     }
   }
 

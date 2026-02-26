@@ -17,6 +17,7 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { EntityService } from '@/core/entity/entity.service'
+import { TrackHeavySearchKu } from '@/core/ku-events/track-heavy-search-ku.interceptor'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
@@ -35,6 +36,7 @@ export class LabelsController {
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
+  @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
   async labelsSearch(
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -42,7 +44,6 @@ export class LabelsController {
     @Request() request: PlatformRequest
   ): Promise<Record<string, number>> {
     const projectId = request.projectId
-
     return await this.entityService.getLabels({
       projectId,
       searchQuery,

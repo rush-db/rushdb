@@ -14,8 +14,8 @@ import { uuidv7 } from 'uuidv7'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
+import { BillingClientService } from '@/core/billing-client/billing-client.service'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
-import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
 import { MailService } from '@/dashboard/mail/mail.service'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { TProjectStats } from '@/dashboard/project/project.types'
@@ -28,19 +28,9 @@ import { validateEmail } from '@/dashboard/user/user.utils'
 import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 import { Workspace } from '@/dashboard/workspace/entity/workspace.entity'
-import {
-  TWorkspaceInstance,
-  TWorkspaceLimits,
-  TWorkspaceProperties
-} from '@/dashboard/workspace/model/workspace.interface'
+import { TWorkspaceInstance, TWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
 import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
-import {
-  WORKSPACE_LIMITS_START,
-  WORKSPACE_LIMITS_TEAM,
-  WORKSPACE_LIMITS_PRO,
-  WORKSPACE_LIMITS_SELF_HOSTED
-} from '@/dashboard/workspace/workspace.constants'
 import {
   TExtendedWorkspaceProperties,
   TNormalizedPendingInvite,
@@ -65,11 +55,14 @@ import * as crypto from 'node:crypto'
 
 @Injectable()
 export class WorkspaceService {
+  private readonly logger = new Logger(WorkspaceService.name)
+
   constructor(
     private readonly configService: ConfigService,
     private readonly neogmaService: NeogmaService,
     private readonly workspaceRepository: WorkspaceRepository,
     private readonly workspaceQueryService: WorkspaceQueryService,
+    private readonly billingClientService: BillingClientService,
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService,
     @Inject(forwardRef(() => UserRepository))
@@ -93,8 +86,16 @@ export class WorkspaceService {
 
   async getWorkspace(id: string, transaction: Transaction): Promise<Workspace> {
     const workspaceInstance = await this.getWorkspaceInstance(id, transaction)
+    const workspace = this.normalize(workspaceInstance)
 
-    return this.normalize(workspaceInstance)
+    // Enrich with billing data if not self-hosted
+    if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
+      const workspaceJson = workspace.toJson()
+      const enriched = await this.enrichWithBillingData(workspaceJson)
+      return { ...workspace, toJson: () => enriched, getProperties: () => enriched } as Workspace
+    }
+
+    return workspace
   }
 
   async findUserBillingWorkspace(userEmail: string, transaction: Transaction): Promise<string> {
@@ -150,12 +151,19 @@ export class WorkspaceService {
       session: transaction
     })
 
-    return related.map(({ target, relationship }) => {
+    const workspaces = related.map(({ target, relationship }) => {
       return {
         ...this.normalize(target).toJson(),
         role: relationship.role
       }
     })
+
+    // Enrich with billing data if not self-hosted
+    if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
+      return Promise.all(workspaces.map((ws) => this.enrichWithBillingData(ws)))
+    }
+
+    return workspaces
   }
 
   async getWorkspaceByProject(projectId: string, transaction: Transaction) {
@@ -203,27 +211,6 @@ export class WorkspaceService {
     )
   }
 
-  getLimitsByKey(key = ''): TWorkspaceLimits {
-    if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-      return WORKSPACE_LIMITS_SELF_HOSTED
-    }
-
-    if (!toBoolean(key)) {
-      return WORKSPACE_LIMITS_START
-    }
-
-    // @TODO: remove contract between billing service && workspace service
-    switch (key) {
-      case EConfigKeyByPlan.team:
-        return WORKSPACE_LIMITS_TEAM
-      case EConfigKeyByPlan.pro:
-        return WORKSPACE_LIMITS_PRO
-      default:
-        // @TODO: Make Records limits applied only to shared instances (projects)
-        return WORKSPACE_LIMITS_START
-    }
-  }
-
   async createWorkspace(
     { name }: CreateWorkspaceDto,
     userId: string,
@@ -234,8 +221,7 @@ export class WorkspaceService {
       {
         name,
         created: getCurrentISO(),
-        id: workspaceId,
-        limits: JSON.stringify(this.getLimitsByKey())
+        id: workspaceId
       },
       { session: transaction }
     )
@@ -246,6 +232,14 @@ export class WorkspaceService {
       properties: { Since: workspaceNode.created, Role: USER_ROLE_OWNER },
       session: transaction
     })
+    // Create customer in billing service — include owner email for notifications
+    const ownerNode = await this.userRepository.model.findOne({
+      where: { id: userId },
+      throwIfNotFound: false,
+      session: transaction
+    })
+    const ownerEmail = ownerNode?.login ?? null
+    await this.billingClientService.createCustomer(workspaceId, 'free', ownerEmail)
 
     return this.normalize(workspaceNode)
   }
@@ -330,6 +324,9 @@ export class WorkspaceService {
 
     await workspace.delete({ detach: true, session: transaction })
     await Promise.all(projectsToDelete)
+
+    // Delete customer from billing service
+    await this.billingClientService.deleteCustomer(id)
 
     return {
       message: `Workspace ${id} successfully deleted`
@@ -562,5 +559,102 @@ export class WorkspaceService {
     }
 
     return rec.get('role') as TUserRoles
+  }
+
+  async getUserRoleInWorkspaceById(
+    id: string,
+    workspaceId: string,
+    transaction: Transaction
+  ): Promise<TUserRoles> {
+    const result = await transaction.run(this.workspaceQueryService.getUserWorkspaceRoleByIdQuery(), {
+      id,
+      workspaceId
+    })
+
+    const rec = result.records[0]
+
+    if (!rec) {
+      isDevMode(() => Logger.error('[Get User Role ERROR]: No role found'))
+
+      throw new ForbiddenException('No user role for workspace found')
+    }
+
+    return rec.get('role') as TUserRoles
+  }
+
+  /**
+   * Enrich workspace properties with billing data from the billing service.
+   * Adds planId, validTill, and isSubscriptionCancelled fields.
+   *
+   * @param workspace - Workspace properties
+  /**
+   * Enrich workspace with billing data from billing service.
+   *
+   * Injects billing-related fields that are not stored in platform database:
+   * - planId: current subscription plan
+   * - validTill: subscription expiration (if canceled)
+   * - isSubscriptionCancelled: whether subscription is canceled
+   * - projectLimit: max projects allowed (from billing service)
+   * - userLimit: max users allowed (from billing service)
+   *
+   * @param workspace - Workspace properties from Neo4j
+   * @returns Enriched workspace properties with billing data
+   */
+  private async enrichWithBillingData<T extends TWorkspaceProperties>(workspace: T): Promise<T> {
+    try {
+      const customer = await this.billingClientService.getCustomer(workspace.id)
+
+      if (!customer) {
+        // Remove legacy limits field if it exists
+        const { limits, ...workspaceWithoutLimits } = workspace as any
+        return {
+          ...workspaceWithoutLimits,
+          planId: 'free',
+          validTill: undefined,
+          isSubscriptionCancelled: false,
+          projectLimit: 2, // Free plan default
+          userLimit: 1 // Free plan default
+        } as T
+      }
+
+      // Map billing service plan names to UI plan IDs
+      const planIdMap: Record<string, string> = {
+        free: 'free',
+        pro: 'pro',
+        scale: 'scale',
+        enterprise: 'enterprise'
+      }
+
+      // Only set validTill if subscription is canceled (i.e., will expire)
+      // For active subscriptions or free plans, leave as undefined
+      const validTill = customer.subscriptionStatus === 'canceled' ? customer.billingPeriodStart : undefined
+
+      // Remove legacy limits field if it exists
+      const { limits, ...workspaceWithoutLimits } = workspace as any
+
+      return {
+        ...workspaceWithoutLimits,
+        planId: planIdMap[customer.plan] || 'free',
+        validTill,
+        isSubscriptionCancelled: customer.subscriptionStatus === 'canceled',
+        projectLimit: customer.projectLimit,
+        userLimit: customer.userLimit
+      } as T
+    } catch (error) {
+      this.logger.error(`Failed to enrich workspace ${workspace.id} with billing data: ${error.message}`)
+
+      // Remove legacy limits field if it exists
+      const { limits, ...workspaceWithoutLimits } = workspace as any
+
+      // Return workspace with free plan on error
+      return {
+        ...workspaceWithoutLimits,
+        planId: 'free',
+        validTill: undefined,
+        isSubscriptionCancelled: false,
+        projectLimit: 2, // Free plan default
+        userLimit: 1 // Free plan default
+      } as T
+    }
   }
 }

@@ -214,11 +214,8 @@ export const api = {
   },
   workspaces: {
     async workspace({ id }: Pick<Workspace, 'id'>, init: RequestInit): Promise<Workspace> {
-      const { data } = await fetcher<GenericApiResponse<Override<Workspace, { limits: string }>>>(
-        `/api/v1/workspaces/${id}`,
-        init
-      )
-      return { ...data, limits: JSON.parse(data.limits) }
+      const { data } = await fetcher<GenericApiResponse<Workspace>>(`/api/v1/workspaces/${id}`, init)
+      return data
     },
     list(init: RequestInit) {
       return fetcher<Workspace[]>(`/api/v1/workspaces`, init)
@@ -494,7 +491,61 @@ export const api = {
       })
     },
     async getBillingData() {
-      return fetcher<BillingData>('https://billing.rushdb.com/api/prices', {
+      const billingServiceUrl = import.meta.env.VITE_BILLING_SERVICE_URL || 'https://billing.rushdb.com'
+      return fetcher<BillingData>(`${billingServiceUrl}/api/prices`, {
+        method: 'GET'
+      })
+    },
+    async getKuHistory({
+      init,
+      limit,
+      before,
+      since,
+      projectId,
+      operation
+    }: WithInit & {
+      limit?: number
+      before?: string
+      since?: string
+      projectId?: string | null
+      operation?: string | null
+    }) {
+      const params = new URLSearchParams()
+      if (limit) params.set('limit', limit.toString())
+      if (before) params.set('before', before)
+      if (since) params.set('since', since)
+      if (projectId) params.set('projectId', projectId)
+      if (operation) params.set('operation', operation)
+      const query = params.toString() ? `?${params}` : ''
+
+      return fetcher<{
+        events: Array<{
+          id: string
+          workspaceId: string
+          projectId: string
+          operation: string
+          kuConsumed: number
+          metadata: Record<string, unknown> | null
+          timestamp: string
+        }>
+        hasMore: boolean
+        nextCursor: string | null
+      }>(`/api/v1/billing/payment/ku-history${query}`, {
+        ...init,
+        method: 'GET'
+      })
+    },
+    async getUsage(init?: RequestInit) {
+      return fetcher<{
+        plan: string
+        kuConsumed: number
+        kuLimit: number | null
+        kuIncluded: number | null
+        remaining: number | null
+        billingModel: 'fixed' | 'overage' | 'usage'
+        billingPeriodStart: string
+      }>(`/api/v1/billing/payment/usage`, {
+        ...init,
         method: 'GET'
       })
     }

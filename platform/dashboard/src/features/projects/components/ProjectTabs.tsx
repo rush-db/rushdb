@@ -64,14 +64,6 @@ export function ProjectTabs({ project }: { project: Project }) {
       })
     }
 
-    if (!platformSettings?.selfHosted && isOwner && project.managedDbRegion) {
-      projectsTabs.push({
-        href: getRoutePath('projectBilling', { id: project.id }),
-        icon: <Wallet2 />,
-        label: 'Subscription'
-      })
-    }
-
     return projectsTabs
   })
 

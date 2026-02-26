@@ -77,13 +77,12 @@ export const Hero = () => {
           <div className="mb-4 mt-32 grid grow grid-cols-2 items-center gap-24 md:mt-0 md:grid-cols-1 md:gap-0 md:text-center">
             <div className="mb-8 items-center md:mt-24">
               <h1 role="heading" className="typography-4xl !font-extrabold sm:text-2xl">
-                Instant Database <br />
-                for Modern Apps & AI<span className="hidden"> - RushDB</span>
+                Turn Any Data into Intelligence<span className="hidden"> - RushDB</span>
               </h1>
 
               <h2 className="text-content3 text-md mb-8 mt-10 inline !font-medium !tracking-normal md:mt-0 md:text-base">
-                <b>Push JSON</b>, query instantly. <br />
-                <b>Zero-boilerplate</b> <b>graph database</b> that auto-normalizes your data.
+                Push any JSON — records, events, AI outputs, configs. <br />
+                RushDB structures it, connects it, and makes it queryable <b>instantly</b>.
               </h2>
 
               <Link href={socials.github} target="__blank" rel="noopener noreferrer" aria-label="Github">

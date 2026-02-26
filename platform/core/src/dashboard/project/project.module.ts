@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common'
 
+import { BillingClientModule } from '@/core/billing-client/billing-client.module'
 import { EntityModule } from '@/core/entity/entity.module'
 import { PropertyModule } from '@/core/property/property.module'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
@@ -12,6 +13,7 @@ import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.mo
 
 @Module({
   imports: [
+    BillingClientModule,
     forwardRef(() => WorkspaceModule),
     forwardRef(() => EntityModule),
     forwardRef(() => PropertyModule),

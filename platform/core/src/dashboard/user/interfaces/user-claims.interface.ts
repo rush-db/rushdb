@@ -1,5 +1,5 @@
 import { TUserProperties } from '../model/user.interface'
 
-type TIUserClaims = 'login' | 'firstName' | 'lastName' | 'id' | 'confirmed'
+type TIUserClaims = 'id'
 
 export interface IUserClaims extends Pick<TUserProperties, TIUserClaims> {}

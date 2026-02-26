@@ -11,42 +11,34 @@ import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 
 import { toBoolean } from '@/common/utils/toBolean'
+import { BillingClientService } from '@/core/billing-client/billing-client.service'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
 @Injectable()
 export class PlanActiveGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
+    private readonly billingClientService: BillingClientService,
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService
   ) {}
 
   async checkHasSubscription(workspaceId: string, transaction: Transaction): Promise<boolean> {
-    const workspaceInstance = await this.workspaceService.getWorkspaceInstance(workspaceId, transaction)
+    // Check subscription status via billing service
+    const customer = await this.billingClientService.getCustomer(workspaceId)
 
-    if (!workspaceInstance) {
-      throw new HttpException('No workspace ID provided', HttpStatus.BAD_REQUEST)
-    }
-
-    const properties = workspaceInstance.dataValues
-
-    // Check premium plan expiration (if exists)
-    if (properties.planId) {
-      // we don't want to touch our active subscribers
-      // @TODO
-      if (!properties.isSubscriptionCancelled) {
-        return true
-      }
-
-      const validTillDate = new Date(properties.validTill)
-      const increasedValidTillDate = new Date(validTillDate)
-      increasedValidTillDate.setDate(increasedValidTillDate.getDate() + 30)
-      const currentDate = new Date()
-
-      return !(currentDate > increasedValidTillDate)
-    } else {
+    if (!customer) {
+      // No customer record = not subscribed
       return false
     }
+
+    // Check if customer has an active paid subscription
+    if (customer.subscriptionStatus === 'active' && customer.subscriptionId) {
+      return true
+    }
+
+    // Free tier doesn't have active subscription
+    return customer.plan !== 'free'
   }
 
   async canActivate(context: ExecutionContext) {

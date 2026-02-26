@@ -6,11 +6,12 @@
     "model-context-protocol",
     "mcp-server",
     "rushdb",
-    "database",
-    "graph-database",
-    "neo4j",
+    "ai-platform",
+    "knowledge-engine",
+    "application-platform",
     "llm",
     "ai-agents",
+    "ai-memory",
     "tools"
   ],
   "license": "Apache-2.0",
@@ -35,7 +36,7 @@
   },
   "dependencies": {
     "@rushdb/javascript-sdk": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.20.0",
+    "@modelcontextprotocol/sdk": "1.27.1",
     "dotenv": "^16.4.7",
     "jsonschema": "^1.5.0"
   },

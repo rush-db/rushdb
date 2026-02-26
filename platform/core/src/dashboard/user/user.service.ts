@@ -17,7 +17,6 @@ import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { IDecodedResetToken } from '@/dashboard/auth/auth.types'
 import { ResetPasswordAuthDto } from '@/dashboard/auth/dto/reset-password-auth.dto'
 import { EncryptionService } from '@/dashboard/auth/encryption/encryption.service'
-import { StripeService } from '@/dashboard/billing/stripe/stripe.service'
 import {
   RUSHDB_LABEL_PROJECT,
   RUSHDB_LABEL_USER,
@@ -54,8 +53,6 @@ export class UserService {
     private readonly userRepository: UserRepository,
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
-    @Inject(forwardRef(() => StripeService))
-    private readonly stripeService: StripeService,
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService
   ) {}
@@ -154,10 +151,6 @@ export class UserService {
       const userNode = await this.createUserNode(properties, transaction)
       // Add Default Workspace on registration
       await this.workspaceService.createWorkspace({ name: 'Default Workspace' }, userNode.id, transaction)
-
-      if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-        await this.stripeService.createCustomer(properties.login)
-      }
 
       return {
         userData: this.normalize(userNode)
@@ -471,7 +464,7 @@ export class UserService {
     return true
   }
 
-  async getUserWorkspaceRole(login: string, workspaceId: string, transaction: Transaction) {
-    return await this.workspaceService.getUserRoleInWorkspace(login, workspaceId, transaction)
+  async getUserWorkspaceRole(id: string, workspaceId: string, transaction: Transaction) {
+    return await this.workspaceService.getUserRoleInWorkspaceById(id, workspaceId, transaction)
   }
 }

@@ -4,10 +4,9 @@
 
 # RushDB
 
-### Developer‑first property‑centric graph store
+### Turn Any Data into Intelligence
 
-RushDB lets you push raw JSON/CSV, auto-normalize it into a labeled meta property graph, and query records, schema, relationships, values, vectors and aggregations through one JSON search interface. No upfront schema design, no new query language to learn.
-RushDB transforms how you work with graph data — no schema required, no complex queries, just push your data and go.
+Push any JSON — records, events, AI outputs, configs. RushDB structures it, connects it, and makes it queryable instantly. No upfront schema design, no new query language to learn.
 
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
 [![Follow on X (Twitter)](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
@@ -99,7 +98,7 @@ For deeper architectural exposition see the blog article on [LMPG](https://rushd
 
 ### 1. Get an API Key (Cloud) or Run Locally
 RushDB Cloud: create a project at https://app.rushdb.com → copy API key.
-Self-host (requires Neo4j 5.25.1+ with APOC & GDS):
+Self-host (requires Neo4j 2026.01.4+ with compatible APOC & GDS plugins):
 ```bash
 docker run -p 3000:3000 \
   --name rushdb \
@@ -212,9 +211,9 @@ Benefits:
 ## 🛠️ Self-Hosting
 
 ### Requirements
-- Neo4j 5.25.1+
-- APOC plugin
-- Graph Data Science plugin (for vector similarity & advanced aggregates)
+- Neo4j 2026.01.4+
+- APOC Core plugin (compatible with Neo4j 2026.01.4+)
+- Graph Data Science plugin (compatible with Neo4j 2026.01.4+, for vector similarity & advanced aggregates)
 
 ### Minimal Docker Compose
 ```yaml
@@ -266,7 +265,7 @@ services:
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=password
   neo4j:
-    image: neo4j:5.25.1
+    image: neo4j:2026.01.4
     healthcheck:
       test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
       interval: 5s
@@ -278,7 +277,11 @@ services:
     environment:
       - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
       - NEO4J_AUTH=neo4j/password
-      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+      # Optional: auto-download plugins from the internet
+      # - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+    volumes:
+      # Optional: mount local plugin jars (required for Neo4j 2026.x where auto-download may not work)
+      - ./neo4j-plugins:/var/lib/neo4j/plugins
 ```
 </details>
 

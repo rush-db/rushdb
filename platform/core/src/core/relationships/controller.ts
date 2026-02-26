@@ -25,6 +25,7 @@ import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
 import { EntityService } from '@/core/entity/entity.service'
 import { TRecordRelationsResponse, TRelationDirection } from '@/core/entity/entity.types'
+import { TrackHeavySearchKu } from '@/core/ku-events/track-heavy-search-ku.interceptor'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
 import {
@@ -135,6 +136,7 @@ export class RelationshipsController {
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
+  @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
   async findRelations(
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -144,7 +146,6 @@ export class RelationshipsController {
     @Query('limit', new DefaultValuePipe(1000), ParseIntPipe) limit?: number
   ): Promise<TRecordRelationsResponse> {
     const projectId = request.projectId
-
     const [data, total] = await Promise.all([
       this.entityService.findRelations({
         searchQuery,

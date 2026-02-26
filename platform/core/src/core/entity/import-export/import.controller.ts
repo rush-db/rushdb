@@ -29,7 +29,6 @@ import {
   importJsonSchema
 } from '@/core/entity/import-export/validation/schemas/import.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
-import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
@@ -43,7 +42,7 @@ export class ImportController {
 
   @Post('/records/import/json')
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, EntityWriteGuard, CustomDbWriteRestrictionGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
   @UseInterceptors(
     RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]),
     TransformResponseInterceptor
@@ -73,7 +72,7 @@ export class ImportController {
   )
   @UsePipes(ValidationPipe(importCsvSchema, 'body'))
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(PlanLimitsGuard, EntityWriteGuard, CustomDbWriteRestrictionGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
   @AuthGuard('project')
   async collectCsv(
     @Body() body: ImportCsvDto,
