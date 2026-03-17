@@ -57,11 +57,6 @@ export class ProjectService {
     const { name, description = '' } = properties
 
     const customDb = await this.attachCustomDb(properties.customDb)
-    const managedDb =
-      toBoolean(properties.managedDbConfig) &&
-      toBoolean(properties.managedDbConfig.password) &&
-      toBoolean(properties.managedDbConfig.region) &&
-      toBoolean(properties.managedDbConfig.tier)
 
     const projectNode = await this.projectRepository.model.createOne(
       {
@@ -69,12 +64,6 @@ export class ProjectService {
         name,
         description,
         ...(customDb && { customDb }),
-        ...(managedDb && {
-          managedDbPassword: this.encryptSensitiveData(properties.managedDbConfig.password),
-          managedDbRegion: properties.managedDbConfig.region,
-          managedDbTier: properties.managedDbConfig.tier,
-          status: 'pending'
-        }),
         created: currentTime
       },
       { session: transaction }
@@ -271,30 +260,6 @@ export class ProjectService {
 
     await projectNode.save()
     return projectNodePayload
-  }
-
-  async notifyRushDBAdmin(id: string, transaction: Transaction) {
-    const projectNode = await this.getProjectNode(id, transaction)
-
-    const managedDb =
-      projectNode.managedDbPassword &&
-      projectNode.managedDbPassword &&
-      projectNode.managedDbTier &&
-      projectNode.managedDbRegion
-
-    if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED')) && managedDb) {
-      try {
-        await this.mailService.notifyAdminAboutNewProject({
-          projectId: id,
-          name: projectNode.name,
-          region: projectNode.managedDbRegion,
-          tier: projectNode.managedDbTier,
-          password: this.decryptSensitiveData(projectNode.managedDbPassword)
-        })
-      } catch (e) {
-        isDevMode(() => Logger.error('[MAIL ERROR]: Failed to notify admin about managed project', e))
-      }
-    }
   }
 
   async updateProject(
@@ -503,8 +468,7 @@ export class ProjectService {
       .then((result) => result.records[0])
       .then((record) => ({
         records: toNative(record.get('entities')),
-        properties: toNative(record.get('properties')),
-        avgProperties: toNative(record.get('avg'))
+        properties: toNative(record.get('properties'))
       }))
   }
 

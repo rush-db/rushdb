@@ -16,6 +16,7 @@ import { ChangeWorkspaceMenu } from '~/features/workspaces/components/ChangeWork
 import { Button } from '~/elements/Button'
 import { LimitReachedModal } from '~/components/billing/LimitReachedDialog.tsx'
 import { PaymentCallbackDialog } from '~/components/billing/PaymentCallbackDialog.tsx'
+import { KuHeaderBar } from '~/components/billing/KuHeaderBar.tsx'
 
 function ProjectNav() {
   const page = useStore($router)
@@ -82,6 +83,7 @@ function Header() {
       </div>
 
       <div className="flex items-center gap-3">
+        <KuHeaderBar />
         <UserMenu />
       </div>
     </header>

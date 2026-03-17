@@ -11,6 +11,7 @@ import { isObject } from '@/common/utils/isObject'
 import { isPrimitiveArray } from '@/common/utils/isPrimitiveArray'
 import { pickPrimitives } from '@/common/utils/pickPrimitives'
 import { toBoolean } from '@/common/utils/toBolean'
+import { BillingClientService } from '@/core/billing-client/billing-client.service'
 import {
   RUSHDB_KEY_ID,
   RUSHDB_KEY_LABEL,
@@ -33,6 +34,8 @@ import {
   WithId,
   TImportQueue
 } from '@/core/entity/import-export/import.types'
+import { KuOperation } from '@/core/ku-events/ku-events.constants'
+import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { PropertyDto } from '@/core/property/dto/property.dto'
 import {
   PROPERTY_TYPE_NULL,
@@ -42,7 +45,6 @@ import {
 } from '@/core/property/property.constants'
 import { PropertyService } from '@/core/property/property.service'
 import { TPropertyPrimitiveValue } from '@/core/property/property.types'
-import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
 @Injectable()
@@ -50,6 +52,8 @@ export class ImportService {
   constructor(
     private readonly configService: ConfigService,
     private readonly entityQueryService: EntityQueryService,
+    private readonly kuEventsService: KuEventsService,
+    private readonly billingClientService: BillingClientService,
 
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
@@ -266,21 +270,23 @@ export class ImportService {
       return true
     }
 
-    // @FYI: This exists to prevent saving more Records than allowed by current plan
     const workspaceInstance = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    const workspaceStats = await this.workspaceService.getAccumulatedWorkspaceStats(
-      workspaceInstance,
-      transaction
-    )
+    const workspaceId = workspaceInstance.dataValues.id
 
-    const limits = JSON.parse(workspaceInstance.dataValues.limits) as TWorkspaceLimits
+    // Estimate KU for the import (conservative: assume 10 properties per record average)
+    const estimatedKu = recordsCount * 10
 
-    if (workspaceStats.records + recordsCount > limits.records) {
+    // Check limits via billing service
+    const check = await this.billingClientService.checkLimits(workspaceId, { estimatedKu })
+
+    if (!check.allowed) {
       throw new HttpException(
-        'The number of items you are trying to send exceeds your limits.',
+        check.reason || 'Knowledge Unit (KU) limit exceeded. Upgrade your plan to continue.',
         HttpStatus.PAYMENT_REQUIRED
       )
     }
+
+    return true
   }
 
   async importRecords(
@@ -302,6 +308,10 @@ export class ImportService {
 
     // Will throw error if the amount of uploading Records is more than allowed by current plan
     await this.checkLimits(records.length, projectId, transaction)
+
+    // Get workspace for billing attribution
+    const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
+    const workspaceId = workspace.dataValues.id
 
     const CHUNK_SIZE = 1000
 
@@ -344,6 +354,30 @@ export class ImportService {
       type: rel.type
     }))
 
+    // Emit bulk entity creation event (one coalesced event per import, not per chunk)
+    if (records.length > 0) {
+      // Count vector properties and total properties across all records
+      let vectorCount = 0
+      let totalPropertyCount = 0
+      for (const record of records) {
+        const props = record.properties ?? []
+        totalPropertyCount += props.length
+        for (const prop of props) {
+          if ((prop as any).type === PROPERTY_TYPE_VECTOR) {
+            vectorCount++
+          }
+        }
+      }
+
+      this.kuEventsService.emitBulk(workspaceId, projectId, KuOperation.ENTITY_CREATED, records.length, {
+        propertyCount: totalPropertyCount
+      })
+
+      if (vectorCount > 0) {
+        this.kuEventsService.emitBulk(workspaceId, projectId, KuOperation.EMBEDDING_GENERATED, vectorCount)
+      }
+    }
+
     for (let i = 0; i < remappedRelations.length; i += CHUNK_SIZE) {
       const relationsChunk = remappedRelations.slice(i, i + CHUNK_SIZE)
       await this.processRelationshipsChunk({
@@ -351,6 +385,16 @@ export class ImportService {
         projectId,
         transaction: customTransaction
       })
+    }
+
+    // Emit bulk relationship creation event
+    if (remappedRelations.length > 0) {
+      this.kuEventsService.emitBulk(
+        workspaceId,
+        projectId,
+        KuOperation.RELATIONSHIP_CREATED,
+        remappedRelations.length
+      )
     }
 
     const upsertRequested = toBoolean(options.mergeStrategy) || isArray(options.mergeBy)

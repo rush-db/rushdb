@@ -4,7 +4,9 @@
 
 # 🚀 RushDB SDK for JavaScript and TypeScript
 
-### The Modern Graph Database Client for Web & Node.js
+### Turn Any Data into Intelligence — for Web & Node.js
+
+Push any JSON — records, events, AI outputs, configs. RushDB structures it, connects it, and makes it queryable instantly.
 
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![NPM License](https://img.shields.io/npm/l/%40rushdb%2Fjavascript-sdk)](#license "Go to license section")

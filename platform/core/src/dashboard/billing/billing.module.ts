@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common'
 
-import { StripeModule } from '@/dashboard/billing/stripe/stripe.module'
+import { BillingClientModule } from '@/core/billing-client/billing-client.module'
+import { BillingController } from '@/dashboard/billing/billing.controller'
 
 @Module({
-  imports: [StripeModule],
-  exports: [StripeModule]
+  imports: [BillingClientModule],
+  exports: [BillingClientModule],
+  controllers: [BillingController]
 })
 export class BillingModule {}

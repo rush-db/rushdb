@@ -1,5 +1,4 @@
 import { Logger } from '@nestjs/common'
-import { LogLevel } from 'neo4j-driver-core/types/types'
 import { Neogma } from 'neogma'
 
 import { INeogmaConfig } from './neogma-config.interface'

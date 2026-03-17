@@ -3,7 +3,7 @@ sidebar_position: 3
 ---
 # Storage
 
-RushDB leverages [Neo4j](https://neo4j.com/docs/get-started/get-started-with-neo4j/) (version 5.25.1 or higher) as its underlying storage engine, enhanced with the [APOC](https://neo4j.com/labs/apoc/) (Awesome Procedures On Cypher) and [GDS](https://neo4j.com/docs/graph-data-science/current/) (Graph Data Science) plugins to perform efficient vector similarity searches and advanced graph operations.
+RushDB leverages [Neo4j](https://neo4j.com/docs/get-started/get-started-with-neo4j/) (version 2026.01.4 or higher) as its underlying storage engine, enhanced with the latest [APOC](https://neo4j.com/labs/apoc/) (Awesome Procedures On Cypher) and [GDS](https://neo4j.com/docs/graph-data-science/current/) (Graph Data Science) plugins. This enables efficient vector similarity searches and advanced graph operations, fully compatible with the newest database and plugin releases.
 
 ## Graph Database vs. Traditional Databases
 
@@ -28,7 +28,7 @@ Neo4j provides RushDB with a robust graph database foundation, allowing for:
 - Property graph model flexibility
 - Scalable data storage and retrieval
 
-The integration with [APOC](https://neo4j.com/labs/apoc/4.4/overview/) and [GDS](https://neo4j.com/docs/graph-data-science/current/introduction/) plugins extends Neo4j's native capabilities with vector-based operations critical for machine learning workflows and similarity search functions.
+The integration with [APOC](https://neo4j.com/labs/apoc/) and [GDS](https://neo4j.com/docs/graph-data-science/current/) plugins extends Neo4j's native capabilities with vector-based operations critical for machine learning workflows and similarity search functions. RushDB supports the latest plugin releases for APOC and GDS, ensuring compatibility with Neo4j 2026.01.4 and newer.
 
 ## Data Overhead
 

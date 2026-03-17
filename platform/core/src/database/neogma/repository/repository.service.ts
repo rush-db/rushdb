@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { ModelFactory } from 'neogma'
-import { NeogmaModel, RelationshipsI } from 'neogma/dist/ModelOps/ModelOps'
+import { ModelFactory, NeogmaModel, RelationshipsI } from 'neogma'
 
 import { TAnyObject, TGetFirstArgument } from '@/common/types/utils'
 import { NeogmaService } from '@/database/neogma/neogma.service'

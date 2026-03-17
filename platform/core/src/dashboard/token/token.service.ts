@@ -26,6 +26,7 @@ import { ACCESS_WEIGHT, READ_ACCESS, WRITE_ACCESS } from '@/dashboard/token/toke
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { BillingClientService } from '@/core/billing-client/billing-client.service'
 
 import * as crypto from 'node:crypto'
 
@@ -42,7 +43,8 @@ export class TokenService {
     private readonly tokenQueryService: TokenQueryService,
     private readonly configService: ConfigService,
     private readonly projectService: ProjectService,
-    private readonly workspaceService: WorkspaceService
+    private readonly workspaceService: WorkspaceService,
+    private readonly billingClientService: BillingClientService
   ) {}
 
   normalize(node: TTokenInstance) {
@@ -88,15 +90,19 @@ export class TokenService {
     const expiration = expirationRaw === '*' ? -1 : ms(expirationRaw as string)
     const projectNode = await this.projectService.getProject(projectId, transaction)
     const workspaceNode = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    const { customDb, managedDbTier, status } = projectNode.toJson()
-    const { planId } = workspaceNode
+    const { customDb, status } = projectNode.toJson()
+    const workspaceId = workspaceNode.dataValues.id
+
+    // Get plan from billing service
+    const customer = await this.billingClientService.getCustomer(workspaceId)
+    const plan = customer?.plan || 'free'
+
     const selfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
     const tokenPrefix = {
-      managedDB: toBoolean(managedDbTier) && status === 'active',
       customDb: toBoolean(customDb),
       selfHosted
     } as ServerSettings
-    const prefixString = attachMixedProperties(getPrefixedPlan(planId as string), tokenPrefix)
+    const prefixString = attachMixedProperties(getPrefixedPlan(plan), tokenPrefix)
 
     const token = this.encryptTokenData(id)
     const tokenNode = await this.tokenRepository.model.createOne(

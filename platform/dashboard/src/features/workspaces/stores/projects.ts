@@ -32,11 +32,11 @@ export const $filteredProjects = computed([$workspaceProjects, $projectsQuery], 
 export const $showUpgrade = computed(
   [$workspaceProjects, $currentWorkspace, $platformSettings],
   (projects, workspace) => {
-    const maxProjects = workspace.data?.limits?.projects ?? Infinity
+    const maxProjects = workspace.data?.projectLimit ?? null
 
     return (
         !$platformSettings.get().data?.selfHosted &&
-          typeof maxProjects !== 'undefined' &&
+          maxProjects !== null &&
           typeof projects.data !== 'undefined'
       ) ?
         projects.data?.length >= maxProjects

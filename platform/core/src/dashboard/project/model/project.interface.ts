@@ -15,17 +15,7 @@ type TProjectProperties = {
   description?: string
   stats?: string
   customDb?: string
-  managedDbPassword?: string
-  managedDbRegion?: string
-  managedDbTier?: string
   status?: ProjectStatus
-  validTill?: string
-  planId?: string
-  productId?: string
-  priceId?: string
-  isSubscriptionCancelled?: boolean
-  subscriptionPriceId?: string
-  subscriptionProductId?: string
 }
 
 interface IProjectProperties extends TProjectProperties {}

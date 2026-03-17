@@ -147,9 +147,9 @@ export class ProjectQueryService {
       .append(`}`)
       .append(`CALL {`)
       .append(`   MATCH (r:${RUSHDB_LABEL_RECORD} {${RUSHDB_KEY_PROJECT_ID}: $id})`)
-      .append(`   RETURN count(r) AS entities, round(avg(size(keys(r))), 2) AS avg`)
+      .append(`   RETURN count(r) AS entities`)
       .append(`}`)
-      .append(`RETURN properties, entities, avg`)
+      .append(`RETURN properties, entities`)
 
     return queryBuilder.getQuery()
   }

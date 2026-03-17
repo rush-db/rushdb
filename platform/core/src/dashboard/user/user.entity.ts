@@ -26,9 +26,9 @@ export class User {
   }
 
   getClaims(): IUserClaims {
-    const { login, id, confirmed, firstName, lastName, ...properties } = this.node.dataValues
+    const { id } = this.node.dataValues
 
-    return { login, id, confirmed, firstName, lastName }
+    return { id }
   }
 
   toJson(): IUserProperties {

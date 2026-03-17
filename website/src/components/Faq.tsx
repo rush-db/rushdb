@@ -57,27 +57,27 @@ export const Faq = ({
     {
       question: 'How is RushDB different from Firebase or Supabase?',
       answer:
-        "Unlike Firebase's document hierarchies or Supabase's rigid schemas, RushDB offers a zero-config graph database that automatically normalizes your data. You can push JSON directly without planning your data structure in advance, and query across relationships naturally without complex joins."
+        "Unlike Firebase's document hierarchies or Supabase's rigid schemas, RushDB automatically normalizes any JSON into a connected knowledge graph — no schema design required. Push data and query it instantly. Pricing is transparent: standard reads and queries are always free. You pay only for writes and compute-intensive operations (vector search, raw Cypher), measured in Knowledge Units."
     },
     {
       question: 'Can I use RushDB for AI applications and LLM outputs?',
       answer:
-        "Absolutely! RushDB is designed for the AI era with seamless JSON storage for LLM outputs, automatic relationship detection, and graph-based querying that's perfect for RAG applications, embeddings storage, and knowledge graphs. Our auto-normalization feature is particularly valuable for handling the varied structures of AI-generated content."
+        'Absolutely. RushDB is purpose-built for AI workloads — push LLM outputs, structured embeddings, or raw event data and query across them relationally. Auto-normalization handles the varied structures of AI-generated content, and graph-based querying is perfect for RAG pipelines and knowledge graph construction.'
     },
     {
       question: 'How much data preparation do I need before using RushDB?',
       answer:
-        "Zero. RushDB's core value is eliminating data preparation overhead. Just push your JSON or CSV as-is, and RushDB automatically normalizes, connects, and indexes your data with proper relationships and types. This means you can start building features immediately instead of planning database schemas."
+        'Zero. Just push your JSON as-is and RushDB automatically decomposes, connects, and indexes your data with proper relationships and types. You can start querying within the same request — no schema planning, no migrations, no boilerplate.'
     },
     {
-      question: "What's the performance like for real-world applications?",
+      question: 'How does billing work — what is a Knowledge Unit (KU)?',
       answer:
-        'RushDB processes data at ~0.25ms per record with ACID transaction support, handling payloads up to 32MB. It can manage 10,000+ e-commerce products, 100,000+ financial transactions, or 1,000,000+ API logs in a single operation, making it production-ready for demanding applications.'
+        'A Knowledge Unit (KU) is the atomic measure of structured knowledge created or maintained by RushDB. A record with 10 properties costs 10 KU. Nested objects are decomposed into linked records, each contributing its own KU. Standard reads and queries are always free. Compute-intensive operations (vector search, raw Cypher, deep traversals) consume a small amount of KU. The Free plan includes 100K KU/month — enough for ~3,000 records with 10 fields each.'
     },
     {
       question: 'Can I self-host RushDB or do I have to use the cloud version?',
       answer:
-        'Both options are available. You can self-host using our Docker container with your Neo4j instance, or use RushDB Cloud which offers 2 free projects forever with no maintenance required. For teams that want to focus on building rather than infrastructure, our cloud option eliminates all database management concerns.'
+        'Both options are available. Self-host using our Docker container with your own Neo4j instance — no limits, no billing. RushDB Cloud starts free: 100K KU/month and 2 projects, no credit card required. Paid plans begin at $29/month with overage billing so you only pay for what you use.'
     }
   ],
   className

@@ -27,9 +27,9 @@ export const SocialProof = () => {
 
           <div className="flex items-center gap-2">
             <span className="bg-accent flex h-5 w-5 items-center justify-center rounded-full text-sm font-bold text-white">
-              2
+              ∞
             </span>
-            <span className="font-medium">Free Projects Forever</span>
+            <span className="font-medium">Standard Reads Free</span>
           </div>
         </div>
 

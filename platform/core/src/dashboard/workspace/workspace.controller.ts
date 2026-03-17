@@ -146,12 +146,15 @@ export class WorkspaceController {
     @Body() workspacePayload: InviteToWorkspaceDto,
     @TransactionDecorator() transaction: Transaction
   ): Promise<{ message: string }> {
-    const { name } = await this.workspaceService.getWorkspaceInstance(id, transaction)
+    const [workspace, userEntity] = await Promise.all([
+      this.workspaceService.getWorkspaceInstance(id, transaction),
+      this.userService.findById(user.id, transaction)
+    ])
 
     const payload = {
       workspaceId: id,
-      workspaceName: name,
-      senderEmail: user.login,
+      workspaceName: workspace.name,
+      senderEmail: userEntity.toJson().login,
       ...workspacePayload
     }
     return await this.workspaceService.inviteMember(payload, transaction)
@@ -254,10 +257,11 @@ export class WorkspaceController {
     @AuthUser() authUser: IUserClaims,
     @TransactionDecorator() transaction: Transaction
   ) {
+    const authUserEntity = await this.userService.findById(authUser.id, transaction)
     const { userData, workspaceId } = await this.userService.acceptWorkspaceInvitation(
       {
         inviteToken: token,
-        authUserLogin: authUser.login
+        authUserLogin: authUserEntity.toJson().login
       },
       transaction
     )

@@ -1,4 +1,4 @@
-import { LayoutDashboard, SettingsIcon, Wallet2, Users } from 'lucide-react'
+import { Activity, LayoutDashboard, SettingsIcon, Wallet2, Users } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -39,11 +39,18 @@ export function WorkspacesLayout({ children, className }: TPolymorphicComponentP
     }
 
     if (!platformSettings?.selfHosted && isOwner) {
-      workspaceTabs.push({
-        href: getRoutePath('workspaceBilling'),
-        icon: <Wallet2 />,
-        label: 'Subscription'
-      })
+      workspaceTabs.push(
+        {
+          href: getRoutePath('workspaceBilling'),
+          icon: <Wallet2 />,
+          label: 'Billing'
+        },
+        {
+          href: getRoutePath('workspaceApiUsage'),
+          icon: <Activity />,
+          label: 'API Usage'
+        }
+      )
     }
 
     return workspaceTabs

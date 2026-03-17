@@ -9,6 +9,7 @@ import { ProfilePage } from '~/pages/profile.tsx'
 import { SignInPage } from '~/pages/signin'
 import { SignUpPage } from '~/pages/signup'
 import { WorkspaceBillingPage } from '~/pages/workspace/billing'
+import { WorkspaceApiUsagePage } from '~/pages/workspace/api-usage'
 import { WorkspaceProjectsPage } from '~/pages/workspace/projects'
 import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
 import { WorkspaceUsersPage } from '~/pages/workspace/users'
@@ -25,7 +26,6 @@ import { $user } from '~/features/auth/stores/user.ts'
 import { OnboardingTour } from '~/features/tour/components/OnboardingTour.tsx'
 import { OnboardingInit } from '~/features/tour/components/OnboardingInit.tsx'
 import { ErrorBoundary } from '~/features/tour/components/ErrorBoundary.tsx'
-import { ProjectBillingPage } from '~/pages/project/billing.tsx'
 
 function PublicRoutes() {
   const page = useStore($router)
@@ -72,6 +72,11 @@ function ProtectedRoutes() {
         return null
       }
       return <WorkspaceBillingPage />
+    case 'workspaceApiUsage':
+      if ($platformSettings.get().data?.selfHosted || !isOwner) {
+        return null
+      }
+      return <WorkspaceApiUsagePage />
     case 'projects':
     case 'home':
       return <WorkspaceProjectsPage />

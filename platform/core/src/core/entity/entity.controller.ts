@@ -46,7 +46,7 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
-import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
+import { TrackHeavySearchKu } from '@/core/ku-events/track-heavy-search-ku.interceptor'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
@@ -90,7 +90,7 @@ export class EntityController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard, CustomDbWriteRestrictionGuard)
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
   @UsePipes(ValidationPipe(createEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
   @HttpCode(HttpStatus.CREATED)
@@ -272,6 +272,7 @@ export class EntityController {
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
+  @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
   async find(
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -312,6 +313,7 @@ export class EntityController {
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
+  @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
   async findFromId(
     @Param('entityId') entityId: string,
@@ -320,7 +322,6 @@ export class EntityController {
     @Request() request: PlatformRequest
   ): Promise<TRecordSearchResult> {
     const projectId = request.projectId
-
     const [data, total] = await Promise.all([
       this.entityService.find({
         id: entityId,

@@ -31,7 +31,8 @@ export const Token: TTokenParams = {
       required: true
     },
     description: {
-      type: 'string'
+      type: 'string',
+      required: false
     },
     value: {
       type: 'string',
@@ -53,7 +54,8 @@ export const Token: TTokenParams = {
         Level: {
           property: 'level',
           schema: {
-            type: 'string'
+            type: 'string',
+            required: false
           }
         }
       }

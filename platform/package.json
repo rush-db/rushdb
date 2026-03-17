@@ -3,6 +3,6 @@
     "compose:up": "cd core && docker-compose up --build",
     "start:debug": "cd core && pnpm start:debug",
     "dashboard:dev": "cd dashboard && pnpm dev",
-    "dev:platform": "npm-run-all --parallel compose:up start:debug dashboard:dev"
+    "dev:platform": "concurrently --kill-others-on-fail -n neo4j,api,dashboard \"pnpm compose:up\" \"pnpm start:debug\" \"pnpm dashboard:dev\""
   }
 }

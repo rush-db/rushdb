@@ -16,13 +16,15 @@ export function CurrentSubscriptionInfo({ className, ...props }: TPolymorphicCom
         <span className="text-semibold">{currentPlan?.name}</span>
       </Skeleton>
       <Skeleton enabled={loading}>
-        {paidUser && validTill ?
+        {paidUser && isSubscriptionCancelled && validTill ?
           <span className="flex gap-1 text-xs">
-            {isSubscriptionCancelled ? 'Ends on' : 'Extends on'}
+            Ends on
             <Link as="span" size="xsmall">
               {formatIsoToLocal(validTill)}
             </Link>
           </span>
+        : paidUser ?
+          <span className="text-content3 text-xs">Active subscription</span>
         : <Link as="span" size="xsmall">
             Upgrade
           </Link>

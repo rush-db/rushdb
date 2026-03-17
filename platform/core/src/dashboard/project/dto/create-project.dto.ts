@@ -21,11 +21,4 @@ export class CreateProjectDto {
     }
   })
   customDb: TProjectCustomDbPayload
-
-  @ApiPropertyOptional()
-  managedDbConfig: {
-    password: string
-    region: string
-    tier: string
-  }
 }

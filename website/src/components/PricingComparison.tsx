@@ -5,130 +5,123 @@ import cn from 'classnames'
 type Feature = {
   name: string
   free: boolean | string
-  start: boolean | string
   pro: boolean | string
+  scale: boolean | string
   enterprise: boolean | string
 }
 
 const features: Feature[] = [
   {
-    name: 'Projects',
-    free: '2',
-    start: 'Unlimited',
-    pro: 'Unlimited',
+    name: 'Knowledge Units / month',
+    free: '100K KU',
+    pro: '10M KU',
+    scale: 'Unlimited',
     enterprise: 'Unlimited'
   },
   {
-    name: 'Records',
-    free: '10,000',
-    start: 'Up to 200,000',
-    pro: 'Up to 1B+',
+    name: 'Overage Billing',
+    free: false,
+    pro: 'Per-KU rate',
+    scale: 'Usage-based',
+    enterprise: 'Custom'
+  },
+  {
+    name: 'Projects',
+    free: '2',
+    pro: 'Unlimited',
+    scale: 'Unlimited',
     enterprise: 'Unlimited'
   },
   {
     name: 'Team Members',
-    free: 'N/A',
-    start: '3',
-    pro: '10',
+    free: '1',
+    pro: '3',
+    scale: 'Unlimited',
     enterprise: 'Unlimited'
   },
   {
     name: 'Additional Seat Cost',
     free: 'N/A',
-    start: '$10/month',
-    pro: '$25/month',
+    pro: '$10/month',
+    scale: 'Included',
     enterprise: 'Custom'
   },
   {
-    name: 'SDKs',
+    name: 'REST API & SDKs',
     free: true,
-    start: true,
     pro: true,
-    enterprise: true
-  },
-  {
-    name: 'REST API',
-    free: true,
-    start: true,
-    pro: true,
-    enterprise: true
-  },
-  {
-    name: 'Smart CDN',
-    free: true,
-    start: true,
-    pro: true,
+    scale: true,
     enterprise: true
   },
   {
     name: 'Dashboard Access',
     free: true,
-    start: true,
     pro: true,
+    scale: true,
     enterprise: true
   },
   {
-    name: 'Bring Your Own Neo4j',
-    free: false,
-    start: true,
+    name: 'Vector & AI Search',
+    free: true,
     pro: true,
-    enterprise: true
-  },
-  {
-    name: 'Cypher Query Preview',
-    free: false,
-    start: true,
-    pro: true,
+    scale: true,
     enterprise: true
   },
   {
     name: 'Custom Queries',
     free: false,
-    start: false,
     pro: true,
+    scale: true,
     enterprise: true
   },
   {
-    name: 'Backups',
+    name: 'Self-Hosted Support',
     free: false,
-    start: false,
-    pro: '14-day (Coming Soon)',
-    enterprise: 'Custom'
+    pro: true,
+    scale: true,
+    enterprise: true
   },
   {
-    name: 'Support',
-    free: 'Community',
-    start: 'Email',
-    pro: 'Priority',
-    enterprise: 'Dedicated'
+    name: 'SLA Guarantee',
+    free: false,
+    pro: false,
+    scale: true,
+    enterprise: true
   },
   {
     name: 'Dedicated Instances',
     free: false,
-    start: false,
-    pro: true,
+    pro: false,
+    scale: true,
     enterprise: true
   },
   {
     name: 'SSO',
     free: false,
-    start: false,
-    pro: 'Coming Soon',
+    pro: false,
+    scale: 'Coming Soon',
     enterprise: true
   },
   {
-    name: 'SLA Guarantees',
-    free: false,
-    start: false,
-    pro: false,
+    name: 'Bring Your Own Cloud (BYOC)',
+    free: true,
+    pro: true,
+    scale: true,
     enterprise: true
   },
   {
-    name: 'Custom Deployment',
+    name: 'Embedded / OEM Use',
     free: false,
-    start: false,
     pro: false,
+    scale: false,
     enterprise: true
+  },
+  {
+    name: 'Support',
+    free: 'Community',
+    pro: 'Priority',
+    scale: 'Priority',
+    enterprise: 'Dedicated'
   }
 ]
 
@@ -169,10 +162,10 @@ export const PricingComparison = ({ className, ...props }: ComponentPropsWithout
               <th className="border-stroke text-content border-b px-6 py-4 text-center font-semibold">
                 Free
               </th>
-              <th className="border-stroke text-content border-b px-6 py-4 text-center font-semibold">
-                Start
-              </th>
               <th className="border-stroke text-content border-b px-6 py-4 text-center font-semibold">Pro</th>
+              <th className="border-stroke text-content border-b px-6 py-4 text-center font-semibold">
+                Scale
+              </th>
               <th className="border-stroke text-content border-b px-6 py-4 text-center font-semibold">
                 Enterprise
               </th>
@@ -189,10 +182,10 @@ export const PricingComparison = ({ className, ...props }: ComponentPropsWithout
                   <FeatureCell value={feature.free} />
                 </td>
                 <td className="border-stroke text-content border-b px-6 py-4 text-center">
-                  <FeatureCell value={feature.start} />
+                  <FeatureCell value={feature.pro} />
                 </td>
                 <td className="border-stroke text-content border-b px-6 py-4 text-center">
-                  <FeatureCell value={feature.pro} />
+                  <FeatureCell value={feature.scale} />
                 </td>
                 <td className="border-stroke text-content border-b px-6 py-4 text-center">
                   <FeatureCell value={feature.enterprise} />

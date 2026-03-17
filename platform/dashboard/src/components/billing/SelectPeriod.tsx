@@ -16,7 +16,6 @@ export function SelectPeriod({ className }: { className?: string }) {
           onCheckedChange={(checked) => $currentPeriod.set(checked ? 'annual' : 'month')}
         />
         <p className="text-content2 typography-base font-medium">Annual</p>
-        <Label className="items-center text-sm"> Save up to 36%</Label>
       </div>
     </>
   )

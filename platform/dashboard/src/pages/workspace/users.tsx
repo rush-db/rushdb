@@ -353,7 +353,7 @@ export function PendingInvitesTable() {
 
 export function WorkspaceUsersPage() {
   const { data: workspace } = useStore($currentWorkspace)
-  const userLimit = workspace?.limits?.users
+  const userLimit = workspace?.userLimit
   const { data: users } = useStore($workspaceUsers)
   const { data: invites } = useStore($workspacePendingInvites)
   const { loading, data: platformSettings } = useStore($platformSettings)

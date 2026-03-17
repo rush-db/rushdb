@@ -45,8 +45,8 @@ export class UserController {
       return
     }
 
-    const userEntity = await this.userService.find(user.login, transaction)
-    const userRole = await this.userService.getUserWorkspaceRole(user.login, workspaceId, transaction)
+    const userEntity = await this.userService.findById(user.id, transaction)
+    const userRole = await this.userService.getUserWorkspaceRole(user.id, workspaceId, transaction)
     const userData = userEntity.toJson()
 
     return {

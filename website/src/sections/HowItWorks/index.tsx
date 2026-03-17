@@ -283,13 +283,10 @@ export const HowItWorks = () => {
       <section className="mt-[1px]">
         <div className="container">
           <div className="outline-stroke rounded-tl-[150px] text-center outline outline-1 outline-offset-0 md:rounded-tl-[80px]">
-            <h3 className="typography-2xl md:typography-xl text px-6 pt-20">
-              RushDB turns any JSON or CSV into graph
-            </h3>
+            <h3 className="typography-2xl md:typography-xl text px-6 pt-20">Push data. Skip the schema.</h3>
             <p className="text-content3 text-md px-6 pb-20 pt-8 !tracking-normal md:text-base">
-              RushDB, a high-performance <b>graph database</b>, built on top of <b>Neo4j</b>,{' '}
-              <br className="md:hidden" /> intelligently maps relationships, types, and labels any input data,
-              so you don’t have to.
+              RushDB automatically maps relationships, infers types, and assigns labels from any JSON or CSV —
+              so the first hour you spend with your data goes toward building, not modeling.
             </p>
             <CodeBlock
               code={language === 'typescript' ? code1 : code1Py}
@@ -351,9 +348,9 @@ export const HowItWorks = () => {
           </div>
 
           <p className="text-content3 text-md px-6 pb-12 pt-4 !tracking-normal md:text-base">
-            RushDB automatically creates <b>Records</b> with proper relationships and types from your JSON.
+            One JSON payload becomes fully structured, queryable knowledge — relationships included.
             <br className="md:hidden" />
-            Zero schemas, maximum speed — built for <b>SaaS</b>, <b>AI apps</b>, and <b>fast-moving teams</b>.
+            You describe your data naturally. RushDB figures out the rest.
           </p>
         </div>
       </section>
@@ -425,8 +422,8 @@ export const HowItWorks = () => {
             <div className="mx-auto mb-8 max-w-xl md:px-6 md:text-center">
               <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Simple Syntax for Complex Queries</h4>
               <p className="text-content3 text-md !tracking-normal md:text-base">
-                RushDB’s <b>graph database</b> engine and <b>API</b>s make it easy to ask real questions —
-                without writing verbose logic or managing queries manually.
+                RushDB's <b>knowledge engine</b> and <b>API</b>s make it easy to ask real questions — without
+                writing verbose logic or managing queries manually.
               </p>
             </div>
             <CodeBlockWithLanguageSelector
@@ -462,17 +459,19 @@ export const HowItWorks = () => {
             <div className="flex flex-col justify-between">
               <div className="mb-4">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">
-                  Smart Faceted Search Out of the Box
+                  Built for Search, Reasoning, and AI Pipelines
                 </h4>
                 <p className="text-content3 text-md mb-4 !tracking-normal md:text-base">
-                  RushDB's <b>property graph</b> design means every filter makes your search <b>smarter</b>.
-                  The more you filter, the more precise your options become — like marketplace category
-                  filters that automatically reduce brand choices, but for <b>any dataset at any scale</b>.
+                  Every record is searchable via structured filters, full-text, and <b>vector similarity</b> —
+                  all in one query, with no separate search index or embedding pipeline needed.
+                </p>
+                <p className="text-content3 text-md mb-4 !tracking-normal md:text-base">
+                  <b>Hyperproperties</b> let you attach embeddings, annotations, or reasoning context directly
+                  to any record. LLMs and MCP clients query the same graph as your app — making RushDB a
+                  natural fit for <b>RAG pipelines</b>, <b>AI memory</b>, and <b>agent knowledge stores</b>.
                 </p>
                 <p className="text-content3 text-md !tracking-normal md:text-base">
-                  <b>Properties</b> are managed <b>autonomously</b> by RushDB — search capabilities are
-                  delivered instantly at record creation time. No manual indexing, no configuration — just
-                  intelligent <b>faceted search</b> that works out of the box.
+                  Faceted filters, vector search, and graph traversal — all in one place.
                 </p>
               </div>
               <div className="text-center md:text-left">
@@ -495,7 +494,7 @@ export const HowItWorks = () => {
                 <div className="bg-fill flex h-full min-h-[200px] flex-col justify-center rounded-lg">
                   <PropertyGraphTopology />
                   <p className="text-content text-center text-sm font-medium !tracking-normal">
-                    Property Graph Topology
+                    Hyperproperties Topology
                   </p>
                 </div>
               </div>
@@ -610,22 +609,19 @@ export const HowItWorks = () => {
               <div className="outline-stroke row-end-1 w-full rounded-b-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:row-end-1 md:rounded-b-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">SaaS & Apps</h4>
                 <p className="text-content3 text-md md:text-base">
-                  Power your <b>development</b> with a scalable <b>graph database</b>. RushDB is a{' '}
-                  <b>Firebase alternative</b>, <b>Supabase alternative</b>, and <b>cloud database</b> built
-                  for modern <b>NoSQL</b> needs. It offers high-speed <b>data ingestion</b>,
-                  <b>native graph storage</b>, and an unbeatable developer experience — ideal for{' '}
-                  <b>data-intensive apps</b> and teams seeking a <b>developer-friendly database</b>.
+                  Stop spending sprints on database plumbing. RushDB handles schema-free ingestion,
+                  relationship modeling, and search out of the box — so your team ships features, not
+                  infrastructure. Works equally well as your primary store or a fast read layer alongside an
+                  existing DB.
                 </p>
               </div>
               <div className="outline-stroke row-end-1 w-full rounded-r-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:row-end-2 md:rounded-r-[50px] md:p-6">
                 <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">AI & Machine Learning</h4>
                 <p className="text-content3 text-md md:text-base">
-                  Building <b>NLP pipelines</b> and <b>Graph RAG</b> was never simpler. RushDB serves as your{' '}
-                  <b>AI persistence</b> layer — perfect for <b>predictive analytics</b>, <b>AI embeddings</b>,{' '}
-                  <b>recommendation systems</b>, and <b>vector search</b>. With <b>low-latency</b> and{' '}
-                  <b>vector database</b> capabilities powered by a <b>knowledge graph</b> engine, it's
-                  optimized for <b>AI-first applications</b> and works as a plug-and-play{' '}
-                  <b>backend as a service</b>.
+                  Push LLM outputs, embeddings, and structured agent context directly — no transformation step
+                  required. RushDB stores vectors alongside structured data in the same graph, so you can
+                  combine semantic similarity search with relational filters in a single query. Ideal for RAG
+                  pipelines, AI memory layers, and recommendation systems.
                 </p>
               </div>
 
@@ -653,30 +649,30 @@ export const HowItWorks = () => {
               </div>
 
               <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:rounded-t-[50px] md:p-6">
-                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">IoT Projects</h4>
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">IoT &amp; Event Streams</h4>
                 <p className="text-content3 text-md md:text-base">
-                  Don’t let infrastructure complexity slow down your IoT innovation. RushDB is a{' '}
-                  <b>scalable database</b> that handles real-time data ingestion, <b>time-series database</b>{' '}
-                  workloads, and dynamic schemas – making it a go-to <b>NoSQL database</b> for connected
-                  devices.
+                  Devices emit varied, schema-less payloads — RushDB ingests them as-is, auto-types timestamps
+                  and numeric values, and makes every event immediately queryable. No pipeline to maintain, no
+                  schema migrations when your device firmware changes.
                 </p>
               </div>
 
               <div className="outline-stroke w-full rounded-l-[80px] rounded-br-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:rounded-l-[50px] md:p-6">
-                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Search Engines</h4>
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Search &amp; Discovery</h4>
                 <p className="text-content3 text-md md:text-base">
-                  RushDB enables fast, flexible filtering of massive datasets — perfect for building custom{' '}
-                  <b>search engines</b> using a <b>vector database</b> with <b>knowledge graph</b> support.
-                  Optimized for performance and shape-agnostic queries.
+                  Faceted filters, full-text match, vector similarity, and relationship traversal — all
+                  available in the same query without stitching together separate services. Build search
+                  experiences that would normally require Elasticsearch plus a graph DB in a single RushDB
+                  project.
                 </p>
               </div>
 
               <div className="outline-stroke w-full rounded-t-[80px] p-12 outline outline-1 outline-offset-0 md:col-span-2 md:rounded-t-[50px] md:p-6">
-                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Hobby Projects</h4>
+                <h4 className="mb-8 text-xl font-bold md:mb-4 md:text-lg">Side Projects &amp; Prototypes</h4>
                 <p className="text-content3 text-md md:text-base">
-                  Don’t let infra kill your weekend flow. RushDB gives you an <b>open source database</b> with{' '}
-                  <b>zero config</b>, making it perfect for <b>developer-friendly</b> hacking. Push data,
-                  build ideas fast, and ship in hours — not weeks.
+                  The free tier gives you 100,000 KU/month and 2 projects — enough to build and validate a
+                  real idea. No credit card, no infrastructure setup. When your side project takes off,
+                  upgrading is a single click.
                 </p>
               </div>
 
@@ -787,9 +783,9 @@ export const HowItWorks = () => {
               <br className="hidden md:block" /> Try <span className="text-accent">RushDB Cloud</span>
             </h3>
             <p className="text-content3 text-md mb-8 !tracking-normal md:text-base">
-              2 Projects Free Forever. No Maintenance Required.
+              100,000 KU/month free. 2 projects. No credit card.
               <br className="md:hidden" />
-              Focus on building apps, not on managing infrastructure.
+              Focus on building — not on managing infrastructure.
             </p>
             <div className="m-auto flex w-full justify-center gap-4">
               <MainCta size="small" variant="accent" text="Create Project" />

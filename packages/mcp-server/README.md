@@ -1,16 +1,16 @@
 # RushDB MCP Server
 
-A Model Context Protocol server providing access to RushDB's Labeled Meta Property Graph (LMPG) database.
+A Model Context Protocol server providing AI agents and LLMs direct access to RushDB — the platform that turns any data into intelligence. Push records, events, AI outputs, and configs; RushDB structures, connects, and makes them queryable instantly.
 
 ## Features
 
-- **Record Management**: Create, read, update, and delete records
-- **Graph Operations**: Attach and detach relationships between records
-- **Advanced Querying**: Search across records using RushDB's flexible query language
-- **Label & Property Discovery**: Browse labels and properties in your database
+- **Record Management**: Create, read, update, and delete structured knowledge records
+- **Relationship Operations**: Attach and detach relationships between records
+- **Advanced Querying**: Search across records using RushDB's flexible JSON query language
+- **Label & Property Discovery**: Browse labels and properties in your knowledge base
 - **Bulk Operations**: Efficient bulk create and delete operations
 - **Data Export**: Export records to CSV format
-- **LMPG Architecture**: Work with RushDB's revolutionary property-first graph model
+- **AI Memory Layer**: Use RushDB as persistent, queryable memory for AI agents and workflows
 
 ## Quick Start
 

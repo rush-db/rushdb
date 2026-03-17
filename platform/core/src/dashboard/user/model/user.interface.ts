@@ -1,5 +1,4 @@
-import { ModelRelatedNodesI, NeogmaInstance } from 'neogma'
-import { NeogmaModel } from 'neogma/dist/ModelOps/ModelOps'
+import { ModelRelatedNodesI, NeogmaInstance, NeogmaModel } from 'neogma'
 
 import { TProjectInstance, TProjectModel } from '@/dashboard/project/model/project.interface'
 import { TWorkspaceInstance, TWorkspaceModel } from '@/dashboard/workspace/model/workspace.interface'

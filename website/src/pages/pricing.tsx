@@ -10,7 +10,7 @@ export default function PricingPage({ billingData }: PricingPageProps) {
   return (
     <Layout
       title="Pricing"
-      description="Explore RushDB's flexible pricing plans designed for startups, developers, and enterprises. Get the power of a graph database with instant setup, zero configuration, and best-in-class developer experience. Scale effortlessly with transparent and predictable pricing. Start for free!"
+      description="RushDB pricing is simple: pay for knowledge created. Standard reads are always free. Free plan includes 100K KU/month. Pro starts at $29/month with 10M KU included and overage billing. Scale offers pure usage-based pricing at $2/M KU. Enterprise for custom deployments. Start building free — no credit card required."
     >
       <Pricing billingData={billingData} />
     </Layout>
@@ -19,7 +19,8 @@ export default function PricingPage({ billingData }: PricingPageProps) {
 
 export const getStaticProps = async () => {
   try {
-    const res = await fetch('https://billing.rushdb.com/api/prices')
+    const billingServiceUrl = process.env.BILLING_SERVICE_URL || 'https://billing.rushdb.com'
+    const res = await fetch(`${billingServiceUrl}/api/prices`)
 
     let billingData: BillingData | null = null
 

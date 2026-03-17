@@ -38,6 +38,7 @@ const protectedRoutes = {
   joinWorkspace: '/join-workspace',
   projects: '/',
   workspaceBilling: !$platformSettings.get().data?.selfHosted ? '/billing' : '/',
+  workspaceApiUsage: !$platformSettings.get().data?.selfHosted ? '/api-usage' : '/',
   profile: '/profile',
   ...projectRoutes
 } as const

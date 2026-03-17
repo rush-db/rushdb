@@ -31,56 +31,32 @@ export const Project: TProjectParams = {
       required: true
     },
     description: {
-      type: 'string'
+      type: 'string',
+      required: false
     },
     created: {
       type: 'string',
       required: true
     },
     edited: {
-      type: 'string'
+      type: 'string',
+      required: false
     },
     deleted: {
-      type: 'string'
+      type: 'string',
+      required: false
     },
     stats: {
-      type: 'string'
+      type: 'string',
+      required: false
     },
     customDb: {
-      type: 'string'
-    },
-    managedDbPassword: {
-      type: 'string'
-    },
-    managedDbRegion: {
-      type: 'string'
-    },
-    managedDbTier: {
-      type: 'string'
-    },
-    planId: {
-      type: 'string'
-    },
-    productId: {
-      type: 'string'
-    },
-    priceId: {
-      type: 'string'
+      type: 'string',
+      required: false
     },
     status: {
-      type: 'string'
-    },
-    validTill: {
-      type: 'string'
-    },
-    isSubscriptionCancelled: {
-      type: 'boolean'
-    },
-    subscriptionPriceId: {
-      type: 'string'
-    },
-    subscriptionProductId: {
-      type: 'string'
+      type: 'string',
+      required: false
     }
   },
   primaryKeyField: 'id',
@@ -94,13 +70,15 @@ export const Project: TProjectParams = {
         Since: {
           property: 'since',
           schema: {
-            type: 'string'
+            type: 'string',
+            required: false
           }
         },
         Role: {
           property: 'role',
           schema: {
-            type: 'string'
+            type: 'string',
+            required: false
           }
         }
       }

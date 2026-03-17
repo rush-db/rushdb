@@ -37,7 +37,7 @@ export function PlanCard({
     <div
       className={cn(
         'rounded-2xl border shadow-lg',
-        free || plan.id === 'team' ? 'border-secondary' : 'border-accent',
+        free ? 'border-secondary' : 'border-accent',
         'flex h-full flex-col items-start gap-5 p-5',
         free ? 'bg-secondary' : 'bg-fill',
         // free ? 'bg-secondary p-0.5' : 'from-accent-hover to-badge-yellow bg-gradient-to-br p-0.5',

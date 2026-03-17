@@ -35,32 +35,16 @@ export const Workspace: TWorkspaceParams = {
       required: true
     },
     edited: {
-      type: 'string'
-    },
-    limits: {
       type: 'string',
-      required: true
+      required: false
     },
     stats: {
-      type: 'string'
-    },
-    validTill: {
-      type: 'string'
-    },
-    planId: {
-      type: 'string'
-    },
-    isSubscriptionCancelled: {
-      type: 'boolean'
+      type: 'string',
+      required: false
     },
     pendingInvites: {
-      type: 'string'
-    },
-    subscriptionPriceId: {
-      type: 'string'
-    },
-    subscriptionProductId: {
-      type: 'string'
+      type: 'string',
+      required: false
     }
   },
   primaryKeyField: 'id',
@@ -74,13 +58,15 @@ export const Workspace: TWorkspaceParams = {
         Since: {
           property: 'since',
           schema: {
-            type: 'string'
+            type: 'string',
+            required: false
           }
         },
         Role: {
           property: 'role',
           schema: {
-            type: 'string'
+            type: 'string',
+            required: false
           }
         }
       }
