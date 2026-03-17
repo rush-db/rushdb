@@ -44,7 +44,14 @@ async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, fastifyAdapter, {})
 
   app.setGlobalPrefix('api/v1', {
-    exclude: [{ path: '/', method: RequestMethod.GET }]
+    exclude: [
+      { path: '/', method: RequestMethod.GET },
+      { path: '.well-known/(.*)', method: RequestMethod.GET },
+      { path: 'oauth/(.*)', method: RequestMethod.GET },
+      { path: 'oauth/(.*)', method: RequestMethod.POST },
+      { path: 'oauth/(.*)', method: RequestMethod.DELETE },
+      { path: 'oauth/(.*)', method: RequestMethod.PATCH }
+    ]
   })
   app.enableCors(CORS_OPTIONS)
 

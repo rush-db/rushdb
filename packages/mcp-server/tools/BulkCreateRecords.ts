@@ -31,7 +31,7 @@ type BulkCreateRecordsResult = {
   ids: string[]
 }
 
-export async function BulkCreateRecords({
+export async function bulkCreateRecords({
   label,
   data,
   transactionId,

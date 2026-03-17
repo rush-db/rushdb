@@ -19,6 +19,7 @@ RushDB is an instant, cloud-native database built on top of Neo4j, designed for 
 - **ACID Transactions**: Perform multiple operations atomically for data consistency.
 - **Powerful Search**: Query records with advanced filters, ordering, and pagination.
 - **Property & Label APIs**: Manage metadata, property types, and record labels.
+- **AI & Ontology API**: Retrieve a full schema snapshot (labels, properties, value ranges, relationships) in JSON or Markdown — designed for LLM agents and schema-aware tooling.
 - **Secure & Scalable**: Built for both cloud and self-hosted deployments, with robust authentication and access control.
 
 ## How to Use the API
@@ -48,6 +49,7 @@ You can use these specifications to:
 - Search and filter records with complex queries
 - Manage property types and labels
 - Use transactions for atomic multi-step operations
+- Retrieve the graph ontology for LLM agents, schema explorers, and query builders
 
 ## Getting Started
 

@@ -40,14 +40,18 @@ Self-hosting gives you complete control over your RushDB deployment and data.
 
 Before deploying RushDB, ensure you have:
 
-1. **Neo4j Instance**:
+1. **Neo4j Instance** (for records and graph data):
    - Minimum version: `5.25.1`
    - Required plugins:
      - `apoc-core` (installed and enabled)
      - `graph-data-science` (required for vector search capabilities)
    - Can be self-hosted or using Neo4j Aura cloud service
 
-2. **For Docker Deployment**:
+2. **SQL Database** (for users, workspaces, projects, and tokens):
+   - **SQLite** (default for self-hosted): zero configuration, file-based, created automatically
+   - **PostgreSQL** (recommended for production / cloud): PostgreSQL 13+
+
+3. **For Docker Deployment**:
    - Docker Engine 20.10.0+
    - Docker Compose 2.0.0+ (if using Docker Compose)
    - Minimum 2GB RAM for the container
@@ -68,6 +72,20 @@ docker run -p 3000:3000 \
 -e NEO4J_URL='neo4j+s://your-neo4j-instance.databases.neo4j.io' \
 -e NEO4J_USERNAME='neo4j' \
 -e NEO4J_PASSWORD='your-password' \
+-e SQL_DB_TYPE='sqlite' \
+rushdb/platform
+```
+
+For production with PostgreSQL:
+
+```bash
+docker run -p 3000:3000 \
+--name rushdb \
+-e NEO4J_URL='neo4j+s://your-neo4j-instance.databases.neo4j.io' \
+-e NEO4J_USERNAME='neo4j' \
+-e NEO4J_PASSWORD='your-password' \
+-e SQL_DB_TYPE='postgres' \
+-e SQL_DB_URL='postgresql://user:password@your-postgres-host:5432/rushdb' \
 rushdb/platform
 ```
 
@@ -87,6 +105,7 @@ services:
       - NEO4J_URL=neo4j+s://your-neo4j-instance.databases.neo4j.io
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=your-password
+      - SQL_DB_TYPE=sqlite  # or 'postgres' for external PostgreSQL
       # Add additional environment variables as needed
 ```
 
@@ -111,13 +130,30 @@ services:
     depends_on:
       neo4j:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
       - NEO4J_URL=bolt://neo4j
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=password
+      - SQL_DB_TYPE=postgres
+      - SQL_DB_URL=postgresql://rushdb:password@postgres:5432/rushdb
       # Add additional environment variables as needed
+  postgres:
+    image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rushdb"]
+      interval: 5s
+      retries: 30
+      start_period: 10s
+    environment:
+      - POSTGRES_USER=rushdb
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=rushdb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
   neo4j:
     image: neo4j:5.25.1
     healthcheck:
@@ -143,6 +179,7 @@ volumes:
   neo4j-data:
   neo4j-logs:
   neo4j-conf:
+  postgres-data:
 ```
 </details>
 
@@ -298,12 +335,9 @@ resource "aws_ecs_task_definition" "rushdb_task" {
       { name = "NEO4J_USERNAME", value = "neo4j" },
       { name = "NEO4J_PASSWORD", value = "your-password" },
       { name = "RUSHDB_SELF_HOSTED", value = "true" },
-      { name = "RUSHDB_AES_256_ENCRYPTION_KEY", value = "your-32-character-encryption-key" }
-    ]
-
-    portMappings = [{
-      containerPort = 3000
-      hostPort      = 3000
+      { name = "RUSHDB_AES_256_ENCRYPTION_KEY", value = "your-32-character-encryption-key" },
+      { name = "SQL_DB_TYPE", value = "postgres" },
+      { name = "SQL_DB_URL", value = "postgresql://user:password@your-postgres-host:5432/rushdb" }
       protocol      = "tcp"
     }]
 
@@ -415,6 +449,22 @@ The following environment variables can be used to configure your RushDB deploym
 | `NEO4J_USERNAME` | Username for Neo4j database | `neo4j` |
 | `NEO4J_PASSWORD` | Password for Neo4j database | `your-password` |
 
+### SQL Database Settings
+
+RushDB stores dashboard entities (users, workspaces, projects, tokens) in a SQL database that is separate from Neo4j.
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `SQL_DB_TYPE` | SQL database engine: `sqlite` or `postgres` | `sqlite` | No |
+| `SQL_DB_PATH` | Path to the SQLite file (SQLite only) | `./rushdb.db` | No |
+| `SQL_DB_URL` | PostgreSQL connection URL (PostgreSQL only) | — | When `SQL_DB_TYPE=postgres` |
+
+:::tip
+For self-hosted / single-node deployments, `SQL_DB_TYPE=sqlite` (the default) requires no extra setup — the database file is created automatically on first boot.
+
+For production or multi-replica deployments, set `SQL_DB_TYPE=postgres` and provide a `SQL_DB_URL`.
+:::
+
 ### Core Application Settings
 
 | Variable | Description                                  | Default | Required |
@@ -497,6 +547,10 @@ When deploying RushDB to production, follow these security best practices:
    - Use strong passwords
    - Limit network access to the database
    - Use encrypted connections where possible
+
+3. **Secure your SQL database**:
+   - For SQLite: ensure the `.db` file is not publicly accessible
+   - For PostgreSQL: use a dedicated database user with minimal privileges, restrict network access
 
 3. **Use HTTPS**:
    - Configure SSL/TLS on your load balancer

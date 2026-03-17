@@ -17,7 +17,8 @@ const schema = object({
   description: string(),
   expiration: number().min(1).max(365).optional(),
   noExpire: boolean().optional(),
-  name: string().min(3)
+  name: string().min(3),
+  level: string().optional()
 })
 
 function TokenCreated({
@@ -54,7 +55,8 @@ export function AddTokenCard({ projectId, project }: { project?: Project; projec
     description: '',
     expiration: 30,
     noExpire: false,
-    name: `${project?.name ?? ''} token`
+    name: `${project?.name ?? ''} token`,
+    level: 'write' as 'read' | 'write'
   }
 
   const {
@@ -83,7 +85,8 @@ export function AddTokenCard({ projectId, project }: { project?: Project; projec
             mutate({
               projectId,
               ...values,
-              expiration: `${values.expiration}d`
+              expiration: `${values.expiration}d`,
+              level: values.level ?? 'write'
             })
           )}
         >
@@ -95,6 +98,20 @@ export function AddTokenCard({ projectId, project }: { project?: Project; projec
               error={errors.description?.message}
               label="API key description"
             />
+            <FormField label="Access level">
+              <div className="flex flex-col gap-2 pt-1">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input type="radio" value="write" {...register('level')} defaultChecked />
+                  <span className="font-medium">Read &amp; Write</span>
+                  <span className="text-content-2 text-xs">Full access</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input type="radio" value="read" {...register('level')} />
+                  <span className="font-medium">Read Only</span>
+                  <span className="text-content-2 text-xs">No mutations</span>
+                </label>
+              </div>
+            </FormField>
             <div className="">
               <TextField
                 {...register('expiration')}

@@ -9,50 +9,45 @@ The RushDB MCP server exposes a comprehensive set of tools. Each tool includes a
 
 ## Database discovery
 
-- FindLabels — List/filter record labels and counts
-- FindProperties — List/filter properties
-- FindRelationships — Search for relationships
+- getOntologyMarkdown — Return all labels, properties, value ranges, and relationships as Markdown (call first at session start)
+- getOntology — Return ontology as structured JSON (use when property `id` values are needed for `propertyValues`)
+- findLabels — List/filter record labels and counts
+- findProperties — List/filter properties by name, type, or label
+- findRelationships — Search for relationships
 
 ## Record operations
 
-- CreateRecord — Create a new record
-- UpdateRecord — Update an existing record (partial)
-- SetRecord — Replace all fields of a record
-- DeleteRecord — Delete a record (alias of DeleteRecordById)
-- DeleteRecordById — Delete a record by ID
-- GetRecord — Get a record by ID
-- GetRecordsByIds — Get multiple records by their IDs
-- FindRecords — Search for records with where/limit/skip/orderBy/aggregate/groupBy
-- FindOneRecord — Find a single record matching criteria
-- FindUniqRecord — Find a unique record matching criteria
+- createRecord — Create a new record
+- updateRecord — Update an existing record (partial)
+- setRecord — Replace all fields of a record
+- deleteRecord — Delete a record (alias of deleteRecordById)
+- deleteRecordById — Delete a record by ID
+- getRecord — Get a record by ID
+- getRecordsByIds — Get multiple records by their IDs
+- findRecords — Search for records with where/limit/skip/orderBy/aggregate/groupBy
+- findOneRecord — Find a single record matching criteria
+- findUniqRecord — Find a unique record matching criteria
 
 ## Relationship management
 
-- AttachRelation — Attach relationships between records
-- DetachRelation — Detach relationships between records
-- FindRelationships — Search for relationships
+- attachRelation — Attach relationships between records
+- detachRelation — Detach relationships between records
+- findRelationships — Search for relationships
 
 ## Bulk operations
 
-- BulkCreateRecords — Create multiple records at once
-- BulkDeleteRecords — Delete multiple records by query
+- bulkCreateRecords — Create multiple records at once
+- bulkDeleteRecords — Delete multiple records by query
 
 ## Data export
 
-- ExportRecords — Export records to CSV format
-
-## Transactions
-
-- TransactionBegin — Begin a transaction
-- TransactionCommit — Commit a transaction
-- TransactionRollback — Roll back a transaction
-- TransactionGet — Get info about a transaction
+- exportRecords — Export records to CSV format
 
 ## Utilities
 
-- GetSettings — Get current database settings
-- OpenBrowser — Open a URL in a browser
-- HelpAddToClient — Setup instructions for adding this server to MCP clients
+- getSearchQuerySpec — Fetch the complete SearchQuery operator and syntax reference
+- getQueryBuilderPrompt — Return the system prompt (fallback for clients without Prompts API)
+- helpAddToClient — Setup instructions for adding this server to MCP clients
 
 ---
 
@@ -62,25 +57,19 @@ The RushDB MCP server exposes a comprehensive set of tools. Each tool includes a
 
 Ask your MCP client:
 
-> Use the RushDB MCP server to run FindLabels with limit=10.
+> Use the RushDB MCP server to run findLabels with limit=10.
 
 ### Create a record
 
-> Use CreateRecord to add a record with label "Task" and data `{"title": "Write docs", "status": "open"}`.
+> Use createRecord to add a record with label "Task" and data `{"title": "Write docs", "status": "open"}`.
 
 ### Find records
 
-> Call FindRecords where `{"status": "open"}` orderBy `{"createdAt": "desc"}` limit 5.
+> Call findRecords where `{"status": "open"}` orderBy `{"createdAt": "desc"}` limit 5.
 
 ### Attach relationships
 
-> AttachRelation from sourceId `"<id1>"` to targetIds `["<id2>", "<id3>"]` with relationType `"references"`.
-
-### Transactions
-
-> Begin a transaction, create two records, attach a relation, then commit.
-
-If needed, your client can call `TransactionRollback` to undo the changes.
+> attachRelation from sourceId `"<id1>"` to targetIds `["<id2>", "<id3>"]` with relationType `"references"`.
 
 ---
 
@@ -92,7 +81,41 @@ For detailed input schemas, see the tool definitions in the MCP server source (`
 
 Below, each tool is described with its purpose and arguments. Types reflect the MCP input schema; required flags and defaults are noted.
 
-### FindLabels
+### getOntologyMarkdown
+
+Return the full database schema as Markdown: all label names (case-sensitive), their properties with types and value ranges, and the complete relationship map.
+
+**Call this first** at the start of every session before calling any find or mutation tool. The returned label and field names are the single source of truth — never invent names from context.
+
+Arguments:
+
+| Name   | Type             | Required | Default | Description |
+|--------|------------------|----------|---------|-------------|
+| labels | array of strings | no       | —       | Restrict output to specific labels; omit for the full schema |
+
+Example prompt:
+
+> Call `getOntologyMarkdown` to load the full schema before running any queries.
+
+---
+
+### getOntology
+
+Return the same ontology data as structured JSON instead of Markdown. Use this variant when you need property `id` values for a subsequent `propertyValues` call.
+
+Arguments:
+
+| Name   | Type             | Required | Default | Description |
+|--------|------------------|----------|---------|-------------|
+| labels | array of strings | no       | —       | Restrict output to specific labels |
+
+Example prompt:
+
+> Call `getOntology` with `labels=["Product"]` to get property IDs for the Product schema.
+
+---
+
+### findLabels
 
 List or filter record labels and their counts.
 
@@ -107,11 +130,11 @@ Arguments:
 
 Example prompt:
 
-> Run `FindLabels` with `limit=10` ordered by `{ "count": "desc" }`.
+> Run `findLabels` with `limit=10` ordered by `{ "count": "desc" }`.
 
 ---
 
-### CreateRecord
+### createRecord
 
 Create a new record with the specified label and data.
 
@@ -133,11 +156,11 @@ Upsert behavior:
 
 Example prompt:
 
-> Call `CreateRecord` with `label="User"`, `data={"email":"a@b.com","name":"Ann"}`, and `options={"mergeBy":["email"],"mergeStrategy":"append"}` to upsert by email.
+> Call `createRecord` with `label="User"`, `data={"email":"a@b.com","name":"Ann"}`, and `options={"mergeBy":["email"],"mergeStrategy":"append"}` to upsert by email.
 
 ---
 
-### UpdateRecord
+### updateRecord
 
 Partially update fields of an existing record.
 
@@ -152,11 +175,11 @@ Arguments:
 
 Example prompt:
 
-> Use `UpdateRecord` with `recordId="<id>"`, `label="Task"`, and `data={"status":"done"}`.
+> Use `updateRecord` with `recordId="<id>"`, `label="Task"`, and `data={"status":"done"}`.
 
 ---
 
-### SetRecord
+### setRecord
 
 Replace all fields of a record (full update).
 
@@ -171,13 +194,13 @@ Arguments:
 
 Example prompt:
 
-> Call `SetRecord` for `recordId="<id>"`, `label="Task"`, data `{"title":"Polish docs","status":"in-progress"}`.
+> Call `setRecord` for `recordId="<id>"`, `label="Task"`, data `{"title":"Polish docs","status":"in-progress"}`.
 
 ---
 
-### DeleteRecord / DeleteRecordById
+### deleteRecord / deleteRecordById
 
-Delete a record by its ID. `DeleteRecord` is an alias of `DeleteRecordById`.
+Delete a record by its ID. `deleteRecord` is an alias of `deleteRecordById`.
 
 Arguments:
 
@@ -188,11 +211,11 @@ Arguments:
 
 Example prompt:
 
-> Use `DeleteRecordById` with `recordId="<id>"`.
+> Use `deleteRecordById` with `recordId="<id>"`.
 
 ---
 
-### GetRecord
+### getRecord
 
 Retrieve a specific record by ID.
 
@@ -204,11 +227,11 @@ Arguments:
 
 Example prompt:
 
-> Call `GetRecord` for `recordId="<id>"`.
+> Call `getRecord` for `recordId="<id>"`.
 
 ---
 
-### GetRecordsByIds
+### getRecordsByIds
 
 Retrieve multiple records by an array of IDs.
 
@@ -220,11 +243,11 @@ Arguments:
 
 Example prompt:
 
-> Call `GetRecordsByIds` with `recordIds=["<id1>","<id2>"]`.
+> Call `getRecordsByIds` with `recordIds=["<id1>","<id2>"]`.
 
 ---
 
-### FindRecords
+### findRecords
 
 Search for records with advanced filtering, sorting, paging, grouping, and aggregation.
 
@@ -242,11 +265,11 @@ Arguments:
 
 Example prompt:
 
-> Run `FindRecords` with `where={"status":"open"}`, `orderBy={"createdAt":"desc"}`, `limit=5`.
+> Run `findRecords` with `where={"status":"open"}`, `orderBy={"createdAt":"desc"}`, `limit=5`.
 
 ---
 
-### FindOneRecord
+### findOneRecord
 
 Find a single record that matches the criteria (returns one or none).
 
@@ -259,11 +282,11 @@ Arguments:
 
 Example prompt:
 
-> Use `FindOneRecord` with `where={"email":"user@example.com"}`.
+> Use `findOneRecord` with `where={"email":"user@example.com"}`.
 
 ---
 
-### FindUniqRecord
+### findUniqRecord
 
 Find a unique record that matches the criteria (errors if multiple match in some clients; the server returns not-found text if none).
 
@@ -276,11 +299,11 @@ Arguments:
 
 Example prompt:
 
-> Use `FindUniqRecord` with `labels=["User"]` and `where={"username":"alice"}`.
+> Use `findUniqRecord` with `labels=["User"]` and `where={"username":"alice"}`.
 
 ---
 
-### AttachRelation
+### attachRelation
 
 Create relationships from a source record to one or more target records.
 
@@ -297,11 +320,11 @@ Arguments:
 
 Example prompt:
 
-> Call `AttachRelation` from `sourceId="<id1>"` to `targetIds=["<id2>","<id3>"]` with `relationType="references"`.
+> Call `attachRelation` from `sourceId="<id1>"` to `targetIds=["<id2>","<id3>"]` with `relationType="references"`.
 
 ---
 
-### DetachRelation
+### detachRelation
 
 Remove relationships between records.
 
@@ -318,11 +341,11 @@ Arguments:
 
 Example prompt:
 
-> Use `DetachRelation` with `sourceId="<id1>"`, `targetId="<id2>"`, and `relationType="references"`.
+> Use `detachRelation` with `sourceId="<id1>"`, `targetId="<id2>"`, and `relationType="references"`.
 
 ---
 
-### FindRelationships
+### findRelationships
 
 Search for relationships with filters, sorting, and paging.
 
@@ -337,11 +360,11 @@ Arguments:
 
 Example prompt:
 
-> Run `FindRelationships` with `limit=20`.
+> Run `findRelationships` with `limit=20`.
 
 ---
 
-### BulkCreateRecords
+### bulkCreateRecords
 
 Create multiple records in a single operation.
 
@@ -357,17 +380,17 @@ Arguments:
 | options.returnResult | boolean | no | true | Return created/upserted records (IDs always returned separately) |
 
 Upsert notes:
-- Same semantics as `CreateRecord`, but applied across the batch.
+- Same semantics as `createRecord`, but applied across the batch.
 - If records are flat objects, uses the `createMany` path; otherwise falls back to JSON import BFS with upsert.
 - For large batches consider reducing the size or increasing transaction TTL if timeouts occur.
 
 Example prompt:
 
-> Call `BulkCreateRecords` for `label="User"` with `data=[{"email":"a@b.com","name":"Ann"},{"email":"b@c.com","name":"Bill"}]` and `options={"mergeBy":["email"],"mergeStrategy":"append"}`.
+> Call `bulkCreateRecords` for `label="User"` with `data=[{"email":"a@b.com","name":"Ann"},{"email":"b@c.com","name":"Bill"}]` and `options={"mergeBy":["email"],"mergeStrategy":"append"}`.
 
 ---
 
-### BulkDeleteRecords
+### bulkDeleteRecords
 
 Delete multiple records matching a query.
 
@@ -381,11 +404,11 @@ Arguments:
 
 Example prompt:
 
-> Use `BulkDeleteRecords` with `where={"status":"obsolete"}`.
+> Use `bulkDeleteRecords` with `where={"status":"obsolete"}`.
 
 ---
 
-### ExportRecords
+### exportRecords
 
 Export records to CSV.
 
@@ -400,11 +423,11 @@ Arguments:
 
 Example prompt:
 
-> Call `ExportRecords` with `labels=["Task"]` and `limit=100`.
+> Call `exportRecords` with `labels=["Task"]` and `limit=100`.
 
 ---
 
-### PropertyValues
+### propertyValues
 
 Get values for a specific property.
 
@@ -420,11 +443,11 @@ Arguments:
 
 Example prompt:
 
-> Run `PropertyValues` with `propertyId="<property-id>"` and `limit=20`.
+> Run `propertyValues` with `propertyId="<property-id>"` and `limit=20`.
 
 ---
 
-### FindProperties
+### findProperties
 
 Search for properties with filters, sorting, and paging.
 
@@ -439,11 +462,11 @@ Arguments:
 
 Example prompt:
 
-> Call `FindProperties` with `limit=25` ordered by `{ "count": "desc" }`.
+> Call `findProperties` with `limit=25` ordered by `{ "count": "desc" }`.
 
 ---
 
-### FindPropertyById
+### findPropertyById
 
 Retrieve a specific property by ID.
 
@@ -455,11 +478,11 @@ Arguments:
 
 Example prompt:
 
-> Use `FindPropertyById` with `propertyId="<property-id>"`.
+> Use `findPropertyById` with `propertyId="<property-id>"`.
 
 ---
 
-### DeleteProperty
+### deleteProperty
 
 Delete a property by ID.
 
@@ -471,80 +494,50 @@ Arguments:
 
 Example prompt:
 
-> Call `DeleteProperty` with `propertyId="<property-id>"`.
+> Call `deleteProperty` with `propertyId="<property-id>"`.
 
 ---
 
-### TransactionBegin
+### getSearchQuerySpec
 
-Begin a new database transaction.
+Return the complete RushDB SearchQuery specification as a focused reference document. Call this before building any `findRecords` query that involves dates, aggregation, `groupBy`, relationship traversal, or vector search.
 
-Arguments:
-
-| Name | Type   | Required | Default | Description |
-|------|--------|----------|---------|-------------|
-| ttl  | number | no       | —       | Time-to-live in milliseconds |
-
-Example prompt:
-
-> Run `TransactionBegin` with `ttl=60000` (1 minute).
-
----
-
-### TransactionCommit
-
-Commit a transaction.
-
-Arguments:
-
-| Name          | Type   | Required | Default | Description |
-|---------------|--------|----------|---------|-------------|
-| transactionId | string | yes      | —       | Transaction ID to commit |
-
-Example prompt:
-
-> Call `TransactionCommit` with `transactionId="<tx-id>"`.
-
----
-
-### TransactionRollback
-
-Rollback a transaction.
-
-Arguments:
-
-| Name          | Type   | Required | Default | Description |
-|---------------|--------|----------|---------|-------------|
-| transactionId | string | yes      | —       | Transaction ID to rollback |
-
-Example prompt:
-
-> Use `TransactionRollback` with `transactionId="<tx-id>"`.
-
----
-
-### TransactionGet
-
-Get information about a transaction.
-
-Arguments:
-
-| Name          | Type   | Required | Default | Description |
-|---------------|--------|----------|---------|-------------|
-| transactionId | string | yes      | —       | Transaction ID to inspect |
-
-Example prompt:
-
-> Run `TransactionGet` with `transactionId="<tx-id>"`.
-
----
-
-### GetSettings
-
-Return current database settings and configuration.
+Covers:
+- All `where` operators: string, number, boolean, datetime component objects, vector, `$exists`, `$type`, logical grouping (`$and`/`$or`/`$not`/`$nor`/`$xor`)
+- Relationship traversal syntax: `$alias`, `$relation`, `$id`
+- All aggregate functions: `count`/`sum`/`avg`/`min`/`max`/`collect`/`timeBucket`
+- Both `groupBy` modes: dimensional (one row per distinct value) and self-group (collapse to single KPI row)
+- Late-ordering rules for correct full-scan totals
+- `COLLECT` nesting for hierarchical output
+- Limit rules by query mode, multi-hop path discovery, enum normalization
+- Validation checklist and annotated query examples
 
 Arguments: none
 
 Example prompt:
 
-> Call `GetSettings`.
+> Call `getSearchQuerySpec` to load the query syntax reference, then build a `findRecords` aggregation query.
+
+---
+
+### getQueryBuilderPrompt
+
+Return the RushDB system prompt as plain text. Returns the same text that is delivered automatically via the MCP Prompts API. Use this if your MCP client does not support the Prompts API.
+
+Arguments: none
+
+Example prompt:
+
+> Call `getQueryBuilderPrompt` and use the response as the system message for your session.
+
+---
+
+### helpAddToClient
+
+Return setup instructions for adding the RushDB MCP server to a specific MCP client (Claude Desktop, Cursor, VS Code, etc.).
+
+Arguments: none
+
+Example prompt:
+
+> Call `helpAddToClient` to see how to add the RushDB MCP server to Claude Desktop.

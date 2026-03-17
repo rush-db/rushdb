@@ -16,64 +16,61 @@ import {
   getNormalizedPrefix,
   getPrefixedPlan
 } from '@/common/utils/tokenUtils'
+import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { CreateTokenDto } from '@/dashboard/token/dto/create-token.dto'
 import { TokenEntity } from '@/dashboard/token/entity/token.entity'
-import { TTokenInstance } from '@/dashboard/token/model/token.interface'
 import { TokenRepository } from '@/dashboard/token/model/token.repository'
-import { TokenQueryService } from '@/dashboard/token/token-query.service'
-import { ACCESS_WEIGHT, READ_ACCESS, WRITE_ACCESS } from '@/dashboard/token/token.constants'
+import { ACCESS_WEIGHT, READ_ACCESS, WRITE_ACCESS, canWrite } from '@/dashboard/token/token.constants'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
+import { UserRepository } from '@/dashboard/user/model/user.repository'
+import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 import { BillingClientService } from '@/core/billing-client/billing-client.service'
 
 import * as crypto from 'node:crypto'
 
-import { ProjectEntity } from '../project/entity/project.entity'
+import type { TokenRow } from '@/database/sql/schema/types'
 import { IProjectProperties } from '../project/model/project.interface'
-import { Workspace } from '../workspace/entity/workspace.entity'
 import { IWorkspaceProperties } from '../workspace/model/workspace.interface'
 
 @Injectable()
 export class TokenService {
   constructor(
-    private readonly neogmaService: NeogmaService,
     private readonly tokenRepository: TokenRepository,
-    private readonly tokenQueryService: TokenQueryService,
     private readonly configService: ConfigService,
     private readonly projectService: ProjectService,
     private readonly workspaceService: WorkspaceService,
-    private readonly billingClientService: BillingClientService
+    private readonly billingClientService: BillingClientService,
+    private readonly projectRepository: ProjectRepository,
+    private readonly workspaceRepository: WorkspaceRepository,
+    private readonly userRepository: UserRepository
   ) {}
 
-  normalize(node: TTokenInstance) {
+  normalize(row: TokenRow): TokenEntity {
     return new TokenEntity(
-      node.id,
-      node.name,
-      node.created,
-      node.expiration,
-      node.value,
-      node.description,
-      node.prefixValue
+      row.id,
+      row.name,
+      row.created,
+      row.expiration,
+      row.value,
+      row.description,
+      row.prefixValue
     )
   }
 
-  encryptTokenData(tokenData) {
+  encryptTokenData(tokenData: string): string {
     const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
     const iv = crypto.randomBytes(16)
-
     const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
-
     return iv.toString('hex') + cipher.update(tokenData, 'utf8', 'base64') + cipher.final('base64')
   }
 
-  decrypt(encrypted) {
+  decrypt(encrypted: string): string {
     const [_, rawToken] = extractMixedPropertiesFromToken(encrypted)
     const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
     const iv = rawToken.substring(0, 32)
     const cipherText = rawToken.substring(32)
-
     const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey, Buffer.from(iv, 'hex'))
     const decrypted = decipher.update(cipherText, 'base64', 'utf8')
     return decrypted + decipher.final('utf8')
@@ -82,16 +79,17 @@ export class TokenService {
   async createToken(
     properties: CreateTokenDto,
     projectId: string,
-    transaction: Transaction
+    _transaction?: Transaction
   ): Promise<TokenEntity> {
     const currentTime = getCurrentISO()
     const id = uuidv7()
     const { name, description = '', expiration: expirationRaw = '30d' } = properties
     const expiration = expirationRaw === '*' ? -1 : ms(expirationRaw as string)
-    const projectNode = await this.projectService.getProject(projectId, transaction)
-    const workspaceNode = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    const { customDb, status } = projectNode.toJson()
-    const workspaceId = workspaceNode.dataValues.id
+
+    const projectEntity = await this.projectService.getProject(projectId)
+    const workspaceRow = await this.workspaceRepository.findByProjectId(projectId)
+    const { customDb } = projectEntity.toJson()
+    const workspaceId = workspaceRow?.id
 
     // Get plan from billing service
     const customer = await this.billingClientService.getCustomer(workspaceId)
@@ -105,53 +103,41 @@ export class TokenService {
     const prefixString = attachMixedProperties(getPrefixedPlan(plan), tokenPrefix)
 
     const token = this.encryptTokenData(id)
-    const tokenNode = await this.tokenRepository.model.createOne(
-      {
-        id,
-        name,
-        description,
-        expiration,
-        created: currentTime,
-        value: token,
-        prefixValue: prefixString
-      },
-      { session: transaction }
-    )
+    const level = (properties as any).level ?? WRITE_ACCESS
 
-    await tokenNode.relateTo({
-      alias: 'Projects',
-      where: { id: projectId },
-      session: transaction,
-      properties: { Level: WRITE_ACCESS }
+    const tokenRow = await this.tokenRepository.create({
+      id,
+      name,
+      description,
+      expiration,
+      created: currentTime,
+      value: token,
+      prefixValue: prefixString,
+      projectId,
+      level,
+      ...(properties.consentId ? { consentId: properties.consentId } : {})
     })
 
-    return this.normalize(tokenNode)
+    return this.normalize(tokenRow)
   }
 
-  async deleteToken(tokenId: string, transaction: Transaction): Promise<boolean | undefined> {
-    const removeResult = await this.tokenRepository.model.delete({
-      where: { id: tokenId },
-      detach: true,
-      session: transaction
-    })
-
-    if (removeResult === 0) {
-      return undefined
-    }
-
-    return true
+  async deleteToken(tokenId: string, _transaction?: Transaction): Promise<boolean | undefined> {
+    const deleted = await this.tokenRepository.delete(tokenId)
+    return deleted ? true : undefined
   }
 
-  isTokenExpired(tokenInstance: TTokenInstance) {
+  isTokenExpired(tokenInstance: Pick<TokenRow, 'expiration' | 'created'>): boolean {
     const { expiration, created } = tokenInstance
     const currentTime = new Date()
     const creationTime = new Date(created)
     const validTill = creationTime.getTime() + expiration
-
     return expiration === -1 ? false : validTill < currentTime.getTime()
   }
 
-  isTokenPrefixMalformed(tokenInstance: TTokenInstance, incomingTokenPrefix: MixedTypeResult) {
+  isTokenPrefixMalformed(
+    tokenInstance: Pick<TokenRow, 'prefixValue'>,
+    incomingTokenPrefix: MixedTypeResult
+  ): boolean {
     const [settings] = incomingTokenPrefix
 
     if (settings === null && !tokenInstance.prefixValue) {
@@ -173,38 +159,24 @@ export class TokenService {
 
   async validateToken({
     tokenId,
-    transaction,
+    transaction: _transaction,
     prefixData
   }: {
     tokenId: string
-    transaction: Transaction
+    transaction?: Transaction
     prefixData: MixedTypeResult
   }): Promise<{
     hasAccess: boolean
+    accessLevel?: typeof READ_ACCESS | typeof WRITE_ACCESS
+    canWrite?: boolean
     projectId: string
     project: IProjectProperties
     workspaceId: string
     workspace: IWorkspaceProperties
   }> {
-    const { token, project, workspace, level } = await transaction
-      .run(this.tokenQueryService.traverseTokenData(), {
-        tokenId
-      })
-      .then((result) => {
-        return {
-          // @FYI: If returning plain nodes from query we need to use '.properties' to access their properties
-          token: result.records[0]?.get('token').properties,
-          project: result.records[0]?.get('project').properties,
-          workspace: result.records[0]?.get('workspace').properties,
-          level: result.records[0]?.get('level')
-        }
-      })
+    const row = await this.tokenRepository.findTokenWithProjectAndWorkspace(tokenId)
 
-    const isMalformedPrefix = this.isTokenPrefixMalformed(token, prefixData)
-    const currentTokenRole = level as typeof READ_ACCESS | typeof WRITE_ACCESS
-    const isExpired = this.isTokenExpired(token)
-
-    if (!currentTokenRole || isExpired || isMalformedPrefix) {
+    if (!row) {
       return {
         hasAccess: false,
         projectId: undefined,
@@ -214,15 +186,32 @@ export class TokenService {
       }
     }
 
-    const hasRoleWeight = toBoolean(ACCESS_WEIGHT[currentTokenRole])
-    // const minimalAccessLevel = ACCESS_WEIGHT[accessLevel];
+    const { token, project, workspace } = row
+    const level = token.level as typeof READ_ACCESS | typeof WRITE_ACCESS
+
+    const isMalformedPrefix = this.isTokenPrefixMalformed(token, prefixData)
+    const isExpired = this.isTokenExpired(token)
+
+    if (!level || isExpired || isMalformedPrefix) {
+      return {
+        hasAccess: false,
+        projectId: undefined,
+        project: undefined,
+        workspaceId: undefined,
+        workspace: undefined
+      }
+    }
+
+    const hasRoleWeight = toBoolean(ACCESS_WEIGHT[level])
 
     return {
       hasAccess: !isExpired && hasRoleWeight,
+      accessLevel: level,
+      canWrite: canWrite(level),
       projectId: project.id,
-      project: project,
+      project: project as unknown as IProjectProperties,
       workspaceId: workspace.id,
-      workspace: workspace
+      workspace: workspace as unknown as IWorkspaceProperties
     }
   }
 
@@ -230,12 +219,12 @@ export class TokenService {
     user,
     projectId,
     workspaceId,
-    transaction
+    transaction: _transaction
   }: {
     user: IUserClaims
     workspaceId?: string
     projectId?: string
-    transaction: Transaction
+    transaction?: Transaction
   }): Promise<{
     hasAccess: boolean
     projectId?: string
@@ -243,79 +232,48 @@ export class TokenService {
     workspaceId?: string
     workspace?: IWorkspaceProperties
   }> {
-    const safeGet = (fn: Function) => {
-      try {
-        return fn()
-      } catch {
-        return undefined
-      }
+    let projectRow = projectId ? await this.projectRepository.findById(projectId) : undefined
+
+    const resolvedWorkspaceId = workspaceId ?? projectRow?.workspaceId
+    const workspaceRow =
+      resolvedWorkspaceId ? await this.workspaceRepository.findById(resolvedWorkspaceId) : undefined
+
+    if (!workspaceRow) {
+      return { hasAccess: false }
     }
-    const { project, workspace, level } = await transaction
-      .run(
-        this.tokenQueryService.validateIntegrity({
-          userId: user.id,
-          workspaceId: workspaceId,
-          projectId: projectId
-        })
-      )
-      .then((result) => {
-        return {
-          project: safeGet(() => result.records[0]?.get('project').properties),
-          workspace: safeGet(() => result.records[0]?.get('workspace').properties),
-          level: safeGet(() => result.records[0]?.get('level'))
-        }
-      })
 
-    const currentTokenRole = level as typeof READ_ACCESS | typeof WRITE_ACCESS
-
-    const hasRoleWeight = toBoolean(ACCESS_WEIGHT[currentTokenRole])
-    // const minimalAccessLevel = ACCESS_WEIGHT[accessLevel];
+    const memberRole = await this.userRepository.getUserRoleInWorkspace(user.id, workspaceRow.id)
+    const hasAccess = !!memberRole
 
     return {
-      hasAccess: hasRoleWeight,
-      projectId: project?.id,
-      project: project,
-      workspaceId: workspace?.id,
-      workspace: workspace
+      hasAccess,
+      projectId: projectRow?.id,
+      project: projectRow as unknown as IProjectProperties,
+      workspaceId: workspaceRow?.id,
+      workspace: workspaceRow as unknown as IWorkspaceProperties
     }
   }
 
-  async getTokenNode(id: string, transaction: Transaction) {
-    const queryRunner = this.neogmaService.createRunner()
-
-    const token = await this.neogmaService
-      .createBuilder()
-      .match({
-        model: this.tokenRepository.model,
-        where: { id },
-        identifier: 'i'
-      })
-      .return('i')
-      .run(queryRunner, transaction)
-
-    const tokenNode = token.records[0]?.get('i')
-
-    if (!tokenNode) {
-      return
-    }
-
-    return this.tokenRepository.model.buildFromRecord(tokenNode)
+  async getTokenNode(id: string, _transaction?: Transaction): Promise<TokenRow | undefined> {
+    return this.tokenRepository.findById(id)
   }
 
-  async getTokensList(projectId: string, transaction: Transaction) {
-    const related = await this.tokenRepository.model.findRelationships({
-      alias: 'Projects',
-      where: {
-        target: {
-          id: projectId
-        }
-      },
-      session: transaction
-    })
-
-    return related.map(({ source }) => ({
-      ...this.normalize(source).toJson(),
-      expired: this.isTokenExpired(source)
+  async getTokensList(projectId: string, _transaction?: Transaction) {
+    const rows = await this.tokenRepository.findByProjectId(projectId)
+    return rows.map((row) => ({
+      ...this.normalize(row).toJson(),
+      expired: this.isTokenExpired(row)
     }))
+  }
+
+  async findLiveTokenByConsentAndProject(
+    consentId: string,
+    projectId: string
+  ): Promise<TokenRow | undefined> {
+    return this.tokenRepository.findLiveTokenByConsentAndProject(consentId, projectId)
+  }
+
+  async deleteByConsentId(consentId: string): Promise<void> {
+    return this.tokenRepository.deleteByConsentId(consentId)
   }
 }

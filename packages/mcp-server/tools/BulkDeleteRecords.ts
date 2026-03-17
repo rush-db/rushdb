@@ -24,7 +24,7 @@ type BulkDeleteRecordsResult = {
   message: string
 }
 
-export async function BulkDeleteRecords({
+export async function bulkDeleteRecords({
   labels,
   where,
   transactionId

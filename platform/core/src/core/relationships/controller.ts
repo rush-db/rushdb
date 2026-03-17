@@ -37,6 +37,7 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { pagination } from '@/core/search/parser/pagination'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
+import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
@@ -55,6 +56,7 @@ export class RelationshipsController {
   })
   @ApiBearerAuth()
   @UseGuards(
+    PlanLimitsGuard,
     IsRelatedToProjectGuard(['targetIds'], {
       nodeProperty: RUSHDB_KEY_ID,
       projectIdProperty: RUSHDB_KEY_PROJECT_ID
@@ -104,7 +106,7 @@ export class RelationshipsController {
   // for example: { source: { where: { $id: ... } }, target: { where: { $id: ... } }, type?: string }
   @Post('/create-many')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
   @HttpCode(HttpStatus.CREATED)

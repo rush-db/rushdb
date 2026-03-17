@@ -70,9 +70,10 @@ export class ProjectController {
     @AuthUser() { id: userId }: IUserClaims,
     @Request() request: PlatformRequest,
     @TransactionDecorator() transaction: Transaction
-  ): Promise<ProjectEntity[]> {
+  ): Promise<IProjectProperties[]> {
     const workspaceId = request.workspaceId
-    return await this.projectService.getProjectsByWorkspaceId(workspaceId, userId, transaction)
+    const entities = await this.projectService.getProjectsByWorkspaceId(workspaceId, userId, transaction)
+    return entities.map((e) => e.toJson())
   }
 
   @Delete(':projectId')

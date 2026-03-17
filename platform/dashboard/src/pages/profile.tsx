@@ -14,6 +14,7 @@ import { api } from '~/lib/api.ts'
 import { $currentWorkspace, leaveWorkspace } from '~/features/workspaces/stores/current-workspace.ts'
 
 import { Divider } from '~/elements/Divider.tsx'
+import { openRoute } from '~/lib/router'
 
 function DeleteAccount() {
   const { mutate: deleteAccount } = useStore(deleteUser)
@@ -142,6 +143,17 @@ export function ProfilePage() {
           <Setting title="Login" readOnly={true}>
             <TextField readOnly disabled value={user.login} />
           </Setting>
+        </ul>
+        <ul>
+          <Setting
+            title="Connected Apps"
+            description="Manage third-party applications that have access to your RushDB data via OAuth."
+            button={
+              <Button onClick={() => openRoute('workspaceSettings')} variant="secondary" size="small">
+                Manage Apps
+              </Button>
+            }
+          />
         </ul>
         <ul>
           <DangerZone />

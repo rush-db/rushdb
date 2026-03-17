@@ -1,5 +1,6 @@
 import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common'
-import { Observable } from 'rxjs'
+import { Observable, from } from 'rxjs'
+import { catchError, switchMap } from 'rxjs/operators'
 
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
@@ -100,24 +101,24 @@ export class RequestCleanupInterceptor implements NestInterceptor {
       }
     }
 
-    // Prefer to run cleanup after response has been sent to the client.
+    // Register error/close handlers for aborted connections (cleanup on unexpected disconnects)
     if (res?.on) {
-      res.on('finish', () => {
-        const statusCode: number = res.statusCode ?? 500
-        void doCleanup(statusCode < 400)
-      })
-      res.on('error', () => {
-        void doCleanup(false)
-      })
-      // Fallback for aborted connections or streaming errors
-      res.on('close', () => {
-        void doCleanup(false)
-      })
-    } else {
-      // As a very last resort, schedule cleanup (should rarely happen)
-      setTimeout(() => void doCleanup(false), 5000).unref()
+      res.on('error', () => void doCleanup(false))
+      res.on('close', () => void doCleanup(false))
     }
 
-    return next.handle()
+    // Commit transaction WITHIN the RxJS pipe so it finishes before the response is sent.
+    return next.handle().pipe(
+      switchMap((value) => from(doCleanup(true).then(() => value))),
+      catchError((error) =>
+        from(
+          doCleanup(false)
+            .catch(() => {})
+            .then(() => {
+              throw error
+            })
+        )
+      )
+    )
   }
 }

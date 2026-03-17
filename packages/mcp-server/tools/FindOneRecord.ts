@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function FindOneRecord(params: { labels?: string[]; where?: Record<string, any> }) {
+export async function findOneRecord(params: { labels?: string[]; where?: Record<string, any> }) {
   const { labels, where } = params
 
   const result = await db.records.findOne({

@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function DeleteProperty(params: { propertyId: string }) {
+export async function deleteProperty(params: { propertyId: string }) {
   const { propertyId } = params
 
   await db.properties.delete(propertyId)

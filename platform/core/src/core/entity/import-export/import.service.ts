@@ -271,7 +271,7 @@ export class ImportService {
     }
 
     const workspaceInstance = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    const workspaceId = workspaceInstance.dataValues.id
+    const workspaceId = workspaceInstance?.id
 
     // Estimate KU for the import (conservative: assume 10 properties per record average)
     const estimatedKu = recordsCount * 10
@@ -311,7 +311,7 @@ export class ImportService {
 
     // Get workspace for billing attribution
     const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    const workspaceId = workspace.dataValues.id
+    const workspaceId = workspace?.id
 
     const CHUNK_SIZE = 1000
 

@@ -1,17 +1,12 @@
 import { Module, DynamicModule, Provider } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 
-import { RepositoryModule } from '@/database/neogma/repository/repository.module'
-
 import { INeogmaConfig } from './neogma-config.interface'
 import { NEOGMA_CONFIG, NEOGMA_INSTANCE } from './neogma.constants'
 import { NeogmaService } from './neogma.service'
 import { createInstance } from './neogma.util'
 
-@Module({
-  imports: [RepositoryModule],
-  exports: [RepositoryModule]
-})
+@Module({})
 export class NeogmaModule {
   constructor(readonly neogmaService: NeogmaService) {}
 

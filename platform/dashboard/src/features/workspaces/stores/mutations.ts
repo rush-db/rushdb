@@ -8,6 +8,7 @@ import { createMutator } from '~/lib/fetcher'
 import { redirectRoute } from '~/lib/router'
 
 import { $currentWorkspace, setCurrentWorkspace } from './current-workspace'
+import { $currentWorkspaceId } from './current'
 import { $workspacesList } from './workspaces'
 
 export const updateWorkspace = createMutator<Parameters<typeof api.workspaces.update>[0]>({
@@ -18,13 +19,25 @@ export const updateWorkspace = createMutator<Parameters<typeof api.workspaces.up
 })
 
 export const deleteWorkspace = createMutator<Parameters<typeof api.workspaces.update>[0]>({
-  invalidates: [$workspacesList, $currentWorkspace],
+  invalidates: [$workspacesList],
   async fetcher({ init, id }) {
     if (!id) {
       return
     }
 
     return await api.workspaces.delete({ id }, init)
+  },
+  onSuccess() {
+    const deletedId = $currentWorkspaceId.get()
+    const list = $workspacesList.get()?.data ?? []
+    const next = list.find((w) => w.id !== deletedId)
+
+    if (next?.id) {
+      setCurrentWorkspace(next.id)
+      redirectRoute('home')
+    } else {
+      redirectRoute('newWorkspace')
+    }
   }
 })
 

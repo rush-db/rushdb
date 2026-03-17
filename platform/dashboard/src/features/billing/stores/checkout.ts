@@ -10,7 +10,13 @@ import { $platformSettings } from '~/features/auth/stores/settings.ts'
 export const $checkout = createMutator({
   async fetcher(body: ApiParams<typeof api.billing.createSession>) {
     if (!$platformSettings.get()?.data?.selfHosted) {
-      const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY)
+      const stripeKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY
+
+      if (!stripeKey) {
+        throw new Error('Stripe is not configured. Set VITE_STRIPE_PUBLIC_KEY in your environment.')
+      }
+
+      const stripePromise = loadStripe(stripeKey)
 
       const stripe = await stripePromise
 

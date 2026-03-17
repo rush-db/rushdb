@@ -41,10 +41,9 @@ export class AuthMiddleware implements NestMiddleware {
             const tokenId = this.tokenService.decrypt(tokenHeader)
             const prefixedToken = extractMixedPropertiesFromToken(tokenHeader)
 
-            const { hasAccess, projectId, project, workspaceId, workspace } =
+            const { hasAccess, projectId, project, workspaceId, workspace, accessLevel, canWrite } =
               await this.tokenService.validateToken({
                 tokenId,
-                transaction,
                 prefixData: prefixedToken
               })
 
@@ -58,6 +57,8 @@ export class AuthMiddleware implements NestMiddleware {
               raw.workspaceId = workspaceId
               raw.session = session
               raw.transaction = transaction
+              raw.tokenAccessLevel = accessLevel
+              raw.tokenCanWrite = canWrite
 
               return next()
             }
@@ -117,8 +118,7 @@ export class AuthMiddleware implements NestMiddleware {
               await this.tokenService.verifyIntegrity({
                 user,
                 projectId: request.headers['x-project-id'] as string,
-                workspaceId: request.headers['x-workspace-id'] as string,
-                transaction
+                workspaceId: request.headers['x-workspace-id'] as string
               })
 
             // Custom properties will be accessible at request.raw.*

@@ -86,6 +86,7 @@ services:
       - NEO4J_URL=bolt://neo4j
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=password
+      - SQL_DB_TYPE=sqlite  # SQLite is the default; no extra service needed
   neo4j:
     image: neo4j:5.25.1
     healthcheck:
@@ -113,6 +114,10 @@ volumes:
   neo4j-conf:
 ```
 </details>
+
+:::info
+The default `SQL_DB_TYPE=sqlite` stores user/workspace/project data in a local `rushdb.db` file inside the container. For persistent storage across container restarts, either mount a volume to the path specified by `SQL_DB_PATH` or switch to an external PostgreSQL instance.
+:::
 
 2. Start the environment:
 
@@ -203,6 +208,19 @@ Before running the container, ensure you provide the following required environm
 - **Description**: The password for the RushDB admin account.
 - **Important**: Change this to a secure value in production.
 - **Default**: `password`
+
+#### 5. `SQL_DB_TYPE`
+- **Description**: The SQL database engine used for storing dashboard entities (users, workspaces, projects, tokens).
+- **Values**: `sqlite` (default, zero-config) or `postgres` (external PostgreSQL)
+- **Default**: `sqlite`
+
+#### 6. `SQL_DB_PATH`
+- **Description**: Path to the SQLite database file. Only used when `SQL_DB_TYPE=sqlite`.
+- **Default**: `./rushdb.db`
+
+#### 7. `SQL_DB_URL`
+- **Description**: PostgreSQL connection string. Required when `SQL_DB_TYPE=postgres`.
+- **Example**: `postgresql://user:password@localhost:5432/rushdb`
 
 ## Working with the RushDB CLI
 

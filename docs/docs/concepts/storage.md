@@ -3,7 +3,10 @@ sidebar_position: 3
 ---
 # Storage
 
-RushDB leverages [Neo4j](https://neo4j.com/docs/get-started/get-started-with-neo4j/) (version 2026.01.4 or higher) as its underlying storage engine, enhanced with the latest [APOC](https://neo4j.com/labs/apoc/) (Awesome Procedures On Cypher) and [GDS](https://neo4j.com/docs/graph-data-science/current/) (Graph Data Science) plugins. This enables efficient vector similarity searches and advanced graph operations, fully compatible with the newest database and plugin releases.
+RushDB uses a **dual storage architecture**:
+
+- **[Neo4j](https://neo4j.com/docs/get-started/get-started-with-neo4j/) (version 2026.01.4 or higher)** — stores all user-defined records and properties. Enhanced with the latest [APOC](https://neo4j.com/labs/apoc/) (Awesome Procedures On Cypher) and [GDS](https://neo4j.com/docs/graph-data-science/current/) (Graph Data Science) plugins, this enables efficient vector similarity searches and advanced graph operations.
+- **SQL database (SQLite by default, PostgreSQL recommended for production)** — stores all dashboard entities: users, workspaces, projects, and API tokens. This layer is managed with [Drizzle ORM](https://orm.drizzle.team/) and runs migrations automatically on startup.
 
 ## Graph Database vs. Traditional Databases
 
@@ -22,13 +25,24 @@ In Neo4j, relationships are physical connections in the database, not just forei
 
 ## Neo4j Foundation
 
-Neo4j provides RushDB with a robust graph database foundation, allowing for:
+Neo4j is responsible for all record and property data in RushDB, providing:
 - High-performance graph traversals
 - ACID-compliant transactions
 - Property graph model flexibility
 - Scalable data storage and retrieval
 
 The integration with [APOC](https://neo4j.com/labs/apoc/) and [GDS](https://neo4j.com/docs/graph-data-science/current/) plugins extends Neo4j's native capabilities with vector-based operations critical for machine learning workflows and similarity search functions. RushDB supports the latest plugin releases for APOC and GDS, ensuring compatibility with Neo4j 2026.01.4 and newer.
+
+## SQL Foundation
+
+Dashboard entities — users, workspaces, projects, and API tokens — are stored in a SQL database managed by [Drizzle ORM](https://orm.drizzle.team/). This separation keeps operational metadata out of the graph and allows standard relational tooling (migrations, studio, backups) to be used for account management.
+
+| Environment | Database | Configuration |
+|-------------|----------|---------------|
+| Local development | SQLite (`rushdb.db`) | `SQL_DB_TYPE=sqlite` |
+| Production | PostgreSQL | `SQL_DB_TYPE=postgres`, `SQL_DB_URL=postgresql://...` |
+
+Schema migrations are applied automatically on startup.
 
 ## Data Overhead
 
@@ -108,7 +122,7 @@ Properties are not shared amongst projects (database instances), ensuring comple
 
 ## Data Types
 
-RushDB supports a wide range of data types to accommodate diverse data needs and provide a flexible environment for your applications. Below is a comprehensive find of the supported data types along with their descriptions:
+RushDB supports a wide range of data types to accommodate diverse data needs and provide a flexible environment for your applications. Below is a comprehensive list of the supported data types along with their descriptions:
 
 ### `string`
 This data type is used for any textual information and can hold text of unlimited length.
@@ -140,7 +154,7 @@ arrays. To learn more, check out the [Properties](../concepts/properties) sectio
 
 > **Note:** Every data type mentioned above (except `vector`, since it's already an array by default) supports an array representation.
 
-Here some valid examples:
+Here are some valid examples:
 - `["apple", "banana", "carrot"]` - good
 - `[null, null, null, null, null]` - weird, but works fine 🤔
 - `[4, 8, 15, 16, 23, 42]` - works as well
@@ -261,21 +275,18 @@ Each of these records is also connected to Property nodes which define the metad
 
 ## Database Indexes and Constraints
 
-When RushDB initializes a new database connection, it automatically creates several indexes and constraints to ensure data integrity and optimize query performance:
+When RushDB connects to Neo4j, it automatically creates several indexes and constraints on graph nodes to ensure data integrity and optimize query performance.
+
+> **Note:** Users, workspaces, projects, and API tokens are stored in the SQL layer and are not represented as Neo4j nodes. Their uniqueness and integrity are enforced by SQL constraints and Drizzle ORM migrations.
 
 ### Core Constraints
 
-The following uniqueness constraints are created to enforce data consistency:
+The following uniqueness constraints are created on graph nodes:
 
 | Constraint Name | Node Label | Property | Description |
 |-----------------|------------|----------|-------------|
-| `constraint_user_login` | `__RUSHDB__LABEL__USER__` | `login` | Ensures each user has a unique login |
-| `constraint_user_id` | `__RUSHDB__LABEL__USER__` | `id` | Ensures each user has a unique ID |
-| `constraint_token_id` | `__RUSHDB__LABEL__TOKEN__` | `id` | Ensures each token has a unique ID |
-| `constraint_project_id` | `__RUSHDB__LABEL__PROJECT__` | `id` | Ensures each project has a unique ID |
-| `constraint_workspace_id` | `__RUSHDB__LABEL__WORKSPACE__` | `id` | Ensures each workspace has a unique ID |
 | `constraint_record_id` | `__RUSHDB__LABEL__RECORD__` | `__RUSHDB__KEY__ID__` | Ensures each record has a unique ID |
-| `constraint_property_id` | `__RUSHDB__LABEL__PROPERTY__` | `id` | Ensures each property has a unique ID |
+| `constraint_property_id` | `__RUSHDB__LABEL__PROPERTY__` | `id` | Ensures each property node has a unique ID |
 
 ### Performance Indexes
 
@@ -290,10 +301,9 @@ The following indexes are created to optimize query performance:
 
 These indexes and constraints are essential for RushDB's performance and data integrity, particularly when dealing with large datasets and complex queries across the property graph model. They ensure that:
 
-1. Record IDs are always unique within the database
+1. Record IDs are always unique within the graph database
 2. Project isolation is maintained in multi-tenant environments
-3. Property lookups are efficient, especially during joins and traversals
-4. User management operations perform optimally
+3. Property lookups are efficient, especially during graph traversals and joins
 
 Learn more at [REST API - Import Data](../rest-api/records/import-data) or through the language-specific SDKs:
 - [TypeScript SDK](../typescript-sdk/records/import-data)

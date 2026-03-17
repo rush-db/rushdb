@@ -24,12 +24,10 @@ type AvailablePlan = {
 
 export const $pricingData = createAsyncStore({
   key: '$pricingData',
+  skip: () => Boolean($platformSettings.get().data?.selfHosted),
   async fetcher() {
     // @TODO: Fix this dirty hack
     await sleep(2000)
-    if ($platformSettings.get().data?.selfHosted) {
-      return
-    }
     return await api.billing.getBillingData()
   },
   mustHaveDeps: [$platformSettings]

@@ -58,7 +58,7 @@ export class EntityService {
     const data = result.records[0]?.get('data')
 
     const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    this.kuEventsService.emit(workspace.dataValues.id, projectId, KuOperation.ENTITY_CREATED, {
+    this.kuEventsService.emit(workspace?.id, projectId, KuOperation.ENTITY_CREATED, {
       propertyCount: properties?.length ?? 0
     })
 
@@ -144,7 +144,7 @@ export class EntityService {
     const data = result.records[0]?.get('data')
 
     const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    this.kuEventsService.emit(workspace.dataValues.id, projectId, KuOperation.ENTITY_CREATED, {
+    this.kuEventsService.emit(workspace?.id, projectId, KuOperation.ENTITY_CREATED, {
       propertyCount: properties?.length ?? 0,
       upsert: true
     })
@@ -171,7 +171,7 @@ export class EntityService {
     })
 
     const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    this.kuEventsService.emit(workspace.dataValues.id, projectId, KuOperation.KNOWLEDGE_DELETED, { id })
+    this.kuEventsService.emit(workspace?.id, projectId, KuOperation.KNOWLEDGE_DELETED, { id })
 
     return {
       message: `Record ${id} was successfully deleted`

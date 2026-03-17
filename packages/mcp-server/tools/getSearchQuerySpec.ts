@@ -12,16 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { db } from '../util/db.js'
+import SEARCH_QUERY_SPEC from '../searchQuerySpec.js'
 
-export async function TransactionRollback(params: { transactionId: string }) {
-  const { transactionId } = params
-
-  const result = await db.tx.rollback(transactionId)
-
-  return {
-    success: true,
-    message: `Transaction '${transactionId}' rolled back successfully`,
-    data: result.data
-  }
+export async function getSearchQuerySpec() {
+  return { spec: SEARCH_QUERY_SPEC }
 }

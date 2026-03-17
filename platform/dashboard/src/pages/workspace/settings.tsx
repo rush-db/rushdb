@@ -13,6 +13,7 @@ import { DeleteWorkspaceDialog } from '~/features/workspaces/components/DeleteWo
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
 import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace'
 import { updateWorkspace } from '~/features/workspaces/stores/mutations'
+import { ConnectionsList } from '~/pages/workspace/connected-apps'
 
 const workspaceNameSchema = object({
   name: string().min(1).max(256).required()
@@ -55,7 +56,6 @@ function WorkspaceNameSetting() {
   )
 }
 
-// @TODO: Restore when multiple workspaces ownership will be available
 function DeleteWorkspaceSetting() {
   const { data: workspace } = useStore($currentWorkspace)
 
@@ -83,8 +83,11 @@ export function WorkspaceSettingsPage() {
       <PageContent contained>
         <SettingsList>
           <WorkspaceNameSetting />
-          {/*<DeleteWorkspaceSetting />*/}
+          <DeleteWorkspaceSetting />
         </SettingsList>
+        <div className="mt-8">
+          <ConnectionsList />
+        </div>
       </PageContent>
     </WorkspacesLayout>
   )

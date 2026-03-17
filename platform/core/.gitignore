@@ -65,6 +65,11 @@ typings/
 .env
 .env.prod
 
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
 # See https://help.github.com/ignore-files/ for more about ignoring files.
 
 # dependencies

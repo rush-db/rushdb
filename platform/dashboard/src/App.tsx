@@ -5,6 +5,7 @@ import { $router, isProjectPage, isProtectedRoute } from '~/lib/router'
 import { NotFoundPage } from '~/pages/404'
 import { PasswordRecoveryPage } from '~/pages/forgot-password'
 import { NewProjectPage } from '~/pages/project/new'
+import { NewWorkspacePage } from '~/pages/workspace/new'
 import { ProfilePage } from '~/pages/profile.tsx'
 import { SignInPage } from '~/pages/signin'
 import { SignUpPage } from '~/pages/signup'
@@ -15,6 +16,7 @@ import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
 import { WorkspaceUsersPage } from '~/pages/workspace/users'
 import { JoinWorkspacePage } from '~/pages/workspace/join'
 import { ConfirmEmail } from '~/pages/auth/confirmEmail'
+import { OAuthConsentPage } from '~/pages/oauth/consent'
 
 import { Toaster } from './elements/Toast'
 import { ProjectLayout } from './layout/ProjectLayout'
@@ -43,6 +45,8 @@ function PublicRoutes() {
       return <AuthGitHub />
     case 'confirmEmail':
       return <ConfirmEmail />
+    case 'oauthConsent':
+      return <OAuthConsentPage />
     default:
       return <NotFoundPage />
   }
@@ -82,8 +86,8 @@ function ProtectedRoutes() {
       return <WorkspaceProjectsPage />
     case 'newProject':
       return isOwner ? <NewProjectPage /> : null
-    // case 'newWorkspace':
-    //   return <NewWorkspacePage />
+    case 'newWorkspace':
+      return <NewWorkspacePage />
     default:
       return <NotFoundPage />
   }

@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function UpdateRecord(params: {
+export async function updateRecord(params: {
   recordId: string
   label: string
   data: Record<string, any>

@@ -4,6 +4,7 @@ import type { Project } from '~/features/projects/types'
 
 import { Button } from '~/elements/Button'
 import { NothingFound } from '~/elements/NothingFound'
+import { Spinner } from '~/elements/Spinner'
 
 import { ProjectTabs } from '~/features/projects/components/ProjectTabs'
 import { $currentProject } from '~/features/projects/stores/current-project'
@@ -46,7 +47,15 @@ export function ProjectLayout() {
     return null
   }
 
-  if (!data || loading) {
+  if (loading) {
+    return (
+      <div className="grid flex-1 place-items-center">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (!data) {
     return (
       <NothingFound
         action={

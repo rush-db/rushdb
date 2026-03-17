@@ -39,13 +39,7 @@ export function RecordSheet() {
       }}
       open={id !== undefined}
     >
-      <PageHeader className="bg-fill2 sticky top-0 z-40 justify-start gap-5 px-5 py-3">
-        <Close asChild>
-          <IconButton aria-label="close" variant="ghost">
-            <X />
-          </IconButton>
-        </Close>
-
+      <PageHeader className="bg-fill2 sticky top-0 z-40 justify-start gap-3 px-5 py-3">
         <DialogTitle className="flex-1 truncate text-xl">
           {record && <RecordTitle id={record.__id} label={record.__label} />}
         </DialogTitle>
@@ -53,7 +47,7 @@ export function RecordSheet() {
         {record && (
           <Menu
             trigger={
-              <IconButton aria-label="more" title="More" variant="ghost">
+              <IconButton aria-label="more" title="More" variant="ghost" size="small">
                 <MoreVertical />
               </IconButton>
             }
@@ -71,6 +65,11 @@ export function RecordSheet() {
             </MenuItem>
           </Menu>
         )}
+        <Close asChild>
+          <IconButton aria-label="close" variant="ghost" size="small">
+            <X />
+          </IconButton>
+        </Close>
       </PageHeader>
 
       <Tabs defaultValue={ERecordSheetTabs.data}>

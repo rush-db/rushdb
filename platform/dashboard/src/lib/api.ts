@@ -572,5 +572,57 @@ export const api = {
         body: JSON.stringify(params.searchQuery)
       })
     }
+  },
+  oauth: {
+    async getAuthRequest(id: string) {
+      return fetcher<{
+        auth_request_id: string
+        client_name: string
+        scope: string
+        resource: string
+        expires_at: string
+      }>(`/oauth/authorize/request/${id}`, { method: 'GET' })
+    },
+    async acceptAuthorization({
+      authRequestId,
+      projectId,
+      scope
+    }: {
+      authRequestId: string
+      projectId: string
+      scope?: string
+    }) {
+      return fetcher<{ redirectTo: string }>('/oauth/authorize/accept', {
+        method: 'POST',
+        body: JSON.stringify({
+          auth_request_id: authRequestId,
+          project_id: projectId,
+          ...(scope !== undefined ? { scope } : {})
+        })
+      })
+    },
+    async denyAuthorization(authRequestId: string) {
+      return fetcher<{ redirectTo: string }>('/oauth/authorize/deny', {
+        method: 'POST',
+        body: JSON.stringify({ authRequestId })
+      })
+    },
+    async listConsents() {
+      return fetcher<
+        Array<{
+          id: string
+          client_id: string
+          client_name: string
+          scope: string
+          project_id: string
+          project_name: string
+          resource: string
+          created: string
+        }>
+      >('/oauth/consents', { method: 'GET' })
+    },
+    async revokeConsent(id: string) {
+      return fetcher<void>(`/oauth/consents/${id}`, { method: 'DELETE' })
+    }
   }
 }

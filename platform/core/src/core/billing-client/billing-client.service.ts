@@ -74,17 +74,23 @@ export class BillingClientService {
           { workspaceId, ...options },
           {
             headers: this.secret ? { 'x-rushdb-billing-secret': this.secret } : {},
-            timeout: 5000
+            timeout: 5000,
+            // Don't let axios throw on 4xx — we want to read the response body
+            // (e.g. 402 with allowed:false) rather than fall into the catch block.
+            validateStatus: () => true
           }
         )
       )
 
       return response.data
     } catch (error: any) {
-      this.logger.error(`Failed to check limits for workspace ${workspaceId}: ${error.message}`)
+      // Only reach here on real network/connectivity failures (ECONNREFUSED, timeout, etc.)
+      // — not on HTTP 4xx/5xx responses, because validateStatus:()=>true prevents axios
+      // from throwing those. Fail open only for true infrastructure outages.
+      this.logger.error(
+        `Billing service unreachable for workspace ${workspaceId}: ${error.message} — failing open`
+      )
 
-      // Fail open: allow operation if billing service is unreachable
-      // (prevents platform outage when billing service is down)
       return {
         allowed: true,
         usage: { kuConsumed: 0, kuLimit: null, plan: 'error', remaining: null },

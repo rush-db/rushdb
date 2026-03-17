@@ -16,6 +16,10 @@ type TProjectProperties = {
   stats?: string
   customDb?: string
   status?: ProjectStatus
+  /** JSON-serialised OntologyItem[] — persisted on the node as the ontology cache. */
+  ontologyCache?: string
+  /** ISO timestamp of the last ontology recalculation. */
+  ontologyCachedAt?: string
 }
 
 interface IProjectProperties extends TProjectProperties {}

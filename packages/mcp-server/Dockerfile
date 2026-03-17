@@ -12,5 +12,10 @@ FROM node_base
 COPY package.json package-lock.json ./
 COPY --from=builder /app/build ./build
 ENV NODE_ENV=production
-RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts --omit-dev
+# MCP_TRANSPORT: "stdio" (default) | "http"
+# Override with -e MCP_TRANSPORT=http to enable the Streamable HTTP server
+ENV MCP_TRANSPORT=stdio
+# HTTP mode: server listens on this port (only relevant when MCP_TRANSPORT=http)
+EXPOSE 3001
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts --omit=dev
 ENTRYPOINT ["node", "/app/build/index.js"]

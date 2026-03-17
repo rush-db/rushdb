@@ -1,21 +1,8 @@
-import { useEffect, useState } from 'react'
 import { useStore } from '@nanostores/react'
 import { $user } from '~/features/auth/stores/user'
-import { $platformSettings } from '~/features/auth/stores/settings'
-import { $currentWorkspaceId } from '~/features/workspaces/stores/current'
-import { api } from '~/lib/api'
+import { $workspaceUsage } from '~/features/billing/stores/usage'
 import { cn } from '~/lib/utils'
 import { getRoutePath } from '~/lib/router'
-
-type UsageData = {
-  plan: string
-  kuConsumed: number
-  kuLimit: number | null
-  kuIncluded: number | null
-  remaining: number | null
-  billingModel: 'fixed' | 'overage' | 'usage'
-  billingPeriodStart: string
-}
 
 function formatKu(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`
@@ -25,29 +12,12 @@ function formatKu(n: number): string {
 
 export function KuHeaderBar() {
   const currentUser = useStore($user)
-  const { data: platformSettings } = useStore($platformSettings)
-  const workspaceId = useStore($currentWorkspaceId)
-
-  const [usage, setUsage] = useState<UsageData | null>(null)
+  const { data: usage } = useStore($workspaceUsage)
 
   const isOwner = currentUser.currentScope?.role === 'owner'
-  const isSelfHosted = platformSettings?.selfHosted
 
-  useEffect(() => {
-    if (!isOwner || isSelfHosted || !workspaceId) return
-    let cancelled = false
-    api.billing
-      .getUsage()
-      .then((data) => {
-        if (!cancelled) setUsage(data)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [isOwner, isSelfHosted, workspaceId])
-
-  if (!isOwner || isSelfHosted || !usage) return null
+  // selfHosted guard is baked into $workspaceUsage (returns undefined when selfHosted)
+  if (!isOwner || !usage) return null
 
   // Scale / enterprise: just show consumed KU
   if (usage.billingModel === 'usage' || (usage.kuIncluded === null && usage.billingModel !== 'fixed')) {

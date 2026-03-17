@@ -26,6 +26,12 @@ type AsyncStoreOptions<Fetcher extends FetcherFn> = {
   key: string
   /** Same as deps, but when it's undefined, fetcher won't be called */
   mustHaveDeps?: Store[]
+  /**
+   * When this returns true the store immediately settles to
+   * { loading: false, data: undefined } and no fetch is attempted.
+   * Re-evaluated on every refetch (including dep changes).
+   */
+  skip?: () => boolean
 }
 
 type AsyncStore = ReturnType<ReturnType<typeof createAsyncStore>>
@@ -44,7 +50,8 @@ function createAsyncStore(options: Options) {
     key,
     fetcher,
     deps = [],
-    mustHaveDeps = []
+    mustHaveDeps = [],
+    skip
   }: AsyncStoreOptions<Fetcher>) => {
     let controller: AbortController
 
@@ -78,6 +85,12 @@ function createAsyncStore(options: Options) {
     }
 
     const refetch = async () => {
+      // skip predicate — settle the store immediately without fetching
+      if (skip?.()) {
+        store.set({ loading: false, data: undefined as Data, total: undefined })
+        return
+      }
+
       if (
         mustHaveDeps.some((dep) => {
           const depValue = dep.get()

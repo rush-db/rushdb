@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { db } from '../util/db.js'
-
-export async function GetSettings() {
-  const result = await db.settings.get()
-
-  return result.data
-}
+/**
+ * Re-exports the per-request context primitives from db.ts.
+ *
+ * This module exists as a convenience alias so code that only needs context
+ * management can import from a clearly named module without pulling in
+ * the full db initialisation logic.
+ */
+export { requestContext, getDb, RequestContext } from './db.js'
