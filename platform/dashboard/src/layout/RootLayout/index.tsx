@@ -17,6 +17,7 @@ import { Button } from '~/elements/Button'
 import { LimitReachedModal } from '~/components/billing/LimitReachedDialog.tsx'
 import { PaymentCallbackDialog } from '~/components/billing/PaymentCallbackDialog.tsx'
 import { KuHeaderBar } from '~/components/billing/KuHeaderBar.tsx'
+import { KuLimitBanner } from '~/components/billing/KuLimitBanner'
 
 function ProjectNav() {
   const page = useStore($router)
@@ -116,6 +117,7 @@ export function RootLayout({ children, className, ...props }: TPolymorphicCompon
   return (
     <div className={cn(className, 'flex min-h-screen flex-col')} {...props}>
       <GlobalNotifications />
+      <KuLimitBanner />
       <Header />
       <main className="flex flex-1 flex-col">{children}</main>
       <GlobalModals />

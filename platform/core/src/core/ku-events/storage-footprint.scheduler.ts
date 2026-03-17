@@ -2,14 +2,10 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 
 import { RUSHDB_KEY_PROJECT_ID, RUSHDB_LABEL_RECORD } from '@/core/common/constants'
-import {
-  RUSHDB_LABEL_WORKSPACE,
-  RUSHDB_LABEL_PROJECT,
-  RUSHDB_RELATION_CONTAINS
-} from '@/dashboard/common/constants'
 import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { toBoolean } from '@/common/utils/toBolean'
+import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
@@ -18,7 +14,8 @@ export class StorageFootprintScheduler {
 
   constructor(
     private readonly neogmaService: NeogmaService,
-    private readonly kuEventsService: KuEventsService
+    private readonly kuEventsService: KuEventsService,
+    private readonly projectRepository: ProjectRepository
   ) {}
 
   /**
@@ -28,10 +25,8 @@ export class StorageFootprintScheduler {
    * KU event with the total record count across all projects, plus a
    * per-project breakdown for attribution.
    *
-   * The billing service uses this to apply a daily prorated storage charge
-   * at the workspace level, ensuring that large idle datasets (e.g. 5 TB
-   * ingested once) continue to generate revenue that covers ongoing
-   * infrastructure costs.
+   * Workspace and project metadata are fetched from SQL (source of truth).
+   * Record counts are fetched from Neo4j (where records live).
    *
    * Skipped entirely in self-hosted mode (RUSHDB_SELF_HOSTED=true) — the
    * same guard that suppresses all other KU events.
@@ -42,82 +37,78 @@ export class StorageFootprintScheduler {
       return
     }
 
-    const session = this.neogmaService.createSession('storage-footprint-scheduler')
-    const transaction = session.beginTransaction({ timeout: 60_000 })
-
     try {
-      // Query workspace -> project -> record hierarchy
-      // Group by workspace and project to get per-project counts
-      // Exclude custom DB projects (users manage their own storage)
-      const result = await transaction.run(
-        `MATCH (workspace:\`${RUSHDB_LABEL_WORKSPACE}\`)-[:\`${RUSHDB_RELATION_CONTAINS}\`]->(project:\`${RUSHDB_LABEL_PROJECT}\`)
-         WHERE project.customDb IS NULL
-         WITH workspace, project
-         MATCH (record:\`${RUSHDB_LABEL_RECORD}\` { \`${RUSHDB_KEY_PROJECT_ID}\`: project.id })
-         RETURN workspace.id AS workspaceId, project.id AS projectId, count(record) AS recordCount
-         ORDER BY workspace.id, project.id`
-      )
+      // Fetch all non-deleted, non-customDb projects from SQL (source of truth)
+      const projects = await this.projectRepository.findAllWithoutCustomDb()
+      if (projects.length === 0) {
+        return
+      }
 
-      await transaction.close()
-      await session.close()
+      const projectIds = projects.map((p) => p.id)
 
-      // Group results by workspace
+      // Query Neo4j only for record counts — that's where records live
+      const session = this.neogmaService.createSession('storage-footprint-scheduler')
+      const transaction = session.beginTransaction({ timeout: 60_000 })
+
+      let recordCountByProject: Map<string, number>
+
+      try {
+        const result = await transaction.run(
+          `UNWIND $projectIds AS projectId
+           MATCH (r:\`${RUSHDB_LABEL_RECORD}\` { \`${RUSHDB_KEY_PROJECT_ID}\`: projectId })
+           RETURN projectId, count(r) AS recordCount`,
+          { projectIds }
+        )
+
+        recordCountByProject = new Map(
+          result.records.map((row) => {
+            const rawCount = row.get('recordCount')
+            const count: number =
+              typeof rawCount === 'object' && rawCount !== null && 'toNumber' in rawCount ?
+                (rawCount as any).toNumber()
+              : Number(rawCount)
+            return [row.get('projectId') as string, count]
+          })
+        )
+      } finally {
+        await transaction.close()
+        await session.close()
+      }
+
+      // Aggregate record counts by workspaceId using SQL project→workspace mapping
       const workspaceMap = new Map<string, { projects: Map<string, number>; total: number }>()
 
-      for (const row of result.records) {
-        const workspaceId = row.get('workspaceId') as string | null
-        const projectId = row.get('projectId') as string | null
-        const rawCount = row.get('recordCount')
-        const recordCount: number =
-          typeof rawCount === 'object' && rawCount !== null && 'toNumber' in rawCount ?
-            (rawCount as any).toNumber()
-          : Number(rawCount)
+      for (const project of projects) {
+        const count = recordCountByProject.get(project.id) ?? 0
+        if (count === 0) continue
 
-        if (workspaceId && projectId && recordCount > 0) {
-          if (!workspaceMap.has(workspaceId)) {
-            workspaceMap.set(workspaceId, { projects: new Map(), total: 0 })
-          }
-          const workspace = workspaceMap.get(workspaceId)!
-          workspace.projects.set(projectId, recordCount)
-          workspace.total += recordCount
+        if (!workspaceMap.has(project.workspaceId)) {
+          workspaceMap.set(project.workspaceId, { projects: new Map(), total: 0 })
         }
+        const ws = workspaceMap.get(project.workspaceId)!
+        ws.projects.set(project.id, count)
+        ws.total += count
       }
 
       // Emit one event per workspace with project breakdown
       let emittedCount = 0
-      for (const [workspaceId, { projects, total }] of workspaceMap.entries()) {
-        // Convert project map to plain object for metadata
-        const projectBreakdown: Record<string, number> = {}
-        for (const [projectId, count] of projects.entries()) {
-          projectBreakdown[projectId] = count
-        }
+      for (const [workspaceId, { projects: projectMap, total }] of workspaceMap.entries()) {
+        const projectBreakdown: Record<string, number> = Object.fromEntries(projectMap)
+        const representativeProjectId = projectMap.keys().next().value as string
 
-        // Emit with total count and project breakdown in metadata
-        // Note: We use emitBulk with total count, and include project details in metadata
         this.kuEventsService.emitBulk(
           workspaceId,
-          Object.keys(projectBreakdown)[0], // Use first project as representative projectId
+          representativeProjectId,
           KuOperation.STORAGE_FOOTPRINT,
           total,
-          {
-            source: 'daily-footprint-scheduler',
-            projectBreakdown
-          }
+          { source: 'daily-footprint-scheduler', projectBreakdown }
         )
         emittedCount++
       }
 
-      this.logger.log(
-        `[StorageFootprint] Daily storage footprint emitted for ${emittedCount} workspaces (${workspaceMap.size} total)`
-      )
+      this.logger.log(`[StorageFootprint] Daily storage footprint emitted for ${emittedCount} workspaces`)
     } catch (error) {
       this.logger.error('[StorageFootprint] Failed to emit daily storage footprint', error)
-      try {
-        await transaction.rollback()
-      } catch (_) {
-        // ignore rollback errors on a read-only query
-      }
-      await session.close()
     }
   }
 }

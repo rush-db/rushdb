@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function AttachRelation(params: {
+export async function attachRelation(params: {
   sourceId: string
   targetId?: string
   targetIds?: string[]

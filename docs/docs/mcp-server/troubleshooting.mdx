@@ -47,6 +47,22 @@ Fix:
 - Increase client timeouts if your environment is slow.
 - Try smaller `limit` values on large queries.
 
+## HTTP errors from the API
+
+The MCP server maps raw HTTP status codes from the RushDB API into actionable text responses that are returned to the model:
+
+| Status | Message returned to LLM |
+|--------|-------------------------|
+| 400    | Bad request — query or payload is invalid. Check field names, operators, and required arguments. Call `getSearchQuerySpec` for correct syntax. |
+| 401    | Unauthorized — API key is missing or invalid. |
+| 403    | Forbidden — the API key lacks permission for this operation. |
+| 404    | Not found — resource does not exist. Verify record IDs and label names (case-sensitive). Call `getOntologyMarkdown` to rediscover the schema. |
+| 409    | Conflict — operation conflicts with existing data (e.g. duplicate key). |
+| 422    | Unprocessable — field types or required fields don't match the schema. |
+| 5xx    | Server error — retry or contact support. |
+
+Because the model receives an actionable hint rather than a bare number, it can self-correct (e.g. call `getOntologyMarkdown` after a 404) without you needing to intervene.
+
 ## Still stuck?
 
 Open an issue with logs at https://github.com/rush-db/rushdb/issues

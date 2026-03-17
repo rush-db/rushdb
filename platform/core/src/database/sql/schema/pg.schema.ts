@@ -1,0 +1,170 @@
+import { boolean, integer, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
+
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  login: text('login').notNull().unique(),
+  isEmail: boolean('is_email').notNull().default(false),
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  confirmed: boolean('confirmed').notNull().default(false),
+  status: text('status'),
+  created: text('created').notNull(),
+  edited: text('edited'),
+  lastActivity: text('last_activity'),
+  googleAuth: text('google_auth'),
+  githubAuth: text('github_auth'),
+  password: text('password'),
+  deletedDate: text('deleted_date'),
+  settings: text('settings')
+})
+
+export const workspaces = pgTable('workspaces', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  created: text('created').notNull(),
+  edited: text('edited'),
+  stats: text('stats')
+})
+
+export const workspaceMembers = pgTable(
+  'workspace_members',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),
+    since: text('since').notNull()
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.userId] })]
+)
+
+export const workspaceInvites = pgTable('workspace_invites', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  createdAt: text('created_at').notNull()
+})
+
+export const projects = pgTable('projects', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  created: text('created').notNull(),
+  edited: text('edited'),
+  deleted: text('deleted'),
+  status: text('status'),
+  stats: text('stats'),
+  customDb: text('custom_db'),
+  ontologyCache: text('ontology_cache'),
+  ontologyCachedAt: text('ontology_cached_at')
+})
+
+export const projectAccess = pgTable(
+  'project_access',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),
+    since: text('since').notNull()
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.userId] })]
+)
+
+export const tokens = pgTable('tokens', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  expiration: integer('expiration').notNull(),
+  created: text('created').notNull(),
+  description: text('description'),
+  value: text('value').notNull(),
+  prefixValue: text('prefix_value'),
+  consentId: text('consent_id'),
+  level: text('level').notNull().default('write')
+})
+
+export const oauthClients = pgTable(
+  'oauth_clients',
+  {
+    id: text('id').primaryKey(),
+    clientName: text('client_name').notNull(),
+    redirectUris: text('redirect_uris').notNull(),
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    applicationType: text('application_type'),
+    created: text('created').notNull()
+  },
+  (t) => [uniqueIndex('uq_oauth_client_name_uris').on(t.clientName, t.redirectUris)]
+)
+
+export const oauthAuthRequests = pgTable('oauth_auth_requests', {
+  id: text('id').primaryKey(),
+  clientId: text('client_id')
+    .notNull()
+    .references(() => oauthClients.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  scope: text('scope'),
+  resource: text('resource'),
+  codeChallenge: text('code_challenge').notNull(),
+  codeChallengeMethod: text('code_challenge_method').notNull(),
+  state: text('state'),
+  created: text('created').notNull(),
+  expiresAt: text('expires_at').notNull()
+})
+
+export const oauthConsents = pgTable('oauth_consents', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  clientId: text('client_id')
+    .notNull()
+    .references(() => oauthClients.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull(),
+  resource: text('resource'),
+  scope: text('scope').notNull(),
+  created: text('created').notNull(),
+  revokedAt: text('revoked_at')
+})
+
+export const oauthCodes = pgTable('oauth_codes', {
+  id: text('id').primaryKey(),
+  consentId: text('consent_id')
+    .notNull()
+    .references(() => oauthConsents.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull(),
+  redirectUri: text('redirect_uri').notNull(),
+  resource: text('resource'),
+  scope: text('scope'),
+  codeChallenge: text('code_challenge').notNull(),
+  codeChallengeMethod: text('code_challenge_method').notNull(),
+  created: text('created').notNull(),
+  expiresAt: text('expires_at').notNull()
+})
+
+export const pgSchema = {
+  users,
+  workspaces,
+  workspaceMembers,
+  workspaceInvites,
+  projects,
+  projectAccess,
+  tokens,
+  oauthClients,
+  oauthAuthRequests,
+  oauthConsents,
+  oauthCodes
+}
+
+export type PgSchema = typeof pgSchema

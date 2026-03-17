@@ -39,7 +39,14 @@ $user.subscribe(({ isLoggedIn, token }, changedKey) => {
     }
 
     if (!isProtectedRoute(page?.route) && isLoggedIn === true && !invite) {
-      redirectRoute('home')
+      // If redirected here from the OAuth consent page, go back there after login
+      const params = new URLSearchParams(window.location.search)
+      const returnUrl = params.get('return')
+      if (returnUrl) {
+        window.location.href = returnUrl
+      } else if (page?.route !== 'oauthConsent') {
+        redirectRoute('home')
+      }
     }
 
     if (isLoggedIn === false && isProtectedRoute(page?.route)) {
@@ -59,9 +66,9 @@ $router.subscribe((page) => {
 
     if (isProtectedRoute(page?.route) && !isLoggedIn) {
       redirectRoute('signin')
-    } else if (isLoggedIn && isPublicRoute(page?.route) && !invite) {
+    } else if (isLoggedIn && isPublicRoute(page?.route) && !invite && page?.route !== 'oauthConsent') {
       redirectRoute('home')
-    } else if (isLoggedIn && isPublicRoute(page?.route) && invite) {
+    } else if (isLoggedIn && isPublicRoute(page?.route) && invite && page?.route !== 'oauthConsent') {
       redirectRoute('joinWorkspace')
     }
   }

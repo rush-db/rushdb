@@ -1215,4 +1215,59 @@ export class RestAPI {
       return response
     }
   }
+
+  /**
+   * API methods for AI-assisted graph exploration.
+   */
+  public ai = {
+    /**
+     * Returns the full graph ontology as structured JSON.
+     * Each item contains the label name, record count, properties with value ranges/samples,
+     * and cross-label relationships with direction.
+     * Use property `id` fields to pass to db.properties.values() for deeper drill-down.
+     * @param params - Optional filter: provide `labels` array to scope to specific labels only
+     * @param transaction - Optional transaction for atomic operations
+     */
+    getOntology: async (params?: { labels?: string[] }, transaction?: Transaction | string) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/ai/ontology`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: params ?? {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<unknown[]>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+
+    /**
+     * Returns the full graph ontology as compact Markdown tables.
+     * Token-efficient — intended for direct LLM consumption.
+     * Includes: labels with counts, properties with types and value ranges/samples,
+     * and cross-label relationship map.
+     * @param params - Optional filter: provide `labels` array to scope to specific labels only
+     * @param transaction - Optional transaction for atomic operations
+     */
+    getOntologyMarkdown: async (params?: { labels?: string[] }, transaction?: Transaction | string) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/ai/ontology/md`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: params ?? {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<string>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    }
+  }
 }

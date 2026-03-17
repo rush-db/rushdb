@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function CreateRecord(params: {
+export async function createRecord(params: {
   label: string
   data: Record<string, any>
   transactionId?: string

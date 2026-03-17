@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function FindProperties(params: {
+export async function findProperties(params: {
   where?: Record<string, any>
   limit?: number
   skip?: number

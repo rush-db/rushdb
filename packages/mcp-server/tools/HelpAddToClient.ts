@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export async function HelpAddToClient() {
+export async function helpAddToClient() {
   return {
     instructions: `To add the RushDB MCP server to your MCP client, follow these steps:
 

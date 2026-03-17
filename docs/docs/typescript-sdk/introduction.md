@@ -17,6 +17,7 @@ The RushDB JavaScript/TypeScript SDK is a powerful client library that lets you 
 - **🤖 Automatic Type Inference**: Enjoy seamless type safety with automatic TypeScript inference
 - **↔️ Isomorphic Architecture**: Fully compatible with both server and browser environments
 - **🏋️ Zero Dependencies**: Lightweight (just 6.9KB gzipped) and efficient with no external dependencies
+- **🧠 AI & Ontology API**: Retrieve the full graph schema in Markdown or JSON — ideal for LLM agents and schema-aware tooling
 
 ## Getting Started
 
@@ -191,5 +192,6 @@ To continue learning about the RushDB TypeScript SDK, explore these related sect
 - [Working with Properties](../typescript-sdk/properties)
 - [Working with Labels](../typescript-sdk/labels)
 - [Working with Transactions](../typescript-sdk/transactions)
+- [AI & Ontology](../typescript-sdk/ai)
 
 Before you begin exploring the SDK features, make sure you have a valid API token. If you haven't set up your RushDB account yet, follow our guide to [registering on the dashboard and generating an API token](../get-started/quick-tutorial.mdx).

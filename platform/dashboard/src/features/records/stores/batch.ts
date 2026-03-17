@@ -1,10 +1,11 @@
 import type { AnyRecord } from 'dns'
 
 import {
+  $currentProject,
   $currentProjectFields,
-  $currentProjectLabels,
-  $filteredRecords
+  $currentProjectLabels
 } from '~/features/projects/stores/current-project'
+import { $workspaceProjects } from '~/features/workspaces/stores/projects'
 import { api } from '~/lib/api'
 import { createMutator } from '~/lib/fetcher'
 import { DBRecordCreationOptions } from '@rushdb/javascript-sdk'
@@ -19,7 +20,7 @@ export const importJson = createMutator<{
   },
   throwError: true,
   onError: (error: unknown) => console.log({ error }),
-  invalidates: [$filteredRecords, $currentProjectLabels, $currentProjectFields]
+  invalidates: [$currentProjectLabels, $currentProjectFields, $workspaceProjects, $currentProject]
 })
 
 export const importCsv = createMutator<{
@@ -42,5 +43,5 @@ export const importCsv = createMutator<{
   },
   throwError: true,
   onError: (error: unknown) => console.log({ error }),
-  invalidates: [$filteredRecords, $currentProjectLabels, $currentProjectFields]
+  invalidates: [$currentProjectLabels, $currentProjectFields, $workspaceProjects, $currentProject]
 })

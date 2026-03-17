@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function PropertyValues(params: {
+export async function propertyValues(params: {
   propertyId: string
   query?: string
   orderBy?: 'asc' | 'desc'

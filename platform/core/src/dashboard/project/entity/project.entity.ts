@@ -1,7 +1,9 @@
+import type { ProjectRow } from '@/database/sql/schema/types'
+
 import { IProjectProperties } from '@/dashboard/project/model/project.interface'
 
 export class ProjectEntity {
-  constructor(private readonly projectNode: IProjectProperties) {}
+  constructor(private readonly projectNode: ProjectRow) {}
 
   getProperties(): IProjectProperties {
     return {
@@ -11,12 +13,18 @@ export class ProjectEntity {
       edited: this.projectNode.edited,
       description: this.projectNode.description,
       customDb: this.projectNode.customDb,
-      status: this.projectNode.status,
-      stats: this.projectNode.stats
+      status: this.projectNode.status as any,
+      stats: this.projectNode.stats,
+      ontologyCache: this.projectNode.ontologyCache,
+      ontologyCachedAt: this.projectNode.ontologyCachedAt
     }
   }
 
   toJson() {
+    return this.getProperties()
+  }
+
+  toJSON() {
     return this.getProperties()
   }
 }

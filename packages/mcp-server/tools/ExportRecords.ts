@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function ExportRecords(params: {
+export async function exportRecords(params: {
   labels?: string[]
   where?: Record<string, any>
   limit?: number

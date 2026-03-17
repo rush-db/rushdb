@@ -35,6 +35,10 @@ function View() {
   const view = useStore($recordView)
 
   useEffect(() => {
+    $filteredRecords.refetch()
+  }, [])
+
+  useEffect(() => {
     if (page?.route === 'project' && !loading && records?.length) {
       setTourStep('recordTableOverview', false)
     }

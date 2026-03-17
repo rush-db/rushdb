@@ -9,7 +9,7 @@ import {
   UseInterceptors,
   UsePipes
 } from '@nestjs/common'
-import { BadRequestException } from '@nestjs/common'
+import { BadRequestException, HttpException } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 import { parse } from 'papaparse'
@@ -60,6 +60,11 @@ export class ImportController {
       const projectId = request.projectId
       return await this.importService.importRecords(body, projectId, transaction, customTx)
     } catch (error) {
+      // Re-throw HTTP exceptions (e.g. 402 Payment Required from billing limit checks)
+      // directly so the correct status code reaches the client.
+      if (error instanceof HttpException) {
+        throw error
+      }
       throw new BadRequestException('Import failed: ' + error.message, { cause: error })
     }
   }

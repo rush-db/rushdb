@@ -7,26 +7,52 @@ sidebar_position: 5
 
 Here are some concrete prompts you can use with your MCP client to interact with RushDB.
 
+## Recommended starting prompt
+
+Begin every session with:
+
+> Call `getOntologyMarkdown` to load the full database schema.
+
+This gives the agent all label names, field names, value ranges, and relationships before it makes any other call.
+
 ## Listing labels
 
-> Ask the RushDB MCP server to run `FindLabels` with `limit=20`.
+> Ask the RushDB MCP server to run `findLabels` with `limit=20`.
 
 ## Creating and querying records
 
-> Use `CreateRecord` to add a `Task` with data `{"title": "Write docs", "status": "open"}`.
+> Use `createRecord` to add a `Task` with data `{"title": "Write docs", "status": "open"}`.
 
-> Now use `FindRecords` with `where={"status": "open"}` and `orderBy={"createdAt": "desc"}` limit 5.
+> Now use `findRecords` with `where={"status": "open"}` and `orderBy={"createdAt": "desc"}` limit 5.
+
+## Aggregation (counts, sums, grouping)
+
+Before building an aggregation query, load the spec:
+
+> Call `getSearchQuerySpec`, then run `findRecords` with `labels=["Order"]`, `aggregate={"total":{"fn":"sum","field":"amount"}}`, and `groupBy=["status"]`.
+
+**Important:** never include `limit` when `aggregate` is present — it restricts the record scan and produces incorrect totals.
+
+## Filtering with dates
+
+> Call `getSearchQuerySpec` to review date operator syntax, then find all `Event` records where `startDate` is after `2025-01-01`.
 
 ## Setting records
 
-> Use `SetRecord` for `recordId="<id>"` with label `Task` and data `{"title": "Polish docs", "status": "in-progress"}`.
+> Use `setRecord` for `recordId="<id>"` with label `Task` and data `{"title": "Polish docs", "status": "in-progress"}`.
 
 ## Attaching relationships
 
-> Call `AttachRelation` from `sourceId="<sourceId>"` to `targetIds=["<target1>", "<target2>"]` with `relationType="references"`.
+> Call `attachRelation` from `sourceId="<sourceId>"` to `targetIds=["<target1>", "<target2>"]` with `relationType="references"`.
 
-## Transactions
+## Upsert by field
 
-> Start a transaction, create two `Task` records, attach a relation, and commit.
+> Call `createRecord` with `label="User"`, `data={"email":"a@b.com","name":"Ann"}`, and `options={"mergeBy":["email"],"mergeStrategy":"append"}` to upsert by email.
 
-If something goes wrong, you can ask your client to call `TransactionRollback` with the `transactionId` returned from `TransactionBegin`.
+## Bulk import with upsert
+
+> Call `bulkCreateRecords` for `label="Product"` with `data=[{"sku":"A1","price":9.99},{"sku":"A2","price":14.99}]` and `options={"mergeBy":["sku"]}`.
+
+## Export to CSV
+
+> Call `exportRecords` with `labels=["Task"]` and `where={"status":"done"}` to export completed tasks.

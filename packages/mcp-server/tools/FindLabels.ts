@@ -20,7 +20,7 @@ import { db } from '../util/db.js'
  * Accepts standard query shape subset: where, limit, skip, orderBy.
  * (Aggregation & groupBy are not supported for labels.)
  */
-export async function FindLabels(
+export async function findLabels(
   params: {
     where?: Record<string, any>
     limit?: number

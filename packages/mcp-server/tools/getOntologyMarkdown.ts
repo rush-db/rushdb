@@ -14,14 +14,17 @@
 
 import { db } from '../util/db.js'
 
-export async function TransactionCommit(params: { transactionId: string }) {
-  const { transactionId } = params
-
-  const result = await db.tx.commit(transactionId)
-
-  return {
-    success: true,
-    message: `Transaction '${transactionId}' committed successfully`,
-    data: result.data
-  }
+/**
+ * Returns the full graph ontology as compact Markdown tables.
+ * Includes: all labels with record counts, per-label properties with types and
+ * value ranges (min/max for numbers/datetimes, sample values for strings),
+ * and cross-label relationship map.
+ *
+ * Call this at the start of every conversation before constructing queries.
+ * It replaces the need for separate FindLabels + FindProperties + FindRelationships
+ * discovery calls in most cases.
+ */
+export async function getOntologyMarkdown(params: { labels?: string[] } = {}) {
+  const result = await db.ai.getOntologyMarkdown(params)
+  return result.data
 }

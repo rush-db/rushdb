@@ -298,7 +298,7 @@ export function RecordsTable({
     }
   }
 
-  if ((!records || records.length < 1) && !loading) {
+  if (!loading && Array.isArray(records) && records.length === 0) {
     return <NothingFound />
   }
 

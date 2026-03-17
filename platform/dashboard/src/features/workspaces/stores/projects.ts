@@ -26,7 +26,9 @@ export const $workspaceProjects = createAsyncStore({
 export const $projectsQuery = atom<string>('')
 
 export const $filteredProjects = computed([$workspaceProjects, $projectsQuery], (allProjects, q) =>
-  allProjects?.data?.filter((project) => normalizeString(project.name).includes(normalizeString(q)))
+  allProjects?.data?.filter((project) =>
+    normalizeString(project.name ?? '').includes(normalizeString(q) ?? '')
+  )
 )
 
 export const $showUpgrade = computed(

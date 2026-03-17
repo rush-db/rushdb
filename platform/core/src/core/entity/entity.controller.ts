@@ -133,7 +133,7 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard(), EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(editEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
@@ -186,7 +186,7 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard(), EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(editEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))

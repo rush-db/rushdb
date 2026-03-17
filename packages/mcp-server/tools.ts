@@ -15,52 +15,130 @@
 import type { Schema } from 'jsonschema'
 
 export type ToolName =
-  | 'FindLabels'
-  | 'CreateRecord'
-  | 'UpdateRecord'
-  | 'DeleteRecord'
-  | 'FindRecords'
-  | 'GetRecord'
-  | 'GetRecordsByIds'
-  | 'AttachRelation'
-  | 'DetachRelation'
-  | 'FindRelationships'
-  | 'BulkCreateRecords'
-  | 'BulkDeleteRecords'
-  | 'ExportRecords'
-  | 'OpenBrowser'
-  | 'HelpAddToClient'
-  | 'GetQueryBuilderPrompt'
-  | 'SetRecord'
-  | 'FindOneRecord'
-  | 'FindUniqRecord'
-  | 'DeleteRecordById'
-  | 'PropertyValues'
-  | 'FindProperties'
-  | 'FindPropertyById'
-  | 'DeleteProperty'
-  | 'TransactionBegin'
-  | 'TransactionCommit'
-  | 'TransactionRollback'
-  | 'TransactionGet'
-  | 'GetSettings'
+  | 'getOntologyMarkdown'
+  | 'getOntology'
+  | 'findLabels'
+  | 'createRecord'
+  | 'updateRecord'
+  | 'deleteRecord'
+  | 'findRecords'
+  | 'getRecord'
+  | 'getRecordsByIds'
+  | 'attachRelation'
+  | 'detachRelation'
+  | 'findRelationships'
+  | 'bulkCreateRecords'
+  | 'bulkDeleteRecords'
+  | 'exportRecords'
+  | 'helpAddToClient'
+  | 'getQueryBuilderPrompt'
+  | 'getSearchQuerySpec'
+  | 'setRecord'
+  | 'findOneRecord'
+  | 'findUniqRecord'
+  | 'deleteRecordById'
+  | 'propertyValues'
+  | 'findProperties'
+  | 'findPropertyById'
+  | 'deleteProperty'
+
+type SecurityScheme = { type: 'oauth2'; scopes: string[] } | { type: 'noauth' }
+
+type ToolAnnotations = {
+  /** True for tools that only retrieve or compute — never write/delete outside ChatGPT. */
+  readOnlyHint: boolean
+  /** False for tools that only affect RushDB (a bounded target). */
+  openWorldHint: boolean
+  /** True for tools that can delete, overwrite, or have irreversible side effects. */
+  destructiveHint: boolean
+}
 
 type Tool = {
   name: ToolName
   description: string
   inputSchema: Schema
+  annotations: ToolAnnotations
+  securitySchemes?: SecurityScheme[]
 }
+
+// Shared annotation presets
+const READ_ONLY: ToolAnnotations = { readOnlyHint: true, openWorldHint: false, destructiveHint: false }
+const WRITE: ToolAnnotations = { readOnlyHint: false, openWorldHint: false, destructiveHint: false }
+const DESTROY: ToolAnnotations = { readOnlyHint: false, openWorldHint: false, destructiveHint: true }
+
+// Read-only tools advertise both noauth and oauth2 so ChatGPT can call them
+// anonymously and also offer linking for user-specific data.
+const READ_SCHEMES: SecurityScheme[] = [{ type: 'noauth' }, { type: 'oauth2', scopes: ['records:read'] }]
+const WRITE_SCHEMES: SecurityScheme[] = [{ type: 'oauth2', scopes: ['records:write'] }]
 
 export const tools: Tool[] = [
   {
-    name: 'FindLabels',
-    description: 'Find / filter record labels (supports where, limit, skip, orderBy). Superset of GetLabels.',
+    name: 'getOntologyMarkdown',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'STEP 0 — call this ONCE at the start of every conversation before constructing any query. ' +
+      'Returns the complete graph ontology as compact Markdown: all labels with record counts, ' +
+      'all properties per label with their type and value ranges (min/max for numbers/datetimes, ' +
+      'sample values for strings/booleans), and all cross-label relationships with direction. ' +
+      'This single call replaces the need for separate findLabels + findProperties + findRelationships ' +
+      'discovery calls. Use the result to determine exact label names (case-sensitive), field names, ' +
+      'field types, and relationship patterns before building any findRecords query. ' +
+      'Optionally pass `labels` array to narrow the output to specific labels.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        labels: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional: scope ontology to specific labels only. Leave empty to get all labels.'
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'getOntology',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Returns the same graph ontology as getOntologyMarkdown but as structured JSON. ' +
+      'Each item has: label (string), count (number), properties (array with id, name, type, ' +
+      'min/max for numbers/datetimes, values[] for strings/booleans), and relationships ' +
+      '(array with label, type, direction: in|out). ' +
+      'Use this when you need property `id` values to pass to propertyValues for deeper drill-down. ' +
+      'For initial schema orientation, getOntologyMarkdown uses fewer tokens.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        labels: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional: scope ontology to specific labels only. Leave empty to get all labels.'
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'findLabels',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'List or filter available record types (labels) and their counts. ' +
+      'IMPORTANT: getOntologyMarkdown already returns ALL label names in STEP 0 — do NOT call findLabels as a substitute for it. ' +
+      'Only call findLabels when: (a) you need to search/filter labels by name, or (b) getOntologyMarkdown was not called yet. ' +
+      'Call with no arguments to list all labels. ' +
+      'To search by name: where: { name: { $contains: "candidate" } }. ' +
+      'Returns objects with name (case-sensitive — use exact casing in all subsequent calls) and count (number of records). ' +
+      'Pick the best matching label by: exact match > starts-with > substring > semantic similarity, preferring higher count on ties. ' +
+      'State your label assumption briefly ("using DEAL for \'deals\'") and proceed without asking.',
     inputSchema: {
       type: 'object',
       properties: {
         where: {
           type: 'object',
-          description: 'Filter conditions for labels (e.g., by activity flags, counts)'
+          description: 'Filter conditions. Use { name: { $contains: "..." } } to search by label name.'
         },
         limit: { type: 'number', description: 'Maximum number of labels to return' },
         skip: { type: 'number', description: 'Number of labels to skip' },
@@ -74,8 +152,14 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'CreateRecord',
-    description: 'Create a new record in the database',
+    name: 'createRecord',
+    annotations: WRITE,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Create a new record. ' +
+      'Use the exact label casing returned by findLabels. ' +
+      'Set mergeStrategy + mergeBy in options to enable upsert semantics (merge existing vs. replace).',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -106,8 +190,14 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'UpdateRecord',
-    description: 'Update an existing record (partial update)',
+    name: 'updateRecord',
+    annotations: WRITE,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Partially update a record — only fields present in data are changed; all other existing fields are preserved. ' +
+      'Use setRecord instead if you want to replace all fields. ' +
+      'Requires recordId: retrieve it first with findRecords or getRecord if not already known.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -120,8 +210,13 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'DeleteRecord',
-    description: 'Delete a record from the database (alias of DeleteRecordById)',
+    name: 'deleteRecord',
+    annotations: DESTROY,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Delete a single record by ID. Irreversible. ' +
+      'Always confirm with the user before calling. Use findRecords to preview the record first.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -132,14 +227,35 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'FindRecords',
-    description: 'Find records in the database using a search query',
+    name: 'findRecords',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Search records with a structured SearchQuery. ' +
+      '⚠ BEFORE building any query with dates, aggregation, groupBy, relationship traversal, or vector search — call getSearchQuerySpec to load the complete syntax reference. ' +
+      'INTENT: aggregation request (count/total/sum/avg/breakdown/top N by metric) → MUST include aggregate + groupBy. NEVER fetch raw records to count/sum manually. ' +
+      'RESPONSE: { data:[...records], total:N } — for simple "how many" read total directly; no count aggregate needed. ' +
+      'HARD RULES: ' +
+      '(1) NEVER set limit when aggregate is present — restricts the record scan and produces mathematically wrong results. Omit limit for all aggregation queries. ' +
+      '(2) Every fn-based aggregate entry MUST include alias ("$record" for root fields; the $alias declared in where for related nodes).',
+
     inputSchema: {
       type: 'object',
       properties: {
         labels: { type: 'array', items: { type: 'string' }, description: 'Filter by record labels' },
-        where: { type: 'object', description: 'Search conditions for finding records' },
-        limit: { type: 'number', description: 'Maximum number of records to return', default: 10 },
+        where: {
+          type: 'object',
+          description:
+            'Filter conditions. Field names must match exactly what findProperties/getOntologyMarkdown returns. ' +
+            'For the complete operator reference (string/number/boolean/datetime/vector/$exists/$type/logical/$alias/$relation/$id) call getSearchQuerySpec.'
+        },
+        limit: {
+          type: 'number',
+          description:
+            'Max records for listing queries (default 10, max 1000). ' +
+            'NEVER set when aggregate is present — restricts the scan and produces wrong results.',
+          default: 10
+        },
         skip: { type: 'number', description: 'Number of records to skip', default: 0 },
         orderBy: {
           type: 'object',
@@ -148,36 +264,55 @@ export const tools: Tool[] = [
         },
         aggregate: {
           type: 'object',
-          description: 'Aggregation definitions (records only)',
+          description:
+            'Map of output-key → aggregation spec. fn: count|sum|avg|min|max|collect|timeBucket. ' +
+            'alias required on every fn-based entry: "$record" for root fields; $alias from where for related nodes. ' +
+            'Call getSearchQuerySpec for full aggregate/groupBy/collect/timeBucket reference.',
           additionalProperties: {
             type: 'object',
             properties: {
               fn: {
                 type: 'string',
-                description: 'Aggregation function (count,sum,avg,min,max,timeBucket)'
+                enum: ['count', 'sum', 'avg', 'min', 'max', 'collect', 'timeBucket'],
+                description: 'Aggregation function'
               },
-              field: { type: 'string', description: 'Field to aggregate' },
-              alias: { type: 'string', description: 'Optional alias override' },
+              field: {
+                type: 'string',
+                description: 'Field to aggregate (required for all fns except count)'
+              },
+              alias: {
+                type: 'string',
+                description: '"$record" for root-label fields; the $alias value from where for related nodes'
+              },
+              precision: { type: 'number', description: 'Decimal places for avg results' },
+              unique: { type: 'boolean', description: 'For collect: deduplicate (default true)' },
               granularity: {
                 type: 'string',
-                description: 'For timeBucket, the time granularity (e.g., day, week, month, quarter, year)'
+                enum: ['day', 'week', 'month', 'quarter', 'year'],
+                description: 'For timeBucket: time bucket size'
               }
             },
-            required: ['fn']
+            required: ['fn', 'alias']
           }
         },
         groupBy: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Fields to group by (records only)'
+          description:
+            'Two modes: (A) Dimensional — "$alias.propertyName" strings, one row per distinct value; ' +
+            '(B) Self-group — aggregation key names, collapses to one row. Call getSearchQuerySpec for full reference.'
         }
       },
       required: []
     }
   },
   {
-    name: 'GetRecord',
-    description: 'Get a specific record by ID',
+    name: 'getRecord',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Fetch a single record by its ID. Use when you already have the ID from a previous findRecords or findOneRecord call.',
+
     inputSchema: {
       type: 'object',
       properties: { recordId: { type: 'string', description: 'ID of the record to retrieve' } },
@@ -185,8 +320,12 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'GetRecordsByIds',
-    description: 'Get multiple records by their IDs',
+    name: 'getRecordsByIds',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Fetch multiple records by their IDs in one call. Use after collecting IDs from a findRecords query.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -200,8 +339,13 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'AttachRelation',
-    description: 'Create a relationship between records (single or multiple targets)',
+    name: 'attachRelation',
+    annotations: WRITE,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Create a directed or bidirectional relationship between records. ' +
+      'sourceId and targetId/targetIds must already exist — use findRecords to resolve records by name/attribute first.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -228,8 +372,13 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'DetachRelation',
-    description: 'Remove a relationship between records (single or multiple targets)',
+    name: 'detachRelation',
+    annotations: WRITE,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Remove a relationship between records. ' +
+      'Use findRelationships to inspect existing relationships and confirm the correct type/direction before detaching.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -256,8 +405,15 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'FindRelationships',
-    description: 'Find relationships in the database',
+    name: 'findRelationships',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Discover and traverse relationships between records. Use this tool in two scenarios: ' +
+      '(1) Multi-hop path discovery — fetch a sample record ID, then call findRelationships filtered by that ID to reveal which labels are adjacent; repeat to trace the full path before building a nested findRecords where clause. ' +
+      '(2) Direction/type filtering — when the user specifies a relationship type or direction that cannot be expressed in a findRecords where block. ' +
+      'Does NOT support aggregate or groupBy — use findRecords for aggregations across related labels.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -274,8 +430,14 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'BulkCreateRecords',
-    description: 'Create multiple records in a single operation',
+    name: 'bulkCreateRecords',
+    annotations: WRITE,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Insert multiple records of the same label in one call. ' +
+      'Set mergeStrategy ("append" to keep existing unspecified fields, "rewrite" to replace) and mergeBy (fields to match on) in options to enable upsert semantics. ' +
+      'Use the exact label casing returned by findLabels.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -310,8 +472,13 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'BulkDeleteRecords',
-    description: 'Delete multiple records matching a query',
+    name: 'bulkDeleteRecords',
+    annotations: DESTROY,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Delete all records matching a query. IRREVERSIBLE and potentially high-impact. ' +
+      'REQUIRED: always call findRecords with the same labels+where first to show the user a preview, then ask for explicit confirmation before calling this tool.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -323,8 +490,14 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'ExportRecords',
-    description: 'Export records to CSV format',
+    name: 'exportRecords',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Export matching records as a CSV file. ' +
+      'Accepts the same labels/where/orderBy filters as findRecords. ' +
+      'Call findProperties first to know available field names if constructing a where filter.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -341,28 +514,43 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'OpenBrowser',
-    description: 'Open a web browser to a specific URL',
-    inputSchema: {
-      type: 'object',
-      properties: { url: { type: 'string', description: 'The URL to open' } },
-      required: ['url']
-    }
-  },
-  {
-    name: 'HelpAddToClient',
+    name: 'helpAddToClient',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
     description: 'Help the user add the RushDB MCP server to their MCP client',
     inputSchema: { type: 'object', properties: {}, required: [] }
   },
   {
-    name: 'GetQueryBuilderPrompt',
+    name: 'getQueryBuilderPrompt',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
     description:
-      'Return the RushDB Query Builder system prompt. Use this if your MCP client does not support Prompts API.',
+      'Return the RushDB system prompt. Use this if your MCP client does not support the Prompts API.',
     inputSchema: { type: 'object', properties: {}, required: [] }
   },
   {
-    name: 'SetRecord',
-    description: 'Replace all fields of a record with provided values',
+    name: 'getSearchQuerySpec',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Returns the complete RushDB SearchQuery specification as a focused reference document. ' +
+      'Covers: all WHERE operators (string/number/boolean/datetime component objects/vector/$exists/$type), ' +
+      'relationship traversal syntax ($alias/$relation/$id), logical grouping ($and/$or/$not/$nor/$xor), ' +
+      'all aggregate functions (count/sum/avg/min/max/collect/timeBucket), both groupBy modes (dimensional + self-group), ' +
+      'late-ordering rules, COLLECT nesting, limit rules by query mode, multi-hop path discovery, ' +
+      'enum normalization, validation checklist, and annotated query examples. ' +
+      'CALL THIS before building any findRecords query that involves dates, aggregation, groupBy, relationship traversal, or vector search. ' +
+      'Do not guess operator syntax — use this spec as the source of truth.',
+    inputSchema: { type: 'object', properties: {}, required: [] }
+  },
+  {
+    name: 'setRecord',
+    annotations: WRITE,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Replace ALL fields of a record with the provided data object — any existing fields not in data are deleted. ' +
+      'Use updateRecord instead for partial/merge updates that preserve unspecified fields.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -375,8 +563,14 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'FindOneRecord',
-    description: 'Find a single record that matches the given search criteria',
+    name: 'findOneRecord',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Return the first record matching the query — useful for entity resolution probes. ' +
+      'Call with where: { <nameField>: { $contains: "..." } } and a small limit to resolve a named entity to its ID before using it in a relationship filter. ' +
+      'Prefer this over findRecords when you need exactly one representative match rather than a full list.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -387,8 +581,14 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'FindUniqRecord',
-    description: 'Find a unique record that matches the given search criteria',
+    name: 'findUniqRecord',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Return the single record that uniquely matches the query — throws if zero or more than one record matches. ' +
+      'Use for unique-key lookups (email, code, slug) where exactly one result is expected. ' +
+      'Use findOneRecord instead when you only want the first match and duplicates are acceptable.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -399,8 +599,13 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'DeleteRecordById',
-    description: 'Delete a record by its ID',
+    name: 'deleteRecordById',
+    annotations: DESTROY,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Delete a single record by ID. Irreversible. ' +
+      'Always confirm with the user before calling. Use getRecord to preview the record if needed.',
+
     inputSchema: {
       type: 'object',
       properties: {
@@ -411,23 +616,44 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'PropertyValues',
-    description: 'Get values for a specific property',
+    name: 'propertyValues',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Get statistics or distinct values for a specific property, identified by the `id` field returned from findProperties. ' +
+      'What this tool returns depends on the property type:\n' +
+      '  • number / datetime → returns { min, max } — use this to answer range, min/max, or spread questions for numeric or date fields. No findRecords aggregation needed.\n' +
+      '  • string / boolean  → returns a list of all distinct values — use this to canonicalize filter values before querying.\n' +
+      'Workflow for range/min/max questions: (1) findLabels, (2) findProperties to find the field and get its id and type, (3) call this tool with that id if type is number or datetime.',
     inputSchema: {
       type: 'object',
       properties: {
-        propertyId: { type: 'string', description: 'ID of the property to get values for' },
-        query: { type: 'string', description: 'Optional search query for filtering values' },
-        orderBy: { type: 'string', enum: ['asc', 'desc'], description: 'Ordering for value results' },
-        limit: { type: 'number', description: 'Max number of values to return' },
-        skip: { type: 'number', description: 'Number of values to skip' }
+        propertyId: {
+          type: 'string',
+          description: 'The `id` field from the property object returned by findProperties.'
+        },
+        query: { type: 'string', description: 'Optional text filter — only applies to string properties.' },
+        orderBy: { type: 'string', enum: ['asc', 'desc'], description: 'Sort order for string value lists.' },
+        limit: { type: 'number', description: 'Max number of string values to return.' },
+        skip: { type: 'number', description: 'Number of string values to skip.' }
       },
       required: ['propertyId']
     }
   },
   {
-    name: 'FindProperties',
-    description: 'Find properties in the database using a search query',
+    name: 'findProperties',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Discover the field names, types, and IDs available on a record label. ' +
+      'Always call this before using field names in any query — never guess or invent field names. ' +
+      'Filter by label using: where: { label: { $in: ["LABEL_NAME"] } }. ' +
+      'Each returned property object has: id (string), name (string), type (string | number | boolean | datetime | vector | null). ' +
+      'Use the `name` field as the field name in where/orderBy/groupBy clauses. ' +
+      'Use the `id` field as the `propertyId` argument to propertyValues. ' +
+      'After calling this tool, decide the next step based on the field type: ' +
+      'number or datetime → call propertyValues(propertyId) to get { min, max } for range questions, OR use findRecords with aggregate fn:min/max; ' +
+      'string or boolean → call propertyValues(propertyId) to get distinct values before filtering.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -444,8 +670,13 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'FindPropertyById',
-    description: 'Find a specific property by ID',
+    name: 'findPropertyById',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Fetch the metadata (name, type, label) of a single property by its ID. ' +
+      'Use when you already have a propertyId and need to re-confirm its type before calling propertyValues.',
+
     inputSchema: {
       type: 'object',
       properties: { propertyId: { type: 'string', description: 'ID of the property to retrieve' } },
@@ -453,53 +684,17 @@ export const tools: Tool[] = [
     }
   },
   {
-    name: 'DeleteProperty',
-    description: 'Delete a property from the database',
+    name: 'deleteProperty',
+    annotations: DESTROY,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Permanently delete a property and all its values from every record that has it. Irreversible. ' +
+      'Confirm with the user before calling.',
+
     inputSchema: {
       type: 'object',
       properties: { propertyId: { type: 'string', description: 'ID of the property to delete' } },
       required: ['propertyId']
     }
-  },
-  {
-    name: 'TransactionBegin',
-    description: 'Begin a new database transaction',
-    inputSchema: {
-      type: 'object',
-      properties: { ttl: { type: 'number', description: 'TTL in milliseconds' } },
-      required: []
-    }
-  },
-  {
-    name: 'TransactionCommit',
-    description: 'Commit a database transaction',
-    inputSchema: {
-      type: 'object',
-      properties: { transactionId: { type: 'string', description: 'Transaction ID' } },
-      required: ['transactionId']
-    }
-  },
-  {
-    name: 'TransactionRollback',
-    description: 'Rollback a database transaction',
-    inputSchema: {
-      type: 'object',
-      properties: { transactionId: { type: 'string', description: 'Transaction ID' } },
-      required: ['transactionId']
-    }
-  },
-  {
-    name: 'TransactionGet',
-    description: 'Get information about a transaction',
-    inputSchema: {
-      type: 'object',
-      properties: { transactionId: { type: 'string', description: 'Transaction ID' } },
-      required: ['transactionId']
-    }
-  },
-  {
-    name: 'GetSettings',
-    description: 'Get the current database settings and configuration',
-    inputSchema: { type: 'object', properties: {}, required: [] }
   }
-] as const satisfies { name: ToolName; description: string; inputSchema: Schema }[]
+] as const satisfies Array<Tool>

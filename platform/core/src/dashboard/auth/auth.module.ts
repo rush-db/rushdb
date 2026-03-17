@@ -45,6 +45,6 @@ import { EncryptionService } from './encryption/encryption.service'
     GithubOAuthService
   ],
   controllers: [AuthController, GoogleOAuthController, GithubOAuthController],
-  exports: [EncryptionService, AuthService, CaptchaModule]
+  exports: [EncryptionService, AuthService, CaptchaModule, JwtModule]
 })
 export class AuthModule {}

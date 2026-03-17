@@ -16,7 +16,7 @@
 
 import { db } from '../util/db.js'
 
-export async function GetRecordsByIds(params: { recordIds: string[] }) {
+export async function getRecordsByIds(params: { recordIds: string[] }) {
   const { recordIds } = params
   if (!Array.isArray(recordIds) || recordIds.length === 0) {
     return { success: false, message: 'recordIds must be a non-empty array', data: [] }

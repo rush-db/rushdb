@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function FindRecords(params: {
+export async function findRecords(params: {
   labels?: string[]
   where?: Record<string, any>
   limit?: number
@@ -23,7 +23,7 @@ export async function FindRecords(params: {
   aggregate?: Record<string, { fn: string; field?: string; alias?: string; where?: any }>
   groupBy?: string[]
 }) {
-  const { labels, where, limit = 10, skip = 0, orderBy, aggregate, groupBy } = params
+  const { labels, where, limit, skip, orderBy, aggregate, groupBy } = params
 
   const searchQuery: any = {}
   if (labels && labels.length > 0) searchQuery.labels = labels
@@ -41,5 +41,8 @@ export async function FindRecords(params: {
     return result
   }
 
-  return result.data.map((record: any) => record.data)
+  return {
+    data: result.data.map((record: any) => record.data),
+    total: result.total
+  }
 }

@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function DeleteRecord(params: { recordId: string; transactionId?: string }) {
+export async function deleteRecord(params: { recordId: string; transactionId?: string }) {
   const { recordId, transactionId } = params
 
   await db.records.deleteById(recordId, transactionId)

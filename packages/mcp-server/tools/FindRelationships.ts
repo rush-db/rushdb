@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function FindRelationships(params: {
+export async function findRelationships(params: {
   where?: Record<string, any>
   limit?: number
   skip?: number

@@ -37,7 +37,10 @@
   "dependencies": {
     "@rushdb/javascript-sdk": "workspace:*",
     "@modelcontextprotocol/sdk": "1.27.1",
+    "@hono/node-server": "^1.13.0",
     "dotenv": "^16.4.7",
+    "hono": "^4.7.0",
+    "jose": "^5.9.0",
     "jsonschema": "^1.5.0"
   },
   "devDependencies": {

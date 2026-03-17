@@ -14,15 +14,16 @@
 
 import { db } from '../util/db.js'
 
-export async function TransactionBegin(params: { ttl?: number }) {
-  const { ttl } = params
-
-  const config = ttl ? { ttl } : undefined
-  const transaction = await db.tx.begin(config)
-
-  return {
-    success: true,
-    transactionId: transaction.id,
-    message: `Transaction started with ID: ${transaction.id}`
-  }
+/**
+ * Returns the full graph ontology as structured JSON.
+ * Each item contains: label name, record count, properties (with id, name, type,
+ * value ranges for numbers/datetimes, sample values for strings), and cross-label
+ * relationships with direction (in/out).
+ *
+ * Use this when you need property `id` values to pass to PropertyValues for deeper drill-down.
+ * For initial schema orientation, prefer GetOntologyMarkdown (token-efficient).
+ */
+export async function getOntology(params: { labels?: string[] } = {}) {
+  const result = await db.ai.getOntology(params)
+  return result.data
 }

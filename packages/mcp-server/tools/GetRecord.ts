@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function GetRecord(params: { recordId: string }) {
+export async function getRecord(params: { recordId: string }) {
   const { recordId } = params
 
   const result = await db.records.findById(recordId)

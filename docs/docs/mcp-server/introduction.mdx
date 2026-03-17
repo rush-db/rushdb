@@ -15,19 +15,26 @@ With the MCP server you can:
 - Perform flexible queries with filtering, ordering, pagination, and aggregations
 - Run bulk operations
 - Export data to CSV
-- Manage transactions
 
 This section covers setup, configuration, available tools, examples, and troubleshooting.
 
 > Looking for SDKs instead? See the TypeScript SDK and Python SDK sections in the sidebar.
 
-## Discovery-first Query Builder (Prompts)
+## Mandatory workflow
 
-The MCP server exposes a built-in system prompt via the MCP Prompts API:
+The MCP server ships with a built-in system prompt (`instructions` in the MCP initialize response) that enforces a four-step workflow:
+
+1. **ONTOLOGY** — call `getOntologyMarkdown` first. Returns all label names (case-sensitive), field names and types, value ranges, and the full relationship map in a single call.
+2. **INTENT** — classify the request: aggregation, listing, or mutation.
+3. **QUERY SPEC** — before any `findRecords` call that uses dates, aggregation, `groupBy`, relationship traversal, or vector search, call `getSearchQuerySpec`. It returns the full operator reference, both `groupBy` modes, limit rules, and annotated examples.
+4. **BUILD** — use only label and field names returned from discovery. Labels are case-sensitive. Never invent names or operators.
+
+This workflow prevents hallucinated labels, wrong operator names (e.g. MongoDB/SQL operators that don't exist in RushDB), and common pagination errors with aggregations.
+
+## Prompts API
+
+The system prompt is also accessible via the MCP Prompts API:
 
 - Name: `rushdb.queryBuilder`
-- Goal: ensure the agent discovers actual labels/properties first (FindLabels/FindProperties), then builds validated SearchQuery objects (with correct use of where/orderBy/aggregate/groupBy) before calling find-related tools.
 
-MCP clients that support Prompts should fetch this prompt at session start and set it as the system message. This makes natural language requests like “How many workers in my company?” resolve reliably without hallucinating labels or fields.
-
-If your client doesn’t support Prompts yet, call the utility tool `GetQueryBuilderPrompt` and use the returned text as your session’s system message.
+Clients that support Prompts can fetch it at session start and inject it as the system message. Clients that do not yet support it can call the `getQueryBuilderPrompt` tool for the same text.

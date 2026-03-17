@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function DetachRelation(params: {
+export async function detachRelation(params: {
   sourceId: string
   targetId?: string
   targetIds?: string[]

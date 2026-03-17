@@ -2,14 +2,6 @@ import { Injectable } from '@nestjs/common'
 
 import { RUSHDB_LABEL_PROPERTY, RUSHDB_KEY_PROJECT_ID, RUSHDB_LABEL_RECORD } from '@/core/common/constants'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
-import {
-  RUSHDB_LABEL_PROJECT,
-  RUSHDB_LABEL_TOKEN,
-  RUSHDB_LABEL_USER,
-  RUSHDB_LABEL_WORKSPACE,
-  RUSHDB_RELATION_CONTAINS,
-  RUSHDB_RELATION_HAS_ACCESS
-} from '@/dashboard/common/constants'
 import { QueryBuilder } from '@/database/QueryBuilder'
 
 @Injectable()
@@ -60,83 +52,6 @@ export class ProjectQueryService {
     return queryBuilder.getQuery()
   }
 
-  removeProjectNodeQuery() {
-    const queryBuilder = new QueryBuilder()
-
-    queryBuilder
-      .append(`MATCH (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })`)
-      .append(`OPTIONAL MATCH (project)<-[:${RUSHDB_RELATION_HAS_ACCESS}]-(token:${RUSHDB_LABEL_TOKEN})`)
-      .append(`DETACH DELETE project, token`)
-
-    return queryBuilder.getQuery()
-  }
-
-  projectRelatedUserIdsQuery() {
-    const queryBuilder = new QueryBuilder()
-
-    queryBuilder
-      .append(
-        `MATCH (project:${RUSHDB_LABEL_PROJECT} {id: $projectId})<-[:${RUSHDB_RELATION_HAS_ACCESS} { role: $role }]-(relatedUser:${RUSHDB_LABEL_USER})`
-      )
-      .append(`WITH relatedUser, collect(DISTINCT relatedUser.id) as usersId`)
-      .append(`RETURN usersId`)
-
-    return queryBuilder.getQuery()
-  }
-
-  grantUserAccessQuery() {
-    const queryBuilder = new QueryBuilder()
-
-    queryBuilder
-      .append(`MATCH (user:${RUSHDB_LABEL_USER} { id: $userId })`)
-      .append(`MATCH (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })`)
-      .append(
-        `CREATE (project)<-[newRel:${RUSHDB_RELATION_HAS_ACCESS} { since: $since, role: $role }]-(user)`
-      )
-
-    return queryBuilder.getQuery()
-  }
-
-  revokeUserAccessQuery() {
-    const queryBuilder = new QueryBuilder()
-
-    queryBuilder
-      .append(`MATCH (user:${RUSHDB_LABEL_USER} { id: $userId })`)
-      .append(
-        `OPTIONAL MATCH (project:${RUSHDB_LABEL_PROJECT} { id: $projectId })<-[oldRel:${RUSHDB_RELATION_HAS_ACCESS}]-(user)`
-      )
-      .append(`DELETE oldRel`)
-
-    return queryBuilder.getQuery()
-  }
-
-  getProjectsByWorkspaceId() {
-    const queryBuilder = new QueryBuilder()
-
-    queryBuilder
-      .append(
-        `MATCH (o:${RUSHDB_LABEL_WORKSPACE} { id: $id })-[:${RUSHDB_RELATION_CONTAINS}]->(p:${RUSHDB_LABEL_PROJECT})`
-      )
-      .append(`WHERE p.deleted IS null`)
-      .append(`RETURN collect(DISTINCT p) as projects`)
-
-    return queryBuilder.getQuery()
-  }
-
-  getUserRelatedProjects() {
-    const queryBuilder = new QueryBuilder()
-
-    queryBuilder
-      .append(
-        `MATCH (w:${RUSHDB_LABEL_WORKSPACE} { id: $id })-[:${RUSHDB_RELATION_CONTAINS}]->(p:${RUSHDB_LABEL_PROJECT})`
-      )
-      .append(`WHERE p.deleted IS null`)
-      .append(`MATCH (u:${RUSHDB_LABEL_USER} { id: $userId })-[:${RUSHDB_RELATION_HAS_ACCESS}]->(p)`)
-      .append(`RETURN collect(DISTINCT p) as projects`)
-
-    return queryBuilder.getQuery()
-  }
-
   getProjectStatsById() {
     const queryBuilder = new QueryBuilder()
 
@@ -150,20 +65,6 @@ export class ProjectQueryService {
       .append(`   RETURN count(r) AS entities`)
       .append(`}`)
       .append(`RETURN properties, entities`)
-
-    return queryBuilder.getQuery()
-  }
-
-  getAttachUserToProjectQuery(): string {
-    const queryBuilder = new QueryBuilder()
-
-    queryBuilder
-      .append(
-        `MATCH (u:${RUSHDB_LABEL_USER} { id: $userId }), (p:${RUSHDB_LABEL_PROJECT} { id: $projectId })`
-      )
-      .append(`MERGE (u)-[r:${RUSHDB_RELATION_HAS_ACCESS}]->(p)`)
-      .append(`ON CREATE SET r.since = $since, r.role = $role`)
-      .append(`ON MATCH  SET r.since = $since, r.role = $role`)
 
     return queryBuilder.getQuery()
   }

@@ -1,39 +1,38 @@
+import type { UserRow } from '@/database/sql/schema/types'
+
 import { IUserClaims } from './interfaces/user-claims.interface'
 import { IUserProperties } from './interfaces/user-properties.interface'
-import { TUserInstance, TUserStatuses } from './model/user.interface'
+import { TUserStatuses } from './model/user.interface'
 
 export class User {
-  constructor(private readonly node: TUserInstance) {}
+  constructor(private readonly row: UserRow) {}
 
   getId(): string {
-    return this.node.dataValues.id
+    return this.row.id
   }
 
   getPassword(): string {
-    return this.node.dataValues.password
+    return this.row.password
   }
 
   getGoogleAuth(): string {
-    return this.node.dataValues.googleAuth
+    return this.row.googleAuth
   }
 
   getGithubAuth(): string {
-    return this.node.dataValues.githubAuth
+    return this.row.githubAuth
   }
 
   getStatus(): TUserStatuses {
-    return this.node.dataValues.status
+    return this.row.status as TUserStatuses
   }
 
   getClaims(): IUserClaims {
-    const { id } = this.node.dataValues
-
-    return { id }
+    return { id: this.row.id }
   }
 
   toJson(): IUserProperties {
-    const { password, googleAuth, githubAuth, ...properties } = this.node.dataValues
-
-    return properties as unknown as IUserProperties
+    const { password, googleAuth, githubAuth, ...rest } = this.row
+    return rest as unknown as IUserProperties
   }
 }

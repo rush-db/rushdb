@@ -26,26 +26,16 @@ export class CliService {
   })
   async createUser(login: string, password: string): Promise<void> {
     const isSelfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
-    const session = this.neogmaService.createSession('cli-create-user')
-    const transaction = session.beginTransaction()
 
     try {
       if (isSelfHosted) {
-        await this.userService.create({ login, password, confirmed: true }, transaction)
+        await this.userService.create({ login, password, confirmed: true })
         Logger.log(`User created successfully: ${login}`)
       } else {
         Logger.error('CLI Error: Creating user within CLI in managed setup is not allowed')
-        await transaction.rollback()
       }
     } catch (error) {
-      await transaction.rollback()
       Logger.error('Error creating user:', error.message)
-    } finally {
-      if (transaction.isOpen()) {
-        await transaction.commit()
-        await transaction.close()
-      }
-      await session.close()
     }
   }
 
@@ -55,34 +45,23 @@ export class CliService {
   })
   async updatePassword(login: string, newPassword: string): Promise<void> {
     const isSelfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
-    const session = this.neogmaService.createSession('cli-update-password')
-    const transaction = session.beginTransaction()
 
     try {
       if (isSelfHosted) {
-        const user = await this.userService.find(login, transaction)
+        const user = await this.userService.find(login)
         if (!user) {
           Logger.error(`User not found: ${login}`)
-          await transaction.rollback()
           return
         }
 
         const newPasswordEncrypted = await this.encryptionService.hash(newPassword)
-        await this.userService.update(user.getId(), { password: newPasswordEncrypted }, transaction)
+        await this.userService.update(user.getId(), { password: newPasswordEncrypted })
         Logger.log(`Password updated successfully for user: ${login}`)
       } else {
         Logger.error('CLI Error: Updating password within CLI in managed setup is not allowed')
-        await transaction.rollback()
       }
     } catch (error) {
-      await transaction.rollback()
       Logger.error('Error updating password:', error.message)
-    } finally {
-      if (transaction.isOpen()) {
-        await transaction.commit()
-        await transaction.close()
-      }
-      await session.close()
     }
   }
 

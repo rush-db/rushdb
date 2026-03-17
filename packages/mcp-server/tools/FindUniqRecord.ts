@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function FindUniqRecord(params: { labels?: string[]; where?: Record<string, any> }) {
+export async function findUniqRecord(params: { labels?: string[]; where?: Record<string, any> }) {
   const { labels, where } = params
 
   const result = await db.records.findUniq({

@@ -117,7 +117,7 @@ function parseAggregate(aggregate: Aggregate, aliasesMap: AliasesMap, ctx: Aggre
   }
 }
 
-export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap, groupBy: string[]) {
+export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap, groupBy: string[] = []) {
   if (isObject(aggregate) && Object.keys(aggregate).length) {
     const isNested = isNestedAggregate(aggregate)
 

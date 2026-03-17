@@ -14,7 +14,7 @@
 
 import { db } from '../util/db.js'
 
-export async function FindPropertyById(params: { propertyId: string }) {
+export async function findPropertyById(params: { propertyId: string }) {
   const { propertyId } = params
 
   const result = await db.properties.findById(propertyId)

@@ -23,6 +23,7 @@ import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { UserService } from '@/dashboard/user/user.service'
 import { EditWorkspaceDto } from '@/dashboard/workspace/dto/edit-workspace.dto'
+import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
 import { InviteToWorkspaceDto } from '@/dashboard/workspace/dto/invite-to-workspace.dto'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 import { RemovePendingInviteDto } from '@/dashboard/workspace/dto/remove-pending-invite.dto'
@@ -42,25 +43,19 @@ export class WorkspaceController {
     private readonly workspaceService: WorkspaceService
   ) {}
 
-  // Don't allow to create more than 1 org. Temporary disabled (!)
-  // @Post()
-  // @ApiTags('Workspaces')
-  // @ApiBearerAuth()
-  // @HttpCode(HttpStatus.CREATED)
-  // @UseGuards(JwtAuthGuard, WorkspacesCountGuard)
-  // async create(
-  //     @Body() workspaceProperties: CreateWorkspaceDto,
-  //     @AuthUser() { id: userId }: IUserClaims,
-  //     @TransactionDecorator() transaction: Transaction
-  // ): Promise<IWorkspaceProperties> {
-  //     const workspace = await this.workspaceService.createWorkspace(
-  //         workspaceProperties,
-  //         userId,
-  //         transaction
-  //     );
-  //
-  //     return workspace.toJson();
-  // }
+  @Post()
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard()
+  @HttpCode(HttpStatus.CREATED)
+  async create(
+    @Body() workspaceProperties: CreateWorkspaceDto,
+    @AuthUser() { id: userId }: IUserClaims,
+    @TransactionDecorator() transaction: Transaction
+  ): Promise<IWorkspaceProperties> {
+    const workspace = await this.workspaceService.createWorkspace(workspaceProperties, userId, transaction)
+    return workspace.toJson()
+  }
 
   @Get(':id')
   @ApiParam({
