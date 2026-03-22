@@ -85,7 +85,6 @@ RushDB supports a wide range of data types to accommodate diverse data needs:
 | `datetime` | ISO 8601 format, including timezones         | `"2012-12-21T18:29:37Z"`   |
 | `boolean`  | True or false values                         | `true`, `false`            |
 | `null`     | Explicit null value                          | `null`                     |
-| `vector`   | Arrays of floating-point numbers or integers | `[0.99070, 0.78912, 1, 0]` |
 
 ### Arrays
 

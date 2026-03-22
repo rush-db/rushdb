@@ -39,7 +39,6 @@ def import_csv(
 - `data` (str): CSV data to import as a string
 - `options` (Optional[Dict[str, bool]]): Import options
   - `suggestTypes` (bool, **default: `True`**): Automatically infers data types for properties. Set to `False` to disable type inference and store all values as strings
-  - `castNumberArraysToVectors` (bool): When true, converts numeric arrays to vector type
   - `convertNumericValuesToNumbers` (bool): When true, converts string numbers to number type
   - `capitalizeLabels` (bool): When true, converts all labels to uppercase
   - `relationshipType` (str): Default relationship type between nodes
@@ -121,7 +120,6 @@ def create_many(
 - `data` (Union[Dict[str, Any], List[Dict[str, Any]]]): JSON data to import as dict or find of dicts
 - `options` (Optional[Dict[str, Any]]): Import options
   - `suggestTypes` (bool, **default: `True`**): Automatically infers data types for properties. Set to `False` to disable type inference and store all values as strings
-  - `castNumberArraysToVectors` (bool): When true, converts numeric arrays to vector type
   - `convertNumericValuesToNumbers` (bool): When true, converts string numbers to number type
   - `capitalizeLabels` (bool): When true, converts all labels to uppercase
   - `relationshipType` (str): Default relationship type between nodes
@@ -203,7 +201,6 @@ records = client.records.create_many(
 - `boolean`: `True`/`False` values
 - `null`: `None` values
 - `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
-- `vector`: Arrays of numbers (when `castNumberArraysToVectors` is `True`)
 
 To disable automatic type inference and store all values as strings, you must **explicitly set `suggestTypes=False`** in your options dictionary.
 

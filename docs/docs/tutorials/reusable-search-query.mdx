@@ -4,7 +4,7 @@ title: Reusable SearchQuery
 description: Harness the power of RushDB's fractal API architecture through its reusable SearchQuery pattern
 ---
 
-import Tabs from '@theme/Tabs';
+import Tabs from '@site/src/components/LanguageTabs';
 import TabItem from '@theme/TabItem';
 
 # Reusable SearchQuery
@@ -83,7 +83,7 @@ result = db.records.find({
 products = result.data
 ```
   </TabItem>
-  <TabItem value="rest" label="REST API">
+  <TabItem value="shell" label="shell">
 ```bash
 # Find all active PRODUCT records with price between $10-$50
 curl -X POST "https://api.rushdb.com/api/v1/records/search" \
@@ -132,7 +132,7 @@ db.records.delete({
 })
 ```
   </TabItem>
-  <TabItem value="rest" label="REST API">
+  <TabItem value="shell" label="shell">
 ```bash
 # Delete discontinued products with zero inventory
 curl -X PUT "https://api.rushdb.com/api/v1/records/delete" \
@@ -180,7 +180,7 @@ created_relationships = db.relationships.find({
 })
 ```
   </TabItem>
-  <TabItem value="rest" label="REST API">
+  <TabItem value="shell" label="shell">
 ```bash
 # Find all CREATED relationships by users in the admin group
 curl -X POST "https://api.rushdb.com/api/v1/relationships/search" \
@@ -222,7 +222,7 @@ labels = db.labels.find({
 })
 ```
   </TabItem>
-  <TabItem value="rest" label="REST API">
+  <TabItem value="shell" label="shell">
 ```bash
 # Find all labels used on records in North America region
 curl -X POST "https://api.rushdb.com/api/v1/labels/search" \
@@ -262,7 +262,7 @@ product_props = db.properties.find({
 })
 ```
   </TabItem>
-  <TabItem value="rest" label="REST API">
+  <TabItem value="shell" label="shell">
 ```bash
 # Get all string properties used on PRODUCT records
 curl -X POST "https://api.rushdb.com/api/v1/properties/search" \

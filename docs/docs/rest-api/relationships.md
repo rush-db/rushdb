@@ -46,13 +46,16 @@ Notes on many-to-many/cartesian creation
 
 ### Example Request
 
-```json
-{
-  "source": { "label": "USER", "key": "id", "where": { "tenantId": "ACME" } },
-  "target": { "label": "ORDER", "key": "userId", "where": { "tenantId": "ACME" } },
-  "type": "ORDERED",
-  "direction": "out"
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/relationships/create-many \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "source": {"label": "USER", "key": "id", "where": {"tenantId": "ACME"}},
+    "target": {"label": "ORDER", "key": "userId", "where": {"tenantId": "ACME"}},
+    "type": "ORDERED",
+    "direction": "out"
+  }'
 ```
 
 ### Response
@@ -64,6 +67,7 @@ Notes on many-to-many/cartesian creation
     "message": "Relations have been successfully created"
   }
 }
+```
 
 ## Delete Many Relationships (by key match or filters)
 
@@ -85,13 +89,16 @@ Deletes relationships in bulk that match the provided source/target selectors. T
 
 ### Example Request
 
-```json
-{
-  "source": { "label": "USER", "key": "id", "where": { "tenantId": "ACME" } },
-  "target": { "label": "ORDER", "key": "userId", "where": { "tenantId": "ACME" } },
-  "type": "ORDERED",
-  "direction": "out"
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/relationships/delete-many \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "source": {"label": "USER", "key": "id", "where": {"tenantId": "ACME"}},
+    "target": {"label": "ORDER", "key": "userId", "where": {"tenantId": "ACME"}},
+    "type": "ORDERED",
+    "direction": "out"
+  }'
 ```
 
 ### Response
@@ -103,7 +110,6 @@ Deletes relationships in bulk that match the provided source/target selectors. T
     "message": "Relations have been successfully deleted"
   }
 }
-```
 ```
 
 ## Create Relationship
@@ -130,24 +136,27 @@ Creates one or more [relationships](../concepts/relationships.md) from a source 
 
 ### Example Request - Single Target
 
-```json
-{
-  "targetIds": "018e4c71-f35a-7000-89cd-850db63a1e78",
-  "type": "WORKS_FOR"
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/$ENTITY_ID/relationships \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"targetIds": "018e4c71-f35a-7000-89cd-850db63a1e78", "type": "WORKS_FOR"}'
 ```
 
 ### Example Request - Multiple Targets
 
-```json
-{
-  "targetIds": [
-    "018e4c71-f35a-7000-89cd-850db63a1e78",
-    "018e4c71-f35a-7000-89cd-850db63a1e79"
-  ],
-  "type": "KNOWS",
-  "direction": "out"
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/$ENTITY_ID/relationships \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "targetIds": [
+      "018e4c71-f35a-7000-89cd-850db63a1e78",
+      "018e4c71-f35a-7000-89cd-850db63a1e79"
+    ],
+    "type": "KNOWS",
+    "direction": "out"
+  }'
 ```
 
 ### Response
@@ -235,23 +244,27 @@ Deletes one or more relationships from a source record to one or more target rec
 
 ### Example Request - Delete All Relationship Types
 
-```json
-{
-  "targetIds": "018e4c71-f35a-7000-89cd-850db63a1e78"
-}
+```bash
+curl -X PUT https://api.rushdb.com/api/v1/records/$ENTITY_ID/relationships \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"targetIds": "018e4c71-f35a-7000-89cd-850db63a1e78"}'
 ```
 
 ### Example Request - Delete Specific Relationship Types
 
-```json
-{
-  "targetIds": [
-    "018e4c71-f35a-7000-89cd-850db63a1e78",
-    "018e4c71-f35a-7000-89cd-850db63a1e79"
-  ],
-  "typeOrTypes": ["KNOWS", "WORKS_FOR"],
-  "direction": "out"
-}
+```bash
+curl -X PUT https://api.rushdb.com/api/v1/records/$ENTITY_ID/relationships \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "targetIds": [
+      "018e4c71-f35a-7000-89cd-850db63a1e78",
+      "018e4c71-f35a-7000-89cd-850db63a1e79"
+    ],
+    "typeOrTypes": ["KNOWS", "WORKS_FOR"],
+    "direction": "out"
+  }'
 ```
 
 ### Response
@@ -288,17 +301,16 @@ Searches for [relationships](../concepts/relationships.md) across your database 
 
 ### Example Request - Filter by Record Properties
 
-```json
-{
-  "where": {
-    "sourceRecord": {
-      "name": "John Doe"
-    },
-    "targetRecord": {
-      "name": "Acme Inc"
+```bash
+curl -X POST https://api.rushdb.com/api/v1/relationships/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "where": {
+      "sourceRecord": {"name": "John Doe"},
+      "targetRecord": {"name": "Acme Inc"}
     }
-  }
-}
+  }'
 ```
 
 ### Response
@@ -385,27 +397,29 @@ POST /api/v1/records/{entityId}/relationships
 
 ### Example Request
 
-```json
-{
-  "targetIds": ["018dfc84-d6cb-7000-89cd-850db63a1e78"],
-  "type": "FOLLOWS",
-  "direction": "out"
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/$ENTITY_ID/relationships \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"targetIds": ["018dfc84-d6cb-7000-89cd-850db63a1e78"], "type": "FOLLOWS", "direction": "out"}'
 ```
 
 #### Creating Multiple Relationships
 
 You can create multiple relationships in a single request by passing an array of target IDs:
 
-```json
-{
-  "targetIds": [
-    "018dfc84-d6cb-7000-89cd-850db63a1e78",
-    "018dfc84-d6cb-7000-89cd-850db63a1e79"
-  ],
-  "type": "FOLLOWS",
-  "direction": "out"
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/$ENTITY_ID/relationships \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "targetIds": [
+      "018dfc84-d6cb-7000-89cd-850db63a1e78",
+      "018dfc84-d6cb-7000-89cd-850db63a1e79"
+    ],
+    "type": "FOLLOWS",
+    "direction": "out"
+  }'
 ```
 
 ### Response
@@ -478,22 +492,20 @@ PUT /api/v1/records/{entityId}/relationships
 
 ### Example Request - Single Type
 
-```json
-{
-  "targetIds": ["018dfc84-d6cb-7000-89cd-850db63a1e78"],
-  "typeOrTypes": "FOLLOWS",
-  "direction": "out"
-}
+```bash
+curl -X PUT https://api.rushdb.com/api/v1/records/$ENTITY_ID/relationships \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"targetIds": ["018dfc84-d6cb-7000-89cd-850db63a1e78"], "typeOrTypes": "FOLLOWS", "direction": "out"}'
 ```
 
 ### Example Request - Multiple Types
 
-```json
-{
-  "targetIds": ["018dfc84-d6cb-7000-89cd-850db63a1e78"],
-  "typeOrTypes": ["FOLLOWS", "LIKES"],
-  "direction": "out"
-}
+```bash
+curl -X PUT https://api.rushdb.com/api/v1/records/$ENTITY_ID/relationships \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"targetIds": ["018dfc84-d6cb-7000-89cd-850db63a1e78"], "typeOrTypes": ["FOLLOWS", "LIKES"], "direction": "out"}'
 ```
 
 ### Response
@@ -564,17 +576,15 @@ The search endpoint accepts a SearchDto object with the following fields:
 
 ### Example Request - With Filters
 
-```json
-{
-  "where": {
-    "sourceLabel": "Person",
-    "type": "FOLLOWS"
-  },
-  "orderBy": {
-    "type": "ASC"
-  },
-  "limit": 10
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/relationships/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "where": {"sourceLabel": "Person", "type": "FOLLOWS"},
+    "orderBy": {"type": "ASC"},
+    "limit": 10
+  }'
 ```
 
 ### Response

@@ -69,16 +69,17 @@ You can use search parameters to filter the data you want to retrieve:
 
 ### Example Request
 
-```json
-{
-  "where": {
-    "age": { "$gt": 25 }
-  },
-  "orderBy": { "name": "asc" },
-  "skip": 0,
-  "limit": 50,
-  "labels": ["PERSON"]
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "where": {"age": {"$gt": 25}},
+    "orderBy": {"name": "asc"},
+    "skip": 0,
+    "limit": 50,
+    "labels": ["PERSON"]
+  }'
 ```
 
 ### Response
@@ -94,15 +95,7 @@ You can use search parameters to filter the data you want to retrieve:
         "name": "John Doe",
         "age": 30,
         "email": "john@example.com"
-      },
-      {
-        "id": "018e4c71-6a38-7db2-b0b1-e7e681542c13",
-        "label": "PERSON",
-        "name": "Jane Smith",
-        "age": 28,
-        "email": "jane@example.com"
       }
-      // ... more records
     ],
     "total": 125
   }
@@ -129,14 +122,15 @@ The request body is the same as for the regular search endpoint, allowing you to
 
 ### Example Request
 
-```json
-{
-  "where": {
-    "status": "active"
-  },
-  "orderBy": { "createdAt": "desc" },
-  "limit": 20
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/{entityId}/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "where": {"status": "active"},
+    "orderBy": {"createdAt": "desc"},
+    "limit": 20
+  }'
 ```
 
 ### Response
@@ -164,37 +158,40 @@ The request body is the same as for the regular search endpoint, allowing you to
 
 RushDB supports complex filtering through the `where` clause, allowing you to create sophisticated queries:
 
-```json
-{
-  "where": {
-    "$or": [
-      { "status": "active", "priority": { "$gte": 2 } },
-      { "status": "pending", "deadline": { "$lt": "2025-06-01" } }
-    ],
-    "assignedTo": { "$ne": null }
-  },
-  "orderBy": [
-    { "priority": "desc" },
-    { "deadline": "asc" }
-  ],
-  "limit": 100
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "where": {
+      "$or": [
+        {"status": "active", "priority": {"$gte": 2}},
+        {"status": "pending", "deadline": {"$lt": "2025-06-01"}}
+      ],
+      "assignedTo": {"$ne": null}
+    },
+    "orderBy": [{"priority": "desc"}, {"deadline": "asc"}],
+    "limit": 100
+  }'
 ```
 
 ### Field Existence and Type Checking
 
 You can check for field existence and data types:
 
-```json
-{
-  "where": {
-    "$and": [
-      { "email": { "$exists": true } },
-      { "phoneNumber": { "$exists": false } },
-      { "age": { "$type": "number" } }
-    ]
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "where": {
+      "$and": [
+        {"email": {"$exists": true}},
+        {"phoneNumber": {"$exists": false}},
+        {"age": {"$type": "number"}}
+      ]
+    }
+  }'
 ```
 
 This query finds records that have an email address, don't have a phone number, and where age is stored as a number.
@@ -208,43 +205,50 @@ Use `aggregate` together with `groupBy` to transform raw record search into aggr
 Comprehensive details: [Grouping guide](../../concepts/search/group-by)
 
 Example: Count deals per stage.
-```json
-{
-  "labels": ["HS_DEAL"],
-  "aggregate": {
-    "count": { "fn": "count", "alias": "$record" },
-    "avgAmount": { "fn": "avg", "field": "amount", "alias": "$record" }
-  },
-  "groupBy": ["$record.dealstage"],
-  "orderBy": { "count": "desc" },
-  "limit": 1000
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "labels": ["HS_DEAL"],
+    "aggregate": {
+      "count": {"fn": "count", "alias": "$record"},
+      "avgAmount": {"fn": "avg", "field": "amount", "alias": "$record"}
+    },
+    "groupBy": ["$record.dealstage"],
+    "orderBy": {"count": "desc"},
+    "limit": 1000
+  }'
 ```
 
 Group by a related record property (declare alias in traversal):
-```json
-{
-  "labels": ["DEPARTMENT"],
-  "where": {
-    "PROJECT": { "$alias": "$project" }
-  },
-  "aggregate": {
-    "projectCount": { "fn": "count", "alias": "$project" },
-    "projects": { "fn": "collect", "field": "name", "alias": "$project", "unique": true }
-  },
-  "groupBy": ["$record.name"],
-  "orderBy": { "projectCount": "desc" }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "labels": ["DEPARTMENT"],
+    "where": {"PROJECT": {"$alias": "$project"}},
+    "aggregate": {
+      "projectCount": {"fn": "count", "alias": "$project"},
+      "projects": {"fn": "collect", "field": "name", "alias": "$project", "unique": true}
+    },
+    "groupBy": ["$record.name"],
+    "orderBy": {"projectCount": "desc"}
+  }'
 ```
 
 Multiple grouping keys (pivot style):
-```json
-{
-  "labels": ["PROJECT"],
-  "aggregate": { "count": { "fn": "count", "alias": "$record" } },
-  "groupBy": ["$record.category", "$record.active"],
-  "orderBy": { "count": "desc" }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "labels": ["PROJECT"],
+    "aggregate": {"count": {"fn": "count", "alias": "$record"}},
+    "groupBy": ["$record.category", "$record.active"],
+    "orderBy": {"count": "desc"}
+  }'
 ```
 
 Rules:

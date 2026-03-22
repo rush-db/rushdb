@@ -57,7 +57,6 @@ console.log(updatedAuthor);
 - `data`: The updated data for the record as a flat object
 - `options` (optional): Configuration options for record update:
   - `suggestTypes` (boolean, default: `true`): When true, automatically infers data types for [properties](../../concepts/properties.md)
-  - `castNumberArraysToVectors` (boolean, default: `false`): When true, converts numeric arrays to vector type
   - `convertNumericValuesToNumbers` (boolean, default: `false`): When true, converts string numbers to number type
 - `transaction` (optional): A [transaction](../../concepts/transactions.mdx) object or string to include the operation within a transaction
 
@@ -530,7 +529,6 @@ RushDB supports the same property types for updates as it does for creating reco
 - `boolean`: True/false values
 - `null`: Null values
 - `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
-- `vector`: Arrays of numbers (when `castNumberArraysToVectors` is true)
 
 When `suggestTypes` is enabled (default), RushDB automatically infers these types from your data.
 

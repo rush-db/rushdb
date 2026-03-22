@@ -500,10 +500,10 @@ Example prompt:
 
 ### getSearchQuerySpec
 
-Return the complete RushDB SearchQuery specification as a focused reference document. Call this before building any `findRecords` query that involves dates, aggregation, `groupBy`, relationship traversal, or vector search.
+Return the complete RushDB SearchQuery specification as a focused reference document. Call this before building any `findRecords` query that involves dates, aggregation, `groupBy`, or relationship traversal.
 
 Covers:
-- All `where` operators: string, number, boolean, datetime component objects, vector, `$exists`, `$type`, logical grouping (`$and`/`$or`/`$not`/`$nor`/`$xor`)
+- All `where` operators: string, number, boolean, datetime component objects, `$exists`, `$type`, logical grouping (`$and`/`$or`/`$not`/`$nor`/`$xor`)
 - Relationship traversal syntax: `$alias`, `$relation`, `$id`
 - All aggregate functions: `count`/`sum`/`avg`/`min`/`max`/`collect`/`timeBucket`
 - Both `groupBy` modes: dimensional (one row per distinct value) and self-group (collapse to single KPI row)

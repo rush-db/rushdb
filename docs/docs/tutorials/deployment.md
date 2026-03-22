@@ -44,7 +44,7 @@ Before deploying RushDB, ensure you have:
    - Minimum version: `5.25.1`
    - Required plugins:
      - `apoc-core` (installed and enabled)
-     - `graph-data-science` (required for vector search capabilities)
+     - `graph-data-science` (required for GDS graph analytics)
    - Can be self-hosted or using Neo4j Aura cloud service
 
 2. **SQL Database** (for users, workspaces, projects, and tokens):

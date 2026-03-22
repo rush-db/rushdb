@@ -5,7 +5,7 @@ sidebar_position: 3
 
 RushDB uses a **dual storage architecture**:
 
-- **[Neo4j](https://neo4j.com/docs/get-started/get-started-with-neo4j/) (version 2026.01.4 or higher)** — stores all user-defined records and properties. Enhanced with the latest [APOC](https://neo4j.com/labs/apoc/) (Awesome Procedures On Cypher) and [GDS](https://neo4j.com/docs/graph-data-science/current/) (Graph Data Science) plugins, this enables efficient vector similarity searches and advanced graph operations.
+- **[Neo4j](https://neo4j.com/docs/get-started/get-started-with-neo4j/) (version 2026.01.4 or higher)** — stores all user-defined records and properties. The [APOC](https://neo4j.com/labs/apoc/) (Awesome Procedures On Cypher) plugin is required for JSON serialization, map/collection utilities, and property management. Vector similarity search uses Neo4j's **native vector index** (`db.index.vector.*` and `vector.similarity.cosine()`), available built-in from Neo4j 5.x / 2026.x — no additional plugin required.
 - **SQL database (SQLite by default, PostgreSQL recommended for production)** — stores all dashboard entities: users, workspaces, projects, and API tokens. This layer is managed with [Drizzle ORM](https://orm.drizzle.team/) and runs migrations automatically on startup.
 
 ## Graph Database vs. Traditional Databases
@@ -31,7 +31,7 @@ Neo4j is responsible for all record and property data in RushDB, providing:
 - Property graph model flexibility
 - Scalable data storage and retrieval
 
-The integration with [APOC](https://neo4j.com/labs/apoc/) and [GDS](https://neo4j.com/docs/graph-data-science/current/) plugins extends Neo4j's native capabilities with vector-based operations critical for machine learning workflows and similarity search functions. RushDB supports the latest plugin releases for APOC and GDS, ensuring compatibility with Neo4j 2026.01.4 and newer.
+The [APOC](https://neo4j.com/labs/apoc/) plugin extends Neo4j with JSON conversion (`apoc.convert.*`), map utilities (`apoc.map.*`), and collection helpers (`apoc.coll.*`) that RushDB relies on for property storage and updates. Vector similarity search is handled entirely by **Neo4j's native vector index** — RushDB creates a `VECTOR INDEX` on embedding relationships and queries it via `db.index.vector.queryRelationships()` (ANN) or `vector.similarity.cosine()` (ENN prefilter). No GDS plugin is required. RushDB supports Neo4j 2026.01.4 and newer.
 
 ## SQL Foundation
 
@@ -140,11 +140,6 @@ This data type can only have two possible values: `true` or `false`.
 ### `null`
 This data type has only one possible value: `null`.
 
-### `vector`
-This data type accommodates arrays of both floating-point numbers and integers. It handles values like
-`[0.99070,0.78912, 1, 0]`. This is particularly useful for vector similarity searches and machine learning operations.
-
-
 ---
 ### Arrays
 
@@ -152,7 +147,7 @@ In essence, RushDB supports all the data types that JSON does. However, when it 
 hold them as **Property** values, but it's important to note that it can only store <u>consistent values</u> within those
 arrays. To learn more, check out the [Properties](../concepts/properties) section.
 
-> **Note:** Every data type mentioned above (except `vector`, since it's already an array by default) supports an array representation.
+> **Note:** Every data type mentioned above supports an array representation.
 
 Here are some valid examples:
 - `["apple", "banana", "carrot"]` - good
@@ -314,7 +309,7 @@ Learn more at [REST API - Import Data](../rest-api/records/import-data) or throu
 This approach is carefully designed to:
 - Enable efficient indexing and querying
 - Support advanced graph traversals and pattern matching
-- Facilitate vector similarity searches with minimal computational cost
+- Facilitate semantic search and similarity re-ranking with minimal computational cost
 
 By structuring data this way, RushDB achieves a balance between storage overhead and query performance, optimizing for use cases that require both traditional database operations and advanced graph analytics capabilities.
 

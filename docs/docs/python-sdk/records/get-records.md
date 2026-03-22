@@ -98,31 +98,11 @@ total = result.total
 
 See the [Where clause documentation](../../concepts/search/where#relationship-queries) for more details on relationship queries.
 
-### Vector Search
+### Semantic Search
 
-RushDB supports vector similarity searches for AI and machine learning applications:
+For semantic (embedding-based) search, use the dedicated REST API endpoint `POST /api/v1/ai/search`. It embeds your query text and finds the most relevant records by similarity — with support for optional `where` filters and label scoping.
 
-```python
-# Find documents similar to a query embedding
-result = db.records.find({
-    "labels": ["DOCUMENT"],
-    "where": {
-        "embedding": {
-            "$vector": {
-                "fn": "gds.similarity.cosine",   # Similarity function
-                "query": query_embedding,        # Your vector embedding
-                "threshold": {"$gte": 0.75}      # Minimum similarity threshold
-            }
-        }
-    },
-    "limit": 10
-})
-
-documents = result.data
-total = result.total
-```
-
-See the [Vector operators documentation](../../concepts/search/where#vector-operators) for more details on vector search capabilities.
+See the [REST API AI search documentation](../../rest-api/ai#semantic-search) for full details and examples.
 
 ### Field Existence and Type Checking
 

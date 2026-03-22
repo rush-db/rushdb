@@ -322,7 +322,7 @@ export class Model<S extends Schema = any> {
 
       const canUpdate =
         !matchingRecords?.data?.length ||
-        (matchingRecords.data.length === 1 && matchingRecords.data[0]?.id() === pickRecordId(target)!)
+        (matchingRecords.data.length === 1 && matchingRecords.data[0]?.id === pickRecordId(target)!)
 
       if (canUpdate) {
         const result = await instance.records[method]<S>({ target, label: this.label, data }, tx)

@@ -1,0 +1,93 @@
+import { Injectable } from '@nestjs/common'
+import { and, eq, inArray, or } from 'drizzle-orm'
+
+import { SqlService } from '@/database/sql/sql.service'
+import type { EmbeddingIndexRow, InsertEmbeddingIndexRow } from '@/database/sql/schema/types'
+
+@Injectable()
+export class EmbeddingIndexRepository {
+  constructor(private readonly sql: SqlService) {}
+
+  private get db() {
+    return this.sql.db
+  }
+
+  private get table() {
+    return this.sql.tables.embeddingIndexes
+  }
+
+  async findById(id: string): Promise<EmbeddingIndexRow | undefined> {
+    const rows = await this.db.select().from(this.table).where(eq(this.table.id, id))
+    return rows[0]
+  }
+
+  async findByProjectId(projectId: string): Promise<EmbeddingIndexRow[]> {
+    return this.db.select().from(this.table).where(eq(this.table.projectId, projectId))
+  }
+
+  async findByProjectIdPropertyAndLabel(
+    projectId: string,
+    propertyName: string,
+    label: string
+  ): Promise<EmbeddingIndexRow | undefined> {
+    const rows = await this.db
+      .select()
+      .from(this.table)
+      .where(
+        and(
+          eq(this.table.projectId, projectId),
+          eq(this.table.propertyName, propertyName),
+          eq(this.table.label, label)
+        )
+      )
+    return rows[0]
+  }
+
+  async create(data: InsertEmbeddingIndexRow): Promise<EmbeddingIndexRow> {
+    await this.db.insert(this.table).values(data)
+    return this.findById(data.id)
+  }
+
+  async updateStatus(id: string, status: string): Promise<void> {
+    const now = new Date().toISOString()
+    await this.db.update(this.table).set({ status, updatedAt: now }).where(eq(this.table.id, id))
+  }
+
+  /** Returns all enabled embedding index policies that are in 'pending' or 'indexing' status. */
+  async findPending(): Promise<EmbeddingIndexRow[]> {
+    return this.db
+      .select()
+      .from(this.table)
+      .where(and(eq(this.table.enabled, true), inArray(this.table.status, ['pending', 'indexing'])))
+  }
+
+  /**
+   * Marks indexes for the given (label, propertyName) pairs as 'pending' so the backfill
+   * scheduler picks them up on the next cycle.
+   * Only affects enabled indexes that are already in 'ready' or 'error' state.
+   */
+  async markPendingForProperties(
+    projectId: string,
+    entries: Array<{ propertyName: string; label: string }>
+  ): Promise<void> {
+    if (entries.length === 0) return
+    const now = new Date().toISOString()
+
+    const pairConditions = entries.map((e) =>
+      and(eq(this.table.propertyName, e.propertyName), eq(this.table.label, e.label))
+    )
+
+    await this.db
+      .update(this.table)
+      .set({ status: 'pending', updatedAt: now })
+      .where(and(eq(this.table.projectId, projectId), eq(this.table.enabled, true), or(...pairConditions)))
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db.delete(this.table).where(eq(this.table.id, id))
+  }
+
+  async deleteByProjectId(projectId: string): Promise<void> {
+    await this.db.delete(this.table).where(eq(this.table.projectId, projectId))
+  }
+}

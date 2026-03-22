@@ -25,7 +25,7 @@ RushDB is an instant, cloud-native database built on top of Neo4j, designed for 
 ## How to Use the API
 
 - **Base URL**: The API is available at `https://api.rushdb.com/api/v1` for cloud users, or your custom URL for self-hosted deployments.
-- **Authentication**: All endpoints require authentication via a token header. Get your API token from the [RushDB dashboard](https://app.rushdb.com).
+- **Authentication**: All endpoints require authentication via an `Authorization: Bearer` header. Get your API token from the [RushDB dashboard](https://app.rushdb.com).
 - **Content-Type**: All requests and responses use JSON unless otherwise specified.
 
 ## API Specifications
@@ -59,19 +59,18 @@ You can use these specifications to:
 
 ## Example: Create a Record
 
-```http
-POST /api/v1/records
-Content-Type: application/json
-token: RUSHDB_API_KEY
-
-{
-  "label": "Person",
-  "data": {
-    "name": "John Doe",
-    "age": 30,
-    "email": "john.doe@email.com"
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Person",
+    "data": {
+      "name": "John Doe",
+      "age": 30,
+      "email": "john.doe@email.com"
+    }
+  }'
 ```
 
 ## Support & Resources

@@ -81,7 +81,6 @@ function EditorStep() {
   const csvData = useStore($csvData)
 
   const [suggestTypes, setSuggestTypes] = useState(true)
-  const [castNumberArraysToVectors, setCastNumberArraysToVectors] = useState(false)
   const [convertNumericValuesToNumbers, setConvertNumericValuesToNumbers] = useState(false)
   const [mergeMode, setMergeMode] = useState(false)
   const [capitalizeLabels, setCapitalizeLabels] = useState(true)
@@ -173,14 +172,6 @@ function EditorStep() {
             setCapitalizeLabels(!capitalizeLabels)
           }}
           checked={capitalizeLabels}
-        />
-        <CheckboxField
-          className="mb-5 mt-5"
-          label="Cast number arrays to vectors"
-          onCheckedChange={() => {
-            setCastNumberArraysToVectors(!castNumberArraysToVectors)
-          }}
-          checked={castNumberArraysToVectors}
         />
         <CheckboxField
           className="mb-5 mt-5"
@@ -303,7 +294,6 @@ function EditorStep() {
                 label,
                 options: {
                   suggestTypes,
-                  castNumberArraysToVectors,
                   convertNumericValuesToNumbers,
                   capitalizeLabels,
                   relationshipType,
@@ -334,7 +324,6 @@ function EditorStep() {
                 data: csvData,
                 options: {
                   suggestTypes,
-                  castNumberArraysToVectors,
                   convertNumericValuesToNumbers,
                   capitalizeLabels,
                   relationshipType,

@@ -84,13 +84,13 @@ Direct equality, all types:
 ── VECTOR OPERATORS ─────────────────────────────────────────────────
   embedding: {
     $vector: {
-      fn: "gds.similarity.cosine",      // cosine|euclidean|euclideanDistance|jaccard|overlap|pearson
+      fn: "vector.similarity.cosine",      // cosine|euclidean|euclideanDistance|jaccard|overlap|pearson
       query: [1, 2, 3, 4, 5],           // query vector (array of numbers)
       threshold: 0.75                   // cosine/jaccard/overlap/pearson → $gte semantics
     }                                   // euclidean/euclideanDistance            → $lte semantics
   }
   // Precise threshold with explicit operators:
-  embedding: { $vector: { fn: "gds.similarity.cosine", query: [...], threshold: { $gte: 0.5, $lte: 0.8 } } }
+  embedding: { $vector: { fn: "vector.similarity.cosine", query: [...], threshold: { $gte: 0.5, $lte: 0.8 } } }
 
 ── FIELD EXISTENCE & TYPE ───────────────────────────────────────────
   phoneNumber: { $exists: true }    // only records that have this field (not null/empty)

@@ -22,10 +22,9 @@ const CORS_OPTIONS: CorsOptions = {
     'X-Workspace-Id',
     'X-Project-Id',
     'X-Transaction-Id',
-    'Content-Disposition',
-    'Token'
+    'Content-Disposition'
   ],
-  exposedHeaders: ['Authorization', 'Content-Disposition', 'Token'],
+  exposedHeaders: ['Authorization', 'Content-Disposition'],
   credentials: true,
   methods: ['GET', 'PUT', 'OPTIONS', 'POST', 'PATCH', 'DELETE']
 }

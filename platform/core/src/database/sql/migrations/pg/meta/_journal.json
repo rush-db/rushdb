@@ -8,6 +8,20 @@
       "when": 1772386376677,
       "tag": "0000_acoustic_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772400000000,
+      "tag": "0001_add_embedding_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1742400000000,
+      "tag": "0002_embedding_index_label",
+      "breakpoints": true
     }
   ]
 }

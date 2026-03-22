@@ -16,7 +16,7 @@ RushDB's Search API offers a comprehensive set of features:
 - **Aggregation**: Perform calculations and transform data using [aggregation functions](./aggregations.md)
 - **Pagination and Sorting**: Control result volume and order with [pagination and sorting options](./pagination-order.md)
 - **Label-Based Filtering**: Target specific types of records using [label filtering](./labels.md)
-- **Vector Search**: Find records based on vector similarity for AI and machine learning applications
+- **Semantic Search**: Find records by meaning using AI embedding indexes — see [AI Search](../../rest-api/ai)
 
 ## SearchQuery Structure
 

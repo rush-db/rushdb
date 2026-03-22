@@ -31,12 +31,11 @@ Returns a find of all [labels](../concepts/labels.md) in the current project alo
 
 ### Example Request
 
-```json
-{
-  "where": {
-    "country": "USA"
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/labels/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"where": {"country": "USA"}}'
 ```
 
 This will return labels for all records where the `country` property equals "USA".
@@ -62,28 +61,22 @@ You can use [complex queries](../concepts/search/introduction.md) to filter whic
 
 ### Example with Multiple Conditions
 
-```json
-{
-  "where": {
-    "age": { "$gt": 30 },
-    "active": true
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/labels/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"where": {"age": {"$gt": 30}, "active": true}}'
 ```
 
 This will return labels for records where `age` is greater than 30 AND `active` is true.
 
 ### Example with OR Logic
 
-```json
-{
-  "where": {
-    "$or": [
-      { "country": "USA" },
-      { "country": "Canada" }
-    ]
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/labels/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"where": {"$or": [{"country": "USA"}, {"country": "Canada"}]}}'
 ```
 
 This will return labels for records where `country` is either "USA" OR "Canada".

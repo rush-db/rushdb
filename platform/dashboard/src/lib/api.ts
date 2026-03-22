@@ -18,6 +18,11 @@ import {
 
 import type { GetUserResponse, User } from '~/features/auth/types'
 import type { BillingData } from '~/features/billing/types'
+import type {
+  EmbeddingIndex,
+  CreateEmbeddingIndexParams,
+  EmbeddingIndexStats
+} from '~/features/indexes/types'
 import type { Project, ProjectStats, WithProjectID } from '~/features/projects/types'
 import type { ProjectToken } from '~/features/tokens/types'
 import type {
@@ -558,6 +563,7 @@ export const api = {
           dashboardUrl: string
           googleOAuthEnabled: boolean
           githubOAuthEnabled: boolean
+          embeddingEnabled: boolean
         }
       }>(`/api/v1/settings`, {
         ...init,
@@ -623,6 +629,42 @@ export const api = {
     },
     async revokeConsent(id: string) {
       return fetcher<void>(`/oauth/consents/${id}`, { method: 'DELETE' })
+    }
+  },
+  indexes: {
+    async list({ projectId }: WithProjectID, init?: RequestInit) {
+      return fetcher<EmbeddingIndex[]>(`/api/v1/ai/indexes`, {
+        ...init,
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'GET'
+      })
+    },
+    async create({ projectId, init, ...body }: WithProjectID & CreateEmbeddingIndexParams & WithInit) {
+      return fetcher<EmbeddingIndex>(`/api/v1/ai/indexes`, {
+        ...init,
+        body: JSON.stringify(body),
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'POST'
+      })
+    },
+    async delete({ init, id }: WithInit & { id: string }) {
+      return fetcher<{ deleted: boolean }>(`/api/v1/ai/indexes/${id}`, {
+        ...init,
+        method: 'DELETE'
+      })
+    },
+    async stats({ init, id, projectId }: WithInit & WithProjectID & { id: string }) {
+      return fetcher<EmbeddingIndexStats>(`/api/v1/ai/indexes/${id}/stats`, {
+        ...init,
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'GET'
+      })
     }
   }
 }

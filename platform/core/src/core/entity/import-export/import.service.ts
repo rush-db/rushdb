@@ -40,8 +40,7 @@ import { PropertyDto } from '@/core/property/dto/property.dto'
 import {
   PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_STRING,
-  PROPERTY_TYPE_VECTOR
+  PROPERTY_TYPE_STRING
 } from '@/core/property/property.constants'
 import { PropertyService } from '@/core/property/property.service'
 import { TPropertyPrimitiveValue } from '@/core/property/property.types'
@@ -111,13 +110,10 @@ export class ImportService {
           const { isEmptyArray, isInconsistentArray } = valueParameters
           if (isEmptyArray) {
             property.value = RUSHDB_VALUE_EMPTY_ARRAY
-          } else if (options.castNumberArraysToVectors && value.every(isNumeric)) {
-            property.value = value.map(Number)
-            property.type = PROPERTY_TYPE_VECTOR
           } else if (options.convertNumericValuesToNumbers && value.every(isNumeric)) {
             property.value = value.map(Number)
-            property.type = options.castNumberArraysToVectors ? PROPERTY_TYPE_VECTOR : PROPERTY_TYPE_NUMBER
-          } else if (isInconsistentArray && !options.castNumberArraysToVectors && !value.every(isNumeric)) {
+            property.type = PROPERTY_TYPE_NUMBER
+          } else if (isInconsistentArray && !value.every(isNumeric)) {
             property.value = value.map(String)
             property.type = PROPERTY_TYPE_STRING
           } else if (value[0] === null) {
@@ -356,26 +352,14 @@ export class ImportService {
 
     // Emit bulk entity creation event (one coalesced event per import, not per chunk)
     if (records.length > 0) {
-      // Count vector properties and total properties across all records
-      let vectorCount = 0
       let totalPropertyCount = 0
       for (const record of records) {
-        const props = record.properties ?? []
-        totalPropertyCount += props.length
-        for (const prop of props) {
-          if ((prop as any).type === PROPERTY_TYPE_VECTOR) {
-            vectorCount++
-          }
-        }
+        totalPropertyCount += (record.properties ?? []).length
       }
 
       this.kuEventsService.emitBulk(workspaceId, projectId, KuOperation.ENTITY_CREATED, records.length, {
         propertyCount: totalPropertyCount
       })
-
-      if (vectorCount > 0) {
-        this.kuEventsService.emitBulk(workspaceId, projectId, KuOperation.EMBEDDING_GENERATED, vectorCount)
-      }
     }
 
     for (let i = 0; i < remappedRelations.length; i += CHUNK_SIZE) {

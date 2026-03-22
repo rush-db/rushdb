@@ -45,26 +45,18 @@ PATCH /api/v1/records/{entityId}
 
 ### Example Request
 
-```json
-{
-  "label": "Person",
-  "properties": [
-    {
-      "key": "name",
-      "value": "John Smith"
-    },
-    {
-      "key": "age",
-      "value": 32,
-      "type": "number"
-    },
-    {
-      "key": "active",
-      "value": true,
-      "type": "boolean"
-    }
-  ]
-}
+```bash
+curl -X PATCH https://api.rushdb.com/api/v1/records/018dfc84-d6cb-7000-89cd-850db63a1e77 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Person",
+    "properties": [
+      {"key": "name", "value": "John Smith"},
+      {"key": "age", "value": 32, "type": "number"},
+      {"key": "active", "value": true, "type": "boolean"}
+    ]
+  }'
 ```
 
 ### Response
@@ -75,11 +67,8 @@ PATCH /api/v1/records/{entityId}
   "label": "Person",
   "name": "John Smith",
   "age": 32,
-  "email": "john@example.com",  // Preserved from existing record
-  "active": true,
-  "_rushdb_properties_meta": {
-    // Metadata about properties
-  }
+  "email": "john@example.com",
+  "active": true
 }
 ```
 
@@ -113,20 +102,17 @@ Same as PATCH method, but all existing properties not included in the request wi
 
 ### Example Request
 
-```json
-{
-  "label": "Customer",
-  "properties": [
-    {
-      "key": "name",
-      "value": "John Smith"
-    },
-    {
-      "key": "age",
-      "value": 32
-    }
-  ]
-}
+```bash
+curl -X PUT https://api.rushdb.com/api/v1/records/018dfc84-d6cb-7000-89cd-850db63a1e77 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Customer",
+    "properties": [
+      {"key": "name", "value": "John Smith"},
+      {"key": "age", "value": 32}
+    ]
+  }'
 ```
 
 ### Response
@@ -136,10 +122,7 @@ Same as PATCH method, but all existing properties not included in the request wi
   "id": "018dfc84-d6cb-7000-89cd-850db63a1e77",
   "label": "Customer",
   "name": "John Smith",
-  "age": 32,
-  "_rushdb_properties_meta": {
-    // Metadata about properties
-  }
+  "age": 32
 }
 ```
 

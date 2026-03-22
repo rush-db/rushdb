@@ -17,8 +17,7 @@ import {
   datetimeOperators,
   ID_CLAUSE_OPERATOR,
   logicalOperators,
-  typeOperators,
-  vectorOperators
+  typeOperators
 } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
@@ -59,12 +58,7 @@ export const parseCurrentLevel = (
       })
     } else {
       if (
-        containsAllowedKeys(currentLevel, [
-          ...comparisonOperators,
-          ...datetimeOperators,
-          ...typeOperators,
-          ...vectorOperators
-        ])
+        containsAllowedKeys(currentLevel, [...comparisonOperators, ...datetimeOperators, ...typeOperators])
       ) {
         const condition = parseComparison(key, currentLevel as PropertyExpression, options)
 

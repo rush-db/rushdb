@@ -7,8 +7,7 @@ import type {
   NumberExpression,
   PropertyExpression,
   PropertyExpressionByType,
-  StringExpression,
-  VectorSearchFn
+  StringExpression
 } from './expressions.js'
 import type { Schema } from './schema.js'
 import type { AnyObject, MaybeArray, RequireAtLeastOne } from './utils.js'
@@ -116,7 +115,12 @@ export type AggregateFn<S extends Schema = Schema> =
   | { field: string; fn: 'max'; alias?: string }
   | { field: string; fn: 'min'; alias?: string }
   | { field: string; fn: 'sum'; alias?: string }
-  | { field: string; fn: `gds.similarity.${VectorSearchFn}`; alias?: string; query: number[] }
+  | {
+      field: string
+      fn: 'vector.similarity.cosine' | 'vector.similarity.euclidean'
+      alias?: string
+      query: number[]
+    }
   | AggregateTimeBucketFn
   | AggregateCollectFn
 

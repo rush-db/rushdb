@@ -153,7 +153,7 @@ export type NullExpression = null | {
 
 ```typescript
 export type TypeExpression = {
-  $type: 'string' | 'number' | 'boolean' | 'datetime' | 'null' | 'vector'
+  $type: 'string' | 'number' | 'boolean' | 'datetime' | 'null'
 }
 ```
 
@@ -164,13 +164,6 @@ The `$type` operator checks whether a field has a specific data type:
 {
   where: {
     age: { $type: "number" }
-  }
-}
-
-// Find records with vector embeddings
-{
-  where: {
-    embedding: { $type: "vector" }
   }
 }
 ```
@@ -227,7 +220,7 @@ export type AggregateFn<S extends Schema = Schema> =
   | { alias: string; field: string; fn: 'min' }
   | { alias: string; field: string; fn: 'sum' }
   | { alias: string; field?: string; fn: 'count'; unique?: boolean }
-  | { field: string; fn: `gds.similarity.${VectorSearchFn}`; alias: string; vector: number }
+  | { field: string; fn: 'vector.similarity.cosine' | 'vector.similarity.euclidean'; alias: string; query: number[] }
   | AggregateCollectFn
 ```
 
@@ -302,22 +295,6 @@ const results = await UserModel.find({
       field: 'country',
       alias: 'countries',
       unique: true
-    }
-  }
-});
-```
-
-### Vector Search
-
-```typescript
-// Find records with similar vector embeddings
-const similar = await EmbeddingModel.find({
-  where: {
-    embedding: {
-      $similarity: {
-        vector: [0.1, 0.2, 0.3, ...],
-        limit: 10
-      }
     }
   }
 });

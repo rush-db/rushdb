@@ -38,14 +38,15 @@ You can send search parameters to filter the data you want to export:
 
 ### Example Request
 
-```json
-{
-  "where": {
-    "age": { "$gt": 25 }
-  },
-  "orderBy": { "name": "asc" },
-  "limit": 1000
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/export/csv \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "where": {"age": {"$gt": 25}},
+    "orderBy": {"name": "asc"},
+    "limit": 1000
+  }'
 ```
 
 ### Response

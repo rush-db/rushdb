@@ -46,6 +46,11 @@ import { findProperties } from './tools/findProperties.js'
 import { findPropertyById } from './tools/findPropertyById.js'
 import { deleteProperty } from './tools/deleteProperty.js'
 import { getRecordsByIds } from './tools/getRecordsByIds.js'
+import { findEmbeddingIndexes } from './tools/findEmbeddingIndexes.js'
+import { createEmbeddingIndex } from './tools/createEmbeddingIndex.js'
+import { deleteEmbeddingIndex } from './tools/deleteEmbeddingIndex.js'
+import { getEmbeddingIndexStats } from './tools/getEmbeddingIndexStats.js'
+import { semanticSearch } from './tools/semanticSearch.js'
 import { getOntology } from './tools/getOntology.js'
 import { getOntologyMarkdown } from './tools/getOntologyMarkdown.js'
 import SYSTEM_PROMPT from './systemPrompt.js'
@@ -444,8 +449,8 @@ function createMcpServer(): Server {
             ]
           }
 
-        case 'propertyValues':
-          const propertyValues = await propertyValues({
+        case 'propertyValues': {
+          const pvResult = await propertyValues({
             propertyId: args.propertyId as string,
             query: args.query as string | undefined,
             orderBy: args.orderBy as 'asc' | 'desc' | undefined,
@@ -456,10 +461,11 @@ function createMcpServer(): Server {
             content: [
               {
                 type: 'text',
-                text: propertyValues ? JSON.stringify(propertyValues, null, 2) : 'No property values found'
+                text: pvResult ? JSON.stringify(pvResult, null, 2) : 'No property values found'
               }
             ]
           }
+        }
 
         case 'findProperties':
           const foundProperties = await findProperties({
@@ -515,6 +521,88 @@ function createMcpServer(): Server {
               }
             ]
           }
+
+        case 'findEmbeddingIndexes': {
+          const indexes = await findEmbeddingIndexes()
+          return {
+            content: [
+              {
+                type: 'text',
+                text:
+                  indexes && indexes.length > 0 ?
+                    JSON.stringify(indexes, null, 2)
+                  : 'No embedding indexes found'
+              }
+            ]
+          }
+        }
+
+        case 'createEmbeddingIndex': {
+          const newIndex = await createEmbeddingIndex({
+            label: args.label as string,
+            propertyName: args.propertyName as string
+          })
+          return {
+            content: [
+              {
+                type: 'text',
+                text: newIndex ? JSON.stringify(newIndex, null, 2) : 'Embedding index created'
+              }
+            ]
+          }
+        }
+
+        case 'deleteEmbeddingIndex': {
+          const deleteIndexResult = await deleteEmbeddingIndex({
+            indexId: args.indexId as string
+          })
+          return {
+            content: [
+              {
+                type: 'text',
+                text:
+                  deleteIndexResult ? JSON.stringify(deleteIndexResult, null, 2) : 'Embedding index deleted'
+              }
+            ]
+          }
+        }
+
+        case 'getEmbeddingIndexStats': {
+          const stats = await getEmbeddingIndexStats({
+            indexId: args.indexId as string
+          })
+          return {
+            content: [
+              {
+                type: 'text',
+                text: stats ? JSON.stringify(stats, null, 2) : 'No stats available'
+              }
+            ]
+          }
+        }
+
+        case 'semanticSearch': {
+          const searchResults = await semanticSearch({
+            propertyName: args.propertyName as string,
+            query: args.query as string,
+            labels: args.labels as string[],
+            where: args.where as Record<string, unknown> | undefined,
+            topK: args.topK as number | undefined,
+            limit: args.limit as number | undefined,
+            skip: args.skip as number | undefined
+          })
+          return {
+            content: [
+              {
+                type: 'text',
+                text:
+                  searchResults && searchResults.length > 0 ?
+                    JSON.stringify(searchResults, null, 2)
+                  : 'No matching records found.'
+              }
+            ]
+          }
+        }
 
         default:
           throw new McpError(ErrorCode.MethodNotFound, 'Tool not found')

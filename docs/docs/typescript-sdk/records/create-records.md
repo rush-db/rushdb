@@ -56,7 +56,6 @@ console.log(newAuthor);
 - `data`: The data for the record as a flat object
 - `options` (optional): Configuration options for record creation:
   - `suggestTypes` (boolean, **default: `true`**): Automatically infers data types for [properties](../../concepts/properties.md). Set to `false` to disable type inference and store all values as strings
-  - `castNumberArraysToVectors` (boolean, default: `false`): When true, converts numeric arrays to vector type
   - `convertNumericValuesToNumbers` (boolean, default: `false`): When true, converts string numbers to number type
 - `transaction` (optional): A [transaction](../../concepts/transactions.mdx) object or string to include the operation within a transaction
 
@@ -214,7 +213,6 @@ console.log(authors);
 - `data`: An object or array of objects, each a flat record (no nested objects/arrays)
 - `options` (optional): Configuration options for record creation:
   - `suggestTypes` (boolean, **default: `true`**): Automatically infers data types for [properties](../../concepts/properties.md). Set to `false` to disable type inference
-  - `castNumberArraysToVectors` (boolean, default: `false`): When true, converts numeric arrays to vector type
   - `convertNumericValuesToNumbers` (boolean, default: `false`): When true, converts string numbers to number type
   - `capitalizeLabels` (bool): When true, converts all labels to uppercase
   - `relationshipType` (str): Default relationship type between nodes
@@ -335,7 +333,6 @@ console.log(product);
   - `mergeBy` (string[], optional): Property names to match on. If empty/undefined, matches on all incoming properties
   - `mergeStrategy` ('rewrite' | 'append', default: 'append'): Strategy for handling updates
   - `suggestTypes` (boolean, **default: `true`**): Automatically infers data types for [properties](../../concepts/properties.md). Set to `false` to disable type inference
-  - `castNumberArraysToVectors` (boolean, default: `false`): Converts numeric arrays to vector type
   - `convertNumericValuesToNumbers` (boolean, default: `false`): Converts string numbers to number type
 - `transaction` (optional): A [transaction](../../concepts/transactions.mdx) object or string to include the operation within a transaction
 
@@ -764,7 +761,6 @@ RushDB supports the following property types:
 - `boolean`: True/false values
 - `null`: Null values
 - `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
-- `vector`: Arrays of numbers (when `castNumberArraysToVectors` is true)
 
 ### Automatic Type Inference
 
@@ -780,8 +776,6 @@ To disable automatic type inference and store all values as strings, you must **
 ### Additional Type Conversions
 
 When `convertNumericValuesToNumbers` is enabled, string values that represent numbers (e.g., '30') will be converted to their numeric equivalents (e.g., 30).
-
-When `castNumberArraysToVectors` is enabled, numeric arrays will be stored as `vector` type instead of `number` arrays.
 
 For more complex data import operations, refer to the [Import Data](./import-data.md) documentation.
 

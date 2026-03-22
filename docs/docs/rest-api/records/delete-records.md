@@ -60,14 +60,14 @@ You can use search parameters to filter the data you want to delete:
 
 ### Example Request
 
-```json
-{
-  "where": {
-    "age": { "$lt": 18 },
-    "status": "inactive"
-  },
-  "labels": ["USER"]
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/delete \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "where": {"age": {"$lt": 18}, "status": "inactive"},
+    "labels": ["USER"]
+  }'
 ```
 
 ### Response
@@ -85,16 +85,19 @@ You can use search parameters to filter the data you want to delete:
 
 For more advanced deletion scenarios, you can use the full power of RushDB's search query system:
 
-```json
-{
-  "where": {
-    "$or": [
-      { "status": "archived", "lastModified": { "$lt": "2024-01-01" } },
-      { "status": "deleted", "isTemporary": true }
-    ]
-  },
-  "labels": ["DOCUMENT", "ATTACHMENT"]
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/delete \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "where": {
+      "$or": [
+        {"status": "archived", "lastModified": {"$lt": "2024-01-01"}},
+        {"status": "deleted", "isTemporary": true}
+      ]
+    },
+    "labels": ["DOCUMENT", "ATTACHMENT"]
+  }'
 ```
 
 ## Handling Relationships

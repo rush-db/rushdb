@@ -3,10 +3,8 @@ import { isArray } from '@/common/utils/isArray'
 import { isEmptyObject } from '@/common/utils/isEmptyObject'
 import { isObject } from '@/common/utils/isObject'
 import { isPrimitive } from '@/common/utils/isPrimitive'
-import { RUSHDB_KEY_PROPERTIES_META } from '@/core/common/constants'
-import { Where, MaybeArray, TVectorSearchFn, Aggregate } from '@/core/common/types'
+import { Where, MaybeArray, Aggregate } from '@/core/common/types'
 import { allowedKeys } from '@/core/search/parser/constants'
-import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
 import { RELATION_CLAUSE_OPERATOR, ALIAS_CLAUSE_OPERATOR, ID_CLAUSE_OPERATOR } from '../search.constants'
 
@@ -46,7 +44,7 @@ export function splitCriteria(input: Where) {
   // !containsAllowedKeys(value, allowedKeys)
   const split = (v: Where) =>
     Object.entries(v).forEach(([key, value]) => {
-      if (isObject(value) && isSubQuery(value as Where) && key !== '$vector') {
+      if (isObject(value) && isSubQuery(value as Where)) {
         subQueries[key] = value
       } else {
         currentLevel[key] = value
@@ -65,11 +63,7 @@ export function splitCriteria(input: Where) {
 export const isPropertyCriteria = (input: MaybeArray<Where<any>>) => {
   if (isObject(input)) {
     return Object.entries(input).every(([key, value]) => {
-      if (key === '$vector' && isObject(value)) {
-        return 'fn' in value && 'threshold' in value && 'query' in value
-      } else {
-        return allowedKeys.includes(key) && isPropertyCriteria(value as Where)
-      }
+      return allowedKeys.includes(key) && isPropertyCriteria(value as Where)
     })
   } else if (isArray(input)) {
     return (input as Array<Where>).every(isPropertyCriteria)
@@ -88,12 +82,8 @@ export function isCurrentLevelCriteria(input: MaybeArray<Where>) {
   }
 }
 
-export const vectorConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {
-  return `${options.nodeAlias}.\`${field}\` IS NOT NULL AND apoc.convert.fromJsonMap(${options.nodeAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "vector"`
-}
-
-export function safeGdsSimilarity(
-  method: `gds.similarity.${TVectorSearchFn}`,
+export function nativeVectorSimilarity(
+  method: 'vector.similarity.cosine' | 'vector.similarity.euclidean',
   recordAlias: string,
   field: string,
   query: string,
@@ -102,7 +92,7 @@ export function safeGdsSimilarity(
   const nodeVec = `\`${recordAlias}\`.\`${field}\``
   const queryVec = `[${query}]`
   return `CASE
-    WHEN ${vectorConditionQueryPrefix(field, { nodeAlias: recordAlias })} AND size(${nodeVec}) = size(${queryVec})
+    WHEN ${nodeVec} IS NOT NULL AND size(${nodeVec}) = size(${queryVec})
     THEN ${method}(${nodeVec}, ${queryVec})
     ELSE null
   END AS ${asPart}`

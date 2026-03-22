@@ -37,7 +37,6 @@ This endpoint creates a record with the provided label and data. If `options.mer
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `suggestTypes` | Boolean | `true` | **Default is `true`** - Automatically infers data types for properties. To disable type inference and store all values as strings, explicitly set to `false` |
-| `castNumberArraysToVectors` | Boolean | `false` | When true, converts numeric arrays to vector type |
 | `convertNumericValuesToNumbers` | Boolean | `false` | When true, converts string numbers to number type |
 | `mergeBy` | Array of Strings | `[]` / omitted | Upsert match keys. If omitted and `mergeStrategy` present, all incoming keys are used. Empty array means use all keys. |
 | `mergeStrategy` | String | `'append'` | Upsert behavior when match found: `'append'` (add/update, keep others) or `'rewrite'` (replace all existing properties). Providing either this or `mergeBy` triggers upsert flow. |
@@ -48,22 +47,25 @@ By default, `suggestTypes` is set to `true` for all write operations (create, up
 
 ### Example Create Request (no upsert)
 
-```json
-{
-  "label": "Person",
-  "data": {
-    "name": "John Doe",
-    "age": "30",
-    "isActive": true,
-    "skills": ["JavaScript", "Python", "SQL"],
-    "joinDate": "2025-04-23T10:30:00Z",
-    "score": 92.5
-  },
-  "options": {
-    "suggestTypes": true,
-    "convertNumericValuesToNumbers": true
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Person",
+    "data": {
+      "name": "John Doe",
+      "age": "30",
+      "isActive": true,
+      "skills": ["JavaScript", "Python", "SQL"],
+      "joinDate": "2025-04-23T10:30:00Z",
+      "score": 92.5
+    },
+    "options": {
+      "suggestTypes": true,
+      "convertNumericValuesToNumbers": true
+    }
+  }'
 ```
 
 ### Response (Create)
@@ -115,44 +117,21 @@ POST /api/v1/records
 
 ### Example Request
 
-```json
-{
-  "label": "Person",
-  "properties": [
-    {
-      "name": "name",
-      "type": "string",
-      "value": "John Doe"
-    },
-    {
-      "name": "age",
-      "type": "number",
-      "value": 30
-    },
-    {
-      "name": "isActive",
-      "type": "boolean",
-      "value": true
-    },
-    {
-      "name": "skills",
-      "type": "string",
-      "value": "JavaScript,Python,SQL",
-      "valueSeparator": ","
-    },
-    {
-      "name": "joinDate",
-      "type": "datetime",
-      "value": "2025-04-23T10:30:00Z"
-    },
-    {
-      "name": "scores",
-      "type": "number",
-      "value": "85,90,95",
-      "valueSeparator": ","
-    }
-  ]
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Person",
+    "properties": [
+      {"name": "name", "type": "string", "value": "John Doe"},
+      {"name": "age", "type": "number", "value": 30},
+      {"name": "isActive", "type": "boolean", "value": true},
+      {"name": "skills", "type": "string", "value": "JavaScript,Python,SQL", "valueSeparator": ","},
+      {"name": "joinDate", "type": "datetime", "value": "2025-04-23T10:30:00Z"},
+      {"name": "scores", "type": "number", "value": "85,90,95", "valueSeparator": ","}
+    ]
+  }'
 ```
 
 ### Response
@@ -197,7 +176,6 @@ Previously upsert required a dedicated endpoint (`/records/upsert`). Upsert is n
 | `mergeBy` | Array of Strings | `[]` / omitted | Property names to match on. Empty or omitted with mergeStrategy provided falls back to all incoming keys. |
 | `mergeStrategy` | String | `'append'` | `'append'` adds/updates provided properties; `'rewrite'` replaces all properties (unmentioned ones removed). |
 | `suggestTypes` | Boolean | `true` | **Default is `true`** - Automatically infers data types for properties. To disable type inference and store all values as strings, explicitly set to `false` |
-| `castNumberArraysToVectors` | Boolean | `false` | When true, converts numeric arrays to vector type |
 | `convertNumericValuesToNumbers` | Boolean | `false` | When true, converts string numbers to number type |
 
 :::info Default Behavior
@@ -222,101 +200,116 @@ When using `mergeStrategy: 'rewrite'`, the upsert operation:
 
 #### Create or Update with Append Strategy (primary key: sku)
 
-```json
-{
-  "label": "Product",
-  "data": {
-    "sku": "SKU-001",
-    "name": "Laptop Pro",
-    "price": 1299.99,
-    "category": "Electronics"
-  },
-  "options": {
-    "mergeBy": ["sku"],
-    "mergeStrategy": "append",
-    "suggestTypes": true
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Product",
+    "data": {
+      "sku": "SKU-001",
+      "name": "Laptop Pro",
+      "price": 1299.99,
+      "category": "Electronics"
+    },
+    "options": {
+      "mergeBy": ["sku"],
+      "mergeStrategy": "append",
+      "suggestTypes": true
+    }
+  }'
 ```
 
 If a product with `sku: "SKU-001"` exists, this will update its properties while keeping any other existing properties. If it doesn't exist, a new product record will be created.
 
 #### Subsequent Update Preserving Fields (append)
 
-```json
-{
-  "label": "Product",
-  "data": {
-    "sku": "SKU-001",
-    "price": 1199.99,
-    "stock": 50
-  },
-  "options": {
-    "mergeBy": ["sku"],
-    "mergeStrategy": "append",
-    "suggestTypes": true
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Product",
+    "data": {
+      "sku": "SKU-001",
+      "price": 1199.99,
+      "stock": 50
+    },
+    "options": {
+      "mergeBy": ["sku"],
+      "mergeStrategy": "append",
+      "suggestTypes": true
+    }
+  }'
 ```
 
 This updates the price and adds a stock field, while preserving the existing `name` and `category` properties.
 
 #### Update with Rewrite Strategy (full replacement)
 
-```json
-{
-  "label": "Product",
-  "data": {
-    "sku": "SKU-001",
-    "name": "Laptop Pro v2",
-    "price": 1399.99
-  },
-  "options": {
-    "mergeBy": ["sku"],
-    "mergeStrategy": "rewrite",
-    "suggestTypes": true
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Product",
+    "data": {
+      "sku": "SKU-001",
+      "name": "Laptop Pro v2",
+      "price": 1399.99
+    },
+    "options": {
+      "mergeBy": ["sku"],
+      "mergeStrategy": "rewrite",
+      "suggestTypes": true
+    }
+  }'
 ```
 
 This replaces all properties of the product, removing `category` and `stock` fields from the previous example.
 
 #### Upsert with Multiple Match Fields
 
-```json
-{
-  "label": "User",
-  "data": {
-    "email": "user@example.com",
-    "tenantId": "tenant-123",
-    "name": "John Doe",
-    "role": "admin"
-  },
-  "options": {
-    "mergeBy": ["email", "tenantId"],
-    "mergeStrategy": "append",
-    "suggestTypes": true
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "User",
+    "data": {
+      "email": "user@example.com",
+      "tenantId": "tenant-123",
+      "name": "John Doe",
+      "role": "admin"
+    },
+    "options": {
+      "mergeBy": ["email", "tenantId"],
+      "mergeStrategy": "append",
+      "suggestTypes": true
+    }
+  }'
 ```
 
 This matches on both `email` and `tenantId`, useful for multi-tenant applications.
 
 #### Upsert Without Explicit MergeBy (all keys become match fingerprint)
 
-```json
-{
-  "label": "Setting",
-  "data": {
-    "key": "theme",
-    "value": "dark",
-    "userId": "user-123"
-  },
-  "options": {
-    "mergeStrategy": "append",
-    "suggestTypes": true
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Setting",
+    "data": {
+      "key": "theme",
+      "value": "dark",
+      "userId": "user-123"
+    },
+    "options": {
+      "mergeStrategy": "append",
+      "suggestTypes": true
+    }
+  }'
 ```
 
 When `mergeBy` is empty or omitted, the match is performed on all properties in the incoming data. A record will only be updated if all property values match exactly.
@@ -377,25 +370,32 @@ The Import Data API is optimized for performance when working with large dataset
 To ensure data consistency when creating multiple related [records](../../concepts/records.md), you can use [transactions](../../concepts/transactions.mdx):
 
 1. Create a transaction:
-```http
-POST /api/v1/tx
+```bash
+TX_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/tx \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"ttl": 10000}' | jq -r '.data.id')
 ```
 
 2. Use the returned transaction ID in your create record requests:
-```http
-POST /api/v1/records
-Token: $RUSHDB_API_KEY
-X-Transaction-Id: $YOUR_TRANSACTION_ID
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"label": "...", "data": {}}'
 ```
 
 3. Commit the transaction when all operations are successful:
-```http
-POST /api/v1/tx/YOUR_TRANSACTION_ID/commit
+```bash
+curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
 
 Or roll back if there's an error:
-```http
-POST /api/v1/tx/YOUR_TRANSACTION_ID/rollback
+```bash
+curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/rollback \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
 
 ## Data Type Handling
@@ -407,7 +407,6 @@ RushDB supports the following [property](../../concepts/properties.md) types:
 - `boolean`: True/false values
 - `null`: Null values
 - `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
-- `vector`: Arrays of numbers (when `castNumberArraysToVectors` is true)
 
 ### Automatic Type Inference
 
@@ -423,8 +422,6 @@ To disable automatic type inference and store all values as strings, you must **
 ### Additional Type Conversions
 
 When `convertNumericValuesToNumbers` is enabled, string values that represent numbers (e.g., '30') will be converted to their numeric equivalents (e.g., 30).
-
-When `castNumberArraysToVectors` is enabled, numeric arrays will be stored as `vector` type instead of `number` arrays.
 
 ## Best Practices
 

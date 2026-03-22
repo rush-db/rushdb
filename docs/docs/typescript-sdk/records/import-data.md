@@ -163,8 +163,7 @@ const importOptions = {
   convertNumericValuesToNumbers: true,
   capitalizeLabels: false,
   relationshipType: 'OWNS',
-  returnResult: true,
-  castNumberArraysToVectors: false
+  returnResult: true
 };
 
 const importedUsers = await db.records.importJson({ label: 'user', data: data.users, options: importOptions })
@@ -175,7 +174,6 @@ const importedUsers = await db.records.importJson({ label: 'user', data: data.us
 | Option                          | Type    | Default                         | Description                                       |
 |---------------------------------|---------|---------------------------------|---------------------------------------------------|
 | `suggestTypes`                  | Boolean | `true`                          | **Default is `true`** - Automatically infers data types for properties. Set to `false` to disable type inference and store all values as strings |
-| `castNumberArraysToVectors`     | Boolean | `false`                         | Converts numeric arrays to vector type            |
 | `convertNumericValuesToNumbers` | Boolean | `false`                         | Converts string numbers to number type            |
 | `capitalizeLabels`              | Boolean | `false`                         | Converts all labels to uppercase                  |
 | `relationshipType`              | String  | `__RUSHDB__RELATION__DEFAULT__` | Default relationship type between Records (nodes) |

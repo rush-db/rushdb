@@ -5,7 +5,6 @@ export const importJsonSchema = Joi.object({
   data: Joi.alternatives().try(Joi.object(), Joi.array().items(Joi.object())),
   options: Joi.object({
     suggestTypes: Joi.boolean().optional(),
-    castNumberArraysToVectors: Joi.boolean().optional(),
     convertNumericValuesToNumbers: Joi.boolean().optional(),
     capitalizeLabels: Joi.boolean().optional(),
     relationshipType: Joi.string().optional(),
@@ -20,7 +19,6 @@ export const importCsvSchema = Joi.object({
   data: Joi.string(),
   options: Joi.object({
     suggestTypes: Joi.boolean().optional(),
-    castNumberArraysToVectors: Joi.boolean().optional(),
     convertNumericValuesToNumbers: Joi.boolean().optional(),
     capitalizeLabels: Joi.boolean().optional(),
     relationshipType: Joi.string().optional(),

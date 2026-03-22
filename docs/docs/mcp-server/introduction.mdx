@@ -15,6 +15,7 @@ With the MCP server you can:
 - Perform flexible queries with filtering, ordering, pagination, and aggregations
 - Run bulk operations
 - Export data to CSV
+- Run semantic similarity search via `db.ai.search()` (requires embedding indexes)
 
 This section covers setup, configuration, available tools, examples, and troubleshooting.
 
@@ -26,7 +27,7 @@ The MCP server ships with a built-in system prompt (`instructions` in the MCP in
 
 1. **ONTOLOGY** — call `getOntologyMarkdown` first. Returns all label names (case-sensitive), field names and types, value ranges, and the full relationship map in a single call.
 2. **INTENT** — classify the request: aggregation, listing, or mutation.
-3. **QUERY SPEC** — before any `findRecords` call that uses dates, aggregation, `groupBy`, relationship traversal, or vector search, call `getSearchQuerySpec`. It returns the full operator reference, both `groupBy` modes, limit rules, and annotated examples.
+3. **QUERY SPEC** — before any `findRecords` call that uses dates, aggregation, `groupBy`, or relationship traversal, call `getSearchQuerySpec`. It returns the full operator reference, both `groupBy` modes, limit rules, and annotated examples.
 4. **BUILD** — use only label and field names returned from discovery. Labels are case-sensitive. Never invent names or operators.
 
 This workflow prevents hallucinated labels, wrong operator names (e.g. MongoDB/SQL operators that don't exist in RushDB), and common pagination errors with aggregations.

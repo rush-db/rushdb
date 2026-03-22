@@ -36,10 +36,10 @@ export const getRemoteBlogPost = unstable_cache(
               slug,
               $id: previewId
             }
-            : { slug, draft: false }
+          : { slug, draft: false }
       })
 
-      if (result.exists()) {
+      if (result.exists) {
         return result.data
       } else {
         console.warn(`No blog post found with slug "${slug}"`)
@@ -67,7 +67,7 @@ export const getRemotePage = unstable_cache(
           draft: false
         }
       })
-      if (result.exists()) {
+      if (result.exists) {
         return result.data
       } else {
         console.warn(`No page found with slug "${slug}"`)

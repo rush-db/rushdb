@@ -54,7 +54,6 @@ POST /api/v1/records/import/json
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `suggestTypes` | Boolean | `true` | **Default is `true`** - Automatically infers data types for properties. To disable type inference and store all values as strings, explicitly set to `false` |
-| `castNumberArraysToVectors` | Boolean | `false` | When true, converts numeric arrays to vector type |
 | `convertNumericValuesToNumbers` | Boolean | `false` | When true, converts string numbers to number type |
 | `capitalizeLabels` | Boolean | `false` | When true, converts all labels to uppercase |
 | `relationshipType` | String | `__RUSHDB__RELATION__DEFAULT__` | Default relationship type between nodes |
@@ -68,69 +67,70 @@ By default, `suggestTypes` is set to `true` for all import operations (JSON and 
 
 ### Example Request (Batch Upsert Import)
 
-```json
-{
-  "label": "Product",
-  "data": [
-    { "sku": "SKU-001", "name": "Gadget", "price": 99.99 },
-    { "sku": "SKU-002", "name": "Widget", "price": 149.99 }
-  ],
-  "options": {
-    "suggestTypes": true,
-    "mergeBy": ["sku"],
-    "mergeStrategy": "append",
-    "returnResult": true
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Product",
+    "data": [
+      {"sku": "SKU-001", "name": "Gadget", "price": 99.99},
+      {"sku": "SKU-002", "name": "Widget", "price": 149.99}
+    ],
+    "options": {
+      "suggestTypes": true,
+      "mergeBy": ["sku"],
+      "mergeStrategy": "append",
+      "returnResult": true
+    }
+  }'
 ```
 
 If later you send:
 
-```json
-{
-  "label": "Product",
-  "data": [
-    { "sku": "SKU-001", "price": 89.99 },
-    { "sku": "SKU-002", "price": 139.99, "category": "Tools" }
-  ],
-  "options": {
-    "mergeBy": ["sku"],
-    "mergeStrategy": "append"
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Product",
+    "data": [
+      {"sku": "SKU-001", "price": 89.99},
+      {"sku": "SKU-002", "price": 139.99, "category": "Tools"}
+    ],
+    "options": {
+      "mergeBy": ["sku"],
+      "mergeStrategy": "append"
+    }
+  }'
 ```
 
 SKU-001 price updates; SKU-002 price updates and category is added; all other properties preserved.
 
 Using `"mergeStrategy": "rewrite"` would replace properties entirely for each matched record (unmentioned fields removed).
 
-```json
-{
-  "label": "Person",
-  "data": {
-    "name": "John Doe",
-    "age": "30",
-    "addresses": [
-      {
-        "type": "home",
-        "street": "123 Main St",
-        "city": "Anytown"
-      },
-      {
-        "type": "work",
-        "street": "456 Business Rd",
-        "city": "Workville"
-      }
-    ],
-    "scores": [85, 90, 95],
-    "active": true
-  },
-  "options": {
-    "suggestTypes": true,
-    "convertNumericValuesToNumbers": true,
-    "relationshipType": "OWNS"
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Person",
+    "data": {
+      "name": "John Doe",
+      "age": "30",
+      "addresses": [
+        {"type": "home", "street": "123 Main St", "city": "Anytown"},
+        {"type": "work", "street": "456 Business Rd", "city": "Workville"}
+      ],
+      "scores": [85, 90, 95],
+      "active": true
+    },
+    "options": {
+      "suggestTypes": true,
+      "convertNumericValuesToNumbers": true,
+      "relationshipType": "OWNS"
+    }
+  }'
 ```
 
 ### Response
@@ -179,15 +179,18 @@ CSV files must have headers in the first row.
 
 ### Example Request
 
-```json
-{
-  "label": "Customer",
-  "data": "name,email,age\nJohn Doe,john@example.com,30\nJane Smith,jane@example.com,25",
-  "options": {
-    "suggestTypes": true,
-    "convertNumericValuesToNumbers": true
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/import/csv \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Customer",
+    "data": "name,email,age\nJohn Doe,john@example.com,30\nJane Smith,jane@example.com,25",
+    "options": {
+      "suggestTypes": true,
+      "convertNumericValuesToNumbers": true
+    }
+  }'
 ```
 
 ### Response
@@ -215,7 +218,6 @@ When importing data, RushDB processes your data through the following steps:
 - `boolean`: `true`/`false` values
 - `null`: Null values
 - `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
-- `vector`: Arrays of numbers (when `castNumberArraysToVectors` is true)
 
 To disable automatic type inference and store all values as strings, you must **explicitly set `suggestTypes: false`** in your request options.
 

@@ -9,11 +9,11 @@ The RushDB Python SDK provides a powerful, intuitive interface for interacting w
 
 ## Features
 
+- **🧠 AI & Semantic Search**: `get_ontology_markdown()` for LLM context injection + label-scoped embedding indexes with `db.ai.search()` — see [AI & Semantic Search](./ai.md)
 - **Intuitive API Design**: Simple methods that map directly to common database operations
 - **Type Hinting Support**: Comprehensive type annotations for better IDE support
 - **Transaction Management**: ACID-compliant transactions with context manager support
 - **Flexible Query System**: Expressive query capabilities without learning a graph query language
-- **Vector Support**: Built-in handling for vector embeddings and similarity search
 - **Data Import Tools**: Easy import of structured data from JSON, CSV, and other formats
 
 ## Installation

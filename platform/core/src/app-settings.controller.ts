@@ -26,11 +26,13 @@ export class AppSettingsController {
     const dashboardUrl = this.configService.get('RUSHDB_DASHBOARD_URL')
     const googleAuthClientId = this.configService.get('GOOGLE_CLIENT_ID')
     const githubAuthClientId = this.configService.get('GH_CLIENT_ID')
+    const embeddingModel = this.configService.get('RUSHDB_EMBEDDING_MODEL')
     return {
       selfHosted: toBoolean(selfHosted),
       dashboardUrl: dashboardUrl,
       googleOAuthEnabled: toBoolean(googleAuthClientId),
-      githubOAuthEnabled: toBoolean(githubAuthClientId)
+      githubOAuthEnabled: toBoolean(githubAuthClientId),
+      embeddingEnabled: toBoolean(embeddingModel)
     }
   }
 

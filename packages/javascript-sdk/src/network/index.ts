@@ -18,7 +18,7 @@ export const createFetcher =
           ...defaultHeaders,
           ...initHeaders
         },
-        typeof token !== 'undefined' ? { token } : {}
+        typeof token !== 'undefined' ? { Authorization: `Bearer ${token}` } : {}
       ) as RequestHeaders,
       ...init
     })

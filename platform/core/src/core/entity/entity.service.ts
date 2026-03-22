@@ -5,6 +5,7 @@ import { uuidv7 } from 'uuidv7'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
 import { Where } from '@/core/common/types'
+import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import {
   TEntityPropertiesNormalized,
@@ -31,7 +32,8 @@ export class EntityService {
     @Inject(forwardRef(() => PropertyService))
     private readonly propertyService: PropertyService,
     @Inject(forwardRef(() => WorkspaceService))
-    private readonly workspaceService: WorkspaceService
+    private readonly workspaceService: WorkspaceService,
+    private readonly embeddingIndexRepository: EmbeddingIndexRepository
   ) {}
 
   async create({
@@ -61,6 +63,13 @@ export class EntityService {
     this.kuEventsService.emit(workspace?.id, projectId, KuOperation.ENTITY_CREATED, {
       propertyCount: properties?.length ?? 0
     })
+
+    // Fire-and-forget: mark embedding indexes as pending for the written properties
+    const propertyNames = (properties ?? []).map((p) => p.name).filter(Boolean)
+    if (propertyNames.length > 0) {
+      const entries = propertyNames.map((name) => ({ propertyName: name, label }))
+      this.embeddingIndexRepository.markPendingForProperties(projectId, entries).catch(() => {})
+    }
 
     return data
   }
@@ -102,6 +111,13 @@ export class EntityService {
     }
 
     await transaction.run(query, { record, projectId })
+
+    // Fire-and-forget: mark embedding indexes as pending for the edited properties
+    const editPropertyNames = (entity.properties ?? []).map((p) => p.name).filter(Boolean)
+    if (editPropertyNames.length > 0) {
+      const entries = editPropertyNames.map((name) => ({ propertyName: name, label }))
+      this.embeddingIndexRepository.markPendingForProperties(projectId, entries).catch(() => {})
+    }
 
     return this.getById({ id: entityId, projectId, transaction })
   }
@@ -148,6 +164,13 @@ export class EntityService {
       propertyCount: properties?.length ?? 0,
       upsert: true
     })
+
+    // Fire-and-forget: mark embedding indexes as pending for the upserted properties
+    const upsertPropertyNames = (properties ?? []).map((p) => p.name).filter(Boolean)
+    if (upsertPropertyNames.length > 0) {
+      const entries = upsertPropertyNames.map((name) => ({ propertyName: name, label }))
+      this.embeddingIndexRepository.markPendingForProperties(projectId, entries).catch(() => {})
+    }
 
     return data
   }

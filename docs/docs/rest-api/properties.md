@@ -27,7 +27,6 @@ RushDB supports the following property types:
 | `boolean` | True/false values |
 | `null` | Null values |
 | `datetime` | ISO8601 format datetime values |
-| `vector` | Arrays of numbers (for embeddings/vector search) |
 
 ## List Properties
 
@@ -46,12 +45,11 @@ Returns a find of all properties in the current project, with filtering options.
 
 ### Example Request
 
-```json
-{
-  "where": {
-    "type": "string"
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/properties/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"where": {"type": "string"}}'
 ```
 
 ### Response
@@ -136,19 +134,17 @@ The request body supports SearchQuery parameters along with value-specific filte
 
 ### Example Request
 
-```http
-POST /api/v1/properties/018dfc84-d6cb-7000-89cd-850db63a1e78/values
-Content-Type: application/json
-
-{
-  "where": {
-    "status": "active"
-  },
-  "query": "jo",
-  "orderBy": "asc",
-  "skip": 0,
-  "limit": 10
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/properties/018dfc84-d6cb-7000-89cd-850db63a1e78/values \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "where": {"status": "active"},
+    "query": "jo",
+    "orderBy": "asc",
+    "skip": 0,
+    "limit": 10
+  }'
 ```
 
 ### Response

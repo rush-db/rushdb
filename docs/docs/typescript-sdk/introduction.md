@@ -13,11 +13,11 @@ The RushDB JavaScript/TypeScript SDK is a powerful client library that lets you 
 
 ## Highlights
 
+- **🧠 AI & Semantic Search**: Native ontology API for LLM agents + label-scoped embedding indexes with cosine-similarity search
 - **✨ No Configuration Needed**: Plug-and-play design requires minimal setup to get started
 - **🤖 Automatic Type Inference**: Enjoy seamless type safety with automatic TypeScript inference
 - **↔️ Isomorphic Architecture**: Fully compatible with both server and browser environments
 - **🏋️ Zero Dependencies**: Lightweight (just 6.9KB gzipped) and efficient with no external dependencies
-- **🧠 AI & Ontology API**: Retrieve the full graph schema in Markdown or JSON — ideal for LLM agents and schema-aware tooling
 
 ## Getting Started
 

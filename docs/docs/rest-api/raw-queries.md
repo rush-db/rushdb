@@ -8,26 +8,30 @@ sidebar_position: 7
 
 ### REST API
 
-Endpoint: POST /query/raw
+```http
+POST /api/v1/query/raw
+```
 
-Body:
-
-```json
-{
-	"query": "MATCH (n:Person) RETURN n LIMIT $limit",
-	"params": { "limit": 10 }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/query/raw \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "query": "MATCH (n:Person) RETURN n LIMIT $limit",
+    "params": { "limit": 10 }
+  }'
 ```
 
 Response: raw Neo4j driver result object.
 
 ### Real-world example: employees at a company
 
-Request body:
-
-```json
-{
-	"query": "MATCH (c:Company { name: $company })<-[:EMPLOYS]-(p:Person) RETURN p { .name, .email, company: c.name } AS employee ORDER BY p.name LIMIT $limit",
-	"params": { "company": "Acme Corp", "limit": 50 }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/query/raw \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "query": "MATCH (c:Company { name: $company })<-[:EMPLOYS]-(p:Person) RETURN p { .name, .email, company: c.name } AS employee ORDER BY p.name LIMIT $limit",
+    "params": { "company": "Acme Corp", "limit": 50 }
+  }'
 ```

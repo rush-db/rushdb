@@ -56,7 +56,6 @@ db.records.create(
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `suggestTypes` | bool | `True` | **Default is `True`** - Automatically infers data types for [properties](../../concepts/properties.md). To disable type inference and store all values as strings, explicitly set to `False` |
-| `castNumberArraysToVectors` | bool | `False` | When true, converts numeric arrays to vector type |
 | `convertNumericValuesToNumbers` | bool | `False` | When true, converts string numbers to number type |
 | `capitalizeLabels` | bool | `False` | When true, converts all [labels](../../concepts/labels.md) to uppercase |
 | `relationshipType` | str | `None` | Custom [relationship](../../concepts/relationships.md) type for nested objects |
@@ -108,12 +107,11 @@ product = db.records.create(
             "weight": "180g",
             "color": "Midnight Blue"
         },
-        "ratings": [4.7, 4.8, 4.9, 5.0]  # Could be converted to a vector
+        "ratings": [4.7, 4.8, 4.9, 5.0]  # Will be stored as number array
     },
     options={
         "returnResult": True,
-        "suggestTypes": True,
-        "castNumberArraysToVectors": True
+        "suggestTypes": True
     }
 )
 ```
@@ -224,10 +222,7 @@ products_data = [
             "storage": "1TB SSD"
         },
         "inStock": True,
-        "featureVector": [0.23, 0.45, 0.67, 0.89]  # Will be stored as vector
-    },
-    {
-        "name": "Smartphone Ultra",
+        "featureVector": [0.23, 0.45, 0.67, 0.89]  # Will be stored as number array
         "price": "999.99",  # Will be converted to number
         "category": "Phones",
         "specs": {
@@ -236,7 +231,7 @@ products_data = [
             "storage": "512GB"
         },
         "inStock": False,
-        "featureVector": [0.33, 0.55, 0.77, 0.99]  # Will be stored as vector
+        "featureVector": [0.33, 0.55, 0.77, 0.99]  # Will be stored as number array
     }
 ]
 
@@ -247,7 +242,6 @@ products = db.records.create_many(
         "returnResult": True,
         "suggestTypes": True,
         "convertNumericValuesToNumbers": True,
-        "castNumberArraysToVectors": True,
         "capitalizeLabels": True,
         "relationshipType": "HAS_SPECS",  # Custom relationship for nested objects
         "mergeBy": ["name"],              # Upsert by product name
@@ -326,7 +320,6 @@ db.records.upsert(
 | `mergeBy` | List[str] | `[]` | Property names to match on. If empty/undefined, matches on all incoming properties |
 | `mergeStrategy` | str | `'append'` | Strategy for updating: `'append'` (add/update properties, keep others) or `'rewrite'` (replace all properties) |
 | `suggestTypes` | bool | `True` | **Default is `True`** - Automatically infers data types for [properties](../../concepts/properties.md). To disable type inference and store all values as strings, explicitly set to `False` |
-| `castNumberArraysToVectors` | bool | `False` | When true, converts numeric arrays to vector type |
 | `convertNumericValuesToNumbers` | bool | `False` | When true, converts string numbers to number type |
 
 :::info Default Behavior
@@ -663,8 +656,7 @@ config = db.records.upsert(
     options={
         "mergeBy": ["configId"],
         "mergeStrategy": "append",
-        "suggestTypes": True,
-        "castNumberArraysToVectors": True
+        "suggestTypes": True
     }
 )
 

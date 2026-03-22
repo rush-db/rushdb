@@ -39,10 +39,11 @@ POST /api/v1/tx
 
 #### Example Request
 
-```json
-{
-  "ttl": 10000
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/tx \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"ttl": 10000}'
 ```
 
 #### Response
@@ -137,22 +138,17 @@ To use a transaction with other API endpoints, include the transaction ID in the
 
 ### Example
 
-```http
-POST /api/v1/records
-Content-Type: application/json
-token: RUSHDB_API_KEY
-X-Transaction-Id: 018e5c31-f35a-7000-89cd-850db63a1e77
-
-{
-  "label": "Person",
-  "properties": [
-    {
-      "name": "name",
-      "type": "string",
-      "value": "John Doe"
-    }
-  ]
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "X-Transaction-Id: 018e5c31-f35a-7000-89cd-850db63a1e77" \
+  -d '{
+    "label": "Person",
+    "properties": [
+      {"name": "name", "type": "string", "value": "John Doe"}
+    ]
+  }'
 ```
 
 ## Transaction Timeout
@@ -173,51 +169,25 @@ Transactions have a timeout mechanism to prevent hanging transactions:
 
 ## Transaction Example Workflow
 
-```javascript
-// 1. Create a transaction
-const createTxResponse = await fetch('https://api.rushdb.com/api/v1/tx', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'token': 'RUSHDB_API_KEY'
-  },
-  body: JSON.stringify({ ttl: 10000 })
-});
+```bash
+# 1. Create a transaction, capture the ID
+TX_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/tx \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"ttl": 10000}' | jq -r '.data.id')
 
-const { data: { id: txId } } = await createTxResponse.json();
+# 2. Perform operations within the transaction
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"label": "Person", "data": {"name": "John Doe"}}'
 
-try {
-  // 2. Perform operations within the transaction
-  await fetch('https://api.rushdb.com/api/v1/records', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'token': 'RUSHDB_API_KEY',
-      'X-Transaction-Id': txId
-    },
-    body: JSON.stringify({
-      label: 'Person',
-      properties: [
-        { name: 'name', type: 'string', value: 'John Doe' }
-      ]
-    })
-  });
+# 3. Commit the transaction if all operations succeeded
+curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
 
-  // 3. Commit the transaction if all operations succeeded
-  await fetch(`https://api.rushdb.com/api/v1/tx/${txId}/commit`, {
-    method: 'POST',
-    headers: {
-      'token': 'RUSHDB_API_KEY'
-    }
-  });
-} catch (error) {
-  // 4. Rollback the transaction if any operation failed
-  await fetch(`https://api.rushdb.com/api/v1/tx/${txId}/rollback`, {
-    method: 'POST',
-    headers: {
-      'token': 'RUSHDB_API_KEY'
-    }
-  });
-  throw error;
-}
+# On error — rollback instead:
+# curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/rollback \
+#   -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```

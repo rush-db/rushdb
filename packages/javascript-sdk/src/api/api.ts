@@ -26,6 +26,13 @@ import type {
   Where
 } from '../types/index.js'
 import type { ApiResponse } from './types.js'
+import type {
+  CreateEmbeddingIndexParams,
+  EmbeddingIndex,
+  EmbeddingIndexStats,
+  SemanticSearchParams,
+  SemanticSearchResult
+} from './types.js'
 
 import {
   getOwnProperties,
@@ -1265,6 +1272,104 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload })
 
       const response = await this.fetcher<ApiResponse<string>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+
+    /**
+     * Embedding Index management methods.
+     */
+    indexes: {
+      /**
+       * Lists all embedding index policies configured for the current project.
+       */
+      find: async () => {
+        const path = `/ai/indexes`
+        const payload = { method: 'GET', headers: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<EmbeddingIndex[]>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Creates a new embedding index policy for a string property.
+       * @param params.propertyName - Name of the property to index
+       * @param params.modelKey - Embedding model identifier (e.g. 'text-embedding-3-small')
+       * @param params.dimensions - Vector dimensionality produced by the model
+       */
+      create: async (params: CreateEmbeddingIndexParams) => {
+        const path = `/ai/indexes`
+        const payload = {
+          method: 'POST',
+          headers: {},
+          requestData: params
+        }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<EmbeddingIndex>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Deletes an embedding index policy by ID.
+       * @param id - The ID of the embedding index to delete
+       */
+      delete: async (id: string) => {
+        const path = `/ai/indexes/${id}`
+        const payload = { method: 'DELETE', headers: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<{ deleted: boolean }>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Returns Neo4j-level statistics for an embedding index.
+       * @param id - The ID of the embedding index
+       */
+      stats: async (id: string) => {
+        const path = `/ai/indexes/${id}/stats`
+        const payload = { method: 'GET', headers: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<EmbeddingIndexStats>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      }
+    },
+
+    /**
+     * Performs semantic (vector) search over records whose `propertyName` has been indexed.
+     *
+     * **ANN mode** (default, fast): used when no `where` filter and at most one `labels` entry.
+     * Queries the shared global vector index for approximate nearest neighbours.
+     *
+     * **ENN prefilter mode** (exact, slower): activated when a `where` filter is supplied or
+     * `labels` contains more than one value. Candidates are first narrowed by MATCH/WHERE,
+     * then ranked by exact cosine similarity.
+     *
+     * @param params - Search parameters including the query text, property name, and optional filters
+     */
+    search: async (params: SemanticSearchParams) => {
+      const path = `/ai/search`
+      const payload = { method: 'POST', headers: {}, requestData: params }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<SemanticSearchResult[]>>(path, payload)
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response

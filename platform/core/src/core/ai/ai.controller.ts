@@ -1,8 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Request,
   UseGuards,
@@ -16,6 +19,8 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { AiService } from '@/core/ai/ai.service'
 import { OntologyItem } from '@/core/ai/ai.types'
+import { CreateEmbeddingIndexDto } from '@/core/ai/dto/create-embedding-index.dto'
+import { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
@@ -78,5 +83,80 @@ export class AiController {
       transaction
     })
     return this.aiService.buildMdSchema(ontology)
+  }
+
+  /**
+   * Lists all embedding index policies for this project.
+   */
+  @Get('/indexes')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @HttpCode(HttpStatus.OK)
+  async getIndexes(@Request() request: PlatformRequest) {
+    return this.aiService.findIndexes(request.projectId)
+  }
+
+  /**
+   * Creates a new embedding index policy for a string property.
+   * The property must exist in Neo4j and must have type 'string'.
+   */
+  @Post('/indexes')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @HttpCode(HttpStatus.CREATED)
+  async createIndex(
+    @Body() dto: CreateEmbeddingIndexDto,
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ) {
+    return this.aiService.createIndex(request.projectId, request.workspaceId, dto, transaction)
+  }
+
+  /**
+   * Deletes an embedding index policy.
+   */
+  @Delete('/indexes/:id')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @HttpCode(HttpStatus.OK)
+  async deleteIndex(@Param('id') id: string, @Request() request: PlatformRequest) {
+    await this.aiService.deleteIndex(id, request.projectId)
+    return { deleted: true }
+  }
+
+  /**
+   * Returns Neo4j-level statistics for an embedding index (total records vs indexed records).
+   */
+  @Get('/indexes/:id/stats')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @HttpCode(HttpStatus.OK)
+  async getIndexStats(
+    @Param('id') id: string,
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ) {
+    return this.aiService.getIndexStats(request.projectId, id, transaction)
+  }
+
+  /**
+   * Performs ANN semantic search over records whose property has an embedding index.
+   * The query text is embedded on the fly and matched against stored vectors.
+   */
+  @Post('/search')
+  @ApiBearerAuth()
+  @UseGuards(IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @HttpCode(HttpStatus.OK)
+  async semanticSearch(
+    @Body() dto: SemanticSearchDto,
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ) {
+    return this.aiService.semanticSearch(request.projectId, dto, transaction)
   }
 }

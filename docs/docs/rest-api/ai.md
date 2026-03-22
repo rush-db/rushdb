@@ -1,21 +1,14 @@
 ---
-sidebar_position: 8
+sidebar_position: 2
 ---
 
-# AI & Ontology API
+# AI & Semantic Search
 
-The AI API exposes the **graph ontology** of your RushDB project — all labels, their properties with value ranges, and the full cross-label relationship map — in formats designed for direct LLM and developer consumption.
+The AI API covers three areas: **graph ontology** (schema discovery for LLM agents), **embedding indexes** (per-label vector policies), and **semantic search** (cosine-similarity queries over indexed properties).
 
-## Why it exists
-
-Before an LLM can query your data meaningfully it must know what labels exist, what fields each label has, what value ranges those fields span, and how labels relate to each other. Without this context the model guesses names, invents operators, and returns 404s or empty results.
-
-The ontology endpoints solve this in a single call:
-
-- **`/ai/ontology/md`** returns compact Markdown tables — optimal for injecting directly into an LLM context window.
-- **`/ai/ontology`** returns the same data as structured JSON — useful for programmatic schema inspection, building UI schema pickers, or powering auto-complete.
-
-Both endpoints query the graph once and cache the result on the ProjectNode for **1 hour**. Subsequent calls within the TTL return instantly from the cache; after expiry the graph is re-scanned automatically.
+:::tip Agent quickstart
+Call `POST /api/v1/ai/ontology/md` first in every AI session — it returns all label names, field names, value ranges, and the relationship map in one token-efficient Markdown string.
+:::
 
 ---
 
@@ -35,26 +28,25 @@ Returns the full graph schema as compact Markdown tables. This is the **recommen
 
 ### Example Request
 
-```http
-POST /api/v1/ai/ontology/md
-Content-Type: application/json
-token: YOUR_API_KEY
-
-{}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{}'
 ```
 
 ### Example Response
 
-```markdown
+```text
 # Graph Ontology
 
 ## Labels
 
-| Label   | Count |
-|---------|------:|
-| `Order` |  1840 |
-| `User`  |   312 |
-| `Product` | 95  |
+| Label     | Count |
+|-----------|------:|
+| `Order`   |  1840 |
+| `User`    |   312 |
+| `Product` |    95 |
 
 ---
 
@@ -62,18 +54,18 @@ token: YOUR_API_KEY
 
 ### Properties
 
-| Property    | Type     | Values / Range           |
-|-------------|----------|--------------------------|
-| `status`    | string   | `pending`, `paid`, `shipped` (+2 more) |
-| `total`     | number   | `4.99`..`2499.00`        |
-| `createdAt` | datetime | `2024-01-03`..`2026-02-27` |
+| Property    | Type     | Values / Range                           |
+|-------------|----------|------------------------------------------|
+| `status`    | string   | `pending`, `paid`, `shipped` (+2 more)   |
+| `total`     | number   | `4.99`..`2499.00`                        |
+| `createdAt` | datetime | `2024-01-03`..`2026-02-27`               |
 
 ### Relationships
 
-| Type       | Direction | Other Label |
-|------------|-----------|-------------|
-| `PLACED_BY` | out      | `User`      |
-| `CONTAINS`  | out      | `Product`   |
+| Type        | Direction | Other Label |
+|-------------|-----------|-------------|
+| `PLACED_BY` | out       | `User`      |
+| `CONTAINS`  | out       | `Product`   |
 
 ---
 
@@ -81,28 +73,25 @@ token: YOUR_API_KEY
 
 ### Properties
 
-| Property | Type   | Values / Range              |
-|----------|--------|-----------------------------|
+| Property | Type   | Values / Range                 |
+|----------|--------|--------------------------------|
 | `email`  | string | `alice@…`, `bob@…` (+310 more) |
-| `plan`   | string | `free`, `pro`, `enterprise` |
+| `plan`   | string | `free`, `pro`, `enterprise`    |
 
 ### Relationships
 
-| Type       | Direction | Other Label |
-|------------|-----------|-------------|
-| `PLACED_BY` | in       | `Order`     |
+| Type        | Direction | Other Label |
+|-------------|-----------|-------------|
+| `PLACED_BY` | in        | `Order`     |
 ```
 
 ### Filtered request (single label)
 
-```http
-POST /api/v1/ai/ontology/md
-Content-Type: application/json
-token: YOUR_API_KEY
-
-{
-  "labels": ["Order"]
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"labels": ["Order"]}'
 ```
 
 Returns only the `Order` section. The underlying cache still covers the full schema — filtering is applied in-memory.
@@ -131,26 +120,8 @@ Returns the same ontology as a structured JSON array. Each element describes one
     "label": "Order",
     "count": 1840,
     "properties": [
-      {
-        "id": "prop_abc123",
-        "name": "status",
-        "type": "string",
-        "values": ["pending", "paid", "shipped", "cancelled", "refunded"]
-      },
-      {
-        "id": "prop_def456",
-        "name": "total",
-        "type": "number",
-        "min": 4.99,
-        "max": 2499.00
-      },
-      {
-        "id": "prop_ghi789",
-        "name": "createdAt",
-        "type": "datetime",
-        "min": "2024-01-03T00:00:00.000Z",
-        "max": "2026-02-27T18:30:00.000Z"
-      }
+      { "id": "prop_abc123", "name": "status", "type": "string", "values": ["pending", "paid", "shipped"] },
+      { "id": "prop_def456", "name": "total",  "type": "number", "min": 4.99, "max": 2499.00 }
     ],
     "relationships": [
       { "label": "User",    "type": "PLACED_BY", "direction": "out" },
@@ -160,75 +131,228 @@ Returns the same ontology as a structured JSON array. Each element describes one
 ]
 ```
 
-### OntologyItem fields
-
-| Field           | Type            | Description                                                                            |
-|-----------------|-----------------|----------------------------------------------------------------------------------------|
-| `label`         | string          | Label name (case-sensitive, matches the label stored on records)                       |
-| `count`         | number          | Total number of records with this label in the project                                 |
-| `properties`    | array           | All non-vector properties attached to records of this label                            |
-| `relationships` | array           | Edges connecting this label to other labels; bidirectional entries are generated automatically |
-
-### OntologyProperty fields
-
-| Field    | Type                     | Description                                                                     |
-|----------|--------------------------|---------------------------------------------------------------------------------|
-| `id`     | string                   | Property node ID — pass this to `GET /api/v1/properties/:id/values` for deeper drill-down |
-| `name`   | string                   | Field name as stored on the record                                              |
-| `type`   | string                   | One of: `string`, `number`, `boolean`, `datetime`, `vector`                    |
-| `values` | array (string/number)    | Up to 10 sample values (string and boolean properties only)                     |
-| `min`    | number \| string         | Minimum observed value (number and datetime properties only)                    |
-| `max`    | number \| string         | Maximum observed value (number and datetime properties only)                    |
-
-### OntologyRelationship fields
-
-| Field       | Type           | Description                                                        |
-|-------------|----------------|--------------------------------------------------------------------|
-| `label`     | string         | The other label in the relationship                                |
-| `type`      | string         | Relationship type string (e.g. `PLACED_BY`, `CONTAINS`)           |
-| `direction` | `in` \| `out`  | `out` = this label is the source; `in` = this label is the target  |
+- `properties[].id` — pass to `GET /api/v1/properties/:id/values` to enumerate all distinct values
+- `properties[].values` — up to 10 samples (string/boolean only)
+- `properties[].min` / `.max` — range info (number/datetime only)
+- `relationships[].direction` — `out` = this label is source; `in` = this label is target
 
 ---
 
-## Caching behaviour
-
-The ontology is expensive to compute on large graphs (it scans all records, properties, and relationships). RushDB caches the result on the ProjectNode:
-
-| Scenario                      | Behaviour                                                                                     |
-|-------------------------------|-----------------------------------------------------------------------------------------------|
-| Cache missing or expired (> 1h) | Runs three parallel Cypher queries, builds the full ontology, writes it to the ProjectNode    |
-| Cache fresh (≤ 1h)            | Reads directly from the cached field on the ProjectNode — no graph scan                       |
-| `labels` filter provided      | Cache always stores the **full** schema; label filtering is applied in-memory after cache read |
-
-The cache is invalidated automatically on the next request after 1 hour. There is no explicit invalidation endpoint — if you need a fresh view immediately, wait for the TTL to expire or the server restart.
+:::note Caching
+Both endpoints share a **1-hour cache** on the ProjectNode. First call after TTL expiry triggers a full graph scan; all subsequent calls within the hour are instant.
+:::
 
 ---
 
-## Use cases
+## Embedding Indexes
 
-### LLM agent session start
+Embedding index policies tell RushDB which string properties to vectorize. Once a policy exists, vectors are stored on the `VALUE` relationship edges and become available for semantic (cosine-similarity) search.
 
-Call `/ai/ontology/md` as the very first tool at session start and inject the result as context before building any queries. This prevents hallucinated label names, wrong field names, and invalid operators.
+`List<String>` properties are supported — each item is embedded individually and the vectors are mean-pooled into a single representation.
 
-```http
-POST /api/v1/ai/ontology/md
-Content-Type: application/json
-token: YOUR_API_KEY
+---
 
-{}
-```
-
-Pass the returned Markdown string directly to your LLM as a system message or tool result. The model can then answer questions like "how many paid orders are there?" by referencing the correct label (`Order`), field (`status`), and value (`paid`).
-
-### Schema inspection in dashboards
-
-Call `/ai/ontology` and render the JSON to build a schema explorer, auto-complete field names in a query builder, or populate a dropdown of available labels and their properties.
-
-### Discovering property IDs for value drill-down
-
-The `id` field in each `OntologyProperty` is the property node ID. Pass it to `GET /api/v1/properties/:id/values` to enumerate all distinct values for that field — useful for building filter UIs or enum pickers.
+### List Embedding Indexes
 
 ```http
-GET /api/v1/properties/prop_abc123/values
-token: YOUR_API_KEY
+GET /api/v1/ai/indexes
 ```
+
+Returns all embedding index policies for the project.
+
+#### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "idx_abc123",
+      "projectId": "proj_xyz",
+      "label": "Article",
+      "propertyName": "description",
+      "modelKey": "text-embedding-3-small",
+      "dimensions": 1536,
+      "enabled": true,
+      "status": "ready",
+      "createdAt": "2025-01-10T12:00:00.000Z",
+      "updatedAt": "2025-01-10T12:05:00.000Z"
+    }
+  ],
+  "success": true
+}
+```
+
+---
+
+### Create Embedding Index
+
+```http
+POST /api/v1/ai/indexes
+```
+
+Creates a new embedding index policy scoped to a label. The property must exist in the graph and have type `string` (scalar or list).
+
+#### Request Body
+
+| Field          | Type     | Required | Description                                                                       |
+|----------------|----------|----------|-----------------------------------------------------------------------------------|
+| `label`        | string   | **yes**  | Neo4j label to scope this index to (e.g. `"Article"`, `"Product"`)               |
+| `propertyName` | string   | **yes**  | Name of the property to embed (e.g. `"description"`)                             |
+
+> **Model config is server-side.** The embedding model and vector dimensions are set via `RUSHDB_EMBEDDING_MODEL` / `RUSHDB_EMBEDDING_DIMENSIONS` env vars.
+
+#### Example Request
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"label": "Article", "propertyName": "description"}'
+```
+
+#### Error cases
+
+| Status | When                                                                          |
+|--------|-------------------------------------------------------------------------------|
+| `404`  | The property does not exist in the project graph                              |
+| `422`  | The property exists but is not a `string` type                                |
+| `422`  | Embedding model is not configured on the server                               |
+| `409`  | An index for this `(label, propertyName)` pair already exists                 |
+
+---
+
+### Delete Embedding Index
+
+```http
+DELETE /api/v1/ai/indexes/:id
+```
+
+Deletes an embedding index policy. This removes the policy record but does not delete vectors already written to the graph.
+
+#### Example Request
+
+```bash
+curl -X DELETE https://api.rushdb.com/api/v1/ai/indexes/idx_abc123 \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
+```
+
+#### Example Response
+
+```json
+{ "data": { "deleted": true }, "success": true }
+```
+
+---
+
+### Get Embedding Index Stats
+
+```http
+GET /api/v1/ai/indexes/:id/stats
+```
+
+Returns the current indexing progress for an embedding index — how many records have the property and how many have already had vectors generated.
+
+#### Example Response
+
+```json
+{
+  "data": {
+    "totalRecords": 1840,
+    "indexedRecords": 1234
+  },
+  "success": true
+}
+```
+
+---
+
+## Semantic Search
+
+```http
+POST /api/v1/ai/search
+```
+
+Embeds the supplied query text and returns the most relevant records by vector similarity. The property referenced by `propertyName` must have a `ready` embedding index.
+
+Two execution modes are selected automatically:
+
+| Mode | When | How |
+|------|------|-----|
+| **ANN** (fast, approximate) | No `where` filter; `labels` has 0 or 1 entries | Queries the shared global vector index directly |
+| **ENN prefilter** (exact, slower) | `where` filter present **or** `labels` has 2+ entries | Narrows candidates via MATCH/WHERE first, then scores with cosine similarity |
+
+### Request Body
+
+| Field          | Type             | Required | Description                                                                              |
+|----------------|------------------|----------|------------------------------------------------------------------------------------------|
+| `propertyName` | string           | **yes**  | The indexed property to search against                                                   |
+| `query`        | string           | **yes**  | Free-text query to embed and compare                                                     |
+| `labels`       | array of strings | **yes**  | Labels to search within (min 1). Single label = ANN mode; 2+ or with `where` = ENN.    |
+| `where`        | object           | no       | Standard RushDB filter expression. Activates ENN prefilter mode when provided.          |
+| `topK`         | number           | no       | Candidate count for ANN index scan (default `20`, ignored in prefilter mode)             |
+| `skip`         | number           | no       | Pagination offset (default `0`)                                                          |
+| `limit`        | number           | no       | Maximum results to return (default `20`)                                                 |
+
+### Example — ANN (single label, no filter)
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "propertyName": "description",
+    "query": "fast delivery and easy returns",
+    "labels": ["Product"],
+    "limit": 5
+  }'
+```
+
+### Example — ENN with prefilter
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "propertyName": "description",
+    "query": "fast delivery and easy returns",
+    "labels": ["Product"],
+    "where": {
+      "status": {"$in": ["active", "featured"]}
+    },
+    "limit": 10
+  }'
+```
+
+### Example Response
+
+Results are flat records with `__score` injected alongside other fields:
+
+```json
+{
+  "data": [
+    {
+      "__id": "rec_abc123",
+      "__label": "Product",
+      "__score": 0.921,
+      "description": "Same-day shipping with hassle-free returns policy",
+      "status": "active"
+    },
+    {
+      "__id": "rec_def456",
+      "__label": "Product",
+      "__score": 0.887,
+      "description": "Free returns within 30 days, express shipping available",
+      "status": "featured"
+    }
+  ],
+  "success": true
+}
+```
+
+### Error cases
+
+| Status | When                                                               |
+|--------|--------------------------------------------------------------------|
+| `404`  | No embedding index found for the specified property                |
+| `422`  | The embedding index exists but is not yet in `ready` status        |

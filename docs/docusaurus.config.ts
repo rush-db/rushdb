@@ -331,41 +331,36 @@ const config: Config = {
       },
       image: 'img/og.png',
       navbar: {
-        title: '',
+        title: 'RushDB Docs',
         logo: {
           alt: 'RushDB Logo',
           src: 'img/logo.svg'
         },
         items: [
           {
-            href: '/',
-            label: 'RushDB Docs',
-            position: 'left'
-          },
-          {
             label: 'Python SDK',
-            href: '/python-sdk/introduction',
+            to: '/python-sdk/introduction',
             className: 'python-sdk',
             position: 'left',
             activeBaseRegex: '/python-sdk/'
           },
           {
             label: 'TypeScript SDK',
-            href: '/typescript-sdk/introduction',
+            to: '/typescript-sdk/introduction',
             className: 'typescript-sdk',
             position: 'left',
             activeBaseRegex: '/typescript-sdk/'
           },
           {
             label: 'REST API',
-            href: '/rest-api/introduction',
+            to: '/rest-api/introduction',
             className: 'rest-api',
             position: 'left',
             activeBaseRegex: '/rest-api/'
           },
           {
             label: 'MCP Server',
-            href: '/mcp-server/introduction',
+            to: '/mcp-server/introduction',
             className: 'mcp-server',
             position: 'left',
             activeBaseRegex: '/mcp-server/'
@@ -384,7 +379,7 @@ const config: Config = {
           },
           {
             href: 'https://app.rushdb.com',
-            label: 'Dashboard',
+            label: 'Log In',
             position: 'right',
             className: 'cta-button'
           }
@@ -448,8 +443,8 @@ const config: Config = {
         copyright: `© ${new Date().getFullYear()}, Collect Software Inc.`
       },
       prism: {
-        theme: themes.oneLight,
-        darkTheme: atomTheme,
+        theme: themes.vsLight,
+        darkTheme: themes.vsDark,
         fontFamily: 'JetBrains Mono',
         additionalLanguages: ['python', 'javascript', 'typescript', 'bash', 'json']
       }

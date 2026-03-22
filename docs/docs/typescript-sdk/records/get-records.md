@@ -13,7 +13,7 @@ The record retrieval and search methods in the SDK enable you to:
 - Find a single record that matches specific criteria
 - Find records that match complex queries with filtering, sorting, and pagination
 - Traverse relationships between records
-- Perform vector similarity searches
+- Perform semantic search via AI embedding indexes
 - Retrieve records with related data
 - Transform and aggregate search results
 
@@ -48,7 +48,7 @@ This method retrieves one or more records identified by their unique IDs.
 // Retrieve a single record
 try {
   const person = await db.records.findById('018e4c71-5f20-7db2-b0b1-e7e681542af9');
-  console.log(`Found ${person.label()} with name: ${person.data.name}`);
+  console.log(`Found ${person.label} with name: ${person.data.name}`);
 } catch (error) {
   console.error('Failed to retrieve record:', error);
 }
@@ -297,28 +297,11 @@ const users = await db.records.find({
 
 See the [Where clause documentation](../../concepts/search/where#relationship-queries) for more details on relationship queries.
 
-### Vector Search
+### Semantic Search
 
-RushDB supports vector similarity searches for AI and machine learning applications:
+For semantic (embedding-based) search, use the dedicated `db.ai.search()` method. It embeds your query text and finds the most relevant records by similarity — with support for optional `where` filters and label scoping.
 
-```typescript
-// Find documents similar to a query embedding
-const similarDocuments = await db.records.find({
-  labels: ["DOCUMENT"],
-  where: {
-    embedding: {
-      $vector: {
-        fn: "gds.similarity.cosine",      // Similarity function
-        query: queryEmbedding,            // Your vector embedding
-        threshold: { $gte: 0.75 }         // Minimum similarity threshold
-      }
-    }
-  },
-  limit: 10
-});
-```
-
-See the [Vector operators documentation](../../concepts/search/where#vector-operators) for more details on vector search capabilities.
+See the [AI search documentation](../../typescript-sdk/ai) for full details and examples.
 
 ### Field Existence and Type Checking
 
