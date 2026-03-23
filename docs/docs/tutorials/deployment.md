@@ -41,10 +41,9 @@ Self-hosting gives you complete control over your RushDB deployment and data.
 Before deploying RushDB, ensure you have:
 
 1. **Neo4j Instance** (for records and graph data):
-   - Minimum version: `5.25.1`
+   - Minimum version: `2026.01.4`
    - Required plugins:
      - `apoc-core` (installed and enabled)
-     - `graph-data-science` (required for GDS graph analytics)
    - Can be self-hosted or using Neo4j Aura cloud service
 
 2. **SQL Database** (for users, workspaces, projects, and tokens):
@@ -155,7 +154,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
   neo4j:
-    image: neo4j:5.25.1
+    image: neo4j:2026.01.4
     healthcheck:
       test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
       interval: 5s
@@ -167,7 +166,7 @@ services:
     environment:
       - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
       - NEO4J_AUTH=neo4j/password
-      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+      - NEO4J_PLUGINS=["apoc"]
     volumes:
       - neo4j-plugins:/var/lib/neo4j/plugins
       - neo4j-data:/data

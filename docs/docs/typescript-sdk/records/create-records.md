@@ -4,788 +4,116 @@ sidebar_position: 1
 
 # Create Records
 
-Creating [records](../../concepts/records.md) is a fundamental operation when working with any data-driven application. RushDB provides multiple ways to create records, from direct API calls to Model-based abstractions.
+Three methods for writing flat records. For nested/graph data see [Import Data](./import-data.md).
 
-This guide covers different approaches to creating records, from the most basic to more advanced patterns.
-
-## Overview
-
-The create record methods in the SDK enable you to:
-- Create a single [record](../../concepts/records.md) with [properties](../../concepts/properties.md) and a [label](../../concepts/labels.md)
-- Create multiple records in one operation
-- Upsert records (create or update based on matching criteria)
-- Control data type inference and other formatting options
-- Create records with precise type control
-- Create records within [transactions](../../concepts/transactions.mdx) for data consistency
-- Create records using Model abstractions for type safety
-
-## Creating Single Records
-
-There are multiple ways to create records in RushDB. Let's start with the most basic approach using the direct API methods.
-
-### Using RushDB's `create()` Method
-
-The most direct way to create a record is using the API client's `records.create` method:
+## `db.records.create()`
 
 ```typescript
-const newAuthor = await db.records.create({
-  label: 'AUTHOR',
-  data: {
-    name: 'John Doe',
-    email: 'john.doe@example.com'
-  },
-  options: {
-    suggestTypes: true
-  }
-});
-
-console.log(newAuthor);
-/*
-{
-  __id: 'generated_id',
-  __label: 'AUTHOR',
-  name: 'John Doe',
-  email: 'john.doe@example.com'
-}
-*/
+const movie = await db.records.create({
+  label: 'MOVIE',
+  data: { title: 'Inception', rating: 8.8, genre: 'sci-fi' }
+})
+// → DBRecordInstance  { __id, __label, title, rating, genre }
 ```
 
-#### Parameters
-
-- `label`: The [label](../../concepts/labels.md)/type for the record
-- `data`: The data for the record as a flat object
-- `options` (optional): Configuration options for record creation:
-  - `suggestTypes` (boolean, **default: `true`**): Automatically infers data types for [properties](../../concepts/properties.md). Set to `false` to disable type inference and store all values as strings
-  - `convertNumericValuesToNumbers` (boolean, default: `false`): When true, converts string numbers to number type
-- `transaction` (optional): A [transaction](../../concepts/transactions.mdx) object or string to include the operation within a transaction
-
-:::info Default Type Inference
-By default, `suggestTypes` is `true` for all write operations. RushDB automatically infers data types from your values. To disable this and store all properties as strings, explicitly set `suggestTypes: false`.
-:::
-
-#### Returns
-
-- A promise that resolves to a `DBRecordInstance` containing the created [record](../../concepts/records.md)
-
-#### Creating Records in Transactions
+### Precise type control (PropertyDraft)
 
 ```typescript
-const transaction = await db.tx.begin();
-try {
-  const newAuthor = await db.records.create({
-    label: 'AUTHOR',
-    data: {
-      name: 'Jane Smith',
-      email: 'jane.smith@example.com'
-    }
-  }, transaction);
-
-  // Perform other operations...
-
-  await transaction.commit();
-  console.log(newAuthor);
-} catch (error) {
-  await transaction.rollback();
-  throw error;
-}
-```
-
-### Property-Based Approach for Precise Type Control
-
-When you need precise control over property types, you can use the property-based approach by passing an array of `PropertyDraft` objects instead of a flat data object:
-
-```typescript
-const newAuthor = await db.records.create({
-  label: 'AUTHOR',
+await db.records.create({
+  label: 'MOVIE',
   data: [
-    {
-      name: 'name',
-      type: 'string',
-      value: 'John Doe'
-    },
-    {
-      name: 'age',
-      type: 'number',
-      value: 42
-    },
-    {
-      name: 'isActive',
-      type: 'boolean',
-      value: true
-    },
-    {
-      name: 'tags',
-      type: 'string',
-      value: 'fiction,sci-fi,bestseller',
-      valueSeparator: ','
-    },
-    {
-      name: 'scores',
-      type: 'number',
-      value: '85,90,95',
-      valueSeparator: ','
-    },
-    {
-      name: 'joinDate',
-      type: 'datetime',
-      value: '2025-04-23T10:30:00Z'
-    }
+    { name: 'title',      type: 'string',   value: 'Inception' },
+    { name: 'rating',     type: 'number',   value: 8.8 },
+    { name: 'genres',     type: 'string',   value: 'sci-fi,thriller', valueSeparator: ',' },
+    { name: 'releasedAt', type: 'datetime', value: '2010-07-16T00:00:00Z' }
   ]
-});
-
-console.log(newAuthor);
-/*
-{
-  __id: 'generated_id',
-  __label: 'AUTHOR',
-  __proptypes: {
-    name: 'string',
-    age: 'number',
-    isActive: 'boolean',
-    tags: 'string',
-    scores: 'number',
-    joinDate: 'datetime'
-  },
-  name: 'John Doe',
-  age: 42,
-  isActive: true,
-  tags: ['fiction', 'sci-fi', 'bestseller'],
-  scores: [85, 90, 95],
-  joinDate: '2025-04-23T10:30:00Z'
-}
-*/
+})
 ```
 
-#### Property Draft Object Properties
+| PropertyDraft field | Type | Description |
+|---|---|---|
+| `name` | `string` | Property name |
+| `type` | `string` | `string` · `number` · `boolean` · `datetime` · `null` · `vector` |
+| `value` | any | The value |
+| `valueSeparator` | `string` | Split `value` string into an array on this separator |
 
-Each property draft object supports the following properties:
+## `db.records.createMany()`
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `name` | `string` | The property name |
-| `type` | `string` | The data type ('string', 'number', 'boolean', 'datetime', etc.) |
-| `value` | `any` | The property value |
-| `valueSeparator` | `string` (optional) | Separator to split string values into arrays |
-
-## Creating Multiple Records
-
-When you need to create multiple flat records (CSV-like rows) in a single operation, use the `records.createMany` method. For nested or complex JSON, use `records.importJson`.
-
-### Using RushDB's `createMany()` Method (flat rows only)
+Flat rows only — no nested objects. For nested data use [`importJson`](./import-data.md).
 
 ```typescript
-const authors = await db.records.createMany({
-  label: 'AUTHOR',
+const result = await db.records.createMany({
+  label: 'ACTOR',
   data: [
-    { name: 'Alice Johnson', email: 'alice.johnson@example.com' },
-    { name: 'Bob Brown', email: 'bob.brown@example.com' }
-  ],
-  options: {
-    suggestTypes: true
-  }
-});
-
-console.log(authors);
-/*
-{
-  data: [
-    {
-      __id: 'generated_id_1',
-      __label: 'AUTHOR',
-      name: 'Alice Johnson',
-      email: 'alice.johnson@example.com'
-    },
-    {
-      __id: 'generated_id_2',
-      __label: 'AUTHOR',
-      name: 'Bob Brown',
-      email: 'bob.brown@example.com'
-    }
-  ],
-  total: 2
-}
-*/
+    { name: 'Leonardo DiCaprio', country: 'USA' },
+    { name: 'Ken Watanabe',      country: 'Japan' }
+  ]
+})
+// → DBRecordsArrayInstance  { data: [...], total: 2 }
 ```
 
-#### Parameters
+## `db.records.upsert()`
 
-- `label`: The [label](../../concepts/labels.md)/type for all records
-- `data`: An object or array of objects, each a flat record (no nested objects/arrays)
-- `options` (optional): Configuration options for record creation:
-  - `suggestTypes` (boolean, **default: `true`**): Automatically infers data types for [properties](../../concepts/properties.md). Set to `false` to disable type inference
-  - `convertNumericValuesToNumbers` (boolean, default: `false`): When true, converts string numbers to number type
-  - `capitalizeLabels` (bool): When true, converts all labels to uppercase
-  - `relationshipType` (str): Default relationship type between nodes
-  - `returnResult` (bool, default: `false`): When true, returns imported records in response
-  - Throws if any record contains nested objects/arrays. Use `records.importJson` for that.
-
-  ### Using RushDB's `importJson()` Method (nested JSON)
-
-  Use `importJson` for nested objects, arrays of nested objects, or hash-map like payloads.
-
-  Signature:
-
-  ```ts
-  db.records.importJson({ data, label?: string, options?: ImportOptions }, tx?)
-  ```
-
-  Behavior:
-  - If `label` is provided, it's used for the import.
-  - If `label` is omitted, the input must be an object with a single top-level key whose name becomes the label, e.g. `{ ITEM: [ {...}, {...} ] }`.
-  - If `label` is omitted and the object has multiple top-level keys (e.g. `{ some: 'key', data: 1, nested: { level: 2 } }`), an error is thrown.
-
-  Multiple top-level keys:
-  - Without `label`: not allowed — importJson requires a single top-level key to infer the label and will throw.
-  - With `label`: allowed — the provided `label` becomes the root label; the multiple keys are treated as nested structure under that root.
-  - If you want each top-level key to become its own label root, call `importJson` separately per key or pass single-key objects per call.
-
-  Examples:
-  - OK (label inferred):
-    ```json
-    { "ITEM": [ { /*...*/ }, { /*...*/ } ] }
-    ```
-  - OK (label inferred with object):
-    ```json
-    { "ITEM": { /*...*/ } }
-    ```
-  - OK with explicit label (multiple top-level keys):
-    ```json
-    { "ITEM": { /*...*/ }, "PRODUCT": { /*...*/ } }
-    ```
-    Call as: `db.records.importJson({ label: 'INVENTORY', data: { ITEM: {...}, PRODUCT: {...} } })`
-  - Will throw without label (multiple top-level keys):
-    ```json
-    { "ITEM": { /*...*/ }, "PRODUCT": { /*...*/ } }
-    ```
-  - Will throw without label (mixed keys):
-    ```json
-    { "ITEM": { /*...*/ }, "notNestedProp": "12" }
-    ```
-- `transaction` (optional): A [transaction](../../concepts/transactions.mdx) object or string to include the operation within a transaction
-
-#### Returns
-
-- A promise that resolves to a `DBRecordsArrayInstance` containing the created [records](../../concepts/records.md)
-
-#### Creating Multiple Records in Transactions
+Create-or-update based on matching criteria.
 
 ```typescript
-const transaction = await db.tx.begin();
+// Match on 'title'; update rating if found, create if not
+const movie = await db.records.upsert({
+  label: 'MOVIE',
+  data: { title: 'Inception', rating: 9.0, genre: 'sci-fi' },
+  options: { mergeBy: ['title'], mergeStrategy: 'append' }
+})
+```
+
+### Merge strategies
+
+| Strategy | Behaviour |
+|---|---|
+| `append` (default) | Add / update incoming fields; preserve all other existing fields |
+| `rewrite` | Replace all fields with incoming data; unmentioned fields are removed |
+
+### `mergeBy` behaviour
+
+| `mergeBy` value | Match behaviour |
+|---|---|
+| `['field']` | Match only on listed fields |
+| `[]` or omitted | Match on ALL incoming property keys |
+
+## Options
+
+All three methods accept the same `options` object:
+
+| Option | Default | Description |
+|---|---|---|
+| `suggestTypes` | `true` | Infer types automatically |
+| `convertNumericValuesToNumbers` | `false` | Convert string numbers to number type |
+| `capitalizeLabels` | `false` | Uppercase all inferred label names |
+| `relationshipType` | `__RUSHDB__RELATION__DEFAULT__` | Relationship type used for nested links |
+| `returnResult` | `false` | Return created records in the response |
+| `mergeBy` | — | Fields to match on for upsert |
+| `mergeStrategy` | `append` | `append` or `rewrite` |
+
+## In a transaction
+
+```typescript
+const tx = await db.tx.begin()
 try {
-  const authors = await db.records.createMany({
-    label: 'AUTHOR',
-    data: [
-      { name: 'Charlie Green', email: 'charlie.green@example.com' },
-      { name: 'David Blue', email: 'david.blue@example.com' }
-    ]
-  }, transaction);
-
-  // Perform other operations...
-
-  await transaction.commit();
-  console.log(authors);
-} catch (error) {
-  await transaction.rollback();
-  throw error;
+  const movie = await db.records.create({ label: 'MOVIE', data: { title: 'Dune' } }, tx)
+  const actor = await db.records.create({ label: 'ACTOR', data: { name: 'Timothée Chalamet' } }, tx)
+  await db.records.attach({ source: movie, target: actor, options: { type: 'STARS' } }, tx)
+  await tx.commit()
+} catch (e) {
+  await tx.rollback()
+  throw e
 }
 ```
 
-## Upserting Records
-
-The `upsert` method provides a powerful way to create or update records in a single operation. It attempts to find an existing record based on specified properties and either creates a new one or updates the existing record according to your chosen strategy.
-
-### Using RushDB's `upsert()` Method
+## Via Model
 
 ```typescript
-const product = await db.records.upsert({
-  label: 'Product',
-  data: {
-    sku: 'SKU-001',
-    name: 'Laptop Pro',
-    price: 1299.99,
-    category: 'Electronics'
-  },
-  options: {
-    mergeBy: ['sku'],
-    mergeStrategy: 'append',
-    suggestTypes: true
-  }
-});
+const MovieModel = new Model('MOVIE', { title: { type: 'string' }, rating: { type: 'number' } })
 
-console.log(product);
-/*
-{
-  __id: 'generated_id',
-  __label: 'Product',
-  sku: 'SKU-001',
-  name: 'Laptop Pro',
-  price: 1299.99,
-  category: 'Electronics'
-}
-*/
+const movie  = await MovieModel.create({ title: 'Inception', rating: 8.8 })
+const movies = await MovieModel.createMany([{ title: 'Dune' }, { title: 'Arrival' }])
 ```
-
-#### Parameters
-
-- `label` (optional): The [label](../../concepts/labels.md)/type for the record
-- `data`: Flat object or array of property drafts containing the record data
-- `options` (optional): Configuration options for the upsert operation:
-  - `mergeBy` (string[], optional): Property names to match on. If empty/undefined, matches on all incoming properties
-  - `mergeStrategy` ('rewrite' | 'append', default: 'append'): Strategy for handling updates
-  - `suggestTypes` (boolean, **default: `true`**): Automatically infers data types for [properties](../../concepts/properties.md). Set to `false` to disable type inference
-  - `convertNumericValuesToNumbers` (boolean, default: `false`): Converts string numbers to number type
-- `transaction` (optional): A [transaction](../../concepts/transactions.mdx) object or string to include the operation within a transaction
-
-:::info Default Type Inference
-By default, `suggestTypes` is `true` for all write operations including upsert. RushDB automatically infers data types from your values. To disable this and store all properties as strings, explicitly set `suggestTypes: false`.
-:::
-
-#### Returns
-
-- A promise that resolves to a `DBRecordInstance` containing the created or updated [record](../../concepts/records.md)
-
-### Merge Strategies
-
-#### Append Strategy
-
-The `append` strategy (default) updates or adds properties while preserving existing ones:
-
-```typescript
-// Initial create
-const product = await db.records.upsert({
-  label: 'Product',
-  data: { sku: 'SKU-001', name: 'Widget', price: 10, category: 'Tools' },
-  options: { mergeBy: ['sku'], mergeStrategy: 'append', suggestTypes: true }
-});
-
-// Update price and add stock - name and category are preserved
-const updated = await db.records.upsert({
-  label: 'Product',
-  data: { sku: 'SKU-001', price: 15, stock: 100 },
-  options: { mergeBy: ['sku'], mergeStrategy: 'append', suggestTypes: true }
-});
-
-console.log(updated.data);
-/*
-{
-  sku: 'SKU-001',
-  name: 'Widget',        // Preserved
-  category: 'Tools',     // Preserved
-  price: 15,             // Updated
-  stock: 100             // Added
-}
-*/
-```
-
-#### Rewrite Strategy
-
-The `rewrite` strategy replaces all properties with the incoming data:
-
-```typescript
-// Rewrite - removes unspecified fields
-const rewritten = await db.records.upsert({
-  label: 'Product',
-  data: { sku: 'SKU-001', name: 'New Widget', price: 20 },
-  options: { mergeBy: ['sku'], mergeStrategy: 'rewrite', suggestTypes: true }
-});
-
-console.log(rewritten.data);
-/*
-{
-  sku: 'SKU-001',
-  name: 'New Widget',
-  price: 20
-  // category and stock are removed
-}
-*/
-```
-
-### Common Use Cases
-
-#### Idempotent Data Imports
-
-```typescript
-// Can be safely run multiple times without creating duplicates
-const user = await db.records.upsert({
-  label: 'User',
-  data: {
-    email: 'john@example.com',
-    name: 'John Doe',
-    lastLogin: new Date().toISOString()
-  },
-  options: {
-    mergeBy: ['email'],
-    mergeStrategy: 'append',
-    suggestTypes: true
-  }
-});
-```
-
-#### Multi-Tenant Applications
-
-```typescript
-// Match on both tenant and entity identifiers
-const setting = await db.records.upsert({
-  label: 'Setting',
-  data: {
-    tenantId: 'tenant-123',
-    userId: 'user-456',
-    theme: 'dark',
-    notifications: true
-  },
-  options: {
-    mergeBy: ['tenantId', 'userId'],
-    mergeStrategy: 'append',
-    suggestTypes: true
-  }
-});
-```
-
-#### Configuration Management
-
-```typescript
-// Update configuration by key
-const config = await db.records.upsert({
-  label: 'Config',
-  data: {
-    key: 'api_timeout',
-    value: 30000,
-    updatedAt: new Date().toISOString()
-  },
-  options: {
-    mergeBy: ['key'],
-    mergeStrategy: 'append',
-    suggestTypes: true
-  }
-});
-```
-
-#### Inventory Updates
-
-```typescript
-// Update stock while preserving product details
-const inventory = await db.records.upsert({
-  label: 'Product',
-  data: {
-    productCode: 'PROD-789',
-    stock: 50,
-    lastRestocked: new Date().toISOString()
-  },
-  options: {
-    mergeBy: ['productCode'],
-    mergeStrategy: 'append',
-    suggestTypes: true
-  }
-});
-```
-
-### Matching Behavior
-
-#### With Specific MergeBy Fields
-
-When `mergeBy` contains specific field names, only those fields are used for matching:
-
-```typescript
-// Matches only on 'email'
-const user = await db.records.upsert({
-  label: 'User',
-  data: { email: 'user@example.com', name: 'John', age: 30 },
-  options: { mergeBy: ['email'], mergeStrategy: 'append' }
-});
-```
-
-#### Without MergeBy (All Properties Match)
-
-When `mergeBy` is empty or undefined, matching is performed on all incoming properties:
-
-```typescript
-// Matches only if ALL properties (email, name, age) match exactly
-const user = await db.records.upsert({
-  label: 'User',
-  data: { email: 'user@example.com', name: 'John', age: 30 },
-  options: { mergeStrategy: 'append' }
-});
-
-// This would create a new record (age doesn't match)
-const different = await db.records.upsert({
-  label: 'User',
-  data: { email: 'user@example.com', name: 'John', age: 31 },
-  options: { mergeStrategy: 'append' }
-});
-```
-
-### Using with Transactions
-
-```typescript
-const transaction = await db.tx.begin();
-try {
-  const product = await db.records.upsert({
-    label: 'Product',
-    data: { sku: 'SKU-001', name: 'Widget', price: 10 },
-    options: { mergeBy: ['sku'], mergeStrategy: 'append' }
-  }, transaction);
-
-  const inventory = await db.records.upsert({
-    label: 'Inventory',
-    data: { productSku: 'SKU-001', quantity: 100, warehouse: 'A' },
-    options: { mergeBy: ['productSku', 'warehouse'], mergeStrategy: 'append' }
-  }, transaction);
-
-  await transaction.commit();
-} catch (error) {
-  await transaction.rollback();
-  throw error;
-}
-```
-
-### Property-Based Upsert
-
-For precise type control, you can use property drafts:
-
-```typescript
-const record = await db.records.upsert({
-  label: 'Product',
-  data: [
-    { name: 'sku', type: 'string', value: 'SKU-001' },
-    { name: 'price', type: 'number', value: 99.99 },
-    { name: 'tags', type: 'string', value: 'electronics,sale', valueSeparator: ',' },
-    { name: 'inStock', type: 'boolean', value: true }
-  ],
-  options: {
-    mergeBy: ['sku'],
-    mergeStrategy: 'append'
-  }
-});
-```
-
-### Best Practices for Upsert
-
-1. **Choose Appropriate MergeBy Fields**
-   - Use fields that uniquely identify your records (like `email`, `sku`, `userId`)
-   - Consider multi-field matching for multi-tenant scenarios
-
-2. **Select the Right Strategy**
-   - Use `append` when you want to preserve existing data and only update specific fields
-   - Use `rewrite` when you need a complete replacement of the record
-
-3. **Use with Transactions for Related Updates**
-   - Combine multiple upserts in a [transaction](../../concepts/transactions.mdx) to ensure atomicity
-   - Roll back if any operation fails
-
-4. **Handle Edge Cases**
-   - Be aware that empty `mergeBy` means matching on all properties
-   - Consider performance implications when matching on many fields
-
-5. **Idempotent Operations**
-   - Upsert is ideal for data synchronization and import operations
-   - Safely re-run operations without creating duplicates
-
-## Creating Records with Models
-
-The recommended approach for structured applications is to use RushDB's [Models](../models.md). Models provide type safety, validation, and a more intuitive API for working with records.
-
-We'll use the following model definitions for these examples:
-
-```typescript
-const AuthorRepo = new Model('author', {
-  name: { type: 'string' },
-  email: { type: 'string', unique: true }
-});
-```
-
-### Using Model's `create` Method
-
-The `create` method on a model creates a single record.
-
-#### Signature
-```typescript
-create(
-  record: InferSchemaTypesWrite<S>,
-  transaction?: Transaction | string
-): Promise<DBRecordInstance<S>>;
-```
-
-#### Parameters
-
-- `record`: An object that adheres to the schema defined for the model
-- `transaction` (optional): A [transaction](../../concepts/transactions.mdx) object or string to include the operation within a transaction
-
-#### Returns
-
-- A promise that resolves to a `DBRecordInstance` containing the created [record](../../concepts/records.md)
-
-#### Example
-
-```typescript
-const newAuthor = await AuthorRepo.create({
-  name: 'John Doe',
-  email: 'john.doe@example.com'
-});
-
-console.log(newAuthor);
-/*
-{
-  data: {
-    __id: 'generated_id',
-    __label: 'author',
-    name: 'John Doe',
-    email: 'john.doe@example.com'
-  }
-}
-*/
-```
-
-#### Using with Transactions
-
-```typescript
-const transaction = await db.tx.begin();
-try {
-  const newAuthor = await AuthorRepo.create({
-    name: 'Jane Smith',
-    email: 'jane.smith@example.com'
-  }, transaction);
-
-  // Perform other operations...
-
-  await transaction.commit();
-  console.log(newAuthor);
-} catch (error) {
-  await transaction.rollback();
-  throw error;
-}
-```
-
-### Using Model's `createMany` Method
-
-The `createMany` method on a model creates multiple records in a single operation.
-
-#### Signature
-```typescript
-createMany(
-  records: Array<InferSchemaTypesWrite<S>>,
-  transaction?: Transaction | string
-): Promise<DBRecordsArrayInstance<S>>;
-```
-
-#### Parameters
-
-- `records`: An array of objects, each adhering to the schema defined for the model
-- `transaction` (optional): A transaction object or string to include the operation within a transaction
-
-#### Returns
-
-- A promise that resolves to a `DBRecordsArrayInstance` containing the created records
-
-#### Example
-
-```typescript
-const authors = await AuthorRepo.createMany([
-  { name: 'Alice Johnson', email: 'alice.johnson@example.com' },
-  { name: 'Bob Brown', email: 'bob.brown@example.com' }
-]);
-
-console.log(authors);
-/*
-{
-  data: [
-    {
-      __id: 'generated_id_1',
-      __label: 'author',
-      name: 'Alice Johnson',
-      email: 'alice.johnson@example.com'
-    },
-    {
-      __id: 'generated_id_2',
-      __label: 'author',
-      name: 'Bob Brown',
-      email: 'bob.brown@example.com'
-    }
-  ],
-  total: 2
-}
-*/
-```
-
-#### Using with Transactions
-
-```typescript
-const transaction = await db.tx.begin();
-try {
-  const authors = await AuthorRepo.createMany([
-    { name: 'Charlie Green', email: 'charlie.green@example.com' },
-    { name: 'David Blue', email: 'david.blue@example.com' }
-  ], transaction);
-
-  // Perform other operations...
-
-  await transaction.commit();
-  console.log(authors);
-} catch (error) {
-  await transaction.rollback();
-  throw error;
-}
-```
-
-## Best Practices for Creating Records
-
-1. **Use Models for Structured Applications**
-   - Models provide type safety, validation, and better organization
-   - They enforce schema consistency across your application
-
-2. **Use Transactions for Related Operations**
-   - When creating multiple records that are related, use [transactions](../../concepts/transactions.mdx)
-   - Transactions ensure data consistency and allow rollback if operations fail
-
-3. **Handle Uniqueness Constraints**
-   - Models automatically check uniqueness before creating records
-   - Handle `UniquenessError` exceptions appropriately
-
-4. **Leverage Batch Operations**
-   - Use `createMany` for better performance when creating multiple records
-   - It minimizes network requests and database overhead
-
-5. **Consider Default Values**
-   - Define default values in your schema to reduce repetitive code
-   - Default values can be static or derived from functions (like timestamps)
-
-6. **Choose the Right Data Type Control Approach**
-   - Use the flat object approach for most cases where automatic type inference is sufficient
-   - Use the property-based approach with `PropertyDraft` objects when you need precise control over types
-
-## Data Type Handling
-
-RushDB supports the following property types:
-
-- `string`: Text values
-- `number`: Numeric values
-- `boolean`: True/false values
-- `null`: Null values
-- `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
-
-### Automatic Type Inference
-
-**By default, `suggestTypes` is set to `true` for all write operations** (create, createMany, upsert, importJson). This means RushDB automatically infers data types from your values:
-- Numeric values become `number` type
-- `true`/`false` become `boolean` type
-- ISO8601 strings become `datetime` type
-- `null` becomes `null` type
-- All other values become `string` type
-
-To disable automatic type inference and store all values as strings, you must **explicitly set `suggestTypes: false`** in your options.
-
-### Additional Type Conversions
-
-When `convertNumericValuesToNumbers` is enabled, string values that represent numbers (e.g., '30') will be converted to their numeric equivalents (e.g., 30).
-
-For more complex data import operations, refer to the [Import Data](./import-data.md) documentation.
-
-## Conclusion
-
-Creating records in RushDB can be done through direct API calls or through the Model abstraction. While direct API calls offer flexibility for dynamic or ad-hoc operations, using Models is recommended for most applications due to their type safety, validation capabilities, and more intuitive API.
-
-For more advanced record operations, see the other guides in this section:
-- [Get Records](./get-records.md) - Retrieve records from the database
-- [Update Records](./update-records.md) - Modify existing records
-- [Delete Records](./delete-records.md) - Remove records from the database
-- [Import Data](./import-data.md) - Import data in bulk
 

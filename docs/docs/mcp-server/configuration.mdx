@@ -5,25 +5,27 @@ sidebar_label: Configuration
 sidebar_position: 4
 ---
 
-The MCP server reads configuration from environment variables (via `.env` or your MCP client config).
+# Configuration
 
-## Environment variables
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `RUSHDB_API_KEY` | **yes** | — | Your RushDB API token (from the dashboard) |
+| `RUSHDB_API_URL` | no | `https://api.rushdb.com/api/v1` | Override for self-hosted or staging |
 
-- `RUSHDB_API_KEY` (required): Your API key from the RushDB dashboard.
-- `RUSHDB_API_URL` (optional): Base URL for the RushDB API. Defaults to `https://api.rushdb.com/api/v1`.
+:::tip Security
+Treat `RUSHDB_API_KEY` like a password — do not commit it to version control. Prefer MCP client `env` injection or OS keychains over `.env` files in repositories.
+:::
 
-You can provide these in several ways:
+## Providing values
 
-### 1) In MCP client configuration
-
-Put them under the `env` key for the server entry, for example in Claude Desktop:
+### 1) MCP client configuration
 
 ```json
 {
   "mcpServers": {
     "rushdb": {
       "command": "npx",
-      "args": ["@rushdb/mcp-server"],
+      "args": ["-y", "@rushdb/mcp-server"],
       "env": {
         "RUSHDB_API_KEY": "your-rushdb-api-key-here",
         "RUSHDB_API_URL": "https://api.rushdb.com/api/v1"
@@ -33,28 +35,16 @@ Put them under the `env` key for the server entry, for example in Claude Desktop
 }
 ```
 
-### 2) Using a `.env` file
-
-Create a `.env` file in `packages/mcp-server` (or your working directory) with:
+### 2) `.env` file
 
 ```
 RUSHDB_API_KEY=your-rushdb-api-key-here
-# Optional (self-hosted/staging):
+# Optional:
 RUSHDB_API_URL=https://your-hosted/api/v1
 ```
 
-The MCP server attempts fallback resolution for `.env` when launched from different CWDs, so it can find your env vars reliably.
-
-### 3) Export in your shell
+### 3) Shell export
 
 ```bash
 export RUSHDB_API_KEY="your-rushdb-api-key-here"
-# Optional
-export RUSHDB_API_URL="https://your-hosted/api/v1"
 ```
-
-## Security tips
-
-- Treat your API key like a password; do not commit it to version control.
-- Prefer client-level `env` injection or OS keychains when possible.
-- Rotate keys periodically and revoke keys you no longer need.

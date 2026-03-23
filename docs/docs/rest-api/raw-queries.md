@@ -1,10 +1,12 @@
 ---
-sidebar_position: 7
+sidebar_position: 8
 ---
 
 # Raw Queries
 
-> **Important (cloud-only):** This endpoint is available only on the RushDB managed cloud service or when your project is connected to a custom database through RushDB Cloud. It is not available for self-hosted or local-only deployments — attempting to use it against a non-cloud instance will fail.
+:::warning Requires a connected Neo4j instance
+This endpoint is only available when your project is connected to your own Neo4j database. Connecting a custom Neo4j instance is available on the free tier — see the RushDB dashboard to set it up.
+:::
 
 ### REST API
 

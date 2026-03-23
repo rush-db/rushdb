@@ -1,13 +1,19 @@
 ---
-sidebar_position: 2
+sidebar_position: 1
 ---
 
 # AI & Semantic Search
 
-The `db.ai` namespace covers three things: **graph ontology** (schema discovery for LLM agents), **embedding indexes** (per-label vector policies), and **semantic search** (cosine-similarity queries over indexed properties).
+RushDB is a **self-aware memory layer for agents, humans, and apps**. It continuously understands its own structure — labels, fields, value distributions, relationships — and exposes that knowledge so that agents can reason over real data without hallucinating schema details, and apps can retrieve semantically relevant context on demand.
+
+The `db.ai` namespace is the interface to that layer. It covers three capabilities:
+
+- **Graph ontology** — self-describing schema discovery: label names, field types, value ranges, and the full relationship map, always up to date
+- **Embedding indexes** — per-label vector policies that turn string properties into long-term semantic memory
+- **Semantic search** — cosine-similarity retrieval over indexed properties, for agents and apps alike
 
 :::tip Agent quickstart
-Call `db.ai.getOntologyMarkdown()` first in every AI session — it returns all label names, field names, value ranges, and the relationship map in a single token-efficient Markdown string. Without it, the model will hallucinate label and field names.
+Call `db.ai.getOntologyMarkdown()` first in every AI session — it returns the full memory map (label names, field names, value ranges, relationship graph) in a single token-efficient Markdown string. Without it, the model will hallucinate label and field names.
 :::
 
 ---

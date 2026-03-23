@@ -88,7 +88,7 @@ services:
       - NEO4J_PASSWORD=password
       - SQL_DB_TYPE=sqlite  # SQLite is the default; no extra service needed
   neo4j:
-    image: neo4j:5.25.1
+    image: neo4j:2026.01.4
     healthcheck:
       test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
       interval: 5s
@@ -100,7 +100,7 @@ services:
     environment:
       - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
       - NEO4J_AUTH=neo4j/password
-      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+      - NEO4J_PLUGINS=["apoc"]
     volumes:
       - neo4j-plugins:/var/lib/neo4j/plugins
       - neo4j-data:/data

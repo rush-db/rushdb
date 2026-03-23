@@ -5,54 +5,77 @@ sidebar_label: Examples
 sidebar_position: 5
 ---
 
-Here are some concrete prompts you can use with your MCP client to interact with RushDB.
+# Examples
 
-## Recommended starting prompt
+## Discovery
 
-Begin every session with:
+Understand the data shape before querying:
 
-> Call `getOntologyMarkdown` to load the full database schema.
+> "What labels and fields exist in my database? Use getOntologyMarkdown."
 
-This gives the agent all label names, field names, value ranges, and relationships before it makes any other call.
+The server calls `getOntologyMarkdown` once and returns a compact schema — label names, field types, value ranges, and the relationship map. Use exact label names from this response — they're case-sensitive.
 
-## Listing labels
+---
 
-> Ask the RushDB MCP server to run `findLabels` with `limit=20`.
+## Simple query
 
-## Creating and querying records
+> "Find the top 5 movies by rating."
 
-> Use `createRecord` to add a `Task` with data `{"title": "Write docs", "status": "open"}`.
+Calls `findRecords` with `orderBy: {rating: "desc"}, limit: 5`.
 
-> Now use `findRecords` with `where={"status": "open"}` and `orderBy={"createdAt": "desc"}` limit 5.
+---
 
-## Aggregation (counts, sums, grouping)
+## Aggregation
 
-Before building an aggregation query, load the spec:
+> "How many records exist per label? Show me a breakdown."
 
-> Call `getSearchQuerySpec`, then run `findRecords` with `labels=["Order"]`, `aggregate={"total":{"fn":"sum","field":"amount"}}`, and `groupBy=["status"]`.
+> "What's the average rating of MOVIE records, grouped by genre?"
 
-**Important:** never include `limit` when `aggregate` is present — it restricts the record scan and produces incorrect totals.
+Calls `findRecords` with `aggregate + groupBy`. **Never include `limit` when `aggregate` is present** — it restricts the record scan and produces incorrect totals.
 
-## Filtering with dates
+> "Call getSearchQuerySpec, then run findRecords with labels=\["Order"\], aggregate=\{"total":\{"fn":"sum","field":"amount"\}\}, and groupBy=\["status"\]."
 
-> Call `getSearchQuerySpec` to review date operator syntax, then find all `Event` records where `startDate` is after `2025-01-01`.
+---
 
-## Setting records
+## Relationships
 
-> Use `setRecord` for `recordId="<id>"` with label `Task` and data `{"title": "Polish docs", "status": "in-progress"}`.
+> "Find all actors who appeared in films directed by Christopher Nolan."
 
-## Attaching relationships
+Calls `findRecords` with nested `where` traversal: ACTOR → MOVIE → DIRECTOR.
 
-> Call `attachRelation` from `sourceId="<sourceId>"` to `targetIds=["<target1>", "<target2>"]` with `relationType="references"`.
+---
 
-## Upsert by field
+## Bulk import
 
-> Call `createRecord` with `label="User"`, `data={"email":"a@b.com","name":"Ann"}`, and `options={"mergeBy":["email"],"mergeStrategy":"append"}` to upsert by email.
+> "I'll paste a JSON array of employee records — import them as EMPLOYEE records, upsert on email."
 
-## Bulk import with upsert
+Calls `bulkCreateRecords` with `mergeBy: ["email"], mergeStrategy: "append"`.
 
-> Call `bulkCreateRecords` for `label="Product"` with `data=[{"sku":"A1","price":9.99},{"sku":"A2","price":14.99}]` and `options={"mergeBy":["sku"]}`.
+---
 
-## Export to CSV
+## Semantic search
 
-> Call `exportRecords` with `labels=["Task"]` and `where={"status":"done"}` to export completed tasks.
+> "Find articles most similar to 'distributed database systems'."
+
+Calls `semanticSearch` with the query embedded against the indexed `content` property. Requires a ready embedding index (see workflow below).
+
+---
+
+## Embedding index workflow
+
+Semantic search requires a ready index. This spans 3 tool calls and is non-obvious:
+
+> "Create an embedding index on the `content` property of ARTICLE records, then wait until it's ready, then find articles similar to 'machine learning'."
+
+1. `createEmbeddingIndex` — registers the policy (backfill runs async, not instant)
+2. `getEmbeddingIndexStats` — poll until `indexedRecords === totalRecords`
+3. `semanticSearch` — now runs against the live index
+
+---
+
+## Tips
+
+- Always start a new session with: "Load the schema with getOntologyMarkdown"
+- Use exact label names from the schema — they're case-sensitive
+- For aggregations, tell the AI "don't use limit" to avoid incorrect totals
+- Call `getSearchQuerySpec` before any query using dates, `groupBy`, or relationship traversal

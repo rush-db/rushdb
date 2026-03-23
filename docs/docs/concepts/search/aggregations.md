@@ -44,8 +44,7 @@ The following aggregation functions are supported:
 - `timeBucket` - Bucket a datetime field into calendar intervals (day/week/month/quarter/year/hour/minute/second or custom N-sized months/hours/minutes/seconds/years)
 - `vector.similarity.*` - Calculate vector similarity using native Neo4j functions:
   - `vector.similarity.cosine` - Cosine similarity [0,1]
-  - `vector.similarity.euclidean` - Euclidean distance normalized (0,1]
-  - `pearson` - Pearson correlation [-1,1]
+  - `vector.similarity.euclidean` - Euclidean distance normalized to (0,1]
 
   ## Grouping Results (groupBy)
 

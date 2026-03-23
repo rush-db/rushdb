@@ -43,6 +43,14 @@ The RushDB MCP server exposes a comprehensive set of tools. Each tool includes a
 
 - exportRecords — Export records to CSV format
 
+## Vector search & embeddings
+
+- findEmbeddingIndexes — List all embedding index policies and their status
+- createEmbeddingIndex — Create an embedding index for a string property (async backfill)
+- deleteEmbeddingIndex — Delete an embedding index and all stored vectors
+- getEmbeddingIndexStats — Return backfill progress stats for an embedding index
+- semanticSearch — Perform vector similarity search over indexed records
+
 ## Utilities
 
 - getSearchQuerySpec — Fetch the complete SearchQuery operator and syntax reference
@@ -79,7 +87,9 @@ For detailed input schemas, see the tool definitions in the MCP server source (`
 
 ## Tool reference
 
-Below, each tool is described with its purpose and arguments. Types reflect the MCP input schema; required flags and defaults are noted.
+:::tip Start here
+Call `getOntologyMarkdown` before any other tool. It returns all label names (case-sensitive), field names, and the full relationship map — everything you need to build accurate queries.
+:::
 
 ### getOntologyMarkdown
 
@@ -541,3 +551,94 @@ Arguments: none
 Example prompt:
 
 > Call `helpAddToClient` to see how to add the RushDB MCP server to Claude Desktop.
+
+---
+
+### findEmbeddingIndexes
+
+List all embedding index policies configured for the current project. Call this before creating a new index to verify whether one already exists for the target label and property.
+
+Each returned entry contains: `id`, `label`, `propertyName`, `modelKey`, `dimensions`, `enabled`, `status` (`pending` | `indexing` | `ready` | `error`), `createdAt`, `updatedAt`.
+
+Arguments: none
+
+Example prompt:
+
+> Call `findEmbeddingIndexes` to see which vector indexes exist and their current status.
+
+---
+
+### createEmbeddingIndex
+
+Create a new embedding index policy for a string property. RushDB will asynchronously embed every existing value of `propertyName` on records with the given `label` and keep new values embedded on write. Once the index status becomes `"ready"` (monitor with `getEmbeddingIndexStats`), use `semanticSearch` to run natural-language queries against it.
+
+Arguments:
+
+| Name         | Type   | Required | Default | Description |
+|--------------|--------|----------|---------|-------------|
+| label        | string | yes      | —       | Record label to scope the index to (e.g. `"Book"`, `"Task"`) |
+| propertyName | string | yes      | —       | Name of the string property whose values will be embedded |
+
+Example prompt:
+
+> Call `createEmbeddingIndex` with `label="Article"` and `propertyName="body"` to enable semantic search on article bodies.
+
+---
+
+### deleteEmbeddingIndex
+
+Delete an embedding index policy by its ID and strip all stored embedding vectors for that index. **Irreversible.** Always confirm with the user before calling. Use `findEmbeddingIndexes` to get the `indexId`.
+
+Arguments:
+
+| Name    | Type   | Required | Default | Description |
+|---------|--------|----------|---------|-------------|
+| indexId | string | yes      | —       | ID of the embedding index to delete |
+
+Example prompt:
+
+> Call `deleteEmbeddingIndex` with `indexId="<index-id>"` after confirming the user wants to remove the index.
+
+---
+
+### getEmbeddingIndexStats
+
+Return Neo4j-level statistics for an embedding index: `totalRecords` and `indexedRecords`. Use this to monitor backfill progress after creating an index — when `indexedRecords === totalRecords` the index is fully ready for semantic search.
+
+Arguments:
+
+| Name    | Type   | Required | Default | Description |
+|---------|--------|----------|---------|-------------|
+| indexId | string | yes      | —       | ID of the embedding index (from `findEmbeddingIndexes`) |
+
+Example prompt:
+
+> Call `getEmbeddingIndexStats` with `indexId="<index-id>"` to check how many records have been indexed so far.
+
+---
+
+### semanticSearch
+
+Perform semantic (vector) similarity search over records whose `propertyName` has been indexed with `createEmbeddingIndex`. Provide a free-text `query` — RushDB embeds it and returns the most similar records ranked by cosine similarity (`__score`).
+
+Two modes:
+- **ANN mode** (fast, default): used when no `where` filter is supplied.
+- **ENN prefilter mode** (exact, slower): activated when a `where` filter is supplied — candidates are first narrowed by the filter, then ranked by similarity.
+
+Requires an embedding index in `"ready"` status for the given `label` + `propertyName`.
+
+Arguments:
+
+| Name         | Type             | Required | Default | Description |
+|--------------|------------------|----------|---------|-------------|
+| propertyName | string           | yes      | —       | Name of the indexed property to search against |
+| query        | string           | yes      | —       | Free-text query to embed and compare against stored vectors |
+| labels       | array of strings | yes      | —       | One or more record labels to scope the search; first label resolves the embedding index |
+| where        | object           | no       | —       | Optional filter applied before scoring (activates ENN prefilter mode) |
+| topK         | number           | no       | 20      | Max ANN candidates to fetch from the vector index (ANN mode only) |
+| limit        | number           | no       | 20      | Maximum number of results to return |
+| skip         | number           | no       | 0       | Number of results to skip for pagination |
+
+Example prompt:
+
+> Call `semanticSearch` with `propertyName="body"`, `query="machine learning for beginners"`, and `labels=["Article"]` to find the most relevant articles.
