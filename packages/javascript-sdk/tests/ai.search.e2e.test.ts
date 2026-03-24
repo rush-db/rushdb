@@ -23,10 +23,10 @@
  *   propertyName: 'description',  // which indexed property
  *   query:        'deep learning', // free-text — server embeds it
  *   labels:       ['Article'],     // required; first entry selects the index
- *   topK:         50,              // ANN candidate pool (ignored in ENN mode)
+ *   topK:         50,              // direct vector-index candidate pool (ignored in prefilter mode)
  *   limit:        10,
  *   skip:         0,
- *   // Adding `where` switches to ENN prefilter mode:
+ *   // Adding `where` switches to prefilter mode:
  *   where: { published: true }
  * })
  *
@@ -182,9 +182,9 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     }
   })
 
-  // ── ANN mode (no where, single label) ─────────────────────────────────────
+  // ── direct vector-index mode (no where, single label) ─────────────────────
 
-  it('ANN mode: returns semantically similar results for an ML query', async () => {
+  it('direct vector-index mode: returns semantically similar results for an ML query', async () => {
     const res = await db.ai.search({
       propertyName: PROPERTY,
       query: 'neural networks and artificial intelligence',
@@ -211,7 +211,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     expect(['Intro to Machine Learning', 'Deep Neural Networks']).toContain(topTitle)
   })
 
-  it('ANN mode: returns results ordered by score descending', async () => {
+  it('direct vector-index mode: returns results ordered by score descending', async () => {
     const res = await db.ai.search({
       propertyName: PROPERTY,
       query: 'graph database nodes edges',
@@ -227,7 +227,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     }
   })
 
-  it('ANN mode: respects limit and skip for pagination', async () => {
+  it('direct vector-index mode: respects limit and skip for pagination', async () => {
     const page1 = await db.ai.search({
       propertyName: PROPERTY,
       query: 'data science algorithms',
@@ -256,9 +256,9 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     expect(overlap).toHaveLength(0)
   })
 
-  // ── ENN prefilter mode (where filter) ─────────────────────────────────────
+  // ── prefilter mode (where filter) ──────────────────────────────────────────
 
-  it('ENN mode: where filter restricts candidates before cosine scoring', async () => {
+  it('prefilter mode: where filter restricts candidates before cosine scoring', async () => {
     // 'French Cuisine' has published: false — must not appear when filtering published: true
     const res = await db.ai.search({
       propertyName: PROPERTY,
@@ -274,7 +274,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     expect(titles).not.toContain('French Cuisine')
   })
 
-  it('ENN mode: where filter with $contains narrows the result set', async () => {
+  it('prefilter mode: where filter with $contains narrows the result set', async () => {
     const res = await db.ai.search({
       propertyName: PROPERTY,
       query: 'quantum superposition qubits',
@@ -292,8 +292,8 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     })
   })
 
-  it('ENN mode: multi-label array switches from ANN to prefilter', async () => {
-    // Two labels passed → ENN mode even without a `where`
+  it('prefilter mode: multi-label array switches from direct vector-index mode to prefilter', async () => {
+    // Two labels passed → prefilter mode even without a `where`
     const res = await db.ai.search({
       propertyName: PROPERTY,
       query: 'data and storage',

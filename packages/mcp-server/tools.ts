@@ -771,8 +771,8 @@ export const tools: Tool[] = [
     description:
       'Perform semantic (vector) similarity search over records whose `propertyName` has been indexed with createEmbeddingIndex. ' +
       'Provide a free-text `query` — RushDB embeds it and returns the most similar records ranked by cosine similarity (__score). ' +
-      'ANN mode (fast, default): used when no `where` filter is supplied. ' +
-      'ENN prefilter mode (exact, slower): activated when a `where` filter is supplied — candidates are first narrowed then ranked. ' +
+      'Direct vector-index mode (fast, default): used when no `where` filter is supplied. ' +
+      'Prefilter mode (exact, slower): activated when a `where` filter is supplied — candidates are first narrowed then ranked. ' +
       'Requires an embedding index in "ready" status for the given label+propertyName.',
     inputSchema: {
       type: 'object',
@@ -790,11 +790,12 @@ export const tools: Tool[] = [
         },
         where: {
           type: 'object',
-          description: 'Optional filter applied before scoring (activates ENN prefilter mode).'
+          description: 'Optional filter applied before scoring (activates prefilter mode).'
         },
         topK: {
           type: 'number',
-          description: 'Max ANN candidates to fetch from the vector index (default 20, ANN mode only).'
+          description:
+            'Max candidates to fetch from the vector index (default 20, direct vector-index mode only).'
         },
         limit: { type: 'number', description: 'Maximum number of results to return (default 20).' },
         skip: { type: 'number', description: 'Number of results to skip for pagination (default 0).' }
