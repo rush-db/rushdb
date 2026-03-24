@@ -7,7 +7,7 @@ import { NothingFound } from '~/elements/NothingFound'
 import { Spinner } from '~/elements/Spinner'
 
 import { ProjectTabs } from '~/features/projects/components/ProjectTabs'
-import { $currentProject } from '~/features/projects/stores/current-project'
+import { useCurrentProjectQuery } from '~/features/projects/hooks/useProjectQueries'
 import { PropertyValueTooltip } from '~/features/properties/components/PropertyValueTooltip'
 import { $router, getRoutePath, isProjectPage, redirectRoute } from '~/lib/router'
 
@@ -42,7 +42,7 @@ export function ProjectLayout() {
 
   const projectId = isProjectPage(page) ? page?.params.id : undefined
 
-  const { data, loading } = useStore($currentProject)
+  const { data, isPending } = useCurrentProjectQuery()
 
   if (!projectId) {
     redirectRoute('projects')
@@ -50,7 +50,7 @@ export function ProjectLayout() {
     return null
   }
 
-  if (loading) {
+  if (isPending) {
     return (
       <div className="grid flex-1 place-items-center">
         <Spinner />

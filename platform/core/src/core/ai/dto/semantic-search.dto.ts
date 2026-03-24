@@ -5,7 +5,7 @@ export class SemanticSearchDto {
   /** Name of the property whose embedding index to query */
   propertyName: string
 
-  /** Free-text query that will be embedded and used for ANN search */
+  /** Free-text query that will be embedded and used for semantic similarity search */
   query: string
 
   /**
@@ -20,14 +20,10 @@ export class SemanticSearchDto {
   labels: string[]
 
   /**
-   * Optional Cypher WHERE prefilter. When present, the search switches from ANN to exact
-   * (ENN) mode: candidates are first narrowed via MATCH/WHERE, then scored with
-   * vector.similarity.cosine(). Supports all standard RushDB filter operators.
+   * Optional Cypher WHERE filter applied before cosine scoring.
+   * Supports all standard RushDB filter operators.
    */
   where?: Where
-
-  /** Maximum number of candidate results to retrieve from the ANN index (default 20, ignored in prefilter mode) */
-  topK?: number
 
   /** Number of results to skip for pagination (default 0) */
   skip?: number

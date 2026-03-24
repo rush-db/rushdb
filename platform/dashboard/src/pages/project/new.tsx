@@ -1,22 +1,20 @@
-import { useStore } from '@nanostores/react'
-
 import { Button } from '~/elements/Button'
 import { PageContent, PageHeader } from '~/elements/PageHeader'
 import { TextField } from '~/elements/Input'
 import { FormField } from '~/elements/FormField'
-import { createProject } from '~/features/projects/stores/project'
+import { useCreateProjectMutation } from '~/features/projects/hooks/useProjectMutations'
 import { ArrowRight, SparklesIcon, Database, Cloud, Globe } from 'lucide-react'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
-import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace'
+import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
+import { useWorkspaceProjectsQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
 
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { setTourStep } from '~/features/tour/stores/tour.ts'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useWatch } from 'react-hook-form'
 import { Label } from '~/elements/Label'
-import { $showUpgrade } from '~/features/workspaces/stores/projects'
 
 // Type for form values
 type ProjectFormValues = {
@@ -50,10 +48,16 @@ const customSchema = object({
 }).required()
 
 function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'form'>) {
-  const { error, mutate } = useStore(createProject)
-  const { data: workspace } = useStore($currentWorkspace)
-  const { loading, data: platformSettings } = useStore($platformSettings)
-  const showUpgradeButton = useStore($showUpgrade)
+  const { mutateAsync: mutate, error } = useCreateProjectMutation()
+  const { data: workspace } = useCurrentWorkspaceQuery()
+  const { data: platformSettings, isPending: loading } = usePlatformSettings()
+  const { data: projects } = useWorkspaceProjectsQuery()
+  const maxProjects = workspace?.projectLimit ?? null
+  const showUpgradeButton = useMemo(() => {
+    return !platformSettings?.selfHosted && maxProjects !== null && typeof projects !== 'undefined' ?
+        (projects?.length ?? 0) >= maxProjects
+      : false
+  }, [platformSettings, maxProjects, projects])
 
   const [selectedTab, setSelectedTab] = useState<'shared' | 'custom'>('shared')
 

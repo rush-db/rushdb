@@ -1,4 +1,3 @@
-import { useStore } from '@nanostores/react'
 import { UsersIcon, X } from 'lucide-react'
 import {
   useEffect,
@@ -23,20 +22,22 @@ import { ConfirmDialog } from '~/elements/ConfirmDialog'
 import { TableRow } from '~/elements/Table'
 import { cn } from '~/lib/utils'
 
-import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace'
-import { $workspaceProjects } from '~/features/workspaces/stores/projects'
 import {
-  $workspaceUsers,
-  $workspaceAccessList,
-  inviteUser,
-  revokeAccess,
-  $workspacePendingInvites,
-  removePendingInvite
-} from '~/features/workspaces/stores/users'
+  useCurrentWorkspaceQuery,
+  useWorkspaceProjectsQuery,
+  useWorkspaceUsersQuery,
+  useWorkspaceAccessListQuery,
+  useWorkspacePendingInvitesQuery
+} from '~/features/workspaces/hooks/useWorkspaceQueries'
+import {
+  useInviteUserMutation,
+  useRevokeAccessMutation,
+  useRemovePendingInviteMutation
+} from '~/features/workspaces/hooks/useWorkspaceMutations'
 import { object, string, useForm } from '~/lib/form'
 import { PendingInvite } from '~/features/workspaces/types.ts'
 import { getRoutePath } from '~/lib/router.ts'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { IconButton } from '~/elements/IconButton'
 
 // Custom table components
@@ -93,8 +94,8 @@ interface InviteFormValues {
 
 function InviteUserSetting() {
   const [projectSelections, setProjectSelections] = useState<Record<string, boolean>>({})
-  const { data: projects, loading: projectsLoading } = useStore($workspaceProjects)
-  const { data: workspace } = useStore($currentWorkspace)
+  const { data: projects, isPending: projectsLoading } = useWorkspaceProjectsQuery()
+  const { data: workspace } = useCurrentWorkspaceQuery()
 
   // Form handling for user invitation
   const {
@@ -106,7 +107,7 @@ function InviteUserSetting() {
     schema: inviteSchema
   })
 
-  const { mutate } = useStore(inviteUser)
+  const { mutateAsync: mutate } = useInviteUserMutation()
 
   // Reset project selections when projects change
   useEffect(() => {
@@ -124,7 +125,6 @@ function InviteUserSetting() {
       .map(([id]) => id)
 
     await mutate({
-      id: workspace.id,
       email: values.email,
       projectIds: selectedProjectIds.length ? selectedProjectIds : undefined
     })
@@ -191,11 +191,11 @@ function InviteUserSetting() {
 }
 
 function UserTable() {
-  const { data: users, loading } = useStore($workspaceUsers)
-  const { data: accessList } = useStore($workspaceAccessList)
-  const { data: projects } = useStore($workspaceProjects)
-  const { data: workspace } = useStore($currentWorkspace)
-  const { mutate: revokeUserAccess } = useStore(revokeAccess)
+  const { data: users, isPending: loading } = useWorkspaceUsersQuery()
+  const { data: accessList } = useWorkspaceAccessListQuery()
+  const { data: projects } = useWorkspaceProjectsQuery()
+  const { data: workspace } = useCurrentWorkspaceQuery()
+  const { mutateAsync: revokeUserAccess } = useRevokeAccessMutation()
 
   if (loading) {
     return (
@@ -217,7 +217,6 @@ function UserTable() {
     if (!workspace) return Promise.resolve(undefined)
 
     return revokeUserAccess({
-      id: workspace.id,
       userIds: [userId]
     })
   }
@@ -282,17 +281,14 @@ function UserTable() {
 }
 
 export function PendingInvitesTable() {
-  const { data: invites, loading } = useStore($workspacePendingInvites)
-  const { data: workspace } = useStore($currentWorkspace)
-  const { mutate: removeInvite } = useStore(removePendingInvite)
+  const { data: invites, isPending: loading } = useWorkspacePendingInvitesQuery()
+  const { data: workspace } = useCurrentWorkspaceQuery()
+  const { mutateAsync: removeInvite } = useRemovePendingInviteMutation()
 
   const handleRemoveInvite = (email: string): Promise<unknown> => {
     if (!workspace) return Promise.resolve(undefined)
 
-    return removeInvite({
-      id: workspace.id,
-      email
-    })
+    return removeInvite({ email })
   }
 
   if (loading) {
@@ -352,11 +348,11 @@ export function PendingInvitesTable() {
 }
 
 export function WorkspaceUsersPage() {
-  const { data: workspace } = useStore($currentWorkspace)
+  const { data: workspace } = useCurrentWorkspaceQuery()
   const userLimit = workspace?.userLimit
-  const { data: users } = useStore($workspaceUsers)
-  const { data: invites } = useStore($workspacePendingInvites)
-  const { loading, data: platformSettings } = useStore($platformSettings)
+  const { data: users } = useWorkspaceUsersQuery()
+  const { data: invites } = useWorkspacePendingInvitesQuery()
+  const { data: platformSettings, isPending: loading } = usePlatformSettings()
 
   const usersCount = useMemo(() => {
     return (users?.length || 1) + (invites?.length || 0)

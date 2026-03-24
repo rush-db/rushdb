@@ -1,4 +1,3 @@
-import { useStore } from '@nanostores/react'
 import { Cable, Copy, CurlyBraces, MoreVertical, Trash2 } from 'lucide-react'
 
 import { Card } from '~/elements/Card'
@@ -7,12 +6,11 @@ import { IconButton } from '~/elements/IconButton'
 import { Menu, MenuItem } from '~/elements/Menu'
 import { NothingFound } from '~/elements/NothingFound'
 import { Skeleton } from '~/elements/Skeleton'
-import { $currentProjectId } from '~/features/projects/stores/id'
 import { cn, copyToClipboard } from '~/lib/utils'
 
 import type { ProjectToken } from '../types'
 
-import { deleteToken } from '../stores/tokens'
+import { useDeleteTokenMutation } from '../hooks/useTokenMutations'
 
 function TokenListItem({
   className,
@@ -29,7 +27,7 @@ function TokenListItem({
   'li',
   ({ loading: true } & Partial<ProjectToken>) | ({ loading?: false } & ProjectToken)
 >) {
-  const { mutate } = useStore(deleteToken)
+  const { mutateAsync: mutate } = useDeleteTokenMutation()
 
   return (
     <li className={cn('flex items-center gap-3 px-3 py-3 sm:gap-4 sm:px-4', className)} {...props}>
@@ -77,10 +75,7 @@ function TokenListItem({
         )}
         <ConfirmDialog
           handler={() => {
-            const projectId = $currentProjectId.get()
-            if (!projectId || !id) {
-              return
-            }
+            if (!id) return
             return mutate({ tokenId: id })
           }}
           trigger={

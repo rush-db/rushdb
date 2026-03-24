@@ -1,4 +1,3 @@
-import { useStore } from '@nanostores/react'
 import { ArrowLeft } from 'lucide-react'
 
 import type { Project } from '~/features/projects/types'
@@ -10,7 +9,7 @@ import { boolean, number, object, string, useForm } from '~/lib/form'
 
 import type { ProjectToken } from '../types'
 
-import { addToken } from '../stores/tokens'
+import { useAddTokenMutation } from '../hooks/useTokenMutations'
 import { FormField } from '~/elements/FormField'
 
 const schema = object({
@@ -49,7 +48,7 @@ function TokenCreated({
 }
 
 export function AddTokenCard({ projectId, project }: { project?: Project; projectId: Project['id'] }) {
-  const { data: createdToken, error, mutate } = useStore(addToken)
+  const { data: createdToken, error, mutateAsync: mutate } = useAddTokenMutation()
 
   const defaultValues = {
     description: '',

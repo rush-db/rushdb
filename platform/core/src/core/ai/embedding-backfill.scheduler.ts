@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { ConfigService } from '@nestjs/config'
+import { int as neo4jInt } from 'neo4j-driver'
 
 import { AiQueryService } from '@/core/ai/ai-query.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
@@ -36,10 +37,17 @@ export class EmbeddingBackfillScheduler {
 
   private async backfillPending(): Promise<void> {
     const pending = await this.embeddingIndexRepository.findPending()
+    this.logger.debug(`[backfillPending] pending indexes: ${pending.length}`)
     if (pending.length === 0) return
 
-    const batchSize = Number(this.configService.get('RUSHDB_EMBEDDING_BATCH_SIZE') ?? 500)
-    const maxRuntimeMs = Number(this.configService.get('RUSHDB_EMBEDDING_MAX_RUNTIME_MS') ?? 50_000)
+    const batchSizeRaw = this.configService.get<string>('RUSHDB_EMBEDDING_BATCH_SIZE')
+    const batchSizeParsed = Number.parseInt(batchSizeRaw ?? '500', 10)
+    const batchSize = Number.isInteger(batchSizeParsed) && batchSizeParsed > 0 ? batchSizeParsed : 500
+
+    const maxRuntimeRaw = this.configService.get<string>('RUSHDB_EMBEDDING_MAX_RUNTIME_MS')
+    const maxRuntimeParsed = Number.parseInt(maxRuntimeRaw ?? '50000', 10)
+    const maxRuntimeMs =
+      Number.isInteger(maxRuntimeParsed) && maxRuntimeParsed > 0 ? maxRuntimeParsed : 50_000
 
     await Promise.allSettled(pending.map((index) => this.backfillIndex(index, batchSize, maxRuntimeMs)))
   }
@@ -51,13 +59,18 @@ export class EmbeddingBackfillScheduler {
   ): Promise<void> {
     await this.embeddingIndexRepository.updateStatus(index.id, 'indexing')
 
-    // propKey is written to rel.__propKey and used by the ANN post-filter for label isolation.
+    // propKey is written to rel.__propKey and used for exact label/property isolation.
     // Format: "Label:propertyName" (e.g. "Book:title").
     const propKey = `${index.label}:${index.propertyName}`
-    const labelSuffix = `:${index.label}`
+    const labelSuffix = index.label ? `:${index.label}` : ''
 
     const deadline = Date.now() + maxRuntimeMs
     let skip = 0
+
+    this.logger.log(
+      `[backfillIndex] start id=${index.id} label=${index.label} property=${index.propertyName} ` +
+        `propKey=${propKey} batchSize=${batchSize} maxRuntimeMs=${maxRuntimeMs}`
+    )
 
     try {
       while (Date.now() < deadline) {
@@ -69,8 +82,8 @@ export class EmbeddingBackfillScheduler {
             projectId: index.projectId,
             propertyName: index.propertyName,
             propKey,
-            skip,
-            batchSize
+            skip: neo4jInt(skip),
+            batchSize: neo4jInt(batchSize)
           })
 
           relations = result.records.map((r) => ({
@@ -81,6 +94,10 @@ export class EmbeddingBackfillScheduler {
           await session.close()
         }
 
+        this.logger.log(
+          `[backfillIndex] id=${index.id} skip=${skip} unindexed relations found=${relations.length}`
+        )
+
         if (relations.length === 0) break
 
         // Build texts to embed (array values join with space; other types coerce to string)
@@ -88,16 +105,27 @@ export class EmbeddingBackfillScheduler {
           Array.isArray(value) ? (value as string[]).join(' ') : String(value)
         )
 
+        this.logger.debug(
+          `[backfillIndex] id=${index.id} sample texts[0..2]: ${JSON.stringify(texts.slice(0, 3))}`
+        )
+
         const embeddings = await this.embeddingProviderService.embedBatch(texts)
+
+        this.logger.log(
+          `[backfillIndex] id=${index.id} embeddings received=${embeddings.length} ` +
+            `dims=${embeddings[0]?.length ?? 0} nulls=${embeddings.filter((e) => e == null).length}`
+        )
 
         const updates = relations
           .map((rel, i) => ({
             relId: rel.relId,
             emb: embeddings[i],
             projectId: index.projectId,
-            propKey: index.propertyName
+            propKey
           }))
           .filter((u) => u.emb != null)
+
+        this.logger.log(`[backfillIndex] id=${index.id} updates to write=${updates.length}`)
 
         if (updates.length > 0) {
           const writeSession = this.neogmaService.createSession('embedding-backfill-write')
@@ -106,8 +134,10 @@ export class EmbeddingBackfillScheduler {
             try {
               await tx.run(this.aiQueryService.getWriteEmbeddingsQuery(), { updates })
               await tx.commit()
+              this.logger.log(`[backfillIndex] id=${index.id} committed ${updates.length} embedding writes`)
             } catch (err) {
               await tx.rollback()
+              this.logger.error(`[backfillIndex] id=${index.id} tx rollback: ${err}`)
               throw err
             }
           } finally {
@@ -134,7 +164,9 @@ export class EmbeddingBackfillScheduler {
         await checkSession.close()
       }
 
-      await this.embeddingIndexRepository.updateStatus(index.id, remaining === 0 ? 'ready' : 'pending')
+      const finalStatus = remaining === 0 ? 'ready' : 'pending'
+      this.logger.log(`[backfillIndex] id=${index.id} done remaining=${remaining} status=${finalStatus}`)
+      await this.embeddingIndexRepository.updateStatus(index.id, finalStatus)
     } catch (err) {
       this.logger.error(`[EmbeddingBackfill] index ${index.id} failed: ${err}`)
       await this.embeddingIndexRepository.updateStatus(index.id, 'error')

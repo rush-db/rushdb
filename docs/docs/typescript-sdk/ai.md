@@ -210,9 +210,7 @@ type EmbeddingIndexStats = {
 
 Embeds the query text and returns relevant records by cosine similarity. Requires a `ready` embedding index on `propertyName` scoped to the target `label`.
 
-**Execution mode is automatic:**
-- **ANN** (fast): single label in `labels`, no `where` → queries the global vector index
-- **ENN prefilter** (exact): `where` present or 2+ labels → MATCH/WHERE first, then `vector.similarity.cosine()`
+RushDB performs exact semantic search: candidates are narrowed via labels and optional `where`, then ranked by cosine similarity.
 
 ```typescript
 db.ai.search(params: {
@@ -220,14 +218,13 @@ db.ai.search(params: {
   query: string
   labels: string[]   // required, min 1
   where?: object
-  topK?: number      // ANN candidate count (default 20)
   skip?: number
   limit?: number
 }): Promise<ApiResponse<SemanticSearchResult[]>>
 ```
 
 ```typescript
-// ANN — single label, no where
+// Semantic search
 const { data: results } = await db.ai.search({
   propertyName: 'description',
   query: 'machine learning for beginners',
@@ -239,7 +236,7 @@ for (const result of results) {
   console.log(`[${result.__score.toFixed(3)}] ${result.title}`)
 }
 
-// ENN prefilter — with where clause
+// Semantic search with filter
 const { data: filtered } = await db.ai.search({
   propertyName: 'description',
   query: 'sustainable packaging',

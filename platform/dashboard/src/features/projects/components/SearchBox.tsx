@@ -1,6 +1,7 @@
 import type { Property, PropertyType, PropertyValue } from '@rushdb/javascript-sdk'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
+import { useQuery } from '@tanstack/react-query'
 import { useStore } from '@nanostores/react'
 import { action, atom, computed, map } from 'nanostores'
 import { useEffect, useMemo, useRef } from 'react'
@@ -30,15 +31,10 @@ import { operatorOptions } from '~/features/search/constants.ts'
 import { type AnySearchOperation, isViableSearchOperation } from '~/features/search/types.ts'
 import { useHotkeys } from '~/hooks/useHotkeys.ts'
 import { api } from '~/lib/api.ts'
-import { createAsyncStore } from '~/lib/fetcher.ts'
 import { isInViewport, normalizeString } from '~/lib/utils.ts'
 
-import {
-  $activeLabels,
-  $currentProjectFields,
-  $currentProjectFilters,
-  addFilter
-} from '../stores/current-project.ts'
+import { $activeLabels, $currentProjectFilters, addFilter } from '../stores/current-project.ts'
+import { useProjectFieldsQuery } from '../hooks/useProjectQueries'
 import { convertToSearchQuery, filterToSearchOperation } from '~/features/projects/utils.ts'
 
 const ICON_SIZE = 12
@@ -72,34 +68,25 @@ const goPageForward = action($pages, 'goPageForward', (store, page: BoxPages) =>
 
 // current
 const $currentField = atom<Property | undefined>(undefined)
-const $currentFieldValues = createAsyncStore({
-  key: '$fieldValues',
-  deps: [$currentField],
-  async fetcher(init) {
-    const fieldId = $currentField.get()?.id
-
-    if (!fieldId) {
-      return
-    }
-
-    const labels = $activeLabels.get()
-    let properties = $currentProjectFilters.get().map(filterToSearchOperation)
-
-    return await api.properties.values({
-      init,
-      id: fieldId,
-      searchQuery: {
-        labels,
-        where: convertToSearchQuery(properties)
-      }
-    })
-
-    // as unknown as Array<
-    //    Property &
-    //    PropertyValuesData & { values: PropertySingleValue }
-    //  >
-  }
-})
+function useCurrentFieldValuesQuery(query?: string) {
+  const currentField = useStore($currentField)
+  const fieldId = currentField?.id
+  const normalizedQuery = (query ?? '').trim()
+  return useQuery({
+    queryKey: ['fieldValues', fieldId, normalizedQuery],
+    queryFn: async () => {
+      const labels = $activeLabels.get()
+      const properties = $currentProjectFilters.get().map(filterToSearchOperation)
+      const result = await api.properties.values({
+        id: fieldId!,
+        searchQuery: { labels, where: convertToSearchQuery(properties), query: normalizedQuery || undefined },
+        init: {} as RequestInit
+      })
+      return result.data
+    },
+    enabled: !!fieldId
+  })
+}
 const $currentOperator = atom<SearchOperations | undefined>(undefined)
 const $currentMin = atom<number | undefined>()
 const $currentMax = atom<number | undefined>()
@@ -159,8 +146,10 @@ function CurrentValueSuggestion({
   disabled?: boolean
   onSelect: (value: PropertyValue) => void
 }) {
-  const { data: fieldValues } = useStore($currentFieldValues)
+  const page = useStore($page)
   const query = useStore($recordQuery)
+  const valuesSearchQuery = page === BoxPages.Values ? query : undefined
+  const { data: fieldValues } = useCurrentFieldValuesQuery(valuesSearchQuery)
 
   return (
     <SearchItem
@@ -168,7 +157,7 @@ function CurrentValueSuggestion({
         onSelect(query)
       }}
       disabled={disabled || query.length < 1}
-      hasMatch={fieldValues?.values?.some((value) => value == query)}
+      hasMatch={fieldValues?.values?.some((value: PropertyValue) => value == query)}
       placeholder="Start typing..."
     >
       {children || query}
@@ -371,19 +360,16 @@ export function SearchBox({
   const query = useStore($recordQuery)
   const page = useStore($page)
   const currentField = useStore($currentField)
-  const { data: fieldValues } = useStore($currentFieldValues)
+  const valuesSearchQuery = page === BoxPages.Values ? query : undefined
+  const { data: fieldValues } = useCurrentFieldValuesQuery(valuesSearchQuery)
   const currentOperator = useStore($currentOperator)
 
   const open = useStore($open)
 
   // props
-  const { data: fields = [] } = useStore($currentProjectFields)
+  const { data: fields = [] } = useProjectFieldsQuery()
 
-  const filteredValues = useMemo(
-    () =>
-      fieldValues?.values?.filter((value) => normalizeString(String(value)).includes(normalizeString(query))),
-    [query, fieldValues]
-  )
+  const filteredValues = useMemo(() => fieldValues?.values, [fieldValues])
 
   const itemsCount = filteredValues?.length ?? 0
 
@@ -521,7 +507,7 @@ export function SearchBox({
           <ComboboxList ref={outerRef}>
             {!page && (
               <>
-                {fields.map((field) => (
+                {fields.map((field: Property) => (
                   <ComboboxItem
                     onSelect={() => {
                       $currentField.set(field)

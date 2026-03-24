@@ -1354,12 +1354,8 @@ export class RestAPI {
     /**
      * Performs semantic (vector) search over records whose `propertyName` has been indexed.
      *
-     * **ANN mode** (default, fast): used when no `where` filter and at most one `labels` entry.
-     * Queries the shared global vector index for approximate nearest neighbours.
-     *
-     * **ENN prefilter mode** (exact, slower): activated when a `where` filter is supplied or
-     * `labels` contains more than one value. Candidates are first narrowed by MATCH/WHERE,
-     * then ranked by exact cosine similarity.
+     * RushDB performs exact search: candidates are narrowed via MATCH/WHERE first,
+     * then ranked by cosine similarity.
      *
      * @param params - Search parameters including the query text, property name, and optional filters
      */

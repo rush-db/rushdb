@@ -1,8 +1,7 @@
-import { useStore } from '@nanostores/react'
 import { Banner } from '~/elements/Banner'
 import { NothingFound } from '~/elements/NothingFound'
 import { Spinner } from '~/elements/Spinner'
-import { $currentRecord, $currentRelatedRecords } from '../stores/current-record'
+import { useCurrentRecordQuery, useCurrentRecordRelatedQuery } from '../hooks/useProjectQueries'
 import { useMemo } from 'react'
 import { ArrowRight, ArrowLeft } from 'lucide-react'
 import { Relation } from '@rushdb/javascript-sdk'
@@ -14,8 +13,9 @@ interface RelationGroup {
 }
 
 export function RelatedRecordsTab() {
-  const { data: relations, loading } = useStore($currentRelatedRecords)
-  const { data: record } = useStore($currentRecord)
+  const { data: relationsResult, isPending: loading } = useCurrentRecordRelatedQuery()
+  const relations = relationsResult?.data
+  const { data: record } = useCurrentRecordQuery()
 
   const groupedRelations = useMemo(() => {
     if (!relations || !record) return []

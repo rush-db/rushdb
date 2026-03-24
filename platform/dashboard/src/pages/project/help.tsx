@@ -1,4 +1,3 @@
-import { useStore } from '@nanostores/react'
 import { PageContent, PageHeader } from '~/elements/PageHeader'
 import {
   ClientLibrariesStep,
@@ -6,10 +5,10 @@ import {
   UseSdkStep,
   WelcomeStep
 } from '~/features/onboarding/components/steps'
-import { $currentProject } from '~/features/projects/stores/current-project'
+import { useCurrentProjectQuery } from '~/features/projects/hooks/useProjectQueries'
 
 export function ProjectHelpPage() {
-  const { data, loading } = useStore($currentProject)
+  const { data, isPending: loading } = useCurrentProjectQuery()
 
   return (
     <>

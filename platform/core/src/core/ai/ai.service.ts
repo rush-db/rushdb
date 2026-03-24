@@ -6,7 +6,7 @@ import {
   UnprocessableEntityException
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { Transaction } from 'neo4j-driver'
+import { int as neo4jInt, Transaction } from 'neo4j-driver'
 import { randomUUID } from 'crypto'
 
 import { AiQueryService } from '@/core/ai/ai-query.service'
@@ -292,7 +292,7 @@ export class AiService {
   /**
    * Computes the propKey stored on VALUE relationships as rel.__propKey.
    * Format: "Label:propertyName" — uniquely identifies both which property is indexed
-   * and which label's records were embedded, enabling label-isolated ANN post-filtering.
+   * and which label's records were embedded for strict label scoping.
    */
   private computePropKey(propertyName: string, label: string): string {
     return `${label}:${propertyName}`
@@ -321,25 +321,48 @@ export class AiService {
       )
     }
 
+    const label = dto.label
+
     // 2. Prevent exact duplicate: same (projectId, label, propertyName)
     const existing = await this.embeddingIndexRepository.findByProjectIdPropertyAndLabel(
       projectId,
       dto.propertyName,
-      dto.label
+      label
     )
     if (existing) {
       throw new ConflictException(
-        `An embedding index for label "${dto.label}" and property "${dto.propertyName}" already exists`
+        `An embedding index for label "${label}" and property "${dto.propertyName}" already exists`
       )
     }
 
     // 3. Persist the index policy in SQL
     const modelKey = this.configService.get<string>('RUSHDB_EMBEDDING_MODEL') ?? ''
-    const dimensions = Number(this.configService.get('RUSHDB_EMBEDDING_DIMENSIONS') ?? 0)
+    const dimensionsRaw = this.configService.get<string>('RUSHDB_EMBEDDING_DIMENSIONS')
+    const dimensions = Number.parseInt(dimensionsRaw ?? '0', 10)
     const apiKey = this.configService.get<string>('RUSHDB_EMBEDDING_API_KEY') ?? ''
-    if (!modelKey || !dimensions || !apiKey) {
+    if (!modelKey || !apiKey || !Number.isInteger(dimensions) || dimensions <= 0) {
       throw new UnprocessableEntityException(
-        'Embedding is not fully configured on this server. Set RUSHDB_EMBEDDING_MODEL, RUSHDB_EMBEDDING_DIMENSIONS, and RUSHDB_EMBEDDING_API_KEY.'
+        'Embedding is not fully configured on this server. Set RUSHDB_EMBEDDING_MODEL, RUSHDB_EMBEDDING_DIMENSIONS (positive integer), and RUSHDB_EMBEDDING_API_KEY.'
+      )
+    }
+
+    // 3.5 Fail fast if provider/model configuration is invalid.
+    // Without this, createIndex may succeed (201) but backfill fails asynchronously later.
+    try {
+      const probe = await this.embeddingProviderService.embed('rushdb-embedding-healthcheck')
+      if (!Array.isArray(probe) || probe.length !== dimensions) {
+        throw new UnprocessableEntityException(
+          `Embedding provider returned vector length ${probe?.length ?? 0}, expected ${dimensions}.`
+        )
+      }
+    } catch (err) {
+      if (err instanceof UnprocessableEntityException) {
+        throw err
+      }
+      throw new UnprocessableEntityException(
+        `Embedding provider validation failed for model "${modelKey}". ${
+          err instanceof Error ? err.message : ''
+        }`
       )
     }
 
@@ -347,7 +370,7 @@ export class AiService {
     const row = await this.embeddingIndexRepository.create({
       id: randomUUID(),
       projectId,
-      label: dto.label,
+      label,
       propertyName: dto.propertyName,
       modelKey: modelKey,
       dimensions: dimensions,
@@ -361,7 +384,9 @@ export class AiService {
     try {
       const session = this.neogmaService.createSession('embedding-index-ddl')
       try {
-        await session.run(this.aiQueryService.getCreateGlobalVectorIndexQuery(), { dimensions })
+        await session.run(this.aiQueryService.getCreateGlobalVectorIndexQuery(), {
+          dimensions: neo4jInt(dimensions)
+        })
       } finally {
         await session.close()
       }
@@ -385,13 +410,31 @@ export class AiService {
       throw new NotFoundException(`Embedding index "${id}" not found`)
     }
 
-    const propKey = this.computePropKey(row.propertyName, row.label)
-    const labelSuffix = `:${row.label}`
-
-    // 1. Delete the SQL config row first so no new backfills are triggered for this policy.
+    // Delete the SQL config row first so UI can update immediately and
+    // no new backfills are triggered for this policy.
     await this.embeddingIndexRepository.delete(id)
 
-    // 2. Strip embeddings from VALUE relationships for this (label + propertyName + propKey).
+    // Fire-and-forget heavy Neo4j cleanup to avoid blocking the HTTP response.
+    void this.cleanUpDeletedIndexResources({
+      id: row.id,
+      projectId: row.projectId,
+      propertyName: row.propertyName,
+      label: row.label
+    }).catch((err) => {
+      Logger.warn(`[AiService] async index cleanup failed for ${row.id}: ${err}`)
+    })
+  }
+
+  private async cleanUpDeletedIndexResources(row: {
+    id: string
+    projectId: string
+    propertyName: string
+    label: string
+  }): Promise<void> {
+    const propKey = this.computePropKey(row.propertyName, row.label)
+    const labelSuffix = row.label ? `:${row.label}` : ''
+
+    // Strip embeddings from VALUE relationships for this (label + propertyName + propKey).
     //    The AND rel.__propKey = $propKey guard ensures we only remove data for this exact index,
     //    not for another label's index that shares the same property node.
     try {
@@ -409,7 +452,7 @@ export class AiService {
       Logger.warn(`[AiService] embedding strip failed: ${err}`)
     }
 
-    // 3. Drop the global Neo4j vector index only when no embeddings remain anywhere in the graph.
+    // Drop the global Neo4j vector index only when no embeddings remain anywhere in the graph.
     //    This is a global check (not scoped to project) because the DDL index is shared across
     //    all tenants. If user A deletes their last index but user B still has embeddings,
     //    the index must be preserved.
@@ -441,7 +484,7 @@ export class AiService {
     }
 
     const propKey = this.computePropKey(row.propertyName, row.label)
-    const labelSuffix = `:${row.label}`
+    const labelSuffix = row.label ? `:${row.label}` : ''
 
     const result = await transaction.run(this.aiQueryService.getEmbeddingIndexStatsQuery(labelSuffix), {
       projectId,
@@ -463,9 +506,8 @@ export class AiService {
   }
 
   /**
-   * Performs semantic search using an embedding index scoped to the first entry in dto.labels.
-   * - ANN mode (fast): no `where` filter and exactly one label.
-   * - ENN prefilter mode (exact): `where` filter present, or multiple labels.
+   * Performs exact semantic search using an embedding index scoped to the first entry in dto.labels.
+   * Candidates are first filtered via Cypher MATCH/WHERE and then ranked by cosine similarity.
    */
   async semanticSearch(
     projectId: string,
@@ -491,11 +533,16 @@ export class AiService {
     }
 
     const propKey = this.computePropKey(dto.propertyName, label)
-    const labelSuffix = `:${label}`
+    const labelSuffix = label ? `:${label}` : ''
     const queryVector = await this.embeddingProviderService.embed(dto.query)
-    const topK = dto.topK ?? 20
-    const skip = dto.skip ?? 0
-    const limit = dto.limit ?? 20
+    const toNonNegativeInt = (value: unknown, fallback: number) => {
+      const parsed = Number.parseInt(String(value ?? fallback), 10)
+      if (!Number.isInteger(parsed) || parsed < 0) return fallback
+      return parsed
+    }
+
+    const skip = toNonNegativeInt(dto.skip, 0)
+    const limit = toNonNegativeInt(dto.limit, 20)
 
     const hasWhere = dto.where != null && Object.keys(dto.where).length > 0
     const hasMultiLabels = dto.labels.length > 1
@@ -503,8 +550,9 @@ export class AiService {
     let query: string
     let params: Record<string, unknown>
 
-    if (hasWhere || hasMultiLabels) {
-      // ENN prefilter path: narrow candidates first, then exact cosine scoring
+    // Always prefilter candidates first for correctness in a multi-tenant shared index.
+    {
+      // Narrow candidates first, then exact cosine scoring
       const { where: whereClause } = hasWhere ? parseWhereClause(dto.where) : { where: '' }
       // For multi-label, build a label filter clause
       const multiLabelClause =
@@ -513,11 +561,14 @@ export class AiService {
         : ''
       const combinedWhere = [whereClause, multiLabelClause].filter(Boolean).join(' AND ')
       query = this.aiQueryService.getSemanticSearchPrefilterQuery(combinedWhere, labelSuffix)
-      params = { queryVector, propertyName: dto.propertyName, propKey, projectId, skip, limit }
-    } else {
-      // ANN path: fast approximate nearest neighbour via global vector index
-      query = this.aiQueryService.getSemanticSearchAnnQuery(labelSuffix)
-      params = { queryVector, propKey, projectId, topK, skip, limit }
+      params = {
+        queryVector,
+        propertyName: dto.propertyName,
+        propKey,
+        projectId,
+        skip: neo4jInt(skip),
+        limit: neo4jInt(limit)
+      }
     }
 
     const result = await transaction.run(query, params)

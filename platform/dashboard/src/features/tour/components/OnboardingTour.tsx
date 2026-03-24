@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import Joyride, { CallBackProps, EVENTS, STATUS } from 'react-joyride'
 import { useStore } from '@nanostores/react'
-import { updateUser } from '~/features/auth/stores/user'
+import { useUpdateUserMutation } from '~/features/auth/hooks/useAuthMutations'
 import { $router, openRoute, projectRoutes, routes } from '~/lib/router'
 import { steps, keys } from '~/features/tour/config/steps'
 import {
@@ -20,7 +20,7 @@ export function OnboardingTour() {
   const projectId = useStore($currentProjectId)
   const currentKey = useStore($tourStep)
   const run = useStore($tourEffective)
-  const { mutate: updateSettings } = useStore(updateUser)
+  const { mutateAsync: updateSettings } = useUpdateUserMutation()
   const isAllowed = useStore($tourAllowed)
 
   const currentStep = steps.find((s) => (s.data as any).key === currentKey)

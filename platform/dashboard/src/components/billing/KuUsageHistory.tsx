@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { HelpCircle, X } from 'lucide-react'
-import { useStore } from '@nanostores/react'
-import { $platformSettings } from '~/features/auth/stores/settings'
-import { $workspaceProjects } from '~/features/workspaces/stores/projects'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
+import { useWorkspaceProjectsQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
 import { api } from '~/lib/api'
 import { Skeleton } from '~/elements/Skeleton'
 import { Message } from '~/elements/Message'
@@ -253,9 +252,8 @@ function KuUsageHeader({ size = 'large' }: { size?: 'small' | 'large' }) {
 }
 
 export function KuUsageHistory() {
-  const settings = useStore($platformSettings)
-  const projectsStore = useStore($workspaceProjects)
-  const projectsList = projectsStore.data ?? []
+  const { data: settings } = usePlatformSettings()
+  const { data: projectsList = [] } = useWorkspaceProjectsQuery()
 
   // ---------- filters ----------
   const [filterProjectId, setFilterProjectId] = useState<string | null>(null)
@@ -329,7 +327,7 @@ export function KuUsageHistory() {
   }
 
   // Don't show in self-hosted mode
-  if (settings.data?.selfHosted) {
+  if (settings?.selfHosted) {
     return null
   }
 

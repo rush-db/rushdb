@@ -9,11 +9,13 @@ import {
   Post,
   Request,
   UseGuards,
-  UseInterceptors
+  UseInterceptors,
+  UsePipes
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
+import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
@@ -21,6 +23,7 @@ import { AiService } from '@/core/ai/ai.service'
 import { OntologyItem } from '@/core/ai/ai.types'
 import { CreateEmbeddingIndexDto } from '@/core/ai/dto/create-embedding-index.dto'
 import { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
+import { createEmbeddingIndexSchema } from '@/core/ai/validation/schemas/embedding-index.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
@@ -105,6 +108,7 @@ export class AiController {
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
+  @UsePipes(ValidationPipe(createEmbeddingIndexSchema, 'body'))
   @HttpCode(HttpStatus.CREATED)
   async createIndex(
     @Body() dto: CreateEmbeddingIndexDto,
@@ -116,23 +120,25 @@ export class AiController {
 
   /**
    * Deletes an embedding index policy.
+   * Note: IsRelatedToProjectGuard is intentionally omitted — embedding indexes live in
+   * Postgres (not Neo4j) so their UUIDs cannot be verified via the Neo4j ownership check.
+   * Ownership is enforced inside AiService.deleteIndex via row.projectId === projectId.
    */
   @Delete('/indexes/:id')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.ACCEPTED)
   async deleteIndex(@Param('id') id: string, @Request() request: PlatformRequest) {
     await this.aiService.deleteIndex(id, request.projectId)
-    return { deleted: true }
+    return { deleted: true, queued: true }
   }
 
   /**
    * Returns Neo4j-level statistics for an embedding index (total records vs indexed records).
+   * Note: IsRelatedToProjectGuard omitted for the same reason as deleteIndex.
    */
   @Get('/indexes/:id/stats')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async getIndexStats(
@@ -144,8 +150,8 @@ export class AiController {
   }
 
   /**
-   * Performs ANN semantic search over records whose property has an embedding index.
-   * The query text is embedded on the fly and matched against stored vectors.
+   * Performs exact semantic search over records whose property has an embedding index.
+   * The query text is embedded on the fly and matched by cosine similarity.
    */
   @Post('/search')
   @ApiBearerAuth()

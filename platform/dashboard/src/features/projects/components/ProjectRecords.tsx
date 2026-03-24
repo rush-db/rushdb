@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { RecordSheet } from '~/features/projects/components/RecordSheet'
 import { RecordsHeader } from '~/features/projects/components/RecordsHeader'
@@ -8,23 +8,36 @@ import { RecordsTable } from '~/features/records/components/RecordsTable'
 import {
   $currentProjectRecordsLimit,
   $currentProjectRecordsSkip,
-  $filteredRecords,
+  $filteredRecordsTotal,
   $recordView,
   decrementRecordsPage,
   incrementRecordsPage
 } from '../stores/current-project'
-import { $currentProjectVisibleFields } from '../stores/hidden-fields'
+import { $hiddenFields, isFieldHidden } from '../stores/hidden-fields'
 import { $sheetRecordId } from '../stores/id'
 import { GraphView } from '~/features/projects/components/GraphView.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
 import { RawApiView } from '~/features/projects/components/RawApiView.tsx'
 import { setTourStep } from '~/features/tour/stores/tour.ts'
 import { $router } from '~/lib/router.ts'
+import { useFilteredRecordsQuery, useProjectFieldsQuery } from '~/features/projects/hooks/useProjectQueries'
 
 function View() {
   const page = useStore($router)
-  const { data: records, loading: loadingRecords, total = 0 } = useStore($filteredRecords)
-  const { data: fields, loading: loadingFields } = useStore($currentProjectVisibleFields)
+  const { data: recordsResult, isPending: loadingRecords } = useFilteredRecordsQuery()
+  const records = recordsResult?.data
+  const total = recordsResult?.total ?? 0
+
+  useEffect(() => {
+    $filteredRecordsTotal.set(recordsResult?.total)
+  }, [recordsResult?.total])
+
+  const { data: allFields, isPending: loadingFields } = useProjectFieldsQuery()
+  const hiddenFields = useStore($hiddenFields)
+  const fields = useMemo(
+    () => allFields?.filter((field) => !isFieldHidden(hiddenFields, field.id)),
+    [allFields, hiddenFields]
+  )
 
   const skip = useStore($currentProjectRecordsSkip)
 
@@ -33,10 +46,6 @@ function View() {
   const loading = loadingRecords || loadingFields
 
   const view = useStore($recordView)
-
-  useEffect(() => {
-    $filteredRecords.refetch()
-  }, [])
 
   useEffect(() => {
     if (page?.route === 'project' && !loading && records?.length) {

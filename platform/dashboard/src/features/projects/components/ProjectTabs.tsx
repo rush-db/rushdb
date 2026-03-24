@@ -7,13 +7,13 @@ import type { Project } from '../types'
 import { useStore } from '@nanostores/react'
 import { $user } from '~/features/auth/stores/user.ts'
 import { useMemo } from 'react'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 
 export function ProjectTabs({ project }: { project: Project }) {
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
 
-  const { data: platformSettings } = useStore($platformSettings)
+  const { data: platformSettings } = usePlatformSettings()
 
   const projectIsInactive = project.status === 'pending' || project.status === 'provisioning'
 

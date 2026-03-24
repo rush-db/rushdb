@@ -3,14 +3,12 @@ import React, { useRef, useCallback, FC, useState, useEffect } from 'react'
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import { ForceGraph3D } from 'react-force-graph'
 import SpriteText from 'three-spritetext'
-import { useStore } from '@nanostores/react'
 
 import {
-  $currentProjectLabels,
-  $filteredRecords,
-  $filteredRecordsRelations
-} from '~/features/projects/stores/current-project.ts'
-import { Renderer } from 'three'
+  useFilteredRecordRelationsQuery,
+  useFilteredRecordsQuery,
+  useProjectLabelsQuery
+} from '~/features/projects/hooks/useProjectQueries'
 import { $sheetRecordId } from '~/features/projects/stores/id.ts'
 import { getLabelColor } from '~/features/labels'
 import { DBRecord, DBRecordInstance, type Relation } from '@rushdb/javascript-sdk'
@@ -66,10 +64,14 @@ const HEADER_HEIGHT = 182
 const FOOTER_HEIGHT = 61
 
 export const GraphView: FC = () => {
-  const extraRenderers: Renderer[] = [new CSS2DRenderer() as unknown as Renderer]
+  const fgRef = useRef<any>(null)
+  const extraRenderers = [new CSS2DRenderer()]
 
-  const { data: relations } = useStore($filteredRecordsRelations)
-  const { data: records } = useStore($filteredRecords)
+  const { data: relationsResult } = useFilteredRecordRelationsQuery()
+  const { data: recordsResult } = useFilteredRecordsQuery()
+  const { data: labels } = useProjectLabelsQuery()
+  const relations = relationsResult?.data
+  const records = recordsResult?.data
 
   const [data, setData] = useState<Output>({ nodes: [], links: [] })
   const [weights, setWeights] = useState<Record<string, number>>({})
@@ -82,60 +84,52 @@ export const GraphView: FC = () => {
     setWeights(newWeights)
   }, [relations])
 
-  const fgRef = useRef<any>(undefined)
+  const handleClick = useCallback((node: any) => {
+    const distance = 260
+    const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z)
 
-  const handleClick = useCallback(
-    (node: any) => {
-      const distance = 260
-      const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z)
+    fgRef.current?.cameraPosition(
+      { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
+      node,
+      1000
+    )
 
-      fgRef.current?.cameraPosition(
-        { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
-        node,
-        1000
-      )
+    $sheetRecordId.set(node.__id)
+  }, [])
 
-      $sheetRecordId.set(node.__id)
-    },
-    [fgRef]
-  )
+  const handleLinkClick = useCallback((link: any) => {
+    const distance = 70
 
-  const handleLinkClick = useCallback(
-    (link: any) => {
-      const distance = 70
+    const sx = link.source.x
+    const sy = link.source.y
+    const sz = link.source.z
 
-      const sx = link.source.x
-      const sy = link.source.y
-      const sz = link.source.z
+    const tx = link.target.x
+    const ty = link.target.y
+    const tz = link.target.z
 
-      const tx = link.target.x
-      const ty = link.target.y
-      const tz = link.target.z
+    const dx = sx - tx
+    const dy = sy - ty
+    const dz = sz - tz
 
-      const dx = sx - tx
-      const dy = sy - ty
-      const dz = sz - tz
+    const rdx = dz
+    const rdy = dy
+    const rdz = -dx
 
-      const rdx = dz
-      const rdy = dy
-      const rdz = -dx
+    const dist = Math.hypot(rdx, rdy, rdz)
 
-      const dist = Math.hypot(rdx, rdy, rdz)
+    const distRatio = 1 + distance / dist
 
-      const distRatio = 1 + distance / dist
+    const mx = (sx + tx) / 2
+    const my = (sy + ty) / 2
+    const mz = (sz + tz) / 2
 
-      const mx = (sx + tx) / 2
-      const my = (sy + ty) / 2
-      const mz = (sz + tz) / 2
+    const cx = mx + rdx * distRatio
+    const cy = my + rdy * distRatio
+    const cz = mz + rdz * distRatio
 
-      const cx = mx + rdx * distRatio
-      const cy = my + rdy * distRatio
-      const cz = mz + rdz * distRatio
-
-      fgRef.current?.cameraPosition({ x: cx, y: cy, z: cz }, { x: mx, y: my, z: mz }, 1000)
-    },
-    [fgRef]
-  )
+    fgRef.current?.cameraPosition({ x: cx, y: cy, z: cz }, { x: mx, y: my, z: mz }, 1000)
+  }, [])
   const [canvasSize, setCanvasSize] = useState({
     width: window.innerWidth - 16,
     height: window.innerHeight - HEADER_HEIGHT - FOOTER_HEIGHT
@@ -159,7 +153,7 @@ export const GraphView: FC = () => {
     <ForceGraph3D
       ref={fgRef}
       backgroundColor={'#222'}
-      extraRenderers={extraRenderers}
+      extraRenderers={extraRenderers as any}
       showNavInfo={false}
       graphData={data}
       linkWidth={1.5}
@@ -179,7 +173,6 @@ export const GraphView: FC = () => {
       nodeThreeObjectExtend={true}
       onLinkClick={handleLinkClick}
       nodeColor={(node) => {
-        const { data: labels } = $currentProjectLabels.get()
         return getLabelColor(node.__label, Object.keys(labels ?? {}).indexOf(node.__label))
       }}
       onNodeDragEnd={(node) => {

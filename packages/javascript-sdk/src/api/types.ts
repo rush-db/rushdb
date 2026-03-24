@@ -49,12 +49,10 @@ export type SemanticSearchParams = {
    */
   labels: string[]
   /**
-   * Optional filter applied before scoring. When provided, the query switches from ANN to exact
-   * (ENN) mode: candidates are first narrowed via MATCH/WHERE, then scored with cosine similarity.
+   * Optional filter applied before cosine scoring.
+   * Candidates are narrowed via MATCH/WHERE and then ranked by similarity.
    */
   where?: Record<string, unknown>
-  /** Maximum candidates to fetch from the ANN index (default 20, ignored in prefilter mode). */
-  topK?: number
   /** Number of results to skip for pagination (default 0). */
   skip?: number
   /** Maximum number of results to return (default 20). */

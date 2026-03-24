@@ -13,8 +13,8 @@ This tutorial walks you through the full semantic search workflow:
 1. Push some records
 2. Create an embedding index on a text property
 3. Poll until the index is ready
-4. Run an ANN search (fast, single label)
-5. Run an ENN search with a prefilter (exact, with `where`)
+4. Run semantic search
+5. Run semantic search with a filter
 
 Prerequisites: a running RushDB instance with `RUSHDB_EMBEDDING_MODEL` configured (or RushDB Cloud with AI enabled).
 
@@ -235,9 +235,7 @@ Poll until `indexedRecords === totalRecords`.
 
 ---
 
-## Step 4: ANN search (fast, single label)
-
-Single label + no `where` = ANN mode: queries the global vector index directly.
+## Step 4: Semantic search
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -308,9 +306,9 @@ token: YOUR_API_KEY
 
 ---
 
-## Step 5: ENN search with prefilter
+## Step 5: Semantic search with filter
 
-Adding a `where` clause switches to exact nearest-neighbour mode: the graph is pre-filtered first, then cosine similarity is computed on the narrowed set.
+Adding a `where` clause narrows the candidate set before cosine similarity ranking.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -378,4 +376,4 @@ token: YOUR_API_KEY
 
 - **Inject schema context into an LLM**: [TypeScript AI docs](../typescript-sdk/ai.md) | [Python AI docs](../python-sdk/ai.md)
 - **REST API reference**: [REST AI docs](../rest-api/ai.md)
-- **Multiple labels**: Pass 2+ labels in `labels` — this also activates ENN mode and searches across all specified labels.
+- **Multiple labels**: Pass 2+ labels in `labels` to search across all specified labels.

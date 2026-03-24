@@ -9,20 +9,18 @@ import { NothingFound } from '~/elements/NothingFound'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { Metric } from '~/features/projects/components'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
-import {
-  $filteredProjects,
-  $projectsQuery,
-  $workspaceProjects,
-  filterProjects
-} from '~/features/workspaces/stores/projects'
+import { $projectsQuery, filterProjects } from '~/features/workspaces/stores/projects'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { isProjectEmpty } from '~/features/projects/utils'
 import { useEffect, useMemo } from 'react'
 import { api } from '~/lib/api.ts'
 import { $user } from '~/features/auth/stores/user.ts'
-import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace.ts'
 import { Label } from '~/elements/Label.tsx'
+import {
+  useCurrentWorkspaceQuery,
+  useWorkspaceProjectsQuery
+} from '~/features/workspaces/hooks/useWorkspaceQueries'
 
 const statsMap: Record<keyof ProjectStats, string> = {
   properties: 'Properties',
@@ -88,7 +86,7 @@ function ProjectsSearchInput(props: TInheritableElementProps<'input'>) {
 }
 
 function Header() {
-  const { data: projects } = useStore($workspaceProjects)
+  const { data: projects } = useWorkspaceProjectsQuery()
 
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
@@ -134,7 +132,12 @@ function EmptyProjects() {
 }
 
 function ProjectsCards() {
-  const filteredProjects = useStore($filteredProjects)
+  const { data: projects } = useWorkspaceProjectsQuery()
+  const query = useStore($projectsQuery)
+  const filteredProjects = useMemo(() => {
+    const q = query?.toLowerCase() ?? ''
+    return projects?.filter((p) => (p.name ?? '').toLowerCase().includes(q))
+  }, [projects, query])
 
   if (!filteredProjects || filteredProjects?.length < 1) {
     return <NothingFound />
@@ -150,8 +153,8 @@ function ProjectsCards() {
 }
 
 function Projects() {
-  const { data: projects, loading } = useStore($workspaceProjects)
-  const { data: workspace } = useStore($currentWorkspace)
+  const { data: projects, isPending: loading } = useWorkspaceProjectsQuery()
+  const { data: workspace } = useCurrentWorkspaceQuery()
 
   useEffect(() => {
     if (typeof projects !== 'undefined') {
