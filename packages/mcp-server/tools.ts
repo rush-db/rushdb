@@ -41,6 +41,11 @@ export type ToolName =
   | 'findProperties'
   | 'findPropertyById'
   | 'deleteProperty'
+  | 'findEmbeddingIndexes'
+  | 'createEmbeddingIndex'
+  | 'deleteEmbeddingIndex'
+  | 'getEmbeddingIndexStats'
+  | 'semanticSearch'
 
 type SecurityScheme = { type: 'oauth2'; scopes: string[] } | { type: 'noauth' }
 
@@ -695,6 +700,106 @@ export const tools: Tool[] = [
       type: 'object',
       properties: { propertyId: { type: 'string', description: 'ID of the property to delete' } },
       required: ['propertyId']
+    }
+  },
+  {
+    name: 'findEmbeddingIndexes',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'List all embedding index policies configured for the current project. ' +
+      'Each index entry contains: id, label, propertyName, modelKey, dimensions, enabled, status (pending|indexing|ready|error), createdAt, updatedAt. ' +
+      'Call this before creating a new index to check if one already exists for the same label+propertyName.',
+    inputSchema: { type: 'object', properties: {}, required: [] }
+  },
+  {
+    name: 'createEmbeddingIndex',
+    annotations: WRITE,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Create a new embedding index policy for a string property. ' +
+      'RushDB will asynchronously embed every existing value of `propertyName` on records with the given `label`, ' +
+      'and keep new values embedded on write. ' +
+      'Once the index status becomes "ready" (check with getEmbeddingIndexStats), ' +
+      'use semanticSearch to query by natural language.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        label: { type: 'string', description: 'Record label to scope the index to (e.g. "Book", "Task").' },
+        propertyName: {
+          type: 'string',
+          description: 'Name of the string property whose values will be embedded.'
+        }
+      },
+      required: ['label', 'propertyName']
+    }
+  },
+  {
+    name: 'deleteEmbeddingIndex',
+    annotations: DESTROY,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Delete an embedding index policy by its ID and strip all stored embedding vectors for that index. Irreversible. ' +
+      'Confirm with the user before calling. Use findEmbeddingIndexes to get the indexId.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        indexId: { type: 'string', description: 'ID of the embedding index to delete.' }
+      },
+      required: ['indexId']
+    }
+  },
+  {
+    name: 'getEmbeddingIndexStats',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Return Neo4j-level statistics for an embedding index: totalRecords and indexedRecords. ' +
+      'Use this to monitor backfill progress after creating an index — when indexedRecords === totalRecords the index is fully ready.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        indexId: { type: 'string', description: 'ID of the embedding index (from findEmbeddingIndexes).' }
+      },
+      required: ['indexId']
+    }
+  },
+  {
+    name: 'semanticSearch',
+    annotations: READ_ONLY,
+    securitySchemes: READ_SCHEMES,
+    description:
+      'Perform semantic (vector) similarity search over records whose `propertyName` has been indexed with createEmbeddingIndex. ' +
+      'Provide a free-text `query` — RushDB embeds it and returns the most similar records ranked by cosine similarity (__score). ' +
+      'ANN mode (fast, default): used when no `where` filter is supplied. ' +
+      'ENN prefilter mode (exact, slower): activated when a `where` filter is supplied — candidates are first narrowed then ranked. ' +
+      'Requires an embedding index in "ready" status for the given label+propertyName.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        propertyName: { type: 'string', description: 'Name of the indexed property to search against.' },
+        query: {
+          type: 'string',
+          description: 'Free-text query to embed and compare against stored vectors.'
+        },
+        labels: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'One or more record labels to scope the search. The first label is used to resolve the embedding index.'
+        },
+        where: {
+          type: 'object',
+          description: 'Optional filter applied before scoring (activates ENN prefilter mode).'
+        },
+        topK: {
+          type: 'number',
+          description: 'Max ANN candidates to fetch from the vector index (default 20, ANN mode only).'
+        },
+        limit: { type: 'number', description: 'Maximum number of results to return (default 20).' },
+        skip: { type: 'number', description: 'Number of results to skip for pagination (default 0).' }
+      },
+      required: ['propertyName', 'query', 'labels']
     }
   }
 ] as const satisfies Array<Tool>

@@ -108,7 +108,6 @@ export type RelationDetachOptions = {
 export type DBRecordCreationOptions = {
   returnResult?: boolean
   suggestTypes?: boolean
-  castNumberArraysToVectors?: boolean
   convertNumericValuesToNumbers?: boolean
   capitalizeLabels?: boolean
   relationshipType?: string
@@ -130,23 +129,18 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
-   *
    * Checks if this record instance exists.
    * A record is considered to exist if it has a valid ID and label.
-   *
-   * @returns True if the record exists, false otherwise
    */
-  exists() {
+  get exists(): boolean {
     return toBoolean(this.data.__id) && toBoolean(this.data.__label)
   }
 
   /**
-   * Gets the unique ID of this record.
-   *
-   * @returns The record's ID
+   * The unique ID of this record.
    * @throws Error if the ID is missing or invalid
    */
-  id() {
+  get id(): string {
     if (!toBoolean(this.data.__id)) {
       throw new Error(
         `DBRecordInstance: Unable to access 'id'. The Record's \`data.__id\` is missing or incorrect.`
@@ -156,12 +150,10 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
-   * Gets the label (type) of this record.
-   *
-   * @returns The record's label
+   * The label (type) of this record.
    * @throws Error if the label is missing or invalid
    */
-  label() {
+  get label(): string {
     if (!toBoolean(this.data.__label)) {
       throw new Error(
         `DBRecordInstance: Unable to access 'label'. The Record's \`data.__label\` is missing or incorrect.`
@@ -171,12 +163,10 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
-   * Gets the property types of this record.
-   *
-   * @returns The record's property types
+   * The property types of this record.
    * @throws Error if the property types are missing or invalid
    */
-  proptypes() {
+  get proptypes() {
     if (!toBoolean(this.data.__proptypes)) {
       throw new Error(
         `DBRecordInstance: Unable to access 'proptypes'. The Record's \`data.__proptypes\` is missing or incorrect.`
@@ -186,15 +176,12 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
-   * Gets the creation date of this record.
-   * The date is derived from the record's ID.
-   *
-   * @returns The record's creation date
+   * The creation date of this record, derived from its ID.
    * @throws Error if the ID is missing or invalid
    */
-  date() {
+  get date(): Date {
     try {
-      return idToDate(this.id())
+      return idToDate(this.id)
     } catch {
       throw new Error(
         `DBRecordInstance: Unable to access 'date'. The Record's \`data.__id\` is missing or incorrect.`
@@ -203,15 +190,12 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
-   * Gets the creation timestamp of this record.
-   * The timestamp is derived from the record's ID.
-   *
-   * @returns The record's creation timestamp
+   * The creation timestamp of this record, derived from its ID.
    * @throws Error if the ID is missing or invalid
    */
-  timestamp() {
+  get timestamp(): number {
     try {
-      return idToTimestamp(this.id())
+      return idToTimestamp(this.id)
     } catch {
       throw new Error(
         `DBRecordInstance: Unable to access 'timestamp'. The Record's \`data.__id\` is missing or incorrect.`
@@ -232,7 +216,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
     }
 
     const instance = RushDB.getInstance()
-    return await instance.records.deleteById(this.id(), transaction)
+    return await instance.records.deleteById(this.id, transaction)
   }
 
   /**
@@ -252,7 +236,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
     }
 
     const instance = RushDB.getInstance()
-    return instance.records.update({ label: this.label(), target: this.id(), data }, transaction)
+    return instance.records.update({ label: this.label, target: this.id, data }, transaction)
   }
 
   /**
@@ -273,7 +257,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
     }
 
     const instance = RushDB.getInstance()
-    return instance.records.set({ label: this.label(), target: this.id(), data }, transaction)
+    return instance.records.set({ label: this.label, target: this.id, data }, transaction)
   }
 
   /**
@@ -291,7 +275,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
     }
 
     const instance = RushDB.getInstance()
-    return instance.records.attach({ source: this.id(), target, options }, transaction)
+    return instance.records.attach({ source: this.id, target, options }, transaction)
   }
 
   /**
@@ -309,7 +293,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
     }
 
     const instance = RushDB.getInstance()
-    return instance.records.detach({ source: this.id(), target, options }, transaction)
+    return instance.records.detach({ source: this.id, target, options }, transaction)
   }
 }
 

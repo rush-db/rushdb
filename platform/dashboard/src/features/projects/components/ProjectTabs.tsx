@@ -1,4 +1,4 @@
-import { Book, Database, Key, Settings, UploadIcon, Wallet2 } from 'lucide-react'
+import { Book, Database, Key, Search, Settings, UploadIcon, Wallet2 } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -6,7 +6,7 @@ import { getRoutePath } from '~/lib/router'
 import type { Project } from '../types'
 import { useStore } from '@nanostores/react'
 import { $user } from '~/features/auth/stores/user.ts'
-import { useState } from 'react'
+import { useMemo } from 'react'
 import { $platformSettings } from '~/features/auth/stores/settings.ts'
 
 export function ProjectTabs({ project }: { project: Project }) {
@@ -17,7 +17,7 @@ export function ProjectTabs({ project }: { project: Project }) {
 
   const projectIsInactive = project.status === 'pending' || project.status === 'provisioning'
 
-  const [tabs, setTabs] = useState(() => {
+  const tabs = useMemo(() => {
     const projectsTabs =
       projectIsInactive ?
         []
@@ -46,6 +46,16 @@ export function ProjectTabs({ project }: { project: Project }) {
           }
         ]
 
+    if (platformSettings?.embeddingEnabled && !projectIsInactive) {
+      projectsTabs.push({
+        href: getRoutePath('projectIndexes', {
+          id: project.id
+        }),
+        icon: <Search />,
+        label: 'Indexes'
+      })
+    }
+
     if (isOwner) {
       projectsTabs.push({
         href: getRoutePath('projectSettings', {
@@ -65,7 +75,7 @@ export function ProjectTabs({ project }: { project: Project }) {
     }
 
     return projectsTabs
-  })
+  }, [project, projectIsInactive, isOwner, platformSettings])
 
   return (
     <PageTabs>

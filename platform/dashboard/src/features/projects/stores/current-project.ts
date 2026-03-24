@@ -256,6 +256,19 @@ export const $currentProjectTokens = createAsyncStore({
   }
 })
 
+export const $currentProjectIndexes = createAsyncStore({
+  key: '$currentProjectIndexes',
+  async fetcher(init) {
+    const projectId = $currentProjectId.get()
+
+    if (!projectId) {
+      return
+    }
+
+    return await api.indexes.list({ projectId }, init)
+  }
+})
+
 export const $currentProjectIsEmpty = computed([$filteredRecords], ({ total, loading }) => {
   return isProjectEmpty({ totalRecords: total, loading })
 })

@@ -206,7 +206,7 @@ export class PropertyQueryService {
     if (queryClauses?.filter(toBoolean).length > 0) {
       queryBuilder
         .append(queryClauses.join(`\n`))
-        .append(`AND record[property.name] IS NOT NULL AND property.type <> 'vector'`)
+        .append(`AND record[property.name] IS NOT NULL`)
         .append(
           searchQuery.query ?
             `AND any(value IN record[property.name] WHERE value  =~ "(?i).*${searchQuery.query}.*")`
@@ -215,7 +215,7 @@ export class PropertyQueryService {
         .append(whereClause)
     } else {
       queryBuilder
-        .append(`WHERE record[property.name] IS NOT NULL AND property.type <> 'vector'`)
+        .append(`WHERE record[property.name] IS NOT NULL`)
         .append(
           searchQuery.query ?
             `AND any(value IN record[property.name] WHERE value  =~ "(?i).*${searchQuery.query}.*")`

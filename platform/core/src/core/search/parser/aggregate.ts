@@ -19,7 +19,7 @@ import {
 } from '@/core/common/types'
 import { PROPERTY_WILDCARD_PROJECTION } from '@/core/search/parser/constants'
 import { AggregateContext } from '@/core/search/parser/types'
-import { isNestedAggregate, safeGdsSimilarity, wrapInCurlyBraces } from '@/core/search/parser/utils'
+import { isNestedAggregate, nativeVectorSimilarity, wrapInCurlyBraces } from '@/core/search/parser/utils'
 import { SORT_ASC } from '@/core/search/search.constants'
 import { TSearchSort } from '@/core/search/search.types'
 
@@ -251,14 +251,9 @@ export function buildAggregationFunction(
       case 'max':
         return `max(${recordAlias}.${fieldAlias}) AS ${asPart}`
 
-      // gds
-      case 'gds.similarity.cosine':
-      case 'gds.similarity.jaccard':
-      case 'gds.similarity.euclidean':
-      case 'gds.similarity.euclideanDistance':
-      case 'gds.similarity.overlap':
-      case 'gds.similarity.pearson':
-        return safeGdsSimilarity(
+      case 'vector.similarity.cosine':
+      case 'vector.similarity.euclidean':
+        return nativeVectorSimilarity(
           instruction.fn,
           recordAlias,
           instruction.field,

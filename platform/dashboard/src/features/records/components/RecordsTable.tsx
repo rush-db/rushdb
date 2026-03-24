@@ -276,24 +276,24 @@ export function RecordsTable({
     if (view === 'main') {
       if (hasSelection) {
         if (mixedSelection) {
-          $selectedRecords.set(records?.map((r) => r.id()) as string[])
+          $selectedRecords.set(records?.map((r) => r.id) as string[])
         } else {
           resetRecordsSelection()
         }
       } else {
-        $selectedRecords.set(records?.map((r) => r.id()) as string[])
+        $selectedRecords.set(records?.map((r) => r.id) as string[])
       }
     }
 
     if (view === 'related') {
       if (hasRelatedSelection) {
         if (mixedRelatedSelection) {
-          $selectedRelatedRecords.set(records?.map((r) => r.id()) as string[])
+          $selectedRelatedRecords.set(records?.map((r) => r.id) as string[])
         } else {
           resetRelatedRecordsSelection()
         }
       } else {
-        $selectedRelatedRecords.set(records?.map((r) => r.id()) as string[])
+        $selectedRelatedRecords.set(records?.map((r) => r.id) as string[])
       }
     }
   }
@@ -346,7 +346,7 @@ export function RecordsTable({
                     return null
                   }
 
-                  const selected = getSelectedState(record.id())
+                  const selected = getSelectedState(record.id)
 
                   return (
                     <TableRow
@@ -354,7 +354,7 @@ export function RecordsTable({
                         'bg-fill2': index % 2 === 0
                       })}
                       onClick={onRecordClick ? () => onRecordClick(record.data as DBRecord) : undefined}
-                      key={record.id()}
+                      key={record.id}
                       style={{ height: 52.5 }}
                       tabIndex={0}
                     >
@@ -366,11 +366,11 @@ export function RecordsTable({
                           onCheckedChange={() =>
                             view === 'main' ?
                               toggleRecordSelection({
-                                recordId: record.id(),
+                                recordId: record.id,
                                 selected
                               })
                             : toggleRelatedRecordSelection({
-                                recordId: record.id(),
+                                recordId: record.id,
                                 selected
                               })
                           }
@@ -390,19 +390,19 @@ export function RecordsTable({
                             property: {
                               name: '__id',
                               type: 'string',
-                              value: record.id(),
-                              date: record.date().toISOString()
+                              value: record.id,
+                              date: record.date.toISOString()
                             },
                             showOperations: false
                           })}
                           className="py-1"
-                          key={record.id()}
+                          key={record.id}
                           onPointerLeave={handlePointerLeave}
                         >
                           <Skeleton enabled={loading}>
-                            <Label>{record.label()}</Label>
+                            <Label>{record.label}</Label>
 
-                            <PropertyValue className="text-content2" type={'string'} value={record.id()} />
+                            <PropertyValue className="text-content2" type={'string'} value={record.id} />
                           </Skeleton>
                         </DataCell>
                       )}
@@ -418,7 +418,7 @@ export function RecordsTable({
                           return (
                             <DataCell
                               className="text-content3"
-                              key={`${record.id()}-${field.id}-${field.name}`}
+                              key={`${record.id}-${field.id}-${field.name}`}
                             >
                               —
                             </DataCell>
@@ -427,7 +427,7 @@ export function RecordsTable({
 
                         return (
                           <DataCell
-                            key={`${record.id()}-${property.name}`}
+                            key={`${record.id}-${property.name}`}
                             onPointerEnter={handlePointerEnter({ property })}
                             onPointerLeave={handlePointerLeave}
                           >

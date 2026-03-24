@@ -5,51 +5,11 @@ sidebar_label: Troubleshooting
 sidebar_position: 6
 ---
 
-Common issues and how to fix them.
+# Troubleshooting
 
-## Missing API key
+## HTTP errors
 
-Error:
-
-```
-RUSHDB_API_KEY environment variable is required. Set it in a .env file (packages/mcp-server/.env) or export it before running the server.
-```
-
-Fix:
-- Provide `RUSHDB_API_KEY` in your MCP client config under `env`, or
-- Create a `.env` file with `RUSHDB_API_KEY=...`, or
-- `export RUSHDB_API_KEY=...` in your shell
-
-## Wrong or unreachable API URL
-
-Errors like:
-- `Invalid URL`
-- `Failed to fetch`
-- `Network error`
-
-Fix:
-- Verify `RUSHDB_API_URL` (if set) points to a valid RushDB API endpoint.
-- If you’re self-hosting, make sure your server is reachable from your machine.
-- Remove `RUSHDB_API_URL` to use the default `https://api.rushdb.com/api/v1`.
-
-## "RushDB is not a constructor"
-
-Cause:
-- Some environments/bundlers differ in how CJS/ESM default exports are exposed, causing the constructor to be missing.
-
-Fix:
-- The MCP server now resolves the constructor from `default`, `RushDB`, or the module itself, so updating to the latest version should address this.
-- If building from source, rebuild the package and restart your MCP client.
-
-## Permissions or timeouts
-
-- Check your network/firewall configuration.
-- Increase client timeouts if your environment is slow.
-- Try smaller `limit` values on large queries.
-
-## HTTP errors from the API
-
-The MCP server maps raw HTTP status codes from the RushDB API into actionable text responses that are returned to the model:
+The MCP server maps HTTP status codes to actionable messages returned directly to the model:
 
 | Status | Message returned to LLM |
 |--------|-------------------------|
@@ -61,8 +21,43 @@ The MCP server maps raw HTTP status codes from the RushDB API into actionable te
 | 422    | Unprocessable — field types or required fields don't match the schema. |
 | 5xx    | Server error — retry or contact support. |
 
-Because the model receives an actionable hint rather than a bare number, it can self-correct (e.g. call `getOntologyMarkdown` after a 404) without you needing to intervene.
+:::tip Self-correction
+Because the model receives an actionable hint rather than a bare status code, it can self-correct — for example, calling `getOntologyMarkdown` automatically after a 404 without you needing to intervene.
+:::
 
-## Still stuck?
+---
 
-Open an issue with logs at https://github.com/rush-db/rushdb/issues
+## Common issues
+
+**Missing API key**
+
+```
+RUSHDB_API_KEY environment variable is required.
+```
+
+Fix: set `RUSHDB_API_KEY` in your MCP client `env` block, a `.env` file, or via `export`.
+
+---
+
+**Wrong or unreachable API URL** (`Invalid URL`, `Failed to fetch`, `Network error`)
+
+Fix: verify `RUSHDB_API_URL` (if set). Remove it to fall back to `https://api.rushdb.com/api/v1`.
+
+---
+
+**"RushDB is not a constructor"**
+
+Cause: CJS/ESM interop issue in some environments.
+
+Fix: update to the latest `@rushdb/mcp-server` version and rebuild from source if needed.
+
+---
+
+**Permissions or timeouts**
+
+- Check network/firewall configuration
+- Try smaller `limit` values on large queries
+
+---
+
+Still stuck? Open an issue at https://github.com/rush-db/rushdb/issues

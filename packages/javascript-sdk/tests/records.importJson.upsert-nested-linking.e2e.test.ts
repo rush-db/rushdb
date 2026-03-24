@@ -70,8 +70,8 @@ describe('records.importJson upsert nested linking (e2e)', () => {
         (r.type.includes('RUSHDB_DEFAULT_RELATION') || r.type.includes('__RUSHDB__RELATION__DEFAULT__'))
     )
 
-    const departmentId = departments.data[0].id()
-    const companyIds = companies.data.map((c) => c.id())
+    const departmentId = departments.data[0].id
+    const companyIds = companies.data.map((c) => c.id)
 
     // For each company, there must be at least one relation to the department (either direction)
     const relatedPairs = new Set(rels.map((r) => `${r.sourceId}->${r.targetId}`))

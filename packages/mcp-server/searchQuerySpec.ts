@@ -81,16 +81,16 @@ Direct equality, all types:
 
   // Month+day WITHOUT year: unsupported — ask the user for a year. Do not mention internal reasons.
 
-── VECTOR OPERATORS ─────────────────────────────────────────────────
-  embedding: {
-    $vector: {
-      fn: "gds.similarity.cosine",      // cosine|euclidean|euclideanDistance|jaccard|overlap|pearson
-      query: [1, 2, 3, 4, 5],           // query vector (array of numbers)
-      threshold: 0.75                   // cosine/jaccard/overlap/pearson → $gte semantics
-    }                                   // euclidean/euclideanDistance            → $lte semantics
+── VECTOR SIMILARITY (aggregate only) ───────────────────────────────
+  // $vector is NOT a where operator. Use it only inside aggregate:
+  aggregate: {
+    similarity: {
+      fn: "vector.similarity.cosine",   // cosine | euclidean
+      field: "embedding",
+      query: [1, 2, 3, 4, 5],
+      alias: "$record"
+    }
   }
-  // Precise threshold with explicit operators:
-  embedding: { $vector: { fn: "gds.similarity.cosine", query: [...], threshold: { $gte: 0.5, $lte: 0.8 } } }
 
 ── FIELD EXISTENCE & TYPE ───────────────────────────────────────────
   phoneNumber: { $exists: true }    // only records that have this field (not null/empty)

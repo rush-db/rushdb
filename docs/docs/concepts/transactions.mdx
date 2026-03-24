@@ -1,7 +1,7 @@
 ---
 sidebar_position: 7
 ---
-import Tabs from '@theme/Tabs';
+import Tabs from '@site/src/components/LanguageTabs';
 import TabItem from '@theme/TabItem';
 
 # Transactions
@@ -187,7 +187,7 @@ When multiple users or services access the same data simultaneously, transaction
     await db.records.update(
       {
         target: record,
-        label: record.label(),
+        label: record.label,
         data: { status: "processing" }
       },
       tx1

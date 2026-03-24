@@ -13,6 +13,7 @@ import { $router, getRoutePath, isProjectPage, redirectRoute } from '~/lib/route
 
 import { ProjectSettings } from '~/pages/project/settings'
 import { ProjectTokens } from '~/pages/project/tokens'
+import { ProjectIndexes } from '~/pages/project/indexes'
 import { ProjectRecordsPage } from '~/pages/project/records'
 import { ProjectHelpPage } from '~/pages/project/help'
 import { ImportRecords } from '~/features/records/components/ImportRecords.tsx'
@@ -23,6 +24,8 @@ function ProjectRoutes({ project }: { project: Project }) {
   switch (page?.route) {
     case 'projectTokens':
       return <ProjectTokens projectId={project.id} />
+    case 'projectIndexes':
+      return <ProjectIndexes projectId={project.id} />
     case 'projectSettings':
       return <ProjectSettings projectId={project.id} />
     case 'projectImportData':

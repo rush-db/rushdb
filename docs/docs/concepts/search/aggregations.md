@@ -42,13 +42,9 @@ The following aggregation functions are supported:
 - `sum` - Calculate sum of a numeric field
 - `collect` - Gather field values or entire records into an array
 - `timeBucket` - Bucket a datetime field into calendar intervals (day/week/month/quarter/year/hour/minute/second or custom N-sized months/hours/minutes/seconds/years)
-- `gds.similarity.*` - Calculate vector similarity using various algorithms:
-  - `cosine` - Cosine similarity [-1,1]
-  - `euclidean` - Euclidean distance normalized to (0,1]
-  - `euclideanDistance` - Raw euclidean distance [0,∞)
-  - `jaccard` - Jaccard similarity [0,1]
-  - `overlap` - Overlap coefficient [0,1]
-  - `pearson` - Pearson correlation [-1,1]
+- `vector.similarity.*` - Calculate vector similarity using native Neo4j functions:
+  - `vector.similarity.cosine` - Cosine similarity [0,1]
+  - `vector.similarity.euclidean` - Euclidean distance normalized to (0,1]
 
   ## Grouping Results (groupBy)
 
@@ -924,21 +920,17 @@ graph LR
   A[DOCUMENT] --has--> B[CHUNK]
 ```
 
-###  gds.similarity.*
+###  vector.similarity.*
 **Parameters:**
-- `fn`: 'gds.similarity.[algorithm]' - The similarity algorithm to use
-  - `gds.similarity.cosine` - Cosine similarity [-1,1]
-  - `gds.similarity.euclidean` - Euclidean distance normalized to (0,1]
-  - `gds.similarity.euclideanDistance` - Raw euclidean distance [0,∞)
-  - `gds.similarity.jaccard` - Jaccard similarity [0,1]
-  - `gds.similarity.overlap` - Overlap coefficient [0,1]
-  - `gds.similarity.pearson` - Pearson correlation [-1,1]
-- `field`: string - The vector field to compare
+- `fn`: 'vector.similarity.cosine' | 'vector.similarity.euclidean' - The similarity function to use
+  - `vector.similarity.cosine` - Cosine similarity [0,1]
+  - `vector.similarity.euclidean` - Euclidean distance normalized to (0,1]
+- `field`: string - The numeric array field to compare
 - `alias`: string - The record alias to use
 - `query`: number[] - The query vector to calculate similarity against
 
 
-Example showing vector search with where clause and similarity aggregation:
+Example showing similarity re-ranking with aggregation:
 
 ```typescript
 {
@@ -947,7 +939,7 @@ Example showing vector search with where clause and similarity aggregation:
   aggregate: {
     // Calculate similarity score using root level alias
     similarity: {
-      fn: 'gds.similarity.cosine',
+      fn: 'vector.similarity.cosine',
       field: 'embedding',
       query: [1, 2, 3, 4, 5],
       alias: '$record'

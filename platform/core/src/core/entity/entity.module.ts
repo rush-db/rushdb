@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common'
 
 import { BillingClientModule } from '@/core/billing-client/billing-client.module'
+import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import { EntityController } from '@/core/entity/entity.controller'
 import { EntityService } from '@/core/entity/entity.service'
@@ -26,7 +27,7 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
     forwardRef(() => PropertyModule),
     forwardRef(() => TransactionModule)
   ],
-  providers: [EntityService, EntityQueryService],
+  providers: [EntityService, EntityQueryService, EmbeddingIndexRepository],
   exports: [EntityService, EntityQueryService],
   controllers: [EntityController, LabelsController, RelationshipsController]
 })

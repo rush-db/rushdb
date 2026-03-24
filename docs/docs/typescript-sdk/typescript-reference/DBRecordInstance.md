@@ -224,8 +224,8 @@ Removes a relationship from this record to the target record(s).
 const userRecord = await UserModel.findById('user_123');
 
 // Access record data
-console.log(userRecord.id()); // 'user_123'
-console.log(userRecord.label()); // 'User'
+console.log(userRecord.id); // 'user_123'
+console.log(userRecord.label); // 'User'
 console.log(userRecord.data?.name); // 'John Doe'
 
 // Update the record

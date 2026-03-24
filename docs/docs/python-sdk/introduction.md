@@ -3,126 +3,81 @@ title: Introduction
 sidebar_position: 0
 ---
 
-# RushDB Python SDK
+# Python SDK
 
-The RushDB Python SDK provides a powerful, intuitive interface for interacting with RushDB from Python applications. Whether you're building data science pipelines, web applications, or AI-driven services, this SDK offers a clean, Pythonic way to work with your graph data.
+Push JSON, query by value or meaning, traverse graphs — from Python.
 
-## Features
-
-- **Intuitive API Design**: Simple methods that map directly to common database operations
-- **Type Hinting Support**: Comprehensive type annotations for better IDE support
-- **Transaction Management**: ACID-compliant transactions with context manager support
-- **Flexible Query System**: Expressive query capabilities without learning a graph query language
-- **Vector Support**: Built-in handling for vector embeddings and similarity search
-- **Data Import Tools**: Easy import of structured data from JSON, CSV, and other formats
-
-## Installation
-
-Install the RushDB Python SDK using pip:
+## Install
 
 ```bash
 pip install rushdb
 ```
 
-## Quick Start
-
-### Initialize Client
+## Connect
 
 ```python
 from rushdb import RushDB
 
-# Connect to RushDB with your API token
 db = RushDB("RUSHDB_API_KEY")
 ```
 
-### Basic Operations
+Get your API token from the [RushDB Dashboard](https://app.rushdb.com/).
+
+## First write
 
 ```python
-# Create a record
-user = db.records.create(
-    label="USER",
+# Nested objects become linked records automatically
+db.records.create_many(
+    label="MOVIE",
     data={
-        "name": "John Doe",
-        "email": "john@example.com",
-        "age": 30
-    },
-    options={"suggestTypes": True}
+        "title": "Inception",
+        "rating": 8.8,
+        "genre": "sci-fi",
+        "ACTOR": [
+            {"name": "Leonardo DiCaprio", "country": "USA"},
+            {"name": "Ken Watanabe",      "country": "Japan"}
+        ]
+    }
 )
+# Created: MOVIE → ACTOR × 2 (relationships wired automatically)
+```
 
-# Find records
+## First read
+
+```python
 result = db.records.find({
-    "where": {
-        "age": {"$gte": 18},
-        "name": {"$startsWith": "J"}
-    },
+    "labels": ["MOVIE"],
+    "where": {"rating": {"$gte": 8}},
     "limit": 10
 })
 
-# Iterate over results
-for user in result:
-    print(f"Found user: {user.get('name')}")
+for movie in result:
+    print(movie["title"])
 
-# Check result metadata
-print(f"Found {len(result)} users out of {result.total} total")
-
-# Update a record
-user.update({
-    "last_login": "2025-05-04T12:30:45Z"
-})
-
-# Create relationships
-company = db.records.create(
-    label="COMPANY",
-    data={"name": "Acme Inc."}
-)
-
-# Attach records with a relationship
-user.attach(
-    target=company,
-    options={"type": "WORKS_AT", "direction": "out"}
-)
+print(f"{result.total} total")
 ```
 
-## Using Transactions
+## Configuration
 
-Ensure data consistency with transactions:
+| Parameter | Default | Description |
+|---|---|---|
+| `api_key` | — | Your RushDB API token (required) |
+| `url` | `https://app.rushdb.com` | RushDB instance URL |
 
 ```python
-# Begin a transaction
-with db.transactions.begin() as transaction:
-    # Create a user
-    user = db.records.create(
-        label="USER",
-        data={"name": "Alice Smith"},
-        transaction=transaction
-    )
-
-    # Create a product
-    product = db.records.create(
-        label="PRODUCT",
-        data={"name": "Smartphone", "price": 799.99},
-        transaction=transaction
-    )
-
-    # Create a purchase relationship
-    user.attach(
-        target=product,
-        options={"type": "PURCHASED", "direction": "out"},
-        transaction=transaction
-    )
-
-    # Everything will be committed if no errors occur
-    # If an error occurs, the transaction will be automatically rolled back
+# Self-hosted instance
+db = RushDB("RUSHDB_API_KEY", url="https://your-rushdb-instance.com")
 ```
 
-## Next Steps
+## Namespaces
 
-Explore the detailed documentation for each component of the SDK:
+| Namespace | Purpose |
+|---|---|
+| `db.records` | Create, read, update, delete records |
+| `db.relationships` | Attach / detach record links |
+| `db.labels` | List labels in the database |
+| `db.properties` | Inspect property metadata |
+| `db.transactions` | Begin / commit / rollback |
+| `db.ai` | Ontology, embedding indexes, semantic search |
 
-- [Records](./records/create-records.md) - Create, read, update, and delete record operations
-- [Properties](./properties.md) - Manage data properties
-- [Labels](./labels.md) - Work with node labels
-- [Relationships](./relationships.md) - Handle connections between records
-- [Transactions](./transactions.md) - Manage transaction operations for data consistency
 
-For more advanced use cases, check our [Tutorials](../tutorials/reusable-search-query) section.

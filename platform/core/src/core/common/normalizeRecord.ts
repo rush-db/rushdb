@@ -9,8 +9,7 @@ import {
   PROPERTY_TYPE_DATETIME,
   PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_STRING,
-  PROPERTY_TYPE_VECTOR
+  PROPERTY_TYPE_STRING
 } from '@/core/property/property.constants'
 import {
   TPropertyPropertiesWithValue,
@@ -57,13 +56,6 @@ const processArrayValue = (value: any[], options: Omit<TImportOptions, 'returnRe
     return { type: PROPERTY_TYPE_STRING, value: value.map(String) }
   }
 
-  if (
-    options.suggestTypes &&
-    options.castNumberArraysToVectors &&
-    suggestPropertyType(value[0]) === PROPERTY_TYPE_NUMBER
-  ) {
-    return { type: PROPERTY_TYPE_VECTOR, value }
-  }
   return { type: suggestPropertyType(value[0]), value }
 }
 

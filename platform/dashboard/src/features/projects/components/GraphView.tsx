@@ -51,8 +51,8 @@ function createNodesAndLinks(data: Relation[], records?: DBRecordInstance[]): Ou
   })
 
   records?.forEach((node) => {
-    if (!nodesMap.has(node.id())) {
-      nodesMap.set(node.id(), { __id: node.id(), __label: node.label() })
+    if (!nodesMap.has(node.id)) {
+      nodesMap.set(node.id, { __id: node.id, __label: node.label })
     }
   })
 

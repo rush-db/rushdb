@@ -98,7 +98,7 @@ console.log(userRecords.data?.length); // Number of records in this page (max 10
 
 // Access individual record instances
 userRecords.data?.forEach(user => {
-  console.log(user.id(), user.data?.name);
+  console.log(user.id, user.data?.name);
 });
 
 // Access the original search query

@@ -25,6 +25,7 @@ export const projectRoutes = {
   projectSettings: '/projects/:id/settings',
   projectImportData: '/projects/:id/import',
   projectTokens: '/projects/:id/tokens',
+  projectIndexes: '/projects/:id/indexes',
   projectUsers: '/projects/:id/users',
   projectHelp: '/projects/:id/help',
   projectBilling: !$platformSettings.get().data?.selfHosted ? '/projects/:id/billing' : '/projects/:id'

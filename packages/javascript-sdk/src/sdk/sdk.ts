@@ -22,12 +22,13 @@ export class RushDB extends RestAPI {
   }
 
   constructor(token?: string, config?: SDKConfig) {
+    const resolvedToken = token ?? (typeof process !== 'undefined' ? process.env?.RUSHDB_API_KEY : undefined)
     const props = parseConfig(config)
-    super(token, { ...props, httpClient: props.httpClient ?? httpClient })
+    super(resolvedToken, { ...props, httpClient: props.httpClient ?? httpClient })
 
     RushDB.instance = this
-    const [maybeMixed] = extractMixedPropertiesFromToken(token ?? '')
-    this.initializeSync(maybeMixed, token, props)
+    const [maybeMixed] = extractMixedPropertiesFromToken(resolvedToken ?? '')
+    this.initializeSync(maybeMixed, resolvedToken, props)
   }
 
   private initializeSync(mixed: TokenPublicVariables | null, token?: string, props?: any) {

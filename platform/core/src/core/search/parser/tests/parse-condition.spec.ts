@@ -144,11 +144,6 @@ describe('parseComparison', () => {
     expect(result1).toEqual([
       `apoc.convert.fromJsonMap(${queryBuilderOptions.nodeAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`age\` = "number"`
     ])
-
-    const result2 = parseComparison('embedding', { $type: 'vector' }, queryBuilderOptions)
-    expect(result2).toEqual([
-      `apoc.convert.fromJsonMap(${queryBuilderOptions.nodeAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`embedding\` = "vector"`
-    ])
   })
 
   it('throws error for invalid $type value', () => {

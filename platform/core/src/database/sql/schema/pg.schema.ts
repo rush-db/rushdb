@@ -153,6 +153,25 @@ export const oauthCodes = pgTable('oauth_codes', {
   expiresAt: text('expires_at').notNull()
 })
 
+export const embeddingIndexes = pgTable(
+  'embedding_indexes',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    label: text('label').notNull().default(''),
+    propertyName: text('property_name').notNull(),
+    modelKey: text('model_key').notNull(),
+    dimensions: integer('dimensions').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    status: text('status').notNull().default('pending'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (t) => [uniqueIndex('emb_idx_uniq').on(t.projectId, t.propertyName, t.label)]
+)
+
 export const pgSchema = {
   users,
   workspaces,
@@ -164,7 +183,8 @@ export const pgSchema = {
   oauthClients,
   oauthAuthRequests,
   oauthConsents,
-  oauthCodes
+  oauthCodes,
+  embeddingIndexes
 }
 
 export type PgSchema = typeof pgSchema

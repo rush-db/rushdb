@@ -186,22 +186,11 @@ Represents the absence of a value.
 }
 ```
 
-### `vector`
-Arrays of floating-point numbers or integers, particularly useful for vector similarity searches and machine learning operations.
-
-```js
-{
-    name: "imageEmbedding",
-    type: "vector",
-    value: [0.99070, 0.78912, 1.0, 0.0]
-}
-```
-
 ### Arrays
 
 RushDB also supports arrays as property values, but they must contain consistent value types:
 
-> **Note:** Every data type mentioned above (except `vector`, since it's already an array by default) supports an array representation.
+> **Note:** Every data type mentioned above supports an array representation.
 
 ```js
 // String array

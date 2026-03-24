@@ -1,26 +1,26 @@
 ---
-sidebar_position: 8
+sidebar_position: 1
 ---
 
-# AI & Ontology
+# AI & Semantic Search
 
-The `db.ai` namespace exposes the graph ontology of your RushDB project — all labels, their properties with value ranges, and the full cross-label relationship map — in formats designed for LLM agents and schema-aware tooling.
+RushDB is a **self-aware memory layer for agents, humans, and apps**. It continuously understands its own structure — labels, fields, value distributions, relationships — and exposes that knowledge so that agents can reason over real data without hallucinating schema details, and apps can retrieve semantically relevant context on demand.
 
-## Why it's useful
+The `db.ai` namespace is the interface to that layer. It covers three capabilities:
 
-Before an LLM can write queries reliably it must know what labels exist, what fields each label has, and how labels relate to each other. Without this context the model guesses names, invents operators, and produces 404s or empty results.
+- **Graph ontology** — self-describing schema discovery: label names, field types, value ranges, and the full relationship map, always up to date
+- **Embedding indexes** — per-label vector policies that turn string properties into long-term semantic memory
+- **Semantic search** — cosine-similarity retrieval over indexed properties, for agents and apps alike
 
-Call `db.ai.getOntologyMarkdown()` at the start of every AI session and inject the result into the LLM context. The model can then answer questions like _"how many paid orders are there?"_ by referencing the correct label (`Order`), field (`status`), and value (`paid`).
-
-Both methods call the same underlying graph scan and share a **1-hour cache** stored on the ProjectNode. Subsequent calls within the TTL return immediately from the cache.
+:::tip Agent quickstart
+Call `db.ai.getOntologyMarkdown()` first in every AI session — it returns the full memory map (label names, field names, value ranges, relationship graph) in a single token-efficient Markdown string. Without it, the model will hallucinate label and field names.
+:::
 
 ---
 
 ## `db.ai.getOntologyMarkdown()`
 
-Returns the full graph schema as compact Markdown tables. This is the **recommended format for LLM consumption**: token-efficient and ready to paste directly into a system prompt or tool result.
-
-### Signature
+Returns the full schema as compact Markdown — the **recommended format for LLM context injection**.
 
 ```typescript
 db.ai.getOntologyMarkdown(
@@ -29,41 +29,22 @@ db.ai.getOntologyMarkdown(
 ): Promise<ApiResponse<string>>
 ```
 
-### Parameters
-
-| Parameter          | Type             | Required | Description                                                              |
-|--------------------|------------------|----------|--------------------------------------------------------------------------|
-| `params.labels`    | `string[]`       | no       | Restrict output to specific labels. Omit for the full schema.            |
-| `transaction`      | `Transaction` \| `string` | no | Optional transaction for atomic operations.                    |
-
-### Example — full schema for LLM context
-
 ```typescript
-import RushDB from '@rushdb/javascript-sdk'
-
-const db = new RushDB('RUSHDB_API_KEY')
-
-// Fetch the full schema as Markdown
-const { data: schemaMarkdown } = await db.ai.getOntologyMarkdown()
-
-// Inject directly into the LLM as system context
+// Inject into LLM at session start
+const { data: schema } = await db.ai.getOntologyMarkdown()
 const messages = [
-  { role: 'system', content: `You are a data assistant.\n\n${schemaMarkdown}` },
+  { role: 'system', content: `You are a data assistant.\n\n${schema}` },
   { role: 'user',   content: 'How many paid orders are there?' }
 ]
-```
 
-### Example — filtered to a single label
-
-```typescript
+// Scope to specific labels
 const { data: orderSchema } = await db.ai.getOntologyMarkdown({ labels: ['Order'] })
 ```
 
-The underlying cache always covers the full schema; the `labels` filter is applied in-memory.
+<details>
+<summary>Example output</summary>
 
-### Example output
-
-```markdown
+```text
 # Graph Ontology
 
 ## Labels
@@ -80,11 +61,11 @@ The underlying cache always covers the full schema; the `labels` filter is appli
 
 ### Properties
 
-| Property    | Type     | Values / Range                              |
-|-------------|----------|---------------------------------------------|
-| `status`    | string   | `pending`, `paid`, `shipped` (+2 more)      |
-| `total`     | number   | `4.99`..`2499.00`                           |
-| `createdAt` | datetime | `2024-01-03`..`2026-02-27`                  |
+| Property    | Type     | Values / Range                           |
+|-------------|----------|------------------------------------------|
+| `status`    | string   | `pending`, `paid`, `shipped` (+2 more)   |
+| `total`     | number   | `4.99`..`2499.00`                        |
+| `createdAt` | datetime | `2024-01-03`..`2026-02-27`               |
 
 ### Relationships
 
@@ -94,13 +75,13 @@ The underlying cache always covers the full schema; the `labels` filter is appli
 | `CONTAINS`  | out       | `Product`   |
 ```
 
+</details>
+
 ---
 
 ## `db.ai.getOntology()`
 
-Returns the same ontology as a structured JSON array. Use this when you need to programmatically inspect the schema — for example, to build a schema explorer UI, populate a dropdown of labels, or look up property IDs for `db.properties.values()`.
-
-### Signature
+Returns the same ontology as a structured JSON array — useful for schema UIs, auto-complete, or looking up property IDs for `db.properties.values()`.
 
 ```typescript
 db.ai.getOntology(
@@ -109,114 +90,176 @@ db.ai.getOntology(
 ): Promise<ApiResponse<OntologyItem[]>>
 ```
 
-### Parameters
-
-| Parameter       | Type             | Required | Description                                          |
-|-----------------|------------------|----------|------------------------------------------------------|
-| `params.labels` | `string[]`       | no       | Restrict output to specific labels.                  |
-| `transaction`   | `Transaction` \| `string` | no | Optional transaction.                      |
-
-### Example — full schema as JSON
-
 ```typescript
+// List all labels with counts
 const { data: ontology } = await db.ai.getOntology()
-
 for (const item of ontology) {
-  console.log(`${item.label}: ${item.count} records, ${item.properties.length} properties`)
+  console.log(`${item.label}: ${item.count} records`)
 }
-```
 
-### Example — extract property IDs for value enumeration
-
-```typescript
-const { data: ontology } = await db.ai.getOntology({ labels: ['Order'] })
-
-const statusProp = ontology[0].properties.find(p => p.name === 'status')
-
-// Use the property ID to fetch all distinct values
+// Get property ID for value enumeration
+const { data: [orderSchema] } = await db.ai.getOntology({ labels: ['Order'] })
+const statusProp = orderSchema.properties.find(p => p.name === 'status')
 const { data: values } = await db.properties.values({ id: statusProp.id })
-console.log(values) // ['pending', 'paid', 'shipped', 'cancelled', 'refunded']
+// ['pending', 'paid', 'shipped', 'cancelled', 'refunded']
 ```
-
-### Response shape
-
-Each element in the returned array is an `OntologyItem`:
 
 ```typescript
 type OntologyItem = {
-  label: string                  // Label name (case-sensitive)
-  count: number                  // Total records with this label
+  label: string
+  count: number
   properties: OntologyProperty[]
   relationships: OntologyRelationship[]
 }
 
 type OntologyProperty = {
-  id: string                          // Property node ID — use with db.properties.values()
-  name: string                        // Field name as stored on the record
-  type: string                        // 'string' | 'number' | 'boolean' | 'datetime' | 'vector'
-  values?: Array<string | number>     // Up to 10 sample values (string/boolean only)
-  min?: number | string               // Min observed value (number/datetime only)
-  max?: number | string               // Max observed value (number/datetime only)
+  id: string                       // use with db.properties.values()
+  name: string
+  type: string                     // 'string' | 'number' | 'boolean' | 'datetime'
+  values?: Array<string | number>  // up to 10 samples (string/boolean only)
+  min?: number | string            // number/datetime only
+  max?: number | string
 }
 
 type OntologyRelationship = {
-  label: string           // The other label in the relationship
-  type: string            // Relationship type string (e.g. 'PLACED_BY')
-  direction: 'in' | 'out' // 'out' = this label is the source; 'in' = this label is the target
+  label: string
+  type: string
+  direction: 'in' | 'out'
+}
+```
+
+:::note Caching
+Both methods share a **1-hour cache** on the ProjectNode. The first call after TTL expiry triggers a full graph scan; all subsequent calls within the hour are instant.
+:::
+
+---
+
+## Embedding Indexes
+
+An embedding index policy tells RushDB to vectorize a specific string property, scoped to a label. Once `status` is `ready`, that property is searchable via `db.ai.search()`.
+
+`List<String>` properties are supported — each item is embedded and mean-pooled into one vector.
+
+> **Model config is server-side** — the embedding model and dimensions come from `RUSHDB_EMBEDDING_MODEL` / `RUSHDB_EMBEDDING_DIMENSIONS` env vars.
+
+### `db.ai.indexes.find()`
+
+```typescript
+const { data: indexes } = await db.ai.indexes.find()
+// [{ id, label, propertyName, status, dimensions, modelKey, ... }]
+```
+
+### `db.ai.indexes.create()`
+
+```typescript
+db.ai.indexes.create(params: {
+  label: string       // Neo4j label to scope this index to (e.g. 'Article', 'Product')
+  propertyName: string
+}): Promise<ApiResponse<EmbeddingIndex>>
+```
+
+```typescript
+const { data: index } = await db.ai.indexes.create({
+  label: 'Article',
+  propertyName: 'description'
+})
+console.log(index.status) // 'pending' → backfill starts immediately
+```
+
+> Duplicate `(label, propertyName)` pairs return `409 Conflict`.
+
+### `db.ai.indexes.stats(id)`
+
+```typescript
+const { data: stats } = await db.ai.indexes.stats(index.id)
+console.log(`${stats.indexedRecords} / ${stats.totalRecords} embedded`)
+```
+
+### `db.ai.indexes.delete(id)`
+
+```typescript
+await db.ai.indexes.delete(index.id)
+// Strips policy + scoped embeddings. Global Neo4j DDL index only dropped when zero embeddings remain project-wide.
+```
+
+### Response type
+
+```typescript
+type EmbeddingIndex = {
+  id: string
+  projectId: string
+  label: string       // Neo4j label this index is scoped to
+  propertyName: string
+  modelKey: string
+  dimensions: number
+  enabled: boolean
+  status: string      // 'pending' | 'indexing' | 'ready' | 'error'
+  createdAt: string
+  updatedAt: string
+}
+
+type EmbeddingIndexStats = {
+  totalRecords: number
+  indexedRecords: number
 }
 ```
 
 ---
 
-## Caching
+## `db.ai.search()`
 
-Both methods share a cache stored on the ProjectNode with a **1-hour TTL**.
+Embeds the query text and returns relevant records by cosine similarity. Requires a `ready` embedding index on `propertyName` scoped to the target `label`.
 
-| Scenario                        | What happens                                                                             |
-|---------------------------------|------------------------------------------------------------------------------------------|
-| Cache missing or older than 1h  | Runs three parallel Cypher queries, builds full ontology, writes cache to ProjectNode    |
-| Cache fresh (within 1h)         | Reads directly from the cached field — no graph scan                                     |
-| `labels` filter provided        | Cache is always stored as the full schema; filtering is done in-memory on the way out    |
-
----
-
-## Common patterns
-
-### Agent session initialisation
+**Execution mode is automatic:**
+- **ANN** (fast): single label in `labels`, no `where` → queries the global vector index
+- **ENN prefilter** (exact): `where` present or 2+ labels → MATCH/WHERE first, then `vector.similarity.cosine()`
 
 ```typescript
-async function startAgentSession(userMessage: string) {
-  const { data: schema } = await db.ai.getOntologyMarkdown()
-
-  return callLLM({
-    system: `You are a data assistant for RushDB.\n\n${schema}`,
-    user: userMessage
-  })
-}
+db.ai.search(params: {
+  propertyName: string
+  query: string
+  labels: string[]   // required, min 1
+  where?: object
+  topK?: number      // ANN candidate count (default 20)
+  skip?: number
+  limit?: number
+}): Promise<ApiResponse<SemanticSearchResult[]>>
 ```
 
-### Building a dynamic schema picker
-
 ```typescript
-const { data: ontology } = await db.ai.getOntology()
+// ANN — single label, no where
+const { data: results } = await db.ai.search({
+  propertyName: 'description',
+  query: 'machine learning for beginners',
+  labels: ['Article'],
+  limit: 5
+})
 
-const labelOptions = ontology.map(item => ({
-  value: item.label,
-  label: `${item.label} (${item.count} records)`
-}))
+for (const result of results) {
+  console.log(`[${result.__score.toFixed(3)}] ${result.title}`)
+}
 
-// labelOptions is ready for a <select> or autocomplete component
+// ENN prefilter — with where clause
+const { data: filtered } = await db.ai.search({
+  propertyName: 'description',
+  query: 'sustainable packaging',
+  labels: ['Product'],
+  where: { status: { $in: ['active', 'featured'] } },
+  limit: 10
+})
 ```
 
-### Validate a user-supplied label before querying
+### Response type
 
 ```typescript
-const { data: ontology } = await db.ai.getOntology()
-const knownLabels = new Set(ontology.map(item => item.label))
-
-function assertLabel(label: string) {
-  if (!knownLabels.has(label)) {
-    throw new Error(`Unknown label "${label}". Known labels: ${[...knownLabels].join(', ')}`)
-  }
+// SemanticSearchResult is a flat DBRecord with __score injected
+type SemanticSearchResult<S extends Schema = Schema> = DBRecord<S> & {
+  readonly __score: number  // cosine similarity score, 0–1 (higher = more similar)
 }
+
+// Access fields directly — no .record unwrap needed
+result.__id       // RushDB record ID
+result.__label    // Neo4j label
+result.__score    // cosine similarity
+result.title      // your field
 ```

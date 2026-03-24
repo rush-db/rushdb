@@ -32,11 +32,11 @@ export class AuthMiddleware implements NestMiddleware {
       const isJwt = bearerToken?.split('.').length === 3
 
       // Flow for SDK auth (token-based)
-      if (request.headers['token'] || !isJwt) {
+      if (bearerToken && !isJwt) {
         const session = this.neogmaService.createSession('auth-middleware-sdk')
         const transaction = session.beginTransaction({ timeout: 30_000 })
         try {
-          const tokenHeader = (request.headers['token'] || bearerToken) as string
+          const tokenHeader = bearerToken as string
           if (tokenHeader) {
             const tokenId = this.tokenService.decrypt(tokenHeader)
             const prefixedToken = extractMixedPropertiesFromToken(tokenHeader)

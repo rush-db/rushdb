@@ -55,21 +55,6 @@ export type StringExpression =
     >
   | StringValue
 
-// VECTOR
-export type TVectorSearchFn = 'jaccard' | 'overlap' | 'cosine' | 'pearson' | 'euclideanDistance' | 'euclidean'
-// Value range                [0,1]     | [0,1]     | [-1,1]   | [-1,1]    | [0, Infinity)       | (0, 1]
-
-export type VectorExpression = RequireAtLeastOne<
-  Record<
-    '$vector',
-    {
-      fn: `gds.similarity.${TVectorSearchFn}`
-      query: number[]
-      threshold: number | RequireAtLeastOne<Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number>>
-    }
-  >
->
-
 // TYPE
 export type TypeExpression = Record<'$type', TPropertyType>
 
@@ -80,7 +65,6 @@ export type PropertyExpression =
   | NumberExpression
   | StringExpression
   | TypeExpression
-  | VectorExpression
 
 export type PropertyExpressionByType = {
   boolean: BooleanExpression | TypeExpression
@@ -88,7 +72,6 @@ export type PropertyExpressionByType = {
   null: NullExpression | TypeExpression
   number: NumberExpression | TypeExpression
   string: StringExpression | TypeExpression
-  vector: VectorExpression | TypeExpression
 }
 
 export type LogicalGrouping<T> = {
@@ -212,7 +195,12 @@ export type AggregateFn<S extends Schema = Schema> =
   | { field: string; fn: 'max'; alias?: string }
   | { field: string; fn: 'min'; alias?: string }
   | { field: string; fn: 'sum'; alias?: string }
-  | { field: string; fn: `gds.similarity.${TVectorSearchFn}`; alias?: string; query: number[] }
+  | {
+      field: string
+      fn: 'vector.similarity.cosine' | 'vector.similarity.euclidean'
+      alias?: string
+      query: number[]
+    }
   | AggregateTimeBucketFn
   | AggregateCollectFn
 

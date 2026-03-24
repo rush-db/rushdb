@@ -3,8 +3,7 @@ import type {
   PROPERTY_TYPE_DATETIME,
   PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_STRING,
-  PROPERTY_TYPE_VECTOR
+  PROPERTY_TYPE_STRING
 } from '../common/constants.js'
 import type { MaybeArray, RequireAtLeastOne } from './utils.js'
 import type {
@@ -45,17 +44,6 @@ export type StringExpression =
         Record<'$exists', BooleanValue>
     >
 
-export type VectorSearchFn = 'jaccard' | 'overlap' | 'cosine' | 'pearson' | 'euclideanDistance' | 'euclidean'
-// Value range               [0,1]     | [0,1]     | [-1,1]   | [-1,1]    | [0, Infinity)       | (0, 1]
-
-export type VectorExpression = {
-  $vector: {
-    fn: `gds.similarity.${VectorSearchFn}`
-    query: Array<number>
-    threshold: number | RequireAtLeastOne<Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number>>
-  }
-}
-
 export type TypeExpression = {
   $type: PropertyType
 }
@@ -67,7 +55,6 @@ export type PropertyExpression =
   | NumberExpression
   | StringExpression
   | TypeExpression
-  | VectorExpression
 
 export type PropertyExpressionByType = {
   [PROPERTY_TYPE_BOOLEAN]: BooleanExpression | TypeExpression
@@ -75,7 +62,6 @@ export type PropertyExpressionByType = {
   [PROPERTY_TYPE_NULL]: NullExpression | TypeExpression
   [PROPERTY_TYPE_NUMBER]: NumberExpression | TypeExpression
   [PROPERTY_TYPE_STRING]: StringExpression | TypeExpression
-  [PROPERTY_TYPE_VECTOR]: VectorExpression | TypeExpression
 }
 
 // Logical Expressions

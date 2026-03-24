@@ -12,18 +12,13 @@ export class ThrottleByTokenGuard extends ThrottlerGuard {
     return `${url}-${suffix}`
   }
 
-  // tracker works both for dashboard and sdk tokens
+  // tracker works for both dashboard and sdk tokens
   protected async getTracker(request: PlatformRequest): Promise<string> {
-    let token: string
     if (request.headers['authorization']) {
-      token = request.headers['authorization'].split(' ')[1]
-    } else if (request.headers['token']) {
-      token = request.headers['token'] as string
-    } else {
-      throw new ThrottlerException('Missing token')
+      return request.headers['authorization'].split(' ')[1]
     }
 
-    return token
+    throw new ThrottlerException('Missing token')
   }
 
   // We add our guard to auth guard decorator app/src/dashboard/auth/guards/global-auth.guard.ts
