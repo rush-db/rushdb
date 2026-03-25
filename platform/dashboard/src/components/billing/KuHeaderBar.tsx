@@ -1,6 +1,6 @@
 import { useStore } from '@nanostores/react'
 import { $user } from '~/features/auth/stores/user'
-import { $workspaceUsage } from '~/features/billing/stores/usage'
+import { useWorkspaceUsageQuery } from '~/features/billing/hooks/useBillingHooks'
 import { cn } from '~/lib/utils'
 import { getRoutePath } from '~/lib/router'
 
@@ -12,7 +12,7 @@ function formatKu(n: number): string {
 
 export function KuHeaderBar() {
   const currentUser = useStore($user)
-  const { data: usage } = useStore($workspaceUsage)
+  const { data: usage } = useWorkspaceUsageQuery()
 
   const isOwner = currentUser.currentScope?.role === 'owner'
 

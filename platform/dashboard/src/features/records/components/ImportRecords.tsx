@@ -8,8 +8,7 @@ import { DialogFooter, DialogLoadingOverlay } from '~/elements/Dialog'
 import { TextField } from '~/elements/Input'
 import { cn } from '~/lib/utils'
 
-import { importJson, importCsv } from '../stores/batch'
-import { $filteredRecords } from '~/features/projects/stores/current-project'
+import { useImportCsvMutation, useImportJsonMutation } from '../hooks/useRecordMutations'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
 import { $router, getRoutePath } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
@@ -74,8 +73,8 @@ onSet($editorData, ({ newValue }) => {
 function EditorStep() {
   const [loading, setLoading] = useState(true)
   const defaultValue = useStore($editorData)
-  const { mutate, loading: submitting } = useStore(importJson)
-  const { mutate: mutateCsv, loading: csvSubmitting } = useStore(importCsv)
+  const { mutateAsync: mutate, isPending: submitting } = useImportJsonMutation()
+  const { mutateAsync: mutateCsv, isPending: csvSubmitting } = useImportCsvMutation()
   const projectId = useStore($currentProjectId)
   const mode = useStore($mode)
   const csvData = useStore($csvData)
@@ -300,8 +299,6 @@ function EditorStep() {
                   mergeBy: mergeMode ? [] : undefined
                 }
               }).then(() => {
-                $filteredRecords.setKey('data', undefined)
-                $filteredRecords.setKey('loading', true)
                 $router.open(getRoutePath('project', { id: projectId! }))
                 $step.set('method')
               })
@@ -339,8 +336,6 @@ function EditorStep() {
                   dynamicTyping: dynamicTyping
                 }
               }).then(() => {
-                $filteredRecords.setKey('data', undefined)
-                $filteredRecords.setKey('loading', true)
                 $router.open(getRoutePath('project', { id: projectId! }))
                 $step.set('method')
               })

@@ -4,17 +4,24 @@ import { Download, Trash } from 'lucide-react'
 import { Button } from '~/elements/Button'
 import { ConfirmDialog } from '~/elements/ConfirmDialog'
 import { Divider } from '~/elements/Divider'
-import { $export } from '~/features/projects/stores/current-project'
+import {
+  useBatchDeleteRecordsMutation,
+  useBatchDeleteRelatedRecordsMutation,
+  useExportRecordsMutation
+} from '~/features/records/hooks/useRecordMutations'
 
-import { $hasRecordsSelection, $selectionLength, batchDeleteSelected } from '../stores/actionbar'
+import { $hasRecordsSelection, $selectionLength } from '../stores/actionbar'
 import {
   $hasRelatedRecordsSelection,
-  $selectionRelatedLength,
-  batchDeleteRelatedSelected
+  $selectionRelatedLength
 } from '~/features/records/stores/related-actionbar.ts'
 
 function DeleteSelected({ view = 'main' }: { view?: 'related' | 'main' }) {
-  const { mutate, loading } = useStore(view === 'main' ? batchDeleteSelected : batchDeleteRelatedSelected)
+  const batchDeleteMutation = useBatchDeleteRecordsMutation()
+  const batchDeleteRelatedMutation = useBatchDeleteRelatedRecordsMutation()
+
+  const mutation = view === 'main' ? batchDeleteMutation : batchDeleteRelatedMutation
+
   return (
     <ConfirmDialog
       trigger={
@@ -23,8 +30,10 @@ function DeleteSelected({ view = 'main' }: { view?: 'related' | 'main' }) {
           Delete
         </Button>
       }
-      handler={() => mutate({})}
-      loading={loading}
+      handler={async () => {
+        mutation.mutate()
+      }}
+      loading={mutation.isPending}
       title="Delete selected records?"
     />
   )
@@ -32,13 +41,13 @@ function DeleteSelected({ view = 'main' }: { view?: 'related' | 'main' }) {
 
 function ExportRecords({ view = 'main' }: { view?: 'related' | 'main' }) {
   // @TODO: Related records export
-  const { loading: exportInProgress, mutate } = useStore($export)
+  const { mutate, isPending: exportInProgress } = useExportRecordsMutation()
 
   return (
     <Button
       className="hover:bg-danger/20 rounded-none text-green-700"
       disabled={exportInProgress}
-      onClick={mutate}
+      onClick={() => mutate()}
       size="small"
       variant="inverse"
     >

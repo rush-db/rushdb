@@ -6,10 +6,10 @@ import { PageHeader } from '~/elements/PageHeader'
 import { Close, Sheet } from '~/elements/Sheet'
 import { Tab, Tabs, TabsContent, TabsList } from '~/elements/Tabs'
 import { RecordTitle } from '~/features/records/components/RecordTitle'
-import { deleteRecordMutation } from '~/features/records/stores/mutations'
+import { useDeleteRecordMutation } from '~/features/records/hooks/useRecordMutations'
 
-import { $currentRecord, $currentRelatedRecords } from '../stores/current-record'
 import { $sheetRecordId } from '../stores/id'
+import { useCurrentRecordQuery, useCurrentRecordRelatedQuery } from '../hooks/useProjectQueries'
 import { RecordDataTab } from './RecordDataTab'
 import { RelatedRecordsTab } from './RelatedRecordsTab.tsx'
 import { ERecordSheetTabs } from '~/features/projects/types.ts'
@@ -26,9 +26,10 @@ const tabs: ERecordSheetTabs[] = [
 
 export function RecordSheet() {
   const id = useStore($sheetRecordId)
-  const { data: record } = useStore($currentRecord)
-  const { data: relations } = useStore($currentRelatedRecords)
-  const { mutate: deleteRecord } = useStore(deleteRecordMutation)
+  const { data: record } = useCurrentRecordQuery()
+  const { data: relationsResult } = useCurrentRecordRelatedQuery()
+  const relations = relationsResult?.data
+  const { mutate: deleteRecord } = useDeleteRecordMutation()
 
   return (
     <Sheet

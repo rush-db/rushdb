@@ -22,7 +22,7 @@ import { Toaster } from './elements/Toast'
 import { ProjectLayout } from './layout/ProjectLayout'
 import { AuthGoogle } from './pages/auth/google'
 import { useEffect, useMemo } from 'react'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { AuthGitHub } from '~/pages/auth/github.tsx'
 import { $user } from '~/features/auth/stores/user.ts'
 import { OnboardingTour } from '~/features/tour/components/OnboardingTour.tsx'
@@ -55,6 +55,7 @@ function PublicRoutes() {
 function ProtectedRoutes() {
   const page = useStore($router)
   const currentUser = useStore($user)
+  const { data: platformSettings } = usePlatformSettings()
 
   const isOwner = useMemo(() => currentUser.currentScope?.role === 'owner', [currentUser])
 
@@ -72,12 +73,12 @@ function ProtectedRoutes() {
     case 'joinWorkspace':
       return <JoinWorkspacePage />
     case 'workspaceBilling':
-      if ($platformSettings.get().data?.selfHosted || !isOwner) {
+      if (platformSettings?.selfHosted || !isOwner) {
         return null
       }
       return <WorkspaceBillingPage />
     case 'workspaceApiUsage':
-      if ($platformSettings.get().data?.selfHosted || !isOwner) {
+      if (platformSettings?.selfHosted || !isOwner) {
         return null
       }
       return <WorkspaceApiUsagePage />
@@ -137,9 +138,9 @@ function Gtm() {
 }
 
 function ProductionScripts() {
-  const { loading, data: platformSettings } = useStore($platformSettings)
+  const { isPending, data: platformSettings } = usePlatformSettings()
 
-  if (loading || platformSettings?.selfHosted) {
+  if (isPending || platformSettings?.selfHosted) {
     return null
   }
 

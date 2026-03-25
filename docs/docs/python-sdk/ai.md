@@ -181,9 +181,7 @@ db.ai.indexes.delete(index_id)
 
 Embeds the query text and returns relevant records by cosine similarity. Requires a `ready` embedding index on `property_name` scoped to the target `label`.
 
-**Execution mode is automatic:**
-- **ANN** (fast): single label in `labels`, no `where` → queries the global vector index
-- **ENN prefilter** (exact): `where` present or 2+ labels → MATCH/WHERE first, then `vector.similarity.cosine()`
+RushDB performs exact semantic search: candidates are narrowed via labels and optional `where`, then ranked by cosine similarity.
 
 ```python
 db.ai.search(params: dict) -> ApiResponse[list[dict]]
@@ -191,15 +189,14 @@ db.ai.search(params: dict) -> ApiResponse[list[dict]]
 #   "propertyName": str,    # required
 #   "query": str,           # required
 #   "labels": list[str],    # required, min 1
-#   "where": dict,          # optional — activates ENN prefilter
-#   "topK": int,            # optional, default 20
+#   "where": dict,          # optional filter applied before cosine scoring
 #   "skip": int,            # optional
 #   "limit": int,           # optional
 # }
 ```
 
 ```python
-# ANN — single label, no where
+# Semantic search
 response = db.ai.search({
     "propertyName": "description",
     "query": "machine learning for beginners",
@@ -210,7 +207,7 @@ response = db.ai.search({
 for result in response.data:
     print(f"[{result['__score']:.3f}] {result['title']}")
 
-# ENN prefilter — with where clause
+# Semantic search with filter
 response = db.ai.search({
     "propertyName": "description",
     "query": "sustainable packaging",

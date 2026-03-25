@@ -621,9 +621,7 @@ Example prompt:
 
 Perform semantic (vector) similarity search over records whose `propertyName` has been indexed with `createEmbeddingIndex`. Provide a free-text `query` — RushDB embeds it and returns the most similar records ranked by cosine similarity (`__score`).
 
-Two modes:
-- **ANN mode** (fast, default): used when no `where` filter is supplied.
-- **ENN prefilter mode** (exact, slower): activated when a `where` filter is supplied — candidates are first narrowed by the filter, then ranked by similarity.
+RushDB performs exact semantic search by applying label/optional `where` filtering before cosine ranking.
 
 Requires an embedding index in `"ready"` status for the given `label` + `propertyName`.
 
@@ -634,8 +632,7 @@ Arguments:
 | propertyName | string           | yes      | —       | Name of the indexed property to search against |
 | query        | string           | yes      | —       | Free-text query to embed and compare against stored vectors |
 | labels       | array of strings | yes      | —       | One or more record labels to scope the search; first label resolves the embedding index |
-| where        | object           | no       | —       | Optional filter applied before scoring (activates ENN prefilter mode) |
-| topK         | number           | no       | 20      | Max ANN candidates to fetch from the vector index (ANN mode only) |
+| where        | object           | no       | —       | Optional filter applied before cosine scoring |
 | limit        | number           | no       | 20      | Maximum number of results to return |
 | skip         | number           | no       | 0       | Number of results to skip for pagination |
 

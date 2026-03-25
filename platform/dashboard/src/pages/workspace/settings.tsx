@@ -1,5 +1,4 @@
 import { yupResolver } from '@hookform/resolvers/yup'
-import { useStore } from '@nanostores/react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { object, string } from 'yup'
@@ -11,8 +10,8 @@ import { Setting, SettingsList } from '~/elements/Setting'
 import { Skeleton } from '~/elements/Skeleton'
 import { DeleteWorkspaceDialog } from '~/features/workspaces/components/DeleteWorkspaceDialog'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
-import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace'
-import { updateWorkspace } from '~/features/workspaces/stores/mutations'
+import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
+import { useUpdateWorkspaceMutation } from '~/features/workspaces/hooks/useWorkspaceMutations'
 import { ConnectionsList } from '~/pages/workspace/connected-apps'
 
 const workspaceNameSchema = object({
@@ -20,9 +19,9 @@ const workspaceNameSchema = object({
 })
 
 function WorkspaceNameSetting() {
-  const { data: workspace } = useStore($currentWorkspace)
+  const { data: workspace } = useCurrentWorkspaceQuery()
 
-  const { mutate } = useStore(updateWorkspace)
+  const { mutateAsync: mutate } = useUpdateWorkspaceMutation()
 
   const {
     formState: { errors, isDirty, isSubmitting, isValid },
@@ -48,7 +47,10 @@ function WorkspaceNameSetting() {
       isDirty={isDirty}
       isSubmitting={isSubmitting}
       isValid={isValid}
-      onSubmit={handleSubmit(mutate)}
+      onSubmit={handleSubmit(async (values) => {
+        if (!workspace?.id) return
+        await mutate({ id: workspace.id, ...values })
+      })}
       title="Workspace name"
     >
       <TextField {...register('name')} error={errors.name?.message} />
@@ -57,7 +59,7 @@ function WorkspaceNameSetting() {
 }
 
 function DeleteWorkspaceSetting() {
-  const { data: workspace } = useStore($currentWorkspace)
+  const { data: workspace } = useCurrentWorkspaceQuery()
 
   return (
     <Setting

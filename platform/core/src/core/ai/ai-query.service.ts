@@ -137,7 +137,7 @@ export class AiQueryService {
    * Must be run outside a transaction (DDL not allowed in explicit transactions).
    */
   getCreateGlobalVectorIndexQuery() {
-    return `CREATE VECTOR INDEX \`rushdb_emb_value_rels\` IF NOT EXISTS FOR ()-[r:\`${RUSHDB_RELATION_VALUE}\`]-() ON r.__emb WITH [r.__projectId, r.__propKey] OPTIONS { indexConfig: { \`vector.dimensions\`: $dimensions, \`vector.similarity_function\`: 'cosine' } }`
+    return `CREATE VECTOR INDEX \`rushdb_emb_value_rels\` IF NOT EXISTS FOR ()-[r:\`${RUSHDB_RELATION_VALUE}\`]-() ON r.__emb OPTIONS { indexConfig: { \`vector.dimensions\`: $dimensions, \`vector.similarity_function\`: 'cosine' } }`
   }
 
   /**
@@ -146,7 +146,8 @@ export class AiQueryService {
    * Must be run outside a transaction.
    */
   getDropGlobalVectorIndexQuery() {
-    return `DROP VECTOR INDEX \`rushdb_emb_value_rels\` IF EXISTS`
+    // Use generic DROP INDEX syntax for broad Neo4j compatibility.
+    return `DROP INDEX \`rushdb_emb_value_rels\` IF EXISTS`
   }
 
   /**
@@ -214,29 +215,9 @@ export class AiQueryService {
   }
 
   /**
-   * ANN semantic search via the global shared vector index.
-   * Post-filters by rel.__projectId and rel.__propKey for tenant + label isolation.
-   * @param labelSuffix - Neo4j label suffix e.g. ":Book" — scopes the record MATCH after ANN
-   */
-  getSemanticSearchAnnQuery(labelSuffix: string) {
-    const qb = new QueryBuilder()
-    qb.append(`CALL db.index.vector.queryRelationships('rushdb_emb_value_rels', $topK, $queryVector)`)
-    qb.append(`YIELD relationship AS rel, score`)
-    qb.append(`WHERE rel.__projectId = $projectId AND rel.__propKey = $propKey`)
-    qb.append(
-      `MATCH (prop:${RUSHDB_LABEL_PROPERTY})-[rel]->(record:${RUSHDB_LABEL_RECORD}${labelSuffix} { ${projectIdInline()} })`
-    )
-    qb.append(`WITH record, score`)
-    qb.append(`ORDER BY score DESC`)
-    qb.append(`SKIP $skip LIMIT $limit`)
-    qb.append(`RETURN record, score`)
-    return qb.getQuery()
-  }
-
-  /**
-   * Exact (ENN) semantic search with prefiltering.
-   * Candidate records are first narrowed via Cypher MATCH/WHERE, then scored with
-   * vector.similarity.cosine(). Use when a `where` filter is present or for multi-label scoping.
+   * Exact semantic search query.
+   * Candidate records are narrowed via Cypher MATCH/WHERE first, then ranked with
+   * vector.similarity.cosine() over stored relationship embeddings.
    * @param combinedWhere - compiled Cypher WHERE expression (may be empty string)
    * @param labelSuffix - Neo4j label suffix e.g. ":Book"
    */

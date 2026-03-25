@@ -1,6 +1,7 @@
 export type EmbeddingIndex = {
   id: string
   projectId: string
+  label: string
   propertyName: string
   modelKey: string
   dimensions: number
@@ -12,6 +13,7 @@ export type EmbeddingIndex = {
 }
 
 export type CreateEmbeddingIndexParams = {
+  label: string
   propertyName: string
 }
 

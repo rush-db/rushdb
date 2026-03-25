@@ -25,14 +25,12 @@ import { cn, composeEventHandlers, isInViewport, range } from '~/lib/utils'
 
 import {
   $hasRecordsSelection,
-  $mixedRecordsSelection,
   $selectedRecords,
   resetRecordsSelection,
   toggleRecordSelection
 } from '../stores/actionbar'
 import {
   $hasRelatedRecordsSelection,
-  $mixedRelatedRecordsSelection,
   $selectedRelatedRecords,
   resetRelatedRecordsSelection,
   toggleRelatedRecordSelection
@@ -257,43 +255,39 @@ export function RecordsTable({
   }
 
   const selectedRecords = useStore($selectedRecords)
-  const hasSelection = useStore($hasRecordsSelection)
-  const mixedSelection = useStore($mixedRecordsSelection)
+  const pageRecordIds = records?.map((record) => record.id) ?? []
+  const selectedRecordsOnPage = pageRecordIds.filter((id) => selectedRecords.includes(id))
+  const hasSelection = selectedRecordsOnPage.length > 0
+  const allSelectedOnPage = pageRecordIds.length > 0 && selectedRecordsOnPage.length === pageRecordIds.length
+  const mixedSelection = hasSelection && !allSelectedOnPage
 
   const selectedRelatedRecords = useStore($selectedRelatedRecords)
-  const hasRelatedSelection = useStore($hasRelatedRecordsSelection)
-  const mixedRelatedSelection = useStore($mixedRelatedRecordsSelection)
+  const selectedRelatedRecordsOnPage = pageRecordIds.filter((id) => selectedRelatedRecords.includes(id))
+  const hasRelatedSelection = selectedRelatedRecordsOnPage.length > 0
+  const allRelatedSelectedOnPage =
+    pageRecordIds.length > 0 && selectedRelatedRecordsOnPage.length === pageRecordIds.length
+  const mixedRelatedSelection = hasRelatedSelection && !allRelatedSelectedOnPage
 
   const getSelectedState = (id: string) =>
-    view === 'main' ?
-      !mixedSelection || selectedRecords.includes(id)
-    : !mixedRelatedSelection || selectedRelatedRecords.includes(id)
+    view === 'main' ? selectedRecords.includes(id) : selectedRelatedRecords.includes(id)
 
-  const checked = view === 'main' ? hasSelection : hasRelatedSelection
+  const checked = view === 'main' ? allSelectedOnPage : allRelatedSelectedOnPage
   const mixed = view === 'main' ? mixedSelection : mixedRelatedSelection
 
   const handleOnCheckedChange = () => {
     if (view === 'main') {
-      if (hasSelection) {
-        if (mixedSelection) {
-          $selectedRecords.set(records?.map((r) => r.id) as string[])
-        } else {
-          resetRecordsSelection()
-        }
+      if (allSelectedOnPage) {
+        resetRecordsSelection()
       } else {
-        $selectedRecords.set(records?.map((r) => r.id) as string[])
+        $selectedRecords.set(pageRecordIds)
       }
     }
 
     if (view === 'related') {
-      if (hasRelatedSelection) {
-        if (mixedRelatedSelection) {
-          $selectedRelatedRecords.set(records?.map((r) => r.id) as string[])
-        } else {
-          resetRelatedRecordsSelection()
-        }
+      if (allRelatedSelectedOnPage) {
+        resetRelatedRecordsSelection()
       } else {
-        $selectedRelatedRecords.set(records?.map((r) => r.id) as string[])
+        $selectedRelatedRecords.set(pageRecordIds)
       }
     }
   }

@@ -31,7 +31,7 @@ Neo4j is responsible for all record and property data in RushDB, providing:
 - Property graph model flexibility
 - Scalable data storage and retrieval
 
-The [APOC](https://neo4j.com/labs/apoc/) plugin extends Neo4j with JSON conversion (`apoc.convert.*`), map utilities (`apoc.map.*`), and collection helpers (`apoc.coll.*`) that RushDB relies on for property storage and updates. Vector similarity search is handled entirely by **Neo4j's native vector index** — RushDB creates a `VECTOR INDEX` on embedding relationships and queries it via `db.index.vector.queryRelationships()` (ANN) or `vector.similarity.cosine()` (ENN prefilter). No GDS plugin is required. RushDB supports Neo4j 2026.01.4 and newer.
+The [APOC](https://neo4j.com/labs/apoc/) plugin extends Neo4j with JSON conversion (`apoc.convert.*`), map utilities (`apoc.map.*`), and collection helpers (`apoc.coll.*`) that RushDB relies on for property storage and updates. Vector similarity search is handled entirely by **Neo4j's native vector index** — RushDB creates a `VECTOR INDEX` on embedding relationships and ranks filtered candidates with `vector.similarity.cosine()`. No GDS plugin is required. RushDB supports Neo4j 2026.01.4 and newer.
 
 ## SQL Foundation
 

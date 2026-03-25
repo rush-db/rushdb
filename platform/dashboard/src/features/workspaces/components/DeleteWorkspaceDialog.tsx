@@ -1,4 +1,3 @@
-import { useStore } from '@nanostores/react'
 import { useState } from 'react'
 
 import type { TDialogProps } from '~/elements/Dialog'
@@ -7,16 +6,15 @@ import { Button } from '~/elements/Button'
 import { Close, Dialog, DialogFooter, DialogTitle } from '~/elements/Dialog'
 import { TextField } from '~/elements/Input'
 
-import { $currentWorkspace } from '../stores/current-workspace'
-import { deleteWorkspace } from '../stores/mutations'
-import { $workspacesList } from '../stores/workspaces'
+import { useCurrentWorkspaceQuery, useWorkspacesQuery } from '../hooks/useWorkspaceQueries'
+import { useDeleteWorkspaceMutation } from '../hooks/useWorkspaceMutations'
 
 const CONFIRM_WORD = 'delete'
 
 export function DeleteWorkspaceDialog({ ...props }: TDialogProps) {
-  const { data: workspaces } = useStore($workspacesList)
-  const { data: workspace } = useStore($currentWorkspace)
-  const { loading, mutate } = useStore(deleteWorkspace)
+  const { data: workspaces } = useWorkspacesQuery()
+  const { data: workspace } = useCurrentWorkspaceQuery()
+  const { isPending: loading, mutateAsync: mutate } = useDeleteWorkspaceMutation()
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState('')
 

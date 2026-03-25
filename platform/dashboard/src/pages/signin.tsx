@@ -2,6 +2,7 @@ import { Button } from '~/elements/Button'
 import { Divider } from '~/elements/Divider'
 import { TextField } from '~/elements/Input'
 import { Link } from '~/elements/Link'
+import { useStore } from '@nanostores/react'
 import { GithubButton } from '~/features/auth/components/GitHubButton'
 import { GoogleButton } from '~/features/auth/components/GoogleButton'
 import { logIn } from '~/features/auth/stores/auth'
@@ -10,8 +11,7 @@ import { FetchError } from '~/lib/fetcher'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { LogIn } from 'lucide-react'
-import { useStore } from '@nanostores/react'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { useMemo } from 'react'
 import { Spinner } from '~/elements/Spinner.tsx'
 import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
@@ -98,21 +98,21 @@ function SignInForm() {
 
 export function SignInPage() {
   const invite = useStore($inviteToken)
-  const platformSettings = useStore($platformSettings)
+  const { data: platformSettings, isPending } = usePlatformSettings()
 
   const hasGoogleOAuth = useMemo(
-    () => platformSettings.data?.googleOAuthEnabled,
-    [platformSettings.data?.googleOAuthEnabled]
+    () => platformSettings?.googleOAuthEnabled,
+    [platformSettings?.googleOAuthEnabled]
   )
 
   const hasGithubOAuth = useMemo(
-    () => platformSettings.data?.githubOAuthEnabled,
-    [platformSettings.data?.githubOAuthEnabled]
+    () => platformSettings?.githubOAuthEnabled,
+    [platformSettings?.githubOAuthEnabled]
   )
 
   const hasOauth = useMemo(() => hasGoogleOAuth || hasGithubOAuth, [hasGoogleOAuth, hasGithubOAuth])
 
-  if (platformSettings.loading) {
+  if (isPending) {
     return (
       <AuthLayout title={'Sign in to RushDB'} type="signin">
         <div className="m-auto flex content-center items-center justify-between">

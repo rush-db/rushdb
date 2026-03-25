@@ -272,14 +272,9 @@ Returns the current indexing progress for an embedding index — how many record
 POST /api/v1/ai/search
 ```
 
-Embeds the supplied query text and returns the most relevant records by vector similarity. The property referenced by `propertyName` must have a `ready` embedding index.
+Embeds the supplied query text and returns the most relevant records by cosine similarity. The property referenced by `propertyName` must have a `ready` embedding index.
 
-Two execution modes are selected automatically:
-
-| Mode | When | How |
-|------|------|-----|
-| **ANN** (fast, approximate) | No `where` filter; `labels` has 0 or 1 entries | Queries the shared global vector index directly |
-| **ENN prefilter** (exact, slower) | `where` filter present **or** `labels` has 2+ entries | Narrows candidates via MATCH/WHERE first, then scores with cosine similarity |
+RushDB performs exact semantic search by narrowing candidates with label/`where` filters first, then ranking by cosine similarity.
 
 ### Request Body
 
@@ -287,13 +282,12 @@ Two execution modes are selected automatically:
 |----------------|------------------|----------|------------------------------------------------------------------------------------------|
 | `propertyName` | string           | **yes**  | The indexed property to search against                                                   |
 | `query`        | string           | **yes**  | Free-text query to embed and compare                                                     |
-| `labels`       | array of strings | **yes**  | Labels to search within (min 1). Single label = ANN mode; 2+ or with `where` = ENN.    |
-| `where`        | object           | no       | Standard RushDB filter expression. Activates ENN prefilter mode when provided.          |
-| `topK`         | number           | no       | Candidate count for ANN index scan (default `20`, ignored in prefilter mode)             |
+| `labels`       | array of strings | **yes**  | Labels to search within (min 1). First label resolves which embedding index policy is used. |
+| `where`        | object           | no       | Standard RushDB filter expression applied before cosine scoring.                          |
 | `skip`         | number           | no       | Pagination offset (default `0`)                                                          |
 | `limit`        | number           | no       | Maximum results to return (default `20`)                                                 |
 
-### Example — ANN (single label, no filter)
+### Example — semantic search
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/ai/search \
@@ -307,7 +301,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/search \
   }'
 ```
 
-### Example — ENN with prefilter
+### Example — semantic search with filter
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/ai/search \

@@ -283,9 +283,9 @@ curl -X POST "https://api.rushdb.com/api/v1/records/search" \
 
 See the [Where clause reference](../concepts/search/where.md) for the full list of operators (`$gt`, `$lt`, `$contains`, `$not`, and more).
 
-## Step 5: Prefiltered Semantic Search
+## Step 5: Semantic Search with Filter
 
-Combine a `where` filter with `db.ai.search` to scope semantic search to a subset of records. RushDB automatically uses an **ENN (exact nearest-neighbor) prefilter** — it matches records by field value first, then ranks by similarity.
+Combine a `where` filter with `db.ai.search` to scope semantic search to a subset of records. RushDB narrows candidates by field values first, then ranks them by cosine similarity.
 
 <Tabs groupId="programming-language">
   <TabItem value="python" label="Python" default>
@@ -341,8 +341,8 @@ curl -X POST "https://api.rushdb.com/api/v1/ai/search" \
   </TabItem>
 </Tabs>
 
-:::note ANN vs ENN
-Without a `where` clause, RushDB runs **ANN** (approximate nearest-neighbor) directly on the vector index — very fast. Adding `where` switches to **ENN prefilter**: RushDB matches records by field first, then scores the filtered set by similarity. ENN is exact but scans only the matched subset, so it stays fast at scale.
+:::note
+Without a `where` clause, RushDB still performs exact semantic ranking over the label-scoped candidates. Adding `where` reduces the candidate set first, which can improve latency on larger datasets.
 :::
 
 ## Step 6: [Relationships](../concepts/relationships.md)
@@ -503,19 +503,14 @@ curl -X POST "https://api.rushdb.com/api/v1/transactions/$TX_ID/commit" \
   </TabItem>
 </Tabs>
 
----
 
 ## Next Steps
 
-- Dive into the core concepts:
   - [Records](../concepts/records.md) — data model and field types
   - [Labels](../concepts/labels.md) — organizing records by category
   - [Relationships](../concepts/relationships.md) — connecting records into a graph
   - [Search & Querying](../concepts/search/introduction.md) — where clauses, ordering, pagination
   - [Transactions](../concepts/transactions.mdx) — atomicity and consistency
-- Explore the SDK docs:
   - [TypeScript SDK](../typescript-sdk/introduction)
   - [Python SDK](../python-sdk/introduction)
   - [REST API](../rest-api/introduction)
-- Go deeper on AI features: [AI & Semantic Search](../typescript-sdk/ai)
-- Check out end-to-end tutorials in the [Tutorials](../tutorials/reusable-search-query) section

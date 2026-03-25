@@ -2,7 +2,7 @@ import { useStore } from '@nanostores/react'
 import { AlertTriangle, Zap } from 'lucide-react'
 
 import { $user } from '~/features/auth/stores/user'
-import { $workspaceUsage } from '~/features/billing/stores/usage'
+import { useWorkspaceUsageQuery } from '~/features/billing/hooks/useBillingHooks'
 import { Button } from '~/elements/Button'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
@@ -23,7 +23,7 @@ function formatKu(n: number): string {
  */
 export function KuLimitBanner() {
   const currentUser = useStore($user)
-  const { data: usage } = useStore($workspaceUsage)
+  const { data: usage } = useWorkspaceUsageQuery()
 
   const isOwner = currentUser.currentScope?.role === 'owner'
 

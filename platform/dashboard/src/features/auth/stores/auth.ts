@@ -5,7 +5,7 @@ import type { ApiParams } from '~/lib/api'
 import type { SearchParams } from '~/lib/router'
 
 import { api } from '~/lib/api'
-import { createMutator, fetcher } from '~/lib/fetcher'
+import { fetcher } from '~/lib/fetcher'
 import {
   $router,
   isProtectedRoute,
@@ -119,18 +119,6 @@ export const createUser = action($user, 'createUser', (store, params: ApiParams<
     store.set({ ...user, isLoggedIn: true })
   })
 )
-
-export const $sendRecoveryLink = createMutator({
-  async fetcher({ init, email }: ApiParams<typeof api.auth.sendRecoveryLink>) {
-    return await api.auth.sendRecoveryLink({ init, email })
-  }
-})
-
-export const $resetPassword = createMutator({
-  async fetcher({ init, login, token, password }: ApiParams<typeof api.auth.resetPassword>) {
-    return await api.auth.resetPassword({ init, login, token, password })
-  }
-})
 
 export const resendConfirmationLink = () => {
   const { id } = $user.get()

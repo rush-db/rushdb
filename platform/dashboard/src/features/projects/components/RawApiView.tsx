@@ -9,13 +9,7 @@ import { atom } from 'nanostores'
 import { SelectEntityApi } from '~/features/projects/components/SelectEntityApi.tsx'
 import { useSearchQuery } from '~/features/projects/utils.ts'
 import { Editor } from '~/elements/Editor.tsx'
-import {
-  $editorData,
-  $selectedOperation,
-  rawLabels,
-  rawProperties,
-  rawRecords
-} from '~/features/projects/stores/raw-api.ts'
+import { $editorData, $selectedOperation } from '~/features/projects/stores/raw-api.ts'
 import { DBRecordsArrayInstance } from '@rushdb/javascript-sdk'
 import { $recordRawApiEntity } from '~/features/projects/stores/current-project.ts'
 import { ApiRecordsModal } from '~/features/records/components/ApiRecordsModal.tsx'
@@ -26,8 +20,13 @@ import { Divider } from '~/elements/Divider.tsx'
 import { Select } from '~/elements/Select.tsx'
 import { api } from '~/lib/api'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
-import { $paidWorkspace } from '~/features/billing/stores/plans.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
+import { useCurrentWorkspacePlan } from '~/features/billing/hooks/useBillingHooks'
+import {
+  useRawLabelsMutation,
+  useRawPropertiesMutation,
+  useRawRecordsMutation
+} from '~/features/projects/hooks/useRawApiMutations'
 
 const $recordsData = atom<string>('')
 const $labelsData = atom<string>('')
@@ -334,12 +333,13 @@ const ExampleSelector = () => {
 export function RawApiView() {
   const query = useStore($editorData)
   const entity = useStore($recordRawApiEntity)
-  const platformSettings = useStore($platformSettings)
-  const paidUser = useStore($paidWorkspace)
+  const { data: platformSettings } = usePlatformSettings()
+  const { currentPlan } = useCurrentWorkspacePlan()
+  const paidUser = currentPlan && currentPlan.id !== 'free' && currentPlan.id !== 'start'
 
-  const { mutate: findRecords, loading: recordsSubmitting } = useStore(rawRecords)
-  const { mutate: findLabels, loading: labelsSubmitting } = useStore(rawLabels)
-  const { mutate: findProperties, loading: propertiesSubmitting } = useStore(rawProperties)
+  const { mutateAsync: findRecords, isPending: recordsSubmitting } = useRawRecordsMutation()
+  const { mutateAsync: findLabels, isPending: labelsSubmitting } = useRawLabelsMutation()
+  const { mutateAsync: findProperties, isPending: propertiesSubmitting } = useRawPropertiesMutation()
 
   const recordsData = useStore($recordsData)
   const labelsData = useStore($labelsData)
@@ -397,21 +397,29 @@ export function RawApiView() {
     findRecords({
       searchQuery: searchQueryObj
     }).then((response) => {
-      const { data, total } = response as DBRecordsArrayInstance<any>
-      $recordsData.set(JSON.stringify({ data: data?.map?.((d) => d.data) ?? data, total }))
+      const { data, total } = response as unknown as {
+        data?: Array<{ data?: unknown }> | Record<string, number>
+        total?: number
+      }
+      $recordsData.set(
+        JSON.stringify({
+          data: Array.isArray(data) ? data.map((record) => record.data ?? record) : data,
+          total
+        })
+      )
     })
 
     findLabels({
       searchQuery: searchQueryObj
     }).then((response) => {
-      const { data, total } = response as DBRecordsArrayInstance<any>
+      const { data, total } = response as unknown as { data?: unknown; total?: number }
       $labelsData.set(JSON.stringify({ data, total }))
     })
 
     findProperties({
       searchQuery: searchQueryObj
     }).then((response) => {
-      const { data, total } = response as DBRecordsArrayInstance<any>
+      const { data, total } = response as unknown as { data?: unknown; total?: number }
       $propertiesData.set(JSON.stringify({ data, total }))
     })
   }
@@ -442,7 +450,7 @@ export function RawApiView() {
                   {/*  <p className="text-content2 mb-2 text-lg">Method</p>*/}
                   {/*  <OperationSelector />*/}
 
-                  {operation === 'records.find' && (platformSettings.data?.selfHosted || paidUser) && (
+                  {operation === 'records.find' && (platformSettings?.selfHosted || paidUser) && (
                     <CheckboxField
                       className="mb-0 mr-2"
                       label="Show Cypher"

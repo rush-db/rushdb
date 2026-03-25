@@ -1,14 +1,12 @@
-import { useStore } from '@nanostores/react'
-
 import type { Project } from '~/features/projects/types'
 
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
-import { $currentProjectIndexes } from '~/features/projects/stores/current-project'
+import { useProjectIndexesQuery } from '~/features/projects/hooks/useProjectQueries'
 import { AddIndexCard } from '~/features/indexes/components/AddIndex'
 import { IndexesList } from '~/features/indexes/components/IndexesList'
 
 export function ProjectIndexes({ projectId }: { projectId: Project['id'] }) {
-  const { data: indexes, loading } = useStore($currentProjectIndexes)
+  const { data: indexes, isPending: loading } = useProjectIndexesQuery()
 
   return (
     <>

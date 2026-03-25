@@ -218,9 +218,8 @@ export const api = {
     }
   },
   workspaces: {
-    async workspace({ id }: Pick<Workspace, 'id'>, init: RequestInit): Promise<Workspace> {
-      const { data } = await fetcher<GenericApiResponse<Workspace>>(`/api/v1/workspaces/${id}`, init)
-      return data
+    workspace({ id }: Pick<Workspace, 'id'>, init: RequestInit): Promise<Workspace> {
+      return fetcher<Workspace>(`/api/v1/workspaces/${id}`, init)
     },
     list(init: RequestInit) {
       return fetcher<Workspace[]>(`/api/v1/workspaces`, init)
@@ -558,13 +557,11 @@ export const api = {
   settings: {
     get: ({ init }: WithInit) => {
       return fetcher<{
-        data: {
-          selfHosted: boolean
-          dashboardUrl: string
-          googleOAuthEnabled: boolean
-          githubOAuthEnabled: boolean
-          embeddingEnabled: boolean
-        }
+        selfHosted: boolean
+        dashboardUrl: string
+        googleOAuthEnabled: boolean
+        githubOAuthEnabled: boolean
+        embeddingEnabled: boolean
       }>(`/api/v1/settings`, {
         ...init,
         method: 'GET'

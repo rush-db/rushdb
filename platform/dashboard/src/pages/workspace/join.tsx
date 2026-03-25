@@ -4,14 +4,15 @@ import { CheckCircle2, XCircle } from 'lucide-react'
 
 import { Button } from '~/elements/Button'
 
-import { acceptInvitation, getInviteTokenFromURL } from '~/features/workspaces/stores/invitation'
+import { getInviteTokenFromURL } from '~/features/workspaces/stores/invitation'
 import { openRoute } from '~/lib/router'
 import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
+import { useAcceptInvitationMutation } from '~/features/workspaces/hooks/useWorkspaceMutations'
 
 export function JoinWorkspacePage() {
   const inviteFromStore = useStore($inviteToken)
   const [token, setToken] = useState<string | null>(null)
-  const { loading, data, error, mutate } = useStore(acceptInvitation)
+  const { isPending: loading, data, error, mutateAsync: mutate } = useAcceptInvitationMutation()
   const [processingInvite, setProcessingInvite] = useState(false)
 
   useEffect(() => {

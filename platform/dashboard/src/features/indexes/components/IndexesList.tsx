@@ -1,18 +1,51 @@
-import { useStore } from '@nanostores/react'
-import { Database, MoreVertical, Trash2 } from 'lucide-react'
+import { Copy, Database, MoreVertical, Trash2 } from 'lucide-react'
 
 import { Card } from '~/elements/Card'
 import { ConfirmDialog } from '~/elements/ConfirmDialog'
 import { IconButton } from '~/elements/IconButton'
+import { Label } from '~/elements/Label'
 import { Menu, MenuItem } from '~/elements/Menu'
 import { NothingFound } from '~/elements/NothingFound'
 import { Skeleton } from '~/elements/Skeleton'
-import { $currentProjectId } from '~/features/projects/stores/id'
-import { cn } from '~/lib/utils'
+import { toast } from '~/elements/Toast'
+import { cn, copyToClipboard } from '~/lib/utils'
+import { useIndexStatsQuery } from '~/features/projects/hooks/useProjectQueries'
 
 import type { EmbeddingIndex } from '../types'
 
-import { deleteIndex } from '../stores/indexes'
+import { useDeleteIndexMutation } from '../hooks/useIndexMutations'
+
+function IndexProgressBar({ id, status }: { id: string; status: string }) {
+  const isActive = status === 'pending' || status === 'indexing'
+  const { data, isLoading, isFetching } = useIndexStatsQuery(id)
+
+  if (!isActive) return null
+
+  const totalRecords = data?.totalRecords ?? 0
+  const indexedRecords = data?.indexedRecords ?? 0
+  const progress =
+    totalRecords > 0 ? Math.max(0, Math.min(100, Math.round((indexedRecords / totalRecords) * 100))) : 0
+
+  return (
+    <div className="mt-2 w-full">
+      <span className="text-content-secondary mt-1 block text-sm">
+        {isLoading && !data ?
+          'Loading progress...'
+        : `${indexedRecords} / ${totalRecords} records indexed (${progress}%)`}
+        {isFetching && data ? ' Updating...' : null}
+      </span>
+      <div className="bg-border/60 h-1.5 w-full overflow-hidden rounded-full">
+        <div
+          className={cn('h-full rounded-full transition-all duration-500', {
+            'bg-content-2': status === 'pending',
+            'bg-badge-blue': status === 'indexing'
+          })}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
+  )
+}
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
@@ -31,6 +64,7 @@ const STATUS_COLORS: Record<string, string> = {
 function IndexListItem({
   className,
   id,
+  label,
   propertyName,
   modelKey,
   dimensions,
@@ -41,7 +75,7 @@ function IndexListItem({
   'li',
   ({ loading: true } & Partial<EmbeddingIndex>) | ({ loading?: false } & EmbeddingIndex)
 >) {
-  const { mutate } = useStore(deleteIndex)
+  const { mutate } = useDeleteIndexMutation()
   const statusLabel = STATUS_LABELS[status ?? 'pending'] ?? status
   const statusColor = STATUS_COLORS[status ?? 'pending'] ?? STATUS_COLORS.pending
 
@@ -50,24 +84,28 @@ function IndexListItem({
       <Database size={20} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="flex items-center gap-3 text-base font-bold">
-          <Skeleton enabled={loading}>{propertyName ?? 'Loading...'}</Skeleton>
-          <span
-            className={cn(
-              'inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium',
-              statusColor
-            )}
-          >
-            {statusLabel}
-          </span>
+        <span className="mb-1 flex items-center gap-3 text-base font-bold">
+          <Skeleton enabled={loading}>
+            <Label>
+              {label}:{propertyName}
+            </Label>
+          </Skeleton>
         </span>
-        <span className="text-content-secondary font-mono text-xs font-normal">
+
+        <span className="text-content-secondary font-mono text-sm font-normal">
           <Skeleton enabled={loading}>
             {modelKey && dimensions ? `${modelKey} · ${dimensions}d` : 'Loading...'}
           </Skeleton>
         </span>
+        {!loading && id && status ?
+          <IndexProgressBar id={id} status={status} />
+        : null}
       </div>
-
+      <span
+        className={cn('inline-flex items-center rounded-md border px-1.5 py-0.5 font-medium', statusColor)}
+      >
+        {statusLabel}
+      </span>
       {!loading && (
         <Menu
           trigger={
@@ -77,13 +115,18 @@ function IndexListItem({
           }
           align="end"
         >
+          <MenuItem icon={<Copy />} onClick={() => id && copyToClipboard(id, { showSuccessToast: true })}>
+            Copy index ID
+          </MenuItem>
           <ConfirmDialog
             handler={() => {
-              const projectId = $currentProjectId.get()
-              if (!projectId || !id) {
-                return
-              }
-              return mutate({ indexId: id })
+              if (!id) return
+              toast({
+                title: 'Deleting embedding index...',
+                description: 'Cleanup continues in background'
+              })
+              mutate({ indexId: id })
+              return Promise.resolve()
             }}
             trigger={
               <MenuItem dropdown icon={<Trash2 />} variant="danger">

@@ -26,21 +26,25 @@ export class EmbeddingProviderService {
     const baseUrl = this.configService.get<string>('RUSHDB_EMBEDDING_BASE_URL') ?? 'https://api.openai.com/v1'
     const apiKey = this.configService.get<string>('RUSHDB_EMBEDDING_API_KEY') ?? ''
     const model = this.configService.get<string>('RUSHDB_EMBEDDING_MODEL') ?? ''
+    const dimensionsRaw = this.configService.get<string>('RUSHDB_EMBEDDING_DIMENSIONS')
+    const dimensions = Number.parseInt(dimensionsRaw ?? '0', 10)
 
-    if (!apiKey || !model) {
+    if (!apiKey || !model || !Number.isInteger(dimensions) || dimensions <= 0) {
       throw new UnprocessableEntityException(
-        'Embedding provider is not fully configured. Set RUSHDB_EMBEDDING_API_KEY and RUSHDB_EMBEDDING_MODEL.'
+        'Embedding provider is not fully configured. Set RUSHDB_EMBEDDING_API_KEY, RUSHDB_EMBEDDING_MODEL, and RUSHDB_EMBEDDING_DIMENSIONS (positive integer).'
       )
     }
 
     const url = `${baseUrl.replace(/\/$/, '')}/embeddings`
+
+    this.logger.debug(`[embed] POST ${url} model=${model} inputLen=${text.length}`)
 
     try {
       const { data } = await axios.post<{
         data: Array<{ embedding: number[] }>
       }>(
         url,
-        { model, input: text },
+        { model, input: text, dimensions },
         {
           headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -54,6 +58,7 @@ export class EmbeddingProviderService {
         throw new Error('Provider returned an empty or malformed embedding')
       }
 
+      this.logger.debug(`[embed] received vector length=${embedding.length}`)
       return embedding
     } catch (err: any) {
       const status = err?.response?.status
@@ -71,21 +76,25 @@ export class EmbeddingProviderService {
     const baseUrl = this.configService.get<string>('RUSHDB_EMBEDDING_BASE_URL') ?? 'https://api.openai.com/v1'
     const apiKey = this.configService.get<string>('RUSHDB_EMBEDDING_API_KEY') ?? ''
     const model = this.configService.get<string>('RUSHDB_EMBEDDING_MODEL') ?? ''
+    const dimensionsRaw = this.configService.get<string>('RUSHDB_EMBEDDING_DIMENSIONS')
+    const dimensions = Number.parseInt(dimensionsRaw ?? '0', 10)
 
-    if (!apiKey || !model) {
+    if (!apiKey || !model || !Number.isInteger(dimensions) || dimensions <= 0) {
       throw new UnprocessableEntityException(
-        'Embedding provider is not fully configured. Set RUSHDB_EMBEDDING_API_KEY and RUSHDB_EMBEDDING_MODEL.'
+        'Embedding provider is not fully configured. Set RUSHDB_EMBEDDING_API_KEY, RUSHDB_EMBEDDING_MODEL, and RUSHDB_EMBEDDING_DIMENSIONS (positive integer).'
       )
     }
 
     const url = `${baseUrl.replace(/\/$/, '')}/embeddings`
+
+    this.logger.debug(`[embedBatch] POST ${url} model=${model} count=${texts.length}`)
 
     try {
       const { data } = await axios.post<{
         data: Array<{ embedding: number[]; index: number }>
       }>(
         url,
-        { model, input: texts },
+        { model, input: texts, dimensions },
         {
           headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -96,11 +105,17 @@ export class EmbeddingProviderService {
 
       // Sort by index to preserve order
       const sorted = [...data.data].sort((a, b) => a.index - b.index)
-      return sorted.map((item) => item.embedding)
+      const result = sorted.map((item) => item.embedding)
+      this.logger.debug(`[embedBatch] received ${result.length} vectors, dims=${result[0]?.length ?? 0}`)
+      return result
     } catch (err: any) {
       const status = err?.response?.status
-      const message = err?.response?.data?.error?.message ?? err?.message ?? 'unknown error'
-      this.logger.error(`Batch embedding API call failed (HTTP ${status ?? '?'}): ${message}`)
+      const body = err?.response?.data
+      const message = body?.error?.message ?? err?.message ?? 'unknown error'
+      this.logger.error(
+        `Batch embedding API call failed (HTTP ${status ?? '?'}): ${message}` +
+          (body ? `\nResponse body: ${JSON.stringify(body)}` : '')
+      )
       throw new UnprocessableEntityException(`Embedding provider error: ${message}`)
     }
   }

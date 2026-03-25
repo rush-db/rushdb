@@ -1,8 +1,7 @@
-import { useStore } from '@nanostores/react'
 import { Activity, BookOpen, TrendingUp, Zap } from 'lucide-react'
 
-import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace'
-import { $currentWorkspacePlan } from '~/features/billing/stores/plans'
+import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
+import { useCurrentWorkspacePlan } from '~/features/billing/hooks/useBillingHooks'
 import { KU_PLAN_LABELS } from '~/features/billing/constants'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 
@@ -14,10 +13,10 @@ function formatKu(ku: number): string {
 }
 
 export default function KuUsagePage() {
-  const workspace = useStore($currentWorkspace)
-  const planState = useStore($currentWorkspacePlan)
+  const { data: workspace, isPending: workspaceLoading } = useCurrentWorkspaceQuery()
+  const { currentPlan, loading: planLoading } = useCurrentWorkspacePlan()
 
-  if (workspace.loading || planState.loading) {
+  if (workspaceLoading || planLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="text-content3 text-sm">Loading usage data…</div>
@@ -25,8 +24,8 @@ export default function KuUsagePage() {
     )
   }
 
-  const kuConsumed: number = (workspace.data as any)?.kuConsumed ?? 0
-  const planId = workspace.data?.planId ?? 'free'
+  const kuConsumed: number = (workspace as any)?.kuConsumed ?? 0
+  const planId = workspace?.planId ?? 'free'
   const planLabel = KU_PLAN_LABELS[planId] ?? '—'
 
   // Derive kuLimit from plan label (free=100k, pro=10m, scale/enterprise=null)

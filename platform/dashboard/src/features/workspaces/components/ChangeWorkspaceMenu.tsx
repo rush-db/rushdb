@@ -1,4 +1,3 @@
-import { useStore } from '@nanostores/react'
 import { Building2, Plus } from 'lucide-react'
 import { Fragment } from 'react'
 
@@ -6,14 +5,14 @@ import { Divider } from '~/elements/Divider'
 import { Menu, MenuButton, MenuItem, MenuTitle } from '~/elements/Menu'
 import { Skeleton } from '~/elements/Skeleton'
 
-import { $currentWorkspace, setCurrentWorkspace } from '../stores/current-workspace'
-import { $workspacesList } from '../stores/workspaces'
+import { setCurrentWorkspace } from '../stores/current-workspace'
+import { useCurrentWorkspaceQuery, useWorkspacesQuery } from '../hooks/useWorkspaceQueries'
 import { Label } from '~/elements/Label.tsx'
 import { getRoutePath } from '~/lib/router'
 
 export function ChangeWorkspaceMenu() {
-  const { data: currentWorkspace, error, loading } = useStore($currentWorkspace)
-  const { data: list } = useStore($workspacesList)
+  const { data: currentWorkspace, isPending: loading } = useCurrentWorkspaceQuery()
+  const { data: list } = useWorkspacesQuery()
 
   const triggerText = currentWorkspace?.name ?? 'Loading...'
 

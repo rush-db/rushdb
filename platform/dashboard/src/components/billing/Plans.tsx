@@ -1,5 +1,5 @@
-import { useStore } from '@nanostores/react'
-import { $availablePlans, $currentWorkspacePlan, $paidWorkspace } from '~/features/billing/stores/plans.ts'
+import { useAvailablePlans, useCurrentWorkspacePlan } from '~/features/billing/hooks/useBillingHooks'
+import { isFreePlan } from '~/features/billing/utils.ts'
 import { FREE_PLAN } from '~/features/billing/constants.ts'
 import { cn, range } from '~/lib/utils.ts'
 import { Skeleton } from '~/elements/Skeleton.tsx'
@@ -10,9 +10,9 @@ import { Link } from '~/elements/Link'
 import { Message } from '~/elements/Message'
 
 export function Plans() {
-  const plans = useStore($availablePlans)
-  const { currentPlan } = useStore($currentWorkspacePlan)
-  const paidUser = useStore($paidWorkspace)
+  const plans = useAvailablePlans()
+  const { currentPlan } = useCurrentWorkspacePlan()
+  const paidUser = currentPlan && !isFreePlan(currentPlan)
 
   return (
     <>
