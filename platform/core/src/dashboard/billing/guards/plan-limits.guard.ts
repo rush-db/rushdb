@@ -7,14 +7,12 @@ import {
   Inject,
   Injectable
 } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { FastifyRequest } from 'fastify'
 import { Transaction } from 'neo4j-driver'
 
-import { toBoolean } from '@/common/utils/toBolean'
-import { BillingClientService } from '@/core/billing-client/billing-client.service'
+import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
+import { CheckLimitsResponse } from '@/core/billing-client/billing-client.types'
 import { ProjectService } from '@/dashboard/project/project.service'
-import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
 /**
  * PlanLimitsGuard - enforces billing and operational limits.
@@ -27,10 +25,8 @@ import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 @Injectable()
 export class PlanLimitsGuard implements CanActivate {
   constructor(
-    private readonly configService: ConfigService,
-    private readonly billingClientService: BillingClientService,
-    @Inject(forwardRef(() => WorkspaceService))
-    private readonly workspaceService: WorkspaceService,
+    @Inject(BILLING_POLICY_PORT)
+    private readonly billingPolicyService: BillingPolicyPort,
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService
   ) {}
@@ -39,7 +35,7 @@ export class PlanLimitsGuard implements CanActivate {
     workspaceId: string,
     request: FastifyRequest,
     transaction: Transaction
-  ): Promise<boolean> {
+  ): Promise<CheckLimitsResponse> {
     // Get current counts for operational limits
     const workspaceSummaryState = await this.projectService.getProjectsProperties(workspaceId, transaction)
     const projectCount = workspaceSummaryState.length
@@ -48,19 +44,15 @@ export class PlanLimitsGuard implements CanActivate {
     // const userCount = await this.workspaceService.getUsersCount(workspaceId, transaction)
 
     // Check all limits (KU + operational) via billing service
-    const limitsCheck = await this.billingClientService.checkLimits(workspaceId, {
+    const limitsCheck = await this.billingPolicyService.checkLimits(workspaceId, {
       projectCount
       // userCount  // Uncomment when user management is implemented
     })
 
-    return limitsCheck.allowed
+    return limitsCheck
   }
 
   async canActivate(context: ExecutionContext) {
-    if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-      return true
-    }
-
     const request = context.switchToHttp().getRequest()
     const workspaceId = request.workspaceId
 
@@ -70,10 +62,17 @@ export class PlanLimitsGuard implements CanActivate {
 
     const transaction = request.transaction || request.raw?.transaction
 
-    const canProcessRequest = await this.checkLimits(workspaceId, request, transaction)
+    const limitsCheck = await this.checkLimits(workspaceId, request, transaction)
 
-    if (!canProcessRequest) {
-      throw new HttpException('Plan limits exceeded', HttpStatus.PAYMENT_REQUIRED)
+    if (!limitsCheck.allowed) {
+      throw new HttpException(
+        {
+          message: limitsCheck.reason ?? 'Plan limits exceeded',
+          success: false,
+          usage: limitsCheck.usage
+        },
+        HttpStatus.PAYMENT_REQUIRED
+      )
     }
 
     return true

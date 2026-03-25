@@ -26,6 +26,8 @@ import { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
 import { createEmbeddingIndexSchema } from '@/core/ai/validation/schemas/embedding-index.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
+import { PlanActiveGuard } from '@/dashboard/billing/guards/plan-active.guard'
+import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
@@ -47,7 +49,7 @@ export class AiController {
    */
   @Post('/ontology')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async getOntology(
@@ -70,7 +72,7 @@ export class AiController {
    */
   @Post('/ontology/md')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async getOntologyMarkdown(
@@ -155,7 +157,7 @@ export class AiController {
    */
   @Post('/search')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(PlanActiveGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async semanticSearch(
@@ -163,6 +165,12 @@ export class AiController {
     @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ) {
-    return this.aiService.semanticSearch(request.projectId, dto, transaction)
+    const raw: any = (request as any).raw ?? request
+    return this.aiService.semanticSearch(
+      request.projectId,
+      dto,
+      transaction,
+      !raw.project?.customDb ? request.workspaceId : undefined
+    )
   }
 }

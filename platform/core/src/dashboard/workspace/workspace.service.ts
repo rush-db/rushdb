@@ -14,7 +14,7 @@ import { uuidv7 } from 'uuidv7'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
-import { BillingClientService } from '@/core/billing-client/billing-client.service'
+import { BILLING_ACCOUNT_PORT, BillingAccountPort } from '@/core/billing-policy/billing-account.port'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { MailService } from '@/dashboard/mail/mail.service'
 import { ProjectService } from '@/dashboard/project/project.service'
@@ -50,7 +50,8 @@ export class WorkspaceService {
   constructor(
     private readonly configService: ConfigService,
     private readonly workspaceRepository: WorkspaceRepository,
-    private readonly billingClientService: BillingClientService,
+    @Inject(BILLING_ACCOUNT_PORT)
+    private readonly billingAccountService: BillingAccountPort,
     private readonly oauthRepository: OAuthRepository,
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService,
@@ -165,7 +166,7 @@ export class WorkspaceService {
 
     const ownerNode = await this.userRepository.findById(userId)
     const ownerEmail = ownerNode?.login ?? null
-    await this.billingClientService.createCustomer(workspaceId, 'free', ownerEmail)
+    await this.billingAccountService.createWorkspaceCustomer(workspaceId, ownerEmail)
 
     return this.normalize(workspaceRow)
   }
@@ -222,7 +223,7 @@ export class WorkspaceService {
     await this.oauthRepository.deleteOrphanedClients()
 
     await this.workspaceRepository.delete(id)
-    await this.billingClientService.deleteCustomer(id)
+    await this.billingAccountService.deleteWorkspaceCustomer(id)
 
     return { message: `Workspace ${id} successfully deleted` }
   }
@@ -407,7 +408,7 @@ export class WorkspaceService {
 
   private async enrichWithBillingData<T extends TWorkspaceProperties>(workspace: T): Promise<T> {
     try {
-      const customer = await this.billingClientService.getCustomer(workspace.id)
+      const customer = await this.billingAccountService.getWorkspaceCustomer(workspace.id)
 
       if (!customer) {
         const { limits, ...workspaceWithoutLimits } = workspace as any

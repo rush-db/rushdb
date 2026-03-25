@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { HttpException, Inject, Injectable, Logger } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { ConfigService } from '@nestjs/config'
 import { int as neo4jInt } from 'neo4j-driver'
@@ -6,6 +6,11 @@ import { int as neo4jInt } from 'neo4j-driver'
 import { AiQueryService } from '@/core/ai/ai-query.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
+import { estimateBatchTokens, estimateEmbeddingBatchKu } from '@/core/ai/embedding.utils'
+import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
+import { KuOperation } from '@/core/ku-events/ku-events.constants'
+import { KuEventsService } from '@/core/ku-events/ku-events.service'
+import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 @Injectable()
@@ -18,7 +23,11 @@ export class EmbeddingBackfillScheduler {
     private readonly aiQueryService: AiQueryService,
     private readonly embeddingIndexRepository: EmbeddingIndexRepository,
     private readonly embeddingProviderService: EmbeddingProviderService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    @Inject(BILLING_POLICY_PORT)
+    private readonly billingPolicyService: BillingPolicyPort,
+    private readonly kuEventsService: KuEventsService,
+    private readonly projectRepository: ProjectRepository
   ) {}
 
   @Cron('* * * * *') // every minute
@@ -58,6 +67,10 @@ export class EmbeddingBackfillScheduler {
     maxRuntimeMs: number
   ): Promise<void> {
     await this.embeddingIndexRepository.updateStatus(index.id, 'indexing')
+
+    const project = await this.projectRepository.findById(index.projectId)
+    const workspaceId = project?.workspaceId
+    const isExternalDbProject = !!project?.customDb
 
     // propKey is written to rel.__propKey and used for exact label/property isolation.
     // Format: "Label:propertyName" (e.g. "Book:title").
@@ -105,11 +118,28 @@ export class EmbeddingBackfillScheduler {
           Array.isArray(value) ? (value as string[]).join(' ') : String(value)
         )
 
+        if (workspaceId && !isExternalDbProject) {
+          const estimatedTokens = estimateBatchTokens(texts)
+          try {
+            await this.billingPolicyService.assertEmbeddingBatchAllowed(
+              workspaceId,
+              estimateEmbeddingBatchKu(relations.length, estimatedTokens)
+            )
+          } catch (error) {
+            const reason = error instanceof HttpException ? (error.getResponse() as any)?.message : undefined
+            this.logger.warn(
+              `[backfillIndex] id=${index.id} paused by billing policy: ${reason ?? 'would exceed allowed KU policy'}`
+            )
+            await this.embeddingIndexRepository.updateStatus(index.id, 'pending')
+            return
+          }
+        }
+
         this.logger.debug(
           `[backfillIndex] id=${index.id} sample texts[0..2]: ${JSON.stringify(texts.slice(0, 3))}`
         )
 
-        const embeddings = await this.embeddingProviderService.embedBatch(texts)
+        const { embeddings, tokensUsed } = await this.embeddingProviderService.embedBatchWithUsage(texts)
 
         this.logger.log(
           `[backfillIndex] id=${index.id} embeddings received=${embeddings.length} ` +
@@ -142,6 +172,19 @@ export class EmbeddingBackfillScheduler {
             }
           } finally {
             await writeSession.close()
+          }
+
+          if (workspaceId && !isExternalDbProject) {
+            const tokenCount = tokensUsed ?? estimateBatchTokens(texts)
+            this.kuEventsService.emit(workspaceId, index.projectId, KuOperation.EMBEDDING_GENERATED, {
+              count: updates.length,
+              tokenCount,
+              estimatedTokens: tokenCount,
+              source: 'backfill_batch',
+              indexId: index.id,
+              label: index.label,
+              propertyName: index.propertyName
+            })
           }
         }
 

@@ -17,7 +17,6 @@ function TokenListItem({
   description,
   expiration,
   id,
-  level,
   issuedBy,
   loading,
   name,
@@ -36,30 +35,26 @@ function TokenListItem({
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="flex items-center gap-3 text-base font-bold">
           <Skeleton enabled={loading}>{name ?? 'Loading...'}</Skeleton>
-          {description && <span className="text-content-tertiary text-xs font-normal">{description}</span>}
-          {level === 'read' && (
-            <span className="border-badge-blue/30 bg-badge-blue/10 text-badge-blue inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
-              read-only
-            </span>
-          )}
+        </span>
+        <div>
+          {description && <span className="text-content-tertiary text-sm font-normal">{description}</span>}
           {issuedBy === 'oauth_exchange' && (
             <span className="text-content-2 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
               <Cable className="h-3 w-3" />
               Connected App
             </span>
           )}
-        </span>
-
-        <span className="text-content-secondary font-mono text-xs font-normal">
-          {expiration === -1 ?
-            <>Permanent</>
-          : <>
-              Expires in <Skeleton enabled={loading}>{expiration ?? '...'}</Skeleton>
-            </>
-          }
-        </span>
+        </div>
       </div>
 
+      <span className="text-content-secondary font-mono text-sm font-normal">
+        {expiration === -1 ?
+          <>Permanent</>
+        : <>
+            Expires in <Skeleton enabled={loading}>{expiration ?? '...'}</Skeleton>
+          </>
+        }
+      </span>
       <Menu
         trigger={
           <IconButton aria-label="more" title="More" variant="ghost">

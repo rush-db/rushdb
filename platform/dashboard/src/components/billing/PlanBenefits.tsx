@@ -35,6 +35,18 @@ const benefitsMap: Record<string, Array<{ description?: string; title: string }>
     { title: 'Bring Your Own Cloud (BYOC)', description: 'Deploy in your private cloud or on-premise' },
     { title: 'Embedded / OEM use', description: 'Build RushDB into your own product' },
     { title: 'Dedicated support', description: 'Phone, chat, and dedicated account manager' }
+  ],
+  custom: [
+    {
+      title: 'Custom commercial terms',
+      description: 'Flexible packaging for your deployment and team model'
+    },
+    { title: 'BYOC or on-premise options', description: 'Run RushDB in your environment when required' },
+    { title: 'Solution design support', description: 'Work with us on migration, sizing, and rollout' },
+    {
+      title: 'Dedicated support path',
+      description: 'Prioritized help for production teams and regulated workloads'
+    }
   ]
 }
 

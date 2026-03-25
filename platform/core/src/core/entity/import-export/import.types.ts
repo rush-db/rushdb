@@ -6,6 +6,7 @@ export type TImportRecordsRelation = {
   type?: string
 }
 export type TImportJsonPayload = Record<string, any> | Array<Record<string, any>>
+export type TImportJsonInputFormat = 'json' | 'jsonl' | 'ndjson'
 export type TImportOptions = {
   suggestTypes?: boolean
   convertNumericValuesToNumbers?: boolean

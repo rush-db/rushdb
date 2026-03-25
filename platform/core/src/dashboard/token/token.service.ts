@@ -7,15 +7,8 @@ import * as ms from 'ms'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
-import { MixedTypeResult, ServerSettings } from '@/common/types/prefix'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { toBoolean } from '@/common/utils/toBolean'
-import {
-  attachMixedProperties,
-  extractMixedPropertiesFromToken,
-  getNormalizedPrefix,
-  getPrefixedPlan
-} from '@/common/utils/tokenUtils'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { CreateTokenDto } from '@/dashboard/token/dto/create-token.dto'
@@ -25,8 +18,6 @@ import { ACCESS_WEIGHT, READ_ACCESS, WRITE_ACCESS, canWrite } from '@/dashboard/
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { UserRepository } from '@/dashboard/user/model/user.repository'
 import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
-import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
-import { BillingClientService } from '@/core/billing-client/billing-client.service'
 
 import * as crypto from 'node:crypto'
 
@@ -40,23 +31,13 @@ export class TokenService {
     private readonly tokenRepository: TokenRepository,
     private readonly configService: ConfigService,
     private readonly projectService: ProjectService,
-    private readonly workspaceService: WorkspaceService,
-    private readonly billingClientService: BillingClientService,
     private readonly projectRepository: ProjectRepository,
     private readonly workspaceRepository: WorkspaceRepository,
     private readonly userRepository: UserRepository
   ) {}
 
   normalize(row: TokenRow): TokenEntity {
-    return new TokenEntity(
-      row.id,
-      row.name,
-      row.created,
-      row.expiration,
-      row.value,
-      row.description,
-      row.prefixValue
-    )
+    return new TokenEntity(row.id, row.name, row.created, row.expiration, row.value, row.description)
   }
 
   encryptTokenData(tokenData: string): string {
@@ -67,10 +48,9 @@ export class TokenService {
   }
 
   decrypt(encrypted: string): string {
-    const [_, rawToken] = extractMixedPropertiesFromToken(encrypted)
     const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
-    const iv = rawToken.substring(0, 32)
-    const cipherText = rawToken.substring(32)
+    const iv = encrypted.substring(0, 32)
+    const cipherText = encrypted.substring(32)
     const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey, Buffer.from(iv, 'hex'))
     const decrypted = decipher.update(cipherText, 'base64', 'utf8')
     return decrypted + decipher.final('utf8')
@@ -86,21 +66,7 @@ export class TokenService {
     const { name, description = '', expiration: expirationRaw = '30d' } = properties
     const expiration = expirationRaw === '*' ? -1 : ms(expirationRaw as string)
 
-    const projectEntity = await this.projectService.getProject(projectId)
-    const workspaceRow = await this.workspaceRepository.findByProjectId(projectId)
-    const { customDb } = projectEntity.toJson()
-    const workspaceId = workspaceRow?.id
-
-    // Get plan from billing service
-    const customer = await this.billingClientService.getCustomer(workspaceId)
-    const plan = customer?.plan || 'free'
-
-    const selfHosted = toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))
-    const tokenPrefix = {
-      customDb: toBoolean(customDb),
-      selfHosted
-    } as ServerSettings
-    const prefixString = attachMixedProperties(getPrefixedPlan(plan), tokenPrefix)
+    await this.projectService.getProject(projectId)
 
     const token = this.encryptTokenData(id)
     const level = (properties as any).level ?? WRITE_ACCESS
@@ -112,7 +78,6 @@ export class TokenService {
       expiration,
       created: currentTime,
       value: token,
-      prefixValue: prefixString,
       projectId,
       level,
       ...(properties.consentId ? { consentId: properties.consentId } : {})
@@ -134,37 +99,12 @@ export class TokenService {
     return expiration === -1 ? false : validTill < currentTime.getTime()
   }
 
-  isTokenPrefixMalformed(
-    tokenInstance: Pick<TokenRow, 'prefixValue'>,
-    incomingTokenPrefix: MixedTypeResult
-  ): boolean {
-    const [settings] = incomingTokenPrefix
-
-    if (settings === null && !tokenInstance.prefixValue) {
-      return false
-    } else if (settings && !tokenInstance.prefixValue) {
-      return true
-    } else if (settings === null && tokenInstance.prefixValue) {
-      return true
-    }
-
-    const storedSettings = getNormalizedPrefix(tokenInstance.prefixValue)
-
-    if (storedSettings === null) {
-      return true
-    }
-
-    return !Object.keys(storedSettings).every((key) => storedSettings[key] === settings[key])
-  }
-
   async validateToken({
     tokenId,
-    transaction: _transaction,
-    prefixData
+    transaction: _transaction
   }: {
     tokenId: string
     transaction?: Transaction
-    prefixData: MixedTypeResult
   }): Promise<{
     hasAccess: boolean
     accessLevel?: typeof READ_ACCESS | typeof WRITE_ACCESS
@@ -189,10 +129,9 @@ export class TokenService {
     const { token, project, workspace } = row
     const level = token.level as typeof READ_ACCESS | typeof WRITE_ACCESS
 
-    const isMalformedPrefix = this.isTokenPrefixMalformed(token, prefixData)
     const isExpired = this.isTokenExpired(token)
 
-    if (!level || isExpired || isMalformedPrefix) {
+    if (!level || isExpired) {
       return {
         hasAccess: false,
         projectId: undefined,

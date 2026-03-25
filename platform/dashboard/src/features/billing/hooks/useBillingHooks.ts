@@ -15,6 +15,7 @@ import {
   workspaceUsageQueryOptions,
   kuHistoryQueryOptions
 } from '../queries/billingQueries'
+import type { DisplayPlan } from '../types'
 
 export const usePricingDataQuery = () => {
   const { data: settings } = usePlatformSettings()
@@ -41,22 +42,11 @@ export const useKuHistoryQuery = (params: {
 
 export const useAvailablePlans = () => {
   const { data: billingData } = usePricingDataQuery()
-  return useMemo<
-    Array<{
-      id: string
-      name: string
-      kuIncluded: number | null
-      monthlyPriceId: string
-      yearlyPriceId: string
-      monthlyPrice: number
-      yearlyPrice: number
-      perProject?: boolean
-    }>
-  >(() => {
+  return useMemo<Array<DisplayPlan>>(() => {
     if (!billingData) return []
-    const plans = [
+    const plans: DisplayPlan[] = [
       {
-        id: 'pro',
+        id: 'pro' as const,
         name: 'Pro',
         kuIncluded: billingData.pro.kuIncluded ?? 10_000_000,
         monthlyPriceId: billingData.pro.monthly.priceId,
@@ -67,9 +57,9 @@ export const useAvailablePlans = () => {
     ]
     if (billingData.scale) {
       plans.push({
-        id: 'scale',
+        id: 'scale' as const,
         name: 'Scale',
-        kuIncluded: null as any,
+        kuIncluded: null,
         monthlyPriceId: billingData.scale.monthly.priceId,
         yearlyPriceId: billingData.scale.annual.priceId,
         monthlyPrice: billingData.scale.monthly.amount,

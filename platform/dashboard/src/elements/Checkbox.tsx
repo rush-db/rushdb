@@ -40,7 +40,7 @@ export const CheckboxField: TPolymorphicComponent<
     <FormField
       as={as}
       caption={caption}
-      className={cn('flex-row-reverse items-center justify-center gap-2', className)}
+      className={cn('flex-row-reverse items-center justify-end gap-2', className)}
       error={error}
       label={label}
       ref={ref}

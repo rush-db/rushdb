@@ -37,6 +37,7 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { pagination } from '@/core/search/parser/pagination'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
+import { HeavySearchLimitsGuard } from '@/dashboard/billing/guards/heavy-search-limits.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
@@ -136,7 +137,7 @@ export class RelationshipsController {
 
   @Post('/search')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(HeavySearchLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)

@@ -1,7 +1,7 @@
 import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 
 import { AiModule } from '@/core/ai/ai.module'
-import { BillingClientModule } from '@/core/billing-client/billing-client.module'
+import { BillingPolicyModule } from '@/core/billing-policy/billing-policy.module'
 import { EntityModule } from '@/core/entity/entity.module'
 import { ImportExportModule } from '@/core/entity/import-export/import-export.module'
 import { PropertyModule } from '@/core/property/property.module'
@@ -15,7 +15,7 @@ import { SessionAndTransactionAttachMiddleware } from '@/database/session-and-tr
 
 @Module({
   imports: [
-    BillingClientModule,
+    BillingPolicyModule,
     AiModule,
     EntityModule,
     PropertyModule,
@@ -26,7 +26,7 @@ import { SessionAndTransactionAttachMiddleware } from '@/database/session-and-tr
     forwardRef(() => DbConnectionModule)
   ],
   exports: [
-    BillingClientModule,
+    BillingPolicyModule,
     AiModule,
     EntityModule,
     PropertyModule,

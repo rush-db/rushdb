@@ -382,7 +382,7 @@ export class McpOauthService {
           `[OAuth] reusing existing token for consent ${payload.consent_id} / project ${project_id}`
         )
         return {
-          access_token: existingToken.prefixValue + existingToken.value,
+          access_token: existingToken.value,
           token_type: 'bearer',
           expires_in: ACCESS_TOKEN_TTL_S,
           scope: payload.scope,

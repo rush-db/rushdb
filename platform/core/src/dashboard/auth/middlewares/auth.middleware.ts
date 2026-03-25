@@ -3,7 +3,6 @@ import { Response, NextFunction } from 'express'
 
 import { PlatformRequest } from '@/common/types/request'
 import { isDevMode } from '@/common/utils/isDevMode'
-import { extractMixedPropertiesFromToken } from '@/common/utils/tokenUtils'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { TokenService } from '@/dashboard/token/token.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
@@ -39,12 +38,10 @@ export class AuthMiddleware implements NestMiddleware {
           const tokenHeader = bearerToken as string
           if (tokenHeader) {
             const tokenId = this.tokenService.decrypt(tokenHeader)
-            const prefixedToken = extractMixedPropertiesFromToken(tokenHeader)
 
             const { hasAccess, projectId, project, workspaceId, workspace, accessLevel, canWrite } =
               await this.tokenService.validateToken({
-                tokenId,
-                prefixData: prefixedToken
+                tokenId
               })
 
             if (hasAccess) {
