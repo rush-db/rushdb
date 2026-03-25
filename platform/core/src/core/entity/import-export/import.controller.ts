@@ -24,6 +24,7 @@ import { TEntityPropertiesNormalized } from '@/core/entity/entity.types'
 import { ImportCsvDto } from '@/core/entity/import-export/dto/import-csv.dto'
 import { ImportJsonDto } from '@/core/entity/import-export/dto/import-json.dto'
 import { ImportService } from '@/core/entity/import-export/import.service'
+import { TImportJsonInputFormat, TImportJsonPayload } from '@/core/entity/import-export/import.types'
 import {
   importCsvSchema,
   importJsonSchema
@@ -39,6 +40,64 @@ import { TransactionDecorator } from '@/database/transaction.decorator'
 @UseInterceptors(NotFoundInterceptor, DataInterceptor)
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
+
+  private parseJsonLines(input: string): Array<Record<string, any>> {
+    const lines = input
+      .replace(/^\uFEFF/, '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+
+    if (!lines.length) {
+      throw new BadRequestException('Import failed: JSONL/NDJSON payload is empty')
+    }
+
+    return lines.map((line, index) => {
+      try {
+        const parsed = JSON.parse(line)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Line must be a JSON object')
+        }
+        return parsed
+      } catch {
+        throw new BadRequestException(`Import failed: Invalid JSONL/NDJSON at line ${index + 1}`)
+      }
+    })
+  }
+
+  private normalizeJsonData(
+    data: ImportJsonDto['data'],
+    format?: TImportJsonInputFormat
+  ): TImportJsonPayload {
+    if (typeof data !== 'string') {
+      if (!data || typeof data !== 'object') {
+        throw new BadRequestException('Import failed: `data` must be a JSON object, array, or JSON text')
+      }
+      return data as TImportJsonPayload
+    }
+
+    const text = data.replace(/^\uFEFF/, '').trim()
+    if (!text) {
+      throw new BadRequestException('Import failed: text payload is empty')
+    }
+
+    const inputFormat = format ?? 'json'
+
+    if (inputFormat === 'jsonl' || inputFormat === 'ndjson') {
+      return this.parseJsonLines(text)
+    }
+
+    try {
+      const parsed = JSON.parse(text)
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Parsed value is not an object/array')
+      }
+      return parsed as TImportJsonPayload
+    } catch {
+      const maybeJsonLines = this.parseJsonLines(text)
+      return maybeJsonLines
+    }
+  }
 
   @Post('/records/import/json')
   @ApiBearerAuth()
@@ -58,7 +117,11 @@ export class ImportController {
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
     try {
       const projectId = request.projectId
-      return await this.importService.importRecords(body, projectId, transaction, customTx)
+      const normalizedBody: ImportJsonDto = {
+        ...body,
+        data: this.normalizeJsonData(body.data, body.format)
+      }
+      return await this.importService.importRecords(normalizedBody, projectId, transaction, customTx)
     } catch (error) {
       // Re-throw HTTP exceptions (e.g. 402 Payment Required from billing limit checks)
       // directly so the correct status code reaches the client.

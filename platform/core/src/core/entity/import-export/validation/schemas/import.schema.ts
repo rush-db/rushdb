@@ -2,7 +2,8 @@ import Joi = require('joi')
 
 export const importJsonSchema = Joi.object({
   label: Joi.string(),
-  data: Joi.alternatives().try(Joi.object(), Joi.array().items(Joi.object())),
+  data: Joi.alternatives().try(Joi.object(), Joi.array().items(Joi.object()), Joi.string()),
+  format: Joi.string().valid('json', 'jsonl', 'ndjson').optional(),
   options: Joi.object({
     suggestTypes: Joi.boolean().optional(),
     convertNumericValuesToNumbers: Joi.boolean().optional(),

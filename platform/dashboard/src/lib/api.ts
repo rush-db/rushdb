@@ -17,7 +17,7 @@ import {
 } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
-import type { BillingData } from '~/features/billing/types'
+import type { BillingData, BillingInquiryPayload } from '~/features/billing/types'
 import type {
   EmbeddingIndex,
   CreateEmbeddingIndexParams,
@@ -551,6 +551,13 @@ export const api = {
       }>(`/api/v1/billing/payment/usage`, {
         ...init,
         method: 'GET'
+      })
+    },
+    async submitInquiry({ init, ...body }: WithInit & BillingInquiryPayload) {
+      return fetcher<{ success: boolean }>(`/api/v1/billing/payment/inquiry`, {
+        ...init,
+        method: 'POST',
+        body: JSON.stringify(body)
       })
     }
   },

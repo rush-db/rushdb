@@ -18,7 +18,7 @@ export const Label: TPolymorphicComponent<FormFieldProps, 'label'> = ({
 }) => {
   const As = as
   return (
-    <As className={cn('ml-1 text-start text-sm', className)} {...props}>
+    <As className={cn('text-md cursor-pointer text-start', className)} {...props}>
       {children}
     </As>
   )
@@ -37,11 +37,11 @@ export const FormField: TPolymorphicComponent<FormFieldProps, 'label'> = forward
           : null}
           {children}
           {caption && !error ?
-            <span className="text-content-secondary text-content2 text-xs">{caption}</span>
+            <span className="text-content-secondary text-content2 text-sm">{caption}</span>
           : null}
         </Wrapper>
         {error ?
-          <span className="text-danger text-start text-xs">{error}</span>
+          <span className="text-danger text-start text-sm">{error}</span>
         : null}
       </fieldset>
     )

@@ -1,5 +1,8 @@
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -22,6 +25,8 @@ import { isDevMode } from '@/common/utils/isDevMode'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
+import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
+import { estimateEmbeddingBatchKu, estimateTokens } from '@/core/ai/embedding.utils'
 
 /** How long (ms) a cached ontology is considered fresh before a recalculation is triggered. */
 const ONTOLOGY_CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
@@ -32,6 +37,8 @@ export class AiService {
     private readonly aiQueryService: AiQueryService,
     private readonly configService: ConfigService,
     private readonly kuEventsService: KuEventsService,
+    @Inject(BILLING_POLICY_PORT)
+    private readonly billingPolicyService: BillingPolicyPort,
     private readonly projectRepository: ProjectRepository,
     private readonly embeddingIndexRepository: EmbeddingIndexRepository,
     private readonly embeddingProviderService: EmbeddingProviderService,
@@ -298,6 +305,56 @@ export class AiService {
     return `${label}:${propertyName}`
   }
 
+  private async getEmbeddingBackfillSize(
+    projectId: string,
+    propertyName: string,
+    label: string,
+    transaction: Transaction
+  ): Promise<number> {
+    const propKey = this.computePropKey(propertyName, label)
+    const labelSuffix = label ? `:${label}` : ''
+    const result = await transaction.run(this.aiQueryService.getEmbeddingIndexStatsQuery(labelSuffix), {
+      projectId,
+      propertyName,
+      propKey
+    })
+
+    if (result.records.length === 0) {
+      return 0
+    }
+
+    const rec = result.records[0]
+    const toNum = (v: any) => (typeof v?.toNumber === 'function' ? v.toNumber() : Number(v ?? 0))
+    const totalRecords = toNum(rec.get('totalRecords'))
+    const indexedRecords = toNum(rec.get('indexedRecords'))
+    return Math.max(0, totalRecords - indexedRecords)
+  }
+
+  private async assertEmbeddingIndexCreationAllowed(
+    projectId: string,
+    workspaceId: string | undefined,
+    propertyName: string,
+    label: string,
+    transaction: Transaction
+  ): Promise<void> {
+    if (!workspaceId) {
+      return
+    }
+
+    const project = await this.projectRepository.findById(projectId)
+    if (project?.customDb) {
+      return
+    }
+
+    const pendingEmbeddings = await this.getEmbeddingBackfillSize(projectId, propertyName, label, transaction)
+    if (pendingEmbeddings === 0) {
+      return
+    }
+
+    const estimatedKu = estimateEmbeddingBatchKu(pendingEmbeddings)
+    await this.billingPolicyService.assertEmbeddingIndexCreationAllowed(workspaceId, estimatedKu)
+  }
+
   async createIndex(
     projectId: string,
     workspaceId: string,
@@ -322,6 +379,14 @@ export class AiService {
     }
 
     const label = dto.label
+
+    await this.assertEmbeddingIndexCreationAllowed(
+      projectId,
+      workspaceId,
+      dto.propertyName,
+      label,
+      transaction
+    )
 
     // 2. Prevent exact duplicate: same (projectId, label, propertyName)
     const existing = await this.embeddingIndexRepository.findByProjectIdPropertyAndLabel(
@@ -512,7 +577,8 @@ export class AiService {
   async semanticSearch(
     projectId: string,
     dto: SemanticSearchDto,
-    transaction: import('neo4j-driver').Transaction
+    transaction: import('neo4j-driver').Transaction,
+    workspaceId?: string
   ): Promise<Array<Record<string, any>>> {
     // Resolve the index by (projectId, propertyName, labels[0])
     const label = dto.labels[0]
@@ -534,7 +600,22 @@ export class AiService {
 
     const propKey = this.computePropKey(dto.propertyName, label)
     const labelSuffix = label ? `:${label}` : ''
-    const queryVector = await this.embeddingProviderService.embed(dto.query)
+    const { embedding: queryVector, tokensUsed } = await this.embeddingProviderService.embedWithUsage(
+      dto.query
+    )
+
+    if (workspaceId) {
+      const tokenCount = tokensUsed ?? estimateTokens(dto.query)
+      this.kuEventsService.emit(workspaceId, projectId, KuOperation.EMBEDDING_GENERATED, {
+        count: 1,
+        tokenCount,
+        estimatedTokens: tokenCount,
+        source: 'semantic_query',
+        label,
+        propertyName: dto.propertyName
+      })
+    }
+
     const toNonNegativeInt = (value: unknown, fallback: number) => {
       const parsed = Number.parseInt(String(value ?? fallback), 10)
       if (!Number.isInteger(parsed) || parsed < 0) return fallback

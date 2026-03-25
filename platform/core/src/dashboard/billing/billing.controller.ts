@@ -8,15 +8,18 @@ import {
   Query,
   Req,
   ServiceUnavailableException,
+  UsePipes,
   UseInterceptors
 } from '@nestjs/common'
 import { ApiBearerAuth } from '@nestjs/swagger'
 
+import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { BillingClientService } from '@/core/billing-client/billing-client.service'
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
+import { billingInquirySchema, BillingInquiryBody } from '@/dashboard/billing/billing-inquiry.schema'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 
 interface CreateSessionDto {
@@ -186,6 +189,41 @@ export class BillingController {
       return history || { events: [], hasMore: false, nextCursor: null }
     } catch (error: any) {
       throw new ServiceUnavailableException(`Failed to get KU history: ${error.message}`)
+    }
+  }
+
+  /**
+   * Submit an inquiry for a custom billing plan.
+   * Sends an email to the configured admin recipient.
+   *
+   * POST /api/v1/billing/payment/inquiry
+   */
+  @ApiBearerAuth()
+  @AuthGuard('workspace')
+  @Post('inquiry')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(ValidationPipe(billingInquirySchema, 'body'))
+  async submitInquiry(@Req() request: any, @Body() body: BillingInquiryBody) {
+    const workspaceId = request.workspaceId
+    const user = request.user
+
+    if (!workspaceId) {
+      throw new ServiceUnavailableException('Workspace ID not found in request')
+    }
+
+    try {
+      await this.billingClientService.submitBillingInquiry({
+        contactEmail: body.email.trim(),
+        currentPlan: body.currentPlan?.trim() || undefined,
+        message: body.message?.trim() || undefined,
+        requesterEmail: user?.login,
+        workspaceId,
+        workspaceName: body.workspaceName?.trim() || undefined
+      })
+
+      return { success: true }
+    } catch (error: any) {
+      throw new ServiceUnavailableException(`Failed to submit billing inquiry: ${error.message}`)
     }
   }
 }

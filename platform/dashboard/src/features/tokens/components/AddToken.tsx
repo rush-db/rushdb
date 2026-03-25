@@ -16,8 +16,7 @@ const schema = object({
   description: string(),
   expiration: number().min(1).max(365).optional(),
   noExpire: boolean().optional(),
-  name: string().min(3),
-  level: string().optional()
+  name: string().min(3)
 })
 
 function TokenCreated({
@@ -54,8 +53,7 @@ export function AddTokenCard({ projectId, project }: { project?: Project; projec
     description: '',
     expiration: 30,
     noExpire: false,
-    name: `${project?.name ?? ''} token`,
-    level: 'write' as 'read' | 'write'
+    name: `${project?.name ?? ''} token`
   }
 
   const {
@@ -68,11 +66,8 @@ export function AddTokenCard({ projectId, project }: { project?: Project; projec
     defaultValues,
     schema
   })
-  // @ts-ignore
   const expirationDisabled = watch('noExpire', false)
-  // useEffect(() => {
-  //   reset(defaultValues)
-  // }, [reset, project])
+
   const showSuccess = createdToken && !error && isSubmitted
 
   return (
@@ -85,32 +80,18 @@ export function AddTokenCard({ projectId, project }: { project?: Project; projec
               projectId,
               ...values,
               expiration: `${values.expiration}d`,
-              level: values.level ?? 'write'
+              level: 'write'
             })
           )}
         >
           <CardHeader title="Create token" />
-          <CardBody className="grid grid-cols-1 sm:grid-cols-3">
+          <CardBody className="grid grid-cols-1 sm:grid-cols-2">
             <TextField {...register('name')} error={errors.name?.message} label="API key name" />
             <TextField
               {...register('description')}
               error={errors.description?.message}
               label="API key description"
             />
-            <FormField label="Access level">
-              <div className="flex flex-col gap-2 pt-1">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input type="radio" value="write" {...register('level')} defaultChecked />
-                  <span className="font-medium">Read &amp; Write</span>
-                  <span className="text-content-2 text-xs">Full access</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input type="radio" value="read" {...register('level')} />
-                  <span className="font-medium">Read Only</span>
-                  <span className="text-content-2 text-xs">No mutations</span>
-                </label>
-              </div>
-            </FormField>
             <div className="">
               <TextField
                 {...register('expiration')}

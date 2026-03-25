@@ -1,5 +1,4 @@
 import { forwardRef, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
@@ -11,7 +10,7 @@ import { isObject } from '@/common/utils/isObject'
 import { isPrimitiveArray } from '@/common/utils/isPrimitiveArray'
 import { pickPrimitives } from '@/common/utils/pickPrimitives'
 import { toBoolean } from '@/common/utils/toBolean'
-import { BillingClientService } from '@/core/billing-client/billing-client.service'
+import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
 import {
   RUSHDB_KEY_ID,
   RUSHDB_KEY_LABEL,
@@ -49,10 +48,10 @@ import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 @Injectable()
 export class ImportService {
   constructor(
-    private readonly configService: ConfigService,
     private readonly entityQueryService: EntityQueryService,
     private readonly kuEventsService: KuEventsService,
-    private readonly billingClientService: BillingClientService,
+    @Inject(BILLING_POLICY_PORT)
+    private readonly billingPolicyService: BillingPolicyPort,
 
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
@@ -262,25 +261,13 @@ export class ImportService {
   }
 
   async checkLimits(recordsCount: number, projectId: string, transaction: Transaction) {
-    if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-      return true
-    }
-
     const workspaceInstance = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
     const workspaceId = workspaceInstance?.id
 
     // Estimate KU for the import (conservative: assume 10 properties per record average)
     const estimatedKu = recordsCount * 10
 
-    // Check limits via billing service
-    const check = await this.billingClientService.checkLimits(workspaceId, { estimatedKu })
-
-    if (!check.allowed) {
-      throw new HttpException(
-        check.reason || 'Knowledge Unit (KU) limit exceeded. Upgrade your plan to continue.',
-        HttpStatus.PAYMENT_REQUIRED
-      )
-    }
+    await this.billingPolicyService.assertProjectOperationAllowed(workspaceId, { estimatedKu })
 
     return true
   }
@@ -299,8 +286,12 @@ export class ImportService {
     transaction: Transaction,
     customTransaction: Transaction = transaction
   ): Promise<boolean | TEntityPropertiesNormalized[]> {
+    if (typeof data === 'string' || !data || typeof data !== 'object') {
+      throw new HttpException('Import data must be a JSON object or array', HttpStatus.BAD_REQUEST)
+    }
+
     // @FYI: Approximate time for 25MB JSON: 2.5s. RUST WASM?))))))
-    const [records, relations] = this.serializeBFS(data, label, options)
+    const [records, relations] = this.serializeBFS(data as TImportJsonPayload, label, options)
 
     // Will throw error if the amount of uploading Records is more than allowed by current plan
     await this.checkLimits(records.length, projectId, transaction)

@@ -47,6 +47,7 @@ import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { TrackHeavySearchKu } from '@/core/ku-events/track-heavy-search-ku.interceptor'
+import { HeavySearchLimitsGuard } from '@/dashboard/billing/guards/heavy-search-limits.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
@@ -269,7 +270,7 @@ export class EntityController {
 
   @Post('/search')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(HeavySearchLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())
@@ -310,7 +311,7 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(HeavySearchLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())

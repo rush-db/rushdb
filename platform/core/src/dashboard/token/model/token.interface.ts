@@ -10,7 +10,6 @@ type TTokenProperties = {
   expiration: number
   description?: string
   value?: string
-  prefixValue?: string
   /** ID of the OAuth consent that caused this token to be issued, if applicable. */
   consentId?: string
 }

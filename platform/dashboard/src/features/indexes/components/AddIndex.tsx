@@ -42,7 +42,12 @@ export function AddIndexCard({ projectId }: { projectId: Project['id'] }) {
   const [label, setLabel] = useState<string>('')
   const [propertyName, setPropertyName] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const { data: properties = [], isPending: propsLoading } = useLabelPropertiesQuery(label)
+  const {
+    data: properties = [],
+    isPending: propsPending,
+    isFetching: propsFetching
+  } = useLabelPropertiesQuery(label)
+  const propsLoading = label.length > 0 && (propsPending || propsFetching)
   const labelEntries = useMemo(() => Object.entries(labels ?? {}), [labels])
   const selectedLabelIdx = useMemo(
     () => labelEntries.findIndex(([labelName]) => labelName === label),
@@ -109,7 +114,18 @@ export function AddIndexCard({ projectId }: { projectId: Project['id'] }) {
 
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Property</span>
-            {propsLoading ?
+            {!label ?
+              <Button
+                className="w-full justify-between font-normal"
+                disabled
+                size="small"
+                type="button"
+                variant="outline"
+              >
+                <span className="text-content3">Select a label first</span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            : propsLoading ?
               <Skeleton enabled>
                 <Button className="w-full" size="small" variant="outline">
                   Loading…
@@ -124,7 +140,7 @@ export function AddIndexCard({ projectId }: { projectId: Project['id'] }) {
                     variant="outline"
                   >
                     <span className={propertyName ? '' : 'text-content3'}>
-                      {propertyName || (label ? 'Select a text property' : 'Select a label first')}
+                      {propertyName || 'Select a text property'}
                     </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>

@@ -3,6 +3,7 @@ import { forwardRef, Module } from '@nestjs/common'
 import { AiController } from '@/core/ai/ai.controller'
 import { AiQueryService } from '@/core/ai/ai-query.service'
 import { AiService } from '@/core/ai/ai.service'
+import { BillingPolicyModule } from '@/core/billing-policy/billing-policy.module'
 import { EmbeddingBackfillScheduler } from '@/core/ai/embedding-backfill.scheduler'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
@@ -13,6 +14,7 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
 
 @Module({
   imports: [
+    BillingPolicyModule,
     forwardRef(() => EntityModule),
     forwardRef(() => TokenModule),
     forwardRef(() => ProjectModule),

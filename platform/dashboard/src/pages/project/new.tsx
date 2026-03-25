@@ -222,18 +222,54 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                 error={errors?.name?.message}
                 data-tour="project-name-input"
                 autoComplete="off"
-                disabled={(selectedTab === 'shared' && showUpgradeButton) || isSubmitting}
+                disabled={showUpgradeButton || isSubmitting}
               />
               <TextField
                 label="Description (optional)"
                 {...register('description')}
                 error={errors?.description?.message}
                 autoComplete="off"
-                disabled={(selectedTab === 'shared' && showUpgradeButton) || isSubmitting}
+                disabled={showUpgradeButton || isSubmitting}
               />
             </div>
 
-            {selectedTab === 'shared' && showUpgradeButton && (
+            {selectedTab === 'custom' && (
+              <div className="">
+                <div className="mt-4">
+                  <div>
+                    <FormField label="Database URL" error={errors?.customDb?.url?.message}>
+                      <TextField
+                        {...register('customDb.url')}
+                        placeholder="bolt://your-database-url:7687"
+                        autoComplete="off"
+                        inputMode="url"
+                        disabled={showUpgradeButton || isSubmitting}
+                      />
+                    </FormField>
+                    <FormField label="Username" error={errors?.customDb?.username?.message}>
+                      <TextField
+                        {...register('customDb.username')}
+                        placeholder="neo4j"
+                        autoComplete="off"
+                        disabled={showUpgradeButton || isSubmitting}
+                      />
+                    </FormField>
+                    <FormField label="Password" error={errors?.customDb?.password?.message}>
+                      <TextField
+                        type="password"
+                        {...register('customDb.password')}
+                        placeholder="your-password"
+                        autoComplete="new-password"
+                        spellCheck={false}
+                        disabled={showUpgradeButton || isSubmitting}
+                      />
+                    </FormField>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showUpgradeButton && (
               <div className="bg-surface-secondary border-accent/20 rounded-lg border p-4 text-sm">
                 <p className="text-content2 mb-3">
                   You've reached the maximum number of projects for your current plan.
@@ -249,61 +285,17 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
               </div>
             )}
 
-            <div className="">
-              {selectedTab === 'custom' && (
-                <>
-                  <div className="mt-4">
-                    <div className="bg-surface-secondary border-accent/20 mb-4 rounded-lg border p-4">
-                      <h3 className="mb-2 font-semibold">Bring Your Own Neo4j Instance</h3>
-                      <p className="text-content-secondary mb-3 text-sm">
-                        Connect your own Neo4j instance (Aura or self-hosted) for unlimited scalability and
-                        full control over your data.
-                      </p>
-                    </div>
-
-                    <div>
-                      <FormField label="Database URL" error={errors?.customDb?.url?.message}>
-                        <TextField
-                          {...register('customDb.url')}
-                          placeholder="bolt://your-database-url:7687"
-                          autoComplete="off"
-                          inputMode="url"
-                        />
-                      </FormField>
-                      <FormField label="Username" error={errors?.customDb?.username?.message}>
-                        <TextField
-                          {...register('customDb.username')}
-                          placeholder="neo4j"
-                          autoComplete="off"
-                        />
-                      </FormField>
-                      <FormField label="Password" error={errors?.customDb?.password?.message}>
-                        <TextField
-                          type="password"
-                          {...register('customDb.password')}
-                          placeholder="your-password"
-                          autoComplete="new-password"
-                          spellCheck={false}
-                        />
-                      </FormField>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
             <div className="flex items-center justify-end gap-4">
+              <Button as="a" href={getRoutePath('projects')} variant="secondary">
+                Cancel
+              </Button>
               <Button
                 loading={isSubmitting}
                 type="submit"
                 variant="accent"
                 data-tour="create-project-btn"
-                disabled={selectedTab === 'shared' && showUpgradeButton}
-                title={
-                  selectedTab === 'shared' && showUpgradeButton ?
-                    'Upgrade plan to create more projects'
-                  : undefined
-                }
+                disabled={showUpgradeButton}
+                title={showUpgradeButton ? 'Upgrade plan to create more projects' : undefined}
               >
                 Create Project <ArrowRight className="mr-1 h-4 w-4" />
               </Button>

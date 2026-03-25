@@ -9,6 +9,8 @@ export interface CheckLimitsResponse {
     kuLimit: number | null
     plan: string
     remaining: number | null
+    willIncurOverage?: boolean
+    overageAmount?: number
   }
   limits: {
     projectLimit: number | null
@@ -53,4 +55,13 @@ export interface Customer {
   createdAt: string
   updatedAt: string
   metadata?: Record<string, unknown>
+}
+
+export interface BillingInquiryPayload {
+  contactEmail: string
+  requesterEmail?: string
+  workspaceId: string
+  workspaceName?: string
+  currentPlan?: string
+  message?: string
 }

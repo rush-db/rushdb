@@ -23,7 +23,7 @@ export function KuHeaderBar() {
   if (usage.billingModel === 'usage' || (usage.kuIncluded === null && usage.billingModel !== 'fixed')) {
     return (
       <a
-        href={getRoutePath('workspaceBilling')}
+        href={getRoutePath('workspaceApiUsage')}
         className="text-content3 hover:text-content hidden items-center gap-1.5 text-xs transition-colors sm:flex"
       >
         <span className="font-mono">{formatKu(usage.kuConsumed)} KU</span>
@@ -50,7 +50,7 @@ export function KuHeaderBar() {
 
   return (
     <a
-      href={getRoutePath('workspaceBilling')}
+      href={getRoutePath('workspaceApiUsage')}
       className="hidden min-w-[120px] flex-col gap-1 sm:flex"
       title={`${formatKu(usage.kuConsumed)} / ${formatKu(cap)} KU (${pct.toFixed(1)}%)`}
     >

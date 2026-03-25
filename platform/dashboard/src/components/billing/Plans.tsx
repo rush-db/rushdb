@@ -1,18 +1,26 @@
+import { useState } from 'react'
+
 import { useAvailablePlans, useCurrentWorkspacePlan } from '~/features/billing/hooks/useBillingHooks'
 import { isFreePlan } from '~/features/billing/utils.ts'
-import { FREE_PLAN } from '~/features/billing/constants.ts'
-import { cn, range } from '~/lib/utils.ts'
-import { Skeleton } from '~/elements/Skeleton.tsx'
-import { NothingFound } from '~/elements/NothingFound.tsx'
+import { CUSTOM_PLAN, FREE_PLAN } from '~/features/billing/constants.ts'
 import { PlanCard } from '~/components/billing/PlanCard.tsx'
 import { api } from '~/lib/api'
 import { Link } from '~/elements/Link'
 import { Message } from '~/elements/Message'
+import { useCurrentUserQuery } from '~/features/auth/hooks/useAuthQueries'
+import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
+import { CustomPlanInquiryModal } from '~/components/billing/CustomPlanInquiryModal'
+import type { DisplayPlan } from '~/features/billing/types'
 
 export function Plans() {
   const plans = useAvailablePlans()
   const { currentPlan } = useCurrentWorkspacePlan()
+  const { data: currentUser } = useCurrentUserQuery()
+  const { data: workspace } = useCurrentWorkspaceQuery()
   const paidUser = currentPlan && !isFreePlan(currentPlan)
+  const [customInquiryOpen, setCustomInquiryOpen] = useState(false)
+
+  const visiblePlans: DisplayPlan[] = [...(!paidUser ? [FREE_PLAN] : []), ...plans, CUSTOM_PLAN]
 
   return (
     <>
@@ -38,28 +46,27 @@ export function Plans() {
           </Message>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {!paidUser && <PlanCard active={true} className="order-last sm:order-first" plan={FREE_PLAN} />}
-
-        {plans?.map((plan) => (
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        {visiblePlans.map((plan) => (
           <PlanCard
             active={plan.id === currentPlan?.id}
-            className={cn(plan.id === currentPlan?.id ? 'lg:col-span-2' : 'lg:col-span-1')}
+            className={plan.id === 'free' ? 'order-last sm:order-first' : undefined}
+            highlighted={plan.id === 'pro'}
             key={plan.id}
+            onAction={plan.id === CUSTOM_PLAN.id ? () => setCustomInquiryOpen(true) : undefined}
             plan={plan}
             perProject={plan.perProject}
           />
         ))}
-
-        {!plans &&
-          range(1).map((index) => (
-            <Skeleton className="lg:col-span-2" enabled key={index}>
-              <PlanCard active={false} plan={FREE_PLAN} />
-            </Skeleton>
-          ))}
-
-        {!plans && <NothingFound />}
       </div>
+
+      <CustomPlanInquiryModal
+        currentPlan={currentPlan?.id ?? FREE_PLAN.id}
+        defaultEmail={currentUser?.login}
+        onOpenChange={setCustomInquiryOpen}
+        open={customInquiryOpen}
+        workspaceName={workspace?.name}
+      />
     </>
   )
 }

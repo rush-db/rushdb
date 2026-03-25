@@ -12,7 +12,7 @@ It streamlines application development by automating data normalization, managin
 [🌐 Homepage](https://rushdb.com) — [📢 Blog](https://rushdb.com/blog) — [☁️ Platform ](https://app.rushdb.com) — [📖 Docs](https://docs.rushdb.com) — [🧑‍💻 Examples](https://github.com/rush-db/examples)
 </div>
 
---- 
+---
 
 ## Prerequisites
 

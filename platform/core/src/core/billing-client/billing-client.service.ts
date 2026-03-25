@@ -4,7 +4,7 @@ import { HttpService } from '@nestjs/axios'
 import { firstValueFrom } from 'rxjs'
 
 import { toBoolean } from '@/common/utils/toBolean'
-import { CheckLimitsResponse, Customer, UsageResponse } from './billing-client.types'
+import { BillingInquiryPayload, CheckLimitsResponse, Customer, UsageResponse } from './billing-client.types'
 
 /**
  * BillingClientService — communicates with the external billing service API.
@@ -361,6 +361,31 @@ export class BillingClientService {
     } catch (error: any) {
       this.logger.error(`Failed to get KU history for workspace ${workspaceId}: ${error.message}`)
       return null
+    }
+  }
+
+  /**
+   * Send a custom billing-plan inquiry through the billing service.
+   */
+  async submitBillingInquiry(payload: BillingInquiryPayload): Promise<{ success: boolean }> {
+    if (!this.enabled) {
+      throw new Error('Billing service not available in self-hosted mode')
+    }
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post<{ success: boolean }>(`${this.billingUrl}/api/inquiries`, payload, {
+          headers: this.secret ? { 'x-rushdb-billing-secret': this.secret } : {},
+          timeout: 10000
+        })
+      )
+
+      return response.data
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to submit billing inquiry for workspace ${payload.workspaceId}: ${error.message}`
+      )
+      throw error
     }
   }
 }

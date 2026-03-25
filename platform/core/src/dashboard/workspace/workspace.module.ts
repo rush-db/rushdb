@@ -1,6 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common'
 
-import { BillingClientModule } from '@/core/billing-client/billing-client.module'
+import { BillingPolicyModule } from '@/core/billing-policy/billing-policy.module'
 import { EntityModule } from '@/core/entity/entity.module'
 import { BillingModule } from '@/dashboard/billing/billing.module'
 import { OAuthRepository } from '@/dashboard/mcp-oauth/model/oauth.repository'
@@ -12,7 +12,7 @@ import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
 @Module({
   imports: [
-    BillingClientModule,
+    BillingPolicyModule,
     forwardRef(() => ProjectModule),
     forwardRef(() => BillingModule),
     forwardRef(() => TokenModule),
