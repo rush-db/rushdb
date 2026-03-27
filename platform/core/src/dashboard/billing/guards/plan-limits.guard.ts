@@ -13,6 +13,8 @@ import { Transaction } from 'neo4j-driver'
 import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
 import { CheckLimitsResponse } from '@/core/billing-client/billing-client.types'
 import { ProjectService } from '@/dashboard/project/project.service'
+import { toBoolean } from '@/common/utils/toBolean'
+import { isNumeric } from '@/common/utils/isNumeric'
 
 /**
  * PlanLimitsGuard - enforces billing and operational limits.
@@ -30,6 +32,19 @@ export class PlanLimitsGuard implements CanActivate {
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService
   ) {}
+
+  private isProjectCreateRequest(request: FastifyRequest): boolean {
+    const method = String((request as any)?.method ?? '').toUpperCase()
+    const rawPath =
+      ((request as any)?.routeOptions?.url as string | undefined) ??
+      ((request as any)?.routerPath as string | undefined) ??
+      ((request as any)?.raw?.url as string | undefined) ??
+      ((request as any)?.url as string | undefined) ??
+      ''
+    const path = rawPath.split('?')[0]
+
+    return method === 'POST' && /\/projects\/?$/.test(path)
+  }
 
   async checkLimits(
     workspaceId: string,
@@ -63,6 +78,18 @@ export class PlanLimitsGuard implements CanActivate {
     const transaction = request.transaction || request.raw?.transaction
 
     const limitsCheck = await this.checkLimits(workspaceId, request, transaction)
+
+    if (!limitsCheck.allowed && this.isProjectCreateRequest(request)) {
+      const projectLimit = limitsCheck?.limits?.projectLimit
+      const projectCount = limitsCheck?.limits?.projectCount
+      const projectLimitReached =
+        toBoolean(projectLimit) && isNumeric(projectCount) && projectCount >= projectLimit
+
+      // Project creation should be gated by operational limits, not KU exhaustion.
+      if (!projectLimitReached) {
+        return true
+      }
+    }
 
     if (!limitsCheck.allowed) {
       throw new HttpException(

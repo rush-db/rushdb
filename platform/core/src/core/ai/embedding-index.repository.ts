@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common'
 import { and, eq, inArray, or } from 'drizzle-orm'
 
+import type {
+  EmbeddingIndexSimilarityFunction,
+  EmbeddingIndexSourceType
+} from '@/core/ai/embedding-index.utils'
 import { SqlService } from '@/database/sql/sql.service'
 import type { EmbeddingIndexRow, InsertEmbeddingIndexRow } from '@/database/sql/schema/types'
 
@@ -28,18 +32,33 @@ export class EmbeddingIndexRepository {
   async findByProjectIdPropertyAndLabel(
     projectId: string,
     propertyName: string,
-    label: string
+    label: string,
+    signature?: {
+      sourceType?: EmbeddingIndexSourceType
+      similarityFunction?: EmbeddingIndexSimilarityFunction
+      dimensions?: number
+    }
   ): Promise<EmbeddingIndexRow | undefined> {
+    const conditions = [
+      eq(this.table.projectId, projectId),
+      eq(this.table.propertyName, propertyName),
+      eq(this.table.label, label)
+    ]
+
+    if (signature?.sourceType) {
+      conditions.push(eq(this.table.sourceType, signature.sourceType))
+    }
+    if (signature?.similarityFunction) {
+      conditions.push(eq(this.table.similarityFunction, signature.similarityFunction))
+    }
+    if (typeof signature?.dimensions === 'number') {
+      conditions.push(eq(this.table.dimensions, signature.dimensions))
+    }
+
     const rows = await this.db
       .select()
       .from(this.table)
-      .where(
-        and(
-          eq(this.table.projectId, projectId),
-          eq(this.table.propertyName, propertyName),
-          eq(this.table.label, label)
-        )
-      )
+      .where(and(...conditions))
     return rows[0]
   }
 
@@ -89,5 +108,43 @@ export class EmbeddingIndexRepository {
 
   async deleteByProjectId(projectId: string): Promise<void> {
     await this.db.delete(this.table).where(eq(this.table.projectId, projectId))
+  }
+
+  async countByVectorPropertyName(vectorPropertyName: string): Promise<number> {
+    const rows = await this.db
+      .select()
+      .from(this.table)
+      .where(eq(this.table.vectorPropertyName, vectorPropertyName))
+    return rows.length
+  }
+
+  /**
+   * Finds all external embedding indexes matching the given (projectId, label, propertyName, dimensions).
+   * Optionally narrows by similarityFunction when provided.
+   * Used for inline vector resolution during create/upsert/set.
+   */
+  async findMatchingExternalIndexes(
+    projectId: string,
+    label: string,
+    propertyName: string,
+    dimensions: number,
+    similarityFunction?: EmbeddingIndexSimilarityFunction
+  ): Promise<EmbeddingIndexRow[]> {
+    const conditions = [
+      eq(this.table.projectId, projectId),
+      eq(this.table.label, label),
+      eq(this.table.propertyName, propertyName),
+      eq(this.table.sourceType, 'external' as EmbeddingIndexSourceType),
+      eq(this.table.dimensions, dimensions)
+    ]
+
+    if (similarityFunction) {
+      conditions.push(eq(this.table.similarityFunction, similarityFunction))
+    }
+
+    return this.db
+      .select()
+      .from(this.table)
+      .where(and(...conditions))
   }
 }

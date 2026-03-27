@@ -22,6 +22,8 @@ import {
 } from '@/core/common/constants'
 import { suggestPropertyType } from '@/core/common/normalizeRecord'
 import { MaybeArray } from '@/core/common/types'
+import { AiService } from '@/core/ai/ai.service'
+import { InlineVectorEntryDto } from '@/core/ai/dto/inline-vector-entry.dto'
 import { CreateEntityDto } from '@/core/entity/dto/create-entity.dto'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import { TEntityPropertiesNormalized } from '@/core/entity/entity.types'
@@ -45,6 +47,12 @@ import { PropertyService } from '@/core/property/property.service'
 import { TPropertyPrimitiveValue } from '@/core/property/property.types'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
+type VectorDraft = {
+  draftId: string
+  label: string
+  vectors: InlineVectorEntryDto[]
+}
+
 @Injectable()
 export class ImportService {
   constructor(
@@ -57,7 +65,9 @@ export class ImportService {
     private readonly workspaceService: WorkspaceService,
 
     @Inject(forwardRef(() => PropertyService))
-    private readonly propertyService: PropertyService
+    private readonly propertyService: PropertyService,
+
+    private readonly aiService: AiService
   ) {}
 
   getValueParameters(value: MaybeArray<TPropertyPrimitiveValue>) {
@@ -152,9 +162,10 @@ export class ImportService {
     data: TImportJsonPayload,
     label: string,
     options: TImportOptions
-  ): [Array<WithId<CreateEntityDto>>, TImportRecordsRelation[]] {
+  ): [Array<WithId<CreateEntityDto>>, TImportRecordsRelation[], VectorDraft[]] {
     const entities: Array<WithId<CreateEntityDto>> = []
     const relations: TImportRecordsRelation[] = []
+    const vectorDrafts: VectorDraft[] = []
 
     const queue: Array<TImportQueue> = []
 
@@ -237,6 +248,12 @@ export class ImportService {
         label: options.capitalizeLabels ? key?.toUpperCase() : key
       } as WithId<CreateEntityDto>
 
+      // Extract inline vectors before BFS parse to prevent $vectors from being treated as child entities
+      const rawVectors: InlineVectorEntryDto[] | undefined = (value as any)?.$vectors
+      if (rawVectors !== undefined) {
+        delete (value as any).$vectors
+      }
+
       // If we do not skip, create the entity and relation from parent (if parent exists)
       if (!toBoolean(current?.skip)) {
         if (toBoolean(parentId)) {
@@ -247,6 +264,10 @@ export class ImportService {
           })
         }
         entities.push(recordDraft)
+
+        if (Array.isArray(rawVectors) && rawVectors.length > 0) {
+          vectorDrafts.push({ draftId: recordDraft.id, label: recordDraft.label, vectors: rawVectors })
+        }
       }
 
       // Determine the parent id to pass to children:
@@ -257,7 +278,7 @@ export class ImportService {
       parse({ value, target: recordDraft, parentId: childParentId })
     }
 
-    return [entities, relations]
+    return [entities, relations, vectorDrafts]
   }
 
   async checkLimits(recordsCount: number, projectId: string, transaction: Transaction) {
@@ -291,7 +312,7 @@ export class ImportService {
     }
 
     // @FYI: Approximate time for 25MB JSON: 2.5s. RUST WASM?))))))
-    const [records, relations] = this.serializeBFS(data as TImportJsonPayload, label, options)
+    const [records, relations, vectorDrafts] = this.serializeBFS(data as TImportJsonPayload, label, options)
 
     // Will throw error if the amount of uploading Records is more than allowed by current plan
     await this.checkLimits(records.length, projectId, transaction)
@@ -340,6 +361,18 @@ export class ImportService {
       target: draftToPersistedId.get(rel.target) ?? rel.target,
       type: rel.type
     }))
+
+    // Write inline vectors now that all record IDs are known
+    for (const vd of vectorDrafts) {
+      const persistedId = draftToPersistedId.get(vd.draftId) ?? vd.draftId
+      await this.aiService.resolveAndWriteInlineVectors(
+        projectId,
+        vd.label,
+        persistedId,
+        vd.vectors,
+        customTransaction
+      )
+    }
 
     // Emit bulk entity creation event (one coalesced event per import, not per chunk)
     if (records.length > 0) {

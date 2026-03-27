@@ -1,7 +1,8 @@
 ---
-sidebar_position: 6
+sidebar_position: 5
 title: Semantic Search in 5 Minutes
 description: Create embedding indexes, wait for backfill, and run your first semantic search query in TypeScript, Python, or REST.
+tags: [AI, Search]
 ---
 
 import Tabs from '@site/src/components/LanguageTabs';
@@ -237,6 +238,8 @@ Poll until `indexedRecords === totalRecords`.
 
 ## Step 4: Semantic search
 
+RushDB always narrows candidates to the current project before ranking them by vector similarity.
+
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
 
@@ -308,7 +311,7 @@ token: YOUR_API_KEY
 
 ## Step 5: Semantic search with filter
 
-Adding a `where` clause narrows the candidate set before cosine similarity ranking.
+Adding a `where` clause narrows the project-scoped candidate set further before cosine similarity ranking.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">

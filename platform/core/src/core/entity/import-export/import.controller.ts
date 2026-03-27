@@ -244,6 +244,20 @@ export class ImportController {
       return true
     }
 
+    // Inject per-row inline vectors as $vectors so the BFS handles them identically to importJson
+    if (body.vectors?.length) {
+      if (body.vectors.length > cleanedData.length) {
+        throw new BadRequestException(
+          `vectors length (${body.vectors.length}) exceeds the number of CSV data rows (${cleanedData.length})`
+        )
+      }
+      for (let i = 0; i < body.vectors.length; i++) {
+        if (body.vectors[i]?.length) {
+          cleanedData[i] = { ...cleanedData[i], $vectors: body.vectors[i] }
+        }
+      }
+    }
+
     return await this.importService.importRecords(
       {
         data: cleanedData,

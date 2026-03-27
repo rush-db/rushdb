@@ -58,6 +58,7 @@ STEP 2 — QUERY SPEC (when building a non-trivial query)
 STEP 3 — BUILD
   Use only label and field names from discovery. Labels are case-sensitive.
   The traversal key in where IS the label name (UPPER_CASE). Alias is $alias only.
+  Use $relation on a related-label block to constrain edge type/direction (for example: POST: { $relation: { type: 'AUTHORED', direction: 'in' } }).
   Operators $label / $direction / $as / $of / $through do not exist — never use them.
 ` as const
 

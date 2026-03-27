@@ -63,12 +63,35 @@ export const useDeleteProjectMutation = () => {
   const workspaceId = useStore($currentWorkspaceId)
   return useMutation({
     mutationFn: ({ id }: { id: string }) => api.projects.delete({ id }),
+    onMutate: async ({ id }: { id: string }) => {
+      if (!workspaceId) return { previousProjects: undefined as Project[] | undefined }
+
+      const queryKey = queryKeys.workspaces.projects(workspaceId)
+      await queryClient.cancelQueries({ queryKey })
+
+      const previousProjects = queryClient.getQueryData<Project[]>(queryKey)
+      queryClient.setQueryData<Project[]>(queryKey, (current = []) =>
+        current.filter((project) => project.id !== id)
+      )
+
+      return { previousProjects }
+    },
+    onError(_error, _variables, context) {
+      if (workspaceId && context?.previousProjects) {
+        queryClient.setQueryData(queryKeys.workspaces.projects(workspaceId), context.previousProjects)
+      }
+    },
     onSuccess() {
       if (workspaceId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.projects(workspaceId) })
       }
       if (isProjectPage($router.get())) {
         redirectRoute('projects')
+      }
+    },
+    onSettled() {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.projects(workspaceId) })
       }
     }
   })

@@ -1,0 +1,321 @@
+---
+sidebar_position: 5
+title: "SearchQuery Deep Dive: Advanced Patterns"
+description: Build confidence with advanced SearchQuery patterns through realistic RushDB examples
+tags: [Search, Deep Dive, Aggregation, Relationships]
+---
+
+import Tabs from '@site/src/components/LanguageTabs';
+import TabItem from '@theme/TabItem';
+
+# SearchQuery Deep Dive: Advanced Patterns
+
+This tutorial is a practical companion to [Reusable SearchQuery](./reusable-search-query.mdx).
+
+You will compose production-style queries that RushDB teams and power users rely on every day:
+
+- label-based traversal with aliases
+- per-record and grouped aggregations
+- nested collect structures
+- relationship matching and direction filters
+- time-series bucketing
+
+## Real-World Scenario
+
+Assume a graph with these labels and relationships:
+
+- `COMPANY`
+- `DEPARTMENT`
+- `PROJECT`
+- `EMPLOYEE`
+- `TASK`
+
+Typical topology:
+
+- `COMPANY` -> `DEPARTMENT`
+- `DEPARTMENT` -> `PROJECT`
+- `PROJECT` -> `EMPLOYEE`
+- `PROJECT` -> `TASK`
+
+All examples below use canonical SearchQuery behavior:
+
+- traversal key is the related label itself (for example `PROJECT`)
+- every function-based aggregate includes `alias`
+- self-group KPI queries omit `limit`
+
+## 1) Reusable Where Blocks
+
+Start by building filter fragments you can reuse across endpoints.
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+```typescript
+const activeEngineeringProjects = {
+  labels: ['PROJECT'],
+  where: {
+    status: { $in: ['active', 'planned'] },
+    budget: { $gte: 100000 },
+    DEPARTMENT: {
+      name: 'Engineering'
+    }
+  },
+  orderBy: { budget: 'desc' },
+  limit: 25
+}
+
+const projects = await db.records.find(activeEngineeringProjects)
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python
+active_engineering_projects = {
+  "labels": ["PROJECT"],
+  "where": {
+    "status": {"$in": ["active", "planned"]},
+    "budget": {"$gte": 100000},
+    "DEPARTMENT": {
+      "name": "Engineering"
+    }
+  },
+  "orderBy": {"budget": "desc"},
+  "limit": 25
+}
+
+projects = db.records.find(active_engineering_projects)
+```
+  </TabItem>
+</Tabs>
+
+## 2) Relationship Traversal with Aliases
+
+Use aliases to aggregate related entities without flattening your schema.
+
+```typescript
+const projectComp = await db.records.find({
+  labels: ['PROJECT'],
+  where: {
+    DEPARTMENT: {
+      $alias: '$department',
+      COMPANY: {
+        $alias: '$company',
+        region: { $in: ['US', 'CA'] }
+      }
+    },
+    EMPLOYEE: {
+      $alias: '$employee',
+      employmentType: { $in: ['full_time', 'contract'] }
+    }
+  },
+  aggregate: {
+    projectId: '$record.$id',
+    projectName: '$record.name',
+    departmentName: '$department.name',
+    companyName: '$company.name',
+    headcount: { fn: 'count', alias: '$employee', unique: true },
+    avgSalary: { fn: 'avg', field: 'salary', alias: '$employee', precision: 0 }
+  },
+  limit: 100
+})
+```
+
+## 3) Dimensional GroupBy
+
+Use dimensional grouping for distribution questions such as "how many projects per status?".
+
+```typescript
+const statusBreakdown = await db.records.find({
+  labels: ['PROJECT'],
+  where: {
+    DEPARTMENT: { name: 'Engineering' }
+  },
+  aggregate: {
+    count: { fn: 'count', alias: '$record' },
+    avgBudget: { fn: 'avg', field: 'budget', alias: '$record', precision: 2 }
+  },
+  groupBy: ['$record.status'],
+  orderBy: { count: 'desc' }
+})
+```
+
+Notes:
+
+- dimensional keys must be property refs like `$record.status`
+- omit `limit` to return full distribution
+
+## 4) Self-Group KPIs (Single-Row Totals)
+
+Use self-group mode for whole-dataset KPIs.
+
+```typescript
+const kpi = await db.records.find({
+  labels: ['TASK'],
+  where: {
+    completed: true,
+    completedAt: {
+      $gte: { $year: 2025, $month: 1, $day: 1 },
+      $lt: { $year: 2026, $month: 1, $day: 1 }
+    }
+  },
+  aggregate: {
+    completedCount: { fn: 'count', alias: '$record' },
+    totalHours: { fn: 'sum', field: 'hours', alias: '$record' },
+    avgHours: { fn: 'avg', field: 'hours', alias: '$record', precision: 2 }
+  },
+  groupBy: ['completedCount', 'totalHours', 'avgHours'],
+  orderBy: { totalHours: 'asc' }
+})
+```
+
+Why this shape:
+
+- self-group uses aggregate key names in `groupBy`
+- `orderBy` on an aggregated key ensures correct full-scan aggregation behavior
+- no `limit`
+
+## 5) Nested Collect for Hierarchies
+
+Use nested `collect` to return structured trees for UI rendering.
+
+```typescript
+const hierarchy = await db.records.find({
+  labels: ['COMPANY'],
+  where: {
+    foundedAt: { $lt: { $year: 2015 } },
+    DEPARTMENT: {
+      $alias: '$department',
+      PROJECT: {
+        $alias: '$project',
+        EMPLOYEE: {
+          $alias: '$employee',
+          isActive: true
+        }
+      }
+    }
+  },
+  aggregate: {
+    companyName: '$record.name',
+    departments: {
+      fn: 'collect',
+      alias: '$department',
+      aggregate: {
+        name: '$department.name',
+        projects: {
+          fn: 'collect',
+          alias: '$project',
+          orderBy: { budget: 'desc' },
+          aggregate: {
+            name: '$project.name',
+            topContributors: {
+              fn: 'collect',
+              alias: '$employee',
+              orderBy: { salary: 'desc' },
+              limit: 3
+            }
+          }
+        }
+      }
+    }
+  },
+  limit: 20
+})
+```
+
+Nested rule:
+
+- inside a collect aggregate block, nested aggregations should also use `fn: 'collect'`
+
+## 6) Relationship Matching and Direction
+
+Use `$relation` when you need to constrain traversal edge type and direction.
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+```typescript
+const authoredPosts = await db.records.find({
+  labels: ['USER'],
+  where: {
+    POST: {
+      $alias: '$post',
+      $relation: { type: 'AUTHORED', direction: 'out' },
+      title: { $contains: 'searchquery' }
+    }
+  },
+  aggregate: {
+    userName: '$record.name',
+    authoredPosts: { fn: 'count', alias: '$post', unique: true }
+  },
+  limit: 50
+})
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python
+authored_posts = db.records.find({
+    "labels": ["USER"],
+    "where": {
+        "POST": {
+            "$alias": "$post",
+            "$relation": {"type": "AUTHORED", "direction": "out"},
+            "title": {"$contains": "searchquery"}
+        }
+    },
+    "aggregate": {
+        "userName": "$record.name",
+        "authoredPosts": {"fn": "count", "alias": "$post", "unique": True}
+    },
+    "limit": 50
+})
+```
+  </TabItem>
+</Tabs>
+
+## 7) Time Bucketing for Trends
+
+Use `timeBucket` to build trend charts directly from query output.
+
+```typescript
+const monthlyCompletions = await db.records.find({
+  labels: ['TASK'],
+  where: {
+    completed: true
+  },
+  aggregate: {
+    month: { fn: 'timeBucket', field: 'completedAt', granularity: 'month', alias: '$record' },
+    count: { fn: 'count', alias: '$record' }
+  },
+  groupBy: ['month'],
+  orderBy: { month: 'asc' }
+})
+```
+
+## 8) Adoption Workflow for Teams
+
+A high-signal workflow when introducing SearchQuery to a team:
+
+1. Start with `records.find` listing queries.
+2. Move the same `where` block to `records.delete` for controlled cleanups.
+3. Add aliases and per-record aggregates.
+4. Promote to dimensional `groupBy` for dashboards.
+5. Convert to self-group KPI queries for single-row metrics.
+6. Introduce nested `collect` when API responses must map directly to UI trees.
+
+## 9) Validation Checklist
+
+Before shipping a query:
+
+- `groupBy` exists only when `aggregate` exists
+- each `fn` aggregate has `alias`
+- traversal uses label keys, not custom traversal operators
+- date ranges use component objects when comparing
+- KPI/self-group queries do not use `limit`
+- self-group queries order by an aggregated key
+
+## Wrap-Up
+
+You now have practical patterns for composing SearchQuery in real applications.
+
+Recommended next practice:
+
+- clone one of your existing list queries
+- add aliases and per-record aggregates
+- then progressively transform it into dimensional and self-group analytics

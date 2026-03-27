@@ -1,5 +1,8 @@
 ---
-sidebar_position: 4
+title: Local Setup
+description: Spin up a local RushDB instance with Docker Compose — no repository clone required.
+sidebar_position: 2
+tags: [Getting Started, Deployment]
 ---
 
 # Local Setup

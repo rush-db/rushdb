@@ -1,5 +1,8 @@
 ---
-sidebar_position: 2
+title: Get API Key
+description: Register for RushDB, create a project, and generate your first API token to start building.
+sidebar_position: 1
+tags: [Getting Started]
 ---
 
 # Get API Key

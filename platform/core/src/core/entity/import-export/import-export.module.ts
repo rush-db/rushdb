@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common'
 
+import { AiModule } from '@/core/ai/ai.module'
 import { BillingPolicyModule } from '@/core/billing-policy/billing-policy.module'
 import { EntityModule } from '@/core/entity/entity.module'
 import { ExportController } from '@/core/entity/import-export/export.controller'
@@ -20,6 +21,7 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
     forwardRef(() => WorkspaceModule),
 
     // Core modules
+    AiModule,
     BillingPolicyModule,
     forwardRef(() => EntityModule),
     forwardRef(() => PropertyModule),
