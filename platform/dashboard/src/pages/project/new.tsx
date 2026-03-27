@@ -51,13 +51,17 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
   const { mutateAsync: mutate, error } = useCreateProjectMutation()
   const { data: workspace } = useCurrentWorkspaceQuery()
   const { data: platformSettings, isPending: loading } = usePlatformSettings()
-  const { data: projects } = useWorkspaceProjectsQuery()
+  const { data: projects, isFetching: isProjectsFetching } = useWorkspaceProjectsQuery()
   const maxProjects = workspace?.projectLimit ?? null
   const showUpgradeButton = useMemo(() => {
+    if (isProjectsFetching) {
+      return false
+    }
+
     return !platformSettings?.selfHosted && maxProjects !== null && typeof projects !== 'undefined' ?
         (projects?.length ?? 0) >= maxProjects
       : false
-  }, [platformSettings, maxProjects, projects])
+  }, [platformSettings, maxProjects, projects, isProjectsFetching])
 
   const [selectedTab, setSelectedTab] = useState<'shared' | 'custom'>('shared')
 

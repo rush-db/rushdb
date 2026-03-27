@@ -35,5 +35,16 @@ export const importCsvSchema = Joi.object({
     quoteChar: Joi.string().max(3).optional(),
     escapeChar: Joi.string().max(3).optional(),
     newline: Joi.string().max(4).optional()
-  }).optional()
+  }).optional(),
+  vectors: Joi.array()
+    .items(
+      Joi.array().items(
+        Joi.object({
+          propertyName: Joi.string().required(),
+          vector: Joi.array().items(Joi.number()).required(),
+          similarityFunction: Joi.string().valid('cosine', 'euclidean').optional()
+        })
+      )
+    )
+    .optional()
 })

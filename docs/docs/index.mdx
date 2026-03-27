@@ -473,11 +473,272 @@ await db.records.find({ labels: ['ACTOR'],
 
 **Ingest anything.** Push a flat object, a nested tree, or a batch — RushDB walks the structure, infers types, and stores each level as a linked record. No upfront schema.
 
+<LanguageTabs>
+<TabItem value="python" label="Python" default>
+
+```python
+db = RushDB("RUSHDB_API_KEY")
+
+# flat object
+db.records.create("User", {"name": "Alice", "age": 30})
+
+# nested tree — every level becomes a linked record automatically
+db.records.import_json({"Invoice": {
+    "total": 299,
+    "customer": {"name": "Alice"},   # → CUSTOMER record
+    "items": [{"sku": "A1"}, {"sku": "B2"}]  # → ITEM × 2
+}})
+
+# flat batch
+db.records.create_many("Product", [
+    {"name": "Widget", "price": 9.99},
+    {"name": "Gadget", "price": 19.99},
+])
+```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const db = new RushDB('RUSHDB_API_KEY')
+
+// flat object
+await db.records.create({ label: 'User', data: { name: 'Alice', age: 30 } })
+
+// nested tree — every level becomes a linked record automatically
+await db.records.importJson({ label: 'Invoice', data: {
+  total: 299,
+  customer: { name: 'Alice' },          // → CUSTOMER record
+  items: [{ sku: 'A1' }, { sku: 'B2' }] // → ITEM × 2
+}})
+
+// flat batch
+await db.records.createMany({ label: 'Product', data: [
+  { name: 'Widget', price: 9.99 },
+  { name: 'Gadget', price: 19.99 },
+]})
+```
+
+</TabItem>
+<TabItem value="shell" label="shell">
+
+```bash
+# flat object
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"User","data":{"name":"Alice","age":30}}'
+
+# nested tree — POST once, entire graph is created
+curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"Invoice","data":{"total":299,"customer":{"name":"Alice"},"items":[{"sku":"A1"}]}}'
+
+# flat batch (same endpoint)
+curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"Product","data":[{"name":"Widget","price":9.99},{"name":"Gadget","price":19.99}]}'
+```
+
+</TabItem>
+</LanguageTabs>
+
+---
+
 **Query by value.** Filter by any field with operators like `$gte`, `$in`, `$contains`, and `$startsWith`. Traverse relationships directly inside the `where` clause.
+
+<LanguageTabs>
+<TabItem value="python" label="Python" default>
+
+```python
+# field operators
+db.records.find({
+    "labels": ["Product"],
+    "where": {
+        "price": {"$gte": 10},
+        "tags": {"$in": ["sale"]},
+    }
+})
+
+# relationship traversal — hop directly in where
+db.records.find({
+    "labels": ["ACTOR"],
+    "where": {
+        "MOVIE": {            # follow ACTED_IN edge
+            "genre": "sci-fi",
+            "DIRECTOR": {"country": "UK"}  # multi-hop
+        }
+    }
+})
+```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// field operators
+await db.records.find({
+  labels: ['Product'],
+  where: {
+    price: { $gte: 10 },
+    tags: { $in: ['sale'] },
+  }
+})
+
+// relationship traversal — hop directly in where
+await db.records.find({
+  labels: ['ACTOR'],
+  where: {
+    MOVIE: {               // follow ACTED_IN edge
+      genre: 'sci-fi',
+      DIRECTOR: { country: 'UK' }  // multi-hop
+    }
+  }
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="shell">
+
+```bash
+# field operators
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"labels":["Product"],"where":{"price":{"$gte":10},"tags":{"$contains":"sale"}}}'
+
+# relationship traversal
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"labels":["ACTOR"],"where":{"MOVIE":{"genre":"sci-fi","DIRECTOR":{"country":"UK"}}}}'
+```
+
+</TabItem>
+</LanguageTabs>
+
+---
 
 **Query by meaning.** Create an embedding index on any text property. `db.ai.search()` returns records ranked by semantic similarity, with an optional `where` prefilter to narrow the candidate set first.
 
+<LanguageTabs>
+<TabItem value="python" label="Python" default>
+
+```python
+# one-time setup: index the 'content' property on ARTICLE records
+db.ai.indexes.create({
+    "label": "ARTICLE",
+    "propertyName": "content"
+})
+
+# search by meaning — prefiltered by tag
+results = db.ai.search({
+    "labels": ["ARTICLE"],
+    "propertyName": "content",
+    "query": "renewable energy breakthroughs", # or queryVector: [0.1, 0.2, ...] for BYOV
+    "where": {"tags": {"$in": ["science"]}},
+    "limit": 5
+})
+# returns records ranked by similarity score (__score)
+```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// one-time setup: index the 'content' property on ARTICLE records
+await db.ai.indexes.create({ label: 'ARTICLE', propertyName: 'content' })
+
+// search by meaning — prefiltered by tag
+const { data } = await db.ai.search({
+  labels: ['ARTICLE'],
+  propertyName: 'content',
+  query: 'renewable energy breakthroughs', // or queryVector: [0.1, 0.2, ...] for BYOV
+  where: { tags: { $in: ['science'] } },
+  limit: 5
+})
+// data[0].__score — similarity score, results sorted highest first
+```
+
+</TabItem>
+<TabItem value="shell" label="shell">
+
+```bash
+# one-time setup: create the embedding index
+curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"ARTICLE","propertyName":"content"}'
+
+# semantic search with prefilter
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"labels":["ARTICLE"],"propertyName":"content","query":"renewable energy breakthroughs","where":{"tags":{"$contains":"science"}},"limit":5}'
+```
+
+</TabItem>
+</LanguageTabs>
+
+---
+
 **Stay consistent.** Full ACID transactions wrap any combination of writes, relationship changes, and reads.
+
+<LanguageTabs>
+<TabItem value="python" label="Python" default>
+
+```python
+tx = db.transactions.begin()
+try:
+    sender = db.records.create("Account", {"owner": "Alice", "balance": 750}, transaction=tx)
+    db.records.create("Transfer", {"amount": 250, "to": "Bob"},               transaction=tx)
+    db.records.attach(source=sender, target=transfer, options={"type": "INITIATED"}, transaction=tx)
+    tx.commit()   # all writes land atomically
+except Exception:
+    tx.rollback() # nothing persisted if any step fails
+    raise
+```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const tx = await db.transactions.begin()
+try {
+  const sender   = await db.records.create({ label: 'Account',  data: { owner: 'Alice', balance: 750 } }, tx)
+  const transfer = await db.records.create({ label: 'Transfer', data: { amount: 250, to: 'Bob' }       }, tx)
+  await db.records.attach({ source: sender, target: transfer, options: { type: 'INITIATED' } }, tx)
+  await tx.commit()   // all writes land atomically
+} catch (e) {
+  await tx.rollback() // nothing persisted if any step fails
+  throw e
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="shell">
+
+```bash
+# 1. open a transaction
+TX=$(curl -s -X POST https://api.rushdb.com/api/v1/transactions \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" | jq -r '.id')
+
+# 2. writes inside the transaction (pass transaction-id header)
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "transaction-id: $TX" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"Account","data":{"owner":"Alice","balance":750}}'
+
+# 3. commit (or DELETE to rollback)
+curl -X POST https://api.rushdb.com/api/v1/transactions/$TX/commit \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
+```
+
+</TabItem>
+</LanguageTabs>
 
 ---
 

@@ -23,6 +23,7 @@ import { AiService } from '@/core/ai/ai.service'
 import { OntologyItem } from '@/core/ai/ai.types'
 import { CreateEmbeddingIndexDto } from '@/core/ai/dto/create-embedding-index.dto'
 import { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
+import { UpsertIndexVectorsDto } from '@/core/ai/dto/upsert-index-vectors.dto'
 import { createEmbeddingIndexSchema } from '@/core/ai/validation/schemas/embedding-index.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
@@ -149,6 +150,22 @@ export class AiController {
     @Request() request: PlatformRequest
   ) {
     return this.aiService.getIndexStats(request.projectId, id, transaction)
+  }
+
+  /**
+   * Upserts BYOV vectors for records into the selected embedding index.
+   */
+  @Post('/indexes/:id/vectors/upsert')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  @HttpCode(HttpStatus.OK)
+  async upsertIndexVectors(
+    @Param('id') id: string,
+    @Body() dto: UpsertIndexVectorsDto,
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ) {
+    return this.aiService.upsertIndexVectors(request.projectId, request.workspaceId, id, dto, transaction)
   }
 
   /**

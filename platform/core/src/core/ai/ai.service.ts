@@ -14,12 +14,21 @@ import { randomUUID } from 'crypto'
 
 import { AiQueryService } from '@/core/ai/ai-query.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
+import {
+  buildVectorIndexName,
+  buildVectorPropertyName,
+  isValidEmbeddingDimensions,
+  type EmbeddingIndexSimilarityFunction,
+  type EmbeddingIndexSourceType
+} from '@/core/ai/embedding-index.utils'
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { parseWhereClause } from '@/core/search/parser/buildQuery'
 import type { OntologyItem, OntologyProperty, OntologyRelationship } from '@/core/ai/ai.types'
 import type { CreateEmbeddingIndexDto } from '@/core/ai/dto/create-embedding-index.dto'
+import type { InlineVectorEntryDto } from '@/core/ai/dto/inline-vector-entry.dto'
 import type { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
+import type { UpsertIndexVectorsDto } from '@/core/ai/dto/upsert-index-vectors.dto'
 import type { EmbeddingIndexRow } from '@/database/sql/schema/types'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
@@ -309,15 +318,19 @@ export class AiService {
     projectId: string,
     propertyName: string,
     label: string,
+    vectorPropertyName: string,
     transaction: Transaction
   ): Promise<number> {
     const propKey = this.computePropKey(propertyName, label)
     const labelSuffix = label ? `:${label}` : ''
-    const result = await transaction.run(this.aiQueryService.getEmbeddingIndexStatsQuery(labelSuffix), {
-      projectId,
-      propertyName,
-      propKey
-    })
+    const result = await transaction.run(
+      this.aiQueryService.getEmbeddingIndexStatsQuery(labelSuffix, vectorPropertyName),
+      {
+        projectId,
+        propertyName,
+        propKey
+      }
+    )
 
     if (result.records.length === 0) {
       return 0
@@ -335,6 +348,7 @@ export class AiService {
     workspaceId: string | undefined,
     propertyName: string,
     label: string,
+    vectorPropertyName: string,
     transaction: Transaction
   ): Promise<void> {
     if (!workspaceId) {
@@ -346,7 +360,13 @@ export class AiService {
       return
     }
 
-    const pendingEmbeddings = await this.getEmbeddingBackfillSize(projectId, propertyName, label, transaction)
+    const pendingEmbeddings = await this.getEmbeddingBackfillSize(
+      projectId,
+      propertyName,
+      label,
+      vectorPropertyName,
+      transaction
+    )
     if (pendingEmbeddings === 0) {
       return
     }
@@ -367,6 +387,22 @@ export class AiService {
       propertyName: dto.propertyName
     })
 
+    const sourceType: EmbeddingIndexSourceType =
+      dto.external === true ? 'external' : ((dto.sourceType ?? 'managed') as EmbeddingIndexSourceType)
+    const similarityFunction: EmbeddingIndexSimilarityFunction = dto.similarityFunction ?? 'cosine'
+
+    const configuredDimensions = Number.parseInt(
+      this.configService.get<string>('RUSHDB_EMBEDDING_DIMENSIONS') ?? '0',
+      10
+    )
+    const dimensions = dto.dimensions ?? configuredDimensions
+    if (!isValidEmbeddingDimensions(dimensions)) {
+      throw new UnprocessableEntityException('dimensions must be an integer between 1 and 4096')
+    }
+
+    const vectorPropertyName = buildVectorPropertyName({ sourceType, similarityFunction, dimensions })
+    const vectorIndexName = buildVectorIndexName({ sourceType, similarityFunction, dimensions })
+
     if (typeResult.records.length === 0) {
       throw new NotFoundException(`Property "${dto.propertyName}" does not exist in this project`)
     }
@@ -380,55 +416,52 @@ export class AiService {
 
     const label = dto.label
 
+    // 2. Prevent exact duplicate for the same index signature.
+    const existing = await this.embeddingIndexRepository.findByProjectIdPropertyAndLabel(
+      projectId,
+      dto.propertyName,
+      label,
+      { sourceType, similarityFunction, dimensions }
+    )
+    if (existing) {
+      throw new ConflictException(
+        `An embedding index for label "${label}", property "${dto.propertyName}", sourceType "${sourceType}", similarityFunction "${similarityFunction}", and dimensions ${dimensions} already exists`
+      )
+    }
+
     await this.assertEmbeddingIndexCreationAllowed(
       projectId,
       workspaceId,
       dto.propertyName,
       label,
+      vectorPropertyName,
       transaction
     )
 
-    // 2. Prevent exact duplicate: same (projectId, label, propertyName)
-    const existing = await this.embeddingIndexRepository.findByProjectIdPropertyAndLabel(
-      projectId,
-      dto.propertyName,
-      label
-    )
-    if (existing) {
-      throw new ConflictException(
-        `An embedding index for label "${label}" and property "${dto.propertyName}" already exists`
-      )
-    }
-
-    // 3. Persist the index policy in SQL
-    const modelKey = this.configService.get<string>('RUSHDB_EMBEDDING_MODEL') ?? ''
-    const dimensionsRaw = this.configService.get<string>('RUSHDB_EMBEDDING_DIMENSIONS')
-    const dimensions = Number.parseInt(dimensionsRaw ?? '0', 10)
-    const apiKey = this.configService.get<string>('RUSHDB_EMBEDDING_API_KEY') ?? ''
-    if (!modelKey || !apiKey || !Number.isInteger(dimensions) || dimensions <= 0) {
+    const modelKey =
+      sourceType === 'managed' ? (this.configService.get<string>('RUSHDB_EMBEDDING_MODEL') ?? '') : ''
+    if (sourceType === 'managed' && !modelKey) {
       throw new UnprocessableEntityException(
         'Embedding is not fully configured on this server. Set RUSHDB_EMBEDDING_MODEL, RUSHDB_EMBEDDING_DIMENSIONS (positive integer), and RUSHDB_EMBEDDING_API_KEY.'
       )
     }
 
-    // 3.5 Fail fast if provider/model configuration is invalid.
-    // Without this, createIndex may succeed (201) but backfill fails asynchronously later.
-    try {
-      const probe = await this.embeddingProviderService.embed('rushdb-embedding-healthcheck')
-      if (!Array.isArray(probe) || probe.length !== dimensions) {
+    if (sourceType === 'managed') {
+      try {
+        const probe = await this.embeddingProviderService.embed('rushdb-embedding-healthcheck')
+        if (!Array.isArray(probe) || probe.length !== dimensions) {
+          throw new UnprocessableEntityException(
+            `Embedding provider returned vector length ${probe?.length ?? 0}, expected ${dimensions}.`
+          )
+        }
+      } catch (err) {
+        if (err instanceof UnprocessableEntityException) {
+          throw err
+        }
         throw new UnprocessableEntityException(
-          `Embedding provider returned vector length ${probe?.length ?? 0}, expected ${dimensions}.`
+          `Embedding provider validation failed for model "${modelKey}". ${err instanceof Error ? err.message : ''}`
         )
       }
-    } catch (err) {
-      if (err instanceof UnprocessableEntityException) {
-        throw err
-      }
-      throw new UnprocessableEntityException(
-        `Embedding provider validation failed for model "${modelKey}". ${
-          err instanceof Error ? err.message : ''
-        }`
-      )
     }
 
     const now = new Date().toISOString()
@@ -437,21 +470,31 @@ export class AiService {
       projectId,
       label,
       propertyName: dto.propertyName,
-      modelKey: modelKey,
-      dimensions: dimensions,
+      modelKey,
+      sourceType,
+      similarityFunction,
+      dimensions,
+      vectorPropertyName,
       enabled: true,
-      status: 'pending',
+      status: sourceType === 'managed' ? 'pending' : 'awaiting_vectors',
       createdAt: now,
       updatedAt: now
     })
 
-    // 4. Create Neo4j global vector index (DDL must run outside explicit transaction; idempotent)
+    // 4. Create per-slot Neo4j vector index (DDL must run outside explicit transaction; idempotent)
     try {
       const session = this.neogmaService.createSession('embedding-index-ddl')
       try {
-        await session.run(this.aiQueryService.getCreateGlobalVectorIndexQuery(), {
-          dimensions: neo4jInt(dimensions)
-        })
+        await session.run(
+          this.aiQueryService.getCreateVectorIndexQuery({
+            indexName: vectorIndexName,
+            vectorPropertyName,
+            similarityFunction
+          }),
+          {
+            dimensions
+          }
+        )
       } finally {
         await session.close()
       }
@@ -459,12 +502,17 @@ export class AiService {
       Logger.warn(`[AiService] vector index DDL failed (will be retried by backfill): ${err}`)
     }
 
-    // 5. Emit KU metering event
-    this.kuEventsService.emit(workspaceId, projectId, KuOperation.EMBEDDING_GENERATED, {
-      label: dto.label,
-      propertyName: dto.propertyName,
-      modelKey: modelKey
-    })
+    // 5. Emit KU metering event only for managed sourceType.
+    if (sourceType === 'managed') {
+      this.kuEventsService.emit(workspaceId, projectId, KuOperation.EMBEDDING_GENERATED, {
+        label: dto.label,
+        propertyName: dto.propertyName,
+        modelKey,
+        vectorSource: sourceType,
+        dimensions,
+        similarityFunction
+      })
+    }
 
     return row
   }
@@ -484,7 +532,8 @@ export class AiService {
       id: row.id,
       projectId: row.projectId,
       propertyName: row.propertyName,
-      label: row.label
+      label: row.label,
+      vectorPropertyName: row.vectorPropertyName
     }).catch((err) => {
       Logger.warn(`[AiService] async index cleanup failed for ${row.id}: ${err}`)
     })
@@ -495,9 +544,11 @@ export class AiService {
     projectId: string
     propertyName: string
     label: string
+    vectorPropertyName: string
   }): Promise<void> {
     const propKey = this.computePropKey(row.propertyName, row.label)
     const labelSuffix = row.label ? `:${row.label}` : ''
+    const vectorIndexName = `rushdb_emb_rel_${row.vectorPropertyName.replace(/^_emb_/, '')}`
 
     // Strip embeddings from VALUE relationships for this (label + propertyName + propKey).
     //    The AND rel.__propKey = $propKey guard ensures we only remove data for this exact index,
@@ -505,7 +556,7 @@ export class AiService {
     try {
       const session = this.neogmaService.createSession('embedding-strip')
       try {
-        await session.run(this.aiQueryService.getStripEmbeddingsQuery(labelSuffix), {
+        await session.run(this.aiQueryService.getStripEmbeddingsQuery(labelSuffix, row.vectorPropertyName), {
           projectId: row.projectId,
           propertyName: row.propertyName,
           propKey
@@ -517,24 +568,22 @@ export class AiService {
       Logger.warn(`[AiService] embedding strip failed: ${err}`)
     }
 
-    // Drop the global Neo4j vector index only when no embeddings remain anywhere in the graph.
-    //    This is a global check (not scoped to project) because the DDL index is shared across
-    //    all tenants. If user A deletes their last index but user B still has embeddings,
-    //    the index must be preserved.
+    // Drop the slot-specific Neo4j vector index only when no SQL policies reference this vectorPropertyName.
     try {
-      const checkSession = this.neogmaService.createSession('embedding-index-ddl')
-      try {
-        const result = await checkSession.run(this.aiQueryService.getAnyEmbeddingExistsQuery())
-        if (result.records.length === 0) {
-          // No embeddings left anywhere — safe to drop the DDL index
-          await checkSession.run(this.aiQueryService.getDropGlobalVectorIndexQuery())
-          Logger.log('[AiService] global vector index dropped (no embeddings remain)')
+      const remainingPolicies = await this.embeddingIndexRepository.countByVectorPropertyName(
+        row.vectorPropertyName
+      )
+      if (remainingPolicies === 0) {
+        const checkSession = this.neogmaService.createSession('embedding-index-ddl')
+        try {
+          await checkSession.run(this.aiQueryService.getDropVectorIndexQuery(vectorIndexName))
+          Logger.log(`[AiService] vector index dropped for property ${row.vectorPropertyName}`)
+        } finally {
+          await checkSession.close()
         }
-      } finally {
-        await checkSession.close()
       }
     } catch (err) {
-      Logger.warn(`[AiService] global vector index cleanup failed: ${err}`)
+      Logger.warn(`[AiService] vector index cleanup failed for property ${row.vectorPropertyName}: ${err}`)
     }
   }
 
@@ -551,11 +600,14 @@ export class AiService {
     const propKey = this.computePropKey(row.propertyName, row.label)
     const labelSuffix = row.label ? `:${row.label}` : ''
 
-    const result = await transaction.run(this.aiQueryService.getEmbeddingIndexStatsQuery(labelSuffix), {
-      projectId,
-      propertyName: row.propertyName,
-      propKey
-    })
+    const result = await transaction.run(
+      this.aiQueryService.getEmbeddingIndexStatsQuery(labelSuffix, row.vectorPropertyName),
+      {
+        projectId,
+        propertyName: row.propertyName,
+        propKey
+      }
+    )
 
     if (result.records.length === 0) {
       return { totalRecords: 0, indexedRecords: 0 }
@@ -570,6 +622,81 @@ export class AiService {
     }
   }
 
+  async upsertIndexVectors(
+    projectId: string,
+    workspaceId: string | undefined,
+    indexId: string,
+    dto: UpsertIndexVectorsDto,
+    transaction: Transaction
+  ): Promise<{ updated: number; requested: number }> {
+    const row = await this.embeddingIndexRepository.findById(indexId)
+    if (!row || row.projectId !== projectId) {
+      throw new NotFoundException(`Embedding index "${indexId}" not found`)
+    }
+
+    if (row.sourceType !== 'external') {
+      throw new UnprocessableEntityException('Vector upsert is supported only for external indexes')
+    }
+
+    const invalid = dto.items.find(
+      (item) =>
+        !Array.isArray(item.vector) ||
+        item.vector.length !== row.dimensions ||
+        item.vector.some((value) => !Number.isFinite(value))
+    )
+    if (invalid) {
+      throw new UnprocessableEntityException(
+        `Every vector must contain exactly ${row.dimensions} finite numeric values`
+      )
+    }
+
+    const propKey = this.computePropKey(row.propertyName, row.label)
+    const labelSuffix = row.label ? `:${row.label}` : ''
+    const updates = dto.items.map((item) => ({ recordId: item.recordId, emb: item.vector }))
+
+    const result = await transaction.run(
+      this.aiQueryService.getWriteEmbeddingsByRecordIdQuery(labelSuffix, row.vectorPropertyName),
+      {
+        projectId,
+        propertyName: row.propertyName,
+        propKey,
+        updates
+      }
+    )
+
+    const rec = result.records[0]
+    const toNum = (v: any) => (typeof v?.toNumber === 'function' ? v.toNumber() : Number(v ?? 0))
+    const requested = toNum(rec?.get('requestedCount'))
+    const updated = toNum(rec?.get('updatedCount'))
+
+    if (updated !== requested) {
+      throw new UnprocessableEntityException(
+        `Some record ids were not found for label "${row.label}" and property "${row.propertyName}"`
+      )
+    }
+
+    const stats = await this.getIndexStats(projectId, indexId, transaction)
+    await this.embeddingIndexRepository.updateStatus(
+      row.id,
+      stats.totalRecords > 0 && stats.totalRecords === stats.indexedRecords ? 'ready' : 'awaiting_vectors'
+    )
+
+    if (workspaceId) {
+      this.kuEventsService.emit(workspaceId, projectId, KuOperation.EMBEDDING_GENERATED, {
+        count: updated,
+        source: 'external_upsert',
+        indexId: row.id,
+        label: row.label,
+        propertyName: row.propertyName,
+        vectorSource: row.sourceType,
+        dimensions: row.dimensions,
+        similarityFunction: row.similarityFunction
+      })
+    }
+
+    return { updated, requested }
+  }
+
   /**
    * Performs exact semantic search using an embedding index scoped to the first entry in dto.labels.
    * Candidates are first filtered via Cypher MATCH/WHERE and then ranked by cosine similarity.
@@ -582,14 +709,22 @@ export class AiService {
   ): Promise<Array<Record<string, any>>> {
     // Resolve the index by (projectId, propertyName, labels[0])
     const label = dto.labels[0]
+    const sourceType: EmbeddingIndexSourceType = dto.sourceType ?? 'managed'
+    const similarityFunction: EmbeddingIndexSimilarityFunction = dto.similarityFunction ?? 'cosine'
+    const dimensions =
+      dto.dimensions ??
+      (Array.isArray(dto.queryVector) ? dto.queryVector.length : undefined) ??
+      Number.parseInt(this.configService.get<string>('RUSHDB_EMBEDDING_DIMENSIONS') ?? '0', 10)
+
     const index = await this.embeddingIndexRepository.findByProjectIdPropertyAndLabel(
       projectId,
       dto.propertyName,
-      label
+      label,
+      { sourceType, similarityFunction, dimensions }
     )
     if (!index) {
       throw new NotFoundException(
-        `No embedding index found for label "${label}" and property "${dto.propertyName}"`
+        `No embedding index found for label "${label}" and property "${dto.propertyName}" matching the requested vector signature`
       )
     }
     if (index.status !== 'ready') {
@@ -598,13 +733,38 @@ export class AiService {
       )
     }
 
+    if (dto.query && dto.queryVector) {
+      throw new UnprocessableEntityException('Provide either query or queryVector, but not both')
+    }
+
     const propKey = this.computePropKey(dto.propertyName, label)
     const labelSuffix = label ? `:${label}` : ''
-    const { embedding: queryVector, tokensUsed } = await this.embeddingProviderService.embedWithUsage(
-      dto.query
-    )
+    let queryVector: number[]
+    let tokensUsed: number | undefined
 
-    if (workspaceId) {
+    if (Array.isArray(dto.queryVector) && dto.queryVector.length > 0) {
+      if (dto.queryVector.length !== index.dimensions) {
+        throw new UnprocessableEntityException(
+          `Query vector length ${dto.queryVector.length} does not match index dimensions ${index.dimensions}`
+        )
+      }
+      queryVector = dto.queryVector
+    } else {
+      if (!dto.query) {
+        throw new UnprocessableEntityException('query is required when queryVector is not provided')
+      }
+      if (index.sourceType === 'external') {
+        throw new UnprocessableEntityException(
+          `Embedding index for "${label}:${dto.propertyName}" requires queryVector because it is an external index`
+        )
+      }
+
+      const embeddingResult = await this.embeddingProviderService.embedWithUsage(dto.query)
+      queryVector = embeddingResult.embedding
+      tokensUsed = embeddingResult.tokensUsed
+    }
+
+    if (workspaceId && dto.query) {
       const tokenCount = tokensUsed ?? estimateTokens(dto.query)
       this.kuEventsService.emit(workspaceId, projectId, KuOperation.EMBEDDING_GENERATED, {
         count: 1,
@@ -612,7 +772,10 @@ export class AiService {
         estimatedTokens: tokenCount,
         source: 'semantic_query',
         label,
-        propertyName: dto.propertyName
+        propertyName: dto.propertyName,
+        vectorSource: index.sourceType,
+        dimensions: index.dimensions,
+        similarityFunction: index.similarityFunction
       })
     }
 
@@ -641,7 +804,12 @@ export class AiService {
           `any(l IN labels(record) WHERE l IN [${dto.labels.map((l) => `'${l}'`).join(', ')}])`
         : ''
       const combinedWhere = [whereClause, multiLabelClause].filter(Boolean).join(' AND ')
-      query = this.aiQueryService.getSemanticSearchPrefilterQuery(combinedWhere, labelSuffix)
+      query = this.aiQueryService.getSemanticSearchPrefilterQuery({
+        combinedWhere,
+        labelSuffix,
+        similarityFunction: index.similarityFunction as EmbeddingIndexSimilarityFunction,
+        vectorPropertyName: index.vectorPropertyName
+      })
       params = {
         queryVector,
         propertyName: dto.propertyName,
@@ -660,5 +828,71 @@ export class AiService {
       ...(r.get('record')?.properties ?? r.get('record')),
       __score: toNum(r.get('score'))
     }))
+  }
+
+  /**
+   * Resolves matching external embedding indexes for each inline vector entry and writes
+   * the vectors to the relationship properties.
+   *
+   * Logic per entry:
+   *  - 0 matches  → NotFoundException
+   *  - 1 match    → write unconditionally
+   *  - 2+ matches → require `similarityFunction` to disambiguate, otherwise UnprocessableEntityException
+   */
+  async resolveAndWriteInlineVectors(
+    projectId: string,
+    label: string,
+    recordId: string,
+    vectors: InlineVectorEntryDto[],
+    transaction: Transaction
+  ): Promise<void> {
+    for (const entry of vectors) {
+      const dimensions = entry.vector.length
+      const candidates = await this.embeddingIndexRepository.findMatchingExternalIndexes(
+        projectId,
+        label,
+        entry.propertyName,
+        dimensions,
+        entry.similarityFunction
+      )
+
+      if (candidates.length === 0) {
+        throw new NotFoundException(
+          `No external embedding index found for label "${label}", property "${entry.propertyName}", dimensions ${dimensions}${entry.similarityFunction ? `, similarityFunction "${entry.similarityFunction}"` : ''}`
+        )
+      }
+      if (candidates.length > 1) {
+        throw new UnprocessableEntityException(
+          `Multiple external embedding indexes match label "${label}", property "${entry.propertyName}", dimensions ${dimensions}. ` +
+            `Specify "similarityFunction" in the vector entry to disambiguate.`
+        )
+      }
+
+      const row = candidates[0]
+      if (!entry.vector.every((v) => Number.isFinite(v))) {
+        throw new UnprocessableEntityException(
+          `Vector for property "${entry.propertyName}" contains non-finite values`
+        )
+      }
+
+      const propKey = this.computePropKey(row.propertyName, row.label)
+      const labelSuffix = row.label ? `:${row.label}` : ''
+
+      await transaction.run(
+        this.aiQueryService.getWriteEmbeddingsByRecordIdQuery(labelSuffix, row.vectorPropertyName),
+        {
+          projectId,
+          propertyName: row.propertyName,
+          propKey,
+          updates: [{ recordId, emb: entry.vector }]
+        }
+      )
+
+      const stats = await this.getIndexStats(projectId, row.id, transaction)
+      await this.embeddingIndexRepository.updateStatus(
+        row.id,
+        stats.totalRecords > 0 && stats.totalRecords === stats.indexedRecords ? 'ready' : 'awaiting_vectors'
+      )
+    }
   }
 }

@@ -8,6 +8,9 @@ import {
   type EmbeddingIndexStats,
   type SemanticSearchParams,
   type SemanticSearchResult,
+  type UpsertEmbeddingVectorItem,
+  type UpsertEmbeddingVectorsParams,
+  type UpsertEmbeddingVectorsResult,
   RestAPI
 } from './api/index.js'
 
@@ -23,7 +26,10 @@ export {
   type CreateEmbeddingIndexParams,
   type EmbeddingIndexStats,
   type SemanticSearchParams,
-  type SemanticSearchResult
+  type SemanticSearchResult,
+  type UpsertEmbeddingVectorItem,
+  type UpsertEmbeddingVectorsParams,
+  type UpsertEmbeddingVectorsResult
 }
 export * from './types/index.js'
 export * from './sdk/index.js'

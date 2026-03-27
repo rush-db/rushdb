@@ -62,10 +62,21 @@ export class EmbeddingBackfillScheduler {
   }
 
   private async backfillIndex(
-    index: { id: string; projectId: string; propertyName: string; label: string },
+    index: {
+      id: string
+      projectId: string
+      propertyName: string
+      label: string
+      vectorPropertyName: string
+      sourceType: string
+    },
     batchSize: number,
     maxRuntimeMs: number
   ): Promise<void> {
+    if (index.sourceType === 'external') {
+      return
+    }
+
     await this.embeddingIndexRepository.updateStatus(index.id, 'indexing')
 
     const project = await this.projectRepository.findById(index.projectId)
@@ -91,13 +102,16 @@ export class EmbeddingBackfillScheduler {
         let relations: Array<{ relId: string; value: unknown }>
 
         try {
-          const result = await session.run(this.aiQueryService.getUnindexedRelationsQuery(labelSuffix), {
-            projectId: index.projectId,
-            propertyName: index.propertyName,
-            propKey,
-            skip: neo4jInt(skip),
-            batchSize: neo4jInt(batchSize)
-          })
+          const result = await session.run(
+            this.aiQueryService.getUnindexedRelationsQuery(labelSuffix, index.vectorPropertyName),
+            {
+              projectId: index.projectId,
+              propertyName: index.propertyName,
+              propKey,
+              skip: neo4jInt(skip),
+              batchSize: neo4jInt(batchSize)
+            }
+          )
 
           relations = result.records.map((r) => ({
             relId: r.get('relId') as string,
@@ -162,7 +176,9 @@ export class EmbeddingBackfillScheduler {
           try {
             const tx = writeSession.beginTransaction({ timeout: 30_000 })
             try {
-              await tx.run(this.aiQueryService.getWriteEmbeddingsQuery(), { updates })
+              await tx.run(this.aiQueryService.getWriteEmbeddingsQuery(index.vectorPropertyName), {
+                updates
+              })
               await tx.commit()
               this.logger.log(`[backfillIndex] id=${index.id} committed ${updates.length} embedding writes`)
             } catch (err) {
@@ -196,11 +212,14 @@ export class EmbeddingBackfillScheduler {
       const checkSession = this.neogmaService.createSession('embedding-backfill-check')
       let remaining = 0
       try {
-        const result = await checkSession.run(this.aiQueryService.getUnindexedCountQuery(labelSuffix), {
-          projectId: index.projectId,
-          propertyName: index.propertyName,
-          propKey
-        })
+        const result = await checkSession.run(
+          this.aiQueryService.getUnindexedCountQuery(labelSuffix, index.vectorPropertyName),
+          {
+            projectId: index.projectId,
+            propertyName: index.propertyName,
+            propKey
+          }
+        )
         const raw = result.records[0]?.get('remaining')
         remaining = typeof raw?.toNumber === 'function' ? raw.toNumber() : Number(raw ?? 0)
       } finally {

@@ -1,5 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger'
-import { IsNotEmpty, IsString, Matches } from 'class-validator'
+import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Max, Min } from 'class-validator'
+
+import {
+  EMBEDDING_INDEX_SIMILARITY_FUNCTIONS,
+  EMBEDDING_INDEX_SOURCE_TYPES
+} from '@/core/ai/embedding-index.utils'
 
 export class CreateEmbeddingIndexDto {
   @IsNotEmpty()
@@ -15,4 +20,47 @@ export class CreateEmbeddingIndexDto {
   })
   @ApiProperty({ example: 'Book', description: 'Neo4j label to scope this index to (e.g. "Book", "Task")' })
   label: string
+
+  @IsOptional()
+  @IsString()
+  @IsIn([...EMBEDDING_INDEX_SOURCE_TYPES])
+  @ApiProperty({
+    example: 'managed',
+    required: false,
+    enum: EMBEDDING_INDEX_SOURCE_TYPES,
+    description: 'Whether RushDB generates embeddings or the client provides them'
+  })
+  sourceType?: 'managed' | 'external'
+
+  @IsOptional()
+  @IsBoolean()
+  @ApiProperty({
+    example: true,
+    required: false,
+    description:
+      "Shorthand for sourceType: 'external'. When true, RushDB expects the client to provide vectors."
+  })
+  external?: boolean
+
+  @IsOptional()
+  @IsString()
+  @IsIn([...EMBEDDING_INDEX_SIMILARITY_FUNCTIONS])
+  @ApiProperty({
+    example: 'cosine',
+    required: false,
+    enum: EMBEDDING_INDEX_SIMILARITY_FUNCTIONS,
+    description: 'Similarity function for the vector index'
+  })
+  similarityFunction?: 'cosine' | 'euclidean'
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(4096)
+  @ApiProperty({
+    example: 1536,
+    required: false,
+    description: 'Vector dimensions. Defaults to the configured provider dimensions for managed indexes.'
+  })
+  dimensions?: number
 }

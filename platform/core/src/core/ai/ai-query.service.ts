@@ -1,11 +1,20 @@
 import { Injectable } from '@nestjs/common'
 
-import { RUSHDB_LABEL_PROPERTY, RUSHDB_LABEL_RECORD, RUSHDB_RELATION_VALUE } from '@/core/common/constants'
+import {
+  RUSHDB_KEY_ID,
+  RUSHDB_LABEL_PROPERTY,
+  RUSHDB_LABEL_RECORD,
+  RUSHDB_RELATION_VALUE
+} from '@/core/common/constants'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 import { QueryBuilder } from '@/database/QueryBuilder'
 
 @Injectable()
 export class AiQueryService {
+  private quoteIdentifier(value: string): string {
+    return `\`${value.replace(/`/g, '')}\``
+  }
+
   /**
    * Q1: Returns { label, recordCount } for all labels in the project.
    * Optional filterLabels narrows results to a subset.
@@ -116,62 +125,59 @@ export class AiQueryService {
   /**
    * Returns aggregate stats for an embedding index policy.
    * - totalRecords: records of this label that have the property
-   * - indexedRecords: records where the VALUE relation already carries __emb for this propKey
+   * - indexedRecords: records where the VALUE relation already carries the selected vector property for this propKey
    * @param labelSuffix - Neo4j label suffix e.g. ":Book" scopes the record MATCH
    */
-  getEmbeddingIndexStatsQuery(labelSuffix: string) {
+  getEmbeddingIndexStatsQuery(labelSuffix: string, vectorPropertyName: string) {
     const qb = new QueryBuilder()
+    const vectorProperty = `rel.${this.quoteIdentifier(vectorPropertyName)}`
     qb.append(
       `MATCH (record:${RUSHDB_LABEL_RECORD}${labelSuffix} { ${projectIdInline()} })<-[rel:${RUSHDB_RELATION_VALUE}]-(prop:${RUSHDB_LABEL_PROPERTY} { name: $propertyName, projectId: $projectId })`
     )
     qb.append(
-      `RETURN count(*) AS totalRecords, count(CASE WHEN rel.__propKey = $propKey THEN 1 END) AS indexedRecords`
+      `RETURN count(*) AS totalRecords, count(CASE WHEN rel.__propKey = $propKey AND ${vectorProperty} IS NOT NULL THEN 1 END) AS indexedRecords`
     )
     return qb.getQuery()
   }
 
   /**
-   * DDL: create the single global relationship vector index shared across all projects.
-   * Includes filter properties (__projectId, __propKey) to enable post-filter tenant scoping.
-   * propKey format: "Label:propertyName" (e.g. "Book:title").
+   * DDL: create a relationship vector index for a single vector slot.
    * Must be run outside a transaction (DDL not allowed in explicit transactions).
    */
-  getCreateGlobalVectorIndexQuery() {
-    return `CREATE VECTOR INDEX \`rushdb_emb_value_rels\` IF NOT EXISTS FOR ()-[r:\`${RUSHDB_RELATION_VALUE}\`]-() ON r.__emb OPTIONS { indexConfig: { \`vector.dimensions\`: $dimensions, \`vector.similarity_function\`: 'cosine' } }`
+  getCreateVectorIndexQuery({
+    indexName,
+    vectorPropertyName,
+    similarityFunction
+  }: {
+    indexName: string
+    vectorPropertyName: string
+    similarityFunction: 'cosine' | 'euclidean'
+  }) {
+    return `CREATE VECTOR INDEX ${this.quoteIdentifier(indexName)} IF NOT EXISTS FOR ()-[r:${this.quoteIdentifier(RUSHDB_RELATION_VALUE)}]-() ON r.${this.quoteIdentifier(vectorPropertyName)} OPTIONS { indexConfig: { \`vector.dimensions\`: $dimensions, \`vector.similarity_function\`: '${similarityFunction}' } }`
   }
 
   /**
-   * DDL: drop the global vector index when no more embeddings exist anywhere.
-   * Should only be called after verifying getAnyEmbeddingExistsQuery() returns zero rows.
+   * DDL: drop a vector index for a specific slot.
    * Must be run outside a transaction.
    */
-  getDropGlobalVectorIndexQuery() {
-    // Use generic DROP INDEX syntax for broad Neo4j compatibility.
-    return `DROP INDEX \`rushdb_emb_value_rels\` IF EXISTS`
+  getDropVectorIndexQuery(indexName: string) {
+    return `DROP INDEX ${this.quoteIdentifier(indexName)} IF EXISTS`
   }
 
   /**
-   * Returns the first VALUE relationship that still has an embedding (LIMIT 1 for efficiency).
-   * Used to decide whether the global Neo4j vector index can be safely dropped:
-   * if this returns zero rows, no data needs the index any more.
-   */
-  getAnyEmbeddingExistsQuery() {
-    return `MATCH ()-[r:\`${RUSHDB_RELATION_VALUE}\`]-() WHERE r.__emb IS NOT NULL RETURN r LIMIT 1`
-  }
-
-  /**
-   * Strips embedding data from VALUE relationships for a given (projectId, label, propertyName).
-   * Only removes __emb from relationships whose __propKey matches exactly — this is critical
+   * Strips vector data from VALUE relationships for a given (projectId, label, propertyName).
+   * Only removes the selected vector property from relationships whose __propKey matches exactly — this is critical
    * when another label's index shares the same property node (e.g. Book:title vs Task:title).
    * @param labelSuffix - Neo4j label suffix e.g. ":Book" scopes the record MATCH
    */
-  getStripEmbeddingsQuery(labelSuffix: string) {
+  getStripEmbeddingsQuery(labelSuffix: string, vectorPropertyName: string) {
     const qb = new QueryBuilder()
+    const vectorProperty = `rel.${this.quoteIdentifier(vectorPropertyName)}`
     qb.append(
       `MATCH (record:${RUSHDB_LABEL_RECORD}${labelSuffix} { ${projectIdInline()} })<-[rel:${RUSHDB_RELATION_VALUE}]-(prop:${RUSHDB_LABEL_PROPERTY} { name: $propertyName, projectId: $projectId })`
     )
-    qb.append(`WHERE rel.__emb IS NOT NULL AND rel.__propKey = $propKey`)
-    qb.append(`REMOVE rel.__emb, rel.__projectId, rel.__propKey`)
+    qb.append(`WHERE ${vectorProperty} IS NOT NULL AND rel.__propKey = $propKey`)
+    qb.append(`REMOVE ${vectorProperty}`)
     return qb.getQuery()
   }
 
@@ -180,12 +186,15 @@ export class AiQueryService {
    * Scoped to the exact label so that Book:title and Task:title are indexed independently.
    * @param labelSuffix - Neo4j label suffix e.g. ":Book"
    */
-  getUnindexedRelationsQuery(labelSuffix: string) {
+  getUnindexedRelationsQuery(labelSuffix: string, vectorPropertyName: string) {
     const qb = new QueryBuilder()
+    const vectorProperty = `rel.${this.quoteIdentifier(vectorPropertyName)}`
     qb.append(
       `MATCH (record:${RUSHDB_LABEL_RECORD}${labelSuffix} { ${projectIdInline()} })<-[rel:${RUSHDB_RELATION_VALUE}]-(prop:${RUSHDB_LABEL_PROPERTY} { name: $propertyName, projectId: $projectId })`
     )
-    qb.append(`WHERE (rel.__emb IS NULL OR rel.__propKey <> $propKey) AND record[prop.name] IS NOT NULL`)
+    qb.append(
+      `WHERE (${vectorProperty} IS NULL OR rel.__propKey <> $propKey) AND record[prop.name] IS NOT NULL`
+    )
     qb.append(`RETURN elementId(rel) AS relId, record[prop.name] AS value`)
     qb.append(`SKIP $skip LIMIT $batchSize`)
     return qb.getQuery()
@@ -196,20 +205,46 @@ export class AiQueryService {
    * Also sets rel.__projectId and rel.__propKey so the global vector index can post-filter by tenant.
    * Expects parameter: $updates = [{ relId: string, emb: number[], projectId: string, propKey: string }, ...]
    */
-  getWriteEmbeddingsQuery() {
-    return `UNWIND $updates AS u MATCH ()-[rel:${RUSHDB_RELATION_VALUE}]-() WHERE elementId(rel) = u.relId SET rel.__emb = u.emb, rel.__projectId = u.projectId, rel.__propKey = u.propKey`
+  getWriteEmbeddingsQuery(vectorPropertyName: string) {
+    return `UNWIND $updates AS u MATCH ()-[rel:${RUSHDB_RELATION_VALUE}]-() WHERE elementId(rel) = u.relId SET rel.${this.quoteIdentifier(vectorPropertyName)} = u.emb, rel.__projectId = u.projectId, rel.__propKey = u.propKey`
+  }
+
+  /**
+   * Writes vectors to VALUE relationships by record id for external vector ingestion.
+   * Returns requestedCount and updatedCount so the caller can detect missing records.
+   */
+  getWriteEmbeddingsByRecordIdQuery(labelSuffix: string, vectorPropertyName: string) {
+    const qb = new QueryBuilder()
+    const vectorProperty = `rel.${this.quoteIdentifier(vectorPropertyName)}`
+    qb.append(`UNWIND $updates AS u`)
+    qb.append(
+      `OPTIONAL MATCH (record:${RUSHDB_LABEL_RECORD}${labelSuffix} { ${projectIdInline()} }) WHERE record.${this.quoteIdentifier(RUSHDB_KEY_ID)} = u.recordId`
+    )
+    qb.append(
+      `OPTIONAL MATCH (prop:${RUSHDB_LABEL_PROPERTY} { name: $propertyName, projectId: $projectId })-[rel:${RUSHDB_RELATION_VALUE}]->(record)`
+    )
+    qb.append(
+      `FOREACH (_ IN CASE WHEN rel IS NULL THEN [] ELSE [1] END | SET ${vectorProperty} = u.emb, rel.__projectId = $projectId, rel.__propKey = $propKey)`
+    )
+    qb.append(
+      `RETURN count(*) AS requestedCount, count(CASE WHEN rel IS NOT NULL THEN 1 END) AS updatedCount`
+    )
+    return qb.getQuery()
   }
 
   /**
    * Count of VALUE relationships that still need this label's embedding (for progress tracking).
    * @param labelSuffix - Neo4j label suffix e.g. ":Book"
    */
-  getUnindexedCountQuery(labelSuffix: string) {
+  getUnindexedCountQuery(labelSuffix: string, vectorPropertyName: string) {
     const qb = new QueryBuilder()
+    const vectorProperty = `rel.${this.quoteIdentifier(vectorPropertyName)}`
     qb.append(
       `MATCH (record:${RUSHDB_LABEL_RECORD}${labelSuffix} { ${projectIdInline()} })<-[rel:${RUSHDB_RELATION_VALUE}]-(prop:${RUSHDB_LABEL_PROPERTY} { name: $propertyName, projectId: $projectId })`
     )
-    qb.append(`WHERE (rel.__emb IS NULL OR rel.__propKey <> $propKey) AND record[prop.name] IS NOT NULL`)
+    qb.append(
+      `WHERE (${vectorProperty} IS NULL OR rel.__propKey <> $propKey) AND record[prop.name] IS NOT NULL`
+    )
     qb.append(`RETURN count(rel) AS remaining`)
     return qb.getQuery()
   }
@@ -217,12 +252,23 @@ export class AiQueryService {
   /**
    * Exact semantic search query.
    * Candidate records are narrowed via Cypher MATCH/WHERE first, then ranked with
-   * vector.similarity.cosine() over stored relationship embeddings.
+   * vector similarity over stored relationship vectors.
    * @param combinedWhere - compiled Cypher WHERE expression (may be empty string)
    * @param labelSuffix - Neo4j label suffix e.g. ":Book"
    */
-  getSemanticSearchPrefilterQuery(combinedWhere: string, labelSuffix: string) {
+  getSemanticSearchPrefilterQuery({
+    combinedWhere,
+    labelSuffix,
+    similarityFunction,
+    vectorPropertyName
+  }: {
+    combinedWhere: string
+    labelSuffix: string
+    similarityFunction: 'cosine' | 'euclidean'
+    vectorPropertyName: string
+  }) {
     const qb = new QueryBuilder()
+    const vectorProperty = `rel.${this.quoteIdentifier(vectorPropertyName)}`
     qb.append(`MATCH (record:${RUSHDB_LABEL_RECORD}${labelSuffix} { ${projectIdInline()} })`)
     if (combinedWhere) {
       qb.append(`WHERE ${combinedWhere}`)
@@ -230,8 +276,10 @@ export class AiQueryService {
     qb.append(
       `MATCH (prop:${RUSHDB_LABEL_PROPERTY} { name: $propertyName, projectId: $projectId })-[rel:${RUSHDB_RELATION_VALUE}]->(record)`
     )
-    qb.append(`WHERE rel.__emb IS NOT NULL AND rel.__propKey = $propKey`)
-    qb.append(`WITH record, vector.similarity.cosine(rel.__emb, $queryVector) AS score`)
+    qb.append(`WHERE ${vectorProperty} IS NOT NULL AND rel.__propKey = $propKey`)
+    qb.append(
+      `WITH record, vector.similarity.${similarityFunction}(${vectorProperty}, $queryVector) AS score`
+    )
     qb.append(`WHERE score IS NOT NULL`)
     qb.append(`ORDER BY score DESC`)
     qb.append(`SKIP $skip LIMIT $limit`)

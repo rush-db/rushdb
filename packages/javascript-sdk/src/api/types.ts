@@ -15,9 +15,12 @@ export type EmbeddingIndex = {
   label: string
   propertyName: string
   modelKey: string
+  sourceType: 'managed' | 'external'
+  similarityFunction: 'cosine' | 'euclidean'
   dimensions: number
+  vectorPropertyName: string
   enabled: boolean
-  /** 'pending' | 'indexing' | 'ready' | 'error' */
+  /** 'pending' | 'indexing' | 'awaiting_vectors' | 'ready' | 'error' */
   status: string
   createdAt: string
   updatedAt: string
@@ -28,6 +31,44 @@ export type CreateEmbeddingIndexParams = {
   /** Neo4j label to scope this index to (e.g. "Book", "Task"). */
   label: string
   propertyName: string
+  sourceType?: 'managed' | 'external'
+  /**
+   * Shorthand for `sourceType: 'external'`.
+   * When `true`, the index will be created with `sourceType: 'external'` regardless of the `sourceType` field.
+   */
+  external?: boolean
+  similarityFunction?: 'cosine' | 'euclidean'
+  dimensions?: number
+}
+
+/**
+ * A single vector entry for inline vector upsert.
+ * Provided alongside record data in create/upsert/set calls.
+ */
+export type VectorEntry = {
+  /** Name of the property whose embedding index should be written to. */
+  propertyName: string
+  /** The embedding vector to store. Its length must match the index dimensions. */
+  vector: number[]
+  /**
+   * Required when two indexes share the same `propertyName` and `dimensions` but differ in
+   * `similarityFunction`. Omit when there is only one matching index.
+   */
+  similarityFunction?: 'cosine' | 'euclidean'
+}
+
+export type UpsertEmbeddingVectorItem = {
+  recordId: string
+  vector: number[]
+}
+
+export type UpsertEmbeddingVectorsParams = {
+  items: UpsertEmbeddingVectorItem[]
+}
+
+export type UpsertEmbeddingVectorsResult = {
+  updated: number
+  requested: number
 }
 
 /** Neo4j-level stats for an embedding index. */
@@ -41,13 +82,18 @@ export type SemanticSearchParams = {
   /** Name of the indexed property to search against. */
   propertyName: string
   /** Free-text query that will be embedded and compared against indexed vectors. */
-  query: string
+  query?: string
+  /** External vector query. Use instead of query text for external indexes. */
+  queryVector?: number[]
   /**
    * One or more Neo4j labels to scope the search.
    * The first label is used to resolve which embedding index to use.
    * Required — always provide at least one label.
    */
   labels: string[]
+  sourceType?: 'managed' | 'external'
+  similarityFunction?: 'cosine' | 'euclidean'
+  dimensions?: number
   /**
    * Optional filter applied before cosine scoring.
    * Candidates are narrowed via MATCH/WHERE and then ranked by similarity.

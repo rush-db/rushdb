@@ -1,7 +1,8 @@
 ---
 title: Importing data from external sources
 description: Learn how to import your data to RushDB
-sidebar_position: 6
+sidebar_position: 3
+tags: [Data, Getting Started]
 ---
 
 # Importing data from external sources

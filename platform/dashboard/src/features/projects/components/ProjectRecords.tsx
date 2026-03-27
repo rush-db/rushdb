@@ -16,6 +16,7 @@ import {
 import { $hiddenFields, isFieldHidden } from '../stores/hidden-fields'
 import { $sheetRecordId } from '../stores/id'
 import { GraphView } from '~/features/projects/components/GraphView.tsx'
+import { PropertySheet } from '~/features/projects/components/PropertySheet.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
 import { RawApiView } from '~/features/projects/components/RawApiView.tsx'
 import { setTourStep } from '~/features/tour/stores/tour.ts'
@@ -109,6 +110,7 @@ export function ProjectRecords() {
       <RecordsHeader />
       <View />
       <RecordSheet />
+      <PropertySheet />
     </>
   )
 }

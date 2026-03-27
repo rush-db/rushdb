@@ -5,6 +5,7 @@ import { uuidv7 } from 'uuidv7'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
 import { Where } from '@/core/common/types'
+import { AiService } from '@/core/ai/ai.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import {
@@ -33,7 +34,9 @@ export class EntityService {
     private readonly propertyService: PropertyService,
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
-    private readonly embeddingIndexRepository: EmbeddingIndexRepository
+    private readonly embeddingIndexRepository: EmbeddingIndexRepository,
+    @Inject(forwardRef(() => AiService))
+    private readonly aiService: AiService
   ) {}
 
   async create({
@@ -69,6 +72,16 @@ export class EntityService {
     if (propertyNames.length > 0) {
       const entries = propertyNames.map((name) => ({ propertyName: name, label }))
       this.embeddingIndexRepository.markPendingForProperties(projectId, entries).catch(() => {})
+    }
+
+    if ((entity as CreateEntityDto).vectors?.length) {
+      await this.aiService.resolveAndWriteInlineVectors(
+        projectId,
+        label,
+        entityId,
+        (entity as CreateEntityDto).vectors,
+        transaction
+      )
     }
 
     return data
@@ -117,6 +130,16 @@ export class EntityService {
     if (editPropertyNames.length > 0) {
       const entries = editPropertyNames.map((name) => ({ propertyName: name, label }))
       this.embeddingIndexRepository.markPendingForProperties(projectId, entries).catch(() => {})
+    }
+
+    if ((entity as EditEntityDto).vectors?.length) {
+      await this.aiService.resolveAndWriteInlineVectors(
+        projectId,
+        label,
+        entityId,
+        (entity as EditEntityDto).vectors,
+        transaction
+      )
     }
 
     return this.getById({ id: entityId, projectId, transaction })
@@ -170,6 +193,12 @@ export class EntityService {
     if (upsertPropertyNames.length > 0) {
       const entries = upsertPropertyNames.map((name) => ({ propertyName: name, label }))
       this.embeddingIndexRepository.markPendingForProperties(projectId, entries).catch(() => {})
+    }
+
+    const vectors = (entity as CreateEntityDto).vectors
+    if (vectors?.length) {
+      const persistedId: string = data.__id ?? entityId
+      await this.aiService.resolveAndWriteInlineVectors(projectId, label, persistedId, vectors, transaction)
     }
 
     return data

@@ -31,7 +31,10 @@ import type {
   EmbeddingIndex,
   EmbeddingIndexStats,
   SemanticSearchParams,
-  SemanticSearchResult
+  SemanticSearchResult,
+  UpsertEmbeddingVectorsParams,
+  UpsertEmbeddingVectorsResult,
+  VectorEntry
 } from './types.js'
 
 import {
@@ -227,11 +230,13 @@ export class RestAPI {
       {
         label,
         data: rawData,
-        options
+        options,
+        vectors
       }: {
         label: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
         options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'>
+        vectors?: VectorEntry[]
       },
       transaction?: Transaction | string
     ): Promise<DBRecordInstance<S>> => {
@@ -247,9 +252,9 @@ export class RestAPI {
       const data = getOwnProperties(removeUndefinedDeep(rawData))
 
       if (isArray(data) && data.every(isPropertyDraft)) {
-        payload.requestData = { label, properties: data, options }
+        payload.requestData = { label, properties: data, options, ...(vectors?.length && { vectors }) }
       } else if (isFlatObject(data)) {
-        payload.requestData = { label, data, options }
+        payload.requestData = { label, data, options, ...(vectors?.length && { vectors }) }
       } else if (isObject(data)) {
         throw new Error(
           'Provided data is not a flat object. Consider using the `importJson` method for nested objects or arrays of nested objects, or use `createMany` for arrays of flat objects.'
@@ -287,6 +292,11 @@ export class RestAPI {
         label: string
         data: Array<InferSchemaTypesWrite<S>>
         options?: DBRecordCreationOptions
+        /**
+         * Per-row inline vectors for external embedding indexes.
+         * `vectors[i]` is applied to `data[i]`. Its length must not exceed `data.length`.
+         */
+        vectors?: VectorEntry[][]
       },
       transaction?: Transaction | string
     ): Promise<DBRecordsArrayInstance<S>> => {
@@ -299,12 +309,24 @@ export class RestAPI {
         )
       }
 
+      if (data.vectors && data.vectors.length > items.length) {
+        throw new Error(
+          `records.createMany: vectors length (${data.vectors.length}) exceeds the number of data rows (${items.length}).`
+        )
+      }
+
+      // Inject per-row vectors as $vectors on each item so the backend BFS handles them
+      const itemsWithVectors =
+        data.vectors?.length ?
+          items.map((item, i) => (data.vectors![i]?.length ? { ...item, $vectors: data.vectors![i] } : item))
+        : items
+
       const txId = pickTransactionId(transaction)
       const path = `/records/import/json`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: { ...data, data: items }
+        requestData: { label: data.label, data: itemsWithVectors, options: data.options }
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -428,6 +450,12 @@ export class RestAPI {
           newline?: string
         }
         parentId?: string
+        /**
+         * Per-row inline vectors for external embedding indexes.
+         * `vectors[i]` is applied to CSV row `i` (0-based, after header).
+         * Its length must not exceed the number of data rows — validated server-side.
+         */
+        vectors?: VectorEntry[][]
       },
       transaction?: Transaction | string
     ): Promise<DBRecordsArrayInstance<S>> => {
@@ -685,12 +713,14 @@ export class RestAPI {
         target,
         label,
         data: rawData,
-        options
+        options,
+        vectors
       }: {
         target: DBRecordTarget
         label: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
         options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'>
+        vectors?: VectorEntry[]
       },
       transaction?: Transaction | string
     ) => {
@@ -707,9 +737,9 @@ export class RestAPI {
       const data = getOwnProperties(removeUndefinedDeep(rawData))
 
       if (isArray(data) && data.every(isPropertyDraft)) {
-        payload.requestData = { label, properties: data }
+        payload.requestData = { label, properties: data, ...(vectors?.length && { vectors }) }
       } else if (isFlatObject(data)) {
-        payload.requestData = { label, data, options }
+        payload.requestData = { label, data, options, ...(vectors?.length && { vectors }) }
       } else if (isObject(data)) {
         throw new Error('Provided data is not a flat object. Consider to use `importJson` method.')
       } else {
@@ -799,7 +829,8 @@ export class RestAPI {
       {
         label,
         data: rawData,
-        options
+        options,
+        vectors
       }: {
         label?: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
@@ -807,6 +838,7 @@ export class RestAPI {
           mergeBy?: string[]
           mergeStrategy?: 'rewrite' | 'append'
         }
+        vectors?: VectorEntry[]
       },
       transaction?: Transaction | string
     ): Promise<DBRecordInstance<S>> => {
@@ -827,9 +859,14 @@ export class RestAPI {
       }
 
       if (isArray(data) && data.every(isPropertyDraft)) {
-        payload.requestData = { label, properties: data, options: defaultOptions }
+        payload.requestData = {
+          label,
+          properties: data,
+          options: defaultOptions,
+          ...(vectors?.length && { vectors })
+        }
       } else if (isFlatObject(data)) {
-        payload.requestData = { label, data, options: defaultOptions }
+        payload.requestData = { label, data, options: defaultOptions, ...(vectors?.length && { vectors }) }
       } else if (isObject(data)) {
         throw new Error(
           'Provided data is not a flat object. Upsert supports flat objects or property drafts array.'
@@ -1304,6 +1341,29 @@ export class RestAPI {
        */
       create: async (params: CreateEmbeddingIndexParams) => {
         const path = `/ai/indexes`
+        const { external, ...rest } = params
+        const resolvedParams = external === true ? { ...rest, sourceType: 'external' as const } : rest
+        const payload = {
+          method: 'POST',
+          headers: {},
+          requestData: resolvedParams
+        }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<EmbeddingIndex>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Upserts external vectors for a specific embedding index.
+       * @param id - The target embedding index ID
+       * @param params.items - Array of { recordId, vector }
+       */
+      upsertVectors: async (id: string, params: UpsertEmbeddingVectorsParams) => {
+        const path = `/ai/indexes/${id}/vectors/upsert`
         const payload = {
           method: 'POST',
           headers: {},
@@ -1312,7 +1372,7 @@ export class RestAPI {
         const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
         this.logger?.({ requestId, path, ...payload })
 
-        const response = await this.fetcher<ApiResponse<EmbeddingIndex>>(path, payload)
+        const response = await this.fetcher<ApiResponse<UpsertEmbeddingVectorsResult>>(path, payload)
         this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
         return response
@@ -1355,7 +1415,7 @@ export class RestAPI {
      * Performs semantic (vector) search over records whose `propertyName` has been indexed.
      *
      * RushDB performs exact search: candidates are narrowed via MATCH/WHERE first,
-     * then ranked by cosine similarity.
+     * then ranked by similarity. You can pass either query text or queryVector.
      *
      * @param params - Search parameters including the query text, property name, and optional filters
      */

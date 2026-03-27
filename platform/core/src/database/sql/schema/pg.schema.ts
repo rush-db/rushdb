@@ -163,13 +163,25 @@ export const embeddingIndexes = pgTable(
     label: text('label').notNull().default(''),
     propertyName: text('property_name').notNull(),
     modelKey: text('model_key').notNull(),
+    sourceType: text('source_type').notNull().default('managed'),
+    similarityFunction: text('similarity_function').notNull().default('cosine'),
     dimensions: integer('dimensions').notNull(),
+    vectorPropertyName: text('vector_property_name').notNull(),
     enabled: boolean('enabled').notNull().default(true),
     status: text('status').notNull().default('pending'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull()
   },
-  (t) => [uniqueIndex('emb_idx_uniq').on(t.projectId, t.propertyName, t.label)]
+  (t) => [
+    uniqueIndex('emb_idx_signature_uniq').on(
+      t.projectId,
+      t.propertyName,
+      t.label,
+      t.sourceType,
+      t.similarityFunction,
+      t.dimensions
+    )
+  ]
 )
 
 export const pgSchema = {

@@ -34,6 +34,7 @@ export default defineConfig({
     })
   ],
   resolve: {
+    dedupe: ['three'],
     // vite-tsconfig-paths
     alias: [{ find: '~', replacement: resolve(__dirname, 'src') }]
   },

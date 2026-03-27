@@ -1,6 +1,9 @@
 {
   "label": "Tutorials",
-  "position": 2,
   "collapsed": false,
-  "collapsible": false
+  "collapsible": false,
+  "link": {
+    "type": "doc",
+    "id": "tutorials/index"
+  }
 }

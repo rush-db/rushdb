@@ -104,6 +104,18 @@ const matchedEmployees = await db.records.find({
   }
 })
 
+// Constrain traversal by relationship type/direction with $relation
+const authoredPosts = await db.records.find({
+  labels: ['USER'],
+  where: {
+    POST: {
+      $relation: { type: 'AUTHORED', direction: 'out' },
+      title: { $contains: 'graph' }
+    }
+  },
+  limit: 10
+})
+
 const company = await db.records.findUniq({
   labels: ['COMPANY'],
   where: {

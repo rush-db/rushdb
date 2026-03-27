@@ -5,5 +5,8 @@ export {
   EmbeddingIndex,
   EmbeddingIndexStats,
   SemanticSearchParams,
-  SemanticSearchResult
+  SemanticSearchResult,
+  UpsertEmbeddingVectorItem,
+  UpsertEmbeddingVectorsParams,
+  UpsertEmbeddingVectorsResult
 } from './types.js'

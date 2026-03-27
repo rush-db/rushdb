@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common'
 
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
+import { AiModule } from '@/core/ai/ai.module'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import { EntityController } from '@/core/entity/entity.controller'
 import { EntityService } from '@/core/entity/entity.service'
@@ -21,7 +22,8 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
 
     // Core modules
     forwardRef(() => PropertyModule),
-    forwardRef(() => TransactionModule)
+    forwardRef(() => TransactionModule),
+    forwardRef(() => AiModule)
   ],
   providers: [EntityService, EntityQueryService, EmbeddingIndexRepository],
   exports: [EntityService, EntityQueryService],

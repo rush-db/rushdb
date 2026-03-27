@@ -151,6 +151,7 @@ const config: Config = {
 
   plugins: [
     tailwindPlugin,
+    require('./plugins/tutorials-data.cjs'),
     async function pluginLlmsTxt(context) {
       return {
         name: 'llms-txt-plugin',
@@ -364,6 +365,13 @@ const config: Config = {
             className: 'mcp-server',
             position: 'left',
             activeBaseRegex: '/mcp-server/'
+          },
+          {
+            type: 'docSidebar',
+            sidebarId: 'tutorials',
+            label: 'Tutorials',
+            position: 'left',
+            className: 'tutorials-link'
           },
           {
             href: 'https://github.com/rush-db/rushdb',

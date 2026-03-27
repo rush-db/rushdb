@@ -23,10 +23,9 @@
  *   propertyName: 'description',  // which indexed property
  *   query:        'deep learning', // free-text — server embeds it
  *   labels:       ['Article'],     // required; first entry selects the index
- *   topK:         50,              // direct vector-index candidate pool (ignored in prefilter mode)
  *   limit:        10,
  *   skip:         0,
- *   // Adding `where` switches to prefilter mode:
+ *   // `where` adds application-level prefiltering before similarity scoring:
  *   where: { published: true }
  * })
  *
@@ -182,14 +181,13 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     }
   })
 
-  // ── direct vector-index mode (no where, single label) ─────────────────────
+  // ── semantic ranking over project-scoped candidates ────────────────────────
 
-  it('direct vector-index mode: returns semantically similar results for an ML query', async () => {
+  it('returns semantically similar results for an ML query', async () => {
     const res = await db.ai.search({
       propertyName: PROPERTY,
       query: 'neural networks and artificial intelligence',
       labels: [LABEL],
-      topK: 10,
       limit: 3
     })
 
@@ -211,12 +209,11 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     expect(['Intro to Machine Learning', 'Deep Neural Networks']).toContain(topTitle)
   })
 
-  it('direct vector-index mode: returns results ordered by score descending', async () => {
+  it('returns results ordered by score descending', async () => {
     const res = await db.ai.search({
       propertyName: PROPERTY,
       query: 'graph database nodes edges',
       labels: [LABEL],
-      topK: 10,
       limit: 5
     })
 
@@ -227,12 +224,11 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     }
   })
 
-  it('direct vector-index mode: respects limit and skip for pagination', async () => {
+  it('respects limit and skip for pagination', async () => {
     const page1 = await db.ai.search({
       propertyName: PROPERTY,
       query: 'data science algorithms',
       labels: [LABEL],
-      topK: 20,
       limit: 2,
       skip: 0
     })
@@ -241,7 +237,6 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
       propertyName: PROPERTY,
       query: 'data science algorithms',
       labels: [LABEL],
-      topK: 20,
       limit: 2,
       skip: 2
     })
@@ -256,9 +251,9 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     expect(overlap).toHaveLength(0)
   })
 
-  // ── prefilter mode (where filter) ──────────────────────────────────────────
+  // ── additional prefiltering via where ──────────────────────────────────────
 
-  it('prefilter mode: where filter restricts candidates before cosine scoring', async () => {
+  it('where filter restricts candidates before cosine scoring', async () => {
     // 'French Cuisine' has published: false — must not appear when filtering published: true
     const res = await db.ai.search({
       propertyName: PROPERTY,
@@ -274,7 +269,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     expect(titles).not.toContain('French Cuisine')
   })
 
-  it('prefilter mode: where filter with $contains narrows the result set', async () => {
+  it('where filter narrows the result set', async () => {
     const res = await db.ai.search({
       propertyName: PROPERTY,
       query: 'quantum superposition qubits',
@@ -292,8 +287,8 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     })
   })
 
-  it('prefilter mode: multi-label array switches from direct vector-index mode to prefilter', async () => {
-    // Two labels passed → prefilter mode even without a `where`
+  it('multi-label search still uses exact prefiltering before ranking', async () => {
+    // Two labels passed -> candidates are narrowed before similarity scoring.
     const res = await db.ai.search({
       propertyName: PROPERTY,
       query: 'data and storage',
@@ -301,7 +296,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
       limit: 5
     })
 
-    // Should still succeed; NonExistentLabel simply contributes zero candidates
+    // Should still succeed; NonExistentLabel simply contributes zero candidates.
     expect(res.success).toBe(true)
     expect(Array.isArray(res.data)).toBe(true)
   })
