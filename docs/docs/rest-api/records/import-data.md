@@ -4,7 +4,9 @@ sidebar_position: 1
 
 # Import Data
 
-## `POST /api/v1/records/import/json`
+## Import JSON
+
+`POST /api/v1/records/import/json`
 
 Pass nested JSON — RushDB walks the structure and creates linked records automatically.
 
@@ -28,17 +30,19 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 
 ### Options
 
-| Option | Default | Description |
-|---|---|---|
-| `suggestTypes` | `true` | Infer property types automatically |
-| `convertNumericValuesToNumbers` | `false` | Convert string numbers to number type |
-| `capitalizeLabels` | `false` | Uppercase all inferred label names |
-| `relationshipType` | `__RUSHDB__RELATION__DEFAULT__` | Relationship type for nested links |
-| `returnResult` | `false` | Return created records in the response |
-| `mergeBy` | — | Fields to match on for upsert |
-| `mergeStrategy` | `append` | `append` or `rewrite` |
+| Option                          | Default                         | Description                            |
+| ------------------------------- | ------------------------------- | -------------------------------------- |
+| `suggestTypes`                  | `true`                          | Infer property types automatically     |
+| `convertNumericValuesToNumbers` | `false`                         | Convert string numbers to number type  |
+| `capitalizeLabels`              | `false`                         | Uppercase all inferred label names     |
+| `relationshipType`              | `__RUSHDB__RELATION__DEFAULT__` | Relationship type for nested links     |
+| `returnResult`                  | `false`                         | Return created records in the response |
+| `mergeBy`                       | —                               | Fields to match on for upsert          |
+| `mergeStrategy`                 | `append`                        | `append` or `rewrite`                  |
 
-## `POST /api/v1/records/import/csv`
+## Import CSV
+
+`POST /api/v1/records/import/csv`
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/records/import/csv \
@@ -54,15 +58,15 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/csv \
 
 ### `parseConfig` options
 
-| Option | Default | Description |
-|---|---|---|
-| `delimiter` | `,` | Column separator |
-| `header` | `true` | First row is header |
-| `skipEmptyLines` | `true` | Ignore blank rows |
-| `dynamicTyping` | `true` | Auto-convert numbers and booleans |
-| `quoteChar` | `"` | Quote character |
-| `escapeChar` | `"` | Escape character |
-| `newline` | auto | Explicit newline sequence |
+| Option           | Default | Description                       |
+| ---------------- | ------- | --------------------------------- |
+| `delimiter`      | `,`     | Column separator                  |
+| `header`         | `true`  | First row is header               |
+| `skipEmptyLines` | `true`  | Ignore blank rows                 |
+| `dynamicTyping`  | `true`  | Auto-convert numbers and booleans |
+| `quoteChar`      | `"`     | Quote character                   |
+| `escapeChar`     | `"`     | Escape character                  |
+| `newline`        | auto    | Explicit newline sequence         |
 
 ## Upsert during import
 
@@ -79,5 +83,3 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
     "options": {"mergeBy": ["name"], "mergeStrategy": "append"}
   }'
 ```
-
-

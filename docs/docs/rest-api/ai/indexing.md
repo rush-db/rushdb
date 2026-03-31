@@ -33,9 +33,7 @@ When new records are created or existing records are updated, the index transiti
 
 ## List Embedding Indexes
 
-```http
-GET /api/v1/ai/indexes
-```
+`GET /api/v1/ai/indexes`
 
 Returns all embedding index policies for the project.
 
@@ -68,9 +66,7 @@ Returns all embedding index policies for the project.
 
 ## Create Embedding Index
 
-```http
-POST /api/v1/ai/indexes
-```
+`POST /api/v1/ai/indexes`
 
 Creates a new managed embedding index policy scoped to a label. The property must exist in the graph and have type `string` (scalar or list).
 
@@ -149,9 +145,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
 
 ## Delete Embedding Index
 
-```http
-DELETE /api/v1/ai/indexes/:id
-```
+`DELETE /api/v1/ai/indexes/:id`
 
 Deletes an embedding index policy. The underlying Neo4j DDL vector index is only dropped when **zero embeddings remain** across the entire project — this avoids unnecessary rebuilds when multiple policies share the same `(dimensions, similarityFunction)`.
 
@@ -172,9 +166,7 @@ curl -X DELETE https://api.rushdb.com/api/v1/ai/indexes/idx_abc123 \
 
 ## Get Embedding Index Stats
 
-```http
-GET /api/v1/ai/indexes/:id/stats
-```
+`GET /api/v1/ai/indexes/:id/stats`
 
 Returns the current indexing progress — useful for progress monitoring or health checks before running search.
 
@@ -274,6 +266,8 @@ When searching or writing vectors against a property with multiple indexes, spec
 
 ---
 
-## `List<String>` properties
+## String Array Properties
+
+`List<String>`
 
 String array properties are supported. Each item in the array is embedded individually, then mean-pooled into a single vector stored on the relationship.

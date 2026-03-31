@@ -20,7 +20,9 @@ db.records.detach(
 )
 ```
 
-## `attach()`
+## Attach
+
+`attach()`
 
 ```python
 # With direction
@@ -38,7 +40,9 @@ db.records.attach(
 )
 ```
 
-## `detach()`
+## Detach
+
+`detach()`
 
 ```python
 db.records.detach(
@@ -50,10 +54,10 @@ db.records.detach(
 
 ## Direction
 
-| Value | Meaning |
-|---|---|
+| Value   | Meaning         |
+| ------- | --------------- |
 | `"out"` | source → target |
-| `"in"` | target → source |
+| `"in"`  | target → source |
 
 ## With a transaction
 
@@ -68,5 +72,3 @@ except Exception:
 ```
 
 For traversal in queries, see [Get Records — Relationship traversal](./records/get-records.md#relationship-traversal).
-
-

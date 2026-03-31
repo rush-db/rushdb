@@ -30,7 +30,7 @@ These settings are defined at the top level in the SearchQuery DTO, alongside fi
 
 ## Pagination Parameters
 
-### `limit`
+### Limit
 
 - **Type**: `number`
 - **Optional**: Yes
@@ -38,7 +38,7 @@ These settings are defined at the top level in the SearchQuery DTO, alongside fi
 - **Valid Range**: `1` to `1000`
 - **Description**: Specifies the maximum number of records to return in the result set.
 
-### `skip`
+### Skip
 
 - **Type**: `number`
 - **Optional**: Yes
@@ -185,9 +185,11 @@ Why it matters: Early ordering limits the raw input rows feeding the aggregation
 ```jsonc
 {
   "labels": ["HS_DEAL"],
-  "aggregate": { "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" } },
+  "aggregate": {
+    "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" },
+  },
   "orderBy": { "totalAmount": "asc" },
-  "groupBy": ["totalAmount"]
+  "groupBy": ["totalAmount"],
 }
 ```
 
@@ -205,8 +207,10 @@ RETURN {`totalAmount`:`totalAmount`} as records
 ```jsonc
 {
   "labels": ["HS_DEAL"],
-  "aggregate": { "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" } },
-  "groupBy": ["totalAmount"]
+  "aggregate": {
+    "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" },
+  },
+  "groupBy": ["totalAmount"],
 }
 ```
 
@@ -224,7 +228,7 @@ In the early order case, only the first 100 deals (by default ID ordering) contr
 ### Guidelines
 
 - Specify `orderBy` on aggregated fields whenever the aggregate should reflect the entire match set.
-- Use early ordering intentionally only when you want to aggregate a *windowed* subset (e.g., rolling sample of newest records).
+- Use early ordering intentionally only when you want to aggregate a _windowed_ subset (e.g., rolling sample of newest records).
 - The behavior applies to any grouped aggregation, not just the self-group pattern.
 
 See also: [Aggregations guide](./aggregations.md#ordering-by-aggregated-keys-late-order--pagination) for more context.

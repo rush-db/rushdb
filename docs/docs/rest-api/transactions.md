@@ -4,7 +4,9 @@ sidebar_position: 6
 
 # Transactions
 
-## `POST /api/v1/tx` — begin
+## Begin Transaction
+
+`POST /api/v1/tx`
 
 ```bash
 TX_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/tx \
@@ -13,34 +15,40 @@ TX_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/tx \
   -d '{"ttl": 10000}' | jq -r '.data.id')
 ```
 
-| Field | Type | Description |
-|---|---|---|
+| Field | Type     | Description                          |
+| ----- | -------- | ------------------------------------ |
 | `ttl` | `number` | TTL in ms. Default: 5000. Max: 30000 |
 
-## `GET /api/v1/tx/:txId` — check existence
+## Check Transaction Existence
+
+`GET /api/v1/tx/:txId`
 
 ```bash
 curl https://api.rushdb.com/api/v1/tx/$TX_ID \
   -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
 
-## `POST /api/v1/tx/:txId/commit`
+## Commit Transaction
+
+`POST /api/v1/tx/:txId/commit`
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
   -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
 
-## `POST /api/v1/tx/:txId/rollback`
+## Roll Back Transaction
+
+`POST /api/v1/tx/:txId/rollback`
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/rollback \
   -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
 
-## Use with requests — `X-Transaction-Id` header
+## Use with Requests
 
-Pass the transaction ID as a header on any create, update, delete, or relationship endpoint:
+Pass `X-Transaction-Id` with the transaction ID on any create, update, delete, or relationship endpoint:
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/records \
@@ -83,5 +91,3 @@ curl -X POST https://api.rushdb.com/api/v1/records/$MOVIE_ID/relationships \
 curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
   -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
-
-

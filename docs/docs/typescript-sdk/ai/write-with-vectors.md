@@ -28,7 +28,9 @@ type VectorEntry = {
 
 ---
 
-## `records.create()` with vectors
+## Create a Record with Vectors
+
+`records.create()`
 
 ```typescript
 const { data: record } = await db.records.create({
@@ -47,7 +49,9 @@ console.log(record.__id) // record is created AND vector is written atomically
 
 ---
 
-## `records.upsert()` with vectors
+## Upsert with Vectors
+
+`records.upsert()`
 
 `upsert` is idempotent on the record's slug (natural key). Passing `vectors` writes (or replaces) the stored vector for each `propertyName` in the same call:
 
@@ -71,7 +75,9 @@ console.log(r1.__id === r2.__id) // true — same record
 
 ---
 
-## `records.set()` with vectors
+## Set with Vectors
+
+`records.set()`
 
 `set` replaces all properties of a record with new values. Including `vectors` writes those vectors at the same time:
 
@@ -91,7 +97,9 @@ await db.records.set(rec.__id, {
 
 ---
 
-## `records.importJson()` with `$vectors`
+## Import JSON with Vectors
+
+`records.importJson()`
 
 For bulk ingestion, add a `$vectors` key alongside properties in each JSON object. The format is the same as the `VectorEntry` array:
 
@@ -124,7 +132,9 @@ Important: `$vectors` entries are stripped before the record is persisted. They:
 
 ---
 
-## `records.createMany()` with vectors
+## Create Multiple Records with Vectors
+
+`records.createMany()`
 
 `createMany` is optimised for flat (CSV-like) rows. Use the top-level `vectors` parameter — an array indexed by row position — to attach a vector to each record without nesting arrays inside your flat data:
 
@@ -177,7 +187,9 @@ db.records.createMany({
 
 ---
 
-## `records.importCsv()` with vectors
+## Import CSV with Vectors
+
+`records.importCsv()`
 
 CSV data is a raw string, so per-row vectors are supplied as a separate `vectors` parameter using the same indexed-array format as `createMany`. Row indices are 0-based and refer to data rows after the header is consumed.
 

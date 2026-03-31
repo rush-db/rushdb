@@ -10,9 +10,7 @@ This endpoint is only available when your project is connected to your own Neo4j
 
 ### REST API
 
-```http
-POST /api/v1/query/raw
-```
+`POST /api/v1/query/raw`
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/query/raw \

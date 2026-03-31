@@ -33,7 +33,9 @@ All write endpoints accept a `vectors` array:
 
 ---
 
-## `POST /api/v1/records` — create with vectors
+## Create a Record with Vectors
+
+`POST /api/v1/records`
 
 The record is created **and** the vector is written atomically:
 
@@ -55,7 +57,9 @@ curl -X POST https://api.rushdb.com/api/v1/records \
 
 ---
 
-## `POST /api/v1/records` — upsert with vectors
+## Upsert with Vectors
+
+`POST /api/v1/records`
 
 Upsert is idempotent on the record's natural key (set via `mergeBy`). Include `vectors` to write or replace the stored vector in the same call:
 
@@ -73,7 +77,9 @@ curl -X POST https://api.rushdb.com/api/v1/records \
 
 ---
 
-## `PUT /api/v1/records/:id` — set with vectors
+## Set with Vectors
+
+`PUT /api/v1/records/:id`
 
 `PUT` replaces all properties of a record with new values. Including `vectors` writes those vectors at the same time:
 
@@ -90,7 +96,9 @@ curl -X PUT https://api.rushdb.com/api/v1/records/rec_abc123 \
 
 ---
 
-## `POST /api/v1/records/import/json` with `$vectors`
+## Import JSON with Vectors
+
+`POST /api/v1/records/import/json`
 
 For bulk ingestion via `importJson`, add a `$vectors` key alongside properties in each JSON object:
 
@@ -126,7 +134,9 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 
 ---
 
-## `POST /api/v1/records/import/json` (flat rows) with `vectors`
+## Import JSON Flat Rows with Vectors
+
+`POST /api/v1/records/import/json`
 
 When using the flat-rows format (equivalent to `createMany`), provide a top-level `vectors` array indexed by row position:
 
@@ -167,7 +177,9 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 
 ---
 
-## `POST /api/v1/records/import/csv` with `vectors`
+## Import CSV with Vectors
+
+`POST /api/v1/records/import/csv`
 
 CSV data is a raw string, so per-row vectors are supplied as a separate `vectors` array using the same indexed format. Row indices are 0-based and refer to data rows after the header is consumed:
 

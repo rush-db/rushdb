@@ -34,17 +34,19 @@ An external index starts with status `awaiting_vectors` and transitions to `read
 
 ### External vs managed comparison
 
-| | Managed | External |
-|---|---|---|
-| `sourceType` | `"managed"` | `"external"` |
-| Initial status | `"pending"` | `"awaiting_vectors"` |
-| Who computes embeddings | RushDB server (configured model) | Your application |
-| `dimensions` required | No (uses server default) | **Yes** |
-| Backfill for existing records | Automatic | Manual via `upsert_vectors` or inline writes |
+|                               | Managed                          | External                                     |
+| ----------------------------- | -------------------------------- | -------------------------------------------- |
+| `sourceType`                  | `"managed"`                      | `"external"`                                 |
+| Initial status                | `"pending"`                      | `"awaiting_vectors"`                         |
+| Who computes embeddings       | RushDB server (configured model) | Your application                             |
+| `dimensions` required         | No (uses server default)         | **Yes**                                      |
+| Backfill for existing records | Automatic                        | Manual via `upsert_vectors` or inline writes |
 
 ---
 
-## `db.ai.indexes.upsert_vectors()`
+## Upsert Vectors
+
+`db.ai.indexes.upsert_vectors()`
 
 The bulk upload API — ideal for seeding an index from a dataset or syncing after a batch pipeline.
 
@@ -125,12 +127,12 @@ db.records.create(
 Two index policies are considered **identical** (and a second `create` returns `409 Conflict`) when all five fields match:
 
 | Field                | Effect on uniqueness |
-|----------------------|----------------------|
-| `label`              | ✅ |
-| `propertyName`       | ✅ |
-| `sourceType`         | ✅ |
-| `similarityFunction` | ✅ |
-| `dimensions`         | ✅ |
+| -------------------- | -------------------- |
+| `label`              | ✅                   |
+| `propertyName`       | ✅                   |
+| `sourceType`         | ✅                   |
+| `similarityFunction` | ✅                   |
+| `dimensions`         | ✅                   |
 
 Changing any one field produces a distinct index and both are allowed to coexist.
 

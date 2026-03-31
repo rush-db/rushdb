@@ -31,12 +31,14 @@ When new records are created or existing records are updated, the index transiti
 
 ---
 
-## `db.ai.indexes.find()`
+## List Indexes
+
+`db.ai.indexes.find()`
 
 List all embedding index policies for the current project.
 
 ```typescript
-const { data: indexes } = await db.ai.indexes.find()
+const { data: indexes } = await db.ai.indexes.find();
 /*
 [
   {
@@ -56,7 +58,9 @@ const { data: indexes } = await db.ai.indexes.find()
 
 ---
 
-## `db.ai.indexes.create()`
+## Create Index
+
+`db.ai.indexes.create()`
 
 Create a new managed embedding index for a string property.
 
@@ -73,38 +77,40 @@ db.ai.indexes.create(params: {
 ```typescript
 // Simplest form — uses server-configured model and dimensions
 const { data: index } = await db.ai.indexes.create({
-  label: 'Book',
-  propertyName: 'description'
-})
+  label: "Book",
+  propertyName: "description",
+});
 
-console.log(index.status) // 'pending' → backfill starts immediately
+console.log(index.status); // 'pending' → backfill starts immediately
 ```
 
 ```typescript
 // With explicit parameters
 const { data: index } = await db.ai.indexes.create({
-  label: 'Article',
-  propertyName: 'body',
-  similarityFunction: 'cosine',
-  dimensions: 1536
-})
+  label: "Article",
+  propertyName: "body",
+  similarityFunction: "cosine",
+  dimensions: 1536,
+});
 ```
 
 > Attempting to create a duplicate `(label, propertyName, sourceType, similarityFunction, dimensions)` tuple returns `409 Conflict`.
 
 ### Index lifecycle
 
-| Status | Description |
-|---|---|
-| `pending` | Policy created, waiting for backfill scheduler |
-| `indexing` | Backfill in progress |
-| `awaiting_vectors` | External index — waiting for client to push vectors |
-| `ready` | All existing records have vectors, search is available |
-| `error` | Backfill failed; check server logs for the cause |
+| Status             | Description                                            |
+| ------------------ | ------------------------------------------------------ |
+| `pending`          | Policy created, waiting for backfill scheduler         |
+| `indexing`         | Backfill in progress                                   |
+| `awaiting_vectors` | External index — waiting for client to push vectors    |
+| `ready`            | All existing records have vectors, search is available |
+| `error`            | Backfill failed; check server logs for the cause       |
 
 ---
 
-## `db.ai.indexes.stats(id)`
+## Get Index Stats
+
+`db.ai.indexes.stats(id)`
 
 Returns the fill rate for an index — useful for progress monitoring or health checks.
 
@@ -113,25 +119,27 @@ db.ai.indexes.stats(id: string): Promise<ApiResponse<EmbeddingIndexStats>>
 ```
 
 ```typescript
-const { data: stats } = await db.ai.indexes.stats(index.id)
-console.log(`${stats.indexedRecords} / ${stats.totalRecords} records indexed`)
+const { data: stats } = await db.ai.indexes.stats(index.id);
+console.log(`${stats.indexedRecords} / ${stats.totalRecords} records indexed`);
 ```
 
 ```typescript
 type EmbeddingIndexStats = {
-  totalRecords: number
-  indexedRecords: number
-}
+  totalRecords: number;
+  indexedRecords: number;
+};
 ```
 
 ---
 
-## `db.ai.indexes.delete(id)`
+## Delete Index
+
+`db.ai.indexes.delete(id)`
 
 Remove an embedding index policy and its scoped vector data.
 
 ```typescript
-await db.ai.indexes.delete(index.id)
+await db.ai.indexes.delete(index.id);
 ```
 
 The underlying Neo4j DDL vector index is only dropped when **zero embeddings remain** across the entire project. This avoids unnecessary index rebuilds when multiple policies share the same `(dimensions, similarityFunction)` combination.
@@ -142,21 +150,21 @@ The underlying Neo4j DDL vector index is only dropped when **zero embeddings rem
 
 ```typescript
 type EmbeddingIndex = {
-  id: string
-  projectId: string
+  id: string;
+  projectId: string;
   /** Neo4j label this index is scoped to (e.g. "Book"). */
-  label: string
-  propertyName: string
-  modelKey: string
-  sourceType: 'managed' | 'external'
-  similarityFunction: 'cosine' | 'euclidean'
-  dimensions: number
-  vectorPropertyName: string  // internal Neo4j property name for the vector
-  enabled: boolean
-  status: string
-  createdAt: string
-  updatedAt: string
-}
+  label: string;
+  propertyName: string;
+  modelKey: string;
+  sourceType: "managed" | "external";
+  similarityFunction: "cosine" | "euclidean";
+  dimensions: number;
+  vectorPropertyName: string; // internal Neo4j property name for the vector
+  enabled: boolean;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
 ```
 
 ---
@@ -169,21 +177,24 @@ For managed indexes, backfill runs asynchronously. Poll `db.ai.indexes.find()` u
 async function waitForIndexReady(
   db: RushDB,
   indexId: string,
-  timeoutMs = 90_000
+  timeoutMs = 90_000,
 ): Promise<void> {
-  const deadline = Date.now() + timeoutMs
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const { data: indexes } = await db.ai.indexes.find()
-    const idx = indexes.find(i => i.id === indexId)
-    if (idx?.status === 'ready') return
-    if (idx?.status === 'error') throw new Error('Index entered error state')
-    await new Promise(r => setTimeout(r, 3_000))
+    const { data: indexes } = await db.ai.indexes.find();
+    const idx = indexes.find((i) => i.id === indexId);
+    if (idx?.status === "ready") return;
+    if (idx?.status === "error") throw new Error("Index entered error state");
+    await new Promise((r) => setTimeout(r, 3_000));
   }
-  throw new Error('Index did not become ready in time')
+  throw new Error("Index did not become ready in time");
 }
 
-const { data: index } = await db.ai.indexes.create({ label: 'Book', propertyName: 'description' })
-await waitForIndexReady(db, index.id)
+const { data: index } = await db.ai.indexes.create({
+  label: "Book",
+  propertyName: "description",
+});
+await waitForIndexReady(db, index.id);
 // now safe to call db.ai.search(...)
 ```
 
@@ -196,24 +207,26 @@ You can have more than one index per `(label, propertyName)` pair, provided the 
 ```typescript
 // Same label + property, different similarity function
 await db.ai.indexes.create({
-  label: 'Product',
-  propertyName: 'description',
-  similarityFunction: 'cosine',
-  dimensions: 768
-})
+  label: "Product",
+  propertyName: "description",
+  similarityFunction: "cosine",
+  dimensions: 768,
+});
 
 await db.ai.indexes.create({
-  label: 'Product',
-  propertyName: 'description',
-  similarityFunction: 'euclidean',
-  dimensions: 768
-})
+  label: "Product",
+  propertyName: "description",
+  similarityFunction: "euclidean",
+  dimensions: 768,
+});
 ```
 
 When performing a search or writing inline vectors against a property with multiple indexes, specify `similarityFunction` to disambiguate. See [Advanced Indexing — BYOV](./advanced-indexing.md#disambiguation) for details.
 
 ---
 
-## `List<String>` properties
+## String Array Properties
+
+`List<String>`
 
 String array properties are supported. Each item in the array is embedded individually, then mean-pooled into a single vector stored on the relationship.

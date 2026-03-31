@@ -62,13 +62,11 @@ An external index starts with status `awaiting_vectors` and transitions to `read
 
 ---
 
-## Pushing vectors with `POST /api/v1/ai/indexes/:id/vectors/upsert`
+## Upsert Vectors
+
+`POST /api/v1/ai/indexes/:id/vectors/upsert`
 
 The bulk upload API — ideal for seeding an index from a dataset or syncing after a batch pipeline.
-
-```http
-POST /api/v1/ai/indexes/:id/vectors/upsert
-```
 
 ### Request Body
 

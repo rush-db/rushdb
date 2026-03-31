@@ -9,11 +9,11 @@ RushDB is a **self-aware memory layer for agents, humans, and apps**. It continu
 
 The `db.ai` namespace covers three capabilities:
 
-| Capability | Description |
-|---|---|
-| **Graph Ontology** | Self-describing schema discovery: label names, field types, value ranges, and the relationship map — always up to date |
-| **Embedding Indexes** | Per-label vector policies that turn string properties into long-term semantic memory |
-| **Semantic Search** | Cosine/euclidean similarity retrieval over indexed properties, for agents and apps alike |
+| Capability            | Description                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Graph Ontology**    | Self-describing schema discovery: label names, field types, value ranges, and the relationship map — always up to date |
+| **Embedding Indexes** | Per-label vector policies that turn string properties into long-term semantic memory                                   |
+| **Semantic Search**   | Cosine/euclidean similarity retrieval over indexed properties, for agents and apps alike                               |
 
 ---
 
@@ -56,13 +56,13 @@ The `db.ai` namespace covers three capabilities:
 
 ## Quick links
 
-| Topic | Description |
-|---|---|
-| [Ontology](./overview.md#graph-ontology) | Schema discovery with `getOntology` / `getOntologyMarkdown` |
-| [Indexing](./indexing.md) | Create and manage managed embedding indexes |
-| [Advanced indexing — BYOV](./advanced-indexing.md) | Bring Your Own Vectors: external indexes, inline writes |
-| [Semantic search](./search.md) | Query by meaning with `db.ai.search()` |
-| [Writing with vectors](./write-with-vectors.md) | Attach vectors at create / upsert / importJson time |
+| Topic                                              | Description                                                 |
+| -------------------------------------------------- | ----------------------------------------------------------- |
+| [Ontology](./overview.md#graph-ontology)           | Schema discovery with `getOntology` / `getOntologyMarkdown` |
+| [Indexing](./indexing.md)                          | Create and manage managed embedding indexes                 |
+| [Advanced indexing — BYOV](./advanced-indexing.md) | Bring Your Own Vectors: external indexes, inline writes     |
+| [Semantic search](./search.md)                     | Query by meaning with `db.ai.search()`                      |
+| [Writing with vectors](./write-with-vectors.md)    | Attach vectors at create / upsert / importJson time         |
 
 ---
 
@@ -70,7 +70,9 @@ The `db.ai` namespace covers three capabilities:
 
 The ontology endpoints expose a live snapshot of your database structure — without any manual schema definitions.
 
-### `db.ai.getOntologyMarkdown()`
+### Get Ontology as Markdown
+
+`db.ai.getOntologyMarkdown()`
 
 Returns the full schema as compact Markdown — the **recommended format for LLM context injection**.
 
@@ -83,14 +85,16 @@ db.ai.getOntologyMarkdown(
 
 ```typescript
 // Inject into LLM at session start
-const { data: schema } = await db.ai.getOntologyMarkdown()
+const { data: schema } = await db.ai.getOntologyMarkdown();
 const messages = [
-  { role: 'system', content: `You are a data assistant.\n\n${schema}` },
-  { role: 'user',   content: 'How many paid orders are there?' }
-]
+  { role: "system", content: `You are a data assistant.\n\n${schema}` },
+  { role: "user", content: "How many paid orders are there?" },
+];
 
 // Scope to specific labels
-const { data: orderSchema } = await db.ai.getOntologyMarkdown({ labels: ['Order'] })
+const { data: orderSchema } = await db.ai.getOntologyMarkdown({
+  labels: ["Order"],
+});
 ```
 
 <details>
@@ -131,7 +135,9 @@ const { data: orderSchema } = await db.ai.getOntologyMarkdown({ labels: ['Order'
 
 ---
 
-### `db.ai.getOntology()`
+### Get Ontology (raw)
+
+`db.ai.getOntology()`
 
 Returns the same ontology as a structured JSON array — useful for schema UIs, auto-complete, or looking up property IDs for `db.properties.values()`.
 
@@ -144,39 +150,41 @@ db.ai.getOntology(
 
 ```typescript
 // List all labels with counts
-const { data: ontology } = await db.ai.getOntology()
+const { data: ontology } = await db.ai.getOntology();
 for (const item of ontology) {
-  console.log(`${item.label}: ${item.count} records`)
+  console.log(`${item.label}: ${item.count} records`);
 }
 
 // Get property ID for value enumeration
-const { data: [bookSchema] } = await db.ai.getOntology({ labels: ['Book'] })
-const genreProp = bookSchema.properties.find(p => p.name === 'genre')
-const { data: genres } = await db.properties.values({ id: genreProp.id })
+const {
+  data: [bookSchema],
+} = await db.ai.getOntology({ labels: ["Book"] });
+const genreProp = bookSchema.properties.find((p) => p.name === "genre");
+const { data: genres } = await db.properties.values({ id: genreProp.id });
 ```
 
 ```typescript
 type OntologyItem = {
-  label: string
-  count: number
-  properties: OntologyProperty[]
-  relationships: OntologyRelationship[]
-}
+  label: string;
+  count: number;
+  properties: OntologyProperty[];
+  relationships: OntologyRelationship[];
+};
 
 type OntologyProperty = {
-  id: string                       // use with db.properties.values()
-  name: string
-  type: string                     // 'string' | 'number' | 'boolean' | 'datetime'
-  values?: Array<string | number>  // up to 10 samples (string/boolean only)
-  min?: number | string            // number/datetime only
-  max?: number | string
-}
+  id: string; // use with db.properties.values()
+  name: string;
+  type: string; // 'string' | 'number' | 'boolean' | 'datetime'
+  values?: Array<string | number>; // up to 10 samples (string/boolean only)
+  min?: number | string; // number/datetime only
+  max?: number | string;
+};
 
 type OntologyRelationship = {
-  label: string
-  type: string
-  direction: 'in' | 'out'
-}
+  label: string;
+  type: string;
+  direction: "in" | "out";
+};
 ```
 
 :::note Caching

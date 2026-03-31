@@ -56,9 +56,11 @@ An external index starts with status `awaiting_vectors` and transitions to `read
 
 ---
 
-## Pushing vectors with `upsertVectors`
+## Upsert Vectors
 
-`db.ai.indexes.upsertVectors()` is the bulk upload API — ideal for seeding an index from a dataset or syncing after a batch pipeline.
+`db.ai.indexes.upsertVectors()`
+
+The bulk upload API — ideal for seeding an index from a dataset or syncing after a batch pipeline.
 
 ```typescript
 db.ai.indexes.upsertVectors(

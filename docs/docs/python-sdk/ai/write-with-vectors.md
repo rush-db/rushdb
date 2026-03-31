@@ -27,7 +27,9 @@ vectors = [
 
 ---
 
-## `db.records.create()` with vectors
+## Create a Record with Vectors
+
+`db.records.create()`
 
 ```python
 record = db.records.create(
@@ -46,7 +48,9 @@ print(record.data["__id"])  # record created AND vector written atomically
 
 ---
 
-## `db.records.upsert()` with vectors
+## Upsert with Vectors
+
+`db.records.upsert()`
 
 `upsert` is idempotent on the record's natural key (`mergeBy`). Passing `vectors` writes or replaces the stored vector for each `propertyName` in the same call:
 
@@ -72,7 +76,9 @@ r2 = db.records.upsert(
 
 ---
 
-## `db.records.set()` with vectors
+## Set with Vectors
+
+`db.records.set()`
 
 `set` replaces all properties of a record with new values. Including `vectors` writes those vectors at the same time:
 
@@ -88,7 +94,9 @@ db.records.set(
 
 ---
 
-## `db.records.import_json()` with `$vectors`
+## Import JSON with Vectors
+
+`db.records.import_json()`
 
 For bulk ingestion, add a `$vectors` key alongside properties in each JSON object. The format is the same as the `vectors` list:
 
@@ -121,7 +129,9 @@ db.records.import_json({
 
 ---
 
-## `db.records.create_many()` with vectors
+## Create Multiple Records with Vectors
+
+`db.records.create_many()`
 
 `create_many` is optimised for flat rows. Use the top-level `vectors` parameter — a list indexed by row position — to attach a vector to each record without nesting inside your flat data:
 
@@ -156,7 +166,9 @@ db.records.create_many(
 
 ---
 
-## `db.records.import_csv()` with vectors
+## Import CSV with Vectors
+
+`db.records.import_csv()`
 
 CSV data is a raw string, so per-row vectors are supplied as a separate `vectors` parameter using the same indexed-list format. Row indices are 0-based and refer to data rows after the header is consumed:
 

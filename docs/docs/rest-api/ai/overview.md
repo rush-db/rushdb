@@ -72,9 +72,7 @@ The ontology endpoints expose a live snapshot of your database structure — wit
 
 ### Get Ontology (Markdown)
 
-```http
-POST /api/v1/ai/ontology/md
-```
+`POST /api/v1/ai/ontology/md`
 
 Returns the full schema as compact Markdown — the **recommended format for LLM context injection**: token-efficient, human-readable, and ready to paste into a system prompt or tool result.
 
@@ -141,9 +139,7 @@ Returns only the `Order` section. The underlying cache still covers the full sch
 
 ### Get Ontology (JSON)
 
-```http
-POST /api/v1/ai/ontology
-```
+`POST /api/v1/ai/ontology`
 
 Returns the same ontology as a structured JSON array. Each element describes one label.
 

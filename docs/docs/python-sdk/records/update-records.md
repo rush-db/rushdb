@@ -4,7 +4,9 @@ sidebar_position: 6
 
 # Update Records
 
-## `db.records.update()` — partial update
+## Partial Update
+
+`db.records.update()`
 
 Unspecified fields are preserved.
 
@@ -19,7 +21,9 @@ db.records.update(
 )
 ```
 
-## `db.records.set()` — full replacement
+## Full Replacement
+
+`db.records.set()`
 
 All previous fields are removed, then replaced with the new data.
 

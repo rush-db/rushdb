@@ -4,7 +4,9 @@ sidebar_position: 5
 
 # Labels
 
-## `POST /api/v1/labels/search`
+## Search Labels
+
+`POST /api/v1/labels/search`
 
 Returns all labels and their record counts. Pass a `where` clause to filter by record properties.
 
@@ -23,5 +25,3 @@ curl -X POST https://api.rushdb.com/api/v1/labels/search \
 ```
 
 Response: map of `{ label: count }`.
-
-

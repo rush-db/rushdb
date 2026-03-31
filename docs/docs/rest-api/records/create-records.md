@@ -4,7 +4,9 @@ sidebar_position: 1
 
 # Create Records
 
-## `POST /api/v1/records`
+## Create a Record
+
+`POST /api/v1/records`
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/records \
@@ -19,23 +21,23 @@ curl -X POST https://api.rushdb.com/api/v1/records \
 
 ### Request body
 
-| Field | Type | Description |
-|---|---|---|
-| `label` | string | Label for the new record |
-| `data` | object | Property key-value pairs |
-| `options` | object | See options table below |
+| Field     | Type   | Description              |
+| --------- | ------ | ------------------------ |
+| `label`   | string | Label for the new record |
+| `data`    | object | Property key-value pairs |
+| `options` | object | See options table below  |
 
 ### Options
 
-| Option | Default | Description |
-|---|---|---|
-| `suggestTypes` | `true` | Infer property types automatically |
-| `convertNumericValuesToNumbers` | `false` | Convert string numbers to number type |
-| `capitalizeLabels` | `false` | Uppercase all inferred label names |
-| `relationshipType` | `__RUSHDB__RELATION__DEFAULT__` | Relationship type for nested links |
-| `returnResult` | `false` | Return the created record in the response |
-| `mergeBy` | — | Fields to match on for upsert |
-| `mergeStrategy` | `append` | `append` or `rewrite` |
+| Option                          | Default                         | Description                               |
+| ------------------------------- | ------------------------------- | ----------------------------------------- |
+| `suggestTypes`                  | `true`                          | Infer property types automatically        |
+| `convertNumericValuesToNumbers` | `false`                         | Convert string numbers to number type     |
+| `capitalizeLabels`              | `false`                         | Uppercase all inferred label names        |
+| `relationshipType`              | `__RUSHDB__RELATION__DEFAULT__` | Relationship type for nested links        |
+| `returnResult`                  | `false`                         | Return the created record in the response |
+| `mergeBy`                       | —                               | Fields to match on for upsert             |
+| `mergeStrategy`                 | `append`                        | `append` or `rewrite`                     |
 
 ## Upsert (create or update)
 
@@ -53,15 +55,15 @@ curl -X POST https://api.rushdb.com/api/v1/records \
   }'
 ```
 
-| `mergeBy` value | Match behaviour |
-|---|---|
-| `["field"]` | Match only on listed fields |
+| `mergeBy` value | Match behaviour                     |
+| --------------- | ----------------------------------- |
+| `["field"]`     | Match only on listed fields         |
 | `[]` or omitted | Match on ALL incoming property keys |
 
-| Strategy | Behaviour |
-|---|---|
+| Strategy           | Behaviour                                                      |
+| ------------------ | -------------------------------------------------------------- |
 | `append` (default) | Add/update incoming fields; preserve all other existing fields |
-| `rewrite` | Replace all fields; unmentioned fields are removed |
+| `rewrite`          | Replace all fields; unmentioned fields are removed             |
 
 ## Precise type control (properties array)
 
@@ -100,5 +102,3 @@ curl -X POST https://api.rushdb.com/api/v1/records \
 curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
   -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
-
-
