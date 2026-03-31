@@ -48,11 +48,13 @@ const sidebars: SidebarsConfig = {
       label: 'Core Concepts',
       collapsed: false,
       items: [
-        'concepts/storage',
         'concepts/records',
+        'concepts/agent-memory-model',
         'concepts/labels',
         'concepts/properties',
         'concepts/relationships',
+        'concepts/ontology-schema-discovery',
+        'concepts/storage',
         'concepts/transactions',
         {
           label: 'Search',
