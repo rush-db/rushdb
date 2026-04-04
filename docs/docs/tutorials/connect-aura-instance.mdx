@@ -124,6 +124,29 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 
 BYOC and self-hosted projects have access to `POST /api/v1/query/raw`. Use it to confirm data is landing in Aura directly.
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const result = await db.query.raw(
+  'MATCH (n) RETURN labels(n) AS labels, count(n) AS count GROUP BY labels(n) LIMIT 20'
+)
+console.log(result)
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = db.query.raw(
+    "MATCH (n) RETURN labels(n) AS labels, count(n) AS count GROUP BY labels(n) LIMIT 20"
+)
+print(result)
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/query/raw \
   -H "Authorization: Bearer YOUR_API_KEY" \
@@ -132,6 +155,9 @@ curl -X POST https://api.rushdb.com/api/v1/query/raw \
     "query": "MATCH (n) RETURN labels(n) AS labels, count(n) AS count GROUP BY labels(n) LIMIT 20"
   }'
 ```
+
+</TabItem>
+</Tabs>
 
 You can also open the Aura console's built-in Browser and run the same Cypher query directly to confirm the same nodes appear.
 

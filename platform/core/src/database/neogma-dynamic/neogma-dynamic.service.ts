@@ -9,6 +9,7 @@ import {
   RUSHDB_LABEL_PROPERTY,
   RUSHDB_LABEL_RECORD
 } from '@/core/common/constants'
+import { Neo4jCapabilitiesService } from '@/database/neo4j-capabilities.service'
 
 import { INeogmaConfig } from '../neogma/neogma-config.interface'
 import { createInstance } from '../neogma/neogma.util'
@@ -71,6 +72,16 @@ export class NeogmaDynamicService {
 
       await this.initializeSchema(testConnection)
       isDevMode(() => Logger.log(`Schema initialization on test connection succeeded.`))
+
+      // Validate Neo4j version meets minimum requirements
+      const versionSession = testConnection.driver.session()
+      try {
+        const version = await Neo4jCapabilitiesService.getVersionFromSession(versionSession)
+        Neo4jCapabilitiesService.assertVersionSupported(version)
+        isDevMode(() => Logger.log(`Custom DB Neo4j version ${version} — OK`))
+      } finally {
+        await versionSession.close()
+      }
     } catch (error) {
       isDevMode(() => Logger.error(`Custom DB connection test failed: ${error.message}`, error.stack))
       throw new ServiceUnavailableException(`Custom DB connection test failed: ${error.message}`)

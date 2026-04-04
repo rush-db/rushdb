@@ -102,3 +102,7 @@ curl -X POST https://api.rushdb.com/api/v1/records \
 curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
   -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
+
+## See also
+
+- [Writing Records with Vectors](../ai/write-with-vectors.md) — attach embedding vectors when creating or upserting records

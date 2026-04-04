@@ -36,7 +36,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 | `convertNumericValuesToNumbers` | `false`                         | Convert string numbers to number type  |
 | `capitalizeLabels`              | `false`                         | Uppercase all inferred label names     |
 | `relationshipType`              | `__RUSHDB__RELATION__DEFAULT__` | Relationship type for nested links     |
-| `returnResult`                  | `false`                         | Return created records in the response |
+| `returnResult`                  | `false`                         | Return created records in the response. For imports exceeding 1000 records, this option is ignored and a summary object (`{ message, count }`) is returned instead. |
 | `mergeBy`                       | —                               | Fields to match on for upsert          |
 | `mergeStrategy`                 | `append`                        | `append` or `rewrite`                  |
 
@@ -83,3 +83,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
     "options": {"mergeBy": ["name"], "mergeStrategy": "append"}
   }'
 ```
+
+## See also
+
+- [Writing Records with Vectors](../ai/write-with-vectors.md) — embed `$vectors` in import payloads to attach vectors inline during import

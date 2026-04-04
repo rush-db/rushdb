@@ -24,7 +24,11 @@ import { TEntityPropertiesNormalized } from '@/core/entity/entity.types'
 import { ImportCsvDto } from '@/core/entity/import-export/dto/import-csv.dto'
 import { ImportJsonDto } from '@/core/entity/import-export/dto/import-json.dto'
 import { ImportService } from '@/core/entity/import-export/import.service'
-import { TImportJsonInputFormat, TImportJsonPayload } from '@/core/entity/import-export/import.types'
+import {
+  TImportJsonInputFormat,
+  TImportJsonPayload,
+  TImportSummary
+} from '@/core/entity/import-export/import.types'
 import {
   importCsvSchema,
   importJsonSchema
@@ -114,7 +118,7 @@ export class ImportController {
     @TransactionDecorator() transaction: Transaction,
     @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
-  ): Promise<boolean | TEntityPropertiesNormalized[]> {
+  ): Promise<boolean | TImportSummary | TEntityPropertiesNormalized[]> {
     try {
       const projectId = request.projectId
       const normalizedBody: ImportJsonDto = {
@@ -149,7 +153,7 @@ export class ImportController {
     // Main tx to write data (could be default db or external)
     @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
-  ): Promise<boolean | TEntityPropertiesNormalized[]> {
+  ): Promise<boolean | TImportSummary | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId
 
     const defaultConfig = {

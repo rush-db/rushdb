@@ -54,23 +54,19 @@ export class EntityQueryService {
         `WHERE (r.label IS NULL OR ANY(l IN labels(record) WHERE l = r.label)) AND ALL(k IN keysToMatch WHERE record[k] = valuesMap[k])`
       )
       .append(
-        `WITH * CALL apoc.do.when(record IS NULL, 'CREATE (newRecord:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} }) RETURN newRecord', 'RETURN NULL', { r:r, projectId: $projectId }) YIELD value`
+        `CALL (*) {\n` +
+          `  WHEN record IS NULL THEN {\n` +
+          `    CREATE (newRecord:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} })\n` +
+          `    RETURN newRecord AS record\n` +
+          `  } ELSE {\n` +
+          `    RETURN record\n` +
+          `  }\n` +
+          `}`
       )
 
-      // @TODO: Use this instead `apoc.do.when` after migrating prod db to Neo4j 2025.06 or higher
-      // .append(
-      //   `CALL (*) {
-      //     WHEN record IS NULL THEN {
-      //       CREATE (newRecord:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} }) RETURN newRecord AS record
-      //     } ELSE {
-      //       RETURN record
-      //     }
-      //   }`
-      // )
-      .append(`WITH *, coalesce(value.newRecord, record) AS record`)
-      .append(
-        `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as upsertLabelResult`
-      )
+    queryBuilder.append(
+      `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as upsertLabelResult`
+    )
 
     if (rewrite) {
       queryBuilder

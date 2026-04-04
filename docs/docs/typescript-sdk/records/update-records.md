@@ -97,3 +97,7 @@ await MovieModel.set("movie-id-123", {
   genre: "sci-fi",
 });
 ```
+
+## See also
+
+- [Writing Records with Vectors](../ai/write-with-vectors.md) — attach embedding vectors when creating or upserting records

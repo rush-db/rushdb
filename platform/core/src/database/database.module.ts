@@ -9,6 +9,7 @@ import {
   RUSHDB_LABEL_PROPERTY,
   RUSHDB_LABEL_RECORD
 } from '@/core/common/constants'
+import { Neo4jCapabilitiesService } from '@/database/neo4j-capabilities.service'
 import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
 import { NeogmaModule } from '@/database/neogma/neogma.module'
 import { NeogmaService } from '@/database/neogma/neogma.service'
@@ -29,8 +30,8 @@ import { SqlModule } from '@/database/sql/sql.module'
     }),
     SqlModule.forRootAsync()
   ],
-  providers: [],
-  exports: []
+  providers: [Neo4jCapabilitiesService],
+  exports: [Neo4jCapabilitiesService]
 })
 export class DatabaseModule implements OnModuleInit {
   constructor(

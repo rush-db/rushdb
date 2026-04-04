@@ -1,10 +1,12 @@
-import { IsArray, IsIn, IsNumber, IsOptional, IsString } from 'class-validator'
+import { ArrayMinSize, IsArray, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator'
 
 export class InlineVectorEntryDto {
+  @IsNotEmpty()
   @IsString()
   propertyName: string
 
   @IsArray()
+  @ArrayMinSize(1)
   @IsNumber({}, { each: true })
   vector: number[]
 

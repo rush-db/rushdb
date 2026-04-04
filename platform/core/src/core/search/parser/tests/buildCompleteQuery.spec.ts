@@ -237,7 +237,7 @@ const q3 = {
 
 const r3 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 WHERE (any(value IN record.\`tag\` WHERE value = "top-sellers")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)<-[:AUTHORED]-(record1:__RUSHDB__LABEL__RECORD__:\`AUTHOR\`) WHERE ((any(value IN record1.\`name\` WHERE value STARTS WITH "Jack") AND any(value IN record1.\`name\` WHERE value ENDS WITH "Rooney") OR any(value IN record1.\`name\` WHERE apoc.convert.fromJsonMap(record1.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`name\` = "datetime" AND datetime(value) = datetime({year: 1984}))))
+OPTIONAL MATCH (record)<-[:AUTHORED]-(record1:__RUSHDB__LABEL__RECORD__:\`AUTHOR\`) WHERE (((any(value IN record1.\`name\` WHERE value STARTS WITH "Jack") AND any(value IN record1.\`name\` WHERE value ENDS WITH "Rooney")) OR any(value IN record1.\`name\` WHERE apoc.convert.fromJsonMap(record1.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`name\` = "datetime" AND datetime(value) = datetime({year: 1984}))))
 OPTIONAL MATCH (record)--(record2:__RUSHDB__LABEL__RECORD__:\`POST\`) WHERE (any(value IN record2.\`created\` WHERE apoc.convert.fromJsonMap(record2.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`created\` = "datetime" AND datetime(value) = datetime({year: 2011, month: 11, day: 11}))) AND (((any(value IN record2.\`rating\` WHERE value > 4.5) AND any(value IN record2.\`rating\` WHERE value < 6)) OR any(value IN record2.\`rating\` WHERE value <> 3) OR (NOT(any(value IN record2.\`rating\` WHERE value >= 4))))) AND (any(value IN record2.\`title\` WHERE value <> "Forest"))
 OPTIONAL MATCH (record2)-[:COMMENT_TO_POST]->(record3:__RUSHDB__LABEL__RECORD__:\`COMMENT\`) WHERE (any(value IN record3.\`authoredBy\` WHERE value =~ "(?i).*Sam.*"))
 OPTIONAL MATCH (record2)--(record4:__RUSHDB__LABEL__RECORD__:\`CAR\`) WHERE (any(value IN record4.\`color\` WHERE value = "red"))
@@ -284,7 +284,7 @@ const q6 = {
 }
 
 const r6 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((any(value IN record.\`__RUSHDB__KEY__ID__\` WHERE value = "1234567890") OR any(value IN record.\`__RUSHDB__KEY__ID__\` WHERE value = "0987654321"))) AND (any(value IN record.\`name\` WHERE value = "alex")) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+WHERE (((any(value IN record.\`__RUSHDB__KEY__ID__\` WHERE value = "1234567890") OR any(value IN record.\`__RUSHDB__KEY__ID__\` WHERE value = "0987654321"))) AND (any(value IN record.\`name\` WHERE value = "alex"))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
 OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`USER\`) WHERE (any(value IN record1.\`__RUSHDB__KEY__ID__\` WHERE value IN ["1234567890", "0987654321"]))
 WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
 RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
@@ -339,116 +339,6 @@ OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`departments\`)
 WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
 RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departmentId\`: record1.\`__RUSHDB__KEY__ID__\`} as records`
 
-const q9 = {
-  where: {
-    emb: {
-      $vector: {
-        fn: 'vector.similarity.cosine',
-        query: [1, 2, 3, 4, 5],
-        threshold: {
-          $gte: 0.5,
-          $lte: 0.8,
-          $ne: 0.75
-        }
-      }
-    }
-  }
-}
-
-const r9 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((record.\`emb\` IS NOT NULL AND apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`emb\` = "vector" AND vector.similarity.cosine(record.\`emb\`, [1,2,3,4,5]) >= 0.5 AND vector.similarity.cosine(record.\`emb\`, [1,2,3,4,5]) <= 0.8 AND vector.similarity.cosine(record.\`emb\`, [1,2,3,4,5]) <> 0.75)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
-
-const q10 = {
-  where: {
-    DOCUMENT: {
-      CHUNK: {
-        embedding: {
-          $vector: {
-            fn: 'vector.similarity.cosine',
-            query: [1, 2, 3, 4, 5],
-            threshold: {
-              $gte: 0.5,
-              $lte: 0.8,
-              $ne: 0.75
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-const r10 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`DOCUMENT\`)
-OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:\`CHUNK\`) WHERE ((record2.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(record2.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND vector.similarity.cosine(record2.\`embedding\`, [1,2,3,4,5]) >= 0.5 AND vector.similarity.cosine(record2.\`embedding\`, [1,2,3,4,5]) <= 0.8 AND vector.similarity.cosine(record2.\`embedding\`, [1,2,3,4,5]) <> 0.75))
-WITH record, record1, record2 WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
-RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
-
-const q11 = {
-  where: {
-    DOCUMENT: {
-      CHUNK: {
-        embedding: {
-          $vector: {
-            fn: 'vector.similarity.cosine',
-            query: [1, 2, 3, 4, 5],
-            threshold: 0.75
-          }
-        }
-      }
-    }
-  }
-}
-
-const r11 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`DOCUMENT\`)
-OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:\`CHUNK\`) WHERE ((record2.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(record2.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND vector.similarity.cosine(record2.\`embedding\`, [1,2,3,4,5]) >= 0.75))
-WITH record, record1, record2 WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
-RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`
-
-const q12 = {
-  where: {
-    embedding: {
-      $vector: {
-        fn: 'vector.similarity.euclidean',
-        query: [
-          0.0123, -0.4421, 0.9372, 0.1284, -0.3349, 0.7821, -0.2843, 0.1634, 0.4372, -0.219, 0.6612, 0.0841,
-          -0.3312, 0.9123, -0.1055, 0.0041, 0.4388, -0.7881, 0.5523, 0.0011, 0.7342, -0.2284, 0.1156, -0.5472,
-          0.3328, 0.9811, -0.1112, 0.0045, 0.6233, -0.7
-        ],
-        threshold: 0.93
-      }
-    }
-  },
-  aggregate: {
-    similarity: {
-      fn: 'vector.similarity.euclidean',
-      field: 'embedding',
-      query: [
-        0.0123, -0.4421, 0.9372, 0.1284, -0.3349, 0.7821, -0.2843, 0.1634, 0.4372, -0.219, 0.6612, 0.0841,
-        -0.3312, 0.9123, -0.1055, 0.0041, 0.4388, -0.7881, 0.5523, 0.0011, 0.7342, -0.2284, 0.1156, -0.5472,
-        0.3328, 0.9811, -0.1112, 0.0045, 0.6233, -0.7
-      ],
-      alias: '$record'
-    }
-  },
-  orderBy: 'asc',
-  skip: 0,
-  limit: 1000
-}
-
-const r12 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WHERE ((record.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND vector.similarity.euclidean(record.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7]) <= 0.93)) ORDER BY record.\`__RUSHDB__KEY__ID__\` ASC SKIP 0 LIMIT 1000
-WITH record, CASE
-    WHEN record.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND size(\`record\`.\`embedding\`) = size([0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
-    THEN vector.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
-    ELSE null
-  END AS \`similarity\`
-RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`} as records`
-
 const q13 = {
   where: {},
   aggregate: {
@@ -470,7 +360,7 @@ const q13 = {
 
 const r13 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 WITH record, CASE
-    WHEN record.\`embedding\` IS NOT NULL AND apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`embedding\` = "vector" AND size(\`record\`.\`embedding\`) = size([0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
+    WHEN \`record\`.\`embedding\` IS NOT NULL AND size(\`record\`.\`embedding\`) = size([0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
     THEN vector.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
     ELSE null
   END AS \`similarity\`
@@ -745,7 +635,7 @@ const q24 = {
 }
 
 const r24 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1, day: 1}) ELSE null END AS byYear, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1, day: 1}) ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 100
 RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
 
@@ -772,7 +662,7 @@ const q25 = {
 }
 
 const r25 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime.truncate('week', datetime(record.\`dob\`)) ELSE null END AS byYear, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime.truncate('week', datetime(record.\`dob\`)) ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
 RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
 
@@ -800,7 +690,7 @@ const q26 = {
 }
 
 const r26 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1 + 6 * toInteger(floor((datetime(record.\`dob\`).month - 1)/6)), day: 1}) ELSE null END AS byYear, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1 + 6 * toInteger(floor((datetime(record.\`dob\`).month - 1)/6)), day: 1}) ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
 RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
 
@@ -827,7 +717,7 @@ const q27 = {
 }
 
 const r27 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1 + 3 * toInteger(floor((datetime(record.\`dob\`).month - 1)/3)), day: 1}) ELSE null END AS byYear, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1 + 3 * toInteger(floor((datetime(record.\`dob\`).month - 1)/3)), day: 1}) ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
 RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
 
@@ -945,30 +835,6 @@ describe('build complete query', () => {
     const result = queryService.findRecords({ searchQuery: q8 })
 
     expect(result).toEqual(r8)
-  })
-
-  it('9', () => {
-    const result = queryService.findRecords({ searchQuery: q9 })
-
-    expect(result).toEqual(r9)
-  })
-
-  it('10', () => {
-    const result = queryService.findRecords({ searchQuery: q10 })
-
-    expect(result).toEqual(r10)
-  })
-
-  it('11', () => {
-    const result = queryService.findRecords({ searchQuery: q11 })
-
-    expect(result).toEqual(r11)
-  })
-
-  it('12', () => {
-    const result = queryService.findRecords({ searchQuery: q12 })
-
-    expect(result).toEqual(r12)
   })
 
   it('13', () => {

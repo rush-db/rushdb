@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common'
 import { isArray } from '@/common/utils/isArray'
 import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
@@ -182,8 +183,12 @@ export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap, g
                 const [recordAlias, ...fieldDescriptors] = variable.split('.')
                 const propertyNameRaw = fieldDescriptors.join('.')
 
-                // @TODO: throw error if alias is missing
-                // const recordQueryVariable = aliasesMap[recordAlias]
+                if (!aliasesMap[recordAlias]) {
+                  throw new BadRequestException(
+                    `Group-by variable "${variable}" references unknown alias "${recordAlias}". ` +
+                      `Ensure "${recordAlias}" is declared in the aggregate section.`
+                  )
+                }
 
                 const propertyName = propertyNameRaw === RUSHDB_KEY_ID_ALIAS ? RUSHDB_KEY_ID : propertyNameRaw
 

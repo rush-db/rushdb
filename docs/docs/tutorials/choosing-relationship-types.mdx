@@ -22,6 +22,9 @@ This tutorial covers the tradeoffs clearly so you can make the right call up fro
 
 You let RushDB's automatic nesting create edges by importing JSON with deeply nested objects. The resulting relationship type is a generated name derived from the parent label.
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
 ```typescript
 await db.records.importJson({
   label: 'ORDER',
@@ -32,11 +35,45 @@ await db.records.importJson({
 })
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+db.records.import_json(
+    label="ORDER",
+    data=[{
+        "total": 149.00,
+        "PRODUCT": [{"name": "Lens Cap 58mm", "price": 12.99}]
+    }]
+)
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -s -X POST "$BASE/records/import" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "label": "ORDER",
+    "data": [{
+      "total": 149.00,
+      "PRODUCT": [{"name": "Lens Cap 58mm", "price": 12.99}]
+    }]
+  }'
+```
+
+</TabItem>
+</Tabs>
+
 This creates `ORDER` → `PRODUCT` records connected by an edge RushDB names after the child label. The relationship type exists but carries no semantic meaning beyond the structural parent-child edge.
 
 ### Strategy B: Explicit typed relationships
 
 You create records independently and attach them with a named relationship type:
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
 ```typescript
 const order = await db.records.create({ label: 'ORDER', data: { total: 149.00 } })
@@ -48,6 +85,44 @@ await db.records.attach({
   options: { type: 'CONTAINS', direction: 'out' }
 })
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+order = db.records.create("ORDER", {"total": 149.00})
+product = db.records.create("PRODUCT", {"name": "Lens Cap 58mm", "price": 12.99})
+
+db.records.attach(
+    source=order,
+    target=product,
+    options={"type": "CONTAINS", "direction": "out"}
+)
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+BASE="https://api.rushdb.com/api/v1"
+TOKEN="RUSHDB_API_KEY"
+H='Content-Type: application/json'
+
+ORDER_ID=$(curl -s -X POST "$BASE/records" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{"label":"ORDER","data":{"total":149.00}}' | jq -r '.data.__id')
+
+PRODUCT_ID=$(curl -s -X POST "$BASE/records" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{"label":"PRODUCT","data":{"name":"Lens Cap 58mm","price":12.99}}' | jq -r '.data.__id')
+
+curl -s -X POST "$BASE/records/$ORDER_ID/relations" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d "{\"targets\":[\"$PRODUCT_ID\"],\"options\":{\"type\":\"CONTAINS\",\"direction\":\"out\"}}"
+```
+
+</TabItem>
+</Tabs>
 
 The edge now carries meaning: an `ORDER` *contains* a `PRODUCT`.
 
@@ -85,6 +160,9 @@ Use **generic nesting** when:
 
 Consider a graph where `USER` records are linked to `DOCUMENT` records. With generic edges:
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
 ```typescript
 const result = await db.records.find({
   labels: ['DOCUMENT'],
@@ -93,6 +171,35 @@ const result = await db.records.find({
   }
 })
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = db.records.find({
+    "labels": ["DOCUMENT"],
+    "where": {
+        "USER": {"name": "Lena Müller"}
+    }
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -s -X POST "$BASE/records/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "labels": ["DOCUMENT"],
+    "where": {
+      "USER": {"name": "Lena Müller"}
+    }
+  }'
+```
+
+</TabItem>
+</Tabs>
 
 This query returns documents connected to Lena — but connected *how*? Did she write them? Read them? Approve them? The graph cannot answer that question.
 

@@ -198,3 +198,7 @@ By default, `suggestTypes` is `true` for all import operations (importJson, impo
 - importJson: nested/mixed JSON. Provide label explicitly, or pass a single-key object like `{ LABEL: [...] }` to infer the label.
 - importCsv: CSV string input with parseConfig; dynamicTyping inherits from options.suggestTypes when omitted.
 
+## See also
+
+- [Writing Records with Vectors](../ai/write-with-vectors.md) — embed `$vectors` in import payloads to attach vectors inline during import
+

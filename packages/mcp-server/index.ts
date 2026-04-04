@@ -50,6 +50,7 @@ import { findEmbeddingIndexes } from './tools/findEmbeddingIndexes.js'
 import { createEmbeddingIndex } from './tools/createEmbeddingIndex.js'
 import { deleteEmbeddingIndex } from './tools/deleteEmbeddingIndex.js'
 import { getEmbeddingIndexStats } from './tools/getEmbeddingIndexStats.js'
+import { upsertEmbeddingVectors } from './tools/upsertEmbeddingVectors.js'
 import { semanticSearch } from './tools/semanticSearch.js'
 import { getOntology } from './tools/getOntology.js'
 import { getOntologyMarkdown } from './tools/getOntologyMarkdown.js'
@@ -540,7 +541,10 @@ function createMcpServer(): Server {
         case 'createEmbeddingIndex': {
           const newIndex = await createEmbeddingIndex({
             label: args.label as string,
-            propertyName: args.propertyName as string
+            propertyName: args.propertyName as string,
+            sourceType: args.sourceType as 'managed' | 'external' | undefined,
+            similarityFunction: args.similarityFunction as 'cosine' | 'euclidean' | undefined,
+            dimensions: args.dimensions as number | undefined
           })
           return {
             content: [
@@ -581,11 +585,30 @@ function createMcpServer(): Server {
           }
         }
 
+        case 'upsertEmbeddingVectors': {
+          const upsertResult = await upsertEmbeddingVectors({
+            indexId: args.indexId as string,
+            items: args.items as Array<{ recordId: string; vector: number[] }>
+          })
+          return {
+            content: [
+              {
+                type: 'text',
+                text: upsertResult ? JSON.stringify(upsertResult, null, 2) : 'Vectors upserted'
+              }
+            ]
+          }
+        }
+
         case 'semanticSearch': {
           const searchResults = await semanticSearch({
             propertyName: args.propertyName as string,
-            query: args.query as string,
+            query: args.query as string | undefined,
+            queryVector: args.queryVector as number[] | undefined,
             labels: args.labels as string[],
+            sourceType: args.sourceType as 'managed' | 'external' | undefined,
+            similarityFunction: args.similarityFunction as 'cosine' | 'euclidean' | undefined,
+            dimensions: args.dimensions as number | undefined,
             where: args.where as Record<string, unknown> | undefined,
             topK: args.topK as number | undefined,
             limit: args.limit as number | undefined,

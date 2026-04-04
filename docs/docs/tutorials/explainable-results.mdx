@@ -320,6 +320,66 @@ def build_explanation_text(result: dict) -> str:
 
 If you are building an agent or backend service without an SDK, assemble evidence with sequential REST calls.
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// 1. Semantic search for the primary result
+const results = await db.ai.search({
+  query: 'reducing latency',
+  propertyName: 'content',
+  labels: ['ARTICLE'],
+  limit: 1
+})
+
+const article = results.data[0]
+
+// 2. Fetch author evidence
+const authorResult = await db.records.find({
+  labels: ['AUTHOR'],
+  where: {
+    ARTICLE: {
+      __id: article.__id,
+      $relation: { type: 'AUTHORED_BY', direction: 'in' }
+    }
+  }
+})
+
+console.log(`Result: ${article.title} (score: ${article.__score}) — Author: ${authorResult.data[0]?.name ?? 'unknown'}`)
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# 1. Semantic search for the primary result
+results = db.ai.search({
+    "query": "reducing latency",
+    "propertyName": "content",
+    "labels": ["ARTICLE"],
+    "limit": 1
+})
+
+article = results.data[0]
+
+# 2. Fetch author evidence
+author_result = db.records.find({
+    "labels": ["AUTHOR"],
+    "where": {
+        "ARTICLE": {
+            "__id": article.data["__id"],
+            "$relation": {"type": "AUTHORED_BY", "direction": "in"}
+        }
+    }
+})
+
+author_name = author_result.data[0].data.get("name", "unknown") if author_result.data else "unknown"
+print(f"Result: {article.data['title']} (score: {article.data['__score']}) — Author: {author_name}")
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
 ```bash
 BASE="https://api.rushdb.com/api/v1"
 TOKEN="$RUSHDB_API_KEY"
@@ -342,6 +402,9 @@ AUTHOR=$(curl -s -X POST "$BASE/records/search" \
 
 echo "Result: $TITLE (score: $SCORE) — Author: $AUTHOR"
 ```
+
+</TabItem>
+</Tabs>
 
 ---
 

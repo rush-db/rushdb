@@ -142,3 +142,7 @@ const movies = await MovieModel.createMany([
   { title: "Arrival" },
 ]);
 ```
+
+## See also
+
+- [Writing Records with Vectors](../ai/write-with-vectors.md) — attach embedding vectors when creating or upserting records

@@ -285,12 +285,38 @@ results = db.ai.search({
 
 If you create both a `cosine` and `euclidean` index on the same label+property, specify `similarityFunction` in the `$vectors` entry to target the right one.
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
 ```typescript
 $vectors: [
   { propertyName: 'body', similarityFunction: 'cosine',    vector: cosineEmbedding },
   { propertyName: 'body', similarityFunction: 'euclidean', vector: euclideanEmbedding }
 ]
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+"$vectors": [
+    {"propertyName": "body", "similarityFunction": "cosine",    "vector": cosine_embedding},
+    {"propertyName": "body", "similarityFunction": "euclidean", "vector": euclidean_embedding}
+]
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+"$vectors": [
+  {"propertyName": "body", "similarityFunction": "cosine",    "vector": [0.1, 0.2, ...]},
+  {"propertyName": "body", "similarityFunction": "euclidean", "vector": [0.3, 0.4, ...]}
+]
+```
+
+</TabItem>
+</Tabs>
 
 | Vector array entries | Matching indexes | Outcome |
 |---|---|---|

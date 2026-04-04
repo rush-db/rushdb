@@ -37,3 +37,7 @@ curl -X PUT https://api.rushdb.com/api/v1/records/movie-123 \
 | `label` | `string` | (Optional) New label for the record |
 | `data` | `object` | Properties to write |
 
+## See also
+
+- [Writing Records with Vectors](../ai/write-with-vectors.md) — attach embedding vectors when creating or upserting records
+

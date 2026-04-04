@@ -17,6 +17,7 @@ describe('Aggregate', () => {
     }
 
     const result1 = buildAggregation(queryAggregate, {
+      $record: 'record',
       $employee: 'record2',
       $department: 'record1',
       $task: 'record3'
@@ -24,9 +25,9 @@ describe('Aggregate', () => {
 
     expect(result1).toEqual({
       returnPart:
-        'collect(DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], `projectName`: undefined.`name`, `employee_count`, `departments`, `totalStoryPoints`}) AS records',
+        'DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], `projectName`: record.`name`, `employee_count`, `departments`, `totalStoryPoints`} as records',
       withPart:
-        'WITH record, count(record2) AS `employee_count`, apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.`name`))), ["__RUSHDB__VALUE__EMPTY__ARRAY__"]))[0..100] AS `departments`, sum(record3.`storyPoints`) AS `totalStoryPoints`'
+        'WITH record, count(DISTINCT record2) AS `employee_count`, apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.`name`))), ["__RUSHDB__VALUE__EMPTY__ARRAY__"]))[0..100] AS `departments`, sum(record3.`storyPoints`) AS `totalStoryPoints`'
     })
   })
 
@@ -133,5 +134,20 @@ describe('Aggregate', () => {
           'WITH record, apoc.coll.sortMaps(collect(DISTINCT record1 {.*, `projects`, __RUSHDB__KEY__LABEL__: [label IN labels(record1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "__RUSHDB__KEY__ID__")[0..100] AS `departments`'
       }
     ])
+  })
+
+  it('throws when a groupBy variable references an unknown alias', () => {
+    const queryAggregate: Aggregate = {
+      count: { fn: 'count', alias: '$record' }
+    }
+
+    expect(() =>
+      buildAggregation(
+        queryAggregate,
+        { $record: 'record' },
+        // $badAlias is not in aliasesMap
+        ['$badAlias.someField']
+      )
+    ).toThrow('references unknown alias "$badAlias"')
   })
 })

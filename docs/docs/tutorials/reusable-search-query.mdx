@@ -24,6 +24,9 @@ Once you learn SearchQuery once, you can apply it almost everywhere.
 
 ## Canonical SearchQuery Shape
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
 ```typescript
 type SearchQuery = {
   labels?: string[]
@@ -35,6 +38,41 @@ type SearchQuery = {
   skip?: number
 }
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# SearchQuery is a plain dict in Python
+search_query = {
+    "labels": ["..."],          # optional
+    "where": {},                # optional
+    "aggregate": {},            # optional
+    "groupBy": ["..."],         # optional
+    "orderBy": "asc" | {"field": "asc"},  # optional
+    "limit": 100,               # optional
+    "skip": 0                   # optional
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# SearchQuery is a JSON body passed to any search endpoint
+{
+  "labels": ["..."],
+  "where": {},
+  "aggregate": {},
+  "groupBy": ["..."],
+  "orderBy": {"field": "asc"},
+  "limit": 100,
+  "skip": 0
+}
+```
+
+</TabItem>
+</Tabs>
 
 Supported by:
 
@@ -71,6 +109,9 @@ This means your app can move from listing to discovery to analytics without chan
 
 ### Primitive and operator filters
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
 ```typescript
 where: {
   status: { $in: ['active', 'pending'] },
@@ -80,7 +121,37 @@ where: {
 }
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+"where": {
+    "status": {"$in": ["active", "pending"]},
+    "amount": {"$gte": 1000, "$lt": 5000},
+    "name": {"$contains": "acme"},
+    "isArchived": {"$ne": True}
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+"where": {
+  "status": {"$in": ["active", "pending"]},
+  "amount": {"$gte": 1000, "$lt": 5000},
+  "name": {"$contains": "acme"},
+  "isArchived": {"$ne": true}
+}
+```
+
+</TabItem>
+</Tabs>
+
 ### Logical composition
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
 ```typescript
 where: {
@@ -96,9 +167,49 @@ where: {
 }
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+"where": {
+    "$or": [
+        {"status": "active"},
+        {
+            "$and": [
+                {"status": "pending"},
+                {"priority": {"$gte": 8}}
+            ]
+        }
+    ]
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+"where": {
+  "$or": [
+    {"status": "active"},
+    {
+      "$and": [
+        {"status": "pending"},
+        {"priority": {"$gte": 8}}
+      ]
+    }
+  ]
+}
+```
+
+</TabItem>
+</Tabs>
+
 ### Relationship traversal
 
 In SearchQuery, relationship traversal uses label keys directly.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
 ```typescript
 where: {
@@ -116,6 +227,47 @@ where: {
 }
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+"where": {
+    "DEPARTMENT": {
+        "$alias": "$department",
+        "name": "Engineering",
+        "PROJECT": {
+            "$alias": "$project",
+            "EMPLOYEE": {
+                "$alias": "$employee",
+                "role": {"$in": ["Developer", "Lead"]}
+            }
+        }
+    }
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+"where": {
+  "DEPARTMENT": {
+    "$alias": "$department",
+    "name": "Engineering",
+    "PROJECT": {
+      "$alias": "$project",
+      "EMPLOYEE": {
+        "$alias": "$employee",
+        "role": {"$in": ["Developer", "Lead"]}
+      }
+    }
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
 Important:
 
 - Use the label key itself (`DEPARTMENT`, `PROJECT`, `EMPLOYEE`) to traverse
@@ -126,6 +278,9 @@ Important:
 
 For range operators on datetimes, use component objects.
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
 ```typescript
 where: {
   createdAt: {
@@ -135,11 +290,41 @@ where: {
 }
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+"where": {
+    "createdAt": {
+        "$gte": {"$year": 2025, "$month": 1, "$day": 1},
+        "$lt": {"$year": 2026, "$month": 1, "$day": 1}
+    }
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+"where": {
+  "createdAt": {
+    "$gte": {"$year": 2025, "$month": 1, "$day": 1},
+    "$lt": {"$year": 2026, "$month": 1, "$day": 1}
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
 ## Aggregate and GroupBy
 
 SearchQuery supports both per-record aggregation and grouped analytics.
 
 ### Per-record flat aggregation
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
 ```typescript
 const rows = await db.records.find({
@@ -156,7 +341,50 @@ const rows = await db.records.find({
 })
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+rows = db.records.find({
+    "labels": ["PROJECT"],
+    "where": {
+        "EMPLOYEE": {"$alias": "$employee"}
+    },
+    "aggregate": {
+        "projectName": "$record.name",
+        "headcount": {"fn": "count", "alias": "$employee", "unique": True},
+        "totalSalary": {"fn": "sum", "field": "salary", "alias": "$employee"}
+    },
+    "limit": 100
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["PROJECT"],
+    "where": {"EMPLOYEE": {"$alias": "$employee"}},
+    "aggregate": {
+      "projectName": "$record.name",
+      "headcount": {"fn": "count", "alias": "$employee", "unique": true},
+      "totalSalary": {"fn": "sum", "field": "salary", "alias": "$employee"}
+    },
+    "limit": 100
+  }'
+```
+
+</TabItem>
+</Tabs>
+
 ### Dimensional groupBy
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
 ```typescript
 const byStatus = await db.records.find({
@@ -170,7 +398,46 @@ const byStatus = await db.records.find({
 })
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+by_status = db.records.find({
+    "labels": ["ORDER"],
+    "aggregate": {
+        "count": {"fn": "count", "alias": "$record"},
+        "revenue": {"fn": "sum", "field": "total", "alias": "$record"}
+    },
+    "groupBy": ["$record.status"],
+    "orderBy": {"revenue": "desc"}
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["ORDER"],
+    "aggregate": {
+      "count": {"fn": "count", "alias": "$record"},
+      "revenue": {"fn": "sum", "field": "total", "alias": "$record"}
+    },
+    "groupBy": ["$record.status"],
+    "orderBy": {"revenue": "desc"}
+  }'
+```
+
+</TabItem>
+</Tabs>
+
 ### Self-group (single-row KPI)
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
 ```typescript
 const totals = await db.records.find({
@@ -182,6 +449,40 @@ const totals = await db.records.find({
   orderBy: { totalRevenue: 'asc' }
 })
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+totals = db.records.find({
+    "labels": ["ORDER"],
+    "aggregate": {
+        "totalRevenue": {"fn": "sum", "field": "total", "alias": "$record"}
+    },
+    "groupBy": ["totalRevenue"],
+    "orderBy": {"totalRevenue": "asc"}
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["ORDER"],
+    "aggregate": {
+      "totalRevenue": {"fn": "sum", "field": "total", "alias": "$record"}
+    },
+    "groupBy": ["totalRevenue"],
+    "orderBy": {"totalRevenue": "asc"}
+  }'
+```
+
+</TabItem>
+</Tabs>
 
 ## Critical Limit Rules
 

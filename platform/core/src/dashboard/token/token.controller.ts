@@ -79,9 +79,10 @@ export class TokenController {
   @HttpCode(HttpStatus.OK)
   async deleteToken(
     @Param('tokenId') tokenId: string,
-    @TransactionDecorator() transaction: Transaction
+    @TransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
   ): Promise<boolean | undefined> {
-    // @TODO: Check ownership
-    return this.tokenService.deleteToken(tokenId, transaction)
+    const projectId = request.projectId
+    return this.tokenService.deleteToken(tokenId, projectId, transaction)
   }
 }

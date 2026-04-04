@@ -46,7 +46,8 @@ The RushDB MCP server exposes a comprehensive set of tools. Each tool includes a
 ## Vector search & embeddings
 
 - findEmbeddingIndexes — List all embedding index policies and their status
-- createEmbeddingIndex — Create an embedding index for a string property (async backfill)
+- createEmbeddingIndex — Create an embedding index for a property (managed or external)
+- upsertEmbeddingVectors — Write pre-computed vectors to an external embedding index
 - deleteEmbeddingIndex — Delete an embedding index and all stored vectors
 - getEmbeddingIndexStats — Return backfill progress stats for an embedding index
 - semanticSearch — Perform vector similarity search over indexed records
@@ -570,18 +571,38 @@ Example prompt:
 
 ### createEmbeddingIndex
 
-Create a new embedding index policy for a string property. RushDB will asynchronously embed every existing value of `propertyName` on records with the given `label` and keep new values embedded on write. Once the index status becomes `"ready"` (monitor with `getEmbeddingIndexStats`), use `semanticSearch` to run natural-language queries against it.
+Create a new embedding index policy for a property. For **managed** indexes (default), RushDB asynchronously embeds every existing value and keeps new values embedded on write. For **external** indexes (`sourceType: "external"`), the client supplies pre-computed vectors via `upsertEmbeddingVectors`. Once the index status becomes `"ready"` (monitor with `getEmbeddingIndexStats`), use `semanticSearch` to query.
 
 Arguments:
 
-| Name         | Type   | Required | Default | Description |
-|--------------|--------|----------|---------|-------------|
-| label        | string | yes      | —       | Record label to scope the index to (e.g. `"Book"`, `"Task"`) |
-| propertyName | string | yes      | —       | Name of the string property whose values will be embedded |
+| Name               | Type   | Required | Default     | Description |
+|--------------------|--------|----------|-------------|-------------|
+| label              | string | yes      | —           | Record label to scope the index to (e.g. `"Book"`, `"Task"`) |
+| propertyName       | string | yes      | —           | Name of the string property whose values will be embedded |
+| sourceType         | string | no       | `"managed"` | `"managed"` (RushDB generates embeddings) or `"external"` (client provides vectors) |
+| similarityFunction | string | no       | `"cosine"`  | `"cosine"` or `"euclidean"` |
+| dimensions         | number | no       | auto        | Vector dimensionality. **Required** for external indexes. For managed indexes, defaults to the server-configured model dimensions. |
 
 Example prompt:
 
 > Call `createEmbeddingIndex` with `label="Article"` and `propertyName="body"` to enable semantic search on article bodies.
+
+---
+
+### upsertEmbeddingVectors
+
+Write pre-computed embedding vectors to an **external** vector index for a set of records. Only valid for indexes created with `sourceType: "external"`. Each vector must contain exactly as many dimensions as the index was created with. After upserting, call `getEmbeddingIndexStats` to check if all records are indexed.
+
+Arguments:
+
+| Name    | Type   | Required | Default | Description |
+|---------|--------|----------|---------|-------------|
+| indexId | string | yes      | —       | ID of the external embedding index (from `findEmbeddingIndexes`) |
+| items   | array  | yes      | —       | Array of `{ recordId: string, vector: number[] }` pairs to write |
+
+Example prompt:
+
+> Call `upsertEmbeddingVectors` with `indexId="<index-id>"` and `items=[{ recordId: "abc", vector: [0.1, 0.2, ...] }]` to write pre-computed embeddings.
 
 ---
 
@@ -619,22 +640,29 @@ Example prompt:
 
 ### semanticSearch
 
-Perform semantic (vector) similarity search over records whose `propertyName` has been indexed with `createEmbeddingIndex`. Provide a free-text `query` — RushDB embeds it and returns the most similar records ranked by cosine similarity (`__score`).
+Perform semantic (vector) similarity search over records whose `propertyName` has been indexed with `createEmbeddingIndex`.
 
-RushDB performs exact semantic search by applying label/optional `where` filtering before cosine ranking.
+- **Managed indexes**: provide a free-text `query` — RushDB embeds it and returns the most similar records ranked by similarity (`__score`).
+- **External indexes**: provide a `queryVector` (pre-computed `number[]`) instead of query text.
+
+Direct vector-index mode (fast, default) is used when no `where` filter is supplied. Prefilter mode (exact, slower) is activated when a `where` filter is supplied — candidates are first narrowed then ranked.
 
 Requires an embedding index in `"ready"` status for the given `label` + `propertyName`.
 
 Arguments:
 
-| Name         | Type             | Required | Default | Description |
-|--------------|------------------|----------|---------|-------------|
-| propertyName | string           | yes      | —       | Name of the indexed property to search against |
-| query        | string           | yes      | —       | Free-text query to embed and compare against stored vectors |
-| labels       | array of strings | yes      | —       | One or more record labels to scope the search; first label resolves the embedding index |
-| where        | object           | no       | —       | Optional filter applied before cosine scoring |
-| limit        | number           | no       | 20      | Maximum number of results to return |
-| skip         | number           | no       | 0       | Number of results to skip for pagination |
+| Name               | Type             | Required | Default | Description |
+|--------------------|------------------|----------|---------|-------------|
+| propertyName       | string           | yes      | —       | Name of the indexed property to search against |
+| query              | string           | no       | —       | Free-text query (managed indexes). Mutually exclusive with `queryVector` |
+| queryVector        | number[]         | no       | —       | Pre-computed embedding vector (external indexes). Mutually exclusive with `query` |
+| labels             | array of strings | yes      | —       | One or more record labels to scope the search; first label resolves the embedding index |
+| sourceType         | string           | no       | —       | `"managed"` or `"external"`. Required when both index types exist for the same label+property |
+| similarityFunction | string           | no       | —       | `"cosine"` or `"euclidean"`. Disambiguates when multiple indexes share the same label+property+sourceType |
+| where              | object           | no       | —       | Optional filter applied before scoring (activates prefilter mode) |
+| topK               | number           | no       | 20      | Max candidates from the vector index (direct mode only) |
+| limit              | number           | no       | 20      | Maximum number of results to return |
+| skip               | number           | no       | 0       | Number of results to skip for pagination |
 
 Example prompt:
 

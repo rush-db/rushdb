@@ -32,6 +32,7 @@ import {
   TImportOptions,
   TImportJsonPayload,
   TImportRecordsRelation,
+  TImportSummary,
   WithId,
   TImportQueue
 } from '@/core/entity/import-export/import.types'
@@ -306,7 +307,7 @@ export class ImportService {
     projectId: string,
     transaction: Transaction,
     customTransaction: Transaction = transaction
-  ): Promise<boolean | TEntityPropertiesNormalized[]> {
+  ): Promise<boolean | TImportSummary | TEntityPropertiesNormalized[]> {
     if (typeof data === 'string' || !data || typeof data !== 'object') {
       throw new HttpException('Import data must be a JSON object or array', HttpStatus.BAD_REQUEST)
     }
@@ -322,8 +323,8 @@ export class ImportService {
     const workspaceId = workspace?.id
 
     const CHUNK_SIZE = 1000
+    const shouldAccumulateResult = options.returnResult === true && records.length <= CHUNK_SIZE
 
-    // @TODO: Accumulate result only if records <= 1000. Otherwise - ignore options.returnResult
     let result = []
     // Map draft record ids (generated during serialization) to actual persisted record ids after upsert/create
     const draftToPersistedId = new Map<string, string>()
@@ -332,7 +333,10 @@ export class ImportService {
 
       const data = await this.processRecordsChunk({
         transaction: customTransaction,
-        options,
+        options: {
+          ...options,
+          returnResult: shouldAccumulateResult
+        },
         recordsChunk,
         projectId
       })
@@ -347,7 +351,7 @@ export class ImportService {
         }
       }
 
-      if (options.returnResult) {
+      if (shouldAccumulateResult) {
         const chunkData = data.records?.[0]?.get('data')
         if (Array.isArray(chunkData)) {
           result = result.concat(chunkData)
@@ -414,7 +418,14 @@ export class ImportService {
       })
     }
 
-    return options.returnResult ? result : true
+    if (options.returnResult && !shouldAccumulateResult) {
+      return {
+        message: `Import complete. ${records.length} records processed. Result omitted for large imports — use /records/search to retrieve records.`,
+        count: records.length
+      }
+    }
+
+    return shouldAccumulateResult ? result : true
   }
 
   async processRecordsChunk({

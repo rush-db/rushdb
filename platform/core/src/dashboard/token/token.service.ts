@@ -1,9 +1,6 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-// @TODO: Fix it
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import * as ms from 'ms'
+import ms from 'ms'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
@@ -86,7 +83,15 @@ export class TokenService {
     return this.normalize(tokenRow)
   }
 
-  async deleteToken(tokenId: string, _transaction?: Transaction): Promise<boolean | undefined> {
+  async deleteToken(
+    tokenId: string,
+    projectId: string,
+    _transaction?: Transaction
+  ): Promise<boolean | undefined> {
+    const token = await this.tokenRepository.findById(tokenId)
+    if (!token || token.projectId !== projectId) {
+      throw new NotFoundException('Token not found')
+    }
     const deleted = await this.tokenRepository.delete(tokenId)
     return deleted ? true : undefined
   }
