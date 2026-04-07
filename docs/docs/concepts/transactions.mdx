@@ -342,6 +342,21 @@ RushDB's transaction system leverages Neo4j's native transaction capabilities wh
 
 This provides the robustness of Neo4j's proven transaction system with the ease of use of RushDB's modern API design.
 
-For detailed information on using transactions, see [REST API - Transactions](../rest-api/transactions) or through the language-specific SDKs:
-- [TypeScript SDK](../typescript-sdk/transactions)
-- [Python SDK](../python-sdk/transactions)
+## Implementation Reference
+
+Each interface covers the full transaction API — pick the one that fits your stack:
+
+<div className="grid grid-cols-1 gap-3 sm:grid-cols-3 not-prose" style={{marginTop: '0.5rem'}}>
+  <a href="/typescript-sdk/transactions" className="flex flex-col rounded-xl border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline">
+    <span className="mb-1 text-[14px] font-bold text-[var(--ifm-font-color-base)]">TypeScript SDK</span>
+    <span className="text-[13px] text-[var(--ifm-color-emphasis-600)]">db.tx.begin · commit · rollback</span>
+  </a>
+  <a href="/python-sdk/transactions" className="flex flex-col rounded-xl border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline">
+    <span className="mb-1 text-[14px] font-bold text-[var(--ifm-font-color-base)]">Python SDK</span>
+    <span className="text-[13px] text-[var(--ifm-color-emphasis-600)]">db.tx.begin · commit · rollback</span>
+  </a>
+  <a href="/rest-api/transactions" className="flex flex-col rounded-xl border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline">
+    <span className="mb-1 text-[14px] font-bold text-[var(--ifm-font-color-base)]">REST API</span>
+    <span className="text-[13px] text-[var(--ifm-color-emphasis-600)]">POST /transactions · commit · rollback</span>
+  </a>
+</div>

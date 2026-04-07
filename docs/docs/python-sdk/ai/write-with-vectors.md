@@ -5,7 +5,7 @@ title: Writing Records with Vectors
 
 # Writing Records with Vectors
 
-RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate `db.ai.indexes.upsert_vectors()` call. Any operation that creates or modifies records supports this through the `vectors` parameter (or the `$vectors` key in batch JSON imports).
+RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate `db.ai.indexes.upsert_vectors()` call. Any operation that creates or modifies records supports this through the `vectors` parameter.
 
 This feature requires at least one [external index](./advanced-indexing.md) to exist for the target `(label, propertyName)`.
 
@@ -91,41 +91,6 @@ db.records.set(
     vectors=[{"propertyName": "description", "vector": new_vec}],
 )
 ```
-
----
-
-## Import JSON with Vectors
-
-`db.records.import_json()`
-
-For bulk ingestion, add a `$vectors` key alongside properties in each JSON object. The format is the same as the `vectors` list:
-
-```python
-db.records.import_json({
-    "Article": [
-        {
-            "title": "Alpha",
-            "body": "First article about AI",
-            "$vectors": [{"propertyName": "body", "vector": [1, 0, 0]}]
-        },
-        {
-            "title": "Beta",
-            "body": "Second article about ML",
-            "$vectors": [{"propertyName": "body", "vector": [0, 1, 0]}]
-        },
-        {
-            "title": "Gamma",
-            "body": "Third article about DL",
-            "$vectors": [{"propertyName": "body", "vector": [0, 0, 1]}]
-        },
-    ]
-})
-```
-
-`$vectors` entries are stripped before the record is persisted. They:
-- **Do not** appear as record properties
-- **Do not** create child records
-- **Do not** appear in query results
 
 ---
 

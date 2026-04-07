@@ -1,3 +1,19 @@
+CREATE TABLE "embedding_indexes" (
+	"id" text PRIMARY KEY NOT NULL,
+	"project_id" text NOT NULL,
+	"label" text DEFAULT '' NOT NULL,
+	"property_name" text NOT NULL,
+	"model_key" text NOT NULL,
+	"source_type" text DEFAULT 'managed' NOT NULL,
+	"similarity_function" text DEFAULT 'cosine' NOT NULL,
+	"dimensions" integer NOT NULL,
+	"vector_property_name" text NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"created_at" text NOT NULL,
+	"updated_at" text NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "oauth_auth_requests" (
 	"id" text PRIMARY KEY NOT NULL,
 	"client_id" text NOT NULL,
@@ -122,6 +138,7 @@ CREATE TABLE "workspaces" (
 	"stats" text
 );
 --> statement-breakpoint
+ALTER TABLE "embedding_indexes" ADD CONSTRAINT "embedding_indexes_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_auth_requests" ADD CONSTRAINT "oauth_auth_requests_client_id_oauth_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_codes" ADD CONSTRAINT "oauth_codes_consent_id_oauth_consents_id_fk" FOREIGN KEY ("consent_id") REFERENCES "public"."oauth_consents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_consents" ADD CONSTRAINT "oauth_consents_client_id_oauth_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth_clients"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -132,4 +149,5 @@ ALTER TABLE "tokens" ADD CONSTRAINT "tokens_project_id_projects_id_fk" FOREIGN K
 ALTER TABLE "workspace_invites" ADD CONSTRAINT "workspace_invites_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "emb_idx_signature_uniq" ON "embedding_indexes" USING btree ("project_id","property_name","label","source_type","similarity_function","dimensions");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_oauth_client_name_uris" ON "oauth_clients" USING btree ("client_name","redirect_uris");

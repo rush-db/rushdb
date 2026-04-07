@@ -43,17 +43,19 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: ['index', 'get-started/get-api-key', 'get-started/quick-tutorial']
     },
+    'concepts/agent-memory-model',
+    'concepts/ontology-schema-discovery',
     {
       type: 'category',
       label: 'Core Concepts',
       collapsed: false,
       items: [
         'concepts/records',
-        'concepts/agent-memory-model',
+        'concepts/data-ingestion',
         'concepts/labels',
         'concepts/properties',
         'concepts/relationships',
-        'concepts/ontology-schema-discovery',
+        'concepts/semantic-search',
         'concepts/storage',
         'concepts/transactions',
         {

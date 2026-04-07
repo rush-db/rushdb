@@ -211,21 +211,27 @@ console.log(results[0].__score) // ~1.0
 
 ---
 
-## Batch import with `$vectors`
+## Batch import with `createMany`
 
-For bulk seeding, use `records.importJson()` with a `$vectors` key on each object:
+For bulk seeding with flat rows, use `records.createMany()` with the top-level `vectors` parameter:
 
 ```typescript
-await db.records.importJson({
-  "Doc": [
-    { title: "Alpha", content: "First article",  "$vectors": [{ propertyName: "content", vector: [1, 0, 0] }] },
-    { title: "Beta",  content: "Second article", "$vectors": [{ propertyName: "content", vector: [0, 1, 0] }] },
-    { title: "Gamma", content: "Third article",  "$vectors": [{ propertyName: "content", vector: [0, 0, 1] }] },
-  ]
+await db.records.createMany({
+  label: "Doc",
+  data: [
+    { title: "Alpha", content: "First article" },
+    { title: "Beta",  content: "Second article" },
+    { title: "Gamma", content: "Third article" },
+  ],
+  vectors: [
+    [{ propertyName: "content", vector: [1, 0, 0] }],
+    [{ propertyName: "content", vector: [0, 1, 0] }],
+    [{ propertyName: "content", vector: [0, 0, 1] }],
+  ],
 })
 ```
 
-`$vectors` entries are **stripped** from the stored record data — they only drive the vector write and do **not** appear as child records or extra properties.
+For nested JSON payloads, use `importJson` to create records and then call `db.ai.indexes.upsertVectors()` to seed the vectors separately.
 
 ---
 

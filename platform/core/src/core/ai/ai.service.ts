@@ -10,8 +10,8 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { int as neo4jInt, Transaction } from 'neo4j-driver'
-import { randomUUID } from 'crypto'
 
+import { isDevMode } from '@/common/utils/isDevMode'
 import { AiQueryService } from '@/core/ai/ai-query.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import {
@@ -22,17 +22,20 @@ import {
   type EmbeddingIndexSourceType
 } from '@/core/ai/embedding-index.utils'
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
-import { NeogmaService } from '@/database/neogma/neogma.service'
+import { KuOperation } from '@/core/ku-events/ku-events.constants'
+import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { parseWhereClause } from '@/core/search/parser/buildQuery'
+import { NeogmaService } from '@/database/neogma/neogma.service'
+
+import { randomUUID } from 'crypto'
+
 import type { OntologyItem, OntologyProperty, OntologyRelationship } from '@/core/ai/ai.types'
 import type { CreateEmbeddingIndexDto } from '@/core/ai/dto/create-embedding-index.dto'
 import type { InlineVectorEntryDto } from '@/core/ai/dto/inline-vector-entry.dto'
 import type { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
 import type { UpsertIndexVectorsDto } from '@/core/ai/dto/upsert-index-vectors.dto'
 import type { EmbeddingIndexRow } from '@/database/sql/schema/types'
-import { isDevMode } from '@/common/utils/isDevMode'
-import { KuEventsService } from '@/core/ku-events/ku-events.service'
-import { KuOperation } from '@/core/ku-events/ku-events.constants'
+
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
 import { estimateEmbeddingBatchKu, estimateTokens } from '@/core/ai/embedding.utils'
@@ -147,7 +150,9 @@ export class AiService {
     const labelRelsMap = new Map<string, OntologyRelationship[]>()
 
     const addRel = (label: string, rel: OntologyRelationship) => {
-      if (!labelRelsMap.has(label)) labelRelsMap.set(label, [])
+      if (!labelRelsMap.has(label)) {
+        labelRelsMap.set(label, [])
+      }
       const existing = labelRelsMap.get(label)!
       const key = `${rel.direction}|${rel.label}|${rel.type}`
       if (!existing.some((e) => `${e.direction}|${e.label}|${e.type}` === key)) {
@@ -160,7 +165,9 @@ export class AiService {
       const relType = r.get('relType') as string
       const toLabel = r.get('toLabel') as string
 
-      if (fromLabel === toLabel) continue // skip self-loops
+      if (fromLabel === toLabel) {
+        continue
+      } // skip self-loops
 
       addRel(fromLabel, { label: toLabel, type: relType, direction: 'out' })
       addRel(toLabel, { label: fromLabel, type: relType, direction: 'in' })
@@ -179,8 +186,12 @@ export class AiService {
     for (const label of allLabels) {
       const rels = labelRelsMap.get(label) ?? []
       rels.sort((a, b) => {
-        if (a.direction !== b.direction) return a.direction < b.direction ? -1 : 1
-        if (a.label !== b.label) return a.label.localeCompare(b.label)
+        if (a.direction !== b.direction) {
+          return a.direction < b.direction ? -1 : 1
+        }
+        if (a.label !== b.label) {
+          return a.label.localeCompare(b.label)
+        }
         return a.type.localeCompare(b.type)
       })
 
@@ -781,7 +792,9 @@ export class AiService {
 
     const toNonNegativeInt = (value: unknown, fallback: number) => {
       const parsed = Number.parseInt(String(value ?? fallback), 10)
-      if (!Number.isInteger(parsed) || parsed < 0) return fallback
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        return fallback
+      }
       return parsed
     }
 
@@ -796,19 +809,33 @@ export class AiService {
 
     // Always prefilter candidates first for correctness in a multi-tenant shared index.
     {
-      // Narrow candidates first, then exact cosine scoring
-      const { where: whereClause } = hasWhere ? parseWhereClause(dto.where) : { where: '' }
+      // Narrow candidates first, then exact cosine scoring.
+      // Sort all queryParts (record < record1 < ...) so that:
+      //   sortedParts[0]  = root record WHERE condition
+      //   sortedParts[1+] = OPTIONAL MATCH clauses for related-record traversals
+      const parsedWhere = hasWhere ? parseWhereClause(dto.where) : null
+      const sortedParts =
+        parsedWhere ?
+          Object.keys(parsedWhere.queryParts)
+            .sort((a, b) => a.localeCompare(b))
+            .map((k) => parsedWhere.queryParts[k])
+        : []
+      const rootWhereClause = sortedParts[0] ?? ''
+      const extraMatchClauses = sortedParts.slice(1)
       // For multi-label, build a label filter clause
       const multiLabelClause =
         hasMultiLabels ?
           `any(l IN labels(record) WHERE l IN [${dto.labels.map((l) => `'${l}'`).join(', ')}])`
         : ''
-      const combinedWhere = [whereClause, multiLabelClause].filter(Boolean).join(' AND ')
+      const combinedWhere = [rootWhereClause, multiLabelClause].filter(Boolean).join(' AND ')
       query = this.aiQueryService.getSemanticSearchPrefilterQuery({
         combinedWhere,
         labelSuffix,
         similarityFunction: index.similarityFunction as EmbeddingIndexSimilarityFunction,
-        vectorPropertyName: index.vectorPropertyName
+        vectorPropertyName: index.vectorPropertyName,
+        extraMatchClauses,
+        nodeAliases: parsedWhere?.nodeAliases ?? ['record'],
+        requiredAliasCheck: parsedWhere?.where ?? ''
       })
       params = {
         queryVector,

@@ -136,6 +136,7 @@ type FeatureItem = {
   title: string
   description: string
   accent: string
+  href: string
 }
 
 const FEATURE_ITEMS: FeatureItem[] = [
@@ -144,25 +145,29 @@ const FEATURE_ITEMS: FeatureItem[] = [
     title: 'Ingest anything',
     description:
       'Push flat objects, nested trees, or batches. Types inferred, graph built — no schema needed.',
-    accent: '#3f81ff'
+    accent: '#3f81ff',
+    href: '/concepts/data-ingestion'
   },
   {
     icon: () => <Share2 size={20} strokeWidth={1.5} />,
     title: 'Auto-linked graph',
     description: 'Nested objects become linked records automatically. Traverse relationships in queries.',
-    accent: '#8b5cf6'
+    accent: '#8b5cf6',
+    href: '/concepts/relationships'
   },
   {
     icon: () => <Sparkles size={20} strokeWidth={1.5} />,
     title: 'Semantic search',
     description: 'Index any text property and query by meaning. Combine with field filters.',
-    accent: '#f59e0b'
+    accent: '#f59e0b',
+    href: '/concepts/semantic-search'
   },
   {
     icon: () => <Shield size={20} strokeWidth={1.5} />,
     title: 'ACID transactions',
     description: 'Wrap any combination of writes and reads. Nothing persists if any step fails.',
-    accent: '#10b981'
+    accent: '#10b981',
+    href: '/concepts/transactions'
   }
 ]
 
@@ -235,8 +240,9 @@ function ResourceCard({ card: c }: { card: ResourceCard }) {
 
 function FeaturePill({ item }: { item: FeatureItem }) {
   return (
-    <div
-      className={`flex items-start gap-4 rounded-xl border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-5`}
+    <a
+      href={item.href}
+      className={`group flex items-start gap-4 rounded-xl border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline transition-[background-color] duration-150 ease-out hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline focus:no-underline`}
     >
       <span
         className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
@@ -250,7 +256,7 @@ function FeaturePill({ item }: { item: FeatureItem }) {
           {item.description}
         </p>
       </div>
-    </div>
+    </a>
   )
 }
 
@@ -263,7 +269,7 @@ export default function DocsHomePage() {
       <div className="mb-12 mt-10 text-center">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--ifm-color-emphasis-600)]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
-          Make Data Self-Describing
+          Memory Layer for Agents & Apps
         </div>
 
         <h1 className="mb-4 text-[2.6rem] font-bold leading-[1.2] tracking-tight text-[var(--ifm-font-color-base)]">
@@ -271,8 +277,8 @@ export default function DocsHomePage() {
         </h1>
 
         <p className="mx-auto mb-8 max-w-[560px] text-[1.1rem] leading-relaxed text-[var(--ifm-color-emphasis-600)]">
-          Push any JSON — RushDB infers types, links nested objects into a graph, and makes everything
-          queryable by field value or by meaning. No schema design. No migrations. No separate vector store.
+          A database that stores, links, and retrieves structured data for AI agents and applications. Push
+          JSON — get a typed graph, queryable by value or by meaning. No schema needed.
         </p>
 
         <div className="flex flex-wrap items-center justify-center gap-3">

@@ -181,24 +181,30 @@ curl -X POST https://api.rushdb.com/api/v1/ai/search \
 
 ---
 
-## Batch import with `$vectors`
+## Batch import with flat-rows format
 
-For bulk seeding, use `POST /api/v1/records/import/json` with a `$vectors` key on each object:
+For bulk seeding with flat rows, use `POST /api/v1/records/import/json` with the flat-rows format and a top-level `vectors` array:
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/records/import/json \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -d '{
-    "Doc": [
-      { "title": "Alpha", "content": "First article",  "$vectors": [{ "propertyName": "content", "vector": [1, 0, 0] }] },
-      { "title": "Beta",  "content": "Second article", "$vectors": [{ "propertyName": "content", "vector": [0, 1, 0] }] },
-      { "title": "Gamma", "content": "Third article",  "$vectors": [{ "propertyName": "content", "vector": [0, 0, 1] }] }
+    "label": "Doc",
+    "data": [
+      { "title": "Alpha", "content": "First article" },
+      { "title": "Beta",  "content": "Second article" },
+      { "title": "Gamma", "content": "Third article" }
+    ],
+    "vectors": [
+      [{ "propertyName": "content", "vector": [1, 0, 0] }],
+      [{ "propertyName": "content", "vector": [0, 1, 0] }],
+      [{ "propertyName": "content", "vector": [0, 0, 1] }]
     ]
   }'
 ```
 
-`$vectors` entries are **stripped** from the stored record data — they do not appear as record properties or child records.
+For nested JSON payloads, use `importJson` to create records and then call `POST /api/v1/ai/indexes/:id/vectors/upsert` to seed the vectors separately.
 
 ---
 

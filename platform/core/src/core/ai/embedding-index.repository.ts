@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common'
 import { and, eq, inArray, or } from 'drizzle-orm'
 
+import { SqlService } from '@/database/sql/sql.service'
+
 import type {
   EmbeddingIndexSimilarityFunction,
   EmbeddingIndexSourceType
 } from '@/core/ai/embedding-index.utils'
-import { SqlService } from '@/database/sql/sql.service'
 import type { EmbeddingIndexRow, InsertEmbeddingIndexRow } from '@/database/sql/schema/types'
 
 @Injectable()
@@ -89,7 +90,9 @@ export class EmbeddingIndexRepository {
     projectId: string,
     entries: Array<{ propertyName: string; label: string }>
   ): Promise<void> {
-    if (entries.length === 0) return
+    if (entries.length === 0) {
+      return
+    }
     const now = new Date().toISOString()
 
     const pairConditions = entries.map((e) =>
@@ -99,7 +102,14 @@ export class EmbeddingIndexRepository {
     await this.db
       .update(this.table)
       .set({ status: 'pending', updatedAt: now })
-      .where(and(eq(this.table.projectId, projectId), eq(this.table.enabled, true), or(...pairConditions)))
+      .where(
+        and(
+          eq(this.table.projectId, projectId),
+          eq(this.table.enabled, true),
+          eq(this.table.sourceType, 'managed' as EmbeddingIndexSourceType),
+          or(...pairConditions)
+        )
+      )
   }
 
   async delete(id: string): Promise<void> {

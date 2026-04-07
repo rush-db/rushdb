@@ -95,7 +95,7 @@ An external index starts in `awaiting_vectors` status — it has no backfill wor
 
 ## Step 2: Push records with inline vectors
 
-Use the `$vectors` key inside each record in an `importJson` batch to deliver embeddings alongside the data in one call.
+Use the `vectors` parameter on `create` (or `createMany` for batches) to deliver embeddings alongside the data in one call.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -117,15 +117,20 @@ const articles = [
   { title: 'Vector Search Explained',  body: 'Vector search finds semantically similar documents...' }
 ]
 
-// Generate embeddings in parallel
-const withVectors = await Promise.all(
-  articles.map(async (article) => ({
-    ...article,
-    $vectors: [{ propertyName: 'body', vector: await embed(article.body) }]
-  }))
+// Option A: batch import with createMany
+const vectors = await Promise.all(
+  articles.map(async (a) => [{ propertyName: 'body', vector: await embed(a.body) }])
 )
+await db.records.createMany({ label: 'ARTICLE', data: articles, vectors })
 
-await db.records.importJson({ label: 'ARTICLE', data: withVectors })
+// Option B: one record at a time
+for (const article of articles) {
+  await db.records.create({
+    label: 'ARTICLE',
+    data: article,
+    vectors: [{ propertyName: 'body', vector: await embed(article.body) }],
+  })
+}
 ```
 
 </TabItem>
@@ -146,29 +151,37 @@ articles = [
     {'title': 'Vector Search Explained',  'body': 'Vector search finds semantically similar documents...'}
 ]
 
-with_vectors = [
-    {**article, '$vectors': [{'propertyName': 'body', 'vector': embed(article['body'])}]}
-    for article in articles
-]
+# Option A: batch import with create_many
+vectors = [[{'propertyName': 'body', 'vector': embed(a['body'])}] for a in articles]
+db.records.create_many(label='ARTICLE', data=articles, vectors=vectors)
 
-db.records.import_json({'label': 'ARTICLE', 'data': with_vectors})
+# Option B: one record at a time
+for article in articles:
+    db.records.create(
+        label='ARTICLE',
+        data=article,
+        vectors=[{'propertyName': 'body', 'vector': embed(article['body'])}],
+    )
 ```
 
 </TabItem>
 <TabItem value="shell" label="Shell">
 
 ```bash
-# Generate embedding via OpenAI and push to RushDB in one pipeline
+# Generate embedding via OpenAI and push a single record to RushDB
 VECTOR=$(curl -s https://api.openai.com/v1/embeddings \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model":"text-embedding-3-small","input":"Graph databases store data as nodes and edges"}' \
   | jq '.data[0].embedding')
 
-curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+curl -X POST https://api.rushdb.com/api/v1/records \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
-  -d "{\"label\":\"ARTICLE\",\"data\":[{\"title\":\"Intro to Graph Databases\",\"body\":\"Graph databases store data as nodes and edges\",\"\$vectors\":[{\"propertyName\":\"body\",\"vector\":$VECTOR}]}]}"
+  -d "{\"label\":\"ARTICLE\",\"data\":{\"title\":\"Intro to Graph Databases\",\"body\":\"Graph databases store data as nodes and edges\"},\"vectors\":[{\"propertyName\":\"body\",\"vector\":$VECTOR}]}"
+
+# For batch imports use the flat-rows format with a top-level vectors array:
+# POST /api/v1/records/import/json with {"label":"ARTICLE","data":[...],"vectors":[[...],[...]]}
 ```
 
 </TabItem>
@@ -283,13 +296,13 @@ results = db.ai.search({
 
 ## Disambiguation: two indexes on the same property
 
-If you create both a `cosine` and `euclidean` index on the same label+property, specify `similarityFunction` in the `$vectors` entry to target the right one.
+If you create both a `cosine` and `euclidean` index on the same label+property, specify `similarityFunction` in the `vectors` entry to target the right one.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-$vectors: [
+vectors: [
   { propertyName: 'body', similarityFunction: 'cosine',    vector: cosineEmbedding },
   { propertyName: 'body', similarityFunction: 'euclidean', vector: euclideanEmbedding }
 ]
@@ -299,7 +312,7 @@ $vectors: [
 <TabItem value="python" label="Python">
 
 ```python
-"$vectors": [
+vectors=[
     {"propertyName": "body", "similarityFunction": "cosine",    "vector": cosine_embedding},
     {"propertyName": "body", "similarityFunction": "euclidean", "vector": euclidean_embedding}
 ]
@@ -309,7 +322,7 @@ $vectors: [
 <TabItem value="shell" label="Shell">
 
 ```bash
-"$vectors": [
+"vectors": [
   {"propertyName": "body", "similarityFunction": "cosine",    "vector": [0.1, 0.2, ...]},
   {"propertyName": "body", "similarityFunction": "euclidean", "vector": [0.3, 0.4, ...]}
 ]

@@ -1,3 +1,21 @@
+CREATE TABLE `embedding_indexes` (
+	`id` text PRIMARY KEY NOT NULL,
+	`project_id` text NOT NULL,
+	`label` text DEFAULT '' NOT NULL,
+	`property_name` text NOT NULL,
+	`model_key` text NOT NULL,
+	`source_type` text DEFAULT 'managed' NOT NULL,
+	`similarity_function` text DEFAULT 'cosine' NOT NULL,
+	`dimensions` integer NOT NULL,
+	`vector_property_name` text NOT NULL,
+	`enabled` integer DEFAULT true NOT NULL,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `emb_idx_signature_uniq` ON `embedding_indexes` (`project_id`,`property_name`,`label`,`source_type`,`similarity_function`,`dimensions`);--> statement-breakpoint
 CREATE TABLE `oauth_auth_requests` (
 	`id` text PRIMARY KEY NOT NULL,
 	`client_id` text NOT NULL,

@@ -248,6 +248,10 @@ html[data-theme='dark'] .navbar__link--active::before {
     margin-top: 0.25rem;
 }
 
+.menu__list-item-collapsible:first-child {
+        padding-top: 0.25rem;
+}
+
 .table-of-contents__link {
     font-size: 14px;
     font-weight: 600;

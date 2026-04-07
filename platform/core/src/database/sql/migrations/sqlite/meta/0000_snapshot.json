@@ -1,9 +1,142 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "65e7de70-8243-4338-b29d-e1de06c878e0",
+  "id": "be298188-2eaf-47ba-8684-50d7688a5451",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
+    "embedding_indexes": {
+      "name": "embedding_indexes",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "property_name": {
+          "name": "property_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "model_key": {
+          "name": "model_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'managed'"
+        },
+        "similarity_function": {
+          "name": "similarity_function",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'cosine'"
+        },
+        "dimensions": {
+          "name": "dimensions",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "vector_property_name": {
+          "name": "vector_property_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "emb_idx_signature_uniq": {
+          "name": "emb_idx_signature_uniq",
+          "columns": [
+            "project_id",
+            "property_name",
+            "label",
+            "source_type",
+            "similarity_function",
+            "dimensions"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "embedding_indexes_project_id_projects_id_fk": {
+          "name": "embedding_indexes_project_id_projects_id_fk",
+          "tableFrom": "embedding_indexes",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "oauth_auth_requests": {
       "name": "oauth_auth_requests",
       "columns": {

@@ -200,5 +200,5 @@ By default, `suggestTypes` is `true` for all import operations (importJson, impo
 
 ## See also
 
-- [Writing Records with Vectors](../ai/write-with-vectors.md) — embed `$vectors` in import payloads to attach vectors inline during import
+- [Writing Records with Vectors](../ai/write-with-vectors.md) — attach pre-computed embedding vectors to records at write time
 

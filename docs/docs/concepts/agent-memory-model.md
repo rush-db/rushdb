@@ -39,19 +39,12 @@ The **Ontology API** returns a live snapshot of the graph's schema: all labels, 
 A well-designed agent retrieval pipeline uses all three layers in sequence:
 
 ```mermaid
-flowchart TD
-    A([Agent]) --> B["1. Ontology discovery\nPOST /ai/ontology/md"]
-    B --> C["2. Faceted filter\nSearchQuery where clause"]
-    C --> D["3. Semantic re-rank\nvector.similarity on filtered candidates"]
-    D --> E["4. Structured results\nrecords with scores"]
-    E --> F([Agent response])
-
-    style A fill:#f5f5f5,stroke:#9e9e9e
-    style B fill:#e3f2fd,stroke:#1976d2
-    style C fill:#e8f5e9,stroke:#388e3c
-    style D fill:#fff8e1,stroke:#f57c00
-    style E fill:#f3e5f5,stroke:#7b1fa2
-    style F fill:#f5f5f5,stroke:#9e9e9e
+graph TD
+    A["Agent"] --> B["Ontology discovery"]
+    B --> C["Faceted filter"]
+    C --> D["Semantic re-rank"]
+    D --> E["Structured results"]
+    E --> F["Agent response"]
 ```
 
 **Step 1 — Discover the schema.** Before constructing any query, the agent calls the ontology endpoint to learn what labels, properties, and relationships exist. This prevents hallucinated field names and enables dynamic query construction.

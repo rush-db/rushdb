@@ -4,9 +4,9 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
-import { Where } from '@/core/common/types'
 import { AiService } from '@/core/ai/ai.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
+import { Where } from '@/core/common/types'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import {
   TEntityPropertiesNormalized,
@@ -197,7 +197,7 @@ export class EntityService {
 
     const vectors = (entity as CreateEntityDto).vectors
     if (vectors?.length) {
-      const persistedId: string = data.__id ?? entityId
+      const persistedId: string = (data?.['__RUSHDB__KEY__ID__'] as string) ?? entityId
       await this.aiService.resolveAndWriteInlineVectors(projectId, label, persistedId, vectors, transaction)
     }
 
