@@ -9,6 +9,7 @@ import {
   RUSHDB_LABEL_PROPERTY,
   RUSHDB_LABEL_RECORD
 } from '@/core/common/constants'
+import { Neo4jCapabilitiesService } from '@/database/neo4j-capabilities.service'
 
 import { INeogmaConfig } from '../neogma/neogma-config.interface'
 import { createInstance } from '../neogma/neogma.util'
@@ -71,6 +72,16 @@ export class NeogmaDynamicService {
 
       await this.initializeSchema(testConnection)
       isDevMode(() => Logger.log(`Schema initialization on test connection succeeded.`))
+
+      // Validate Neo4j version meets minimum requirements
+      const versionSession = testConnection.driver.session()
+      try {
+        const version = await Neo4jCapabilitiesService.getVersionFromSession(versionSession)
+        Neo4jCapabilitiesService.assertVersionSupported(version)
+        isDevMode(() => Logger.log(`Custom DB Neo4j version ${version} — OK`))
+      } finally {
+        await versionSession.close()
+      }
     } catch (error) {
       isDevMode(() => Logger.error(`Custom DB connection test failed: ${error.message}`, error.stack))
       throw new ServiceUnavailableException(`Custom DB connection test failed: ${error.message}`)
@@ -105,17 +116,30 @@ export class NeogmaDynamicService {
 
   private async initializeSchema(connection: Neogma): Promise<void> {
     const session = connection.driver.session()
+
+    // Drop the plain composite index in its own transaction — Neo4j requires the drop
+    // and the uniqueness constraint creation (which creates a new backing index) to be
+    // in separate transactions.
+    const dropTx = session.beginTransaction({ timeout: 30_000 })
+    try {
+      await dropTx.run(`DROP INDEX index_property_mergerer IF EXISTS`)
+      await dropTx.commit()
+    } catch (error) {
+      isDevMode(() => Logger.log('Warning: could not drop index_property_mergerer', error))
+      await dropTx.rollback()
+    }
+
     const transaction = session.beginTransaction({ timeout: 30_000 })
     try {
       const constraints = [
         `CREATE CONSTRAINT constraint_record_id IF NOT EXISTS FOR (record:${RUSHDB_LABEL_RECORD}) REQUIRE record.${RUSHDB_KEY_ID} IS UNIQUE`,
-        `CREATE CONSTRAINT constraint_property_id IF NOT EXISTS FOR (property:${RUSHDB_LABEL_PROPERTY}) REQUIRE property.id IS UNIQUE`
+        `CREATE CONSTRAINT constraint_property_id IF NOT EXISTS FOR (property:${RUSHDB_LABEL_PROPERTY}) REQUIRE property.id IS UNIQUE`,
+        `CREATE CONSTRAINT constraint_property_uniqueness IF NOT EXISTS FOR (p:${RUSHDB_LABEL_PROPERTY}) REQUIRE (p.name, p.type, p.projectId, p.metadata) IS UNIQUE`
       ]
       const indexes = [
         `CREATE INDEX index_record_id IF NOT EXISTS FOR (n:${RUSHDB_LABEL_RECORD}) ON (n.${RUSHDB_KEY_ID})`,
         `CREATE INDEX index_record_projectid IF NOT EXISTS FOR (n:${RUSHDB_LABEL_RECORD}) ON (n.${RUSHDB_KEY_PROJECT_ID})`,
-        `CREATE INDEX index_property_name IF NOT EXISTS FOR (n:${RUSHDB_LABEL_PROPERTY}) ON (n.name)`,
-        `CREATE INDEX index_property_mergerer IF NOT EXISTS FOR (n:${RUSHDB_LABEL_PROPERTY}) ON (n.name, n.type, n.projectId, n.metadata)`
+        `CREATE INDEX index_property_name IF NOT EXISTS FOR (n:${RUSHDB_LABEL_PROPERTY}) ON (n.name)`
       ]
 
       isDevMode(() => Logger.log('Initializing custom database schema: creating constraints...'))

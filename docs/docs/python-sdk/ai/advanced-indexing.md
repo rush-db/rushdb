@@ -34,17 +34,19 @@ An external index starts with status `awaiting_vectors` and transitions to `read
 
 ### External vs managed comparison
 
-| | Managed | External |
-|---|---|---|
-| `sourceType` | `"managed"` | `"external"` |
-| Initial status | `"pending"` | `"awaiting_vectors"` |
-| Who computes embeddings | RushDB server (configured model) | Your application |
-| `dimensions` required | No (uses server default) | **Yes** |
-| Backfill for existing records | Automatic | Manual via `upsert_vectors` or inline writes |
+|                               | Managed                          | External                                     |
+| ----------------------------- | -------------------------------- | -------------------------------------------- |
+| `sourceType`                  | `"managed"`                      | `"external"`                                 |
+| Initial status                | `"pending"`                      | `"awaiting_vectors"`                         |
+| Who computes embeddings       | RushDB server (configured model) | Your application                             |
+| `dimensions` required         | No (uses server default)         | **Yes**                                      |
+| Backfill for existing records | Automatic                        | Manual via `upsert_vectors` or inline writes |
 
 ---
 
-## `db.ai.indexes.upsert_vectors()`
+## Upsert Vectors
+
+`db.ai.indexes.upsert_vectors()`
 
 The bulk upload API — ideal for seeding an index from a dataset or syncing after a batch pipeline.
 
@@ -125,12 +127,12 @@ db.records.create(
 Two index policies are considered **identical** (and a second `create` returns `409 Conflict`) when all five fields match:
 
 | Field                | Effect on uniqueness |
-|----------------------|----------------------|
-| `label`              | ✅ |
-| `propertyName`       | ✅ |
-| `sourceType`         | ✅ |
-| `similarityFunction` | ✅ |
-| `dimensions`         | ✅ |
+| -------------------- | -------------------- |
+| `label`              | ✅                   |
+| `propertyName`       | ✅                   |
+| `sourceType`         | ✅                   |
+| `similarityFunction` | ✅                   |
+| `dimensions`         | ✅                   |
 
 Changing any one field produces a distinct index and both are allowed to coexist.
 
@@ -182,21 +184,27 @@ print(results.data[0]["__score"])  # ~1.0
 
 ---
 
-## Batch import with `$vectors`
+## Batch import with `create_many`
 
-For bulk seeding, use `db.records.import_json()` with a `$vectors` key on each object:
+For bulk seeding with flat rows, use `db.records.create_many()` with the top-level `vectors` parameter:
 
 ```python
-db.records.import_json({
-    "Doc": [
-        {"title": "Alpha", "content": "First article",  "$vectors": [{"propertyName": "content", "vector": [1, 0, 0]}]},
-        {"title": "Beta",  "content": "Second article", "$vectors": [{"propertyName": "content", "vector": [0, 1, 0]}]},
-        {"title": "Gamma", "content": "Third article",  "$vectors": [{"propertyName": "content", "vector": [0, 0, 1]}]},
-    ]
-})
+db.records.create_many(
+    label="Doc",
+    data=[
+        {"title": "Alpha", "content": "First article"},
+        {"title": "Beta",  "content": "Second article"},
+        {"title": "Gamma", "content": "Third article"},
+    ],
+    vectors=[
+        [{"propertyName": "content", "vector": [1, 0, 0]}],
+        [{"propertyName": "content", "vector": [0, 1, 0]}],
+        [{"propertyName": "content", "vector": [0, 0, 1]}],
+    ],
+)
 ```
 
-`$vectors` entries are **stripped** from the stored record data — they do not appear as properties or child records.
+For nested JSON payloads, use `import_json` to create records and then call `db.ai.indexes.upsert_vectors()` to seed the vectors separately.
 
 ---
 

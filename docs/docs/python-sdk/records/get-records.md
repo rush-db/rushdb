@@ -18,7 +18,9 @@ for movie in result:
 print(f"{len(result)} shown, {result.total} total")
 ```
 
-## `db.records.find_by_id()`
+## Find by ID
+
+`db.records.find_by_id()`
 
 ```python
 # Single record
@@ -30,15 +32,15 @@ movies = db.records.find_by_id(["movie-123", "movie-456"])
 
 ## SearchQuery parameters
 
-| Parameter | Type | Description |
-|---|---|---|
-| `labels` | `list[str]` | Filter by one or more labels |
-| `where` | `dict` | Field conditions and operators |
-| `orderBy` | `dict` | `{"field": "asc" \| "desc"}` |
-| `limit` | `int` | Max records to return. **Omit when using `aggregate`** |
-| `skip` | `int` | Records to skip (pagination offset) |
-| `aggregate` | `dict` | Aggregation functions |
-| `groupBy` | `list[str]` | Group aggregated results |
+| Parameter   | Type        | Description                                            |
+| ----------- | ----------- | ------------------------------------------------------ |
+| `labels`    | `list[str]` | Filter by one or more labels                           |
+| `where`     | `dict`      | Field conditions and operators                         |
+| `orderBy`   | `dict`      | `{"field": "asc" \| "desc"}`                           |
+| `limit`     | `int`       | Max records to return. **Omit when using `aggregate`** |
+| `skip`      | `int`       | Records to skip (pagination offset)                    |
+| `aggregate` | `dict`      | Aggregation functions                                  |
+| `groupBy`   | `list[str]` | Group aggregated results                               |
 
 ## Relationship traversal
 
@@ -172,5 +174,3 @@ except Exception:
     tx.rollback()
     raise
 ```
-
-

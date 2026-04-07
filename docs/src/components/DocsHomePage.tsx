@@ -1,24 +1,21 @@
 import React from 'react'
+import {
+  ArrowRight,
+  Book,
+  Check,
+  Globe,
+  Monitor,
+  Rocket,
+  Share2,
+  Shield,
+  Sparkles,
+  Sun,
+  Upload
+} from 'lucide-react'
 
 const BORDER_CLASS = 'border-[var(--ifm-color-emphasis-200)]'
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
-
-const ArrowIcon = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M5 12h14" />
-    <path d="m12 5 7 7-7 7" />
-  </svg>
-)
 
 const TypeScriptIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
@@ -48,205 +45,6 @@ const PythonIcon = () => (
       fill="#FFD43B"
       d="M24.24 43c10.433 0 9.796-4.707 9.796-4.707l-.012-4.857h-9.965v-1.457H37.26S43.286 33.683 43.286 23.185c0-10.499-5.81-10.127-5.81-10.127h-3.467v4.873s.187 5.81-5.713 5.81h-9.845s-5.529-.09-5.529 5.345v8.918S12.124 43 24.24 43zm5.486-3.174c-.993 0-1.8-.807-1.8-1.8s.807-1.8 1.8-1.8 1.8.807 1.8 1.8-.807 1.8-1.8 1.8z"
     />
-  </svg>
-)
-
-const RestIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width="24"
-    height="24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z" />
-    <path d="M2 12h20" />
-    <path d="M12 2c-2.76 3.45-4 7-4 10s1.24 6.55 4 10" />
-    <path d="M12 2c2.76 3.45 4 7 4 10s-1.24 6.55-4 10" />
-  </svg>
-)
-
-const McpIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width="24"
-    height="24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <rect x="2" y="3" width="20" height="14" rx="2" />
-    <path d="M8 21h8" />
-    <path d="M12 17v4" />
-    <path d="M7 7h.01" />
-    <path d="M11 7h6" />
-    <path d="M7 11h.01" />
-    <path d="M11 11h6" />
-  </svg>
-)
-
-const BookIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width="24"
-    height="24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-  </svg>
-)
-
-const RocketIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width="24"
-    height="24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
-    <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
-    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
-    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
-  </svg>
-)
-
-const ConceptsIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width="24"
-    height="24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 2v3" />
-    <path d="M12 19v3" />
-    <path d="M4.22 4.22l2.12 2.12" />
-    <path d="M17.66 17.66l2.12 2.12" />
-    <path d="M2 12h3" />
-    <path d="M19 12h3" />
-    <path d="M4.22 19.78l2.12-2.12" />
-    <path d="M17.66 6.34l2.12-2.12" />
-  </svg>
-)
-
-const IngestIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width="20"
-    height="20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <polyline points="17 8 12 3 7 8" />
-    <line x1="12" y1="3" x2="12" y2="15" />
-  </svg>
-)
-
-const FilterIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width="20"
-    height="20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-  </svg>
-)
-
-const SparkleIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width="20"
-    height="20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-    <path d="M19 3v4" />
-    <path d="M21 5h-4" />
-  </svg>
-)
-
-const ShieldIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width="20"
-    height="20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-  </svg>
-)
-
-const GraphIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width="20"
-    height="20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <circle cx="18" cy="5" r="3" />
-    <circle cx="6" cy="12" r="3" />
-    <circle cx="18" cy="19" r="3" />
-    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
   </svg>
 )
 
@@ -282,7 +80,7 @@ const INTERFACE_CARDS: InterfaceCard[] = [
     href: '/python-sdk/introduction'
   },
   {
-    icon: RestIcon,
+    icon: () => <Globe size={24} strokeWidth={1.5} />,
     label: 'REST API',
     badge: 'HTTP',
     badgeColor: '#16a34a',
@@ -291,7 +89,7 @@ const INTERFACE_CARDS: InterfaceCard[] = [
     href: '/rest-api/introduction'
   },
   {
-    icon: McpIcon,
+    icon: () => <Monitor size={24} strokeWidth={1.5} />,
     label: 'MCP Server',
     badge: 'MCP',
     badgeColor: '#7c3aed',
@@ -311,21 +109,21 @@ type ResourceCard = {
 
 const RESOURCE_CARDS: ResourceCard[] = [
   {
-    icon: RocketIcon,
+    icon: () => <Rocket size={24} strokeWidth={1.5} />,
     label: 'Quick Tutorial',
     description: 'First write → graph → semantic search in under 10 minutes.',
     cta: 'Start here',
     href: '/get-started/quick-tutorial'
   },
   {
-    icon: BookIcon,
+    icon: () => <Book size={24} strokeWidth={1.5} />,
     label: 'Tutorials',
     description: 'Hands-on guides: RAG pipelines, deployment, vector search, agent memory.',
     cta: 'Browse tutorials',
     href: '/tutorials'
   },
   {
-    icon: ConceptsIcon,
+    icon: () => <Sun size={24} strokeWidth={1.5} />,
     label: 'Concepts',
     description: 'How RushDB stores, links, and queries data — records, properties, graphs.',
     cta: 'Learn concepts',
@@ -338,54 +136,42 @@ type FeatureItem = {
   title: string
   description: string
   accent: string
+  href: string
 }
 
 const FEATURE_ITEMS: FeatureItem[] = [
   {
-    icon: IngestIcon,
+    icon: () => <Upload size={20} strokeWidth={1.5} />,
     title: 'Ingest anything',
     description:
       'Push flat objects, nested trees, or batches. Types inferred, graph built — no schema needed.',
-    accent: '#3f81ff'
+    accent: '#3f81ff',
+    href: '/concepts/data-ingestion'
   },
   {
-    icon: GraphIcon,
+    icon: () => <Share2 size={20} strokeWidth={1.5} />,
     title: 'Auto-linked graph',
     description: 'Nested objects become linked records automatically. Traverse relationships in queries.',
-    accent: '#8b5cf6'
+    accent: '#8b5cf6',
+    href: '/concepts/relationships'
   },
   {
-    icon: SparkleIcon,
+    icon: () => <Sparkles size={20} strokeWidth={1.5} />,
     title: 'Semantic search',
     description: 'Index any text property and query by meaning. Combine with field filters.',
-    accent: '#f59e0b'
+    accent: '#f59e0b',
+    href: '/concepts/semantic-search'
   },
   {
-    icon: ShieldIcon,
+    icon: () => <Shield size={20} strokeWidth={1.5} />,
     title: 'ACID transactions',
     description: 'Wrap any combination of writes and reads. Nothing persists if any step fails.',
-    accent: '#10b981'
+    accent: '#10b981',
+    href: '/concepts/transactions'
   }
 ]
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function CheckIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  )
-}
 
 function InterfaceCard({ card: c }: { card: InterfaceCard }) {
   return (
@@ -417,7 +203,7 @@ function InterfaceCard({ card: c }: { card: InterfaceCard }) {
         {c.features.map((f) => (
           <li key={f} className="flex items-center gap-2 text-[13px] text-[var(--ifm-color-emphasis-700)]">
             <span className="text-[var(--ifm-color-primary)]">
-              <CheckIcon />
+              <Check size={13} strokeWidth={2.5} />
             </span>
             {f}
           </li>
@@ -426,7 +212,7 @@ function InterfaceCard({ card: c }: { card: InterfaceCard }) {
 
       {/* CTA */}
       <span className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--ifm-color-emphasis-600)] transition-colors duration-150 ease-out group-hover:text-[var(--ifm-font-color-base)]">
-        Get started <ArrowIcon />
+        Get started <ArrowRight size={14} />
       </span>
     </a>
   )
@@ -446,7 +232,7 @@ function ResourceCard({ card: c }: { card: ResourceCard }) {
         {c.description}
       </p>
       <span className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--ifm-color-emphasis-600)] transition-colors duration-150 ease-out group-hover:text-[var(--ifm-font-color-base)]">
-        {c.cta} <ArrowIcon />
+        {c.cta} <ArrowRight size={14} />
       </span>
     </a>
   )
@@ -454,8 +240,9 @@ function ResourceCard({ card: c }: { card: ResourceCard }) {
 
 function FeaturePill({ item }: { item: FeatureItem }) {
   return (
-    <div
-      className={`flex items-start gap-4 rounded-xl border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-5`}
+    <a
+      href={item.href}
+      className={`group flex items-start gap-4 rounded-xl border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline transition-[background-color] duration-150 ease-out hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline focus:no-underline`}
     >
       <span
         className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
@@ -469,7 +256,7 @@ function FeaturePill({ item }: { item: FeatureItem }) {
           {item.description}
         </p>
       </div>
-    </div>
+    </a>
   )
 }
 
@@ -482,7 +269,7 @@ export default function DocsHomePage() {
       <div className="mb-12 mt-10 text-center">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--ifm-color-emphasis-600)]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
-          Make AI Agents and Apps Conciuous
+          Memory Layer for Agents & Apps
         </div>
 
         <h1 className="mb-4 text-[2.6rem] font-bold leading-[1.2] tracking-tight text-[var(--ifm-font-color-base)]">
@@ -490,8 +277,8 @@ export default function DocsHomePage() {
         </h1>
 
         <p className="mx-auto mb-8 max-w-[560px] text-[1.1rem] leading-relaxed text-[var(--ifm-color-emphasis-600)]">
-          Push any JSON — RushDB infers types, links nested objects into a graph, and makes everything
-          queryable by field value or by meaning. No schema design. No migrations. No separate vector store.
+          A database that stores, links, and retrieves structured data for AI agents and applications. Push
+          JSON — get a typed graph, queryable by value or by meaning. No schema needed.
         </p>
 
         <div className="flex flex-wrap items-center justify-center gap-3">
@@ -499,7 +286,7 @@ export default function DocsHomePage() {
             href="/get-started/quick-tutorial"
             className="inline-flex items-center gap-2 rounded-lg bg-[var(--ifm-color-primary)] px-5 py-2.5 text-[14px] font-semibold text-[var(--ifm-background-color)] no-underline transition-opacity duration-150 hover:text-[var(--ifm-background-color)] hover:no-underline hover:opacity-90"
           >
-            Quick Tutorial <ArrowIcon />
+            Quick Tutorial <ArrowRight size={14} />
           </a>
           <a
             href="https://app.rushdb.com"
@@ -570,7 +357,7 @@ export default function DocsHomePage() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--ifm-color-primary)] no-underline hover:no-underline hover:opacity-80"
           >
-            Sign up free <ArrowIcon />
+            Sign up free <ArrowRight size={14} />
           </a>
         </div>
 
@@ -588,7 +375,7 @@ export default function DocsHomePage() {
             href="/tutorials/deployment"
             className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--ifm-color-primary)] no-underline hover:no-underline hover:opacity-80"
           >
-            Deployment guide <ArrowIcon />
+            Deployment guide <ArrowRight size={14} />
           </a>
         </div>
       </div>

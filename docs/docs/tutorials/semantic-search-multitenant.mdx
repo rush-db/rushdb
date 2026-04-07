@@ -497,13 +497,13 @@ await db.records.create({
     title: 'Distributed Tracing at Scale',
     body: 'How to instrument services for end-to-end trace collection.',
     category: 'observability',
-    $vectors: [
-      {
-        propertyName: 'body',
-        vector: [/* 1536-dimension float array from your embedding model */]
-      }
-    ]
-  }
+  },
+  vectors: [
+    {
+      propertyName: 'body',
+      vector: [/* 1536-dimension float array from your embedding model */]
+    }
+  ]
 })
 
 // Search with an external query vector
@@ -530,17 +530,20 @@ db.ai.indexes.create({
 })
 
 # Write record with inline vector
-db.records.create("ARTICLE", {
-    "title": "Distributed Tracing at Scale",
-    "body": "How to instrument services for trace collection.",
-    "category": "observability",
-    "$vectors": [
+db.records.create(
+    "ARTICLE",
+    {
+        "title": "Distributed Tracing at Scale",
+        "body": "How to instrument services for trace collection.",
+        "category": "observability",
+    },
+    vectors=[
         {
             "propertyName": "body",
             "vector": [/* 1536-dimension float array */]
         }
     ]
-})
+)
 
 # Search with query vector
 results = db.ai.search({
@@ -574,7 +577,10 @@ curl -s -X POST "$BASE/ai/search" \
 
 ## The multi-tenant API endpoint pattern
 
-Here is a minimal Node.js handler that exposes project-scoped semantic search for a product:
+Here is a minimal handler that exposes project-scoped semantic search for a product:
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
 ```typescript
 // POST /api/search
@@ -611,6 +617,62 @@ export async function searchHandler(req: Request): Promise<Response> {
   })
 }
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# POST /api/search (e.g. Flask / FastAPI handler)
+from rushdb import RushDB
+
+def search_handler(tenant_api_key: str, query: str, category: str = None, page: int = 0, page_size: int = 10):
+    db = RushDB(tenant_api_key)
+
+    where = {}
+    if category:
+        where["category"] = category
+
+    results = db.ai.search({
+        "query": query,
+        "propertyName": "body",
+        "labels": ["ARTICLE"],
+        "where": where if where else None,
+        "skip": page * page_size,
+        "limit": page_size
+    })
+
+    return {
+        "results": [
+            {"id": r.data["__id"], "title": r.data.get("title"), "score": r.data.get("__score"), "category": r.data.get("category")}
+            for r in results.data
+        ],
+        "total": results.total
+    }
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# Each tenant uses their own project API key
+TENANT_TOKEN="rbk_tenant_project_key"
+BASE="https://api.rushdb.com/api/v1"
+
+curl -s -X POST "$BASE/ai/search" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TENANT_TOKEN" \
+  -d '{
+    "query": "performance tuning",
+    "propertyName": "body",
+    "labels": ["ARTICLE"],
+    "where": {"category": "infrastructure"},
+    "skip": 0,
+    "limit": 10
+  }'
+```
+
+</TabItem>
+</Tabs>
 
 Because `RushDB(tenantApiKey)` is project-scoped, there is no application-layer filtering needed. The isolation guarantee comes from the storage layer.
 

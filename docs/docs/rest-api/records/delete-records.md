@@ -4,14 +4,18 @@ sidebar_position: 7
 
 # Delete Records
 
-## `DELETE /api/v1/records/:entityId`
+## Delete by ID
+
+`DELETE /api/v1/records/:entityId`
 
 ```bash
 curl -X DELETE https://api.rushdb.com/api/v1/records/movie-123 \
   -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
 
-## `POST /api/v1/records/delete`
+## Bulk Delete
+
+`POST /api/v1/records/delete`
 
 Delete all records matching a query.
 
@@ -25,4 +29,3 @@ curl -X POST https://api.rushdb.com/api/v1/records/delete \
 :::warning
 Omitting `where` deletes **all** records with the given label.
 :::
-

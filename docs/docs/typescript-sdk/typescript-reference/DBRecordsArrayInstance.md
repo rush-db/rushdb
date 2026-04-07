@@ -74,12 +74,58 @@ The search query that was used to retrieve these records.
 
 ## Methods
 
-Currently, the `DBRecordsArrayInstance` class has no dedicated methods implemented. According to code comments, future improvements may include:
+### deleteAll()
 
 ```typescript
-// @TODO: Bulk actions: Delete (by ids or searchQuery?); Export to csv; Props update for found Records; Attach/Detach
-// @TODO: Create next({preserveData?: boolean}) method (or smth similar) to fetch next portion of data based on this.searchQuery
+async deleteAll(transaction?: Transaction | string): Promise<{ success: boolean }>
 ```
+
+Deletes all records in this result set.
+
+**Parameters**:
+- `transaction`: Optional transaction or transaction ID
+
+**Returns**: Promise resolving to `{ success: boolean }`
+
+### next()
+
+```typescript
+async next(options?: { preserveData?: boolean }): Promise<DBRecordsArrayInstance<S, Q>>
+```
+
+Fetches the next page of results based on the original search query.
+
+**Parameters**:
+- `options.preserveData`: If `true`, appends new results to the existing `data` array and returns the same instance. If `false` (default), returns a new `DBRecordsArrayInstance` with the next page.
+
+**Returns**: Promise resolving to a `DBRecordsArrayInstance` with the next page
+
+**Throws**: Error if no `searchQuery` was stored on this instance
+
+### exportCsv()
+
+```typescript
+exportCsv(): string
+```
+
+Exports the records to a CSV string. Headers are derived from the first record's property keys (system keys like `__id`, `__label`, `__proptypes` are excluded).
+
+**Returns**: CSV string (empty string if no records)
+
+### setProperties()
+
+```typescript
+async setProperties(
+  patch: Partial<InferSchemaTypesWrite<S>>,
+  transaction?: Transaction | string
+): Promise<void>
+```
+
+Updates properties across all records in this result set. Records are processed in batches of 100.
+
+**Parameters**:
+- `patch`: The fields to update and their new values
+- `transaction`: Optional transaction or transaction ID
 
 ## Usage Example
 
@@ -101,13 +147,19 @@ userRecords.data?.forEach(user => {
   console.log(user.id, user.data?.name);
 });
 
-// Access the original search query
-console.log(userRecords.searchQuery);
+// Fetch next page
+const nextPage = await userRecords.next();
+
+// Or append next page to existing results
+await userRecords.next({ preserveData: true });
+console.log(userRecords.data.length); // Now contains up to 20 records
+
+// Export to CSV
+const csv = userRecords.exportCsv();
+
+// Bulk update a property
+await userRecords.setProperties({ active: false });
+
+// Delete all found records
+await userRecords.deleteAll();
 ```
-
-## Future Enhancements
-
-According to the code comments, future enhancements may include:
-
-1. Bulk actions for operations like delete, export to CSV, property updates, and relationship management (attach/detach)
-2. Pagination methods to fetch the next set of records based on the original search query

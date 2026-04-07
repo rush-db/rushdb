@@ -2,12 +2,12 @@
  * E2E tests for the inline-vector BYOV (Bring Your Own Vectors) DX.
  *
  * This file exercises every surface area of the inline-vector feature:
- *   - records.create()   with vectors: [...]
- *   - records.upsert()   with vectors: [...]
- *   - records.set()      with vectors: [...]
- *   - records.importJson with $vectors per item
+ *   - records.create()    with vectors: [...]
+ *   - records.upsert()    with vectors: [...]
+ *   - records.set()       with vectors: [...]
+ *   - records.createMany  with vectors: VectorEntry[][] (top-level, indexed)
  *   - ai.indexes.create() with external: true shorthand
- *   - ai.search()        with queryVector (no query text)
+ *   - ai.search()         with queryVector (no query text)
  *   - disambiguation: two indexes on same property, different similarityFunction
  *   - error paths: wrong dimensions, ambiguous match, no matching index
  *
@@ -32,7 +32,13 @@ jest.setTimeout(120_000)
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Wait for an embedding index to reach 'ready', polling every 2 s. */
+/** Wait for an embedding index to reach a searchable state, polling every 2 s.
+ *
+ * For external indexes, the platform considers an index 'ready' when every
+ * record that has the indexed property has also been vectorised
+ * (totalRecords === indexedRecords). Tests must ensure all records have vectors;
+ * use db.ai.indexes.upsertVectors() to back-fill any that were created without.
+ */
 async function waitForIndexReady(
   db: RushDB,
   indexId: string,
@@ -43,8 +49,9 @@ async function waitForIndexReady(
   while (Date.now() < deadline) {
     const list = await db.ai.indexes.find()
     const idx = (list.data as EmbeddingIndex[]).find((i) => i.id === indexId)
-    if (idx?.status === 'ready') return
-    if (idx?.status === 'error') throw new Error(`Index ${indexId} entered error state`)
+    const status = idx?.status
+    if (status === 'ready') return
+    if (status === 'error') throw new Error(`Index ${indexId} entered error state`)
     await new Promise((r) => setTimeout(r, interval))
   }
   throw new Error(`Index ${indexId} did not become ready within ${timeoutMs} ms`)
@@ -77,12 +84,20 @@ describe('ai – inline vectors BYOV (e2e)', () => {
   // Track created index IDs for cleanup
   const createdIndexIds: string[] = []
 
-  // Helper: create external index scoped to LABEL:PROP with DIMS dimensions
-  async function makeIndex(similarityFunction: 'cosine' | 'euclidean' = 'cosine') {
+  // Shared cosine index created once in the global beforeAll and reused across sections
+  let sharedCosineIndexId: string
+
+  // Helper: returns the shared cosine index (or creates a new one for non-cosine similarity).
+  // The platform rejects duplicate indexes (409), so we never try to create the same one twice.
+  async function makeIndex(similarityFunction: 'cosine' | 'euclidean' = 'cosine'): Promise<{ id: string }> {
+    if (similarityFunction === 'cosine') {
+      return { id: sharedCosineIndexId }
+    }
+    // For non-cosine similarity functions (used only in section 7 on DISAMLABEL)
     const { data: idx } = await db.ai.indexes.create({
       label: LABEL,
       propertyName: PROP,
-      external: true, // shorthand instead of sourceType: 'external'
+      external: true,
       similarityFunction,
       dimensions: DIMS
     })
@@ -90,10 +105,81 @@ describe('ai – inline vectors BYOV (e2e)', () => {
     return idx
   }
 
+  // ── Setup ────────────────────────────────────────────────────────────────────
+  // The platform requires a property to exist before an embedding index can be created.
+  // We seed one record per label to establish each property in the schema, then create
+  // the shared cosine index used by most test sections.
+
+  beforeAll(async () => {
+    // Purge any stale indexes left by an interrupted previous run, so each run starts clean.
+    const testLabels = [LABEL, `${LABEL}Meta`, `${LABEL}Compat`, `${LABEL}Disambig`]
+    const { data: allIndexes } = await db.ai.indexes.find()
+    await Promise.all(
+      (allIndexes as EmbeddingIndex[])
+        .filter((i) => testLabels.includes(i.label))
+        .map((i) => db.ai.indexes.delete(i.id).catch(() => {}))
+    )
+
+    // Delete any stale records from previous runs.
+    // The stats query counts ALL records with the indexed property regardless of tenantId,
+    // so leftover records from aborted runs would push totalRecords > indexedRecords and
+    // prevent the index from reaching 'ready'.
+    await Promise.all(testLabels.map((l) => db.records.delete({ labels: [l] }).catch(() => {})))
+
+    const [labelSeedRecord] = await Promise.all([
+      // Seed LABEL so that PROP ('body') exists in the schema
+      db.records.create({ label: LABEL, data: { [PROP]: 'schema-seed', tenantId } }),
+      // Seed the extra labels used only in section 1 and section 7
+      db.records.create({ label: `${LABEL}Meta`, data: { summary: 'schema-seed', tenantId } }),
+      db.records.create({ label: `${LABEL}Compat`, data: { description: 'schema-seed', tenantId } }),
+      db.records.create({ label: `${LABEL}Disambig`, data: { [PROP]: 'schema-seed', tenantId } })
+    ])
+
+    // Create the single shared cosine index for LABEL.PROP.
+    // If one already exists (e.g. from an interrupted previous run), find and reuse it.
+    let sharedIdx: EmbeddingIndex
+    try {
+      const result = await db.ai.indexes.create({
+        label: LABEL,
+        propertyName: PROP,
+        external: true,
+        similarityFunction: 'cosine',
+        dimensions: DIMS
+      })
+      sharedIdx = result.data
+    } catch {
+      const { data: allIndexes } = await db.ai.indexes.find()
+      const existing = (allIndexes as EmbeddingIndex[]).find(
+        (i) =>
+          i.label === LABEL &&
+          i.propertyName === PROP &&
+          i.similarityFunction === 'cosine' &&
+          i.dimensions === DIMS
+      )
+      if (!existing)
+        throw new Error(`Failed to create index and could not find existing ${LABEL}.${PROP} cosine index`)
+      sharedIdx = existing
+    }
+    createdIndexIds.push(sharedIdx.id)
+    sharedCosineIndexId = sharedIdx.id
+
+    // Vectorise the seed record so the index starts in 'ready' state.
+    // The platform requires totalRecords === indexedRecords on the index before
+    // ai.search() is allowed; upsertVectors on the seed record satisfies that.
+    await db.ai.indexes.upsertVectors(sharedCosineIndexId, {
+      items: [{ recordId: labelSeedRecord.id, vector: unitVec(0) }]
+    })
+  })
+
   // ── Teardown ────────────────────────────────────────────────────────────────
 
   afterAll(async () => {
-    await db.records.delete({ labels: [LABEL], where: { tenantId } }).catch(() => {})
+    await Promise.all([
+      db.records.delete({ labels: [LABEL], where: { tenantId } }).catch(() => {}),
+      db.records.delete({ labels: [`${LABEL}Meta`], where: { tenantId } }).catch(() => {}),
+      db.records.delete({ labels: [`${LABEL}Compat`], where: { tenantId } }).catch(() => {}),
+      db.records.delete({ labels: [`${LABEL}Disambig`], where: { tenantId } }).catch(() => {})
+    ])
     for (const id of createdIndexIds) {
       await db.ai.indexes.delete(id).catch(() => {})
     }
@@ -339,10 +425,10 @@ describe('ai – inline vectors BYOV (e2e)', () => {
   })
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 5. records.importJson() with $vectors
+  // 5. records.createMany() with top-level vectors array
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe('records.importJson() with $vectors', () => {
+  describe('records.createMany() with vectors', () => {
     let indexId: string
 
     beforeAll(async () => {
@@ -350,27 +436,20 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       indexId = idx.id
     })
 
-    it('writes vectors for each item in a batch import', async () => {
-      const importTenant = `${tenantId}-import`
+    it('writes vectors for each row in a batch import', async () => {
+      const importTenant = `${tenantId}-createMany`
 
-      await db.records.importJson({
+      await db.records.createMany({
         label: LABEL,
         data: [
-          {
-            body: 'Import Alpha',
-            tenantId: importTenant,
-            $vectors: [{ propertyName: PROP, vector: unitVec(0) }]
-          },
-          {
-            body: 'Import Beta',
-            tenantId: importTenant,
-            $vectors: [{ propertyName: PROP, vector: unitVec(1) }]
-          },
-          {
-            body: 'Import Gamma',
-            tenantId: importTenant,
-            $vectors: [{ propertyName: PROP, vector: unitVec(2) }]
-          }
+          { body: 'Import Alpha', tenantId: importTenant },
+          { body: 'Import Beta', tenantId: importTenant },
+          { body: 'Import Gamma', tenantId: importTenant }
+        ],
+        vectors: [
+          [{ propertyName: PROP, vector: unitVec(0) }],
+          [{ propertyName: PROP, vector: unitVec(1) }],
+          [{ propertyName: PROP, vector: unitVec(2) }]
         ]
       })
 
@@ -393,29 +472,36 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       expect(res.data[0].__score).toBeCloseTo(1, 2)
     })
 
-    it('does not create $vectors as child records', async () => {
-      // If $vectors were processed by BFS as child entities, we'd find InlineVecArticle-like
-      // child records. Verify they don't exist.
-      const importTenant = `${tenantId}-no-children`
+    it('handles sparse vectors (rows beyond vectors.length get no vector)', async () => {
+      const sparseTenant = `${tenantId}-sparse`
 
-      await db.records.importJson({
+      // Only the first row gets a vector
+      await db.records.createMany({
         label: LABEL,
         data: [
-          {
-            body: 'No children check',
-            tenantId: importTenant,
-            $vectors: [{ propertyName: PROP, vector: unitVec(0) }]
-          }
-        ]
+          { body: 'Sparse Alpha', tenantId: sparseTenant },
+          { body: 'Sparse Beta', tenantId: sparseTenant }
+        ],
+        vectors: [[{ propertyName: PROP, vector: unitVec(0) }]]
       })
 
-      // Only one record should exist (the parent), none named after $vectors keys
       const all = await db.records.find({
         labels: [LABEL],
-        where: { tenantId: importTenant }
+        where: { tenantId: sparseTenant }
       })
 
-      expect(all.total).toBe(1)
+      expect(all.total).toBe(2)
+
+      // The platform requires ALL records with the indexed property to have a vector
+      // before the index is searchable (totalRecords === indexedRecords → 'ready').
+      // Back-fill the un-vectorized record via upsertVectors so subsequent sections
+      // are unaffected.
+      const betaId = (all.data as any[]).find((r) => r.data?.body === 'Sparse Beta')?.id
+      if (betaId) {
+        await db.ai.indexes.upsertVectors(indexId, {
+          items: [{ recordId: betaId, vector: unitVec(2) }]
+        })
+      }
     })
   })
 
@@ -469,7 +555,8 @@ describe('ai – inline vectors BYOV (e2e)', () => {
     let euclideanIndexId: string
 
     beforeAll(async () => {
-      // Create two indexes on the same property but different similarity functions
+      // DISAMLABEL was seeded in the global beforeAll, so its 'body' property already exists.
+      // Create two indexes on the same property with different similarity functions.
       const [{ data: ci }, { data: ei }] = await Promise.all([
         db.ai.indexes.create({
           label: DISAMLABEL,
@@ -571,6 +658,9 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       const { data: res } = await db.ai.search({
         labels: [LABEL],
         propertyName: PROP,
+        sourceType: 'external',
+        similarityFunction: 'cosine',
+        dimensions: DIMS,
         queryVector: unitVec(0),
         where: { tenantId },
         limit: 3
@@ -580,7 +670,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
     })
 
     it('rejects when vectors length exceeds data length (client-side)', async () => {
-      expect(() =>
+      await expect(
         db.records.createMany({
           label: LABEL,
           data: [{ body: 'one row', tenantId }],
@@ -589,7 +679,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
             [{ propertyName: PROP, vector: unitVec(1) }] // extra — no corresponding row
           ]
         })
-      ).toThrow(/vectors length.*exceeds/)
+      ).rejects.toThrow(/vectors length.*exceeds/)
     })
 
     it('allows sparse vectors — only some rows need vectors', async () => {
@@ -608,6 +698,12 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       })
 
       expect(result.data.length).toBe(3)
+
+      // Back-fill vectors for rows 1 and 2 via upsertVectors — the documented path
+      // for records that were created without inline vectors.
+      await db.ai.indexes.upsertVectors(indexId, {
+        items: result.data.slice(1).map((r) => ({ recordId: r.id, vector: unitVec(0) }))
+      })
     })
   })
 
@@ -652,6 +748,9 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       const { data: res } = await db.ai.search({
         labels: [LABEL],
         propertyName: PROP,
+        sourceType: 'external',
+        similarityFunction: 'cosine',
+        dimensions: DIMS,
         queryVector: unitVec(0),
         where: { tenantId },
         limit: 3

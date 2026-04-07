@@ -40,6 +40,7 @@ export class EntityQueryService {
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
+      .append(`CYPHER 25`)
       .append(`WITH $record as r, datetime() as time`)
       .append(
         `WITH *, apoc.map.fromPairs([property IN r.properties | [property.name, property.type]]) AS typesMap,`
@@ -53,24 +54,21 @@ export class EntityQueryService {
       .append(
         `WHERE (r.label IS NULL OR ANY(l IN labels(record) WHERE l = r.label)) AND ALL(k IN keysToMatch WHERE record[k] = valuesMap[k])`
       )
+      .append(`CALL (*) {`)
+      .append(`  WHEN record IS NULL THEN {`)
       .append(
-        `WITH * CALL apoc.do.when(record IS NULL, 'CREATE (newRecord:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} }) RETURN newRecord', 'RETURN NULL', { r:r, projectId: $projectId }) YIELD value`
+        `    CREATE (newRecord:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} })`
       )
+      .append(`    RETURN newRecord AS activeRecord`)
+      .append(`  } ELSE {`)
+      .append(`    RETURN record AS activeRecord`)
+      .append(`  }`)
+      .append(`}`)
+      .append(`WITH r, time, activeRecord AS record`)
 
-      // @TODO: Use this instead `apoc.do.when` after migrating prod db to Neo4j 2025.06 or higher
-      // .append(
-      //   `CALL (*) {
-      //     WHEN record IS NULL THEN {
-      //       CREATE (newRecord:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} }) RETURN newRecord AS record
-      //     } ELSE {
-      //       RETURN record
-      //     }
-      //   }`
-      // )
-      .append(`WITH *, coalesce(value.newRecord, record) AS record`)
-      .append(
-        `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as upsertLabelResult`
-      )
+    queryBuilder.append(
+      `CALL apoc.create.addLabels(record, ["${RUSHDB_LABEL_RECORD}", coalesce(r.label, "${RUSHDB_LABEL_RECORD}")]) YIELD node as upsertLabelResult`
+    )
 
     if (rewrite) {
       queryBuilder

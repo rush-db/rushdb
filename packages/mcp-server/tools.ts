@@ -45,6 +45,7 @@ export type ToolName =
   | 'createEmbeddingIndex'
   | 'deleteEmbeddingIndex'
   | 'getEmbeddingIndexStats'
+  | 'upsertEmbeddingVectors'
   | 'semanticSearch'
 
 type SecurityScheme = { type: 'oauth2'; scopes: string[] } | { type: 'noauth' }
@@ -718,10 +719,9 @@ export const tools: Tool[] = [
     securitySchemes: WRITE_SCHEMES,
     description:
       'Create a new embedding index policy for a string property. ' +
-      'RushDB will asynchronously embed every existing value of `propertyName` on records with the given `label`, ' +
-      'and keep new values embedded on write. ' +
-      'Once the index status becomes "ready" (check with getEmbeddingIndexStats), ' +
-      'use semanticSearch to query by natural language.',
+      'For managed indexes (default), RushDB asynchronously embeds every existing value and keeps new values embedded on write. ' +
+      'For external indexes (sourceType: "external"), the client supplies vectors via upsertEmbeddingVectors. ' +
+      'Once the index status becomes "ready" (check with getEmbeddingIndexStats), use semanticSearch to query.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -729,9 +729,61 @@ export const tools: Tool[] = [
         propertyName: {
           type: 'string',
           description: 'Name of the string property whose values will be embedded.'
+        },
+        sourceType: {
+          type: 'string',
+          enum: ['managed', 'external'],
+          description:
+            'Whether RushDB generates embeddings ("managed") or the client provides them ("external"). Defaults to "managed".'
+        },
+        similarityFunction: {
+          type: 'string',
+          enum: ['cosine', 'euclidean'],
+          description: 'Similarity function for the vector index. Defaults to "cosine".'
+        },
+        dimensions: {
+          type: 'number',
+          description:
+            'Vector dimensionality. Required for external indexes. For managed indexes, defaults to the server-configured embedding model dimensions.'
         }
       },
       required: ['label', 'propertyName']
+    }
+  },
+  {
+    name: 'upsertEmbeddingVectors',
+    annotations: WRITE,
+    securitySchemes: WRITE_SCHEMES,
+    description:
+      'Write pre-computed embedding vectors to an external vector index for a set of records. ' +
+      'Only valid for indexes with sourceType "external". ' +
+      'Each vector must contain exactly as many dimensions as the index was created with. ' +
+      'After upserting, call getEmbeddingIndexStats to check if all records are indexed (status becomes "ready").',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        indexId: {
+          type: 'string',
+          description: 'ID of the external embedding index (from findEmbeddingIndexes).'
+        },
+        items: {
+          type: 'array',
+          description: 'Array of record-vector pairs to write.',
+          items: {
+            type: 'object',
+            properties: {
+              recordId: { type: 'string', description: 'The __id of the target record.' },
+              vector: {
+                type: 'array',
+                items: { type: 'number' },
+                description: 'Pre-computed embedding vector. Length must match index dimensions.'
+              }
+            },
+            required: ['recordId', 'vector']
+          }
+        }
+      },
+      required: ['indexId', 'items']
     }
   },
   {
@@ -770,7 +822,8 @@ export const tools: Tool[] = [
     securitySchemes: READ_SCHEMES,
     description:
       'Perform semantic (vector) similarity search over records whose `propertyName` has been indexed with createEmbeddingIndex. ' +
-      'Provide a free-text `query` — RushDB embeds it and returns the most similar records ranked by cosine similarity (__score). ' +
+      'For managed indexes: provide a free-text `query` — RushDB embeds it and returns the most similar records ranked by similarity (__score). ' +
+      'For external indexes: provide a `queryVector` (pre-computed number[]) instead of query text. ' +
       'Direct vector-index mode (fast, default): used when no `where` filter is supplied. ' +
       'Prefilter mode (exact, slower): activated when a `where` filter is supplied — candidates are first narrowed then ranked. ' +
       'Requires an embedding index in "ready" status for the given label+propertyName.',
@@ -780,13 +833,31 @@ export const tools: Tool[] = [
         propertyName: { type: 'string', description: 'Name of the indexed property to search against.' },
         query: {
           type: 'string',
-          description: 'Free-text query to embed and compare against stored vectors.'
+          description:
+            'Free-text query to embed and compare against stored vectors (managed indexes only). Mutually exclusive with queryVector.'
+        },
+        queryVector: {
+          type: 'array',
+          items: { type: 'number' },
+          description:
+            'Pre-computed embedding vector to search with (external indexes). Mutually exclusive with query. Length must match index dimensions.'
         },
         labels: {
           type: 'array',
           items: { type: 'string' },
           description:
             'One or more record labels to scope the search. The first label is used to resolve the embedding index.'
+        },
+        sourceType: {
+          type: 'string',
+          enum: ['managed', 'external'],
+          description:
+            'Select which index type to search. Required when both managed and external indexes exist for the same label+property.'
+        },
+        similarityFunction: {
+          type: 'string',
+          enum: ['cosine', 'euclidean'],
+          description: 'Disambiguates when multiple indexes share the same label+property+sourceType.'
         },
         where: {
           type: 'object',
@@ -800,7 +871,7 @@ export const tools: Tool[] = [
         limit: { type: 'number', description: 'Maximum number of results to return (default 20).' },
         skip: { type: 'number', description: 'Number of results to skip for pagination (default 0).' }
       },
-      required: ['propertyName', 'query', 'labels']
+      required: ['propertyName', 'labels']
     }
   }
 ] as const satisfies Array<Tool>

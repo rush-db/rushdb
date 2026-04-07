@@ -1,6 +1,7 @@
 ---
 sidebar_position: 3
 ---
+
 # Storage
 
 RushDB uses a **dual storage architecture**:
@@ -12,13 +13,14 @@ RushDB uses a **dual storage architecture**:
 
 Unlike traditional database models, Neo4j's graph approach offers distinct advantages for connected data:
 
-| Database Type | Core Concept | RushDB Analogy |
-|---------------|--------------|----------------|
-| **Relational DB** | Tables with rows and columns | A table would be a label, a row would be a record, but relationships would require complex JOIN operations |
-| **Document DB** | Collections of JSON documents | Each JSON document would be a record, but connecting documents requires explicit reference fields |
-| **Graph DB (Neo4j)** | Nodes and relationships | Records are nodes with properties, and relationships are first-class citizens that connect related data |
+| Database Type        | Core Concept                  | RushDB Analogy                                                                                             |
+| -------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Relational DB**    | Tables with rows and columns  | A table would be a label, a row would be a record, but relationships would require complex JOIN operations |
+| **Document DB**      | Collections of JSON documents | Each JSON document would be a record, but connecting documents requires explicit reference fields          |
+| **Graph DB (Neo4j)** | Nodes and relationships       | Records are nodes with properties, and relationships are first-class citizens that connect related data    |
 
 In Neo4j, relationships are physical connections in the database, not just foreign key references, enabling:
+
 - Traversing connections without costly JOIN operations
 - Discovering patterns across different data types
 - Modeling complex, interconnected data naturally
@@ -26,6 +28,7 @@ In Neo4j, relationships are physical connections in the database, not just forei
 ## Neo4j Foundation
 
 Neo4j is responsible for all record and property data in RushDB, providing:
+
 - High-performance graph traversals
 - ACID-compliant transactions
 - Property graph model flexibility
@@ -37,10 +40,10 @@ The [APOC](https://neo4j.com/labs/apoc/) plugin extends Neo4j with JSON conversi
 
 Dashboard entities — users, workspaces, projects, and API tokens — are stored in a SQL database managed by [Drizzle ORM](https://orm.drizzle.team/). This separation keeps operational metadata out of the graph and allows standard relational tooling (migrations, studio, backups) to be used for account management.
 
-| Environment | Database | Configuration |
-|-------------|----------|---------------|
-| Local development | SQLite (`rushdb.db`) | `SQL_DB_TYPE=sqlite` |
-| Production | PostgreSQL | `SQL_DB_TYPE=postgres`, `SQL_DB_URL=postgresql://...` |
+| Environment       | Database             | Configuration                                         |
+| ----------------- | -------------------- | ----------------------------------------------------- |
+| Local development | SQLite (`rushdb.db`) | `SQL_DB_TYPE=sqlite`                                  |
+| Production        | PostgreSQL           | `SQL_DB_TYPE=postgres`, `SQL_DB_URL=postgresql://...` |
 
 Schema migrations are applied automatically on startup.
 
@@ -48,13 +51,12 @@ Schema migrations are applied automatically on startup.
 
 Each record in RushDB (a meaningful key-value data piece) is extended with several internal properties that enable advanced functionality:
 
-| Internal Key | Client Representation | Description |
-|--------------|----------------------|-------------|
-| `__RUSHDB__KEY__ID__` | `__id` | UUIDv7 that enables lexicographic ordering without relying on user-defined fields like `createdAt`. RushDB SDKs support converting `__id` to timestamp and ISO8601 date. For more details, see [UUIDv7 specification](https://www.ietf.org/archive/id/draft-peabody-uuid-v7-01.html). |
-| `__RUSHDB__KEY__PROPERTIES__META__` | `__proptypes` | Stringified meta-object holding the types of data in the current record, e.g., `{ name: "string", active: "boolean", ... }` |
-| `__RUSHDB__KEY__LABEL__` | `__label` | Record Label identifier. Every record has two labels: a default one (`__RUSHDB__LABEL__RECORD__`) and a user-defined one that is searchable. Currently, RushDB allows only one custom label per record, and it is required by default. For more details about labels, see [Labels](../concepts/labels). |
-| `__RUSHDB__KEY__PROJECT__ID__` | `__projectId` | Project identifier for multitenancy isolation. This property is never exposed to clients via UI or API. |
-
+| Internal Key                        | Client Representation | Description                                                                                                                                                                                                                                                                                             |
+| ----------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `__RUSHDB__KEY__ID__`               | `__id`                | UUIDv7 that enables lexicographic ordering without relying on user-defined fields like `createdAt`. RushDB SDKs support converting `__id` to timestamp and ISO8601 date. For more details, see [UUIDv7 specification](https://www.ietf.org/archive/id/draft-peabody-uuid-v7-01.html).                   |
+| `__RUSHDB__KEY__PROPERTIES__META__` | `__proptypes`         | Stringified meta-object holding the types of data in the current record, e.g., `{ name: "string", active: "boolean", ... }`                                                                                                                                                                             |
+| `__RUSHDB__KEY__LABEL__`            | `__label`             | Record Label identifier. Every record has two labels: a default one (`__RUSHDB__LABEL__RECORD__`) and a user-defined one that is searchable. Currently, RushDB allows only one custom label per record, and it is required by default. For more details about labels, see [Labels](../concepts/labels). |
+| `__RUSHDB__KEY__PROJECT__ID__`      | `__projectId`         | Project identifier for multitenancy isolation. This property is never exposed to clients via UI or API.                                                                                                                                                                                                 |
 
 ## Data Structure
 
@@ -86,12 +88,12 @@ graph TD
 
 In this structure:
 
-| Graph Element | Internal Label | Description |
-|--------------|----------------|-------------|
-| Records | `__RUSHDB__LABEL__RECORD__` | Nodes that represent user-defined entities (Car, Engine, Motorcycle) |
-| Properties | `__RUSHDB__LABEL__PROPERTY__` | Nodes that represent data attributes with a "name" field storing the property name |
-| Value Relations | `__RUSHDB__RELATION__VALUE__` | Edges connecting properties to their records (the property → record direction) |
-| Default Relations | `__RUSHDB__RELATION__DEFAULT__` | Edges connecting related records (like Car to Engine) |
+| Graph Element     | Internal Label                  | Description                                                                        |
+| ----------------- | ------------------------------- | ---------------------------------------------------------------------------------- |
+| Records           | `__RUSHDB__LABEL__RECORD__`     | Nodes that represent user-defined entities (Car, Engine, Motorcycle)               |
+| Properties        | `__RUSHDB__LABEL__PROPERTY__`   | Nodes that represent data attributes with a "name" field storing the property name |
+| Value Relations   | `__RUSHDB__RELATION__VALUE__`   | Edges connecting properties to their records (the property → record direction)     |
+| Default Relations | `__RUSHDB__RELATION__DEFAULT__` | Edges connecting related records (like Car to Engine)                              |
 
 This structure allows efficient traversals across related records while maintaining property-based connections that can reveal relationships between otherwise unrelated entities.
 
@@ -124,23 +126,29 @@ Properties are not shared amongst projects (database instances), ensuring comple
 
 RushDB supports a wide range of data types to accommodate diverse data needs and provide a flexible environment for your applications. Below is a comprehensive list of the supported data types along with their descriptions:
 
-### `string`
+### String
+
 This data type is used for any textual information and can hold text of unlimited length.
 
-### `number`
+### Number
+
 This data type accommodates both floating-point numbers and integers. For instance, it can handle values like
 `-120.209817` (a float) or `42` (an integer).
 
-### `datetime`
+### Datetime
+
 This data type adheres to the ISO 8601 format, including timezones. For example: `2012-12-21T18:29:37Z`.
 
-### `boolean`
+### Boolean
+
 This data type can only have two possible values: `true` or `false`.
 
-### `null`
+### Null
+
 This data type has only one possible value: `null`.
 
 ---
+
 ### Arrays
 
 In essence, RushDB supports all the data types that JSON does. However, when it comes to arrays (or Lists), RushDB can indeed
@@ -150,6 +158,7 @@ arrays. To learn more, check out the [Properties](../concepts/properties) sectio
 > **Note:** Every data type mentioned above supports an array representation.
 
 Here are some valid examples:
+
 - `["apple", "banana", "carrot"]` - good
 - `[null, null, null, null, null]` - weird, but works fine 🤔
 - `[4, 8, 15, 16, 23, 42]` - works as well
@@ -213,6 +222,7 @@ graph TD
 ```
 
 In this representation:
+
 - Records are nodes with the label `__RUSHDB__LABEL__RECORD__` plus a user-defined label (car, engine)
 - Records store the actual values of properties directly as node attributes
 - Records also store `__proptypes` metadata about property types
@@ -250,14 +260,14 @@ When these records are returned through RushDB's API or SDKs, the internal keys 
   {
     "__id": "01968aa4-22c1-781a-8e8c-8fe6be6c3fd4",
     "__label": "car",
-    "__proptypes": {"make":"string","model":"string"},
+    "__proptypes": { "make": "string", "model": "string" },
     "make": "Tesla",
     "model": "Model 3"
   },
   {
     "__id": "01968aa4-74af-73e4-984d-3888d63ec72e",
     "__label": "engine",
-    "__proptypes": {"power":"number","type":"string"},
+    "__proptypes": { "power": "number", "type": "string" },
     "power": 283,
     "type": "electric"
   }
@@ -278,20 +288,20 @@ When RushDB connects to Neo4j, it automatically creates several indexes and cons
 
 The following uniqueness constraints are created on graph nodes:
 
-| Constraint Name | Node Label | Property | Description |
-|-----------------|------------|----------|-------------|
-| `constraint_record_id` | `__RUSHDB__LABEL__RECORD__` | `__RUSHDB__KEY__ID__` | Ensures each record has a unique ID |
-| `constraint_property_id` | `__RUSHDB__LABEL__PROPERTY__` | `id` | Ensures each property node has a unique ID |
+| Constraint Name          | Node Label                    | Property              | Description                                |
+| ------------------------ | ----------------------------- | --------------------- | ------------------------------------------ |
+| `constraint_record_id`   | `__RUSHDB__LABEL__RECORD__`   | `__RUSHDB__KEY__ID__` | Ensures each record has a unique ID        |
+| `constraint_property_id` | `__RUSHDB__LABEL__PROPERTY__` | `id`                  | Ensures each property node has a unique ID |
 
 ### Performance Indexes
 
 The following indexes are created to optimize query performance:
 
-| Index Name | Node Label | Properties | Description |
-|------------|------------|------------|-------------|
-| `index_record_id` | `__RUSHDB__LABEL__RECORD__` | `__RUSHDB__KEY__ID__` | Speeds up record lookups by ID |
-| `index_record_projectid` | `__RUSHDB__LABEL__RECORD__` | `__RUSHDB__KEY__PROJECT__ID__` | Enables fast filtering of records by project |
-| `index_property_name` | `__RUSHDB__LABEL__PROPERTY__` | `name` | Enables fast property lookups by name |
+| Index Name                | Node Label                    | Properties                              | Description                                                    |
+| ------------------------- | ----------------------------- | --------------------------------------- | -------------------------------------------------------------- |
+| `index_record_id`         | `__RUSHDB__LABEL__RECORD__`   | `__RUSHDB__KEY__ID__`                   | Speeds up record lookups by ID                                 |
+| `index_record_projectid`  | `__RUSHDB__LABEL__RECORD__`   | `__RUSHDB__KEY__PROJECT__ID__`          | Enables fast filtering of records by project                   |
+| `index_property_name`     | `__RUSHDB__LABEL__PROPERTY__` | `name`                                  | Enables fast property lookups by name                          |
 | `index_property_mergerer` | `__RUSHDB__LABEL__PROPERTY__` | `name`, `type`, `projectId`, `metadata` | Optimizes property node merging operations during data imports |
 
 These indexes and constraints are essential for RushDB's performance and data integrity, particularly when dealing with large datasets and complex queries across the property graph model. They ensure that:
@@ -301,15 +311,16 @@ These indexes and constraints are essential for RushDB's performance and data in
 3. Property lookups are efficient, especially during graph traversals and joins
 
 Learn more at [REST API - Import Data](../rest-api/records/import-data) or through the language-specific SDKs:
+
 - [TypeScript SDK](../typescript-sdk/records/import-data)
 - [Python SDK](../python-sdk/records/import-data)
 
 ## Performance Considerations
 
 This approach is carefully designed to:
+
 - Enable efficient indexing and querying
 - Support advanced graph traversals and pattern matching
 - Facilitate semantic search and similarity re-ranking with minimal computational cost
 
 By structuring data this way, RushDB achieves a balance between storage overhead and query performance, optimizing for use cases that require both traditional database operations and advanced graph analytics capabilities.
-

@@ -123,7 +123,6 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
       description: data.description,
       ...(data.customDb && { customDb: data.customDb })
     }
-    // @TODO: Sanitize project payload
     // @ts-expect-error customDb and stats are strings on the backend
     return mutate(projectData)
   }

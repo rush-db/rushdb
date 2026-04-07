@@ -5,7 +5,7 @@ description: Compare RushDB's three deployment models — Managed, BYOC (Bring Y
 tags: [Deployment, BYOC, Neo4j, Self-Hosted]
 ---
 
-import Tabs from '@theme/Tabs';
+import Tabs from '@site/src/components/LanguageTabs';
 import TabItem from '@theme/TabItem';
 
 # BYOC vs Managed vs Self-Hosted
@@ -42,11 +42,37 @@ RushDB offers three deployment models. This page explains the trade-offs so you 
 - You'd rather not think about Neo4j capacity planning.
 - You're prototyping, running a hobby project, or in early-stage.
 
-```js
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
 // Nothing to configure — just use the cloud API key
 import RushDB from '@rushdb/javascript-sdk'
 const db = new RushDB('rbk_xxxxxxxx')
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+from rushdb import RushDB
+
+db = RushDB("rbk_xxxxxxxx")
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# All API calls use the cloud API key directly
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer rbk_xxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"labels":["TEST"]}'
+```
+
+</TabItem>
+</Tabs>
 
 ---
 
@@ -60,19 +86,57 @@ const db = new RushDB('rbk_xxxxxxxx')
 
 BYOC gives you a RushDB project that connects to your Neo4j credentials. See [Connect an Aura Instance](./connect-aura-instance) for the full setup guide.
 
-```js
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
 // Same SDK interface — BYOC is transparent to application code
 import RushDB from '@rushdb/javascript-sdk'
 const db = new RushDB('rbk_your_byoc_project_key')
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+from rushdb import RushDB
+
+db = RushDB("rbk_your_byoc_project_key")
+```
+
+</TabItem>
+</Tabs>
+
 **Feature unlocked — raw Cypher:**
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const result = await db.query.raw('MATCH (n) RETURN count(n) AS total')
+console.log(result)
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = db.query.raw("MATCH (n) RETURN count(n) AS total")
+print(result)
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/query/raw \
   -H "Authorization: Bearer rbk_your_byoc_project_key" \
   -H "Content-Type: application/json" \
   -d '{"query": "MATCH (n) RETURN count(n) AS total"}'
 ```
+
+</TabItem>
+</Tabs>
 
 ---
 
@@ -86,13 +150,46 @@ curl -X POST https://api.rushdb.com/api/v1/query/raw \
 
 See the [Deployment guide](./deployment) for the complete Docker Compose walkthrough.
 
-```js
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
 import RushDB from '@rushdb/javascript-sdk'
 const db = new RushDB(
   process.env.RUSHDB_API_KEY,
   { url: process.env.RUSHDB_API_URL }  // points to your own instance
 )
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+from rushdb import RushDB
+
+db = RushDB(
+    os.environ["RUSHDB_API_KEY"],
+    base_url=os.environ["RUSHDB_API_URL"]  # points to your own instance
+)
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# Point requests at your self-hosted instance
+export BASE="https://rushdb.your-company.com/api/v1"
+export TOKEN="your_self_hosted_api_key"
+
+curl -X POST "$BASE/records/search" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"labels":["TEST"]}'
+```
+
+</TabItem>
+</Tabs>
 
 ---
 
@@ -121,10 +218,10 @@ Managed and BYOC share the same RushDB API layer. There is no direct data export
 
 Use `getOntologyMarkdown()` to capture your record labels, property names, and relationship types before migrating:
 
-<Tabs>
-<TabItem value="js" label="JavaScript">
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
-```js
+```typescript
 const ontology = await db.getOntologyMarkdown()
 // Save this as a snapshot of your schema
 console.log(ontology)
@@ -145,10 +242,10 @@ print(ontology)
 
 Use `records.find()` with pagination to export records by label:
 
-<Tabs>
-<TabItem value="js" label="JavaScript">
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
-```js
+```typescript
 const PAGE_SIZE = 500
 let skip = 0
 const allRecords = []
@@ -192,6 +289,27 @@ while True:
 ```
 
 </TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+BASE="https://api.rushdb.com/api/v1"
+TOKEN="RUSHDB_API_KEY"
+H='Content-Type: application/json'
+
+# Paginated export
+SKIP=0
+while true; do
+  PAGE=$(curl -s -X POST "$BASE/records/search" \
+    -H "$H" -H "Authorization: Bearer $TOKEN" \
+    -d "{\"labels\":[\"Product\"],\"skip\":$SKIP,\"limit\":500}")
+  COUNT=$(echo "$PAGE" | jq '.data | length')
+  echo "$PAGE" | jq '.data[]' >> exported_products.jsonl
+  [[ $COUNT -lt 500 ]] && break
+  SKIP=$((SKIP + 500))
+done
+```
+
+</TabItem>
 </Tabs>
 
 **3. Create a BYOC project**
@@ -202,10 +320,10 @@ In the [RushDB Dashboard](https://app.rushdb.com), create a new project using "U
 
 Point your SDK at the new API key and re-ingest:
 
-<Tabs>
-<TabItem value="js" label="JavaScript">
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
-```js
+```typescript
 const byocDb = new RushDB('rbk_byoc_project_key')
 
 await byocDb.records.importJson({
@@ -227,6 +345,17 @@ byoc_db.records.import_json(
 ```
 
 </TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+BYOC_TOKEN="rbk_byoc_project_key"
+
+curl -s -X POST "$BASE/records/import" \
+  -H "$H" -H "Authorization: Bearer $BYOC_TOKEN" \
+  -d '{"label":"Product","data":[...]}'
+```
+
+</TabItem>
 </Tabs>
 
 ---
@@ -240,12 +369,44 @@ Self-hosted uses the same REST API surface as the cloud. The migration steps are
 3. Export records from the cloud using the pagination pattern above.
 4. Point the SDK at your self-hosted URL and re-import.
 
-```js
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
 const selfHostedDb = new RushDB(
   process.env.SELFHOSTED_API_KEY,
   { url: 'https://rushdb.your-company.com/api/v1' }
 )
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+from rushdb import RushDB
+
+self_hosted_db = RushDB(
+    os.environ["SELFHOSTED_API_KEY"],
+    base_url="https://rushdb.your-company.com/api/v1"
+)
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+export BASE="https://rushdb.your-company.com/api/v1"
+export TOKEN="your_self_hosted_api_key"
+
+curl -X POST "$BASE/records/search" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"labels":["Product"]}'
+```
+
+</TabItem>
+</Tabs>
 
 ---
 

@@ -1,5 +1,6 @@
 import { useStore } from '@nanostores/react'
 import { $user } from '~/features/auth/stores/user'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { useWorkspaceUsageQuery } from '~/features/billing/hooks/useBillingHooks'
 import { cn } from '~/lib/utils'
 import { getRoutePath } from '~/lib/router'
@@ -12,12 +13,12 @@ function formatKu(n: number): string {
 
 export function KuHeaderBar() {
   const currentUser = useStore($user)
+  const { data: platformSettings } = usePlatformSettings()
   const { data: usage } = useWorkspaceUsageQuery()
 
   const isOwner = currentUser.currentScope?.role === 'owner'
 
-  // selfHosted guard is baked into $workspaceUsage (returns undefined when selfHosted)
-  if (!isOwner || !usage) return null
+  if (platformSettings?.selfHosted || !isOwner || !usage) return null
 
   // Scale / enterprise: just show consumed KU
   if (usage.billingModel === 'usage' || (usage.kuIncluded === null && usage.billingModel !== 'fixed')) {

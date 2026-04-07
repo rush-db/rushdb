@@ -16,8 +16,12 @@ import { db } from '../util/db.js'
 
 export async function semanticSearch(params: {
   propertyName: string
-  query: string
+  query?: string
+  queryVector?: number[]
   labels: string[]
+  sourceType?: 'managed' | 'external'
+  similarityFunction?: 'cosine' | 'euclidean'
+  dimensions?: number
   where?: Record<string, unknown>
   topK?: number
   skip?: number

@@ -4,14 +4,18 @@ sidebar_position: 5
 
 # Get Records
 
-## `GET /api/v1/records/:entityId`
+## Get Record by ID
+
+`GET /api/v1/records/:entityId`
 
 ```bash
 curl https://api.rushdb.com/api/v1/records/movie-123 \
   -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
 
-## `POST /api/v1/records/search`
+## Search Records
+
+`POST /api/v1/records/search`
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/records/search \
@@ -27,15 +31,15 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 
 ### Request body
 
-| Field | Type | Description |
-|---|---|---|
-| `labels` | `string[]` | Filter by one or more labels |
-| `where` | `object` | Field conditions and operators |
-| `orderBy` | `object` | `{"field": "asc" \| "desc"}` |
-| `limit` | `number` | Max records. **Omit when using `aggregate`** |
-| `skip` | `number` | Records to skip (pagination) |
-| `aggregate` | `object` | Aggregation functions |
-| `groupBy` | `string[]` | Group aggregated results |
+| Field       | Type       | Description                                  |
+| ----------- | ---------- | -------------------------------------------- |
+| `labels`    | `string[]` | Filter by one or more labels                 |
+| `where`     | `object`   | Field conditions and operators               |
+| `orderBy`   | `object`   | `{"field": "asc" \| "desc"}`                 |
+| `limit`     | `number`   | Max records. **Omit when using `aggregate`** |
+| `skip`      | `number`   | Records to skip (pagination)                 |
+| `aggregate` | `object`   | Aggregation functions                        |
+| `groupBy`   | `string[]` | Group aggregated results                     |
 
 ### Relationship traversal
 
@@ -90,7 +94,9 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
   }'
 ```
 
-## `POST /api/v1/records/:entityId/search`
+## Search Record Relationships
+
+`POST /api/v1/records/:entityId/search`
 
 Contextual search within a specific record's relationships:
 
@@ -100,5 +106,3 @@ curl -X POST https://api.rushdb.com/api/v1/records/movie-123/search \
   -H "Content-Type: application/json" \
   -d '{"labels": ["ACTOR"], "where": {"country": "USA"}}'
 ```
-
-

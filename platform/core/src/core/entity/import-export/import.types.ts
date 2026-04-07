@@ -12,9 +12,19 @@ export type TImportOptions = {
   convertNumericValuesToNumbers?: boolean
   capitalizeLabels?: boolean
   relationshipType?: string
+  /**
+   * When true, returns the imported records in the response body.
+   * For imports exceeding 1000 records, this option is silently ignored
+   * and a summary response is returned instead.
+   */
   returnResult?: boolean
   mergeStrategy?: 'append' | 'rewrite'
   mergeBy?: string[]
+}
+
+export type TImportSummary = {
+  message: string
+  count: number
 }
 
 // Subset of PapaParse config we allow clients to control (explicit allow-list)

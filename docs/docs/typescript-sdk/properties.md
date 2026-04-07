@@ -6,44 +6,52 @@ sidebar_position: 4
 
 Inspect and manage field definitions across your project.
 
-## `db.properties.find()`
+## Find Properties
+
+`db.properties.find()`
 
 Returns all property definitions matching the filter.
 
 ```typescript
 const { data } = await db.properties.find({
-  where: { type: 'number' }
-})
+  where: { type: "number" },
+});
 // [{ id, name: 'rating', type: 'number', ... }, ...]
 ```
 
-## `db.properties.findById()`
+## Find by ID
+
+`db.properties.findById()`
 
 ```typescript
-const prop = await db.properties.findById('property-id')
+const prop = await db.properties.findById("property-id");
 ```
 
-## `db.properties.values()`
+## Get Property Values
+
+`db.properties.values()`
 
 Enumerate distinct values for a property — useful for building filter UIs.
 
 ```typescript
-const { data: genres } = await db.properties.values('prop-id-genre')
+const { data: genres } = await db.properties.values("prop-id-genre");
 // ['sci-fi', 'action', 'drama', ...]
 
 // With filter
-const { data } = await db.properties.values('prop-id', {
-  query: 'sci',      // text prefix filter
-  orderBy: 'asc',
-  limit: 10
-})
+const { data } = await db.properties.values("prop-id", {
+  query: "sci", // text prefix filter
+  orderBy: "asc",
+  limit: 10,
+});
 ```
 
-## `db.properties.delete()`
+## Delete Property
+
+`db.properties.delete()`
 
 ```typescript
-await db.properties.delete('property-id')
+await db.properties.delete("property-id");
 ```
 
 Deletes the property definition and removes it from all records that use it.
-  type: 'string',
+type: 'string',

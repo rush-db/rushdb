@@ -9,11 +9,11 @@ RushDB is a **self-aware memory layer for agents, humans, and apps**. It continu
 
 The `db.ai` namespace covers three capabilities:
 
-| Capability | Description |
-|---|---|
-| **Graph Ontology** | Self-describing schema discovery: label names, field types, value ranges, and the relationship map — always up to date |
-| **Embedding Indexes** | Per-label vector policies that turn string properties into long-term semantic memory |
-| **Semantic Search** | Cosine/euclidean similarity retrieval over indexed properties, for agents and apps alike |
+| Capability            | Description                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Graph Ontology**    | Self-describing schema discovery: label names, field types, value ranges, and the relationship map — always up to date |
+| **Embedding Indexes** | Per-label vector policies that turn string properties into long-term semantic memory                                   |
+| **Semantic Search**   | Cosine/euclidean similarity retrieval over indexed properties, for agents and apps alike                               |
 
 ---
 
@@ -56,13 +56,13 @@ The `db.ai` namespace covers three capabilities:
 
 ## Quick links
 
-| Topic | Description |
-|---|---|
-| [Ontology](#graph-ontology) | Schema discovery with `get_ontology_markdown` / `get_ontology` |
-| [Indexing](./indexing.md) | Create and manage managed embedding indexes |
-| [Advanced Indexing — BYOV](./advanced-indexing.md) | Bring Your Own Vectors: external indexes, inline writes |
-| [Semantic Search](./search.md) | Query by meaning with `db.ai.search()` |
-| [Writing with Vectors](./write-with-vectors.md) | Attach vectors at create / upsert / import_json time |
+| Topic                                              | Description                                                    |
+| -------------------------------------------------- | -------------------------------------------------------------- |
+| [Ontology](#graph-ontology)                        | Schema discovery with `get_ontology_markdown` / `get_ontology` |
+| [Indexing](./indexing.md)                          | Create and manage managed embedding indexes                    |
+| [Advanced Indexing — BYOV](./advanced-indexing.md) | Bring Your Own Vectors: external indexes, inline writes        |
+| [Semantic Search](./search.md)                     | Query by meaning with `db.ai.search()`                         |
+| [Writing with Vectors](./write-with-vectors.md)    | Attach vectors at create / upsert / import_json time           |
 
 ---
 
@@ -70,7 +70,9 @@ The `db.ai` namespace covers three capabilities:
 
 The ontology methods expose a live snapshot of your database structure — without any manual schema definitions.
 
-### `db.ai.get_ontology_markdown()`
+### Get Ontology as Markdown
+
+`db.ai.get_ontology_markdown()`
 
 Returns the full schema as compact Markdown — the **recommended format for LLM context injection**.
 
@@ -137,7 +139,9 @@ order_response = db.ai.get_ontology_markdown({"labels": ["Order"]})
 
 ---
 
-### `db.ai.get_ontology()`
+### Get Ontology (raw)
+
+`db.ai.get_ontology()`
 
 Returns the same ontology as a structured list of dicts — useful for schema UIs, auto-complete, or looking up property IDs for `db.properties.values()`.
 

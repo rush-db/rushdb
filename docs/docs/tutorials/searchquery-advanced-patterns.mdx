@@ -90,6 +90,9 @@ projects = db.records.find(active_engineering_projects)
 
 Use aliases to aggregate related entities without flattening your schema.
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
 ```typescript
 const projectComp = await db.records.find({
   labels: ['PROJECT'],
@@ -118,9 +121,74 @@ const projectComp = await db.records.find({
 })
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+project_comp = db.records.find({
+    "labels": ["PROJECT"],
+    "where": {
+        "DEPARTMENT": {
+            "$alias": "$department",
+            "COMPANY": {
+                "$alias": "$company",
+                "region": {"$in": ["US", "CA"]}
+            }
+        },
+        "EMPLOYEE": {
+            "$alias": "$employee",
+            "employmentType": {"$in": ["full_time", "contract"]}
+        }
+    },
+    "aggregate": {
+        "projectId": "$record.$id",
+        "projectName": "$record.name",
+        "departmentName": "$department.name",
+        "companyName": "$company.name",
+        "headcount": {"fn": "count", "alias": "$employee", "unique": True},
+        "avgSalary": {"fn": "avg", "field": "salary", "alias": "$employee", "precision": 0}
+    },
+    "limit": 100
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["PROJECT"],
+    "where": {
+      "DEPARTMENT": {
+        "$alias": "$department",
+        "COMPANY": {"$alias": "$company", "region": {"$in": ["US", "CA"]}}
+      },
+      "EMPLOYEE": {"$alias": "$employee", "employmentType": {"$in": ["full_time", "contract"]}}
+    },
+    "aggregate": {
+      "projectId": "$record.$id",
+      "projectName": "$record.name",
+      "departmentName": "$department.name",
+      "companyName": "$company.name",
+      "headcount": {"fn": "count", "alias": "$employee", "unique": true},
+      "avgSalary": {"fn": "avg", "field": "salary", "alias": "$employee", "precision": 0}
+    },
+    "limit": 100
+  }'
+```
+
+</TabItem>
+</Tabs>
+
 ## 3) Dimensional GroupBy
 
 Use dimensional grouping for distribution questions such as "how many projects per status?".
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
 ```typescript
 const statusBreakdown = await db.records.find({
@@ -137,6 +205,46 @@ const statusBreakdown = await db.records.find({
 })
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+status_breakdown = db.records.find({
+    "labels": ["PROJECT"],
+    "where": {
+        "DEPARTMENT": {"name": "Engineering"}
+    },
+    "aggregate": {
+        "count": {"fn": "count", "alias": "$record"},
+        "avgBudget": {"fn": "avg", "field": "budget", "alias": "$record", "precision": 2}
+    },
+    "groupBy": ["$record.status"],
+    "orderBy": {"count": "desc"}
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["PROJECT"],
+    "where": {"DEPARTMENT": {"name": "Engineering"}},
+    "aggregate": {
+      "count": {"fn": "count", "alias": "$record"},
+      "avgBudget": {"fn": "avg", "field": "budget", "alias": "$record", "precision": 2}
+    },
+    "groupBy": ["$record.status"],
+    "orderBy": {"count": "desc"}
+  }'
+```
+
+</TabItem>
+</Tabs>
+
 Notes:
 
 - dimensional keys must be property refs like `$record.status`
@@ -145,6 +253,9 @@ Notes:
 ## 4) Self-Group KPIs (Single-Row Totals)
 
 Use self-group mode for whole-dataset KPIs.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
 ```typescript
 const kpi = await db.records.find({
@@ -166,6 +277,58 @@ const kpi = await db.records.find({
 })
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+kpi = db.records.find({
+    "labels": ["TASK"],
+    "where": {
+        "completed": True,
+        "completedAt": {
+            "$gte": {"$year": 2025, "$month": 1, "$day": 1},
+            "$lt": {"$year": 2026, "$month": 1, "$day": 1}
+        }
+    },
+    "aggregate": {
+        "completedCount": {"fn": "count", "alias": "$record"},
+        "totalHours": {"fn": "sum", "field": "hours", "alias": "$record"},
+        "avgHours": {"fn": "avg", "field": "hours", "alias": "$record", "precision": 2}
+    },
+    "groupBy": ["completedCount", "totalHours", "avgHours"],
+    "orderBy": {"totalHours": "asc"}
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["TASK"],
+    "where": {
+      "completed": true,
+      "completedAt": {
+        "$gte": {"$year": 2025, "$month": 1, "$day": 1},
+        "$lt": {"$year": 2026, "$month": 1, "$day": 1}
+      }
+    },
+    "aggregate": {
+      "completedCount": {"fn": "count", "alias": "$record"},
+      "totalHours": {"fn": "sum", "field": "hours", "alias": "$record"},
+      "avgHours": {"fn": "avg", "field": "hours", "alias": "$record", "precision": 2}
+    },
+    "groupBy": ["completedCount", "totalHours", "avgHours"],
+    "orderBy": {"totalHours": "asc"}
+  }'
+```
+
+</TabItem>
+</Tabs>
+
 Why this shape:
 
 - self-group uses aggregate key names in `groupBy`
@@ -175,6 +338,9 @@ Why this shape:
 ## 5) Nested Collect for Hierarchies
 
 Use nested `collect` to return structured trees for UI rendering.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
 
 ```typescript
 const hierarchy = await db.records.find({
@@ -219,6 +385,99 @@ const hierarchy = await db.records.find({
   limit: 20
 })
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+hierarchy = db.records.find({
+    "labels": ["COMPANY"],
+    "where": {
+        "foundedAt": {"$lt": {"$year": 2015}},
+        "DEPARTMENT": {
+            "$alias": "$department",
+            "PROJECT": {
+                "$alias": "$project",
+                "EMPLOYEE": {
+                    "$alias": "$employee",
+                    "isActive": True
+                }
+            }
+        }
+    },
+    "aggregate": {
+        "companyName": "$record.name",
+        "departments": {
+            "fn": "collect",
+            "alias": "$department",
+            "aggregate": {
+                "name": "$department.name",
+                "projects": {
+                    "fn": "collect",
+                    "alias": "$project",
+                    "orderBy": {"budget": "desc"},
+                    "aggregate": {
+                        "name": "$project.name",
+                        "topContributors": {
+                            "fn": "collect",
+                            "alias": "$employee",
+                            "orderBy": {"salary": "desc"},
+                            "limit": 3
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "limit": 20
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["COMPANY"],
+    "where": {
+      "foundedAt": {"$lt": {"$year": 2015}},
+      "DEPARTMENT": {
+        "$alias": "$department",
+        "PROJECT": {
+          "$alias": "$project",
+          "EMPLOYEE": {"$alias": "$employee", "isActive": true}
+        }
+      }
+    },
+    "aggregate": {
+      "companyName": "$record.name",
+      "departments": {
+        "fn": "collect", "alias": "$department",
+        "aggregate": {
+          "name": "$department.name",
+          "projects": {
+            "fn": "collect", "alias": "$project",
+            "orderBy": {"budget": "desc"},
+            "aggregate": {
+              "name": "$project.name",
+              "topContributors": {
+                "fn": "collect", "alias": "$employee",
+                "orderBy": {"salary": "desc"}, "limit": 3
+              }
+            }
+          }
+        }
+      }
+    },
+    "limit": 20
+  }'
+```
+
+</TabItem>
+</Tabs>
 
 Nested rule:
 
@@ -273,6 +532,9 @@ authored_posts = db.records.find({
 
 Use `timeBucket` to build trend charts directly from query output.
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
 ```typescript
 const monthlyCompletions = await db.records.find({
   labels: ['TASK'],
@@ -287,6 +549,46 @@ const monthlyCompletions = await db.records.find({
   orderBy: { month: 'asc' }
 })
 ```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+monthly_completions = db.records.find({
+    "labels": ["TASK"],
+    "where": {
+        "completed": True
+    },
+    "aggregate": {
+        "month": {"fn": "timeBucket", "field": "completedAt", "granularity": "month", "alias": "$record"},
+        "count": {"fn": "count", "alias": "$record"}
+    },
+    "groupBy": ["month"],
+    "orderBy": {"month": "asc"}
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["TASK"],
+    "where": {"completed": true},
+    "aggregate": {
+      "month": {"fn": "timeBucket", "field": "completedAt", "granularity": "month", "alias": "$record"},
+      "count": {"fn": "count", "alias": "$record"}
+    },
+    "groupBy": ["month"],
+    "orderBy": {"month": "asc"}
+  }'
+```
+
+</TabItem>
+</Tabs>
 
 ## 8) Adoption Workflow for Teams
 

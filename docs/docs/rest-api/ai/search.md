@@ -5,9 +5,7 @@ title: Semantic Search
 
 # Semantic Search
 
-```http
-POST /api/v1/ai/search
-```
+`POST /api/v1/ai/search`
 
 Embeds the supplied query text (or uses a pre-computed vector) and returns the most relevant records by similarity score. The property referenced by `propertyName` must have a `ready` embedding index.
 

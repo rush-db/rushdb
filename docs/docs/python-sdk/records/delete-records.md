@@ -4,7 +4,9 @@ sidebar_position: 7
 
 # Delete Records
 
-## `db.records.delete_by_id()`
+## Delete by ID
+
+`db.records.delete_by_id()`
 
 ```python
 # Single record
@@ -17,7 +19,9 @@ db.records.delete_by_id(["movie-123", "movie-456"])
 movie.delete()
 ```
 
-## `db.records.delete()`
+## Bulk Delete
+
+`db.records.delete()`
 
 Delete all records matching a query.
 
@@ -43,5 +47,3 @@ except Exception:
     tx.rollback()
     raise
 ```
-
-

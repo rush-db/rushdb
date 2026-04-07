@@ -5,7 +5,7 @@ title: Writing Records with Vectors
 
 # Writing Records with Vectors
 
-RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate `db.ai.indexes.upsert_vectors()` call. Any operation that creates or modifies records supports this through the `vectors` parameter (or the `$vectors` key in batch JSON imports).
+RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate `db.ai.indexes.upsert_vectors()` call. Any operation that creates or modifies records supports this through the `vectors` parameter.
 
 This feature requires at least one [external index](./advanced-indexing.md) to exist for the target `(label, propertyName)`.
 
@@ -27,7 +27,9 @@ vectors = [
 
 ---
 
-## `db.records.create()` with vectors
+## Create a Record with Vectors
+
+`db.records.create()`
 
 ```python
 record = db.records.create(
@@ -46,7 +48,9 @@ print(record.data["__id"])  # record created AND vector written atomically
 
 ---
 
-## `db.records.upsert()` with vectors
+## Upsert with Vectors
+
+`db.records.upsert()`
 
 `upsert` is idempotent on the record's natural key (`mergeBy`). Passing `vectors` writes or replaces the stored vector for each `propertyName` in the same call:
 
@@ -72,7 +76,9 @@ r2 = db.records.upsert(
 
 ---
 
-## `db.records.set()` with vectors
+## Set with Vectors
+
+`db.records.set()`
 
 `set` replaces all properties of a record with new values. Including `vectors` writes those vectors at the same time:
 
@@ -88,40 +94,9 @@ db.records.set(
 
 ---
 
-## `db.records.import_json()` with `$vectors`
+## Create Multiple Records with Vectors
 
-For bulk ingestion, add a `$vectors` key alongside properties in each JSON object. The format is the same as the `vectors` list:
-
-```python
-db.records.import_json({
-    "Article": [
-        {
-            "title": "Alpha",
-            "body": "First article about AI",
-            "$vectors": [{"propertyName": "body", "vector": [1, 0, 0]}]
-        },
-        {
-            "title": "Beta",
-            "body": "Second article about ML",
-            "$vectors": [{"propertyName": "body", "vector": [0, 1, 0]}]
-        },
-        {
-            "title": "Gamma",
-            "body": "Third article about DL",
-            "$vectors": [{"propertyName": "body", "vector": [0, 0, 1]}]
-        },
-    ]
-})
-```
-
-`$vectors` entries are stripped before the record is persisted. They:
-- **Do not** appear as record properties
-- **Do not** create child records
-- **Do not** appear in query results
-
----
-
-## `db.records.create_many()` with vectors
+`db.records.create_many()`
 
 `create_many` is optimised for flat rows. Use the top-level `vectors` parameter — a list indexed by row position — to attach a vector to each record without nesting inside your flat data:
 
@@ -156,7 +131,9 @@ db.records.create_many(
 
 ---
 
-## `db.records.import_csv()` with vectors
+## Import CSV with Vectors
+
+`db.records.import_csv()`
 
 CSV data is a raw string, so per-row vectors are supplied as a separate `vectors` parameter using the same indexed-list format. Row indices are 0-based and refer to data rows after the header is consumed:
 

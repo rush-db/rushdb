@@ -5,7 +5,7 @@ title: Writing Records with Vectors
 
 # Writing Records with Vectors
 
-RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate `upsertVectors` call. Any operation that creates or modifies records supports this through the `vectors` parameter (or the `$vectors` key in batch imports).
+RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate `upsertVectors` call. Any operation that creates or modifies records supports this through the `vectors` parameter.
 
 This feature requires at least one [external index](./advanced-indexing.md) to exist for the target `(label, propertyName)`.
 
@@ -28,7 +28,9 @@ type VectorEntry = {
 
 ---
 
-## `records.create()` with vectors
+## Create a Record with Vectors
+
+`records.create()`
 
 ```typescript
 const { data: record } = await db.records.create({
@@ -47,7 +49,9 @@ console.log(record.__id) // record is created AND vector is written atomically
 
 ---
 
-## `records.upsert()` with vectors
+## Upsert with Vectors
+
+`records.upsert()`
 
 `upsert` is idempotent on the record's slug (natural key). Passing `vectors` writes (or replaces) the stored vector for each `propertyName` in the same call:
 
@@ -71,7 +75,9 @@ console.log(r1.__id === r2.__id) // true — same record
 
 ---
 
-## `records.set()` with vectors
+## Set with Vectors
+
+`records.set()`
 
 `set` replaces all properties of a record with new values. Including `vectors` writes those vectors at the same time:
 
@@ -91,40 +97,9 @@ await db.records.set(rec.__id, {
 
 ---
 
-## `records.importJson()` with `$vectors`
+## Create Multiple Records with Vectors
 
-For bulk ingestion, add a `$vectors` key alongside properties in each JSON object. The format is the same as the `VectorEntry` array:
-
-```typescript
-await db.records.importJson({
-  "Article": [
-    {
-      title: "Alpha",
-      body: "First article about AI",
-      "$vectors": [{ propertyName: "body", vector: [1, 0, 0] }]
-    },
-    {
-      title: "Beta",
-      body: "Second article about ML",
-      "$vectors": [{ propertyName: "body", vector: [0, 1, 0] }]
-    },
-    {
-      title: "Gamma",
-      body: "Third article about DL",
-      "$vectors": [{ propertyName: "body", vector: [0, 0, 1] }]
-    },
-  ]
-})
-```
-
-Important: `$vectors` entries are stripped before the record is persisted. They:
-- **Do not** appear as record properties
-- **Do not** create child records
-- **Do not** appear in query results
-
----
-
-## `records.createMany()` with vectors
+`records.createMany()`
 
 `createMany` is optimised for flat (CSV-like) rows. Use the top-level `vectors` parameter — an array indexed by row position — to attach a vector to each record without nesting arrays inside your flat data:
 
@@ -177,7 +152,9 @@ db.records.createMany({
 
 ---
 
-## `records.importCsv()` with vectors
+## Import CSV with Vectors
+
+`records.importCsv()`
 
 CSV data is a raw string, so per-row vectors are supplied as a separate `vectors` parameter using the same indexed-array format as `createMany`. Row indices are 0-based and refer to data rows after the header is consumed.
 
@@ -311,25 +288,24 @@ console.log(data[0].title)  // 'Alpha'
 | **Round trips** | 1 (write + vector together) | 2+ (write, then upload) |
 | **Use case** | Streaming ingestion, real-time pipeline | Batch backfill, dataset migration |
 | **Idempotency** | Depends on the write operation used | Always idempotent per `recordId` |
-| **Availability** | `create`, `upsert`, `set`, `createMany`, `importCsv`, `importJson` | Standalone call on any existing records |
-| **Multi-record** | `createMany` or `importCsv` with indexed `vectors[][]`, `importJson` with `$vectors` per item | Single bulk payload |
+| **Availability** | `create`, `upsert`, `set`, `createMany`, `importCsv` | Standalone call on any existing records |
+| **Multi-record** | `createMany` or `importCsv` with indexed `vectors[][]` | Single bulk payload |
 
 For streaming pipelines that produce records one-by-one or in small batches, inline vectors are simpler and more efficient. For seeding an index from a large existing dataset, `upsertVectors` is the right choice.
 
 ---
 
-## Per-row vs. per-item vector formats
+## Vector format by method
 
 | Method | Vector syntax | Notes |
 |---|---|---|
 | `create` | `vectors: VectorEntry[]` | single record |
 | `upsert` | `vectors: VectorEntry[]` | single record, idempotent |
 | `set` | `vectors: VectorEntry[]` | single record, full replace |
-| `importJson` | `"$vectors": VectorEntry[]` inside each item | nested in data object |
 | `createMany` | `vectors: VectorEntry[][]` (indexed) | `vectors[i]` → `data[i]` |
 | `importCsv` | `vectors: VectorEntry[][]` (indexed) | `vectors[i]` → CSV row `i` |
 
-`importJson` uses the `$vectors` in-item style because JSON items can themselves be nested objects with their own structure. `createMany` and `importCsv` use the external indexed array style because the data they carry is flat — no room for nested arrays inside a flat record.
+`createMany` and `importCsv` use an external indexed array so that each row's vector is unambiguously matched by position. For nested JSON imports use `importJson` to create the records, then call `db.ai.indexes.upsertVectors()` to seed the vectors separately.
 
 ---
 
@@ -342,3 +318,5 @@ For streaming pipelines that produce records one-by-one or in small batches, inl
 | `422 Unprocessable Entity` | Multiple indexes match and `similarityFunction` was not specified | all |
 | `400 Bad Request` | `vectors.length` exceeds number of CSV data rows | `importCsv` |
 | Client `Error` | `vectors.length` exceeds `data.length` | `createMany` (thrown synchronously) |
+
+> `importJson` does not accept a `vectors` parameter. Use `createMany` for flat rows with inline vectors, or use `importJson` followed by `db.ai.indexes.upsertVectors()` for nested JSON payloads.

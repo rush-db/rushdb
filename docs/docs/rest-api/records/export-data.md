@@ -6,9 +6,7 @@ sidebar_position: 8
 
 Export records as CSV. Accepts the same `where` / `orderBy` / `skip` / `limit` / `labels` parameters as a search query.
 
-```http
-POST /api/v1/records/export/csv
-```
+`POST /api/v1/records/export/csv`
 
 ### Request Body
 

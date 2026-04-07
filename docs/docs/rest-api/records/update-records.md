@@ -4,7 +4,9 @@ sidebar_position: 6
 
 # Update Records
 
-## `PATCH /api/v1/records/:entityId` — partial update
+## Partial Update
+
+`PATCH /api/v1/records/:entityId`
 
 Unspecified fields are preserved.
 
@@ -15,7 +17,9 @@ curl -X PATCH https://api.rushdb.com/api/v1/records/movie-123 \
   -d '{"data": {"rating": 9.0}}'
 ```
 
-## `PUT /api/v1/records/:entityId` — full replacement
+## Full Replacement
+
+`PUT /api/v1/records/:entityId`
 
 All previous fields are removed, then replaced with the new data.
 
@@ -32,4 +36,8 @@ curl -X PUT https://api.rushdb.com/api/v1/records/movie-123 \
 |---|---|---|
 | `label` | `string` | (Optional) New label for the record |
 | `data` | `object` | Properties to write |
+
+## See also
+
+- [Writing Records with Vectors](../ai/write-with-vectors.md) — attach embedding vectors when creating or upserting records
 

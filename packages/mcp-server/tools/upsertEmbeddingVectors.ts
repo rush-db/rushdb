@@ -14,13 +14,11 @@
 
 import { db } from '../util/db.js'
 
-export async function createEmbeddingIndex(params: {
-  label: string
-  propertyName: string
-  sourceType?: 'managed' | 'external'
-  similarityFunction?: 'cosine' | 'euclidean'
-  dimensions?: number
+export async function upsertEmbeddingVectors(params: {
+  indexId: string
+  items: Array<{ recordId: string; vector: number[] }>
 }) {
-  const result = await db.ai.indexes.create(params)
+  const { indexId, items } = params
+  const result = await db.ai.indexes.upsertVectors(indexId, { items })
   return result.data
 }

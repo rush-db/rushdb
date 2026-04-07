@@ -11,7 +11,7 @@ import { parseCurrentLevel } from '@/core/search/parser/parseCurrentLevel'
 import { parseSubQuery } from '@/core/search/parser/parseSubQuery'
 import { processCriteria } from '@/core/search/parser/processCriteria'
 import { ParseContext } from '@/core/search/parser/types'
-import { splitCriteria } from '@/core/search/parser/utils'
+import { splitCriteria, wrapInParentheses } from '@/core/search/parser/utils'
 import { TSearchQueryBuilderOptions, TSearchSort } from '@/core/search/search.types'
 
 export const buildLabelsClause = (labels?: string[]): string => {
@@ -113,8 +113,8 @@ export const parseLevel = (
   if (toBoolean(currentLevel)) {
     result = parseCurrentLevel(key, currentLevel, options, ctx)
 
-    // @TODO: Parenthesis ??? (...)
-    const queryPart = isArray(result) ? result.filter(toBoolean).join(' AND ') : result
+    const parts = isArray(result) ? result.filter(toBoolean) : [result].filter(toBoolean)
+    const queryPart = parts.length > 1 ? wrapInParentheses(parts.join(' AND ')) : (parts[0] ?? '')
     ctx.result[options.nodeAlias] = (ctx.result[options.nodeAlias] ?? '') + queryPart
   }
 

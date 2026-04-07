@@ -161,6 +161,8 @@ See [Connecting an Aura Instance](./connect-aura-instance.mdx) for the full BYOC
 | `RUSHDB_EMBEDDING_DIMENSIONS` | — | Must match the model's actual output dimensions |
 | `RUSHDB_EMBEDDING_BATCH_SIZE` | `500` | Records per embedding backfill batch |
 | `RUSHDB_EMBEDDING_MAX_RUNTIME_MS` | `50000` | Max ms the backfill scheduler spends per index per tick |
+| `RUSHDB_PAGINATION_DEFAULT_LIMIT` | `100` | Default page size when `limit` is not specified in a search query |
+| `RUSHDB_PAGINATION_MAX_LIMIT` | `1000` | Maximum allowed `limit` value — requests above this are clamped |
 | `RATE_LIMITER_REQUESTS_LIMIT` | `100` | Max requests per time window |
 | `RATE_LIMITER_TTL` | `1000` | Rate limiter window in milliseconds |
 
@@ -174,6 +176,35 @@ See [Connecting an Aura Instance](./connect-aura-instance.mdx) for the full BYOC
 4. Copy the generated API key from the **API Keys** tab.
 5. Test the connection:
 
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB('YOUR_API_KEY', {
+  url: 'http://localhost:3000/api/v1'
+})
+
+const result = await db.records.find({ labels: ['TEST'] })
+console.log(result) // → { data: [], total: 0 }
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+from rushdb import RushDB
+
+db = RushDB("YOUR_API_KEY", base_url="http://localhost:3000/api/v1")
+
+result = db.records.find({"labels": ["TEST"]})
+print(result)  # → { data: [], total: 0 }
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
 ```bash
 curl https://localhost:3000/api/v1/records/search \
   -H "Authorization: Bearer YOUR_API_KEY" \
@@ -181,6 +212,9 @@ curl https://localhost:3000/api/v1/records/search \
   -d '{"labels":["TEST"]}'
 # → {"data":[],"total":0}
 ```
+
+</TabItem>
+</Tabs>
 
 ---
 

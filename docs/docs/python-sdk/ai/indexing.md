@@ -31,7 +31,9 @@ When new records are created or existing records are updated, the index transiti
 
 ---
 
-## `db.ai.indexes.find()`
+## List Indexes
+
+`db.ai.indexes.find()`
 
 List all embedding index policies for the current project.
 
@@ -65,7 +67,9 @@ for index in response.data:
 
 ---
 
-## `db.ai.indexes.create()`
+## Create Index
+
+`db.ai.indexes.create()`
 
 Create a new embedding index policy for a string property.
 
@@ -73,12 +77,12 @@ Create a new embedding index policy for a string property.
 db.ai.indexes.create(params: dict) -> ApiResponse[dict]
 ```
 
-| `params` key         | Type   | Required | Description                                                                                             |
-|----------------------|--------|----------|---------------------------------------------------------------------------------------------------------|
-| `label`              | string | **yes**  | Label to scope this index to (e.g. `"Article"`)                                                        |
-| `propertyName`       | string | **yes**  | Name of the property to embed (e.g. `"description"`)                                                   |
-| `sourceType`         | string | no       | `"managed"` (default) or `"external"`. See [Advanced Indexing](./advanced-indexing.md).               |
-| `similarityFunction` | string | no       | `"cosine"` (default) or `"euclidean"`                                                                   |
+| `params` key         | Type   | Required | Description                                                                                                 |
+| -------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `label`              | string | **yes**  | Label to scope this index to (e.g. `"Article"`)                                                             |
+| `propertyName`       | string | **yes**  | Name of the property to embed (e.g. `"description"`)                                                        |
+| `sourceType`         | string | no       | `"managed"` (default) or `"external"`. See [Advanced Indexing](./advanced-indexing.md).                     |
+| `similarityFunction` | string | no       | `"cosine"` (default) or `"euclidean"`                                                                       |
 | `dimensions`         | number | no       | Vector dimensionality. Defaults to server `RUSHDB_EMBEDDING_DIMENSIONS`. **Required** for external indexes. |
 
 ```python
@@ -102,17 +106,19 @@ response = db.ai.indexes.create({
 
 ### Index lifecycle
 
-| Status             | Description                                                     |
-|--------------------|-----------------------------------------------------------------|
-| `pending`          | Policy created, waiting for backfill scheduler                  |
-| `indexing`         | Backfill in progress                                            |
-| `awaiting_vectors` | External index — waiting for client to push vectors             |
-| `ready`            | All existing records have vectors; search is available          |
-| `error`            | Backfill failed; check server logs for the cause                |
+| Status             | Description                                            |
+| ------------------ | ------------------------------------------------------ |
+| `pending`          | Policy created, waiting for backfill scheduler         |
+| `indexing`         | Backfill in progress                                   |
+| `awaiting_vectors` | External index — waiting for client to push vectors    |
+| `ready`            | All existing records have vectors; search is available |
+| `error`            | Backfill failed; check server logs for the cause       |
 
 ---
 
-## `db.ai.indexes.stats(index_id)`
+## Get Index Stats
+
+`db.ai.indexes.stats(index_id)`
 
 Returns the fill rate for an index — useful for progress monitoring or health checks.
 
@@ -124,7 +130,9 @@ print(f"{stats['indexedRecords']} / {stats['totalRecords']} records indexed")
 
 ---
 
-## `db.ai.indexes.delete(index_id)`
+## Delete Index
+
+`db.ai.indexes.delete(index_id)`
 
 Remove an embedding index policy. The underlying Neo4j DDL vector index is only dropped when **zero embeddings remain** across the entire project.
 
@@ -208,6 +216,8 @@ When searching or writing vectors against a property with multiple indexes, spec
 
 ---
 
-## `List[str]` properties
+## String List Properties
+
+`List[str]`
 
 String list properties are supported. Each item in the list is embedded individually, then mean-pooled into a single vector stored on the relationship.

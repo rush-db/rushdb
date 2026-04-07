@@ -253,25 +253,44 @@ export class AiQueryService {
    * Exact semantic search query.
    * Candidate records are narrowed via Cypher MATCH/WHERE first, then ranked with
    * vector similarity over stored relationship vectors.
-   * @param combinedWhere - compiled Cypher WHERE expression (may be empty string)
-   * @param labelSuffix - Neo4j label suffix e.g. ":Book"
+   *
+   * @param combinedWhere      - compiled Cypher WHERE expression for the root record (may be empty)
+   * @param labelSuffix        - Neo4j label suffix e.g. ":Book"
+   * @param extraMatchClauses  - optional OPTIONAL MATCH clauses for related-record traversal
+   * @param nodeAliases        - all node aliases referenced by the where clause (default: ['record'])
+   * @param requiredAliasCheck - e.g. "record IS NOT NULL AND record1 IS NOT NULL" produced by
+   *                             parseWhereClause(...).where; enforces that traversed nodes existed
    */
   getSemanticSearchPrefilterQuery({
     combinedWhere,
     labelSuffix,
     similarityFunction,
-    vectorPropertyName
+    vectorPropertyName,
+    extraMatchClauses = [],
+    nodeAliases = ['record'],
+    requiredAliasCheck = ''
   }: {
     combinedWhere: string
     labelSuffix: string
     similarityFunction: 'cosine' | 'euclidean'
     vectorPropertyName: string
+    extraMatchClauses?: string[]
+    nodeAliases?: string[]
+    requiredAliasCheck?: string
   }) {
     const qb = new QueryBuilder()
     const vectorProperty = `rel.${this.quoteIdentifier(vectorPropertyName)}`
     qb.append(`MATCH (record:${RUSHDB_LABEL_RECORD}${labelSuffix} { ${projectIdInline()} })`)
     if (combinedWhere) {
       qb.append(`WHERE ${combinedWhere}`)
+    }
+    // Inject OPTIONAL MATCH clauses for nested where (related-record traversal predicates).
+    for (const clause of extraMatchClauses) {
+      qb.append(clause)
+    }
+    // Enforce that traversed nodes were actually found (converts OPTIONAL to required).
+    if (extraMatchClauses.length > 0 && requiredAliasCheck) {
+      qb.append(`WITH ${nodeAliases.join(', ')} WHERE ${requiredAliasCheck}`)
     }
     qb.append(
       `MATCH (prop:${RUSHDB_LABEL_PROPERTY} { name: $propertyName, projectId: $projectId })-[rel:${RUSHDB_RELATION_VALUE}]->(record)`

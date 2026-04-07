@@ -5,7 +5,7 @@ title: Writing Records with Vectors
 
 # Writing Records with Vectors
 
-RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate `POST /api/v1/ai/indexes/:id/vectors/upsert` call. Any endpoint that creates or modifies records accepts a `vectors` field (or the `$vectors` key in batch JSON imports).
+RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate `POST /api/v1/ai/indexes/:id/vectors/upsert` call. Any endpoint that creates or modifies records accepts a `vectors` field.
 
 This feature requires at least one [external index](./advanced-indexing.md) to exist for the target `(label, propertyName)`.
 
@@ -33,7 +33,9 @@ All write endpoints accept a `vectors` array:
 
 ---
 
-## `POST /api/v1/records` — create with vectors
+## Create a Record with Vectors
+
+`POST /api/v1/records`
 
 The record is created **and** the vector is written atomically:
 
@@ -55,7 +57,9 @@ curl -X POST https://api.rushdb.com/api/v1/records \
 
 ---
 
-## `POST /api/v1/records` — upsert with vectors
+## Upsert with Vectors
+
+`POST /api/v1/records`
 
 Upsert is idempotent on the record's natural key (set via `mergeBy`). Include `vectors` to write or replace the stored vector in the same call:
 
@@ -73,7 +77,9 @@ curl -X POST https://api.rushdb.com/api/v1/records \
 
 ---
 
-## `PUT /api/v1/records/:id` — set with vectors
+## Set with Vectors
+
+`PUT /api/v1/records/:id`
 
 `PUT` replaces all properties of a record with new values. Including `vectors` writes those vectors at the same time:
 
@@ -90,45 +96,11 @@ curl -X PUT https://api.rushdb.com/api/v1/records/rec_abc123 \
 
 ---
 
-## `POST /api/v1/records/import/json` with `$vectors`
+## Import JSON Flat Rows with Vectors
 
-For bulk ingestion via `importJson`, add a `$vectors` key alongside properties in each JSON object:
+`POST /api/v1/records/import/json`
 
-```bash
-curl -X POST https://api.rushdb.com/api/v1/records/import/json \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY" \
-  -d '{
-    "Article": [
-      {
-        "title": "Alpha",
-        "body": "First article about AI",
-        "$vectors": [{ "propertyName": "body", "vector": [1, 0, 0] }]
-      },
-      {
-        "title": "Beta",
-        "body": "Second article about ML",
-        "$vectors": [{ "propertyName": "body", "vector": [0, 1, 0] }]
-      },
-      {
-        "title": "Gamma",
-        "body": "Third article about DL",
-        "$vectors": [{ "propertyName": "body", "vector": [0, 0, 1] }]
-      }
-    ]
-  }'
-```
-
-`$vectors` entries are **stripped** before the record is persisted. They:
-- **Do not** appear as record properties
-- **Do not** create child records
-- **Do not** appear in query results
-
----
-
-## `POST /api/v1/records/import/json` (flat rows) with `vectors`
-
-When using the flat-rows format (equivalent to `createMany`), provide a top-level `vectors` array indexed by row position:
+When using the flat-rows format, provide a top-level `vectors` array indexed by row position:
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/records/import/json \
@@ -167,7 +139,9 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 
 ---
 
-## `POST /api/v1/records/import/csv` with `vectors`
+## Import CSV with Vectors
+
+`POST /api/v1/records/import/csv`
 
 CSV data is a raw string, so per-row vectors are supplied as a separate `vectors` array using the same indexed format. Row indices are 0-based and refer to data rows after the header is consumed:
 

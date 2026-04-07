@@ -21,6 +21,9 @@ const UserSchema = {
 
 // Create a model
 const UserModel = new Model('User', UserSchema);
+
+// Or with target label validation enabled
+const StrictUserModel = new Model('User', UserSchema, { validateTargetLabel: true });
 ```
 
 ## Type Parameters
@@ -32,7 +35,7 @@ const UserModel = new Model('User', UserSchema);
 ## Constructor
 
 ```typescript
-constructor(modelName: string, schema: S)
+constructor(modelName: string, schema: S, config?: ModelConfig)
 ```
 
 Creates a new `Model` instance.
@@ -43,6 +46,13 @@ Creates a new `Model` instance.
 |------------------|------------------|----------------------------------------------------------------------------|
 | `modelName`      | `string`         | The name/label of the model in the database                                |
 | `schema`         | `S`              | The schema definition that describes the model's structure                 |
+| `config`         | `ModelConfig`    | Optional configuration (see below)                                         |
+
+### ModelConfig
+
+| Option                 | Type      | Default | Description |
+|------------------------|-----------|---------|-------------|
+| `validateTargetLabel`  | `boolean` | `false` | When `true`, `set()` and `update()` verify the target record's label matches this model before proceeding. Adds one extra DB read per call. |
 
 ## Properties
 
@@ -266,8 +276,9 @@ Finds a unique record that matches the given search criteria.
 ```typescript
 async create(
   record: InferSchemaTypesWrite<S>,
-  transaction?: Transaction | string
-): Promise<DBRecordInstance<S>>
+  transaction?: Transaction | string,
+  options?: CreateOptions
+): Promise<DBRecordInstance<S> | null>
 ```
 
 Creates a new record in the database.
@@ -275,10 +286,17 @@ Creates a new record in the database.
 **Parameters**:
 - `record`: The record data to create
 - `transaction`: Optional transaction or transaction ID
+- `options`: Optional behavior on uniqueness conflict
 
-**Returns**: Promise resolving to the created record
+**`CreateOptions`**:
 
-**Throws**: UniquenessError if the record violates uniqueness constraints
+| Option       | Type                               | Default   | Description |
+|--------------|------------------------------------|-----------|---------|
+| `onConflict` | `'throw'` \| `'upsert'` \| `'skip'` | `'throw'` | `'throw'` throws `UniquenessError`, `'upsert'` updates the conflicting record, `'skip'` returns `null` |
+
+**Returns**: Promise resolving to the created record, or `null` when `onConflict: 'skip'` and a conflict exists
+
+**Throws**: `UniquenessError` if the record violates uniqueness constraints (default behavior)
 
 ### attach()
 

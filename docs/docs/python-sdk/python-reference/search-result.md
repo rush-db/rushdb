@@ -53,6 +53,7 @@ Gets the list of result items.
 **Type:** `List[T]`
 
 **Example:**
+
 ```python
 result = client.records.find({"labels": ["USER"]})
 records = result.data
@@ -68,6 +69,7 @@ Gets the total number of records in the database that match your search criteria
 **Important:** This represents the total count of all records matching your search criteria in the entire database, not the number of records in the current page/result set. When pagination is used (`limit` and `skip`), this number will typically be larger than the number of records actually returned in `data`.
 
 **Example:**
+
 ```python
 # Search for users with a limit of 10 records per page
 result = client.records.find({"labels": ["USER"], "limit": 10})
@@ -85,6 +87,7 @@ Gets the search query used to generate this result.
 **Type:** `SearchQuery`
 
 **Example:**
+
 ```python
 query = {"labels": ["USER"], "where": {"active": True}}
 result = client.records.find(query)
@@ -98,6 +101,7 @@ Checks if there are more records available beyond this result set.
 **Type:** `bool`
 
 **Example:**
+
 ```python
 result = client.records.find({"labels": ["USER"], "limit": 10})
 if result.has_more:
@@ -117,6 +121,7 @@ Gets the number of records that were skipped in the search query.
 **Type:** `int`
 
 **Example:**
+
 ```python
 result = client.records.find({
     "labels": ["USER"],
@@ -135,6 +140,7 @@ Gets the limit that was applied to the search query.
 **Note:** If no limit was specified in the original query, this returns `len(result.data)`.
 
 **Example:**
+
 ```python
 result = client.records.find({"labels": ["USER"], "limit": 25})
 print(f"Limit applied: {result.limit}")  # Will print: "Limit applied: 25"
@@ -146,36 +152,46 @@ print(f"Effective limit: {result.limit}")  # Will print the actual number of rec
 
 ## Methods
 
-### `__len__() -> int`
+### Length
+
+`__len__() -> int`
 
 Returns the number of records in this result set.
 
 **Example:**
+
 ```python
 result = client.records.find({"labels": ["USER"]})
 record_count = len(result)
 print(f"Found {record_count} records")
 ```
 
-### `__iter__() -> Iterator[T]`
+### Iteration
+
+`__iter__() -> Iterator[T]`
 
 Allows iteration over the result items.
 
 **Example:**
+
 ```python
 result = client.records.find({"labels": ["USER"]})
 for record in result:
     print(f"User: {record.get('name', 'Unknown')}")
 ```
 
-### `__getitem__(index) -> T`
+### Get Item
+
+`__getitem__(index) -> T`
 
 Gets an item by index or slice.
 
 **Parameters:**
+
 - `index`: Integer index or slice object
 
 **Example:**
+
 ```python
 result = client.records.find({"labels": ["USER"]})
 
@@ -189,11 +205,14 @@ last_user = result[-1] if result else None
 first_five = result[0:5]
 ```
 
-### `__bool__() -> bool`
+### Boolean Check
+
+`__bool__() -> bool`
 
 Checks if the result set contains any items.
 
 **Example:**
+
 ```python
 result = client.records.find({"labels": ["USER"], "where": {"active": False}})
 if result:
@@ -202,13 +221,16 @@ else:
     print("No inactive users found")
 ```
 
-### `to_dict() -> dict`
+### Convert to Dict
+
+`to_dict() -> dict`
 
 Returns the result in a standardized dictionary format.
 
 **Returns:** Dictionary with keys: `total`, `data`, `search_query`
 
 **Example:**
+
 ```python
 result = client.records.find({"labels": ["USER"]})
 result_dict = result.to_dict()
@@ -216,13 +238,16 @@ print(result_dict["total"])  # Total count
 print(len(result_dict["data"]))  # Records in this result set
 ```
 
-### `get_page_info() -> dict`
+### Page Info
+
+`get_page_info() -> dict`
 
 Gets pagination information about the current result set.
 
 **Returns:** Dictionary with pagination metadata
 
 **Example:**
+
 ```python
 result = client.records.find({
     "labels": ["USER"],
@@ -382,6 +407,7 @@ print(f"Loaded {len(result)} out of {result.total} total users")
 ## Best Practices
 
 1. **Check for Results**: Always check if results exist before accessing individual records:
+
    ```python
    result = client.records.find(query)
    if result:
@@ -389,6 +415,7 @@ print(f"Loaded {len(result)} out of {result.total} total users")
    ```
 
 2. **Handle Pagination**: Use the `has_more` property to implement proper pagination:
+
    ```python
    if result.has_more:
        # Load next page
@@ -396,6 +423,7 @@ print(f"Loaded {len(result)} out of {result.total} total users")
    ```
 
 3. **Use Iteration**: Prefer iteration over index access when processing all records:
+
    ```python
    # Good
    for record in result:
@@ -407,6 +435,7 @@ print(f"Loaded {len(result)} out of {result.total} total users")
    ```
 
 4. **Monitor Total vs Length**: Understand the difference between `total` (all matching records) and `len()` (records in current page):
+
    ```python
    print(f"Showing {len(result)} of {result.total} total records")
    ```

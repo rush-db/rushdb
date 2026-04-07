@@ -327,11 +327,98 @@ export class DBRecordsArrayInstance<S extends Schema = Schema, Q extends SearchQ
   }
 
   /**
-   * TODO: Future enhancements for this class:
-   * - Bulk actions: Delete multiple records by IDs or search query
-   * - Export records to CSV format
-   * - Update properties across multiple records at once
-   * - Batch relationship operations (attach/detach)
-   * - Pagination support with a next() method to fetch additional results based on searchQuery
+   * Deletes all records in this result set.
+   *
+   * @param transaction - Optional transaction or transaction ID
+   * @returns Promise resolving to the delete result
    */
+  async deleteAll(transaction?: Transaction | string): Promise<{ success: boolean }> {
+    const ids = this.data.map((r) => r.id)
+    if (!ids.length) {
+      return { success: true }
+    }
+    const instance = RushDB.getInstance()
+    return await instance.records.deleteById(ids, transaction)
+  }
+
+  /**
+   * Fetches the next page of results based on the original search query.
+   *
+   * @param options - If `preserveData` is true, appends new results to existing data; otherwise replaces.
+   * @returns Promise resolving to the next page as a new DBRecordsArrayInstance
+   */
+  async next(options?: { preserveData?: boolean }): Promise<DBRecordsArrayInstance<S, Q>> {
+    if (!this.searchQuery) {
+      throw new Error('DBRecordsArrayInstance: Cannot paginate — no searchQuery was provided.')
+    }
+
+    const currentSkip = this.searchQuery.skip ?? 0
+    const currentLimit = this.searchQuery.limit ?? 100
+    const nextQuery: SearchQuery<S> = {
+      ...this.searchQuery,
+      skip: currentSkip + currentLimit
+    }
+
+    const instance = RushDB.getInstance()
+    const result = await instance.records.find<S, Q>(nextQuery as Q, undefined)
+
+    if (options?.preserveData) {
+      this.data = [...this.data, ...result.data]
+      this.total = result.total
+      this.searchQuery = nextQuery
+      return this
+    }
+
+    return result
+  }
+
+  /**
+   * Exports the records in this result set to a CSV string.
+   *
+   * @returns CSV string with headers derived from the first record's properties
+   */
+  exportCsv(): string {
+    if (!this.data.length) return ''
+
+    const systemKeys = new Set(['__id', '__label', '__proptypes'])
+    const headers = Object.keys(this.data[0].data).filter((k) => !systemKeys.has(k))
+
+    const escapeField = (value: unknown): string => {
+      const str = value === null || value === undefined ? '' : String(value)
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    }
+
+    const rows = this.data.map((record) =>
+      headers.map((h) => escapeField((record.data as Record<string, unknown>)[h])).join(',')
+    )
+
+    return [headers.join(','), ...rows].join('\n')
+  }
+
+  /**
+   * Updates properties across all records in this result set.
+   * Records are updated in batches of 100.
+   *
+   * @param patch - The fields to update and their new values
+   * @param transaction - Optional transaction or transaction ID
+   */
+  async setProperties(
+    patch: Partial<InferSchemaTypesWrite<S>>,
+    transaction?: Transaction | string
+  ): Promise<void> {
+    const BATCH_SIZE = 100
+    const instance = RushDB.getInstance()
+
+    for (let i = 0; i < this.data.length; i += BATCH_SIZE) {
+      const batch = this.data.slice(i, i + BATCH_SIZE)
+      await Promise.all(
+        batch.map((record) =>
+          instance.records.update({ target: record.id, label: record.data.__label, data: patch }, transaction)
+        )
+      )
+    }
+  }
 }
