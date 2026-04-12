@@ -1,6 +1,6 @@
 import { ComponentPropsWithoutRef, PropsWithChildren } from 'react'
 import { Footer } from './Footer'
-import { Header } from './header'
+import { LPHeader } from '~/components/lp/LPHeader'
 import { Meta } from '~/components/Meta'
 import classNames from 'classnames'
 import CookieNotification from '~/components/CookiesConsent'
@@ -20,9 +20,9 @@ export function Layout({
     <>
       <Meta title={title} description={description} image={image} />
 
-      <Header />
+      <LPHeader />
 
-      <div className={classNames('min-h-screen pt-24 md:pt-0', className)}>{children}</div>
+      <div className={classNames('min-h-screen pt-16', className)}>{children}</div>
 
       <Footer />
       <CookieNotification />

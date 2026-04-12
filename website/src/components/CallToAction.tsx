@@ -1,22 +1,27 @@
-import { MainCta } from '~/components/Button'
+import Link from 'next/link'
+import { links } from '~/config/urls'
 
 export const CallToAction = ({
-  text = 'Ready to Build Faster? Zero Config Database for Modern Apps & AI',
-  buttonText = 'Start Building Free',
-  description = 'Join developers shipping at maximum velocity. Push JSON, query instantly with our AI-native knowledge platform. Zero setup, zero schemas — just pure, frictionless development. 2 projects free forever, no credit card required.'
+  text = 'Give your agent a memory.',
+  buttonText = 'Start building free →',
+  description = 'Push any JSON. Get graph relationships and vector search instantly — no schema, no pipeline, no setup.'
 }: {
   text?: string
   description?: string
   buttonText?: string
 }) => (
-  <div className="bg-secondary xs:rounded-none container my-16 flex flex-row items-center justify-between rounded-xl border p-6 sm:flex-col sm:items-stretch sm:p-5 md:col-span-12">
-    <div className="flex flex-col gap-5">
-      <p className="typography-xl">{text}</p>
-
-      {description && <p className="typography-base max-w-2xl !font-normal">{description}</p>}
-      <MainCta variant="accent" className={'shrink-1 w-fit'} size={'small'}>
-        {buttonText}
-      </MainCta>
-    </div>
+  <div
+    className="my-12 border p-8 sm:p-5"
+    style={{ borderColor: 'var(--lp-border)', background: 'rgba(var(--lp-accent-rgb), 0.03)' }}
+  >
+    <p className="text-lp-muted mb-1 font-mono text-sm uppercase tracking-widest">RushDB</p>
+    <h3 className="text-lp-text mb-3 font-mono text-2xl font-bold sm:text-lg">{text}</h3>
+    <p className="text-lp-muted mb-6 font-mono text-sm leading-relaxed">{description}</p>
+    <Link
+      href={links.app}
+      className="bg-lp-accent text-lp-bg hover:bg-lp-accent-hover inline-block px-6 py-3 font-mono text-sm uppercase tracking-wide transition-colors"
+    >
+      {buttonText}
+    </Link>
   </div>
 )

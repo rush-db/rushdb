@@ -3,13 +3,13 @@ import { useRouter } from 'next/router'
 import { getAbsoluteURL } from '~/utils'
 import { metaThemeColor } from '~/config/theme'
 
-export const defaultTitle = 'RushDB – AI-Native Application Platform for Modern Apps'
+export const defaultTitle = 'RushDB – Instant Graph Database. Push JSON, Query a Graph.'
 
 export const defaultDescription =
-  'RushDB is a zero-config, AI-native application platform built for AI, SaaS, and ML. Fast queries, seamless scaling, no setup. Try it now!'
+  'Push nested JSON — get typed, connected, queryable records with automatic relationships. Cross-entity queries without JOINs. Vector search without a separate service. No schema. Open source.'
 
 export const defaultKeywords =
-  'RushDB, Firebase alternative, Supabase alternative, AI database, AI-native platform, vector database, knowledge graph, knowledge engine, NoSQL database, scalable database, cloud database, open source database, serverless database, AI embeddings, vector search, time-series database, backend as a service, REST API, data-intensive apps, developer-friendly database'
+  'RushDB, instant graph database, JSON to graph, auto normalization, zero schema database, nested JSON database, property graph, knowledge graph, vector search, graph database, open source database, REST API, developer-friendly database, Neo4j, TypeScript SDK, Python SDK'
 
 export const Meta = ({
   title = defaultTitle,

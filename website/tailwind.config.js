@@ -130,6 +130,15 @@ module.exports = {
           focus: '#346ccd', // Same as hover for consistency
           ring: 'rgba(63, 129, 255, 0.24)' // Transparent version of base for focus ring
         },
+        // LP-specific design tokens (switch via CSS variables)
+        'lp-accent': 'var(--lp-accent)',
+        'lp-accent-hover': 'var(--lp-accent-hover)',
+        'lp-accent-dim': 'var(--lp-accent-dim)',
+        'lp-bg': 'var(--lp-bg)',
+        'lp-surface': 'var(--lp-surface)',
+        'lp-border': 'var(--lp-border)',
+        'lp-text': 'var(--lp-text)',
+        'lp-muted': 'var(--lp-muted)',
         primary: {
           DEFAULT: 'hsl(var(--color-primary))',
           contrast: 'hsl(var(--color-primary-contrast))',

@@ -40,6 +40,11 @@ const Pre = ({ children, ...props }: ComponentPropsWithoutRef<'pre'>) => {
 }
 
 const getPostComponents = () => ({
+  h1: ({ children }: ComponentPropsWithoutRef<'h1'>) => (
+    <h1 className="text-lp-text col-span-8 col-start-3 mb-6 font-mono text-4xl font-bold leading-tight sm:text-xl md:col-span-12 md:col-start-1">
+      {children}
+    </h1>
+  ),
   pre: Pre,
   table: ({ children, ...props }: ComponentPropsWithoutRef<'table'>) => (
     <div className="col-span-8 col-start-3 overflow-x-auto md:col-span-12 md:col-start-1">

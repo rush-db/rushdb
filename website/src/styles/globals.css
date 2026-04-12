@@ -19,6 +19,18 @@
     color-scheme: light;
     scrollbar-gutter: stable;
 
+    /* LP design tokens — light (retro beige) */
+    --lp-bg: #EDE9E0;
+    --lp-surface: #F5F2EB;
+    --lp-border: #DAD6CE;
+    --lp-text: #1C1A16;
+    --lp-muted: #7A7268;
+    --lp-accent: #C8540A;
+    --lp-accent-rgb: 200, 84, 10;
+    --lp-accent-hover: #b04808;
+    --lp-accent-dim: rgba(200, 84, 10, 0.10);
+    --lp-header-bg: rgba(237, 233, 224, 0.88);
+
     /* Light theme colors */
     --color-fill: 0 0% 100%;
     --color-fill-contrast: 0 0% 20%;
@@ -66,6 +78,18 @@
 
   .dark {
     color-scheme: dark;
+
+    /* LP design tokens — dark */
+    --lp-bg: #0A0A0B;
+    --lp-surface: #111113;
+    --lp-border: #1E1E22;
+    --lp-text: #F0F0EE;
+    --lp-muted: #6B6B72;
+    --lp-accent: #00FF85;
+    --lp-accent-rgb: 0, 255, 133;
+    --lp-accent-hover: #00e876;
+    --lp-accent-dim: rgba(0, 255, 133, 0.13);
+    --lp-header-bg: rgba(10, 10, 11, 0.85);
 
     /* Dark theme colors */
     --color-fill: 0 0% 10%;
@@ -263,17 +287,6 @@ a {
 
 .typography-base {
   @apply font-medium tracking-tight text-base md:text-sm;
-}
-
-.hero {
-  background-image: url("/images/hero-bg.svg");
-  background-repeat: repeat;
-  background-size: contain;
-  background-position: center bottom;
-}
-
-.dark .hero {
-  background-image: url("/images/hero-bg-dark.svg");
 }
 
 b {

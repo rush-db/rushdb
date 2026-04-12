@@ -1,83 +1,63 @@
-import classNames from 'classnames'
-import { motion } from 'framer-motion'
-import { Plus } from 'lucide-react'
 import { useState } from 'react'
-import { IconButton } from '~/components/IconButton'
-import { useSize } from '~/hooks/useSize'
+import { ChevronDown } from 'lucide-react'
 
-function FaqItem({
-  question,
-  answer,
-  open,
-  onClick
-}: {
-  question: string
-  answer: string
-  open: boolean
-  onClick?: () => void
-}) {
-  const { height, ref } = useSize()
+function FaqItem({ question, answer }: { question: string; answer: string }) {
+  const [open, setOpen] = useState(false)
 
   return (
-    <li>
-      <h5
-        className={classNames('typography-lg flex min-h-10 justify-between', {
-          'hover:text-content2 cursor-pointer transition-colors': !open
-        })}
-        onClick={onClick}
+    <div style={{ borderBottom: '1px solid var(--lp-border)' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="text-lp-text flex w-full items-center justify-between py-5 text-left font-mono text-sm"
+        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
       >
-        {question}
-
-        <IconButton
-          aria-label="Toggle answer"
-          variant="primaryText"
-          className={classNames('pointer-events-none transition-transform', open ? 'rotate-45' : '')}
-        >
-          <Plus />
-        </IconButton>
-      </h5>
-
-      <motion.div
-        initial={{ height: 0 }}
-        animate={{ height: open ? height : '0px' }}
-        exit={{ height: 0 }}
-        transition={{ type: 'spring', duration: 0.4, bounce: 0 }}
-        className={classNames('text-content2 overflow-hidden text-base', {})}
-      >
-        <p ref={ref} className="text-content3 mb2 text-md py-5 md:text-base">
-          {answer}
-        </p>
-      </motion.div>
-    </li>
+        <span>{question}</span>
+        <ChevronDown
+          className="shrink-0 transition-transform"
+          style={{
+            color: 'var(--lp-accent)',
+            transform: open ? 'rotate(180deg)' : 'none',
+            width: 16,
+            height: 16
+          }}
+        />
+      </button>
+      {open && <div className="text-lp-muted pb-5 font-mono text-sm leading-relaxed">{answer}</div>}
+    </div>
   )
 }
 
 export const Faq = ({
   items = [
     {
-      question: 'How is RushDB different from Firebase or Supabase?',
+      question: 'What exactly happens when I push nested JSON?',
       answer:
-        "Unlike Firebase's document hierarchies or Supabase's rigid schemas, RushDB automatically normalizes any JSON into a connected knowledge graph — no schema design required. Push data and query it instantly. Pricing is transparent: standard reads and queries are always free. You pay only for writes and compute-intensive operations (vector search, raw Cypher), measured in Knowledge Units."
+        'RushDB decomposes your JSON depth-first. Each nested object becomes a separate typed record. The parent key becomes the label. Parent-child relationships are created automatically. Scalar properties stay on their owning record, arrays of objects become multiple child records, and types are inferred (string, number, boolean, datetime). One importJson call with a 4-level-deep object might create 10+ records with all relationships wired — no schema needed.'
     },
     {
-      question: 'Can I use RushDB for AI applications and LLM outputs?',
+      question: 'What about type safety? Can I enforce a schema when I want one?',
       answer:
-        'Absolutely. RushDB is purpose-built for AI workloads — push LLM outputs, structured embeddings, or raw event data and query across them relationally. Auto-normalization handles the varied structures of AI-generated content, and graph-based querying is perfect for RAG pipelines and knowledge graph construction.'
+        'Yes. RushDB offers optional Model classes with field-level validation: type, required, unique, multiple, and default. Define a Model when you need guarantees (e.g. "email must be a unique string"). Skip it when you want schemaless flexibility. Both modes use the same query DSL and the same records.find() API.'
     },
     {
-      question: 'How much data preparation do I need before using RushDB?',
+      question: 'How does vector search work alongside graph queries?',
       answer:
-        'Zero. Just push your JSON as-is and RushDB automatically decomposes, connects, and indexes your data with proper relationships and types. You can start querying within the same request — no schema planning, no migrations, no boilerplate.'
+        'Create an embedding index on any string property — managed (auto-embed with built-in model) or external (bring your own vectors). Then query with ai.search() for semantic similarity, or add vector.similarity operators inside a regular records.find() aggregate. The key part: vector results are filtered by the same structural where clause. So "find products similar to this description WHERE category = electronics AND price < 1000" is one query, not two systems glued together.'
     },
     {
-      question: 'How does billing work — what is a Knowledge Unit (KU)?',
+      question: 'How does RushDB compare to Postgres + Prisma?',
       answer:
-        'A Knowledge Unit (KU) is the atomic measure of structured knowledge created or maintained by RushDB. A record with 10 properties costs 10 KU. Nested objects are decomposed into linked records, each contributing its own KU. Standard reads and queries are always free. Compute-intensive operations (vector search, raw Cypher, deep traversals) consume a small amount of KU. The Free plan includes 100K KU/month — enough for ~3,000 records with 10 fields each.'
+        'With Postgres + Prisma, every new entity needs a schema definition, a migration, and ORM model updates. Cross-entity queries require explicit JOINs or nested includes. Schema changes require migration files. With RushDB, you push JSON — done. Cross-entity queries use the same JSON DSL with $alias for traversal. Schema changes? Just push JSON with new fields. The tradeoff: RushDB is optimized for graph-shaped data and flexible queries, not row-level SQL analytics.'
     },
     {
-      question: 'Can I self-host RushDB or do I have to use the cloud version?',
+      question: 'How does billing work — what is a Knowledge Unit?',
       answer:
-        'Both options are available. Self-host using our Docker container with your own Neo4j instance — no limits, no billing. RushDB Cloud starts free: 100K KU/month and 2 projects, no credit card required. Paid plans begin at $29/month with overage billing so you only pay for what you use.'
+        'A Knowledge Unit (KU) is the atomic measure of structured data in RushDB. A record with 10 properties = 10 KU. Nested objects decompose into linked records, each contributing its own KU. Standard reads and queries are always free. The free plan includes 100K KU/month — enough for thousands of records. Paid plans start at $29/month.'
+    },
+    {
+      question: 'Can I self-host RushDB?',
+      answer:
+        'Yes. Docker container + your own Neo4j instance — no limits, no billing, full control. One command: docker run -p 3000:3000 rushdb/platform with your Neo4j credentials. RushDB Cloud is also available with a free tier (100K KU/month, 2 projects, no credit card) if you prefer not to manage infrastructure.'
     }
   ],
   className
@@ -85,17 +65,14 @@ export const Faq = ({
   items?: { question: string; answer: string }[]
   className?: string
 }) => {
-  const [activeIndex, setActiveIndex] = useState(0)
-
   return (
-    <>
-      <h4 className="py-8 text-xl font-bold leading-tight">FAQ</h4>
-
-      <ul className={classNames('flex flex-col gap-5', className)}>
+    <div className={className}>
+      <p className="text-lp-muted mb-4 mt-12 font-mono text-sm uppercase tracking-widest">FAQ</p>
+      <div style={{ borderTop: '1px solid var(--lp-border)' }}>
         {items.map((item, index) => (
-          <FaqItem key={index} open={activeIndex === index} onClick={() => setActiveIndex(index)} {...item} />
+          <FaqItem key={index} {...item} />
         ))}
-      </ul>
-    </>
+      </div>
+    </div>
   )
 }
