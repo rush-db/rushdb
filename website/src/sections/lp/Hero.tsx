@@ -40,7 +40,8 @@ export function LPHero() {
           {...fadeUp(0.3)}
           className="text-lp-muted mx-auto mb-10 max-w-xl font-sans text-lg leading-relaxed md:text-sm"
         >
-          Push any JSON. Get graph relationships and vector search automatically.
+          Push any JSON or CSV. Get graph relationships <br className="md:inline" />
+          and vector search automatically.
           <br />
           No schema. No pipeline. No configuration.
         </motion.p>

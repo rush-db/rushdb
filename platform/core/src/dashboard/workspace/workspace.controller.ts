@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -10,6 +11,7 @@ import {
   Post,
   UseInterceptors
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { ApiBearerAuth, ApiExcludeController, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
@@ -33,6 +35,7 @@ import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 import { TExtendedWorkspaceProperties } from '@/dashboard/workspace/workspace.types'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { TransactionDecorator } from '@/database/transaction.decorator'
+import { toBoolean } from '@/common/utils/toBolean'
 
 @Controller('workspaces')
 @ApiExcludeController()
@@ -40,7 +43,8 @@ import { TransactionDecorator } from '@/database/transaction.decorator'
 export class WorkspaceController {
   constructor(
     private readonly userService: UserService,
-    private readonly workspaceService: WorkspaceService
+    private readonly workspaceService: WorkspaceService,
+    private readonly configService: ConfigService
   ) {}
 
   @Post()
@@ -53,6 +57,12 @@ export class WorkspaceController {
     @AuthUser() { id: userId }: IUserClaims,
     @TransactionDecorator() transaction: Transaction
   ): Promise<IWorkspaceProperties> {
+    if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
+      throw new ForbiddenException(
+        'Creating additional workspaces is currently disabled on cloud deployments.'
+      )
+    }
+
     const workspace = await this.workspaceService.createWorkspace(workspaceProperties, userId, transaction)
     return workspace.toJson()
   }
@@ -149,7 +159,7 @@ export class WorkspaceController {
     const payload = {
       workspaceId: id,
       workspaceName: workspace.name,
-      senderEmail: userEntity.toJson().login,
+      senderEmail: userEntity!.toJson().login,
       ...workspacePayload
     }
     return await this.workspaceService.inviteMember(payload, transaction)
@@ -256,7 +266,7 @@ export class WorkspaceController {
     const { userData, workspaceId } = await this.userService.acceptWorkspaceInvitation(
       {
         inviteToken: token,
-        authUserLogin: authUserEntity.toJson().login
+        authUserLogin: authUserEntity!.toJson().login
       },
       transaction
     )

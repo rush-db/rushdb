@@ -1,126 +1,150 @@
 # RushDB MCP Server
 
-A Model Context Protocol server providing AI agents and LLMs direct access to RushDB — the platform that turns any data into intelligence. Push records, events, AI outputs, and configs; RushDB structures, connects, and makes them queryable instantly.
+### Give your agent a memory layer. Via MCP.
 
-## Features
+Connect RushDB to any MCP-compatible AI client and your agent gains persistent, structured memory — semantically searchable and graph-traversable, without managing embeddings or schemas.
 
-- **Record Management**: Create, read, update, and delete structured knowledge records
-- **Relationship Operations**: Attach and detach relationships between records
-- **Advanced Querying**: Search across records using RushDB's flexible JSON query language
-- **Label & Property Discovery**: Browse labels and properties in your knowledge base
-- **Bulk Operations**: Efficient bulk create and delete operations
-- **Data Export**: Export records to CSV format
-- **AI Memory Layer**: Use RushDB as persistent, queryable memory for AI agents and workflows
+Works with Claude Desktop, Cursor, Windsurf, Gemini CLI, and any MCP-compatible tool.
 
-## Quick Start
+---
 
-1. **Install the package**:
-   ```bash
-   npm install -g @rushdb/mcp-server
-   ```
+## Why RushDB for agent memory
 
-2. **Get your RushDB API key** from [app.rushdb.com](https://app.rushdb.com)
+Most agents forget everything when the session ends. Wiring up persistent memory usually means managing three separate systems: a key-value store, a vector database, and a graph for relationships.
 
-3. **Configure your MCP client** (e.g., Claude Desktop):
-   ```json
-   {
-     "mcpServers": {
-       "rushdb": {
-         "command": "npx",
-         "args": ["@rushdb/mcp-server"],
-         "env": {
-            "RUSHDB_API_KEY": "your-rushdb-api-key-here",
-            "RUSHDB_API_URL": "https://api.rushdb.com/api/v1"
-         }
-       }
-     }
-   }
-   ```
+RushDB replaces all three:
 
-   Note: `RUSHDB_API_URL` is optional and defaults to `https://api.rushdb.com/api/v1`. Override it for self-hosted or staging environments.
+- **Graph auto-links sessions and entities** — push JSON with nested structure; relationships emerge without manual edge creation
+- **Managed embeddings** — write a string property, recall it by meaning. No embedding pipeline
+- **ACID transactions** — concurrent agents don't corrupt shared memory. Neo4j under the hood
+- **Self-describing schema** — agents call `FindLabels` and `FindProperties` to orient themselves before querying
 
-## Available Tools
+---
 
-### Database Discovery
-- `FindLabels` - List / filter record labels and their counts
-- `FindProperties` - List / filter properties
-- `FindRelationships` - Search for relationships
+## Quick start
 
-### Record Operations
-- `CreateRecord` - Create a new record
-- `UpdateRecord` - Update an existing record
-- `DeleteRecord` - Delete a record by ID
-- `GetRecord` - Retrieve a record by ID
-- `FindRecords` - Search for records using query conditions
+**1. Get an API key** at [app.rushdb.com](https://app.rushdb.com)
 
-### Relationship Management
-- `AttachRelation` - Create relationships between records
-- `DetachRelation` - Remove relationships between records
-- `FindRelationships` - Search for relationships
+**2. Add to your MCP client config:**
 
-### Bulk Operations
-- `BulkCreateRecords` - Create multiple records at once
-- `BulkDeleteRecords` - Delete multiple records matching a query
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
 
-### Data Export
-- `ExportRecords` - Export records to CSV format
+Place this in:
+- **Claude Desktop** — `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Cursor** — MCP settings in the Cursor config panel
+- **Windsurf** — `~/.codeium/windsurf/mcp_config.json`
+
+**3. That's it.** The agent now has 13 tools for storing, querying, and traversing structured memory.
+
+> `RUSHDB_API_URL` is optional and defaults to `https://api.rushdb.com/api/v1`. Override for self-hosted or staging environments.
+
+---
+
+## What an agent can do
+
+After connecting, ask Claude or your agent naturally:
+
+> "Remember that we decided to use Clerk for auth, replacing Auth0, on 2026-04-10."
+
+The agent calls `CreateRecord` to store a structured memory. Later:
+
+> "What auth decisions have we made?"
+
+The agent calls `FindRecords` with a semantic query — no manual searching required.
+
+> "Show me everything related to our auth system."
+
+The agent calls `FindRelationships` to traverse the graph of connected records.
+
+---
+
+## Available tools
+
+### Discovery
+| Tool | What it does |
+|---|---|
+| `FindLabels` | List record labels and record counts |
+| `FindProperties` | List properties across labels |
+| `FindRelationships` | Search relationships between records |
+
+### Records
+| Tool | What it does |
+|---|---|
+| `CreateRecord` | Store a new record |
+| `GetRecord` | Retrieve a record by ID |
+| `UpdateRecord` | Update an existing record |
+| `DeleteRecord` | Delete a record by ID |
+| `FindRecords` | Search records by properties, relationships, or semantic query |
+| `BulkCreateRecords` | Create multiple records at once |
+| `BulkDeleteRecords` | Delete records matching a query |
+
+### Relationships
+| Tool | What it does |
+|---|---|
+| `AttachRelation` | Create a relationship between two records |
+| `DetachRelation` | Remove a relationship |
 
 ### Utilities
-- `OpenBrowser` - Open URLs in browser
-- `HelpAddToClient` - Get setup instructions
-- `GetQueryBuilderPrompt` - Returns the RushDB Query Builder system prompt (fallback for clients without MCP Prompts support)
+| Tool | What it does |
+|---|---|
+| `ExportRecords` | Export records to CSV |
+| `HelpAddToClient` | Get setup instructions for your MCP client |
+| `GetQueryBuilderPrompt` | Returns the built-in query builder system prompt (fallback for clients without MCP Prompts support) |
 
-## Built-in Query Builder Prompt (MCP Prompts)
+---
 
-This server exposes a system prompt via the MCP Prompts API to ensure discovery-first, schema-safe querying:
+## Built-in query builder prompt
 
-- Prompt name: `rushdb.queryBuilder`
-- Purpose: guides the model to discover labels/properties first (FindLabels/FindProperties), then construct validated SearchQuery objects before calling find-related tools.
+RushDB exposes a system prompt via the MCP Prompts API that teaches the agent to query safely — discover labels and properties first, then construct queries.
 
-How clients should use it:
+**How it works:**
+1. Client calls `ListPrompts` → finds `rushdb.queryBuilder`
+2. Client calls `GetPrompt` → injects it as the session system message
+3. Agent now does discovery-first queries automatically
 
-1) Call `ListPrompts` and look for `rushdb.queryBuilder`.
-2) Call `GetPrompt` with that name and set the returned system message for the model session that will use RushDB tools.
+Most MCP clients handle this at session start. If your client doesn't support MCP Prompts, call `GetQueryBuilderPrompt` and inject the result as your system message.
 
-Most MCP clients can do this automatically at session start. If your client does not yet support Prompts, fetch this prompt once and inject it as the conversation’s system message before using RushDB tools.
+---
 
-Fallback tool for non-Prompts clients:
+## Environment variables
 
-- Call `GetQueryBuilderPrompt` and set the returned text as your session’s system message.
+| Variable | Required | Description |
+|---|---|---|
+| `RUSHDB_API_KEY` | yes | Your RushDB API key |
+| `RUSHDB_API_URL` | no | API base URL (default: `https://api.rushdb.com/api/v1`) |
 
-## Registry & Autodiscovery
+---
 
-- Manifest: a top-level `mcp.yaml` is provided so MCP registries and clients can auto-discover this server.
-- Glama: see `packages/mcp-server/glama.json` for basic metadata.
-- When registering, use package `@rushdb/mcp-server`, command `npx`, and ensure `RUSHDB_API_KEY` is set.
+## Registry & autodiscovery
 
-## Environment Variables
+- `mcp.yaml` at the repo root enables autodiscovery by MCP registries
+- `packages/mcp-server/glama.json` contains Glama metadata
+- Package: `@rushdb/mcp-server`, command: `npx`
 
-- `RUSHDB_API_KEY` - Your RushDB API key (required)
-- `RUSHDB_API_URL` - RushDB API base URL (optional, defaults to https://api.rushdb.com/api/v1). Useful for self-hosted, on-prem, or staging deployments.
-
-## About RushDB's LMPG Architecture
-
-RushDB uses a revolutionary Labeled Meta Property Graph (LMPG) architecture where:
-
-- **Properties are first-class citizens** with their own nodes
-- **Records are connected through shared properties**
-- **Relationships emerge automatically** based on property overlap
-- **No rigid schemas** - data structure evolves naturally
-- **Cross-domain insights** through property traversal
-
-This enables unprecedented flexibility in data modeling and querying.
+---
 
 ## Development
 
-To build from source:
-
 ```bash
-git clone <repository>
+git clone https://github.com/rush-db/rushdb
 cd rushdb/packages/mcp-server
 npm install
 npm run build
 ```
+
+---
 
 ## License
 

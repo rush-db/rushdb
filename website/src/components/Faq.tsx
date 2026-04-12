@@ -1,28 +1,66 @@
+import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import cx from 'classnames'
 
-function FaqItem({ question, answer }: { question: string; answer: string }) {
+/** 'lp'   — LP landing-page design (CSS vars, font-mono)
+ *  'site' — Main site design system (Tailwind classes) */
+export type FaqItemVariant = 'lp' | 'site'
+
+export function FaqItem({
+  question,
+  answer,
+  variant = 'lp'
+}: {
+  question: string
+  answer: ReactNode
+  variant?: FaqItemVariant
+}) {
   const [open, setOpen] = useState(false)
+  const isLp = variant === 'lp'
 
   return (
-    <div style={{ borderBottom: '1px solid var(--lp-border)' }}>
+    <div
+      className={cx(!isLp && 'border-stroke border-b last:border-b-0')}
+      style={isLp ? { borderBottom: '1px solid var(--lp-border)' } : undefined}
+    >
       <button
         onClick={() => setOpen(!open)}
-        className="text-lp-text flex w-full items-center justify-between py-5 text-left font-mono text-sm"
-        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+        className={cx(
+          'flex w-full items-center justify-between py-5 text-left transition-colors',
+          isLp ? 'text-lp-text font-mono text-sm' : 'text-content hover:text-accent font-medium'
+        )}
+        style={isLp ? { background: 'none', border: 'none', cursor: 'pointer' } : undefined}
       >
-        <span>{question}</span>
+        <span className={cx(!isLp && 'text-base font-semibold')}>{question}</span>
         <ChevronDown
-          className="shrink-0 transition-transform"
-          style={{
-            color: 'var(--lp-accent)',
-            transform: open ? 'rotate(180deg)' : 'none',
-            width: 16,
-            height: 16
-          }}
+          className={cx(
+            'shrink-0 transition-transform',
+            open && 'rotate-180',
+            isLp ? '' : 'text-accent h-5 w-5'
+          )}
+          style={
+            isLp ?
+              {
+                color: 'var(--lp-accent)',
+                transform: open ? 'rotate(180deg)' : 'none',
+                width: 16,
+                height: 16
+              }
+            : undefined
+          }
         />
       </button>
-      {open && <div className="text-lp-muted pb-5 font-mono text-sm leading-relaxed">{answer}</div>}
+      {open && (
+        <div
+          className={cx(
+            'pb-5',
+            isLp ? 'text-lp-muted font-mono text-sm leading-relaxed' : 'text-content3 text-sm leading-relaxed'
+          )}
+        >
+          {answer}
+        </div>
+      )}
     </div>
   )
 }

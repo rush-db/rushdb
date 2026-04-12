@@ -12,7 +12,7 @@ export default function PricingPage({ billingData }: PricingPageProps) {
       title="Pricing"
       description="RushDB pricing is simple: pay for knowledge created. Standard reads are always free. Free plan includes 100K KU/month. Pro starts at $29/month with 10M KU included and overage billing. Scale offers pure usage-based pricing at $2/M KU. Enterprise for custom deployments. Start building free — no credit card required."
     >
-      <LPPricing billingData={billingData} />
+      <LPPricing billingData={billingData} showKuDefinition />
     </LPLayout>
   )
 }

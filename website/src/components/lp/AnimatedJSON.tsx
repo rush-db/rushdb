@@ -36,40 +36,36 @@ function makeSyntaxOverride(isDark: boolean) {
 const FRAMES = [
   {
     json: `{
-  "agent_id": "agent-42",
-  "session": "sess_8f3a9c",
-  "action": "semantic_search",
-  "query": "AI adoption trends Q4 2025",
-  "filters": {
-    "recency": "90d",
-    "min_score": 0.82
-  },
-  "results": 14,
-  "latency_ms": 38
-}`
-  },
-  {
-    json: `{
-  "doc_id": "rpt_2025_q4",
-  "title": "Q4 Growth Report",
-  "author": { "id": "u_sarah_k", "role": "analyst" },
-  "tags": ["finance", "Q4", "growth"],
-  "sections": 12,
-  "word_count": 8420,
+  "agent_id": "researcher-01",
+  "session": "sess_9c3f1a",
+  "step": 3,
+  "tool": "web_search",
+  "query": "top open-source LLMs 2025",
+  "result": "Llama 4 leads reasoning at 94.2...",
+  "tokens": 812,
   "embedding": "auto"
 }`
   },
   {
     json: `{
-  "user_id": "u_991f3b",
-  "event": "checkout_completed",
-  "plan": "pro_annual",
-  "amount_usd": 588,
-  "coupon": "LAUNCH20",
-  "metadata": {
-    "trial_days": 14,
-    "source": "hero_cta"
-  }
+  "doc_id": "kb_arch_042",
+  "title": "API Design Guidelines",
+  "owner": { "id": "u_maya_r", "team": "platform" },
+  "tags": ["api", "backend", "standards"],
+  "chunks": 18,
+  "project": "core-infra",
+  "embedding": "auto"
+}`
+  },
+  {
+    json: `{
+  "meeting_id": "meet_q4_kick",
+  "topic": "Q4 roadmap priorities",
+  "attendees": ["maya_r", "jack_t", "priya_k"],
+  "decisions": ["ship graph RAG", "drop Redis"],
+  "action_items": 6,
+  "project": "horizon-q4",
+  "embedding": "auto"
 }`
   }
 ]
@@ -103,7 +99,7 @@ const FRAME_GRAPHS: Array<{
       [0, 7],
       [0, 8]
     ],
-    labels: ['AGENT', 'SESSION', 'ACTION', 'QUERY', 'RESULT', 'FILTER', 'SCORE', 'LATENCY', 'INDEX']
+    labels: ['AGENT', 'SESSION', 'STEP', 'TOOL', 'QUERY', 'RESULT', 'TOKENS', 'EMBED', 'INDEX']
   },
   {
     // Frame 1: Tree — doc root cascades down hierarchically
@@ -127,7 +123,7 @@ const FRAME_GRAPHS: Array<{
       [3, 6],
       [3, 7]
     ],
-    labels: ['DOC', 'AUTHOR', 'CONTENT', 'TAGS', 'ID', 'ROLE', 'SECTION', 'INDEX']
+    labels: ['DOC', 'OWNER', 'CONTENT', 'TAGS', 'ID', 'TEAM', 'CHUNK', 'INDEX']
   },
   {
     // Frame 2: Pipeline chain left-to-right with satellite nodes above/below
@@ -152,7 +148,7 @@ const FRAME_GRAPHS: Array<{
       [3, 7],
       [2, 8]
     ],
-    labels: ['USER', 'EVENT', 'PLAN', 'META', 'INDEX', 'COUPON', 'AMOUNT', 'TRIAL', 'SOURCE']
+    labels: ['MEETING', 'ATTEND', 'TOPIC', 'PROJECT', 'INDEX', 'DECISION', 'ACTION', 'ITEM', 'SOURCE']
   }
 ]
 

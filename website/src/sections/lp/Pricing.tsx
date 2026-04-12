@@ -1,7 +1,9 @@
 import { useMemo, useState, ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { Check, ChevronDown, Database, GitBranch, Search, Zap } from 'lucide-react'
+import { Check } from 'lucide-react'
+import { FaqItem } from '~/components/Faq'
+import { KuDefinition } from '~/components/KuDefinition'
 import NumberFlow from '@number-flow/react'
 import { links } from '~/config/urls'
 import { BillingData } from '~/components/pricing-types'
@@ -19,89 +21,7 @@ import {
 interface LPPricingProps {
   billingData?: BillingData | null
   showEnterprise?: boolean
-}
-
-// ── KU definition callout ───────────────────────────────────────────────────
-function KuDefinition() {
-  return (
-    <motion.div
-      {...fadeUp(0.1)}
-      className="mb-16 border p-8"
-      style={{ borderColor: 'var(--lp-border)', background: 'rgba(var(--lp-accent-rgb), 0.03)' }}
-    >
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="mb-2 flex items-center gap-2">
-            <Zap className="h-4 w-4" style={{ color: 'var(--lp-accent)' }} />
-            <span className="text-lp-text font-mono text-sm uppercase tracking-widest">
-              What is a Knowledge Unit (KU)?
-            </span>
-          </div>
-          <p className="text-lp-muted max-w-2xl font-mono text-sm leading-relaxed">
-            A <span className="text-lp-text font-bold">Knowledge Unit</span> is RushDB&apos;s atomic measure
-            of structured knowledge stored during a write operation. KU accumulates from records created,
-            properties stored, and relationships formed. Standard reads and queries are always free.
-          </p>
-        </div>
-        <span
-          className="font-mono text-sm uppercase tracking-wide"
-          style={{
-            color: 'var(--lp-accent)',
-            border: '1px solid rgba(var(--lp-accent-rgb), 0.3)',
-            padding: '4px 12px'
-          }}
-        >
-          KU = records · properties · links
-        </span>
-      </div>
-      <div className="grid grid-cols-3 gap-4 sm:grid-cols-1">
-        {[
-          {
-            icon: <Database className="h-4 w-4" style={{ color: 'var(--lp-accent)' }} />,
-            label: 'Flat records',
-            text: (
-              <>
-                A record with <span className="text-lp-text font-bold">10 properties</span> costs{' '}
-                <span style={{ color: 'var(--lp-accent)' }} className="font-bold">
-                  10 KU
-                </span>{' '}
-                per write.
-              </>
-            )
-          },
-          {
-            icon: <GitBranch className="h-4 w-4" style={{ color: 'var(--lp-accent)' }} />,
-            label: 'Nested objects',
-            text: (
-              <>
-                Nested objects are{' '}
-                <span className="text-lp-text font-bold">decomposed into separate linked records</span>. Each
-                child contributes its own KU.
-              </>
-            )
-          },
-          {
-            icon: <Search className="h-4 w-4" style={{ color: 'var(--lp-accent)' }} />,
-            label: 'Standard reads free',
-            text: (
-              <>
-                Standard queries <span className="text-lp-text font-bold">never consume KU</span>. Vector
-                search, raw Cypher, and multi-hop traversals consume a small amount.
-              </>
-            )
-          }
-        ].map(({ icon, label, text }) => (
-          <div key={label} className="border p-4" style={{ borderColor: 'var(--lp-border)' }}>
-            <div className="mb-2 flex items-center gap-2">
-              {icon}
-              <span className="text-lp-text font-mono text-sm uppercase tracking-wider">{label}</span>
-            </div>
-            <p className="text-lp-muted font-mono text-sm leading-relaxed">{text}</p>
-          </div>
-        ))}
-      </div>
-    </motion.div>
-  )
+  showKuDefinition?: boolean
 }
 
 // ── Single plan card ────────────────────────────────────────────────────────
@@ -205,34 +125,8 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   )
 }
 
-// ── FAQ ─────────────────────────────────────────────────────────────────────
-function FaqItem({ question, answer }: { question: string; answer: ReactNode }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div style={{ borderBottom: '1px solid var(--lp-border)' }}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="text-lp-text flex w-full items-center justify-between py-5 text-left font-mono text-sm"
-        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-      >
-        <span>{question}</span>
-        <ChevronDown
-          className="shrink-0 transition-transform"
-          style={{
-            color: 'var(--lp-accent)',
-            transform: open ? 'rotate(180deg)' : 'none',
-            width: 16,
-            height: 16
-          }}
-        />
-      </button>
-      {open && <div className="text-lp-muted pb-5 font-mono text-sm leading-relaxed">{answer}</div>}
-    </div>
-  )
-}
-
 // ── Main export ─────────────────────────────────────────────────────────────
-export function LPPricing({ billingData, showEnterprise = true }: LPPricingProps) {
+export function LPPricing({ billingData, showEnterprise = true, showKuDefinition = false }: LPPricingProps) {
   const [annual, setAnnual] = useState(true)
 
   const proPrice = useMemo(
@@ -252,10 +146,15 @@ export function LPPricing({ billingData, showEnterprise = true }: LPPricingProps
         <LPEyebrow>Pricing</LPEyebrow>
         <LPSectionHeading className="mb-6">Simple, predictable pricing.</LPSectionHeading>
         <p className="text-lp-muted mb-10 font-mono text-sm">
-          Pay for knowledge created — not infrastructure. Standard reads are always free.
+          Pay for knowledge created — not infrastructure. Standard reads are always free.{' '}
+          {!showKuDefinition && (
+            <Link href={links.pricing} className="text-lp-accent hover:underline">
+              What is a KU? →
+            </Link>
+          )}
         </p>
 
-        <KuDefinition />
+        {showKuDefinition && <KuDefinition variant="lp" />}
 
         <div className="m-auto mb-12 flex w-full items-center justify-center">
           <Toggle on={annual} onToggle={() => setAnnual((v) => !v)} />
@@ -327,35 +226,42 @@ export function LPPricing({ billingData, showEnterprise = true }: LPPricingProps
         {showEnterprise && (
           <motion.div
             {...fadeUp(0.15)}
-            className="mb-8 flex items-center justify-between gap-8 border p-8 md:flex-col md:items-start"
+            className="mb-8 border p-8"
             style={{ borderColor: 'var(--lp-border)' }}
           >
-            <div className="flex flex-col gap-2">
-              <p className="text-lp-muted font-mono text-sm uppercase tracking-widest">Enterprise</p>
-              <p className="text-lp-text font-mono text-xl font-bold">For organisations &amp; embedded use</p>
-              <p className="text-lp-muted font-mono text-sm">
-                Dedicated infrastructure, embedded/OEM licensing, custom contracts, and hands-on deployment
-                support for compliance-heavy or high-volume needs.
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-col gap-3 md:w-full">
-              <div className="flex flex-wrap gap-6 font-mono text-sm" style={{ color: '#6B6B72' }}>
-                {[
-                  'Platform license',
-                  'Dedicated BYOC deployment',
-                  'Embedded / OEM use',
-                  'Dedicated support'
-                ].map((f) => (
-                  <span key={f} className="flex items-center gap-1.5">
-                    <Check className="h-3 w-3" style={{ color: 'var(--lp-accent)' }} />
-                    {f}
-                  </span>
-                ))}
+            <div className="flex items-start justify-between gap-12 md:flex-col md:gap-6">
+              <div className="max-w-sm shrink-0">
+                <p className="text-lp-muted mb-2 font-mono text-sm uppercase tracking-widest">Enterprise</p>
+                <p className="text-lp-text mb-3 font-mono text-2xl font-bold">
+                  For organisations &amp; embedded use
+                </p>
+                <p className="text-lp-muted font-mono text-sm leading-relaxed">
+                  Dedicated infrastructure, embedded/OEM licensing, custom contracts, and hands-on deployment
+                  support for compliance-heavy or high-volume needs.
+                </p>
               </div>
-              <div className="mt-2">
-                <LPGhostBtn href="mailto:hi@rushdb.com" className="md:w-full md:text-center">
-                  Contact Us →
-                </LPGhostBtn>
+              <div className="flex flex-1 flex-col justify-between gap-6 md:w-full">
+                <div
+                  className="grid grid-cols-2 gap-x-8 gap-y-3 font-mono text-sm sm:grid-cols-1"
+                  style={{ color: '#6B6B72' }}
+                >
+                  {[
+                    'Platform license',
+                    'Dedicated BYOC deployment',
+                    'Embedded / OEM use',
+                    'Dedicated support'
+                  ].map((f) => (
+                    <span key={f} className="flex items-center gap-1.5">
+                      <Check className="h-3 w-3 shrink-0" style={{ color: 'var(--lp-accent)' }} />
+                      {f}
+                    </span>
+                  ))}
+                </div>
+                <div>
+                  <LPGhostBtn href="mailto:hi@rushdb.com" className="md:w-full md:text-center">
+                    Contact Us →
+                  </LPGhostBtn>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -409,16 +315,13 @@ export function LPPricing({ billingData, showEnterprise = true }: LPPricingProps
               answer="Yes. Standard queries and reads consume zero KU. You pay only for writes. Compute-intensive operations — vector similarity search, raw Cypher, and deep multi-hop traversals — consume a small amount of KU because they scale with dataset size."
             />
             <FaqItem
-              question="Can I set spending limits?"
-              answer="Yes. In your dashboard you can set KU usage alerts and optional hard spending caps. When a hard cap is reached, writes pause until the next billing period."
-            />
-            <FaqItem
               question="How do I estimate my KU usage?"
               answer={
                 <>
-                  As a rough guide: a record with 10 properties = 10 KU. Creating 1,000 flat records (10
-                  fields each) = 10,000 KU. Generating an embedding = ~5 KU per record. The Free plan (100K
-                  KU) typically supports ~3,000 such records. Pro (10M KU) supports ~300,000/month.
+                  As a rough guide: a record with 10 properties ≈ 10 KU (0.5 base + 1 per property). Creating
+                  1,000 flat records (10 fields each) ≈ 10,000 KU. Generating an embedding costs 5 KU per
+                  record. The Free plan (100K KU) typically supports ~3,000 such records per month, or ~1,000
+                  records with embeddings. Pro (10M KU) supports ~300,000 flat records/month.
                 </>
               }
             />

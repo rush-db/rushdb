@@ -9,10 +9,12 @@ import { setCurrentWorkspace } from '../stores/current-workspace'
 import { useCurrentWorkspaceQuery, useWorkspacesQuery } from '../hooks/useWorkspaceQueries'
 import { Label } from '~/elements/Label.tsx'
 import { getRoutePath } from '~/lib/router'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 
 export function ChangeWorkspaceMenu() {
   const { data: currentWorkspace, isPending: loading } = useCurrentWorkspaceQuery()
   const { data: list } = useWorkspacesQuery()
+  const { data: platformSettings } = usePlatformSettings()
 
   const triggerText = currentWorkspace?.name ?? 'Loading...'
 
@@ -53,9 +55,11 @@ export function ChangeWorkspaceMenu() {
 
       <Divider />
 
-      <MenuItem as={'a'} asChild href={getRoutePath('newWorkspace')} icon={<Plus />} variant="accent">
-        New Workspace
-      </MenuItem>
+      {platformSettings?.selfHosted && (
+        <MenuItem as={'a'} asChild href={getRoutePath('newWorkspace')} icon={<Plus />} variant="accent">
+          New Workspace
+        </MenuItem>
+      )}
     </Menu>
   )
 }
