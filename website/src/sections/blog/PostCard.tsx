@@ -3,48 +3,64 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Post } from '~/sections/blog/types'
 import { formatDate } from './utils'
-import { Tags } from '~/components/Tags'
-import { useTheme } from '~/contexts/ThemeContext'
 
 export function PostCard({ post, className }: { post: Post['data']; className?: string }) {
-  const { theme } = useTheme()
-
-  const defaultCoverImage =
-    theme === 'dark' ? '/images/blog/default-cover-dark.png' : '/images/blog/default-cover.png'
-
   return (
     <Link
-      key={post.slug}
       as={`/blog/${post.slug}`}
       href={`/blog/${post.slug}`}
-      className={classNames(
-        'bg-fill2 rounded-xl',
-        'group relative block aspect-video h-full w-full overflow-hidden rounded-md [&>div]:h-full',
-        className
-      )}
+      className={classNames('group flex flex-col overflow-hidden transition-colors', className)}
+      style={{ border: '1px solid var(--lp-border)', background: 'var(--lp-surface)' }}
     >
-      <div className="absolute inset-0 transition group-hover:scale-105">
-        <Image src={post.image || defaultCoverImage} className="object-cover" alt="" fill loading="lazy" />
-      </div>
+      {/* Cover image */}
+      {post.image && (
+        <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/7' }}>
+          <Image
+            src={post.image}
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            alt=""
+            fill
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[var(--lp-surface)]/80 to-transparent" />
+        </div>
+      )}
 
-      {/* Gradient overlay to improve text visibility */}
-      <div className="z-5 absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/10"></div>
+      {/* Content */}
+      <div className="flex flex-1 flex-col gap-3 p-5">
+        {/* Tags */}
+        {post.tags && post.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {post.tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag}
+                className="text-lp-muted border-lp-border font-mono text-sm uppercase tracking-wider"
+                style={{ border: '1px solid var(--lp-border)', padding: '1px 8px' }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
 
-      <div className="relative z-10 flex h-full w-full flex-col justify-end p-6">
-        <h3 className="text-md mb-1 font-bold leading-tight text-white">{post.title}</h3>
+        <h3 className="text-lp-text group-hover:text-lp-accent font-mono text-sm font-bold leading-snug transition-colors">
+          {post.title}
+        </h3>
 
-        {/* Meta information row below title */}
-        <div className="mb-2 flex flex-wrap items-center gap-x-3 text-white/80">
-          <span className="text-sm font-medium">{formatDate(post.publishedAt)}</span>
+        {post.excerpt && (
+          <p className="text-lp-muted line-clamp-2 font-sans text-sm leading-relaxed">{post.excerpt}</p>
+        )}
+
+        {/* Meta */}
+        <div className="text-lp-muted mt-auto flex flex-wrap items-center gap-x-3 font-mono text-sm">
+          <span>{formatDate(post.publishedAt)}</span>
           {post.readTime && (
-            <span className="flex items-center text-sm font-medium">
-              <span className="mr-1 inline-block h-1 w-1 rounded-full bg-white/60"></span>
-              {post.readTime} min read
-            </span>
+            <>
+              <span style={{ color: 'var(--lp-border)' }}>—</span>
+              <span>{post.readTime} min read</span>
+            </>
           )}
         </div>
-
-        {post.tags && post.tags.length > 0 && <Tags tags={post.tags} limit={3} />}
       </div>
     </Link>
   )

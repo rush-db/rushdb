@@ -1,8 +1,6 @@
-import classNames from 'classnames'
 import { GetStaticProps } from 'next'
 
-import { Layout } from '~/components/Layout'
-import { LetterTypingText } from '~/components/LetterTypingText'
+import { LPLayout } from '~/components/lp/LPLayout'
 import { PostCard } from '~/sections/blog/PostCard'
 import { Post } from '~/sections/blog/types'
 import { getRemoteBlogPosts } from '~/sections/blog/remote-utils'
@@ -11,33 +9,39 @@ type Props = { posts: Array<Post['data']> }
 
 export default function Index({ posts }: Props) {
   return (
-    <Layout className="container">
-      <section>
-        <div className="flex flex-col items-center pb-16 pt-32">
-          <p className="text-content3 font-mono uppercase">Latest Updates</p>
-          <LetterTypingText as="h1" className="text-4xl font-black leading-[1]" animate>
-            RushDB Blog
-          </LetterTypingText>
-          <p className="text-content3 mt-4 max-w-2xl text-center">
-            Stay up to date with the latest features, tutorials, and insights from the RushDB team
-          </p>
+    <LPLayout
+      title="Blog"
+      description="Stay up to date with the latest features, tutorials, and insights from the RushDB team"
+    >
+      <div className="mx-auto max-w-6xl px-6 py-20">
+        {/* Header */}
+        <div className="mb-14">
+          <p className="text-lp-muted mb-3 font-mono text-sm uppercase tracking-widest">Latest Updates</p>
+          <h1 className="text-lp-text font-mono text-4xl font-bold leading-tight sm:text-xl">RushDB Blog</h1>
         </div>
 
-        <div className="col-span-12 mx-auto grid w-full grid-cols-12 gap-3">
-          {posts.map((post, idx) => (
-            <PostCard
-              key={post.slug}
-              post={post}
-              className={classNames({
-                'col-span-8 row-span-2 row-start-1 md:col-span-12': idx === 0,
-                'col-span-4 row-span-1 sm:col-span-12 md:col-span-6': idx === 1 || idx === 2,
-                'col-span-4 sm:col-span-12 md:col-span-6': idx > 2
-              })}
-            />
-          ))}
-        </div>
-      </section>
-    </Layout>
+        {/* Featured + sidebar grid */}
+        {posts.length > 0 && (
+          <div className="mb-6 grid grid-cols-3 gap-4 md:grid-cols-1">
+            <PostCard post={posts[0]} className="col-span-2 md:col-span-1" />
+            <div className="flex flex-col gap-4">
+              {posts.slice(1, 3).map((post) => (
+                <PostCard key={post.slug} post={post} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Remaining posts */}
+        {posts.length > 3 && (
+          <div className="grid grid-cols-3 gap-4 sm:grid-cols-1 md:grid-cols-1">
+            {posts.slice(3).map((post) => (
+              <PostCard key={post.slug} post={post} />
+            ))}
+          </div>
+        )}
+      </div>
+    </LPLayout>
   )
 }
 

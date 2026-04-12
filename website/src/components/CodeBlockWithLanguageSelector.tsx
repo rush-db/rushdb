@@ -36,10 +36,14 @@ const TsLogo = ({ className }: { className: string }) => (
     className={className}
   />
 )
+const BashLogo = ({ className }: { className: string }) => (
+  <Image src="/images/bash-logo.svg" alt="Bash Logo" width={32} height={32} className={className} priority />
+)
 
 const langLogoMap = {
   python: PyLogo,
-  typescript: TsLogo
+  typescript: TsLogo,
+  bash: BashLogo
 }
 
 const Logo = ({ lang, className }: { lang: string; className: string }) => {

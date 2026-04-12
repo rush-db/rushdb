@@ -1,5 +1,5 @@
-import { Layout } from '~/components/Layout'
-import { Pricing } from '~/sections/Pricing'
+import { LPLayout } from '~/components/lp/LPLayout'
+import { LPPricing } from '~/sections/lp/Pricing'
 import { BillingData } from '~/components/pricing-types'
 
 interface PricingPageProps {
@@ -8,12 +8,12 @@ interface PricingPageProps {
 
 export default function PricingPage({ billingData }: PricingPageProps) {
   return (
-    <Layout
+    <LPLayout
       title="Pricing"
       description="RushDB pricing is simple: pay for knowledge created. Standard reads are always free. Free plan includes 100K KU/month. Pro starts at $29/month with 10M KU included and overage billing. Scale offers pure usage-based pricing at $2/M KU. Enterprise for custom deployments. Start building free — no credit card required."
     >
-      <Pricing billingData={billingData} />
-    </Layout>
+      <LPPricing billingData={billingData} />
+    </LPLayout>
   )
 }
 

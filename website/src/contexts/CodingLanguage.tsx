@@ -6,7 +6,7 @@ export const CodingLanguage = createContext<{ language: string; setLanguage: (va
 })
 
 export const CodingLanguageProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguage] = useState<string>('typescript')
+  const [language, setLanguage] = useState<string>('python')
 
   return (
     <CodingLanguage.Provider

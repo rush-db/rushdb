@@ -1,7 +1,7 @@
 import '~/styles/globals.css'
 import type { AppProps } from 'next/app'
 
-import { jetBrainsMono, manrope } from '~/styles/fonts'
+import { jetBrainsMono, manrope, dmSerifDisplay } from '~/styles/fonts'
 import React, { useMemo } from 'react'
 import cx from 'classnames'
 import { CodingLanguageProvider } from '~/contexts/CodingLanguage'
@@ -85,7 +85,7 @@ export default function App({ Component, pageProps }: AppProps) {
         </>
       )}
 
-      <main className={cx(jetBrainsMono.variable, manrope.variable)}>
+      <main className={cx(jetBrainsMono.variable, manrope.variable, dmSerifDisplay.variable)}>
         <ThemeProvider>
           <CodingLanguageProvider>
             <Component {...pageProps} />

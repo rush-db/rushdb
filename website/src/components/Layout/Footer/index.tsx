@@ -1,84 +1,86 @@
-import { Github, Linkedin } from 'lucide-react'
-import { Section } from '~/components/Section'
+import { Linkedin } from 'lucide-react'
 import Link from 'next/link'
-import { socials } from '~/config/urls'
-import { IconX } from '~/components/Layout/IconX'
-import { IconDiscord } from '~/components/Layout/IconDiscord'
-import { Logo } from '~/components/Logo'
 import { GitHub } from '~/components/Icons/GitHub'
+import { IconX } from '~/components/Layout/IconX'
+import { LPLogo } from '~/components/lp/LPLogo'
+import { links, socials } from '~/config/urls'
 
 export function Footer() {
   return (
-    <footer className="relative z-10 grid min-h-[30vh]">
-      <div className="container py-16">
-        <div className="grid grid-cols-2 items-start gap-4">
-          <div className="justify-self-start">
-            <Link href="/#hero" rel="noopener noreferrer" aria-label="Home page">
-              <div className="flex items-center gap-4">
-                <Logo className="text-content" width={60} height={60} />
-                <span className="text-content typography-xl text-left font-bold">RushDB</span>
-              </div>
-            </Link>
-          </div>
+    <footer
+      style={{ background: 'var(--lp-bg)', borderTop: '1px solid var(--lp-border)' }}
+      className="px-6 py-12"
+    >
+      <div className="mx-auto max-w-5xl">
+        <div className="flex flex-wrap items-start justify-between gap-8">
+          {/* Left: logo + nav + legal */}
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-wrap items-center gap-8">
+              <Link href="/" aria-label="Home page" className="flex items-center gap-2">
+                <LPLogo width={20} height={20} className="text-lp-text" />
+                <span className="text-lp-text font-mono text-sm tracking-widest">rushdb</span>
+              </Link>
 
-          <div className="flex flex-col justify-end gap-4">
-            <a
-              href={socials.emailUrl}
-              className="text-content typography-xl text-right font-medium leading-none"
-            >
-              {socials.email}
-            </a>
-            <div className="flex justify-end gap-4">
-              <Link
-                href={socials.x}
-                target="__blank"
-                rel="noopener noreferrer"
-                aria-label="X (Formerly Twitter)"
-              >
-                <IconX className="text-content" />
-              </Link>
-              <Link href={socials.github} target="__blank" rel="noopener noreferrer" aria-label="Github">
-                <GitHub className="text-content h-6 w-6" />
-              </Link>
-              <Link href={socials.linkedIn} target="__blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                <Linkedin className="text-content" />
-              </Link>
-              {/*<Link href={socials.discord} target="__blank" rel="noopener noreferrer" aria-label="Discord">*/}
-              {/*  <IconDiscord className="text-content h-12 w-12" />*/}
-              {/*</Link>*/}
+              <nav className="flex flex-wrap gap-6">
+                {[
+                  { label: 'Docs', href: links.docs },
+                  { label: 'GitHub', href: socials.github },
+                  { label: 'Blog', href: socials.blog },
+                  { label: 'Pricing', href: links.pricing }
+                ].map(({ label, href }) => (
+                  <Link
+                    key={label}
+                    href={href}
+                    className="text-lp-muted hover:text-lp-text font-mono text-sm uppercase tracking-wider transition-colors"
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-6">
+              <p className="text-lp-muted font-mono text-sm">
+                © {new Date().getFullYear()}, Collect Software Inc.
+              </p>
+              <nav className="flex flex-wrap gap-6">
+                {[
+                  { label: 'Privacy Policy', href: '/privacy-policy' },
+                  { label: 'Terms of Service', href: '/terms-of-service' },
+                  { label: 'Cookie Policy', href: '/cookie-policy' }
+                ].map(({ label, href }) => (
+                  <Link
+                    key={label}
+                    href={href}
+                    className="text-lp-muted hover:text-lp-text font-mono text-sm transition-colors"
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </nav>
             </div>
           </div>
-        </div>
-        <div className="mt-16 grid gap-8 text-center">
-          <div className="flex items-center justify-center gap-x-4 text-center">
+
+          {/* Right: social icons */}
+          <div className="flex items-center gap-5">
             <Link
-              href="/privacy-policy"
+              href={socials.x}
               target="__blank"
               rel="noopener noreferrer"
-              aria-label="Privacy Policy"
+              aria-label="X (Formerly Twitter)"
             >
-              Privacy Policy
+              <IconX className="text-lp-muted hover:text-lp-text h-4 w-4 transition-colors" />
             </Link>
-            <Link
-              href="/terms-of-service"
-              target="__blank"
-              rel="noopener noreferrer"
-              aria-label="Terms of Service"
-            >
-              Terms of Service
+            <Link href={socials.github} target="__blank" rel="noopener noreferrer" aria-label="GitHub">
+              <GitHub className="text-lp-muted hover:text-lp-text h-4 w-4 transition-colors" />
             </Link>
-            <Link
-              href="/cookie-policy"
-              target="__blank"
-              rel="noopener noreferrer"
-              aria-label="Terms of Service"
-            >
-              Cookie Policy
+            <Link href={socials.linkedIn} target="__blank" rel="noopener noreferrer" aria-label="LinkedIn">
+              <Linkedin
+                className="text-lp-muted hover:text-lp-text h-4 w-4 transition-colors"
+                strokeWidth={1.5}
+              />
             </Link>
           </div>
-          <p className="text-content2 text-sm font-medium leading-snug tracking-tight md:text-sm">
-            © {new Date().getFullYear()}, Collect Software Inc.
-          </p>
         </div>
       </div>
     </footer>

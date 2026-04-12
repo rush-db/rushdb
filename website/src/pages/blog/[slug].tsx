@@ -1,9 +1,8 @@
 import { MDXRemoteSerializeResult } from 'next-mdx-remote'
 import { serialize } from 'next-mdx-remote/serialize'
 
-import { Layout } from '~/components/Layout'
+import { LPLayout } from '~/components/lp/LPLayout'
 import { GetStaticProps } from 'next'
-import { LetterTypingText } from '~/components/LetterTypingText'
 import { getRemoteBlogPost, getRemoteBlogPosts } from '~/sections/blog/remote-utils'
 import { Post } from '~/sections/blog/types'
 import { MDXRenderer } from '~/sections/blog/MDXRenderer'
@@ -38,7 +37,7 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
   })
 
   return (
-    <Layout title={data.title} description={data.excerpt} image={getAbsoluteURL(data.image)}>
+    <LPLayout title={data.title} description={data.excerpt} image={getAbsoluteURL(data.image)}>
       <Head>
         <meta name="robots" content="index, follow" />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }} />
@@ -52,21 +51,18 @@ export default function PostPage({ serializedPost, data, morePosts }: Props) {
         </div>
       </div>
       {morePosts?.length > 0 && (
-        <section className="container mb-32 mt-16">
-          <div className="m-auto max-w-5xl border-t pt-16">
-            <LetterTypingText as="h2" className="typography-xl container m-0 mb-8 p-0">
-              More Blog Posts
-            </LetterTypingText>
-
-            <div className="grid grid-cols-3 gap-4">
-              {morePosts.slice(0, 3).map((post, idx) => (
+        <section className="mx-auto mb-24 mt-16 max-w-5xl">
+          <div style={{ borderTop: '1px solid #1E1E22' }} className="pt-12">
+            <h2 className="text-lp-muted mb-8 font-mono text-sm uppercase tracking-widest">More Posts</h2>
+            <div className="grid grid-cols-3 gap-4 md:grid-cols-1">
+              {morePosts.slice(0, 3).map((post) => (
                 <PostCard key={post.slug} post={post} />
               ))}
             </div>
           </div>
         </section>
       )}
-    </Layout>
+    </LPLayout>
   )
 }
 

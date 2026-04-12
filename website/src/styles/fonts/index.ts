@@ -1,5 +1,5 @@
 import localFont from 'next/font/local'
-import { Manrope } from 'next/font/google'
+import { Manrope, DM_Serif_Display } from 'next/font/google'
 
 export const jetBrainsMono = localFont({
   src: [
@@ -23,4 +23,12 @@ export const manrope = Manrope({
   variable: '--font-manrope',
   display: 'block',
   adjustFontFallback: false
+})
+
+export const dmSerifDisplay = DM_Serif_Display({
+  subsets: ['latin'],
+  weight: ['400'],
+  style: ['normal', 'italic'],
+  variable: '--font-dm-serif-display',
+  display: 'swap'
 })
