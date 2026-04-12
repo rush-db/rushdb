@@ -22,7 +22,7 @@ export function PostCard({ post, className }: { post: Post['data']; className?: 
             fill
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[var(--lp-surface)]/80 to-transparent" />
+          <div className="from-[var(--lp-surface)]/80 absolute inset-0 bg-gradient-to-t to-transparent" />
         </div>
       )}
 
