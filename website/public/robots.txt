@@ -1,9 +1,0 @@
-# *
-User-agent: *
-Allow: /
-
-# Host
-Host: https://rushdb.com
-
-# Sitemaps
-Sitemap: https://rushdb.com/sitemap.xml
