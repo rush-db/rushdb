@@ -87,10 +87,14 @@ export const tools: Tool[] = [
       'Returns the complete graph ontology as compact Markdown: all labels with record counts, ' +
       'all properties per label with their type and value ranges (min/max for numbers/datetimes, ' +
       'sample values for strings/booleans), and all cross-label relationships with direction. ' +
+      'The Properties table includes a "Semantic Search" column: properties with an embedding index show ' +
+      '`sourceType similarityFunction dimensionsd [status]` (e.g. `managed cosine 1536d [ready]`); ' +
+      'others show `—`. A non-`—` value means the property is queryable with aiSemanticSearch. ' +
       'This single call replaces the need for separate findLabels + findProperties + findRelationships ' +
       'discovery calls. Use the result to determine exact label names (case-sensitive), field names, ' +
       'field types, and relationship patterns before building any findRecords query. ' +
-      'Optionally pass `labels` array to narrow the output to specific labels.',
+      'Optionally pass `labels` array to narrow the output to specific labels. ' +
+      'Pass `force: true` to bypass the 1-hour ontology cache and force a fresh recalculation.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -98,6 +102,10 @@ export const tools: Tool[] = [
           type: 'array',
           items: { type: 'string' },
           description: 'Optional: scope ontology to specific labels only. Leave empty to get all labels.'
+        },
+        force: {
+          type: 'boolean',
+          description: 'Pass true to bypass the 1-hour ontology cache and force a fresh recalculation.'
         }
       },
       required: []
@@ -110,10 +118,15 @@ export const tools: Tool[] = [
     description:
       'Returns the same graph ontology as getOntologyMarkdown but as structured JSON. ' +
       'Each item has: label (string), count (number), properties (array with id, name, type, ' +
-      'min/max for numbers/datetimes, values[] for strings/booleans), and relationships ' +
-      '(array with label, type, direction: in|out). ' +
+      'min/max for numbers/datetimes, values[] for strings/booleans, and an optional vectorIndexes array), ' +
+      'and relationships (array with label, type, direction: in|out). ' +
+      'vectorIndexes is non-empty when one or more embedding indexes exist for that property; ' +
+      'each entry has: id, sourceType (managed|external), similarityFunction (cosine|euclidean), ' +
+      'dimensions (number), status (pending|indexing|ready|error), modelKey. ' +
+      'A non-empty vectorIndexes means the property is queryable with aiSemanticSearch. ' +
       'Use this when you need property `id` values to pass to propertyValues for deeper drill-down. ' +
-      'For initial schema orientation, getOntologyMarkdown uses fewer tokens.',
+      'For initial schema orientation, getOntologyMarkdown uses fewer tokens. ' +
+      'Pass `force: true` to bypass the 1-hour ontology cache and force a fresh recalculation.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -121,6 +134,10 @@ export const tools: Tool[] = [
           type: 'array',
           items: { type: 'string' },
           description: 'Optional: scope ontology to specific labels only. Leave empty to get all labels.'
+        },
+        force: {
+          type: 'boolean',
+          description: 'Pass true to bypass the 1-hour ontology cache and force a fresh recalculation.'
         }
       },
       required: []

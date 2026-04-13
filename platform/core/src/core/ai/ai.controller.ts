@@ -34,6 +34,8 @@ import { PreferredTransactionDecorator } from '@/database/preferred-transaction.
 
 class OntologyFilterDto {
   labels?: string[]
+  /** When true, bypasses the 1-hour ontology cache and forces a fresh recalculation. */
+  force?: boolean
 }
 
 @Controller('ai')
@@ -63,6 +65,7 @@ export class AiController {
       projectId: request.projectId,
       workspaceId: !raw.project?.customDb ? request.workspaceId : undefined,
       labels: body?.labels,
+      force: body?.force,
       transaction
     })
   }
@@ -86,6 +89,7 @@ export class AiController {
       projectId: request.projectId,
       workspaceId: !raw.project?.customDb ? request.workspaceId : undefined,
       labels: body?.labels,
+      force: body?.force,
       transaction
     })
     return this.aiService.buildMdSchema(ontology)

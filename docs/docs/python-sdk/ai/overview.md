@@ -63,6 +63,7 @@ The `db.ai` namespace covers three capabilities:
 | [Advanced Indexing — BYOV](./advanced-indexing.md) | Bring Your Own Vectors: external indexes, inline writes        |
 | [Semantic Search](./search.md)                     | Query by meaning with `db.ai.search()`                         |
 | [Writing with Vectors](./write-with-vectors.md)    | Attach vectors at create / upsert / import_json time           |
+| [Agent Skills](#agent-skills)                      | Installable skills that teach any compatible agent to use RushDB |
 
 ---
 
@@ -79,6 +80,7 @@ Returns the full schema as compact Markdown — the **recommended format for LLM
 ```python
 db.ai.get_ontology_markdown(
     params: dict | None = None,   # {"labels": ["Order"]} to scope output
+                                  # {"force": True} to bypass the 1-hour cache
     transaction=None
 ) -> ApiResponse[str]
 ```
@@ -99,6 +101,9 @@ messages = [
 
 # Scope to specific labels
 order_response = db.ai.get_ontology_markdown({"labels": ["Order"]})
+
+# Bypass the 1-hour cache and force a fresh recalculation
+fresh_response = db.ai.get_ontology_markdown({"force": True})
 ```
 
 <details>
@@ -121,11 +126,12 @@ order_response = db.ai.get_ontology_markdown({"labels": ["Order"]})
 
 ### Properties
 
-| Property    | Type     | Values / Range                           |
-|-------------|----------|------------------------------------------|
-| `status`    | string   | `pending`, `paid`, `shipped` (+2 more)   |
-| `total`     | number   | `4.99`..`2499.00`                        |
-| `createdAt` | datetime | `2024-01-03`..`2026-02-27`               |
+| Property    | Type     | Values / Range                         | Semantic Search                |
+|-------------|----------|----------------------------------------|--------------------------------|
+| `status`    | string   | `pending`, `paid`, `shipped` (+2 more) | —                              |
+| `total`     | number   | `4.99`..`2499.00`                      | —                              |
+| `name`      | string   | `Widget A`, `Widget B` (+8 more)       | `managed` cosine 1536d [ready] |
+| `createdAt` | datetime | `2024-01-03`..`2026-02-27`             | —                              |
 
 ### Relationships
 
@@ -147,7 +153,8 @@ Returns the same ontology as a structured list of dicts — useful for schema UI
 
 ```python
 db.ai.get_ontology(
-    params: dict | None = None,
+    params: dict | None = None,   # {"labels": ["Order"]} to scope output
+                                  # {"force": True} to bypass the 1-hour cache
     transaction=None
 ) -> ApiResponse[list[dict]]
 ```
@@ -165,6 +172,13 @@ status_prop = next(p for p in order_schema["properties"] if p["name"] == "status
 
 values_response = db.properties.values({"id": status_prop["id"]})
 # ['pending', 'paid', 'shipped', 'cancelled', 'refunded']
+
+# Identify semantically-searchable properties
+indexed = [p for p in order_schema["properties"] if p.get("vectorIndexes")]
+# indexed[0]["vectorIndexes"][0]["status"] == "ready" → queryable with db.ai.search()
+
+# Bypass the 1-hour cache
+fresh = db.ai.get_ontology({"force": True})
 ```
 
 Each item in `response.data`:
@@ -181,6 +195,17 @@ Each item in `response.data`:
             "values": list,                  # up to 10 samples (string/boolean only)
             "min": str | float | None,       # number/datetime only
             "max": str | float | None,
+            # non-empty when embedding indexes exist — property is queryable with db.ai.search()
+            "vectorIndexes": [
+                {
+                    "id": str,
+                    "sourceType": str,         # 'managed' | 'external'
+                    "similarityFunction": str, # 'cosine' | 'euclidean'
+                    "dimensions": int,
+                    "status": str,             # 'pending' | 'indexing' | 'ready' | 'error'
+                    "modelKey": str,
+                }
+            ],  # omitted (or empty list) when no index exists
         }
     ],
     "relationships": [
@@ -194,9 +219,32 @@ Each item in `response.data`:
 ```
 
 :::note Caching
-Both methods share a **1-hour cache** per project. The first call after TTL expiry triggers a full graph scan; all subsequent calls within the hour are instant.
+Both methods share a **1-hour cache** per project. The first call after TTL expiry triggers a full graph scan; all subsequent calls within the hour are instant. Pass `{"force": True}` in `params` to bypass the cache and trigger an immediate recalculation.
 :::
 
 :::tip Agent quickstart
 Call `db.ai.get_ontology_markdown()` first in every AI session. Without it, models will hallucinate field and label names.
+:::
+
+---
+
+## Agent Skills
+
+`@rushdb/skills` is a collection of [Agent Skills](https://agentskills.io) — installable instructions that teach any skills-compatible AI agent (Claude, GitHub Copilot, Cursor, Windsurf, and others) to use RushDB efficiently, without manual system prompt engineering.
+
+```bash
+npx skills add rush-db/rushdb --path packages/skills
+```
+
+| Skill | What it teaches |
+|---|---|
+| `rushdb-query-builder` | Discovery-first workflow, SearchQuery syntax, aggregation, relationship traversal, and semantic search |
+| `rushdb-agent-memory` | Using RushDB as persistent structured memory — store, link, and semantically recall sessions, decisions, and entities |
+| `rushdb-data-modeling` | LMPG model design, label/property naming conventions, nested JSON import, and schema evolution |
+| `rushdb-faceted-search` | Build faceted filter UIs — discover properties and types, enumerate distinct values, map to widgets, assemble a live `where` clause |
+
+Each skill bundles a `SKILL.md` with concise instructions and optional reference files (like the full SearchQuery spec) that the agent loads on demand.
+
+:::note MCP server vs. Agent Skills
+The [MCP server](/mcp-server/introduction) gives agents direct tool access to RushDB at runtime. Agent Skills teach agents *how* to use those tools correctly — they complement each other.
 :::

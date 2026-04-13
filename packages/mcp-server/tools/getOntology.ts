@@ -17,13 +17,16 @@ import { db } from '../util/db.js'
 /**
  * Returns the full graph ontology as structured JSON.
  * Each item contains: label name, record count, properties (with id, name, type,
- * value ranges for numbers/datetimes, sample values for strings), and cross-label
- * relationships with direction (in/out).
+ * value ranges for numbers/datetimes, sample values for strings), cross-label
+ * relationships with direction (in/out), and an optional `vectorIndexes` array per
+ * property — non-empty when embedding indexes exist, signalling semantic search
+ * eligibility.
  *
+ * Pass `force: true` to bypass the 1-hour ontology cache and force a fresh recalculation.
  * Use this when you need property `id` values to pass to PropertyValues for deeper drill-down.
  * For initial schema orientation, prefer GetOntologyMarkdown (token-efficient).
  */
-export async function getOntology(params: { labels?: string[] } = {}) {
+export async function getOntology(params: { labels?: string[]; force?: boolean } = {}) {
   const result = await db.ai.getOntology(params)
   return result.data
 }

@@ -1,3 +1,12 @@
+export type OntologyVectorIndex = {
+  id: string
+  sourceType: string
+  similarityFunction: string
+  dimensions: number
+  status: string
+  modelKey: string
+}
+
 export type OntologyProperty = {
   id: string
   name: string
@@ -5,6 +14,8 @@ export type OntologyProperty = {
   min?: number | string
   max?: number | string
   values?: Array<string | number>
+  /** Non-empty when one or more embedding indexes exist for this (label, property) pair. */
+  vectorIndexes?: OntologyVectorIndex[]
 }
 
 export type OntologyRelationship = {

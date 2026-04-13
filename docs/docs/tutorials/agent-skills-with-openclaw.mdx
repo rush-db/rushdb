@@ -1,0 +1,287 @@
+---
+sidebar_position: 14
+title: "Using RushDB Agent Skills in OpenClaw"
+description: End-to-end guide — connect RushDB to OpenClaw, install the RushDB skills pack, and let your AI assistant query, store, and model structured data without writing a single line of code.
+tags: [Agent Skills, OpenClaw, MCP, Agents, AI, Memory]
+---
+
+# Using RushDB Agent Skills in OpenClaw
+
+[OpenClaw](https://openclaw.ai/) is a personal AI assistant that runs on your machine, connects to any chat app, and can use skills to learn new capabilities. [RushDB](https://rushdb.com) is a graph-backed data layer purpose-built for AI workloads — structured records, semantic search, relationships, and transactions in one API.
+
+This tutorial shows you the full flow:
+
+1. Connect the RushDB MCP server so OpenClaw has real database tools.
+2. Install the RushDB skills pack so your agent _knows how to use those tools correctly_.
+3. Try each of the three skills in a live session.
+
+By the end you will have an OpenClaw agent that can build grounded queries, store and recall structured memory, and design data models — all from a natural-language conversation.
+
+---
+
+## Why both MCP and skills?
+
+The **MCP server** gives OpenClaw the _tools_ — callable functions like `findRecords`, `createRecord`, `getOntologyMarkdown`. Without it, your agent has nothing to call.
+
+The **skills pack** gives OpenClaw the _instructions_ — it teaches the agent _when_ to call which tool, in which order, and how to avoid common mistakes (hallucinated label names, wrong operator syntax, missing discovery steps). The skill is like an expert colleague whispering in your agent's ear.
+
+Together they produce grounded, reliable RushDB sessions.
+
+---
+
+## Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| [OpenClaw](https://openclaw.ai/) installed and running | `openclaw gateway status` should show the gateway listening |
+| RushDB account and API key | [Get API Key](../get-started/get-api-key) — free tier is enough |
+| Node.js 22.14+ | OpenClaw and `npx` both need it; check with `node --version` |
+
+If you do not have OpenClaw yet, run:
+
+```bash
+curl -fsSL https://openclaw.ai/install.sh | bash
+openclaw onboard --install-daemon
+```
+
+The onboarding wizard takes about two minutes.
+
+---
+
+## Part 1 — Connect the RushDB MCP server
+
+The MCP server exposes RushDB's API as callable tools. OpenClaw reads MCP configuration from `~/.openclaw/openclaw.json`.
+
+:::tip Where is `openclaw.json`?
+Run `openclaw config path` to print the exact location on your machine.
+:::
+
+Open `~/.openclaw/openclaw.json` and add (or merge into) the `mcpServers` block:
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["-y", "@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+Save the file and restart the Gateway:
+
+```bash
+openclaw gateway restart
+```
+
+### Verify the connection
+
+Open the Control UI (`openclaw dashboard`) and send:
+
+> "Call `getOntologyMarkdown` and tell me what labels exist in my RushDB project."
+
+If the tool runs and returns results (even an empty schema), the MCP server is connected.
+
+---
+
+## Part 2 — Install the RushDB skills pack
+
+The skills pack contains three skills. Install them with the native `openclaw` command or the `clawhub` CLI:
+
+import Tabs from '@theme/TabItem';
+
+<details>
+<summary><strong>Option A — OpenClaw native command (workspace-level install)</strong></summary>
+
+```bash
+# Install each skill into your active workspace's skills/ folder
+openclaw skills install rushdb/rushdb-query-builder
+openclaw skills install rushdb/rushdb-agent-memory
+openclaw skills install rushdb/rushdb-data-modeling
+```
+
+Installed skills live in `<workspace>/skills/` and are available to all agents in that workspace.
+
+</details>
+
+<details>
+<summary><strong>Option B — ClawHub CLI (same result, richer workflow)</strong></summary>
+
+```bash
+npx clawhub install rushdb/rushdb-query-builder
+npx clawhub install rushdb/rushdb-agent-memory
+npx clawhub install rushdb/rushdb-data-modeling
+```
+
+Or browse [clawhub.ai](https://clawhub.ai/) and use the web UI to install from there.
+
+</details>
+
+<details>
+<summary><strong>Option C — Manual install (for offline or air-gapped setups)</strong></summary>
+
+Clone the package and copy the skills folder to your workspace:
+
+```bash
+git clone https://github.com/rush-db/rushdb packages/skills
+cp -r packages/skills/skills ~/.agents/skills/
+```
+
+Alternatively, drop the skills into your workspace's `skills/` directory:
+
+```
+<workspace>/
+  skills/
+    rushdb-query-builder/
+      SKILL.md
+      references/
+        search-query-spec.md
+    rushdb-agent-memory/
+      SKILL.md
+      references/
+        memory-patterns.md
+    rushdb-data-modeling/
+      SKILL.md
+```
+
+</details>
+
+:::note Skills take effect on the next session
+OpenClaw snapshots the eligible skill set when a session starts. After installing, start a new conversation to pick up the new skills.
+:::
+
+### Verify the skills are loaded
+
+In a new session, send:
+
+> "What skills do you have available? List them."
+
+You should see `rushdb-query-builder`, `rushdb-agent-memory`, and `rushdb-data-modeling` in the response.
+
+---
+
+## Part 4 — How skills activate
+
+OpenClaw builds a compact catalog of all eligible skills and injects it into the system prompt at session start. The catalog is ~50–100 tokens per skill and lists each skill's `name` and `description`.
+
+**Automatic activation:** When you ask about RushDB data, queries, or structured memory, OpenClaw's model reads the catalog and activates the relevant skill. It requests the full `SKILL.md` from disk via a file read, gets the step-by-step instructions, and follows them for your request.
+
+**Manual activation:** You can also invoke a skill explicitly with a slash command:
+
+```
+/rushdb-query-builder
+/rushdb-agent-memory
+/rushdb-data-modeling
+```
+
+Slash commands are useful when you want to force-load a skill at the start of a session or when the model is not auto-detecting the intent.
+
+---
+
+## Part 5 — Using each skill
+
+### Skill 1: `rushdb-query-builder`
+
+This skill enforces [the four-step discovery-first workflow](../mcp-server/introduction.mdx#mandatory-workflow). It prevents hallucinated label names and teaches the correct operator syntax.
+
+**Example session:**
+
+> You: How many orders were placed by customers in the "enterprise" tier in the last 30 days?
+
+OpenClaw will:
+
+1. Call `getOntologyMarkdown` → get exact label names and field types.
+2. Call `getSearchQuerySpec` → load the operator reference.
+3. Build and execute `findRecords` with the correct `where`, `aggregate`, and date filter.
+
+> OpenClaw: [calls getOntologyMarkdown → confirms `ORDER`, `CUSTOMER` labels and `tier`, `createdAt` fields]
+> [calls getSearchQuerySpec → loads date operator reference]
+> [calls findRecords: labels=["ORDER"], aggregate={count:{fn:"count",alias:"total"}}, where={$relation:{label:"CUSTOMER",where:{tier:{$eq:"enterprise"}}},createdAt:{$gte:"2025-01-01"}}]
+> **Result:** 342 enterprise orders placed in the last 30 days.
+
+**Slash command tip:**
+
+Type `/rushdb-query-builder` at the start of sessions where you know you will be building several queries — this pre-loads the skill instructions into context and keeps them pinned across multiple turns.
+
+---
+
+### Skill 2: `rushdb-agent-memory`
+
+This skill uses RushDB as a persistent, structured memory layer. Use it when you want your OpenClaw agent to remember conversations, decisions, context, or any structured data that outlives a single session.
+
+**Example session — storing a decision:**
+
+> You: Remember that we decided to use a graph-backed architecture for the new project and our reasoning was: need for relationship traversal and agent memory patterns.
+
+> OpenClaw: [creates DECISION record]
+> Stored. Decision ID: `decision-2025-...-001`. I tagged it with `confidence: high` and linked it to the active project context.
+
+**Example session — recalling across sessions:**
+
+> You (next day): What architecture decisions have we made for the new project?
+
+> OpenClaw: [calls findRecords: labels=["DECISION"], where={$relation:{label:"PROJECT",where:{name:{$contains:"new project"}}}}]
+> Found 3 decisions. The most recent: **Graph-backed architecture** (confidence: high, recorded 2025-06-21). Reasoning: need for relationship traversal and agent memory patterns.
+
+**Multi-agent tip:** Store memory records in a shared RushDB project. Every agent (different workspaces, devices) that has the MCP server connected to that project shares the same structured memory.
+
+---
+
+### Skill 3: `rushdb-data-modeling`
+
+This skill teaches RushDB's [LMPG model](../concepts/records.md) — Labels, Metadata, Properties, and Graph relationships. Use it when designing a new data schema or evolving an existing one.
+
+**Example session:**
+
+> You: I want to model a SaaS subscription system. I have customers, subscriptions, invoices, and pricing plans. Help me design the schema.
+
+> OpenClaw [loads rushdb-data-modeling skill]:
+>
+> Here is a suggested schema using RushDB conventions:
+>
+> **Labels (UPPER_CASE):** `CUSTOMER`, `SUBSCRIPTION`, `INVOICE`, `PRICING_PLAN`
+>
+> **Relationships:**
+> - `CUSTOMER --SUBSCRIBED_TO--> SUBSCRIPTION`
+> - `SUBSCRIPTION --BILLED_WITH--> PRICING_PLAN`
+> - `SUBSCRIPTION --HAS_INVOICE--> INVOICE`
+>
+> **Key properties:**
+> - `CUSTOMER`: `email` (string), `tier` (string: "starter"/"growth"/"enterprise"), `createdAt` (datetime)
+> - `SUBSCRIPTION`: `status` (string: "active"/"cancelled"/"paused"), `intervalDays` (number), `startDate` (datetime)
+> - `INVOICE`: `amount` (number), `currency` (string), `dueDate` (datetime), `paid` (boolean)
+>
+> To import the initial data:
+> ```json
+> [
+>   {
+>     "label": "CUSTOMER",
+>     "email": "alice@acme.com",
+>     "tier": "enterprise",
+>     "SUBSCRIBED_TO": [
+>       {
+>         "label": "SUBSCRIPTION",
+>         "status": "active",
+>         "BILLED_WITH": [{ "label": "PRICING_PLAN", "name": "Enterprise Annual", "priceUsd": 2400 }]
+>       }
+>     ]
+>   }
+> ]
+> ```
+> RushDB will auto-link the nested objects on import.
+
+---
+
+## What to do next
+
+- [MCP Quickstart](../mcp-server/quickstart.mdx) — full client setup reference for Claude Desktop, Cursor, and VS Code
+- [MCP Operator Quickstart](./mcp-operator-quickstart.mdx) — deep-dive on the mandatory workflow for grounded, hallucination-resistant queries
+- [Building Team Memory](./building-team-memory.mdx) — using records as a shared memory layer across agents
+- [Episodic Memory](./episodic-memory.mdx) — designing session and long-term memory schemas
+- [Agent Memory Model](../concepts/agent-memory-model.md) — RushDB's formal model for AI memory
+- [ClawHub](https://clawhub.ai/) — browse community skills for OpenClaw
+- [packages/skills README](https://github.com/rush-db/rushdb/blob/main/packages/skills/README.md) — all three RushDB skills in one place

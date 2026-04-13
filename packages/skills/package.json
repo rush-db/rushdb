@@ -1,0 +1,28 @@
+{
+  "name": "@rushdb/skills",
+  "description": "Agent Skills for RushDB — teach AI agents to query, model data, and use RushDB as persistent memory",
+  "keywords": [
+    "agent-skills",
+    "rushdb",
+    "mcp",
+    "ai-agents",
+    "ai-memory",
+    "graph-database",
+    "knowledge-graph",
+    "llm",
+    "claude",
+    "copilot",
+    "cursor"
+  ],
+  "license": "Apache-2.0",
+  "version": "1.0.0",
+  "files": [
+    "skills",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rush-db/rushdb"
+  },
+  "homepage": "https://rushdb.com"
+}

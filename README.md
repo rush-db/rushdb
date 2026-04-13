@@ -6,7 +6,7 @@
 
 ### The memory layer for AI agents and apps.
 
-Push any JSON. Get graph relationships and vector search — automatically.  
+Push any JSON. Get graph relationships and vector search — automatically.
 No schema. No pipeline. No glue code.
 
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
@@ -170,6 +170,7 @@ Place this in your Claude Desktop, Cursor, or Windsurf MCP config. The agent can
 | **ACID transactions** | Concurrent agents don't corrupt shared memory. Neo4j under the hood |
 | **Self-describing graph** | Agents enumerate labels, properties, and value ranges to orient themselves |
 | **MCP-native** | Full MCP server with discovery-first query prompt built in |
+| **Agent Skills** | Installable `@rushdb/skills` package — teach any skills-compatible agent to query, model, and remember with RushDB in one command |
 | **Unified query API** | One JSON shape for graph, vector, aggregation, and introspection |
 | **Self-host or cloud** | Docker + your Neo4j, or managed cloud. Full data ownership |
 
@@ -296,6 +297,7 @@ One SearchQuery retrieves multiple perspectives simultaneously (records + proper
 | Python SDK | https://docs.rushdb.com/python-sdk/introduction |
 | REST API | https://docs.rushdb.com/rest-api/introduction |
 | MCP Server | packages/mcp-server/README.md |
+| Agent Skills | packages/skills/README.md |
 
 ---
 

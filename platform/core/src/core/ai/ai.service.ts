@@ -29,7 +29,12 @@ import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import { randomUUID } from 'crypto'
 
-import type { OntologyItem, OntologyProperty, OntologyRelationship } from '@/core/ai/ai.types'
+import type {
+  OntologyItem,
+  OntologyProperty,
+  OntologyRelationship,
+  OntologyVectorIndex
+} from '@/core/ai/ai.types'
 import type { CreateEmbeddingIndexDto } from '@/core/ai/dto/create-embedding-index.dto'
 import type { InlineVectorEntryDto } from '@/core/ai/dto/inline-vector-entry.dto'
 import type { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
@@ -61,12 +66,15 @@ export class AiService {
     projectId,
     workspaceId,
     labels,
+    force,
     transaction
   }: {
     projectId: string
     /** When provided, a COMPUTE_OPERATION KU event is emitted on cache miss / recalculation. */
     workspaceId?: string
     labels?: string[]
+    /** When true, bypasses the cache and forces a full recalculation. */
+    force?: boolean
     transaction: Transaction
   }): Promise<OntologyItem[]> {
     const tTotal = Date.now()
@@ -76,7 +84,7 @@ export class AiService {
     const cachedAt: string | null = projectRow?.ontologyCachedAt ?? null
     const cacheJson: string | null = projectRow?.ontologyCache ?? null
 
-    if (cachedAt && cacheJson) {
+    if (!force && cachedAt && cacheJson) {
       const ageMs = Date.now() - new Date(cachedAt).getTime()
       if (ageMs < ONTOLOGY_CACHE_TTL_MS) {
         // Cache is fresh — deserialise, optionally filter, return immediately
@@ -100,11 +108,12 @@ export class AiService {
 
     const t0 = Date.now()
 
-    // Run Q1, Q2, Q3 in parallel — all are read-only
-    const [labelsResult, propertiesResult, relationshipsResult] = await Promise.all([
+    // Run Q1, Q2, Q3 in parallel with embedding-index fetch (all read-only)
+    const [labelsResult, propertiesResult, relationshipsResult, allIndexes] = await Promise.all([
       transaction.run(this.aiQueryService.getLabelsQuery(), params),
       transaction.run(this.aiQueryService.getPropertiesWithValuesQuery(), params),
-      transaction.run(this.aiQueryService.getRelationshipsQuery(), params)
+      transaction.run(this.aiQueryService.getRelationshipsQuery(), params),
+      this.embeddingIndexRepository.findByProjectId(projectId)
     ])
 
     // ---------- Build label → count map (Q1) ----------
@@ -203,6 +212,35 @@ export class AiService {
       })
     }
 
+    // ── Enrich properties with vector index info ─────────────────────────────
+    if (allIndexes.length > 0) {
+      // Build map: "label|propertyName" → index rows
+      const indexMap = new Map<string, OntologyVectorIndex[]>()
+      for (const idx of allIndexes) {
+        const key = `${idx.label}|${idx.propertyName}`
+        if (!indexMap.has(key)) {
+          indexMap.set(key, [])
+        }
+        indexMap.get(key)!.push({
+          id: idx.id,
+          sourceType: idx.sourceType,
+          similarityFunction: idx.similarityFunction,
+          dimensions: idx.dimensions,
+          status: idx.status,
+          modelKey: idx.modelKey
+        })
+      }
+      for (const item of ontology) {
+        for (const prop of item.properties) {
+          const key = `${item.label}|${prop.name}`
+          const indexes = indexMap.get(key)
+          if (indexes?.length) {
+            prop.vectorIndexes = indexes
+          }
+        }
+      }
+    }
+
     // Sort by count descending for consistent output
     ontology.sort((a, b) => b.count - a.count)
 
@@ -288,9 +326,15 @@ export class AiService {
 
       if (item.properties.length > 0) {
         md += `### Properties\n\n`
-        md += `| Property | Type | Values / Range |\n|----------|------|----------------|\n`
+        md += `| Property | Type | Values / Range | Semantic Search |\n|----------|------|----------------|-----------------|\n`
         for (const p of item.properties) {
-          md += `| \`${esc(p.name)}\` | ${esc(p.type)} | ${fmtValues(p)} |\n`
+          let semanticCell = '—'
+          if (p.vectorIndexes?.length) {
+            semanticCell = p.vectorIndexes
+              .map((vi) => `\`${vi.sourceType}\` ${vi.similarityFunction} ${vi.dimensions}d [${vi.status}]`)
+              .join(', ')
+          }
+          md += `| \`${esc(p.name)}\` | ${esc(p.type)} | ${fmtValues(p)} | ${semanticCell} |\n`
         }
         md += `\n`
       }
@@ -738,9 +782,11 @@ export class AiService {
         `No embedding index found for label "${label}" and property "${dto.propertyName}" matching the requested vector signature`
       )
     }
-    if (index.status !== 'ready') {
-      throw new UnprocessableEntityException(
-        `Embedding index for "${label}:${dto.propertyName}" is not ready yet (status: ${index.status})`
+    if (index.status === 'pending' || index.status === 'indexing') {
+      isDevMode(() =>
+        Logger.debug(
+          `[AiService] semanticSearch: index for "${label}:${dto.propertyName}" is partially filled (status: ${index.status}). Results will only include already-indexed records.`
+        )
       )
     }
 
