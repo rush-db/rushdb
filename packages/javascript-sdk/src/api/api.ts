@@ -1268,11 +1268,19 @@ export class RestAPI {
      * Returns the full graph ontology as structured JSON.
      * Each item contains the label name, record count, properties with value ranges/samples,
      * and cross-label relationships with direction.
+     * Properties may include a `vectorIndexes` array when one or more embedding indexes
+     * exist for that property — a non-empty array means the property is queryable with
+     * `db.ai.search()`. Each entry exposes: id, sourceType, similarityFunction, dimensions,
+     * status, and modelKey.
      * Use property `id` fields to pass to db.properties.values() for deeper drill-down.
-     * @param params - Optional filter: provide `labels` array to scope to specific labels only
+     * @param params - Optional filter. `labels` scopes to specific labels only.
+     *                 `force: true` bypasses the 1-hour ontology cache and triggers a full recalculation.
      * @param transaction - Optional transaction for atomic operations
      */
-    getOntology: async (params?: { labels?: string[] }, transaction?: Transaction | string) => {
+    getOntology: async (
+      params?: { labels?: string[]; force?: boolean },
+      transaction?: Transaction | string
+    ) => {
       const txId = pickTransactionId(transaction)
       const path = `/ai/ontology`
       const payload = {
@@ -1293,11 +1301,17 @@ export class RestAPI {
      * Returns the full graph ontology as compact Markdown tables.
      * Token-efficient — intended for direct LLM consumption.
      * Includes: labels with counts, properties with types and value ranges/samples,
-     * and cross-label relationship map.
-     * @param params - Optional filter: provide `labels` array to scope to specific labels only
+     * cross-label relationship map, and a "Semantic Search" column per property that shows
+     * `sourceType similarityFunction dimensionsd [status]` (e.g. `managed cosine 1536d [ready]`)
+     * for indexed properties, or `—` when no embedding index exists.
+     * @param params - Optional filter. `labels` scopes to specific labels only.
+     *                 `force: true` bypasses the 1-hour ontology cache and triggers a full recalculation.
      * @param transaction - Optional transaction for atomic operations
      */
-    getOntologyMarkdown: async (params?: { labels?: string[] }, transaction?: Transaction | string) => {
+    getOntologyMarkdown: async (
+      params?: { labels?: string[]; force?: boolean },
+      transaction?: Transaction | string
+    ) => {
       const txId = pickTransactionId(transaction)
       const path = `/ai/ontology/md`
       const payload = {

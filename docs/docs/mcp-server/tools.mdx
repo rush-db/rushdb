@@ -94,7 +94,7 @@ Call `getOntologyMarkdown` before any other tool. It returns all label names (ca
 
 ### getOntologyMarkdown
 
-Return the full database schema as Markdown: all label names (case-sensitive), their properties with types and value ranges, and the complete relationship map.
+Return the full database schema as Markdown: all label names (case-sensitive), their properties with types and value ranges, the complete relationship map, and a **Semantic Search** column per property that shows `sourceType similarityFunction dimensionsd [status]` (e.g. `managed cosine 1536d [ready]`) for indexed properties, or `—` when none. A non-`—` value means the property is queryable with `aiSemanticSearch`.
 
 **Call this first** at the start of every session before calling any find or mutation tool. The returned label and field names are the single source of truth — never invent names from context.
 
@@ -103,6 +103,7 @@ Arguments:
 | Name   | Type             | Required | Default | Description |
 |--------|------------------|----------|---------|-------------|
 | labels | array of strings | no       | —       | Restrict output to specific labels; omit for the full schema |
+| force  | boolean          | no       | —       | Pass `true` to bypass the 1-hour ontology cache and force a fresh recalculation |
 
 Example prompt:
 
@@ -112,13 +113,14 @@ Example prompt:
 
 ### getOntology
 
-Return the same ontology data as structured JSON instead of Markdown. Use this variant when you need property `id` values for a subsequent `propertyValues` call.
+Return the same ontology data as structured JSON instead of Markdown. Each property may include a `vectorIndexes` array — non-empty when embedding indexes exist for that property, indicating it is queryable with `aiSemanticSearch`. Each entry has: `id`, `sourceType`, `similarityFunction`, `dimensions`, `status`, `modelKey`. Use this variant when you need property `id` values for a subsequent `propertyValues` call.
 
 Arguments:
 
 | Name   | Type             | Required | Default | Description |
 |--------|------------------|----------|---------|-------------|
 | labels | array of strings | no       | —       | Restrict output to specific labels |
+| force  | boolean          | no       | —       | Pass `true` to bypass the 1-hour ontology cache and force a fresh recalculation |
 
 Example prompt:
 

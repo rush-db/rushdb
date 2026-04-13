@@ -132,7 +132,8 @@ function createMcpServer(): Server {
       switch (toolName) {
         case 'getOntologyMarkdown': {
           const md = await getOntologyMarkdown({
-            labels: args.labels as string[] | undefined
+            labels: args.labels as string[] | undefined,
+            force: args.force as boolean | undefined
           })
           return {
             content: [
@@ -146,7 +147,8 @@ function createMcpServer(): Server {
 
         case 'getOntology': {
           const ontology = await getOntology({
-            labels: args.labels as string[] | undefined
+            labels: args.labels as string[] | undefined,
+            force: args.force as boolean | undefined
           })
           return {
             content: [

@@ -63,6 +63,7 @@ The `db.ai` namespace covers three capabilities:
 | [Advanced indexing — BYOV](./advanced-indexing.md) | Bring Your Own Vectors: external indexes, inline writes     |
 | [Semantic search](./search.md)                     | Query by meaning with `db.ai.search()`                      |
 | [Writing with vectors](./write-with-vectors.md)    | Attach vectors at create / upsert / importJson time         |
+| [Agent Skills](#agent-skills)                      | Installable skills that teach any compatible agent to use RushDB |
 
 ---
 
@@ -78,7 +79,7 @@ Returns the full schema as compact Markdown — the **recommended format for LLM
 
 ```typescript
 db.ai.getOntologyMarkdown(
-  params?: { labels?: string[] },
+  params?: { labels?: string[]; force?: boolean },
   transaction?: Transaction | string
 ): Promise<ApiResponse<string>>
 ```
@@ -95,6 +96,9 @@ const messages = [
 const { data: orderSchema } = await db.ai.getOntologyMarkdown({
   labels: ["Order"],
 });
+
+// Bypass the 1-hour cache and force a fresh recalculation
+const { data: freshSchema } = await db.ai.getOntologyMarkdown({ force: true });
 ```
 
 <details>
@@ -117,11 +121,12 @@ const { data: orderSchema } = await db.ai.getOntologyMarkdown({
 
 ### Properties
 
-| Property    | Type     | Values / Range                           |
-|-------------|----------|------------------------------------------|
-| `status`    | string   | `pending`, `paid`, `shipped` (+2 more)   |
-| `total`     | number   | `4.99`..`2499.00`                        |
-| `createdAt` | datetime | `2024-01-03`..`2026-02-27`               |
+| Property    | Type     | Values / Range                         | Semantic Search                |
+|-------------|----------|----------------------------------------|--------------------------------|
+| `status`    | string   | `pending`, `paid`, `shipped` (+2 more) | —                              |
+| `total`     | number   | `4.99`..`2499.00`                      | —                              |
+| `name`      | string   | `Widget A`, `Widget B` (+8 more)       | `managed` cosine 1536d [ready] |
+| `createdAt` | datetime | `2024-01-03`..`2026-02-27`             | —                              |
 
 ### Relationships
 
@@ -143,7 +148,7 @@ Returns the same ontology as a structured JSON array — useful for schema UIs, 
 
 ```typescript
 db.ai.getOntology(
-  params?: { labels?: string[] },
+  params?: { labels?: string[]; force?: boolean },
   transaction?: Transaction | string
 ): Promise<ApiResponse<OntologyItem[]>>
 ```
@@ -161,6 +166,13 @@ const {
 } = await db.ai.getOntology({ labels: ["Book"] });
 const genreProp = bookSchema.properties.find((p) => p.name === "genre");
 const { data: genres } = await db.properties.values({ id: genreProp.id });
+
+// Identify semantically-searchable properties
+const indexed = bookSchema.properties.filter((p) => p.vectorIndexes?.length);
+// indexed[0].vectorIndexes[0].status === 'ready' → queryable with db.ai.search()
+
+// Bypass the 1-hour cache
+const { data: fresh } = await db.ai.getOntology({ force: true });
 ```
 
 ```typescript
@@ -171,6 +183,15 @@ type OntologyItem = {
   relationships: OntologyRelationship[];
 };
 
+type OntologyVectorIndex = {
+  id: string;
+  sourceType: string;         // 'managed' | 'external'
+  similarityFunction: string; // 'cosine' | 'euclidean'
+  dimensions: number;
+  status: string;             // 'pending' | 'indexing' | 'ready' | 'error'
+  modelKey: string;
+};
+
 type OntologyProperty = {
   id: string; // use with db.properties.values()
   name: string;
@@ -178,6 +199,8 @@ type OntologyProperty = {
   values?: Array<string | number>; // up to 10 samples (string/boolean only)
   min?: number | string; // number/datetime only
   max?: number | string;
+  /** Non-empty when embedding indexes exist — property is queryable with db.ai.search() */
+  vectorIndexes?: OntologyVectorIndex[];
 };
 
 type OntologyRelationship = {
@@ -188,9 +211,32 @@ type OntologyRelationship = {
 ```
 
 :::note Caching
-Both methods share a **1-hour cache** per project. The first call after TTL expiry triggers a full graph scan; all subsequent calls within the hour are instant.
+Both methods share a **1-hour cache** per project. The first call after TTL expiry triggers a full graph scan; all subsequent calls within the hour are instant. Pass `{ force: true }` to bypass the cache and trigger an immediate recalculation.
 :::
 
 :::tip Agent quickstart
 Call `db.ai.getOntologyMarkdown()` first in every AI session. Without it, models will hallucinate field and label names.
+:::
+
+---
+
+## Agent Skills
+
+`@rushdb/skills` is a collection of [Agent Skills](https://agentskills.io) — installable instructions that teach any skills-compatible AI agent (Claude, GitHub Copilot, Cursor, Windsurf, and others) to use RushDB efficiently, without manual system prompt engineering.
+
+```bash
+npx skills add rush-db/rushdb --path packages/skills
+```
+
+| Skill | What it teaches |
+|---|---|
+| `rushdb-query-builder` | Discovery-first workflow, SearchQuery syntax, aggregation, relationship traversal, and semantic search |
+| `rushdb-agent-memory` | Using RushDB as persistent structured memory — store, link, and semantically recall sessions, decisions, and entities |
+| `rushdb-data-modeling` | LMPG model design, label/property naming conventions, nested JSON import, and schema evolution |
+| `rushdb-faceted-search` | Build faceted filter UIs — discover properties and types, enumerate distinct values, map to widgets, assemble a live `where` clause |
+
+Each skill bundles a `SKILL.md` with concise instructions and optional reference files (like the full SearchQuery spec) that the agent loads on demand.
+
+:::note MCP server vs. Agent Skills
+The [MCP server](/mcp-server/introduction) gives agents direct tool access to RushDB at runtime. Agent Skills teach agents *how* to use those tools correctly — they complement each other.
 :::
