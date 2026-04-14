@@ -188,6 +188,30 @@ html[data-theme='dark'] .navbar__link--active::before {
     color: var(--ifm-font-color-base);
 }
 
+.navbar__logo {
+    margin-right: 0;
+}
+
+.navbar__brand {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-weight: 300 !important;
+    margin-right: 1rem;
+}
+
+.navbar__logo path {
+    fill: #1C1A16;
+    stroke: #1C1A16;
+}
+
+html[data-theme='dark'] .navbar__logo path {
+    fill: #F0F0EE !important;
+    stroke: #F0F0EE !important;
+}
+
+html[data-theme='dark'] .navbar__logo img {
+    filter: invert(1) brightness(0.95);
+}
+
 .navbar__title {
     display: flex;
     flex-direction: column;

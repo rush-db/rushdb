@@ -267,18 +267,23 @@ export default function DocsHomePage() {
     <div className="language-tabs not-prose">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <div className="mb-12 mt-10 text-center">
-        <div className="mb-4 inline-flex items-center gap-2 border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--ifm-color-emphasis-600)]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--ifm-color-primary)]" />
-          Memory Layer for Agents & Apps
-        </div>
+        <span className="mb-6 inline-block font-mono text-sm uppercase tracking-widest text-[var(--ifm-color-emphasis-500)]">
+          [ instant graph + vector storage ]
+        </span>
 
-        <h1 className="mb-4 text-[2.6rem] font-bold leading-[1.2] tracking-tight text-[var(--ifm-font-color-base)]">
-          Welcome to <span style={{ color: 'var(--ifm-color-primary)' }}>RushDB</span>
+        <h1 className="mb-6">
+          <span className="block font-mono text-[2.5rem] font-bold leading-tight tracking-tight text-[var(--ifm-font-color-base)]">
+            Memory for agents
+          </span>
+          <span className="block font-mono text-[2.5rem] font-bold leading-tight tracking-tight text-[var(--ifm-font-color-base)]">
+            and apps. <span style={{ color: 'var(--ifm-color-primary)' }}>Instant.</span>
+          </span>
         </h1>
 
-        <p className="mx-auto mb-8 max-w-[560px] text-[1.1rem] leading-relaxed text-[var(--ifm-color-emphasis-600)]">
-          A database that stores, links, and retrieves structured data for AI agents and applications. Push
-          JSON — get a typed graph, queryable by value or by meaning. No schema needed.
+        <p className="mx-auto mb-10 max-w-[540px] text-[1.05rem] leading-relaxed text-[var(--ifm-color-emphasis-600)]">
+          Push any JSON or CSV. Get graph relationships and vector search automatically.
+          <br />
+          No schema. No pipeline. No glue code.
         </p>
 
         <div className="flex flex-wrap items-center justify-center gap-3">
