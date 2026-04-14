@@ -42,7 +42,13 @@ $user.subscribe(({ isLoggedIn, token }, changedKey) => {
       // If redirected here from the OAuth consent page, go back there after login
       const params = new URLSearchParams(window.location.search)
       const returnUrl = params.get('return')
-      if (returnUrl) {
+      const planFromUrl = params.get('plan')
+      const planFromStorage = sessionStorage.getItem('rushdb_plan_intent')
+      const plan = planFromUrl || planFromStorage
+      if (plan && plan !== 'free') {
+        sessionStorage.removeItem('rushdb_plan_intent')
+        window.location.href = `/billing?plan=${encodeURIComponent(plan)}`
+      } else if (returnUrl) {
         window.location.href = returnUrl
       } else if (page?.route !== 'oauthConsent') {
         redirectRoute('home')
@@ -67,7 +73,12 @@ $router.subscribe((page) => {
     if (isProtectedRoute(page?.route) && !isLoggedIn) {
       redirectRoute('signin')
     } else if (isLoggedIn && isPublicRoute(page?.route) && !invite && page?.route !== 'oauthConsent') {
-      redirectRoute('home')
+      const planParam = new URLSearchParams(window.location.search).get('plan')
+      if (planParam && planParam !== 'free') {
+        window.location.href = `/billing?plan=${encodeURIComponent(planParam)}`
+      } else {
+        redirectRoute('home')
+      }
     } else if (isLoggedIn && isPublicRoute(page?.route) && invite && page?.route !== 'oauthConsent') {
       redirectRoute('joinWorkspace')
     }

@@ -1,6 +1,5 @@
 import type { Config } from '@docusaurus/types'
 import type * as Preset from '@docusaurus/preset-classic'
-import { themes } from 'prism-react-renderer'
 import tailwindPlugin from './plugins/tailwind-config.cjs'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
@@ -58,65 +57,90 @@ async function generateCategorizedContentFiles(
   }
 }
 
-const atomTheme = {
+// Light code theme — matches website's lightOverride (materialLight-based warm palette)
+const lightCodeTheme = {
   plain: {
-    color: '#F8F8F2',
-    backgroundColor: '#231919'
+    color: '#3a3530',
+    backgroundColor: '#F5F2EB'
   },
   styles: [
     {
-      types: ['prolog', 'constant', 'builtin'],
-      style: {
-        color: '#BD93F9'
-      }
+      types: ['comment', 'prolog', 'doctype', 'cdata'],
+      style: { color: '#9a8f85', fontStyle: 'italic' as const }
     },
     {
-      types: ['inserted', 'function'],
-      style: {
-        color: '#50FA7B'
-      }
+      types: ['punctuation'],
+      style: { color: '#6b6560' }
     },
     {
-      types: ['deleted'],
-      style: {
-        color: '#FF5555'
-      }
+      types: ['property', 'tag', 'deleted', 'constant', 'symbol'],
+      style: { color: '#b45309' }
     },
     {
-      types: ['changed'],
-      style: {
-        color: '#FFB86C'
-      }
+      types: ['boolean', 'number'],
+      style: { color: '#b45309' }
     },
     {
-      types: ['punctuation', 'symbol'],
-      style: {
-        color: '#F8F8F2'
-      }
+      types: ['selector', 'attr-name', 'string', 'char', 'builtin', 'inserted'],
+      style: { color: '#C8540A' }
     },
     {
-      types: ['string', 'char', 'tag', 'selector'],
-      style: {
-        color: '#FF79C6'
-      }
+      types: ['operator', 'entity', 'url', 'variable'],
+      style: { color: '#8b5c3a' }
     },
     {
-      types: ['keyword', 'variable'],
-      style: {
-        color: '#BD93F9'
-      }
+      types: ['atrule', 'attr-value', 'keyword'],
+      style: { color: '#7c3aed' }
     },
     {
-      types: ['comment'],
-      style: {
-        color: '#6272A4'
-      }
+      types: ['function', 'class-name'],
+      style: { color: '#0369a1' }
     },
     {
-      types: ['attr-name'],
-      style: {
-        color: '#F1FA8C'
-      }
+      types: ['regex', 'important'],
+      style: { color: '#b45309' }
+    }
+  ]
+}
+
+// Dark code theme — matches website's darkOverride (materialDark-based)
+const darkCodeTheme = {
+  plain: {
+    color: 'rgb(195, 206, 227)',
+    backgroundColor: '#111113'
+  },
+  styles: [
+    {
+      types: ['comment', 'prolog', 'doctype', 'cdata'],
+      style: { color: '#546E7A', fontStyle: 'italic' as const }
+    },
+    {
+      types: ['punctuation'],
+      style: { color: '#89DDFF' }
+    },
+    {
+      types: ['property', 'tag', 'boolean', 'number', 'constant', 'symbol', 'deleted'],
+      style: { color: '#F77669' }
+    },
+    {
+      types: ['selector', 'attr-name', 'string', 'char', 'builtin', 'inserted'],
+      style: { color: '#C3E88D' }
+    },
+    {
+      types: ['operator', 'entity', 'url', 'variable'],
+      style: { color: '#EEFFFF' }
+    },
+    {
+      types: ['atrule', 'attr-value', 'keyword'],
+      style: { color: '#C792EA' }
+    },
+    {
+      types: ['function', 'class-name'],
+      style: { color: '#82AAFF' }
+    },
+    {
+      types: ['regex', 'important'],
+      style: { color: '#F07178' }
     }
   ]
 }
@@ -332,7 +356,7 @@ const config: Config = {
       },
       image: 'img/og.png',
       navbar: {
-        title: 'RushDB Docs',
+        title: 'rushdb docs',
         logo: {
           alt: 'RushDB Logo',
           src: 'img/logo.svg'
@@ -387,7 +411,7 @@ const config: Config = {
           },
           {
             href: 'https://app.rushdb.com',
-            label: 'Log In',
+            label: 'GET API KEY',
             position: 'right',
             className: 'cta-button'
           }
@@ -451,8 +475,8 @@ const config: Config = {
         copyright: `© ${new Date().getFullYear()}, Collect Software Inc.`
       },
       prism: {
-        theme: themes.vsLight,
-        darkTheme: themes.vsDark,
+        theme: lightCodeTheme,
+        darkTheme: darkCodeTheme,
         fontFamily: 'JetBrains Mono',
         additionalLanguages: ['python', 'javascript', 'typescript', 'bash', 'json']
       }

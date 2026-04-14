@@ -177,15 +177,15 @@ function InterfaceCard({ card: c }: { card: InterfaceCard }) {
   return (
     <a
       href={c.href}
-      className={`group flex flex-col rounded-xl border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-6 text-inherit no-underline transition-[background-color,border-color] duration-150 ease-out hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline focus:no-underline`}
+      className={`group flex flex-col border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-6 text-inherit no-underline transition-[background-color,border-color] duration-150 ease-out hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline focus:no-underline`}
     >
       {/* Header */}
       <div className="mb-4 flex items-start justify-between">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--ifm-color-emphasis-100)]">
+        <div className="flex h-10 w-10 items-center justify-center bg-[var(--ifm-color-emphasis-100)]">
           <c.icon />
         </div>
         <span
-          className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white"
+          className="px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white"
           style={{ backgroundColor: c.badgeColor }}
         >
           {c.badge}
@@ -222,9 +222,9 @@ function ResourceCard({ card: c }: { card: ResourceCard }) {
   return (
     <a
       href={c.href}
-      className={`group flex flex-col rounded-xl border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-6 text-inherit no-underline transition-[background-color,border-color] duration-150 ease-out hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline focus:no-underline`}
+      className={`group flex flex-col border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-6 text-inherit no-underline transition-[background-color,border-color] duration-150 ease-out hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline focus:no-underline`}
     >
-      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--ifm-color-emphasis-100)] text-[var(--ifm-color-primary)]">
+      <div className="mb-4 flex h-10 w-10 items-center justify-center bg-[var(--ifm-color-emphasis-100)] text-[var(--ifm-color-primary)]">
         <c.icon />
       </div>
       <h3 className="mb-2 text-[16px] font-bold leading-snug text-[var(--ifm-font-color-base)]">{c.label}</h3>
@@ -242,10 +242,10 @@ function FeaturePill({ item }: { item: FeatureItem }) {
   return (
     <a
       href={item.href}
-      className={`group flex items-start gap-4 rounded-xl border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline transition-[background-color] duration-150 ease-out hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline focus:no-underline`}
+      className={`group flex items-start gap-4 border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline transition-[background-color] duration-150 ease-out hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline focus:no-underline`}
     >
       <span
-        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center"
         style={{ backgroundColor: item.accent + '18', color: item.accent }}
       >
         <item.icon />
@@ -267,8 +267,8 @@ export default function DocsHomePage() {
     <div className="language-tabs not-prose">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <div className="mb-12 mt-10 text-center">
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--ifm-color-emphasis-600)]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
+        <div className="mb-4 inline-flex items-center gap-2 border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--ifm-color-emphasis-600)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--ifm-color-primary)]" />
           Memory Layer for Agents & Apps
         </div>
 
@@ -284,7 +284,8 @@ export default function DocsHomePage() {
         <div className="flex flex-wrap items-center justify-center gap-3">
           <a
             href="/get-started/quick-tutorial"
-            className="inline-flex items-center gap-2 rounded-lg bg-[var(--ifm-color-primary)] px-5 py-2.5 text-[14px] font-semibold text-[var(--ifm-background-color)] no-underline transition-opacity duration-150 hover:text-[var(--ifm-background-color)] hover:no-underline hover:opacity-90"
+            className="inline-flex items-center gap-2 bg-[var(--ifm-color-primary)] px-5 py-2.5 text-[14px] font-semibold text-[var(--ifm-background-color)] no-underline transition-opacity duration-150 hover:text-[var(--ifm-background-color)] hover:no-underline hover:opacity-90"
+            style={{ borderRadius: 0, color: 'var(--ifm-background-color)' }}
           >
             Quick Tutorial <ArrowRight size={14} />
           </a>
@@ -292,7 +293,8 @@ export default function DocsHomePage() {
             href="https://app.rushdb.com"
             target="_blank"
             rel="noopener noreferrer"
-            className={`inline-flex items-center gap-2 rounded-lg border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] px-5 py-2.5 text-[14px] font-semibold text-[var(--ifm-font-color-base)] no-underline transition-[background-color] duration-150 hover:bg-[var(--ifm-color-emphasis-100)] hover:text-[var(--ifm-font-color-base)] hover:no-underline`}
+            className={`inline-flex items-center gap-2 border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] px-5 py-2.5 text-[14px] font-semibold text-[var(--ifm-font-color-base)] no-underline transition-[background-color] duration-150 hover:bg-[var(--ifm-color-emphasis-100)] hover:text-[var(--ifm-font-color-base)] hover:no-underline`}
+            style={{ borderRadius: 0 }}
           >
             Try RushDB Cloud →
           </a>
@@ -343,7 +345,7 @@ export default function DocsHomePage() {
 
       {/* ── Deployment CTA ───────────────────────────────────────────────── */}
       <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2`}>
-        <div className={`rounded-xl border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-6`}>
+        <div className={`border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-6`}>
           <p className="mb-1 text-[13px] font-bold uppercase tracking-widest text-[var(--ifm-color-emphasis-500)]">
             Cloud
           </p>
@@ -361,7 +363,7 @@ export default function DocsHomePage() {
           </a>
         </div>
 
-        <div className={`rounded-xl border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-6`}>
+        <div className={`border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-6`}>
           <p className="mb-1 text-[13px] font-bold uppercase tracking-widest text-[var(--ifm-color-emphasis-500)]">
             Self-Hosted
           </p>

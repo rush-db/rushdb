@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 import { useAvailablePlans, useCurrentWorkspacePlan } from '~/features/billing/hooks/useBillingHooks'
 import { isFreePlan } from '~/features/billing/utils.ts'
@@ -12,13 +12,21 @@ import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspa
 import { CustomPlanInquiryModal } from '~/components/billing/CustomPlanInquiryModal'
 import type { DisplayPlan } from '~/features/billing/types'
 
-export function Plans() {
+export function Plans({ intendedPlan }: { intendedPlan?: string } = {}) {
   const plans = useAvailablePlans()
   const { currentPlan } = useCurrentWorkspacePlan()
   const { data: currentUser } = useCurrentUserQuery()
   const { data: workspace } = useCurrentWorkspaceQuery()
   const paidUser = currentPlan && !isFreePlan(currentPlan)
   const [customInquiryOpen, setCustomInquiryOpen] = useState(false)
+
+  useEffect(() => {
+    if (intendedPlan) {
+      document
+        .getElementById(`billing-plan-${intendedPlan}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [intendedPlan])
 
   const visiblePlans: DisplayPlan[] = [...(!paidUser ? [FREE_PLAN] : []), ...plans, CUSTOM_PLAN]
 
@@ -51,7 +59,8 @@ export function Plans() {
           <PlanCard
             active={plan.id === currentPlan?.id}
             className={plan.id === 'free' ? 'order-last sm:order-first' : undefined}
-            highlighted={plan.id === 'pro'}
+            highlighted={intendedPlan ? plan.id === intendedPlan : plan.id === 'pro'}
+            id={`billing-plan-${plan.id}`}
             key={plan.id}
             onAction={plan.id === CUSTOM_PLAN.id ? () => setCustomInquiryOpen(true) : undefined}
             plan={plan}

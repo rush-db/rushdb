@@ -64,7 +64,7 @@ function TutorialCard({ tutorial: t }: { tutorial: TutorialEntry }) {
   return (
     <a
       href={t.href}
-      className={`group flex flex-col rounded-xl border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-6 text-inherit no-underline transition-[background-color,border-color,color] duration-150 ease-out hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline focus:no-underline active:no-underline`}
+      className={`group flex flex-col border ${BORDER_CLASS} bg-[var(--ifm-card-background-color)] p-6 text-inherit no-underline transition-[background-color,border-color,color] duration-150 ease-out hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline focus:no-underline active:no-underline`}
     >
       <div className="mb-3.5 flex flex-wrap gap-4">
         {t.tags.map((tag) => (
@@ -140,7 +140,7 @@ export default function TutorialsIndex() {
           placeholder="Search tutorials..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className={`box-border w-full rounded-md border border-solid ${BORDER_CLASS} focus:border-accent bg-transparent py-3 pl-11 pr-4 text-[15px] text-[var(--ifm-font-color-base)] outline-none transition-colors duration-150 ease-out placeholder:text-[var(--ifm-color-emphasis-500)]`}
+          className={`box-border w-full border border-solid ${BORDER_CLASS} focus:border-accent bg-transparent py-3 pl-11 pr-4 text-[15px] text-[var(--ifm-font-color-base)] outline-none transition-colors duration-150 ease-out placeholder:text-[var(--ifm-color-emphasis-500)]`}
         />
       </div>
 

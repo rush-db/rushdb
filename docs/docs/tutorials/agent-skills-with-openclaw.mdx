@@ -200,7 +200,7 @@ OpenClaw will:
 
 > OpenClaw: [calls getOntologyMarkdown → confirms `ORDER`, `CUSTOMER` labels and `tier`, `createdAt` fields]
 > [calls getSearchQuerySpec → loads date operator reference]
-> [calls findRecords: labels=["ORDER"], aggregate={count:{fn:"count",alias:"total"}}, where={$relation:{label:"CUSTOMER",where:{tier:{$eq:"enterprise"}}},createdAt:{$gte:"2025-01-01"}}]
+> `[calls findRecords: labels=["ORDER"], aggregate={count:{fn:"count",alias:"total"}}, where={$relation:{label:"CUSTOMER",where:{tier:{$eq:"enterprise"}}},createdAt:{$gte:"2025-01-01"}}]`
 > **Result:** 342 enterprise orders placed in the last 30 days.
 
 **Slash command tip:**
@@ -224,7 +224,7 @@ This skill uses RushDB as a persistent, structured memory layer. Use it when you
 
 > You (next day): What architecture decisions have we made for the new project?
 
-> OpenClaw: [calls findRecords: labels=["DECISION"], where={$relation:{label:"PROJECT",where:{name:{$contains:"new project"}}}}]
+> OpenClaw: `[calls findRecords: labels=["DECISION"], where={$relation:{label:"PROJECT",where:{name:{$contains:"new project"}}}}]`
 > Found 3 decisions. The most recent: **Graph-backed architecture** (confidence: high, recorded 2025-06-21). Reasoning: need for relationship traversal and agent memory patterns.
 
 **Multi-agent tip:** Store memory records in a shared RushDB project. Every agent (different workspaces, devices) that has the MCP server connected to that project shares the same structured memory.

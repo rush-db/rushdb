@@ -9,7 +9,7 @@ import { object, string, useForm } from '~/lib/form'
 import { useStore } from '@nanostores/react'
 import { $searchParams, getRoutePath } from '~/lib/router'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Spinner } from '~/elements/Spinner.tsx'
 import { toast } from '~/elements/Toast.tsx'
 import type { SubmitHandler } from 'react-hook-form'
@@ -86,6 +86,13 @@ export function SignUpPage() {
   const { data: platformSettings, isPending: loading } = usePlatformSettings()
   const search = useStore($searchParams)
   const invite = search.invite
+  const plan = search.plan
+
+  useEffect(() => {
+    if (plan && plan !== 'free') {
+      sessionStorage.setItem('rushdb_plan_intent', plan)
+    }
+  }, [plan])
 
   const hasGoogleOAuth = useMemo(
     () => platformSettings?.googleOAuthEnabled,
