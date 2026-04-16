@@ -108,6 +108,10 @@ telemetry/prometheus/data/*
 *.tfstate
 *.tfstate.*
 
+# Terraform variable files with secrets — never commit
+*.tfvars
+terraform/crash.log
+
 # Crash log files
 crash.log
 crash.*.log

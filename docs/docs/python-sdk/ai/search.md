@@ -12,7 +12,7 @@ title: Semantic Search
 ## Signature
 
 ```python
-db.ai.search(params: dict) -> ApiResponse[list[dict]]
+db.ai.search(params: dict) -> ApiResponse[list[Record]]
 ```
 
 | `params` key         | Type                       | Required     | Description                                                                                         |
@@ -31,17 +31,15 @@ db.ai.search(params: dict) -> ApiResponse[list[dict]]
 
 ## Result shape
 
-Results are flat dicts with `__score` injected alongside your record fields, ordered by `__score` descending (closest match first):
+Results are `Record` objects ordered by `__score` descending (closest match first). Access fields via `.id`, `.get()`, or `['key']`:
 
 ```python
-{
-    "__id": str,      # RushDB record ID
-    "__label": str,   # Record label
-    "__score": float, # Similarity score, 0–1 (higher = more similar)
-    # ... your fields
-    "title": str,
-    "description": str,
-}
+for result in response.data:
+    result.id                  # RushDB record ID (str)
+    result.get('__label')      # Record label (str)
+    result.get('__score')      # Similarity score, 0–1 (float)
+    result.get('title')        # Your fields via .get()
+    result['description']      # Or via [] — raises KeyError if missing
 ```
 
 ---
@@ -59,7 +57,7 @@ response = db.ai.search({
 })
 
 for result in response.data:
-    print(f"[{result['__score']:.3f}] {result['title']}")
+    print(f"[{result.get('__score'):.3f}] {result.get('title')}")
 ```
 
 ---
@@ -119,7 +117,7 @@ response = db.ai.search({
 
 # Each result carries __label so you can tell them apart
 for result in response.data:
-    print(result["__label"], f"{result['__score']:.3f}", result.get("title") or result.get("text"))
+    print(result.get('__label'), f"{result.get('__score'):.3f}", result.get('title') or result.get('text'))
 ```
 
 All listed labels must have an embedding index on the same `propertyName`, or the request returns `404` for the missing labels.
@@ -171,7 +169,7 @@ page2 = db.ai.search({
 ## Full example: AI agent with semantic search
 
 ```python
-from rushdb import RushDB
+from rushdb import RushDB, Record
 
 db = RushDB("RUSHDB_API_KEY")
 
@@ -179,7 +177,7 @@ def build_agent_system_prompt() -> str:
     schema = db.ai.get_ontology_markdown().data
     return f"You are a data assistant for RushDB.\n\n{schema}"
 
-def semantic_search(query: str, label: str, limit: int = 5) -> list[dict]:
+def semantic_search(query: str, label: str, limit: int = 5) -> list[Record]:
     response = db.ai.search({
         "propertyName": "description",
         "query": query,
@@ -191,7 +189,7 @@ def semantic_search(query: str, label: str, limit: int = 5) -> list[dict]:
 # Retrieve context then pass to LLM
 results = semantic_search("climate change research", "Article")
 for r in results:
-    print(f"[{r['__score']:.3f}] {r['title']}")
+    print(f"[{r.get('__score'):.3f}] {r.get('title')}")
 ```
 
 ---

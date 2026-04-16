@@ -271,7 +271,7 @@ response = db.ai.search({
 })
 
 for result in response.data:
-    print(f"[{result['__score']:.3f}] {result['title']}")
+    print(f"[{result.score:.3f}] {result['title']}")
 # [0.921] Intro to Machine Learning
 # [0.743] Graph Databases Explained
 # [0.612] Climate Science Overview
@@ -348,7 +348,7 @@ response = db.ai.search({
 })
 
 for result in response.data:
-    print(f"[{result['__score']:.3f}] {result['title']}")
+    print(f"[{result.score:.3f}] {result['title']}")
 ```
 
 </TabItem>

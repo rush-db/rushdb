@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { db } from '../util/db.js'
+import type { DBRecordInstance } from '@rushdb/javascript-sdk'
 
 export async function semanticSearch(params: {
   propertyName: string
@@ -28,5 +29,5 @@ export async function semanticSearch(params: {
   limit?: number
 }) {
   const result = await db.ai.search(params)
-  return result.data
+  return result.data.map((r: DBRecordInstance) => r.data)
 }

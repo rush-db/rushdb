@@ -235,8 +235,8 @@ def explained_semantic_search(user_query: str) -> list[dict]:
     return [
         {
             "id": a.id,
-            "title": a.data.get("title"),
-            "score": a.data.get("__score"),
+            "title": a.get("title"),
+            "score": a.score,
             "evidence": assemble_evidence(a.id)
         }
         for a in results.data

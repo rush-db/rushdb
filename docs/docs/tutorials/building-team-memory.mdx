@@ -373,7 +373,7 @@ related = db.ai.search({
 })
 
 for item in related.data:
-    print(f"[{item.__labels}] {item.data.get('title')} — score: {item.__score:.3f}")
+    print(f"[{item.get('__labels')}] {item.get('title')} — score: {item.score:.3f}")
 ```
 
 </TabItem>
@@ -506,7 +506,7 @@ def get_ticket_context(external_id: str) -> str:
     lines.append("")
     lines.append("### Similar Resolved Tickets")
     for t in similar.data:
-        lines.append(f"- {t.data.get('externalId')}: {t.data.get('title')} (score: {t.__score:.2f})")
+        lines.append(f"- {t.get('externalId')}: {t.get('title')} (score: {t.score:.2f})")
 
     return "\n".join(lines)
 

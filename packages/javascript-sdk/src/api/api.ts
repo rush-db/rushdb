@@ -1433,16 +1433,19 @@ export class RestAPI {
      *
      * @param params - Search parameters including the query text, property name, and optional filters
      */
-    search: async (params: SemanticSearchParams) => {
+    search: async <S extends Schema = any>(
+      params: SemanticSearchParams
+    ): Promise<DBRecordsArrayInstance<S>> => {
       const path = `/ai/search`
       const payload = { method: 'POST', headers: {}, requestData: params }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
 
-      const response = await this.fetcher<ApiResponse<SemanticSearchResult[]>>(path, payload)
+      const response = await this.fetcher<ApiResponse<SemanticSearchResult<S>[]>>(path, payload)
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
-      return response
+      const dbRecordInstances = (response.data ?? []).map((r) => new DBRecordInstance<S>(r as DBRecord<S>))
+      return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total ?? 0)
     }
   }
 }

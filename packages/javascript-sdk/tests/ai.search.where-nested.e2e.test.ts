@@ -163,9 +163,8 @@ if (!apiKey) {
           limit: 5
         })
 
-        expect(res.success).toBe(true)
         // Only "French Cuisine" is unpublished; the query targets it semantically
-        const titles = (res.data as any[]).map((r) => r.title)
+        const titles = res.data.map((r) => r.data.title)
         expect(titles).toContain('French Cuisine')
         // Published posts must not appear when we narrow to published=false
         expect(titles).not.toContain('Graph DB Internals')
@@ -191,10 +190,9 @@ if (!apiKey) {
           limit: 10
         })
 
-        expect(res.success).toBe(true)
         expect(res.data.length).toBeGreaterThan(0)
 
-        const titles = (res.data as any[]).map((r) => r.title)
+        const titles = res.data.map((r) => r.data.title)
         // Both Alice's posts are eligible candidates
         expect(titles).toContain('Graph DB Internals')
         expect(titles).toContain('Deep Neural Networks')
@@ -216,10 +214,9 @@ if (!apiKey) {
           limit: 10
         })
 
-        expect(res.success).toBe(true)
         expect(res.data.length).toBeGreaterThan(0)
 
-        const titles = (res.data as any[]).map((r) => r.title)
+        const titles = res.data.map((r) => r.data.title)
         expect(titles).toContain('French Cuisine')
         expect(titles).not.toContain('Graph DB Internals')
         expect(titles).not.toContain('Deep Neural Networks')
@@ -244,10 +241,9 @@ if (!apiKey) {
           limit: 10
         })
 
-        expect(res.success).toBe(true)
         expect(res.data.length).toBeGreaterThan(0)
 
-        const titles = (res.data as any[]).map((r) => r.title)
+        const titles = res.data.map((r) => r.data.title)
         // Alice (seniority=10) authored both technical posts
         expect(titles).toContain('Deep Neural Networks')
         expect(titles).toContain('Graph DB Internals')
@@ -275,8 +271,7 @@ if (!apiKey) {
           limit: 10
         })
 
-        expect(res.success).toBe(true)
-        const titles = (res.data as any[]).map((r) => r.title)
+        const titles = res.data.map((r) => r.data.title)
         // Alice's published posts: both tech posts
         expect(titles).toContain('Graph DB Internals')
         expect(titles).toContain('Deep Neural Networks')
@@ -300,7 +295,6 @@ if (!apiKey) {
           limit: 10
         })
 
-        expect(res.success).toBe(true)
         // No post satisfies both conditions simultaneously
         expect(res.data.length).toBe(0)
       })
@@ -322,11 +316,10 @@ if (!apiKey) {
           limit: 10
         })
 
-        expect(res.success).toBe(true)
         expect(res.data.length).toBeGreaterThan(1)
 
         // Every result must have a numeric score
-        const scores = (res.data as any[]).map((r) => r.__score)
+        const scores = res.data.map((r) => r.data.__score)
         scores.forEach((s) => {
           expect(typeof s).toBe('number')
           expect(s).toBeGreaterThan(0)

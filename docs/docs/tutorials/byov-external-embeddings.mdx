@@ -225,7 +225,7 @@ results = db.ai.search({
 })
 
 for article in results.data:
-    print(f"{article.data.get('title')} — score: {article.data.get('__score'):.3f}")
+    print(f"{article.get('title')} — score: {article.score:.3f}")
 ```
 
 </TabItem>

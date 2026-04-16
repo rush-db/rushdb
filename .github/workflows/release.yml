@@ -199,7 +199,9 @@ jobs:
                   { "name": "MAIL_FROM", "value": "${{ secrets.MAIL_FROM }}" },
                   { "name": "SERVICE_CAPTCHA_KEY", "value": "${{ secrets.SERVICE_CAPTCHA_KEY }}" },
                   { "name": "STRIPE_SECRET_KEY", "value": "${{ secrets.STRIPE_SECRET_KEY }}" },
-                  { "name": "STRIPE_ENDPOINT_SECRET", "value": "${{ secrets.STRIPE_ENDPOINT_SECRET }}" }
+                  { "name": "STRIPE_ENDPOINT_SECRET", "value": "${{ secrets.STRIPE_ENDPOINT_SECRET }}" },
+                  { "name": "SQL_DB_TYPE", "value": "postgres" },
+                  { "name": "SQL_DB_URL", "value": "${{ secrets.SQL_DB_URL }}" }
                 ]
               }
             ],

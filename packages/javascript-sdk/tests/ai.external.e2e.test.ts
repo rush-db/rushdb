@@ -112,12 +112,11 @@ describe('db.ai External Vector flow (e2e)', () => {
       limit: 3
     })
 
-    expect(res.success).toBe(true)
     expect(res.data.length).toBeGreaterThan(0)
-    expect(String(res.data[0].title ?? '')).toBe('Alpha')
+    expect(String(res.data[0].data.title ?? '')).toBe('Alpha')
 
     for (let i = 0; i < res.data.length - 1; i++) {
-      expect(res.data[i].__score).toBeGreaterThanOrEqual(res.data[i + 1].__score)
+      expect(res.data[i].data.__score).toBeGreaterThanOrEqual(res.data[i + 1].data.__score)
     }
   })
 
