@@ -43,7 +43,7 @@ record = db.records.create(
     ],
 )
 
-print(record.data["__id"])  # record created AND vector written atomically
+print(record.id)  # record created AND vector written atomically
 ```
 
 ---
@@ -243,5 +243,5 @@ results = db.ai.search({
 })
 
 for r in results.data:
-    print(f"[{r['__score']:.3f}] {r['title']}")
+    print(f"[{r.score:.3f}] {r['title']}")
 ```

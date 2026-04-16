@@ -470,7 +470,7 @@ def deduplicate_chunks(
     score_threshold: float = 0.70,
     similarity_threshold: float = 0.95
 ) -> list:
-    filtered = [h for h in hits if (getattr(h, '__score', 0) or 0) >= score_threshold]
+    filtered = [h for h in hits if (h.score or 0) >= score_threshold]
     kept = []
     for hit in filtered:
         is_dup = any(

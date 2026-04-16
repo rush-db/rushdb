@@ -48,7 +48,7 @@ The `db.ai` namespace covers three capabilities:
                      ▼
 ┌─────────────────────────────────────────────────────┐
 │  Records ranked by similarity score                 │
-│  result.__score = 0.94  (cosine similarity)        │
+│  result.get('__score') == 0.94  (cosine sim.)      │
 └─────────────────────────────────────────────────────┘
 ```
 

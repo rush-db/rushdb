@@ -23,6 +23,7 @@ import { RushDB } from './sdk.js'
 type DBRecordInternalProps<S extends Schema = Schema> = {
   readonly __id: string
   readonly __label: string
+  readonly __score?: number
   readonly __proptypes?: FlattenTypes<
     {
       [Key in RequiredKeysRead<S>]: S[Key]['type']

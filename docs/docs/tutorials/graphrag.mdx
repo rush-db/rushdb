@@ -363,14 +363,14 @@ def graph_rag_retrieve(user_query: str, k: int = 5) -> list[dict]:
                 'labels': ['AUTHOR'],
                 'where': {'SOURCE': {'$relation': {'type': 'AUTHORED', 'direction': 'out'}, '__id': source.id}}
             })
-            author_name = author_result.data[0].data.get('name') if author_result.data else None
+            author_name = author_result.data[0].get('name') if author_result.data else None
 
         return {
-            'text': chunk.data.get('text'),
-            'source': source.data.get('filename') if source else 'unknown',
+            'text': chunk.get('text'),
+            'source': source.get('filename') if source else 'unknown',
             'author': author_name,
-            'topics': [t.data.get('name') for t in topic_result.data],
-            'score': chunk.data.get('__score')
+            'topics': [t.get('name') for t in topic_result.data],
+            'score': chunk.score
         }
 
     with ThreadPoolExecutor(max_workers=5) as pool:

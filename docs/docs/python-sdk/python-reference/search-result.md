@@ -25,6 +25,7 @@ class SearchResult(Generic[T]):
         data: List[T],
         total: Optional[int] = None,
         search_query: Optional[SearchQuery] = None,
+        client: Optional["RushDB"] = None,
     )
 ```
 
@@ -263,6 +264,108 @@ print(f"Current skip: {page_info['skip']}")        # Number of records skipped
 print(f"Current limit: {page_info['limit']}")      # Limit applied to the query
 ```
 
+### delete_all()
+
+`delete_all(transaction=None) -> dict`
+
+Deletes all records in this result set in a single batched call.
+
+**Parameters:**
+
+- `transaction`: Optional transaction context
+
+**Returns:** Server response dict with operation status
+
+**Example:**
+
+```python
+result = client.records.find({"labels": ["TEMP_DATA"]})
+result.delete_all()
+```
+
+### next()
+
+`next(preserve_data=False) -> SearchResult`
+
+Fetches the next page of results by incrementing `skip` by `limit`.
+
+**Parameters:**
+
+- `preserve_data` (bool): If `True`, appends new records to this instance and returns `self`. Otherwise returns a new `SearchResult`.
+
+**Raises:** `RuntimeError` if no `search_query` was provided at construction.
+
+**Example:**
+
+```python
+result = client.records.find({"labels": ["USER"], "limit": 10})
+
+# Get next page as new result
+page2 = result.next()
+
+# Or accumulate pages in-place
+result.next(preserve_data=True)  # result.data now has 20 records
+result.next(preserve_data=True)  # result.data now has 30 records
+```
+
+### export_csv()
+
+`export_csv() -> str`
+
+Serializes all records in this result set to a CSV string. System fields (`__id`, `__label`, `__proptypes`) are excluded from the output.
+
+**Returns:** CSV string with a header row followed by one row per record. Empty string if the result set is empty.
+
+**Example:**
+
+```python
+result = client.records.find({"labels": ["PRODUCT"]})
+csv_data = result.export_csv()
+with open("products.csv", "w") as f:
+    f.write(csv_data)
+```
+
+### set_properties()
+
+`set_properties(patch, transaction=None) -> None`
+
+Updates one or more fields across every record in this result set. Records are updated in batches of 100.
+
+**Parameters:**
+
+- `patch` (dict): Fields to update and their new values
+- `transaction`: Optional transaction context
+
+**Example:**
+
+```python
+result = client.records.find({"labels": ["USER"], "where": {"status": "pending"}})
+result.set_properties({"status": "active"})
+```
+
+### to_dataframe()
+
+`to_dataframe(exclude_internal=True) -> pandas.DataFrame`
+
+Converts this result set to a `pandas.DataFrame`. Requires `pandas` to be installed.
+
+**Parameters:**
+
+- `exclude_internal` (bool): If `True` (default), columns starting with `__` are excluded.
+
+**Raises:** `ImportError` if pandas is not installed.
+
+**Example:**
+
+```python
+result = client.records.find({"labels": ["USER"]})
+df = result.to_dataframe()
+print(df.head())
+
+# Include internal fields (__id, __label, etc.)
+df_full = result.to_dataframe(exclude_internal=False)
+```
+
 ## Usage Examples
 
 ### Basic Iteration
@@ -448,4 +551,17 @@ print(f"Loaded {len(result)} out of {result.total} total users")
        "limit": result.limit,
        "skip": result.skip + len(result)
    })
+   ```
+
+   Or use the built-in `next()` method:
+   ```python
+   page2 = result.next()
+   ```
+
+6. **pandas integration**: Use `to_dataframe()` for analysis, or use `export_csv()` for file export:
+   ```python
+   df = result.to_dataframe()            # pandas DataFrame, no __* columns
+   csv = result.export_csv()             # raw CSV string
+   result.delete_all()                   # clean up after processing
+   result.set_properties({"reviewed": True})  # bulk update
    ```

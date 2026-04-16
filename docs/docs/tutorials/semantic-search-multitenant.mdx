@@ -284,7 +284,7 @@ results = db.ai.search({
 })
 
 for r in results.data:
-    print(f"{r['__score']:.3f}  {r['title']}")
+    print(f"{r.score:.3f}  {r['title']}")
 ```
 
 </TabItem>
@@ -643,7 +643,7 @@ def search_handler(tenant_api_key: str, query: str, category: str = None, page: 
 
     return {
         "results": [
-            {"id": r.data["__id"], "title": r.data.get("title"), "score": r.data.get("__score"), "category": r.data.get("category")}
+            {"id": r.id, "title": r.get("title"), "score": r.score, "category": r.get("category")}
             for r in results.data
         ],
         "total": results.total

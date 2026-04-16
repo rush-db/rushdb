@@ -255,7 +255,7 @@ const results = await db.records.find({ labels: ['PRODUCT'], where: filters })
 
 **Python**
 ```python
-results = db.records.find(labels=["PRODUCT"], where=filters)
+results = db.records.find({'labels': ['PRODUCT'], 'where': filters})
 ```
 
 ### 5. Reset filters

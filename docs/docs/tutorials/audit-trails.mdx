@@ -240,7 +240,7 @@ await changeStatus(order.__id, 'shipped', 'service-fulfillment', 'Dispatched fro
 ```python
 def change_status(order_id: str, new_status: str, actor_id: str, reason: str | None = None):
     current = db.records.find({"labels": ["ORDER"], "where": {"__id": order_id}})
-    prev_status = current.data[0].data.get("status") if current.data else None
+    prev_status = current.data[0].get("status") if current.data else None
 
     tx = db.transactions.begin()
     try:

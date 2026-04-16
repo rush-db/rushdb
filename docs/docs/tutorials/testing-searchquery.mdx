@@ -175,7 +175,7 @@ def test_data():
 def test_sdk_returns_in_stock_widgets():
     result = db.records.find(QUERY)
     assert result.total == 1
-    assert result.data[0].data["sku"] == "P-001"
+    assert result.data[0]["sku"] == "P-001"
 
 def test_rest_returns_same_result():
     resp = requests.post(
@@ -260,8 +260,8 @@ def test_aggregate_count_by_category():
         "groupBy": ["category", "count"],
         "orderBy": {"count": "desc"}
     })
-    assert result.data[0].data["category"] == "widgets"
-    assert result.data[0].data["count"] == 2
+    assert result.data[0]["category"] == "widgets"
+    assert result.data[0]["count"] == 2
 ```
 
 </TabItem>

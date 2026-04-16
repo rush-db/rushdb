@@ -76,7 +76,85 @@ record = client.records.create("USER", {"name": "John"})
 print(record.date)  # datetime object
 ```
 
-## Methods
+### score
+
+Relevance score from a vector/semantic search result. Returns `None` for records fetched outside of `ai.search()`.
+
+**Type:** `Optional[float]`
+
+**Example:**
+```python
+results = db.ai.search({"query": "machine learning", "propertyName": "content", "labels": ["DOC"]})
+for doc in results.data:
+    print(f"{doc['title']} — score: {doc.score:.3f}")  # e.g. "Intro to ML — score: 0.921"
+
+# For regular find() results, score is None
+record = db.records.find_one({"where": {"name": "John"}})
+print(record.score)  # None
+```
+
+### exists
+
+Returns `True` if the record has a valid `__id`, `False` otherwise.
+
+**Type:** `bool` (property — no parentheses)
+
+**Example:**
+```python
+record = db.records.create("USER", {"name": "John"})
+if record.exists:
+    print("Record is valid")
+
+empty = Record(client, {})
+print(empty.exists)   # False
+```
+
+### fields
+
+Returns user-defined fields only, excluding all internal `__*` fields.
+
+**Type:** `Dict[str, Any]`
+
+**Example:**
+```python
+record = db.records.create("USER", {"name": "John", "age": 30})
+print(record.fields)  # {"name": "John", "age": 30}
+```
+
+### to_series()
+
+Converts this record to a `pandas.Series`. Requires `pandas` to be installed.
+
+**Signature:**
+```python
+def to_series(self, exclude_internal: bool = True) -> pandas.Series
+```
+
+**Arguments:**
+- `exclude_internal` (bool): If `True` (default), fields starting with `__` are excluded.
+
+**Example:**
+```python
+import pandas as pd
+
+record = db.records.create("USER", {"name": "Alice", "age": 28})
+s = record.to_series()
+print(s["name"])  # "Alice"
+```
+
+### Mapping protocol (pandas-friendly)
+
+`Record` exposes `keys()`, `values()`, and `items()` so you can pass a list of records directly to `pd.DataFrame(...)`:
+
+```python
+import pandas as pd
+
+results = db.records.find({"labels": ["USER"]})
+df = pd.DataFrame([dict(r.items()) for r in results])
+# or, excluding internal fields:
+df = results.to_dataframe()           # uses SearchResult.to_dataframe()
+df = results.to_dataframe(exclude_internal=False)  # includes __id, __label, etc.
+```
 
 ### set()
 
@@ -314,26 +392,26 @@ with client.transactions.begin() as transaction:
         {"name": "John Doe"},
         transaction=transaction
     )
-    
+
     # Update user
     user.update(
         {"status": "active"},
         transaction=transaction
     )
-    
+
     # Create and attach department
     dept = client.records.create(
         "DEPARTMENT",
         {"name": "Engineering"},
         transaction=transaction
     )
-    
+
     user.attach(
         target=dept,
         options=RelationshipOptions(type="BELONGS_TO"),
         transaction=transaction
     )
-    
+
     # Transaction will automatically commit if no errors occur
     # If an error occurs, it will automatically rollback
 ```

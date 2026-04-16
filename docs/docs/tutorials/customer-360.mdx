@@ -275,7 +275,7 @@ overdue_accounts = db.records.find({
 
 print(f"Accounts with overdue invoices: {overdue_accounts.total}")
 for acct in overdue_accounts.data:
-    print(f"  {acct.data.get('name')} — MRR: {acct.data.get('mrr')}")
+    print(f"  {acct.get('name')} — MRR: {acct.get('mrr')}")
 ```
 
 </TabItem>

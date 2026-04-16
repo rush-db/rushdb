@@ -13,8 +13,8 @@ title: Semantic Search
 
 ```typescript
 db.ai.search(params: {
-  /** Neo4j label to search within (e.g. "Book"). */
-  label: string | string[]
+  /** One or more Neo4j labels to search within (e.g. "Book"). */
+  labels: string[]
 
   /** Property the target embedding index is scoped to. */
   propertyName: string
@@ -39,7 +39,7 @@ db.ai.search(params: {
 
   /** Results to skip (for pagination). */
   skip?: number
-}): Promise<ApiResponse<SemanticSearchResult[]>>
+}): Promise<DBRecordsArrayInstance<S>>
 ```
 
 ---
@@ -47,15 +47,20 @@ db.ai.search(params: {
 ## Result type
 
 ```typescript
-type SemanticSearchResult = {
-  /** Similarity score: higher is better. */
-  __score: number
-  /** Record ID. */
-  __id: string
-  /** Record label. */
-  __label: string
-  /** All record properties are returned at the top level. */
-  [key: string]: unknown
+// Each result is a DBRecordInstance — data lives on .data
+type DBRecordInstance = {
+  /** The unique record ID. */
+  id: string
+  /** The record label. */
+  label: string
+  /** Raw record data including score. */
+  data: {
+    __id: string
+    __label: string
+    /** Similarity score (0–1, higher = more similar). Only present on ai.search results. */
+    __score?: number
+    [key: string]: unknown
+  }
 }
 ```
 
@@ -69,14 +74,14 @@ For a **managed** index, pass `query` (a natural-language string). The server em
 
 ```typescript
 const { data: results } = await db.ai.search({
-  label: 'Book',
+  labels: ['Book'],
   propertyName: 'description',
   query: 'space exploration and interstellar travel',
   limit: 5,
 })
 
 results.forEach(r => {
-  console.log(`[${r.__score.toFixed(4)}] ${r.title}`)
+  console.log(`[${r.data.__score!.toFixed(4)}] ${r.data.title}`)
 })
 ```
 
@@ -91,7 +96,7 @@ const myEmbedder = new MyEmbeddingModel()
 const vec = await myEmbedder.embed('space exploration')
 
 const { data: results } = await db.ai.search({
-  label: 'Article',
+  labels: ['Article'],
   propertyName: 'body',
   queryVector: vec,
   limit: 10,
@@ -108,7 +113,7 @@ When `queryVector` is supplied you can omit `dimensions` — the server infers i
 ```typescript
 // dimensions is optional when queryVector is given
 await db.ai.search({
-  label: 'Product',
+  labels: ['Product'],
   propertyName: 'embedding',
   queryVector: [0.1, 0.9, 0.4],   // length 3 → dimensions inferred as 3
 })
@@ -122,7 +127,7 @@ The `where` clause acts as a **prefilter** — only records that satisfy the fil
 
 ```typescript
 const { data: results } = await db.ai.search({
-  label: 'Product',
+  labels: ['Product'],
   propertyName: 'description',
   query: 'wireless headphones',
   where: {
@@ -144,14 +149,14 @@ Pass an array of labels to search across multiple entity types simultaneously:
 
 ```typescript
 const { data: results } = await db.ai.search({
-  label: ['Article', 'Post', 'Comment'],
+  labels: ['Article', 'Post', 'Comment'],
   propertyName: 'body',
   query: 'machine learning trends',
   limit: 10,
 })
 
-// Each result carries __label so you can tell them apart
-results.forEach(r => console.log(r.__label, r.__score, r.title ?? r.text))
+// Each result carries .data.__label so you can tell them apart
+results.forEach(r => console.log(r.data.__label, r.data.__score, r.data.title ?? r.data.text))
 ```
 
 All listed labels must have an embedding index on the same `propertyName`, or the request will return `404` for the missing labels.
@@ -165,7 +170,7 @@ When two indexes exist for the same `(label, propertyName)`, you must specify `s
 ```typescript
 // Two indexes: Product:embedding/cosine and Product:embedding/euclidean
 await db.ai.search({
-  label: 'Product',
+  labels: ['Product'],
   propertyName: 'embedding',
   queryVector: vec,
   similarityFunction: 'cosine',   // required — otherwise 422 Unprocessable Entity

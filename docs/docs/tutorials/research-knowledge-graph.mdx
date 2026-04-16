@@ -415,7 +415,7 @@ results = db.ai.search({
 })
 
 for paper in results.data:
-    print(f"[{paper.data.get('year')}] {paper.data.get('title')} — score: {paper.__score:.3f}")
+    print(f"[{paper.get('year')}] {paper.get('title')} — score: {paper.score:.3f}")
 ```
 
 </TabItem>

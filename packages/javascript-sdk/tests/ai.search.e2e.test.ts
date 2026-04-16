@@ -31,8 +31,8 @@
  *
  * RETURNED SHAPE
  * ──────────────
- * { data: Array<{ record: Record<string,unknown>, score: number }>, success: boolean }
- * score ∈ [0, 1] — cosine similarity, higher = more similar.
+ * DBRecordsArrayInstance — { data: DBRecordInstance[], total: number }
+ * Each item: item.data.__score ∈ [0, 1] — cosine similarity, higher = more similar.
  */
 
 import path from 'path'
@@ -191,21 +191,20 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
       limit: 3
     })
 
-    expect(res.success).toBe(true)
     expect(Array.isArray(res.data)).toBe(true)
     expect(res.data.length).toBeGreaterThan(0)
     expect(res.data.length).toBeLessThanOrEqual(3)
 
     // Every result must have a numeric score injected as __score
     res.data.forEach((item) => {
-      expect(typeof item.__score).toBe('number')
-      expect(item.__score).toBeGreaterThan(0)
-      expect(item.__score).toBeLessThanOrEqual(1)
-      expect(item.__id).toBeDefined()
+      expect(typeof item.data.__score).toBe('number')
+      expect(item.data.__score).toBeGreaterThan(0)
+      expect(item.data.__score).toBeLessThanOrEqual(1)
+      expect(item.id).toBeDefined()
     })
 
     // ML articles should rank higher than "French Cuisine" or "Quantum Computing"
-    const topTitle = String(res.data[0].title ?? '')
+    const topTitle = String(res.data[0].data.title ?? '')
     expect(['Intro to Machine Learning', 'Deep Neural Networks']).toContain(topTitle)
   })
 
@@ -217,8 +216,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
       limit: 5
     })
 
-    expect(res.success).toBe(true)
-    const scores = res.data.map((r) => r.__score)
+    const scores = res.data.map((r) => r.data.__score)
     for (let i = 0; i < scores.length - 1; i++) {
       expect(scores[i]).toBeGreaterThanOrEqual(scores[i + 1])
     }
@@ -241,12 +239,9 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
       skip: 2
     })
 
-    expect(page1.success).toBe(true)
-    expect(page2.success).toBe(true)
-
     // Pages must not overlap (different records)
-    const ids1 = page1.data.map((r) => r.__id ?? r.title)
-    const ids2 = page2.data.map((r) => r.__id ?? r.title)
+    const ids1 = page1.data.map((r) => r.id ?? r.data.title)
+    const ids2 = page2.data.map((r) => r.id ?? r.data.title)
     const overlap = ids1.filter((id) => ids2.includes(id))
     expect(overlap).toHaveLength(0)
   })
@@ -263,9 +258,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
       limit: 5
     })
 
-    expect(res.success).toBe(true)
-
-    const titles = res.data.map((r) => String(r.title ?? ''))
+    const titles = res.data.map((r) => String(r.data.title ?? ''))
     expect(titles).not.toContain('French Cuisine')
   })
 
@@ -278,12 +271,11 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
       limit: 5
     })
 
-    expect(res.success).toBe(true)
     expect(res.data.length).toBeGreaterThan(0)
 
     // Every returned record must match the category filter
     res.data.forEach((item) => {
-      expect(item.category).toBe('quantum')
+      expect(item.data.category).toBe('quantum')
     })
   })
 
@@ -297,7 +289,6 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
     })
 
     // Should still succeed; NonExistentLabel simply contributes zero candidates.
-    expect(res.success).toBe(true)
     expect(Array.isArray(res.data)).toBe(true)
   })
 
@@ -401,11 +392,10 @@ describe('db.ai – multi-label index isolation (e2e)', () => {
       limit: 5
     })
 
-    expect(res.success).toBe(true)
     expect(res.data.length).toBeGreaterThan(0)
 
     // All results must be Scientist records (i.e. bio topics are scientific)
-    const bios = res.data.map((r) => String(r.bio ?? ''))
+    const bios = res.data.map((r) => String(r.data.bio ?? ''))
     bios.forEach((bio) => {
       // Chef bios contain food/cuisine keywords; none should appear
       expect(bio.toLowerCase()).not.toMatch(/cuisine|chocolate|dessert|fermentation|kaiseki|pastry/)
@@ -420,11 +410,10 @@ describe('db.ai – multi-label index isolation (e2e)', () => {
       limit: 5
     })
 
-    expect(res.success).toBe(true)
     expect(res.data.length).toBeGreaterThan(0)
 
     // All results must be Chef records (bios are food-oriented)
-    const bios = res.data.map((r) => String(r.bio ?? ''))
+    const bios = res.data.map((r) => String(r.data.bio ?? ''))
     bios.forEach((bio) => {
       // Scientist bios contain science keywords; none should appear
       expect(bio.toLowerCase()).not.toMatch(/relativity|dna|computer|quantum|electron|crystallography/)

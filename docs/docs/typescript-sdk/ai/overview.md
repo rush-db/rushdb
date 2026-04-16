@@ -47,8 +47,8 @@ The `db.ai` namespace covers three capabilities:
                      │
                      ▼
 ┌─────────────────────────────────────────────────────┐
-│  SemanticSearchResult[] — records ranked by score  │
-│  result.__score = 0.94  (cosine similarity)        │
+│  DBRecordsArrayInstance — records ranked by score  │
+│  result.data.__score = 0.94  (cosine similarity)   │
 └─────────────────────────────────────────────────────┘
 ```
 

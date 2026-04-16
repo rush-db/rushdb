@@ -179,7 +179,7 @@ results = db.ai.search({
 })
 
 print(results.data[0]["title"])    # 'Alpha'
-print(results.data[0]["__score"])  # ~1.0
+print(results.data[0].score)       # ~1.0
 ```
 
 ---
