@@ -41,11 +41,13 @@ export class DatabaseModule implements OnModuleInit {
 
   async onModuleInit() {
     if (isDevMode()) {
-      Logger.log('Checking if DB is ready...')
       const { hostname } = new URL(this.configService.get('NEO4J_URL'))
-      const healthCheckUrl = `http://${hostname}:7474`
-      await fetchRetry(healthCheckUrl, 5000, 15)
-      Logger.log('DB is ready')
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        Logger.log('Checking if DB is ready...')
+        const healthCheckUrl = `http://${hostname}:7474`
+        await fetchRetry(healthCheckUrl, 5000, 15)
+        Logger.log('DB is ready')
+      }
     }
 
     const session = this.neogmaService.createSession('database-seed')

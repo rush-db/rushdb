@@ -5,7 +5,8 @@ import { useWorkspaceUsageQuery } from '~/features/billing/hooks/useBillingHooks
 import { cn } from '~/lib/utils'
 import { getRoutePath } from '~/lib/router'
 
-function formatKu(n: number): string {
+function formatKu(n: number | null | undefined): string {
+  if (n == null) return '—'
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}K`
   return n.toLocaleString()
@@ -18,7 +19,7 @@ export function KuHeaderBar() {
 
   const isOwner = currentUser.currentScope?.role === 'owner'
 
-  if (platformSettings?.selfHosted || !isOwner || !usage) return null
+  if (platformSettings?.selfHosted || !isOwner || !usage || usage.kuConsumed == null) return null
 
   // Scale / enterprise: just show consumed KU
   if (usage.billingModel === 'usage' || (usage.kuIncluded === null && usage.billingModel !== 'fixed')) {

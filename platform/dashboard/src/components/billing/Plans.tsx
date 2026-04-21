@@ -1,24 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 
 import { useAvailablePlans, useCurrentWorkspacePlan } from '~/features/billing/hooks/useBillingHooks'
 import { isFreePlan } from '~/features/billing/utils.ts'
-import { CUSTOM_PLAN, FREE_PLAN } from '~/features/billing/constants.ts'
+import { FREE_PLAN } from '~/features/billing/constants.ts'
 import { PlanCard } from '~/components/billing/PlanCard.tsx'
 import { api } from '~/lib/api'
 import { Link } from '~/elements/Link'
 import { Message } from '~/elements/Message'
-import { useCurrentUserQuery } from '~/features/auth/hooks/useAuthQueries'
-import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
-import { CustomPlanInquiryModal } from '~/components/billing/CustomPlanInquiryModal'
 import type { DisplayPlan } from '~/features/billing/types'
 
 export function Plans({ intendedPlan }: { intendedPlan?: string } = {}) {
   const plans = useAvailablePlans()
   const { currentPlan } = useCurrentWorkspacePlan()
-  const { data: currentUser } = useCurrentUserQuery()
-  const { data: workspace } = useCurrentWorkspaceQuery()
   const paidUser = currentPlan && !isFreePlan(currentPlan)
-  const [customInquiryOpen, setCustomInquiryOpen] = useState(false)
 
   useEffect(() => {
     if (intendedPlan) {
@@ -28,7 +22,22 @@ export function Plans({ intendedPlan }: { intendedPlan?: string } = {}) {
     }
   }, [intendedPlan])
 
-  const visiblePlans: DisplayPlan[] = [...(!paidUser ? [FREE_PLAN] : []), ...plans, CUSTOM_PLAN]
+  // 1 card: scale is active
+  // 2 cards: pro is active + scale as upgrade
+  // 3 cards: free + pro + scale
+  let visiblePlans: DisplayPlan[]
+  if (currentPlan?.id === 'scale') {
+    visiblePlans = plans.filter((p) => p.id === 'scale')
+  } else if (currentPlan?.id === 'pro') {
+    visiblePlans = plans.filter((p) => p.id === 'pro' || p.id === 'scale')
+  } else {
+    visiblePlans = [FREE_PLAN, ...plans.filter((p) => p.id === 'pro' || p.id === 'scale')]
+  }
+
+  const gridCols =
+    visiblePlans.length === 1 ? 'grid-cols-1 max-w-sm'
+    : visiblePlans.length === 2 ? 'grid-cols-1 sm:grid-cols-2'
+    : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
 
   return (
     <>
@@ -54,28 +63,18 @@ export function Plans({ intendedPlan }: { intendedPlan?: string } = {}) {
           </Message>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className={`grid gap-5 ${gridCols}`}>
         {visiblePlans.map((plan) => (
           <PlanCard
             active={plan.id === currentPlan?.id}
-            className={plan.id === 'free' ? 'order-last sm:order-first' : undefined}
             highlighted={intendedPlan ? plan.id === intendedPlan : plan.id === 'pro'}
             id={`billing-plan-${plan.id}`}
             key={plan.id}
-            onAction={plan.id === CUSTOM_PLAN.id ? () => setCustomInquiryOpen(true) : undefined}
             plan={plan}
             perProject={plan.perProject}
           />
         ))}
       </div>
-
-      <CustomPlanInquiryModal
-        currentPlan={currentPlan?.id ?? FREE_PLAN.id}
-        defaultEmail={currentUser?.login}
-        onOpenChange={setCustomInquiryOpen}
-        open={customInquiryOpen}
-        workspaceName={workspace?.name}
-      />
     </>
   )
 }

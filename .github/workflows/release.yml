@@ -198,10 +198,16 @@ jobs:
                   { "name": "MAIL_PASSWORD", "value": "${{ secrets.MAIL_PASSWORD }}" },
                   { "name": "MAIL_FROM", "value": "${{ secrets.MAIL_FROM }}" },
                   { "name": "SERVICE_CAPTCHA_KEY", "value": "${{ secrets.SERVICE_CAPTCHA_KEY }}" },
-                  { "name": "STRIPE_SECRET_KEY", "value": "${{ secrets.STRIPE_SECRET_KEY }}" },
-                  { "name": "STRIPE_ENDPOINT_SECRET", "value": "${{ secrets.STRIPE_ENDPOINT_SECRET }}" },
+                  { "name": "BILLING_SERVICE_URL", "value": "${{ secrets.BILLING_SERVICE_URL }}" },
+                  { "name": "RUSHDB_BILLING_SECRET", "value": "${{ secrets.RUSHDB_BILLING_SECRET }}" },
                   { "name": "SQL_DB_TYPE", "value": "postgres" },
-                  { "name": "SQL_DB_URL", "value": "${{ secrets.SQL_DB_URL }}" }
+                  { "name": "SQL_DB_URL", "value": "${{ secrets.SQL_DB_URL }}" },
+                  { "name": "RUSHDB_PUBLIC_URL", "value": "${{ vars.RUSHDB_PUBLIC_URL }}" },
+                  { "name": "RUSHDB_OAUTH_ISSUER", "value": "${{ vars.RUSHDB_PUBLIC_URL }}" },
+                  { "name": "RUSHDB_EMBEDDING_BASE_URL", "value": "${{ secrets.RUSHDB_EMBEDDING_BASE_URL }}" },
+                  { "name": "RUSHDB_EMBEDDING_API_KEY", "value": "${{ secrets.RUSHDB_EMBEDDING_API_KEY }}" },
+                  { "name": "RUSHDB_EMBEDDING_MODEL", "value": "${{ vars.RUSHDB_EMBEDDING_MODEL }}" },
+                  { "name": "RUSHDB_EMBEDDING_DIMENSIONS", "value": "${{ vars.RUSHDB_EMBEDDING_DIMENSIONS }}" }
                 ]
               }
             ],

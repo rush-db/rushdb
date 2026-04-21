@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
+import { bigint, boolean, integer, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -88,7 +88,7 @@ export const tokens = pgTable('tokens', {
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  expiration: integer('expiration').notNull(),
+  expiration: bigint('expiration', { mode: 'number' }).notNull(),
   created: text('created').notNull(),
   description: text('description'),
   value: text('value').notNull(),

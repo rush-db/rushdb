@@ -87,7 +87,7 @@ CREATE TABLE "tokens" (
 	"id" text PRIMARY KEY NOT NULL,
 	"project_id" text NOT NULL,
 	"name" text NOT NULL,
-	"expiration" integer NOT NULL,
+	"expiration" bigint NOT NULL,
 	"created" text NOT NULL,
 	"description" text,
 	"value" text NOT NULL,
