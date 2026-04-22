@@ -495,7 +495,7 @@ export const api = {
       })
     },
     async getBillingData() {
-      const billingServiceUrl = import.meta.env.VITE_BILLING_SERVICE_URL || 'https://billing.rushdb.com'
+      const billingServiceUrl = import.meta.env.VITE_BILLING_SERVICE_URL
       return fetcher<BillingData>(`${billingServiceUrl}/api/prices`, {
         method: 'GET'
       })
