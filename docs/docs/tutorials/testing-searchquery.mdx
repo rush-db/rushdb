@@ -219,19 +219,19 @@ SKU=$(echo "$RESULT" | jq -r '.data[0].sku')
 
 ---
 
-## Step 3: Test aggregation parity
+## Step 3: Test select expression parity
 
-Aggregate queries are the most likely to diverge between SDK versions. Test them explicitly.
+`select` queries are the most likely to diverge between SDK versions. Test them explicitly.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-it('aggregate count by category returns correct totals', async () => {
+it('select count by category returns correct totals', async () => {
   const result = await db.records.find({
     labels: ['PRODUCT'],
-    aggregate: {
-      count: { fn: 'count', alias: '$record' },
+    select: {
+      count:    { $count: '*' },
       category: '$record.category'
     },
     groupBy: ['category', 'count'],
@@ -250,11 +250,11 @@ it('aggregate count by category returns correct totals', async () => {
 <TabItem value="python" label="Python">
 
 ```python
-def test_aggregate_count_by_category():
+def test_select_count_by_category():
     result = db.records.find({
         "labels": ["PRODUCT"],
-        "aggregate": {
-            "count": {"fn": "count", "alias": "$record"},
+        "select": {
+            "count":    {"$count": "*"},
             "category": "$record.category"
         },
         "groupBy": ["category", "count"],

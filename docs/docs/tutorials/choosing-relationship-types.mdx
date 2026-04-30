@@ -317,9 +317,9 @@ const userStats = await db.records.find({
       $relation: { type: 'AUTHORED', direction: 'out' }
     }
   },
-  aggregate: {
+  select: {
     userName: '$record.name',
-    documentsAuthored: { fn: 'count', alias: '$authored', unique: true }
+    documentsAuthored: { $count: '$authored' }
   },
   groupBy: ['userName', 'documentsAuthored'],
   orderBy: { documentsAuthored: 'desc' },
@@ -339,9 +339,9 @@ user_stats = db.records.find({
             "$relation": {"type": "AUTHORED", "direction": "out"}
         }
     },
-    "aggregate": {
+    "select": {
         "userName": "$record.name",
-        "documentsAuthored": {"fn": "count", "alias": "$authored", "unique": True}
+        "documentsAuthored": {"$count": "$authored"}
     },
     "groupBy": ["userName", "documentsAuthored"],
     "orderBy": {"documentsAuthored": "desc"},
@@ -363,9 +363,9 @@ curl -s -X POST "$BASE/records/search" \
         "$relation": {"type": "AUTHORED", "direction": "out"}
       }
     },
-    "aggregate": {
+    "select": {
       "userName": "$record.name",
-      "documentsAuthored": {"fn": "count", "alias": "$authored", "unique": true}
+      "documentsAuthored": {"$count": "$authored"}
     },
     "groupBy": ["userName", "documentsAuthored"],
     "orderBy": {"documentsAuthored": "desc"},
@@ -396,7 +396,7 @@ const pairs = await db.records.find({
   where: {
     USER: { $alias: '$user' }
   },
-  aggregate: {
+  select: {
     documentId: '$record.__id',
     userId: '$user.__id'
   }
@@ -419,7 +419,7 @@ for (const pair of pairs.data) {
 pairs = db.records.find({
     "labels": ["DOCUMENT"],
     "where": {"USER": {"$alias": "$user"}},
-    "aggregate": {"documentId": "$record.__id", "userId": "$user.__id"}
+    "select": {"documentId": "$record.__id", "userId": "$user.__id"}
 })
 
 for pair in pairs.data:
@@ -437,7 +437,7 @@ for pair in pairs.data:
 # Fetch pairs, then loop to attach (illustrative — use SDK for bulk work)
 PAIRS=$(curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
-  -d '{"labels":["DOCUMENT"],"where":{"USER":{"$alias":"$user"}},"aggregate":{"documentId":"$record.__id","userId":"$user.__id"}}')
+  -d '{"labels":["DOCUMENT"],"where":{"USER":{"$alias":"$user"}},"select":{"documentId":"$record.__id","userId":"$user.__id"}}')
 
 echo "$PAIRS" | jq -c '.data[]' | while read -r pair; do
   USER_ID=$(echo "$pair" | jq -r '.userId')

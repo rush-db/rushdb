@@ -340,9 +340,9 @@ wait
 
 ---
 
-## Pattern 3: Aggregate endpoints
+## Pattern 3: Metrics endpoints
 
-Expose KPI endpoints that return counts, sums, and distributions — not raw records.
+Expose KPI endpoints that return counts, sums, and distributions — not raw records. Use the `select` and `groupBy` clauses for all metrics.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -360,8 +360,8 @@ export async function getTaskStatusBreakdown(tenantId: string, projectId?: strin
       tenantId,
       ...projectFilter
     },
-    aggregate: {
-      count: { fn: 'count', alias: '$record' },
+    select: {
+      count: { $count: '*' },
       status: '$record.status'
     },
     groupBy: ['status', 'count'],
@@ -390,8 +390,8 @@ def get_task_status_breakdown(tenant_id: str, project_id: str | None = None):
     result = db.records.find({
         "labels": ["TASK"],
         "where": where,
-        "aggregate": {
-            "count": {"fn": "count", "alias": "$record"},
+        "select": {
+            "count": {"$count": "*"},
             "status": "$record.status"
         },
         "groupBy": ["status", "count"],
@@ -412,8 +412,8 @@ curl -s -X POST "$BASE/records/search" \
   -d "{
     \"labels\": [\"TASK\"],
     \"where\": {\"tenantId\": \"$TENANT_ID\"},
-    \"aggregate\": {
-      \"count\": {\"fn\": \"count\", \"alias\": \"\$record\"},
+    \"select\": {
+      \"count\": {\"$count\": \"*\"},
       \"status\": \"\$record.status\"
     },
     \"groupBy\": [\"status\", \"count\"],
@@ -440,7 +440,7 @@ async function previewDelete(tenantId: string, filter: Record<string, unknown>):
   const result = await db.records.find({
     labels: ['ARTICLE'],
     where: { tenantId, ...filter },
-    aggregate: { count: { fn: 'count', alias: '$record' } },
+    select: { count: { $count: '*' } },
     groupBy: ['count']
   })
   return { count: result.data[0]?.count as number ?? 0, dryRun: true }
@@ -480,7 +480,7 @@ def delete_articles(tenant_id: str, filter_: dict, confirm: bool = False):
         preview = db.records.find({
             "labels": ["ARTICLE"],
             "where": where,
-            "aggregate": {"count": {"fn": "count", "alias": "$record"}},
+            "select": {"count": {"$count": "*"}},
             "groupBy": ["count"]
         })
         count = preview.data[0]["count"] if preview.data else 0
@@ -502,7 +502,7 @@ curl -s -X POST "$BASE/records/search" \
   -d "{
     \"labels\": [\"ARTICLE\"],
     \"where\": {\"tenantId\": \"$TENANT_ID\", \"status\": \"archived\"},
-    \"aggregate\": {\"count\": {\"fn\": \"count\", \"alias\": \"\$record\"}},
+    \"select\": {\"count\": {\"$count\": \"*\"}},
     \"groupBy\": [\"count\"]
   }"
 
@@ -528,7 +528,7 @@ The patterns above follow these conventions:
 2. **Never return internal RushDB metadata** (`__labels`, `__proptypes`) in public API responses
 3. **Always cap `limit`** at a maximum page size (100 or less) even if the user passes a higher value
 4. **Always inject tenant scope** from the session token, never from user-supplied parameters
-5. **Aggregate responses** return structured objects, not raw RushDB result arrays
+5. **Metrics responses** return structured objects, not raw RushDB result arrays
 
 ---
 

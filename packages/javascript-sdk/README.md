@@ -6,7 +6,7 @@
 
 ### The memory layer for AI agents and apps.
 
-Push any JSON. Get graph relationships and vector search — automatically.  
+Push any JSON. Get graph relationships and vector search — automatically.
 No schema. No pipeline. No glue code.
 
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
@@ -29,7 +29,7 @@ RushDB skips all of that:
 
 - **Managed embeddings** — mark a property for indexing once; every write is auto-embedded server-side
 - **Graph auto-structured** — nested JSON becomes a traversable graph; no manual edge creation
-- **Semantic + graph in one query** — filter by relationships, rank by meaning, aggregate — one call
+- **Semantic + graph in one query** — filter by relationships, rank by meaning, compute metrics — one call (use select/groupBy)
 - **Zero schema** — push any shape; RushDB infers types and links records
 - **6.9KB gzipped** — zero runtime dependencies
 - **Isomorphic** — Node.js and browser
@@ -142,10 +142,11 @@ const result = await db.records.find({
     status: 'posted',
     amount: { $gte: 100 },
   },
-  aggregate: {
-    total: { fn: 'sum', field: 'amount', alias: '$record' },
+  select: {
+    total: { $sum: '$record.amount' },
   },
   groupBy: ['$record.category'],
+  // Legacy: The aggregate clause is deprecated and should only be used for vector similarity until select supports it.
   orderBy: { amount: 'desc' },
   limit: 50,
 })

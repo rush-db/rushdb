@@ -77,7 +77,7 @@ Before you or the LLM starts writing a `findRecords` query, fetch the SearchQuer
 
 > "Call `getSearchQuerySpec`."
 
-This returns the full SearchQuery schema the query must conform to, including `where`, `aggregate`, `groupBy`, `orderBy`, `limit`, `skip`, and all filter operators (`$in`, `$gte`, `$contains`, `$exists`, `$relation`, `$alias`, etc.).
+This returns the full SearchQuery schema the query must conform to, including `where`, `select`, `groupBy`, `orderBy`, `limit`, `skip`, and all filter operators (`$in`, `$gte`, `$contains`, `$exists`, `$relation`, `$alias`, etc.).
 
 For complex queries, have the LLM use both the ontology and the spec together:
 
@@ -126,7 +126,7 @@ The MCP tool call:
     },
     "orderBy": { "placedAt": "desc" },
     "limit": 10,
-    "aggregate": {
+    "select": {
       "orderId": "$record.__id",
       "placedAt": "$record.placedAt",
       "total": "$record.total"

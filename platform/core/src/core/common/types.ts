@@ -144,6 +144,7 @@ export type Condition<T extends Schema = Schema> =
 export type Where<T extends Schema = Schema> = (Condition<T> & Related) &
   Partial<LogicalGrouping<Condition<T> & Related>>
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateCollectFn = {
   skip?: number
   alias: string
@@ -154,12 +155,14 @@ export type AggregateCollectFn = {
   unique?: boolean
 }
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateCollectNestedFn = Omit<AggregateCollectFn, 'field'> & {
   aggregate?: { [field: string]: AggregateCollectNestedFn }
 }
 
 export type AliasesMap = Record<string, string>
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateCountFn = {
   field?: string
   fn: 'count'
@@ -167,6 +170,7 @@ export type AggregateCountFn = {
   /** Defaults to '$record' */ alias?: string
 }
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateTimeBucketFn = {
   field: string
   fn: 'timeBucket'
@@ -189,6 +193,7 @@ export type AggregateTimeBucketFn = {
   size?: number
 }
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateFn<S extends Schema = Schema> =
   | { field: string; fn: 'avg'; alias?: string; precision?: number }
   | AggregateCountFn
@@ -204,6 +209,7 @@ export type AggregateFn<S extends Schema = Schema> =
   | AggregateTimeBucketFn
   | AggregateCollectFn
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type Aggregate =
   | {
       [field: string]: string | AggregateFn
@@ -211,6 +217,65 @@ export type Aggregate =
   | {
       [field: string]: AggregateCollectNestedFn
     }
+
+// ── Select Expression System ───────────────────────────────────────────────
+
+export type CollectExpr = {
+  /** Reference a pre-declared $alias from the where clause. Mutually exclusive with `label`. */
+  from?: string
+  /** Inline relation traversal — no $alias in where needed. Mutually exclusive with `from`. */
+  label?: string
+  /** Per-level filter (only valid with `label`). Flat property conditions only. */
+  where?: Record<string, any>
+  select?: SelectExprMap
+  orderBy?: TSearchSort
+  limit?: number
+  skip?: number
+  unique?: boolean
+}
+
+export type TimeBucketExprUnit =
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'quarter'
+  | 'year'
+  | 'months'
+  | 'hour'
+  | 'minute'
+  | 'second'
+  | 'hours'
+  | 'minutes'
+  | 'seconds'
+  | 'years'
+
+export type TimeBucketExpr = {
+  /** Field reference, e.g. "$record.createdAt" */
+  field: string
+  unit: TimeBucketExprUnit
+  /** Required when unit is months/hours/minutes/seconds/years */
+  size?: number
+}
+
+export type Expr =
+  | string // "$record.field" field ref, or "$alias" alias ref
+  | number // literal number
+  | boolean // literal boolean
+  | { $ref: string } // cross-expression reference
+  | { $sum: Expr }
+  | { $avg: Expr; $precision?: number }
+  | { $count: '*' | Expr }
+  | { $min: Expr }
+  | { $max: Expr }
+  | { $divide: [Expr, Expr] }
+  | { $multiply: [Expr, Expr] }
+  | { $add: [Expr, Expr] }
+  | { $subtract: [Expr, Expr] }
+  | { $collect: CollectExpr }
+  | { $timeBucket: TimeBucketExpr }
+
+/** Canonical output-shaping clause — replaces `aggregate` */
+export type SelectExprMap = Record<string, Expr>
 
 /* Extend this type */
 // eslint-disable-next-line @typescript-eslint/no-empty-interface

@@ -148,7 +148,7 @@ done
 
 ## Step 3: Discover distinct values for key properties
 
-Before filtering, check what values actually exist for categorical fields. Use `aggregate` + `groupBy` to enumerate distinct values.
+Before filtering, check what values actually exist for categorical fields. Use `select` + `groupBy` to enumerate distinct values.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -157,8 +157,8 @@ Before filtering, check what values actually exist for categorical fields. Use `
 // Find all distinct statuses on ORDER records
 const statusCounts = await db.records.find({
   labels: ['ORDER'],
-  aggregate: {
-    count: { fn: 'count', alias: '$record' },
+  select: {
+    count:  { $count: '*' },
     status: '$record.status'
   },
   groupBy: ['status', 'count'],
@@ -177,8 +177,8 @@ for (const row of statusCounts.data) {
 ```python
 status_counts = db.records.find({
     "labels": ["ORDER"],
-    "aggregate": {
-        "count": {"fn": "count", "alias": "$record"},
+    "select": {
+        "count":  {"$count": "*"},
         "status": "$record.status"
     },
     "groupBy": ["status", "count"],
@@ -198,8 +198,8 @@ curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
   -d '{
     "labels": ["ORDER"],
-    "aggregate": {
-      "count": {"fn": "count", "alias": "$record"},
+    "select": {
+      "count":  {"$count": "*"},
       "status": "$record.status"
     },
     "groupBy": ["status", "count"],
@@ -310,7 +310,7 @@ When a property appears in some records but not others, use `$exists: false` to 
 const missingEmail = await db.records.find({
   labels: ['CUSTOMER'],
   where: { email: { $exists: false } },
-  aggregate: { count: { fn: 'count', alias: '$record' } },
+  select: { count: { $count: '*' } },
   groupBy: ['count']
 })
 
@@ -318,7 +318,7 @@ const missingEmail = await db.records.find({
 const hasEmail = await db.records.find({
   labels: ['CUSTOMER'],
   where: { email: { $exists: true } },
-  aggregate: { count: { fn: 'count', alias: '$record' } },
+  select: { count: { $count: '*' } },
   groupBy: ['count']
 })
 
@@ -333,14 +333,14 @@ console.log(`Has email: ${hasEmail.data[0]?.count ?? 0}`)
 missing_email = db.records.find({
     "labels": ["CUSTOMER"],
     "where": {"email": {"$exists": False}},
-    "aggregate": {"count": {"fn": "count", "alias": "$record"}},
+    "select": {"count": {"$count": "*"}},
     "groupBy": ["count"]
 })
 
 has_email = db.records.find({
     "labels": ["CUSTOMER"],
     "where": {"email": {"$exists": True}},
-    "aggregate": {"count": {"fn": "count", "alias": "$record"}},
+    "select": {"count": {"$count": "*"}},
     "groupBy": ["count"]
 })
 
@@ -355,12 +355,12 @@ print(f"Has email: {has_email.data[0]['count'] if has_email.data else 0}")
 # Missing email
 curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
-  -d '{"labels":["CUSTOMER"],"where":{"email":{"$exists":false}},"aggregate":{"count":{"fn":"count","alias":"$record"}},"groupBy":["count"]}'
+  -d '{"labels":["CUSTOMER"],"where":{"email":{"$exists":false}},"select":{"count":{"$count":"*"}},"groupBy":["count"]}'
 
 # Has email
 curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
-  -d '{"labels":["CUSTOMER"],"where":{"email":{"$exists":true}},"aggregate":{"count":{"fn":"count","alias":"$record"}},"groupBy":["count"]}'
+  -d '{"labels":["CUSTOMER"],"where":{"email":{"$exists":true}},"select":{"count":{"$count":"*"}},"groupBy":["count"]}'
 ```
 
 </TabItem>
@@ -486,7 +486,7 @@ If you are using the MCP server with Claude or Cursor, follow the same pattern v
 1. Call `getOntologyMarkdown` — read and understand the output before anything else
 2. Call `getSearchQuerySpec` — load the canonical query structure for the LLM's context
 3. Use `findRecords` with `limit: 3` for sampling, not `limit: 1000`
-4. Use aggregate `groupBy` queries to enumerate categorical values
+4. Use `select` + `groupBy` queries to enumerate categorical values
 5. Add traversal filters one at a time, verifying counts match expectations
 
 The `getQueryBuilderPrompt` tool returns a system prompt you can paste into any LLM session to enforce the ontology-first discipline described in this tutorial.

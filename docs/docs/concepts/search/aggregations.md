@@ -2,94 +2,470 @@
 sidebar_position: 7
 ---
 
-# Aggregations
+# Select Expressions
 
-SearchQuery provides powerful aggregation capabilities that allow you to perform calculations and collect data from your records and their relationships.
+The `select` clause shapes the output of a SearchQuery: compute metrics, derive new metrics from other outputs, collect related records as arrays, and bucket datetime fields into calendar intervals — all in a single declarative map. The legacy `aggregate` clause is deprecated and should only be used for vector similarity until select supports it.
 
-#### Aggregation Placement in SearchQuery DTO
+## Expression Placement
 
-All aggregation clauses are defined in the `aggregate` key of the SearchQuery DTO, which is at the same level as other query parameters such as `where`, `limit`, `skip`, `orderBy`, and `labels`:
+The `select` key sits at the same level as `where`, `limit`, `orderBy`, and `labels`:
 
 ```typescript
-// SearchQuery
 {
-  labels: ['COMPANY'],       // Record labels to search
-  where: { /* conditions */ },  // Filtering conditions
-  limit: 10,                 // Results limit
-  skip: 0,                   // Results offset
-  orderBy: { name: 'asc' },  // Sorting
-  aggregate: {               // Aggregation definitions
-    count: {
-      fn: 'count',
-      alias: '$record'
-    },
-    // More aggregations...
+  labels: ['COMPANY'],
+  where: { EMPLOYEE: { $alias: '$employee' } },
+  select: {
+    companyName: '$record.name',               // field reference
+    totalWage:   { $sum: '$employee.salary' }, // sum
+    headcount:   { $count: '*' },              // count distinct root records
+    costPerHead: { $divide: [                  // derived metric
+      { $ref: 'totalWage' },
+      { $ref: 'headcount' }
+    ]}
   }
 }
 ```
 
-> **Note**: Aggregations are applied only when fetching records and have no effect on other endpoints supporting SearchQuery. The main goal of aggregations is to fetch Records in the desired shape, optimizing data retrieval and transformation in a single query.
+> **Note**: `select` is evaluated only when fetching records.
 
+## Expression Reference
 
-## Available Aggregation Functions
+| Expression | Description |
+|---|---|
+| `"$alias.field"` | Field reference — reads `field` from the record at `$alias` |
+| `"$alias"` | Alias-only reference — the record node itself |
+| `number` | Literal number |
+| `boolean` | Literal boolean |
+| `{ $ref: "key" }` | Reference another output key in the same `select` map |
+| `{ $sum: expr }` | Sum of a numeric expression |
+| `{ $avg: expr, $precision?: n }` | Average; `$precision` controls decimal places (0 = integer) |
+| `{ $count: '*' \| expr }` | `'*'` counts distinct root records; expression counts distinct values |
+| `{ $min: expr }` | Minimum value |
+| `{ $max: expr }` | Maximum value |
+| `{ $divide: [expr, expr] }` | Division |
+| `{ $multiply: [expr, expr] }` | Multiplication |
+| `{ $add: [expr, expr] }` | Addition |
+| `{ $subtract: [expr, expr] }` | Subtraction |
+| `{ $collect: CollectExpr }` | Collect related records into an array |
+| `{ $timeBucket: TimeBucketExpr }` | Bucket a datetime field into calendar intervals |
 
-The following aggregation functions are supported:
+## Field References
 
-- `avg` - Calculate average value of a numeric field
-- `count` - Count records (with optional `unique` parameter)
-- `max` - Get maximum value from a field
-- `min` - Get minimum value from a field
-- `sum` - Calculate sum of a numeric field
-- `collect` - Gather field values or entire records into an array
-- `timeBucket` - Bucket a datetime field into calendar intervals (day/week/month/quarter/year/hour/minute/second or custom N-sized months/hours/minutes/seconds/years)
-- `vector.similarity.*` - Calculate vector similarity using native Neo4j functions:
-  - `vector.similarity.cosine` - Cosine similarity [0,1]
-  - `vector.similarity.euclidean` - Euclidean distance normalized to (0,1]
+Expressions reference record data using `"$alias.fieldName"` strings. The root record always uses `$record`; related records use aliases declared in `where` via `$alias`.
 
-  ## Grouping Results (groupBy)
-
-  For full coverage of grouping semantics, patterns, and limitations see the dedicated [Grouping guide](./group-by.md). Below is a minimal teaser example:
-
-  ```typescript
-  {
-    labels: ['ORDER'],
-    aggregate: {
-      count: { fn: 'count' },
-      avgTotal: { fn: 'avg', field: 'total' }
-    },
-    groupBy: ['$record.status'],
-    orderBy: { count: 'desc' }
+```typescript
+{
+  labels: ['COMPANY'],
+  where: {
+    EMPLOYEE: { $alias: '$employee' }
+  },
+  select: {
+    companyName: '$record.name',          // field from root record
+    topSalary:   { $max: '$employee.salary' }  // field from related record
   }
-  ```
+}
+```
 
-  You can also "self-group" by an aggregation key itself when you only need the aggregated value(s) and no natural dimension. Example:
+## Statistical Aggregations
 
-  ```typescript
-  {
-    labels: ['ORDER'],
-    aggregate: {
-      totalRevenue: { fn: 'sum', field: 'total' },
-      orderCount: { fn: 'count' }
-    },
-    groupBy: ['totalRevenue', 'orderCount']
+All statistical expressions take a field reference (`"$alias.field"`) or another expression as their argument.
+
+### `$sum`
+
+```typescript
+{
+  labels: ['COMPANY'],
+  where: { EMPLOYEE: { $alias: '$employee', salary: { $gte: 50000 } } },
+  select: {
+    totalWage: { $sum: '$employee.salary' }
   }
-  ```
-  This produces a single-row result array with both metrics. See the [Grouping guide](./group-by.md#grouping-only-by-an-aggregated-value-self-group) for details.
+}
+```
 
-### Ordering by Aggregated Keys (Late Order & Pagination)
+### `$avg`
 
-When you reference an aggregated key explicitly in `orderBy`, RushDB defers the `ORDER BY` and pagination (`SKIP` / `LIMIT`) until *after* aggregation is performed. This guarantees that the aggregation is calculated across the full qualifying record set before any limiting occurs.
+Optional `$precision` controls decimal places (0 = integer result).
 
-If you omit an explicit `orderBy` on aggregated keys, the engine applies the default ordering (by internal ID, descending) and pagination *before* the aggregation step. In self‑group or small group scenarios this can produce misleading or incomplete aggregate values because only the first page of raw records (according to default ordering) is fed into the aggregation pipeline.
+```typescript
+{
+  labels: ['COMPANY'],
+  where: { EMPLOYEE: { $alias: '$employee' } },
+  select: {
+    avgSalary: { $avg: '$employee.salary', $precision: 2 }
+  }
+}
+```
 
-Example (explicit ordering on aggregated key – correct full aggregation):
+### `$count`
+
+`{ $count: '*' }` counts distinct root records. `{ $count: '$alias' }` or `{ $count: '$alias.field' }` counts distinct values of that expression.
+
+```typescript
+{
+  labels: ['COMPANY'],
+  where: { EMPLOYEE: { $alias: '$employee' } },
+  select: {
+    total:     { $count: '*' },        // distinct root records
+    headcount: { $count: '$employee' } // distinct employees
+  }
+}
+```
+
+### `$min` / `$max`
+
+```typescript
+{
+  labels: ['COMPANY'],
+  where: { EMPLOYEE: { $alias: '$employee' } },
+  select: {
+    minSalary: { $min: '$employee.salary' },
+    maxSalary: { $max: '$employee.salary' }
+  }
+}
+```
+
+## Math & Derived Metrics
+
+Use arithmetic operators to compute derived values inline. Each takes a two-element array of expressions.
+
+```typescript
+{
+  labels: ['ORDER'],
+  select: {
+    revenue: { $sum: '$record.amount' },
+    cost:    { $sum: '$record.cost' },
+    profit:  { $subtract: [{ $ref: 'revenue' }, { $ref: 'cost' }] },
+    margin:  { $divide:   [{ $ref: 'profit' },  { $ref: 'revenue' }] }
+  }
+}
+```
+
+Supported: `$add`, `$subtract`, `$multiply`, `$divide` — each accepts `[expr, expr]`.
+
+### `$ref` — cross-expression references
+
+`{ $ref: "key" }` reuses an output key already defined in the same `select` map. RushDB topologically sorts expressions so you can reference any key regardless of declaration order. Circular references throw a `400 Bad Request`.
+
+```typescript
+{
+  select: {
+    totalRevenue: { $sum: '$record.amount' },
+    totalCost:    { $sum: '$record.cost' },
+    profit:       { $subtract: [{ $ref: 'totalRevenue' }, { $ref: 'totalCost' }] },
+    margin:       { $divide:   [{ $ref: 'profit' }, { $ref: 'totalRevenue' }] }
+  }
+}
+```
+
+## `$collect` — Related Records as Arrays
+
+`$collect` gathers related records into an array. There are two forms:
+
+- **`from`** — collects from an alias declared in `where` (flat, one hop)
+- **`label`** — traverses inline to a named label, supports unlimited nesting via nested `select`, and optionally filters with `where`
+
+```typescript
+// Type reference
+type CollectExpr = {
+  // ── alias-based (requires $alias in where) ──
+  from?:   string       // "$alias" declared in where
+
+  // ── label-based (inline traversal — no alias required) ──
+  label?:  string       // related record label to traverse to (e.g. 'DEPARTMENT')
+  where?:  object       // flat property filter on the traversed level (label-based only)
+
+  // ── common options ──
+  select?: Record<string, string | CollectExpr>  // field projection; nested $collect allowed (label-based)
+  orderBy?: object      // sort collected items
+  limit?:  number       // cap array length
+  skip?:   number       // skip N items
+  unique?: boolean      // deduplicate (default: true)
+}
+```
+
+> `from` and `label` are mutually exclusive. Use `$self` in `select` to reference the current traversal level when using `label`.
+
+### Collect full records (alias-based)
+
+```typescript
+{
+  labels: ['COMPANY'],
+  where: { EMPLOYEE: { $alias: '$employee' } },
+  select: {
+    employees: {
+      $collect: {
+        from: '$employee',
+        orderBy: { salary: 'desc' },
+        limit: 10
+      }
+    }
+  }
+}
+```
+
+### Collect with field projection (alias-based)
+
+```typescript
+{
+  labels: ['COMPANY'],
+  where: { EMPLOYEE: { $alias: '$employee' } },
+  select: {
+    employeeNames: {
+      $collect: {
+        from: '$employee',
+        select: { name: '$employee.name' },
+        orderBy: { name: 'asc' }
+      }
+    }
+  }
+}
+```
+
+### Label-based collect (no alias required)
+
+Use `label` to traverse inline without declaring an `$alias` in `where`. The special alias `$self` refers to the current traversal level.
+
+```typescript
+{
+  labels: ['COMPANY'],
+  select: {
+    employees: {
+      $collect: {
+        label: 'EMPLOYEE',
+        select: { name: '$self.name', salary: '$self.salary' },
+        orderBy: { salary: 'desc' },
+        limit: 10
+      }
+    }
+  }
+}
+```
+
+### Label-based collect with `where` filter
+
+Filter the traversed level with flat property conditions using `where`:
+
+```typescript
+{
+  labels: ['COMPANY'],
+  select: {
+    seniorEmployees: {
+      $collect: {
+        label: 'EMPLOYEE',
+        where: { salary: { $gte: 100000 } },
+        select: { name: '$self.name', salary: '$self.salary' },
+        orderBy: { salary: 'desc' },
+        limit: 5
+      }
+    }
+  }
+}
+```
+
+### Multi-level nested collect
+
+Nest `$collect` inside `select` to traverse multiple hops in a single query — no `$alias` declarations needed:
+
+```typescript
+{
+  labels: ['COMPANY'],
+  select: {
+    departments: {
+      $collect: {
+        label: 'DEPARTMENT',
+        select: {
+          name: '$self.name',
+          projects: {
+            $collect: {
+              label: 'PROJECT',
+              select: {
+                name: '$self.name',
+                employees: {
+                  $collect: {
+                    label: 'EMPLOYEE',
+                    orderBy: { salary: 'desc' },
+                    limit: 3
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+This returns a tree of `COMPANY → DEPARTMENT → PROJECT → EMPLOYEE` with no extra `where` boilerplate.
+
+<details>
+<summary>Response shape example</summary>
+
+```typescript
+{
+  data: [{
+    __id: "018838b8-...",
+    __label: "COMPANY",
+    departments: [
+      {
+        __label: "DEPARTMENT",
+        name: "Engineering",
+        projects: [
+          {
+            __label: "PROJECT",
+            name: "Platform",
+            employees: [
+              { __label: "EMPLOYEE", name: "Jane Smith", salary: 620000 },
+              { __label: "EMPLOYEE", name: "John Doe",   salary: 580000 }
+            ]
+          }
+        ]
+      }
+    ]
+  }],
+  total: 1,
+  success: true
+}
+```
+</details>
+
+## `$timeBucket` — Calendar Grouping
+
+`$timeBucket` buckets a datetime field into calendar intervals. Use with `groupBy` to produce time-series rows.
+
+```typescript
+// Type reference
+type TimeBucketExpr = {
+  field: string   // "$alias.fieldName" — must be a datetime field
+  unit:  string   // see unit table below
+  size?: number   // required for plural units
+}
+```
+
+| `unit` | Description | `size?` |
+|---|---|---|
+| `'day'` | Calendar day | — |
+| `'week'` | ISO week | — |
+| `'month'` | Calendar month | — |
+| `'quarter'` | 3-month quarter (starts at months 1, 4, 7, 10) | — |
+| `'year'` | Calendar year | — |
+| `'hour'` | Clock hour | — |
+| `'minute'` | Clock minute | — |
+| `'second'` | Clock second | — |
+| `'months'` | N-month window | required |
+| `'hours'` | N-hour window | required |
+| `'minutes'` | N-minute window | required |
+| `'seconds'` | N-second window | required |
+| `'years'` | N-year window | required |
+
+Bucket value is the **start of the interval** as epoch milliseconds (suitable for `groupBy` comparison and sorting).
+
+#### Example: Daily counts
+
+```typescript
+{
+  labels: ['EVENT'],
+  select: {
+    day:   { $timeBucket: { field: '$record.createdAt', unit: 'day' } },
+    count: { $count: '*' }
+  },
+  groupBy: ['day'],
+  orderBy: { day: 'asc' }
+}
+```
+
+#### Example: Quarterly revenue
+
+```typescript
+{
+  labels: ['INVOICE'],
+  select: {
+    quarterStart:     { $timeBucket: { field: '$record.issuedAt', unit: 'quarter' } },
+    quarterlyRevenue: { $sum: '$record.amount' }
+  },
+  groupBy: ['quarterStart'],
+  orderBy: { quarterStart: 'asc' }
+}
+```
+
+#### Example: Bi-monthly windows
+
+```typescript
+{
+  labels: ['SESSION'],
+  where: { status: 'active' },
+  select: {
+    periodStart:    { $timeBucket: { field: '$record.startedAt', unit: 'months', size: 2 } },
+    activeSessions: { $count: '*' }
+  },
+  groupBy: ['periodStart'],
+  orderBy: { periodStart: 'asc' }
+}
+```
+
+#### Example: 6-hour windows
+
+```typescript
+{
+  labels: ['EVENT'],
+  select: {
+    windowStart: { $timeBucket: { field: '$record.createdAt', unit: 'hours', size: 6 } },
+    count:       { $count: '*' }
+  },
+  groupBy: ['windowStart'],
+  orderBy: { windowStart: 'asc' }
+}
+```
+
+#### Null buckets
+
+If a record's field is not typed as `datetime` in RushDB metadata, its bucket value is `null`. Filter with a `where` condition on the field or exclude nulls client-side.
+
+## Grouping Results (`groupBy`)
+
+For full grouping semantics see the [Grouping guide](./group-by.md). Quick reference:
+
+```typescript
+{
+  labels: ['ORDER'],
+  select: {
+    count:    { $count: '*' },
+    avgTotal: { $avg: '$record.total' }
+  },
+  groupBy: ['$record.status'],
+  orderBy: { count: 'desc' }
+}
+```
+
+**Self-group** — return aggregated totals only, no dimension breakdown:
+
+```typescript
+{
+  labels: ['ORDER'],
+  select: {
+    totalRevenue: { $sum: '$record.total' },
+    orderCount:   { $count: '*' }
+  },
+  groupBy: ['totalRevenue', 'orderCount']
+}
+```
+
+This produces a single-row result array with both metrics. See the [Grouping guide](./group-by.md#grouping-only-by-an-aggregated-value-self-group) for details.
+
+## Ordering by `select` Keys (Late Order & Pagination)
+
+When you reference a `select` output key in `orderBy`, RushDB defers `ORDER BY` and pagination until *after* the aggregation step. This guarantees correct totals across the full matching record set.
+
+If `orderBy` does not reference a `select` key, pagination happens *before* aggregation and may produce underreported totals.
+
+Example (ordering on an aggregated key — correct full aggregation):
 
 ```jsonc
-// Request
 {
   "labels": ["HS_DEAL"],
-  "aggregate": {
-    "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" }
+  "select": {
+    "totalAmount": { "$sum": "$record.amount" }
   },
   "orderBy": { "totalAmount": "asc" },
   "groupBy": ["totalAmount"]
@@ -105,82 +481,13 @@ ORDER BY `totalAmount` ASC SKIP 0 LIMIT 100
 RETURN {`totalAmount`:`totalAmount`} as records
 ```
 
-Example (no explicit aggregated ordering – pagination happens early):
-
-```jsonc
-// Request
-{
-  "labels": ["HS_DEAL"],
-  "aggregate": {
-    "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" }
-  },
-  "groupBy": ["totalAmount"]
-}
-```
-
-Produces Cypher (ORDER BY / LIMIT before aggregation):
-
-```cypher
-MATCH (record:__RUSHDB__LABEL__RECORD__:`HS_DEAL` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-ORDER BY record.`__RUSHDB__KEY__ID__` DESC SKIP 0 LIMIT 100
-WITH sum(record.`amount`) AS `totalAmount`
-RETURN {`totalAmount`:`totalAmount`} as records
-```
-
-Why this matters:
-- First version sums across all matching deals, then orders/paginates the *result rows* (one row here).
-- Second version limits the input rows *before* summing; result may exclude records beyond the first page, giving an underreported total.
-
 Guidelines:
-- Always specify `orderBy` with aggregated keys you care about when using `groupBy` (including self-group) if you need accurate totals across the entire match set.
-- Omit the aggregated `orderBy` only if you intentionally want to aggregate over a pre-sliced subset of records (rare).
-- The late ordering rule applies to any aggregated field listed in `orderBy`, not only self-group patterns.
+- Always specify `orderBy` on a `select` key when using `groupBy` to get accurate totals across the entire match set.
+- Omit it only if you intentionally want to aggregate over a pre-sliced subset of records.
 
-See also: [Pagination & Order guide](./pagination-order.md#ordering-with-aggregations) for broader pagination implications.
+See also: [Pagination & Order guide](./pagination-order.md#ordering-with-aggregations).
 
-
-## Aliases
-
-Each aggregation function can specify an `alias` indicating which traversed record to read from. If you omit `alias`, RushDB defaults to the root record alias `$record`. To pull values from related records, introduce aliases in the `where` clause with `$alias` and then reference them in aggregations.
-
-```typescript
-{
-  labels: ['COMPANY'],
-  where: {
-    DEPARTMENT: {
-      $alias: '$department',
-      PROJECT: {
-        $alias: '$project',
-        EMPLOYEE: {
-          $alias: '$employee'
-        }
-      }
-    }
-  },
-  aggregate: {
-    // Referencing to root record using '$record' alias
-    companyName: '$record.name',
-    // Now can use $employee in aggregations
-    avgSalary: { fn: 'avg', field: 'salary', alias: '$employee' }
-  }
-}
-```
-
-## Basic Aggregations
-
-Example topology:
-
-```mermaid
-graph LR
-  A[COMPANY] --has--> B[EMPLOYEE]
-```
-
-###  avg
-**Parameters:**
-- `fn`: 'avg' - The aggregation function name
-- `field`: string - The field to calculate average for
-- `alias?`: string - Record alias (defaults to `$record`)
-- `precision?`: number - Optional decimal precision for the result
+## Complete Example
 
 ```typescript
 {
@@ -188,386 +495,51 @@ graph LR
   where: {
     EMPLOYEE: {
       $alias: '$employee',
-      salary: {
-        $gte: 50000  // Filter employees by salary
-      }
+      salary: { $gte: 50000 }
     }
   },
-  aggregate: {
-    avgSalary: {
-      fn: 'avg',
-      field: 'salary',
-      alias: '$employee',
-      precision: 2  // Optional: Set precision for the result
-    }
-  }
-}
-```
-
-###  count
-**Parameters:**
-- `fn`: 'count' - The aggregation function name
-- `alias?`: string - Record alias (defaults to `$record`)
-- `field?`: string - Optional field to count
-- `unique?`: boolean - Optional flag to count unique values
-
-```typescript
-{
-  labels: ['COMPANY'],
-  where: {
-    EMPLOYEE: {
-      $alias: '$employee'
-    }
-  },
-  aggregate: {
-    employeesCount: {
-      fn: 'count',
-      unique: true,  // Count unique employees
-      alias: '$employee'
-    }
-  }
-}
-```
-
-###  max
-**Parameters:**
-- `fn`: 'max' - The aggregation function name
-- `field`: string - The field to find maximum value from
-- `alias?`: string - Record alias (defaults to `$record`)
-
-```typescript
-{
-  labels: ['COMPANY'],
-  where: {
-    EMPLOYEE: {
-      $alias: '$employee'
-    }
-  },
-  aggregate: {
-    maxSalary: {
-      fn: 'max',
-      field: 'salary',
-      alias: '$employee'
-    }
-  }
-}
-```
-
-###  min
-**Parameters:**
-- `fn`: 'min' - The aggregation function name
-- `field`: string - The field to find minimum value from
-- `alias?`: string - Record alias (defaults to `$record`)
-
-```typescript
-{
-  labels: ['COMPANY'],
-  where: {
-    EMPLOYEE: {
-      $alias: '$employee'
-    }
-  },
-  aggregate: {
-    minSalary: {
-      fn: 'min',
-      field: 'salary',
-      alias: '$employee'
-    }
-  }
-}
-```
-
-###  sum
-**Parameters:**
-- `fn`: 'sum' - The aggregation function name
-- `field`: string - The field to calculate sum for
-- `alias?`: string - Record alias (defaults to `$record`)
-
-```typescript
-{
-  labels: ['COMPANY'],
-  where: {
-    EMPLOYEE: {
-      $alias: '$employee'
-    }
-  },
-  aggregate: {
-    totalWage: {
-      fn: 'sum',
-      field: 'salary',
-      alias: '$employee'
-    }
-  }
-}
-```
-
-###  collect
-**Parameters:**
-- `fn`: 'collect' - The aggregation function name
-- `alias?`: string - Record alias (defaults to `$record`)
-- `field?`: string - Optional field to collect (if not provided, collects entire records)
-- `unique?`: boolean - Optional flag to collect unique values only. True by default.
-- `limit?`: number - Optional maximum number of items to collect
-- `skip?`: number - Optional number of items to skip
-- `orderBy?`: TSearchSort - Optional sorting configuration
-
-```typescript
-{
-  labels: ['COMPANY'],
-  where: {
-    EMPLOYEE: {
-      $alias: '$employee'
-    }
-  },
-  aggregate: {
+  select: {
+    companyName:   '$record.name',
+    headcount:     { $count: '$employee' },
+    totalWage:     { $sum: '$employee.salary' },
+    avgSalary:     { $avg: '$employee.salary', $precision: 0 },
+    minSalary:     { $min: '$employee.salary' },
+    maxSalary:     { $max: '$employee.salary' },
     employeeNames: {
-      fn: 'collect',
-      field: 'name',
-      alias: '$employee',
-      unique: true  // Optional: true by default
-    }
-  }
-}
-```
-
-  ###  timeBucket
-  Temporal bucketing for datetime fields. Produces a normalized bucket start `datetime` value you can group by (and then apply other aggregations like `count`, `sum`, etc.).
-
-  **Parameters:**
-  - `fn`: 'timeBucket' – Function name
-  - `field`: string – Datetime field to bucket (must be typed as `"datetime"` in the record metadata)
-  - `alias?`: string – Record alias to read from (defaults to `$record`)
-  - `granularity`: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'hour' | 'minute' | 'second' | 'months' | 'hours' | 'minutes' | 'seconds' | 'years'
-    - Use plural forms `'months' | 'hours' | 'minutes' | 'seconds' | 'years'` when you need a custom N‑sized window (see `size` below)
-  - `size?`: number – Positive integer required only when using plural forms (e.g. months: 2 = bi‑monthly, hours: 6 = 6‑hour windows, minutes: 5 = 5‑minute windows, seconds: 30 = 30‑second windows, years: 5 = 5‑year windows)
-
-  **Behavior & Guardrails:**
-  - RushDB checks the field's type metadata (`datetime`) before computing the bucket; if it is not a datetime field the bucket value becomes `null`.
-  - Bucket value is the start of the interval (e.g. month bucket -> first day of month at 00:00:00; hour bucket -> `HH:00:00`; minute bucket -> `MM:00`; second bucket -> start second). `week` uses Neo4j `datetime.truncate('week', ...)`.
-  - For `granularity: 'months'` the bucket start month is computed with: `1 + size * floor((month - 1)/size)`.
-  - For `granularity: 'years'` the bucket start year is computed with: `size * floor(year/size)` (starts Jan 1 of the computed year).
-    - Setting `size: 3` is equivalent to `granularity: 'quarter'`.
-    - `quarter` is provided as a semantic shortcut (3‑month periods starting at months 1,4,7,10).
-  - Difference example: `quarter` -> buckets start at 1,4,7,10; `months` + `size:4` -> buckets start at 1,5,9 (three 4‑month buckets per year). Use `size:3` for quarter‑like grouping when using the generic mode.
-
-  #### Example: Daily record counts
-  ```typescript
-  {
-    labels: ['EVENT'],
-    aggregate: {
-  day: { fn: 'timeBucket', field: 'createdAt', granularity: 'day' },
-  count: { fn: 'count' }
-    },
-    groupBy: ['day'],
-    orderBy: { day: 'asc' }
-  }
-  ```
-
-  #### Example: Quarterly revenue (semantic `quarter`)
-  ```typescript
-  {
-    labels: ['INVOICE'],
-    aggregate: {
-      quarterStart: { fn: 'timeBucket', field: 'issuedAt', granularity: 'quarter' },
-      quarterlyRevenue: { fn: 'sum', field: 'amount' }
-    },
-    groupBy: ['quarterStart'],
-    orderBy: { quarterStart: 'asc' }
-  }
-  ```
-
-  #### Example: Custom bi‑monthly (every 2 months) active user count
-  ```typescript
-  {
-    labels: ['SESSION'],
-    where: { status: 'active' },
-    aggregate: {
-      periodStart: { fn: 'timeBucket', field: 'startedAt', granularity: 'months', size: 2 },
-      activeSessions: { fn: 'count' }
-    },
-    groupBy: ['periodStart'],
-    orderBy: { periodStart: 'asc' }
-  }
-  ```
-
-  #### Example: Half‑year (size=6) average deal value
-  ```typescript
-  {
-    labels: ['DEAL'],
-    aggregate: {
-      halfYear: { fn: 'timeBucket', field: 'closedAt', granularity: 'months', size: 6 },
-      avgDeal: { fn: 'avg', field: 'amount', precision: 2 }
-    },
-    groupBy: ['halfYear'],
-    orderBy: { halfYear: 'asc' }
-  }
-  ```
-
-  #### Filtering / Null Buckets
-  If some records lack the datetime type metadata for the chosen field, their bucket will be `null`. To exclude them, add a `where` condition ensuring the field exists and is properly typed, or post‑filter client side. (A future enhancement could expose `$notNull` filtering on aggregation outputs.)
-
-  #### Combining with Other Aggregations (Self‑Group)
-  You can self‑group just by the bucket and one or more metrics:
-  ```typescript
-  {
-    labels: ['ORDER'],
-    aggregate: {
-      monthStart: { fn: 'timeBucket', field: 'createdAt', granularity: 'month' },
-      monthlyRevenue: { fn: 'sum', field: 'total' },
-      orderCount: { fn: 'count' }
-    },
-    groupBy: ['monthStart'],
-    orderBy: { monthStart: 'asc' }
-  }
-  ```
-  Result rows each represent one calendar month start with aggregated metrics.
-
-  ---
-
-  #### Example: Hourly event counts
-  ```typescript
-  {
-    labels: ['EVENT'],
-    aggregate: {
-      hour: { fn: 'timeBucket', field: 'createdAt', granularity: 'hour' },
-      count: { fn: 'count' }
-    },
-    groupBy: ['hour'],
-    orderBy: { hour: 'asc' }
-  }
-  ```
-
-  #### Example: 6‑hour windows
-  ```typescript
-  {
-    labels: ['EVENT'],
-    aggregate: {
-      windowStart: { fn: 'timeBucket', field: 'createdAt', granularity: 'hours', size: 6 },
-      count: { fn: 'count' }
-    },
-    groupBy: ['windowStart'],
-    orderBy: { windowStart: 'asc' }
-  }
-  ```
-
-  #### Example: 5‑minute windows
-  ```typescript
-  {
-    labels: ['EVENT'],
-    aggregate: {
-      windowStart: { fn: 'timeBucket', field: 'createdAt', granularity: 'minutes', size: 5 },
-      count: { fn: 'count' }
-    },
-    groupBy: ['windowStart'],
-    orderBy: { windowStart: 'asc' }
-  }
-  ```
-
-  #### Example: 30‑second windows
-  ```typescript
-  {
-    labels: ['EVENT'],
-    aggregate: {
-      windowStart: { fn: 'timeBucket', field: 'createdAt', granularity: 'seconds', size: 30 },
-      count: { fn: 'count' }
-    },
-    groupBy: ['windowStart'],
-    orderBy: { windowStart: 'asc' }
-  }
-  ```
-
-  #### Example: 5‑year windows
-  ```typescript
-  {
-    labels: ['INVOICE'],
-    aggregate: {
-      cohort: { fn: 'timeBucket', field: 'issuedAt', granularity: 'years', size: 5 },
-      revenue: { fn: 'sum', field: 'amount' }
-    },
-    groupBy: ['cohort'],
-    orderBy: { cohort: 'asc' }
-  }
-  ```
-
----
-
-### Complete Example
-
-```typescript
-{
-  labels: ['COMPANY'],
-  where: {
-    EMPLOYEE: {
-      $alias: '$employee',  // Define alias for employee records
-      salary: {
-        $gte: 50000  // Filter employees by salary
+      $collect: {
+        from: '$employee',
+        select: { name: '$employee.name' }
       }
     }
-  },
-  aggregate: {
-    // Use field directly from record
-    companyName: '$record.name',
-
-    // Count unique employees using the defined alias
-    employeesCount: { fn: 'count', unique: true, alias: '$employee' },
-
-    // Calculate total salary using the defined alias
-    totalWage: { fn: 'sum', field: 'salary', alias: '$employee' },
-
-    // Collect unique employees names
-    employeeNames: { fn: 'collect', field: 'name', alias: '$employee' },
-
-    // Get average salary with precision
-    avgSalary: { fn: 'avg', field: 'salary', alias: '$employee', precision: 0 },
-
-    // Get min and max salary
-    minSalary: { fn: 'min', field: 'salary', alias: '$employee' },
-    maxSalary: { fn: 'max', field: 'salary', alias: '$employee' }
   }
 }
 ```
 
 <details>
-
 <summary>Example data and response</summary>
 
 ```typescript
 // Company record
-{
-  __id: "018838b8-2e1f-7000-8000-a29392548450",
-  __label: "COMPANY",
-  name: "TechCorp",
-  stage: ["seed"]
-}
+{ __id: "018838b8-...-a293", __label: "COMPANY", name: "TechCorp" }
 
 // Employee records
 [
-  {
-    __id: "018838b8-2e1f-7000-8000-b45fd8932abc",
-    __label: "EMPLOYEE",
-    name: "John Doe",
-    salary: 550000
-  },
-  {
-    __id: "018838b8-2e1f-7000-8000-c67de9043def",
-    __label: "EMPLOYEE",
-    name: "Jane Smith",
-    salary: 600000
-  }
+  { __id: "018838b8-...-b45f", __label: "EMPLOYEE", name: "John Doe",   salary: 550000 },
+  { __id: "018838b8-...-c67d", __label: "EMPLOYEE", name: "Jane Smith", salary: 600000 }
 ]
 
 // Query result:
 {
   data: [{
-    __id: "018838b8-2e1f-7000-8000-a29392548450",
+    __id: "018838b8-...-a293",
     __label: "COMPANY",
-    companyName: "TechCorp",
-    employeesCount: 2,
-    totalWage: 1150000,
-    avgSalary: 575000,
-    minSalary: 550000,
-    maxSalary: 600000,
-    employeeNames: ["Jane Smith", "John Doe"]
+    companyName:   "TechCorp",
+    headcount:     2,
+    totalWage:     1150000,
+    avgSalary:     575000,
+    minSalary:     550000,
+    maxSalary:     600000,
+    employeeNames: [{ name: "Jane Smith" }, { name: "John Doe" }]
   }],
   total: 1,
   success: true
@@ -576,431 +548,27 @@ graph LR
 
 </details>
 
+---
 
+:::info Migration reference
+If you have existing queries using the legacy `aggregate` DSL, use this mapping to migrate to `select`. The `aggregate` clause is deprecated and should only be used for vector similarity until `select` supports it:
 
-## Nested Aggregations
+| Legacy `aggregate` | New `select` |
+|---|---|
+| `'$record.name'` (inline ref) | `'$record.name'` *(unchanged)* |
+| `{ fn: 'sum', field: 'salary', alias: '$emp' }` | `{ $sum: '$emp.salary' }` |
+| `{ fn: 'avg', field: 'salary', alias: '$emp', precision: 2 }` | `{ $avg: '$emp.salary', $precision: 2 }` |
+| `{ fn: 'count', alias: '$record' }` | `{ $count: '*' }` |
+| `{ fn: 'count', field: 'x', alias: '$a' }` | `{ $count: '$a.x' }` |
+| `{ fn: 'min', field: 'salary', alias: '$emp' }` | `{ $min: '$emp.salary' }` |
+| `{ fn: 'max', field: 'salary', alias: '$emp' }` | `{ $max: '$emp.salary' }` |
+| `{ fn: 'collect', alias: '$emp', field: 'name' }` | `{ $collect: { from: '$emp', select: { name: '$emp.name' } } }` |
+| `{ fn: 'collect', alias: '$emp' }` | `{ $collect: { from: '$emp' } }` |
+| Nested `fn:'collect'` in `aggregate` | `{ $collect: { label: 'LABEL', select: { ..., nested: { $collect: { label: '...' } } } } }` |
+| `{ fn: 'timeBucket', field: 'date', granularity: 'day' }` | `{ $timeBucket: { field: '$record.date', unit: 'day' } }` |
 
-SearchQuery supports two types of nested aggregations:
+> **Note on vector similarity**: `fn: 'vector.similarity.cosine'` and `fn: 'vector.similarity.euclidean'` are not yet available in `select`. Use the legacy `aggregate` clause ONLY for these queries until the `select` equivalent is released. All other metrics/analytics must use `select`.
+:::
 
-### 1. Collecting Nested Records
-
-You can use the `collect` operator to build nested JSON structures containing arrays of related records. Due to Cypher limitations, when using nested collection, only the `collect` operator is supported at nested levels.
-
-
-Example topology:
-
-```mermaid
-graph LR
-  A[COMPANY] --has--> B[DPEARTMENT]
-  B --has--> C[PROJECT]
-  C --has--> D[EMPLOYEE]
-```
-
-Example with nested where clauses and corresponding aggregations:
-
-```typescript
-{
-  labels: ['COMPANY'],
-  where: {
-    DPEARTMENT: {
-      $alias: '$department',  // Level 1 alias
-      PROJECT: {
-        $alias: '$project',   // Level 2 alias
-        EMPLOYEE: {
-          $alias: '$employee', // Level 3 alias
-          salary: {
-            $gte: 100000      // Filter condition
-          }
-        }
-      }
-    }
-  },
-  aggregate: {
-    departments: {
-      fn: 'collect',
-      alias: '$department',   // Use Level 1 alias
-      aggregate: {
-        projects: {
-          fn: 'collect',
-          alias: '$project',  // Use Level 2 alias
-          orderBy: {
-            projectName: 'asc'
-          },
-          aggregate: {
-            employees: {
-              fn: 'collect',
-              alias: '$employee', // Use Level 3 alias
-              orderBy: {
-                salary: 'desc'
-              },
-              limit: 3
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-<details>
-
-<summary>Example data and response</summary>
-
-```typescript
-// Company record
-{
-  __id: "018838b8-2e1f-7000-8000-a29392548450",
-  __label: "COMPANY",
-  name: "TechCorp",
-  rating: 4
-}
-
-// Department records
-[
-  {
-    __id: "018838b8-2e1f-7000-8000-d89ef1154abc",
-    __label: "departments",
-    name: "Engineering"
-  },
-  {
-    __id: "018838b8-2e1f-7000-8000-e92fg2265bcd",
-    __label: "departments",
-    name: "Sales"
-  }
-]
-
-// Project records
-[
-  {
-    __id: "018838b8-2e1f-7000-8000-f34gh3376cde",
-    __label: "projects",
-    projectName: "Mobile App"
-  },
-  {
-    __id: "018838b8-2e1f-7000-8000-g56hi4487def",
-    __label: "projects",
-    projectName: "Web Platform"
-  }
-]
-
-// Employee records
-[
-  {
-    __id: "018838b8-2e1f-7000-8000-h78ij5598efg",
-    __label: "employees",
-    name: "John Doe",
-    salary: 500000
-  },
-  {
-    __id: "018838b8-2e1f-7000-8000-i90kl6609fgh",
-    __label: "employees",
-    name: "Jane Smith",
-    salary: 550000
-  },
-  {
-    __id: "018838b8-2e1f-7000-8000-j12mn7710ghi",
-    __label: "employees",
-    name: "Bob Wilson",
-    salary: 600000
-  }
-]
-
-// Query result with nested collection:
-{
-  data: [{
-    __id: "018838b8-2e1f-7000-8000-a29392548450",
-    __label: "COMPANY",
-    departments: [{
-      __id: "018838b8-2e1f-7000-8000-d89ef1154abc",
-      name: "Engineering",
-      projects: [{
-        __id: "018838b8-2e1f-7000-8000-f34gh3376cde",
-        projectName: "Mobile App",
-        employees: [
-          {
-            __id: "018838b8-2e1f-7000-8000-j12mn7710ghi",
-            name: "Bob Wilson",
-            salary: 600000
-          },
-          {
-            __id: "018838b8-2e1f-7000-8000-i90kl6609fgh",
-            name: "Jane Smith",
-            salary: 550000
-          },
-          {
-            __id: "018838b8-2e1f-7000-8000-h78ij5598efg",
-            name: "John Doe",
-            salary: 500000
-          }
-        ]
-      }]
-    }]
-  }],
-  total: 1,
-  success: true
-}
-```
-</details>
-
-
-### 2. Aggregating Values from Nested Records
-
-Example topology:
-
-```mermaid
-graph LR
-  A[COMPANY] --has--> B[PROJECT]
-  B --has--> C[EMPLOYEE]
-```
-
-Example with deep nested aggregation:
-
-```typescript
-{
-  labels: ['COMPANY'],
-  where: {
-    PROJECT: {
-      EMPLOYEE: {
-        $alias: '$employee',
-        salary: {
-          $gte: 50000  // Filter condition
-        }
-      }
-    }
-  },
-  aggregate: {
-    avgEmployeeSalary: {
-      fn: 'avg',
-      field: 'salary',
-      alias: '$employee' // Use alias from deepest level
-    }
-  }
-}
-```
-
-<details>
-
-<summary>Example data and response</summary>
-
-```typescript
-// Company record
-{
-  __id: "018838b8-2e1f-7000-8000-a29392548450",
-  __label: "COMPANY",
-  name: "TechCorp",
-  rating: 4
-}
-
-// Project records
-[
-  {
-    __id: "018838b8-2e1f-7000-8000-f34gh3376cde",
-    __label: "PROJECT",
-    name: "Mobile App"
-  }
-]
-
-// Employee records under projects
-[
-  {
-    __id: "018838b8-2e1f-7000-8000-h78ij5598efg",
-    __label: "EMPLOYEE",
-    name: "John Doe",
-    salary: 500000
-  },
-  {
-    __id: "018838b8-2e1f-7000-8000-i90kl6609fgh",
-    __label: "EMPLOYEE",
-    name: "Jane Smith",
-    salary: 550000
-  }
-]
-
-// Query result with aggregated values:
-{
-  data: [{
-    __id: "018838b8-2e1f-7000-8000-a29392548450",
-    __label: "COMPANY",
-    avgEmployeeSalary: 525000
-  }],
-  total: 1,
-  success: true
-}
-```
-
-</details>
-
-## Collect Operator Options
-
-The `collect` operator supports additional options for pagination and sorting:
-
-- `limit` - Maximum number of records to collect
-- `skip` - Number of records to skip
-- `orderBy` - Sort collected records by specified fields
-- `unique` - Collect only unique values (when collecting field values)
-- `field` - Collect specific field values instead of entire records
-
-Example:
-```typescript
-{
-  labels: ['COMPANY'],
-  where: {
-    DEPARTMENT: {
-      $alias: '$department'
-    }
-  },
-  aggregate: {
-    // Collect unique tags from departments
-    tags: {
-      fn: 'collect',
-      alias: '$department',
-      field: 'tags',    // Collect only tags field
-      unique: true,       // Remove duplicates
-      limit: 100,       // Collect up to 100 tags
-      orderBy: {        // Sort alphabetically
-        name: 'asc'
-      }
-    }
-  }
-}
-```
-
-<details>
-
-<summary>Example data and response</summary>
-
-```typescript
-// Company record
-{
-  __id: "018838b8-2e1f-7000-8000-a29392548450",
-  __label: "COMPANY",
-  name: "TechCorp"
-}
-
-// Department records
-[
-  {
-    __id: "018838b8-2e1f-7000-8000-d89ef1154abc",
-    __label: "DEPARTMENT",
-    name: "Engineering",
-    tags: ["tech", "development", "agile"]
-  },
-  {
-    __id: "018838b8-2e1f-7000-8000-e92fg2265bcd",
-    __label: "DEPARTMENT",
-    name: "Sales",
-    tags: ["sales", "business", "development"]
-  }
-]
-
-// Query result with collected tags:
-{
-  data: [{
-    __id: "018838b8-2e1f-7000-8000-a29392548450",
-    __label: "COMPANY",
-    tags: ["agile", "business", "development", "sales", "tech"]
-  }],
-  total: 1,
-  success: true
-}
-```
-
-</details>
-
-
-
-
-## Vector Similarity Aggregations
-
-Example topology:
-
-```mermaid
-graph LR
-  A[DOCUMENT] --has--> B[CHUNK]
-```
-
-###  vector.similarity.*
-**Parameters:**
-- `fn`: 'vector.similarity.cosine' | 'vector.similarity.euclidean' - The similarity function to use
-  - `vector.similarity.cosine` - Cosine similarity [0,1]
-  - `vector.similarity.euclidean` - Euclidean distance normalized to (0,1]
-- `field`: string - The numeric array field to compare
-- `alias`: string - The record alias to use
-- `query`: number[] - The query vector to calculate similarity against
-
-
-Example showing similarity re-ranking with aggregation:
-
-```typescript
-{
-  labels: ['DOCUMENT'],
-  where: {},
-  aggregate: {
-    // Calculate similarity score using root level alias
-    similarity: {
-      fn: 'vector.similarity.cosine',
-      field: 'embedding',
-      query: [1, 2, 3, 4, 5],
-      alias: '$record'
-    }
-  }
-}
-```
-
-<details>
-
-<summary>Example data and response</summary>
-
-```typescript
-// Document record
-{
-  __id: "018838b8-2e1f-7000-8000-k34op8821hij",
-  __label: "DOCUMENT",
-  title: "Machine Learning Basics"
-}
-
-// Chunk records
-[
-  {
-    __id: "018838b8-2e1f-7000-8000-l56pq9932ijk",
-    __label: "CHUNK",
-    content: "Introduction to neural networks",
-    embedding: [1.2, 0.5, -0.3, 0.8, 0.1]
-  },
-  {
-    __id: "018838b8-2e1f-7000-8000-m78rs0043jkl",
-    __label: "CHUNK",
-    content: "Deep learning architectures",
-    embedding: [0.9, 0.4, -0.2, 0.7, 0.3]
-  }
-]
-
-// Query result with similarity scores:
-{
-  data: [{
-    __id: "018838b8-2e1f-7000-8000-k34op8821hij",
-    __label: "DOCUMENT",
-    similarity: 0.82,
-    chunks: [
-      {
-        __id: "018838b8-2e1f-7000-8000-l56pq9932ijk",
-        __label: "CHUNK",
-        content: "Introduction to neural networks",
-        similarity: 0.78
-      },
-      {
-        __id: "018838b8-2e1f-7000-8000-m78rs0043jkl",
-        __label: "CHUNK",
-        content: "Deep learning architectures",
-        similarity: 0.65
-      }
-    ]
-  }],
-  total: 1,
-  success: true
-}
-```
-</details>
 
 

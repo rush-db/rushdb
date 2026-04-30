@@ -376,7 +376,7 @@ curl -s -X POST "$BASE/records/search" \
 
 ---
 
-## Step 4: Aggregate events for a compliance report
+## Step 4: Select expressions for a compliance report
 
 Count events by type and actor across a time window.
 
@@ -390,8 +390,8 @@ const complianceReport = await db.records.find({
     occurredAt: { $gte: '2025-01-01', $lte: '2025-03-31' },
     type: 'status_changed'
   },
-  aggregate: {
-    count: { fn: 'count', alias: '$record' },
+  select: {
+    count:   { $count: '*' },
     actorId: '$record.actorId'
   },
   groupBy: ['actorId', 'count'],
@@ -414,8 +414,8 @@ report = db.records.find({
         "occurredAt": {"$gte": "2025-01-01", "$lte": "2025-03-31"},
         "type": "status_changed"
     },
-    "aggregate": {
-        "count": {"fn": "count", "alias": "$record"},
+    "select": {
+        "count":   {"$count": "*"},
         "actorId": "$record.actorId"
     },
     "groupBy": ["actorId", "count"],
@@ -439,8 +439,8 @@ curl -s -X POST "$BASE/records/search" \
       "occurredAt": {"$gte": "2025-01-01", "$lte": "2025-03-31"},
       "type": "status_changed"
     },
-    "aggregate": {
-      "count": {"fn": "count", "alias": "$record"},
+    "select": {
+      "count":   {"$count": "*"},
       "actorId": "$record.actorId"
     },
     "groupBy": ["actorId", "count"],

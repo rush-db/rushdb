@@ -458,7 +458,7 @@ curl -s -X POST "$BASE/records/search" \
 
 ---
 
-## Step 6: Aggregate events by type over a time window
+## Step 6: Compute event metrics by type over a time window
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -473,10 +473,10 @@ const upgrades = await db.records.find({
       $lt: { $year: 2026, $month: 1, $day: 1 }
     }
   },
-  aggregate: {
-    eventCount: { fn: 'count', alias: '$record' },
-    firstUpgrade: { fn: 'min', field: 'occurredAt', alias: '$record' },
-    lastUpgrade: { fn: 'max', field: 'occurredAt', alias: '$record' }
+  select: {
+    eventCount:   { $count: '*' },
+    firstUpgrade: { $min: '$record.occurredAt' },
+    lastUpgrade:  { $max: '$record.occurredAt' }
   },
   groupBy: ['eventCount', 'firstUpgrade', 'lastUpgrade']
 })
@@ -495,10 +495,10 @@ upgrades = db.records.find({
             "$lt": {"$year": 2026, "$month": 1, "$day": 1}
         }
     },
-    "aggregate": {
-        "eventCount": {"fn": "count", "alias": "$record"},
-        "firstUpgrade": {"fn": "min", "field": "occurredAt", "alias": "$record"},
-        "lastUpgrade": {"fn": "max", "field": "occurredAt", "alias": "$record"}
+    "select": {
+        "eventCount":   {"$count": "*"},
+        "firstUpgrade": {"$min": "$record.occurredAt"},
+        "lastUpgrade":  {"$max": "$record.occurredAt"}
     },
     "groupBy": ["eventCount", "firstUpgrade", "lastUpgrade"]
 })
@@ -519,8 +519,8 @@ curl -s -X POST "$BASE/records/search" \
         "$lt": {"$year": 2026, "$month": 1, "$day": 1}
       }
     },
-    "aggregate": {
-      "eventCount": {"fn": "count", "alias": "$record"}
+    "select": {
+      "eventCount": {"$count": "*"}
     },
     "groupBy": ["eventCount"]
   }'

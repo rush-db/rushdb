@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # SearchQuery
 
-`SearchQuery` is a dictionary type that defines the structure for querying [records](../../concepts/records) in RushDB. It provides a flexible way to filter, sort, paginate, and aggregate data. For more information on search concepts, see the [search documentation](../../concepts/search/introduction.md).
+`SearchQuery` is a dictionary type that defines the structure for querying [records](../../concepts/records) in RushDB. It provides a flexible way to filter, sort, paginate, and shape results. For more information on search concepts, see the [search documentation](../../concepts/search/introduction.md).
 
 ## Query Shape
 
@@ -12,8 +12,8 @@ sidebar_position: 4
 search_query = {
     "labels":    [...],   # list[str]  — filter by record type(s); multi-label = OR
     "where":     {...},   # dict       — filter conditions; see Where Clause below
-    "aggregate": {...},   # dict       — aggregation map; see Aggregation below
-    "groupBy":   [...],   # list[str]  — shapes aggregate output; see GroupBy below
+    "select":    {...},   # dict       — output-shaping expressions; see Select below
+    "groupBy":   [...],   # list[str]  — shapes select output; see GroupBy below
     "orderBy":   {...},   # str | dict — 'asc'|'desc' or { field: 'asc'|'desc' }
     "limit":     100,     # int        — max root records (default 100, max 1000)
     "skip":      0        # int        — pagination offset
@@ -211,14 +211,14 @@ result = db.records.find({
     }
 })
 
-# $alias — name a traversal for use in aggregate / groupBy
+# $alias — name a traversal for use in select / groupBy
 result = db.records.find({
     "labels": ["COMPANY"],
     "where": {
         "EMPLOYEE": { "$alias": "$employee" }
     },
-    "aggregate": {
-        "headcount": { "fn": "count", "unique": True, "alias": "$employee" }
+    "select": {
+        "headcount": { "$count": "$employee" }
     }
 })
 
@@ -235,113 +235,141 @@ result = db.records.find({
 # Shorthand (type only): "$relation": "AUTHORED"
 ```
 
-## Aggregation
+## Select Expressions
 
-Each key of the `aggregate` dict maps to either an **inline ref** or an **aggregation function**.
+Each key of the `select` dict maps to either a **field reference** (string) or an **expression** (`$`-prefixed operator object).
 
-### Inline Refs
+### Field References
 
-Copy a field value into the output row without applying a function:
+Copy a field value into the output row:
 
 ```python
-"aggregate": {
+"select": {
     "companyName":   "$record.name",     # root-label field
     "projectBudget": "$record.budget"    # another root field
 }
 ```
 
-### Aggregation Functions
+### Expressions
 
-| Function      | Description                                         |
-|---------------|-----------------------------------------------------|
-| `count`       | Count matching records                              |
-| `sum`         | Sum a numeric field                                 |
-| `avg`         | Average a numeric field                             |
-| `min`         | Minimum value of a field                            |
-| `max`         | Maximum value of a field                            |
-| `collect`     | Gather field values into a list                     |
-| `timeBucket`  | Group records into time buckets (time-series)       |
-
-`alias` defaults to `"$record"` for root-label fields; set it to the `$alias` declared in `where` for related nodes.
+| Expression | Description |
+|---|---|
+| `{ "$sum": expr }` | Sum of a numeric expression |
+| `{ "$avg": expr, "$precision": n }` | Average with optional decimal precision |
+| `{ "$count": "*" \| expr }` | Count: `"*"` = root records; expr = distinct values |
+| `{ "$min": expr }` | Minimum value |
+| `{ "$max": expr }` | Maximum value |
+| `{ "$divide": [expr, expr] }` | Division |
+| `{ "$multiply": [expr, expr] }` | Multiplication |
+| `{ "$add": [expr, expr] }` | Addition |
+| `{ "$subtract": [expr, expr] }` | Subtraction |
+| `{ "$ref": "key" }` | Reference another output key in the same `select` map |
+| `{ "$collect": CollectExpr }` | Collect related records into an array |
+| `{ "$timeBucket": TimeBucketExpr }` | Bucket a datetime field into calendar intervals |
 
 ```python
 # Per-company employee statistics
 result = db.records.find({
     "labels": ["COMPANY"],
     "where": { "EMPLOYEE": { "$alias": "$employee" } },
-    "aggregate": {
-        "companyName":   "$record.name",
-        "headcount":    { "fn": "count", "unique": True,             "alias": "$employee" },
-        "totalWage":    { "fn": "sum",   "field": "salary",          "alias": "$employee" },
-        "avgSalary":    { "fn": "avg",   "field": "salary",          "alias": "$employee", "precision": 0 },
-        "minSalary":    { "fn": "min",   "field": "salary",          "alias": "$employee" },
-        "maxSalary":    { "fn": "max",   "field": "salary",          "alias": "$employee" }
+    "select": {
+        "companyName":  "$record.name",
+        "headcount":    { "$count": "$employee" },
+        "totalWage":    { "$sum": "$employee.salary" },
+        "avgSalary":    { "$avg": "$employee.salary", "$precision": 0 },
+        "minSalary":    { "$min": "$employee.salary" },
+        "maxSalary":    { "$max": "$employee.salary" }
     }
 })
 ```
 
-### Collect Options
+### $collect Options
 
-| Option    | Type      | Description                              |
-|-----------|-----------|------------------------------------------|
-| `field`   | `str`     | Field to gather; omit to collect records |
-| `unique`  | `bool`    | Deduplicate (default `True`)             |
-| `limit`   | `int`     | Max items in the collected list          |
-| `skip`    | `int`     | Skip N items in the collected list       |
-| `orderBy` | `dict`    | Sort collected items                     |
+Two forms — `from` (alias-based) and `label` (inline traversal, preferred for nesting):
+
+| Option    | Type      | Description                                                          |
+|-----------|-----------|----------------------------------------------------------------------|
+| `from`    | `str`     | `"$alias"` — alias declared in `where` (alias-based form)            |
+| `label`   | `str`     | Related record label to traverse to (label-based form; no alias needed) |
+| `where`   | `dict`    | Flat property filter on this traversal level (label-based only)      |
+| `select`  | `dict`    | Field projection; nested `$collect` allowed (label-based)            |
+| `unique`  | `bool`    | Deduplicate (default `True`)                                         |
+| `limit`   | `int`     | Max items in the collected list                                      |
+| `skip`    | `int`     | Skip N items in the collected list                                   |
+| `orderBy` | `dict`    | Sort collected items                                                 |
+
+> Use `"$self"` in `select` to reference the current traversal level when using `label`.
+> `from` and `label` are mutually exclusive.
 
 ```python
+# Alias-based (requires $alias in where)
 "employeeNames": {
-    "fn": "collect",
-    "field": "name",
-    "alias": "$employee",
-    "unique": True,
-    "orderBy": { "name": "asc" },
-    "limit": 10
+    "$collect": {
+        "from": "$employee",
+        "select": { "name": "$employee.name" },
+        "unique": True,
+        "orderBy": { "name": "asc" },
+        "limit": 10
+    }
+}
+
+# Label-based ($self = current level, no $alias needed)
+"employees": {
+    "$collect": {
+        "label": "EMPLOYEE",
+        "where": { "salary": { "$gte": 50000 } },
+        "select": { "name": "$self.name", "salary": "$self.salary" },
+        "orderBy": { "salary": "desc" },
+        "limit": 10
+    }
 }
 ```
 
-### Nested Collect
+### $collect for Hierarchies
 
-Nest `collect` inside another `collect` for hierarchical output. Only `fn: "collect"` is valid inside a nested `aggregate` block.
+Label-based `$collect` supports unlimited nesting via nested `select`:
 
 ```python
 org_tree = db.records.find({
     "labels": ["COMPANY"],
-    "where": {
-        "DEPARTMENT": {
-            "$alias": "$dept",
-            "PROJECT": { "$alias": "$proj" }
-        }
-    },
-    "aggregate": {
-        "company": "$record.name",
+    "select": {
         "departments": {
-            "fn": "collect",
-            "alias": "$dept",
-            "aggregate": {
-                "projects": {
-                    "fn": "collect",
-                    "alias": "$proj",
-                    "orderBy": { "name": "asc" },
-                    "limit": 20
+            "$collect": {
+                "label": "DEPARTMENT",
+                "select": {
+                    "name": "$self.name",
+                    "projects": {
+                        "$collect": {
+                            "label": "PROJECT",
+                            "select": {
+                                "name": "$self.name",
+                                "employees": {
+                                    "$collect": {
+                                        "label": "EMPLOYEE",
+                                        "orderBy": { "salary": "desc" },
+                                        "limit": 3
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 })
-# Output: [{ "company": "Acme", "departments": [{ "name": "Eng", "projects": [...] }, ...] }]
+# Output: [{ "departments": [{ "name": "Eng", "projects": [{ "name": "Platform", "employees": [...] }] }] }]
 ```
 
-### TimeBucket — Time-Series Aggregation
+### $timeBucket — Time-Series Aggregation
 
 ```python
 # Daily order count
 daily = db.records.find({
     "labels": ["ORDER"],
-    "aggregate": {
-        "day":   { "fn": "timeBucket", "field": "createdAt", "granularity": "day",   "alias": "$record" },
-        "count": { "fn": "count",                                                      "alias": "$record" }
+    "select": {
+        "day":   { "$timeBucket": { "field": "$record.createdAt", "unit": "day" } },
+        "count": { "$count": "*" }
     },
     "groupBy": ["day"],
     "orderBy": { "day": "asc" }
@@ -350,9 +378,9 @@ daily = db.records.find({
 # Monthly revenue
 monthly = db.records.find({
     "labels": ["ORDER"],
-    "aggregate": {
-        "month":   { "fn": "timeBucket", "field": "issuedAt", "granularity": "month", "alias": "$record" },
-        "revenue": { "fn": "sum",         "field": "amount",                           "alias": "$record" }
+    "select": {
+        "month":   { "$timeBucket": { "field": "$record.issuedAt", "unit": "month" } },
+        "revenue": { "$sum": "$record.amount" }
     },
     "groupBy": ["month"],
     "orderBy": { "month": "asc" }
@@ -361,16 +389,16 @@ monthly = db.records.find({
 # Bi-monthly buckets
 bi_monthly = db.records.find({
     "labels": ["ORDER"],
-    "aggregate": {
-        "period": { "fn": "timeBucket", "field": "issuedAt", "granularity": "months", "size": 2, "alias": "$record" },
-        "count":  { "fn": "count",                                                                 "alias": "$record" }
+    "select": {
+        "period": { "$timeBucket": { "field": "$record.issuedAt", "unit": "months", "size": 2 } },
+        "count":  { "$count": "*" }
     },
     "groupBy": ["period"],
     "orderBy": { "period": "asc" }
 })
 ```
 
-`granularity` options: `"day"`, `"week"`, `"month"`, `"quarter"`, `"year"`, `"months"`, `"hours"`, `"minutes"`, `"seconds"` (plural forms accept a `"size"` for custom window widths).
+`unit` options: `"day"`, `"week"`, `"month"`, `"quarter"`, `"year"`, `"hour"`, `"minute"`, `"second"`, `"months"`, `"hours"`, `"minutes"`, `"seconds"`, `"years"` (plural forms accept a `"size"` for custom window widths).
 
 ## GroupBy
 
@@ -384,9 +412,9 @@ Entries are `"$alias.propertyName"` strings. Each distinct value combination bec
 # Count and avg per deal stage
 by_stage = db.records.find({
     "labels": ["DEAL"],
-    "aggregate": {
-        "count":  { "fn": "count", "alias": "$record" },
-        "avgAmt": { "fn": "avg",   "field": "amount", "alias": "$record", "precision": 2 }
+    "select": {
+        "count":  { "$count": "*" },
+        "avgAmt": { "$avg": "$record.amount", "$precision": 2 }
     },
     "groupBy": ["$record.stage"],
     "orderBy": { "count": "desc" }
@@ -396,7 +424,7 @@ by_stage = db.records.find({
 # Pivot on two keys
 pivot = db.records.find({
     "labels": ["PROJECT"],
-    "aggregate": { "count": { "fn": "count", "alias": "$record" } },
+    "select": { "count": { "$count": "*" } },
     "groupBy": ["$record.category", "$record.active"],
     "orderBy": { "count": "desc" }
 })
@@ -404,15 +432,15 @@ pivot = db.records.find({
 
 ### Mode B — Self-group (one row with global KPIs)
 
-Put the **aggregation key names** themselves into `groupBy` (not `$alias.field` paths).
+Put the **select output key names** themselves into `groupBy` (not `$alias.field` paths).
 
 ```python
 kpis = db.records.find({
     "labels": ["EMPLOYEE"],
-    "aggregate": {
-        "totalSalary": { "fn": "sum",   "field": "salary", "alias": "$record" },
-        "headcount":   { "fn": "count",                    "alias": "$record" },
-        "avgSalary":   { "fn": "avg",   "field": "salary", "alias": "$record", "precision": 0 }
+    "select": {
+        "totalSalary": { "$sum": "$record.salary" },
+        "headcount":   { "$count": "*" },
+        "avgSalary":   { "$avg": "$record.salary", "$precision": 0 }
     },
     "groupBy": ["totalSalary", "headcount", "avgSalary"],
     "orderBy": { "totalSalary": "asc" }   # ← required for correct full-scan total
@@ -422,27 +450,27 @@ kpis = db.records.find({
 
 ## Critical Rules
 
-> **Never set `limit` when `aggregate` is present** (except to cap root records in per-record flat aggregation). `limit` restricts the record scan, so `sum`/`avg`/etc. cover only the first N rows and return wrong results.
+> **Never set `limit` when `select` is present** (except to cap root records in per-record flat queries). `limit` restricts the record scan, so `$sum`/`$avg`/etc. cover only the first N rows and return wrong results.
 >
 > ```python
 > # ❌ WRONG — limit cuts the scan, totalBudget is only partial
 > db.records.find({
 >     "labels": ["PROJECT"],
->     "aggregate": { "totalBudget": { "fn": "sum", "field": "budget", "alias": "$record" } },
+>     "select": { "totalBudget": { "$sum": "$record.budget" } },
 >     "groupBy": ["totalBudget"],
 >     "limit": 100   # DO NOT add this
 > })
 >
-> # ✅ CORRECT — no limit; orderBy on aggregation key triggers late ordering
+> # ✅ CORRECT — no limit; orderBy on select key triggers late ordering
 > db.records.find({
 >     "labels": ["PROJECT"],
->     "aggregate": { "totalBudget": { "fn": "sum", "field": "budget", "alias": "$record" } },
+>     "select": { "totalBudget": { "$sum": "$record.budget" } },
 >     "groupBy": ["totalBudget"],
 >     "orderBy": { "totalBudget": "asc" }   # triggers late ordering → correct full-scan total
 > })
 > ```
 >
-> For self-group queries, always include `orderBy` on an aggregation key to trigger late ordering (ORDER BY + LIMIT runs after the full aggregation scan).
+> For self-group queries, always include `orderBy` on a `select` output key to trigger late ordering (ORDER BY + LIMIT runs after the full aggregation scan).
 
 ## Usage Examples
 
@@ -493,32 +521,35 @@ result = db.records.find({
 })
 ```
 
-### Relationship Traversal with Aggregation
+### Relationship Traversal with Select Expressions
 
 ```python
 result = db.records.find({
     "labels": ["COMPANY"],
     "where": { "EMPLOYEE": { "$alias": "$employee", "salary": { "$gte": 50000 } } },
-    "aggregate": {
+    "select": {
         "companyName":    "$record.name",
-        "headcount":     { "fn": "count", "unique": True,   "alias": "$employee" },
-        "totalWage":     { "fn": "sum",   "field": "salary", "alias": "$employee" },
+        "headcount":     { "$count": "$employee" },
+        "totalWage":     { "$sum": "$employee.salary" },
         "employeeNames": {
-            "fn": "collect", "field": "name", "alias": "$employee",
-            "unique": True, "orderBy": { "name": "asc" }, "limit": 10
+            "$collect": {
+                "from": "$employee",
+                "select": { "name": "$employee.name" },
+                "unique": True, "orderBy": { "name": "asc" }, "limit": 10
+            }
         }
     }
 })
 ```
 
-### Time-Series (TimeBucket)
+### Time-Series ($timeBucket)
 
 ```python
 result = db.records.find({
     "labels": ["ORDER"],
-    "aggregate": {
-        "month":   { "fn": "timeBucket", "field": "issuedAt", "granularity": "month", "alias": "$record" },
-        "revenue": { "fn": "sum",         "field": "amount",                           "alias": "$record" }
+    "select": {
+        "month":   { "$timeBucket": { "field": "$record.issuedAt", "unit": "month" } },
+        "revenue": { "$sum": "$record.amount" }
     },
     "groupBy": ["month"],
     "orderBy": { "month": "asc" }

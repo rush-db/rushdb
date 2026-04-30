@@ -31,7 +31,7 @@ Once you learn SearchQuery once, you can apply it almost everywhere.
 type SearchQuery = {
   labels?: string[]
   where?: Record<string, unknown>
-  aggregate?: Record<string, unknown>
+  select?: Record<string, unknown>
   groupBy?: string[]
   orderBy?: 'asc' | 'desc' | Record<string, 'asc' | 'desc'>
   limit?: number
@@ -47,7 +47,7 @@ type SearchQuery = {
 search_query = {
     "labels": ["..."],          # optional
     "where": {},                # optional
-    "aggregate": {},            # optional
+    "select": {},               # optional
     "groupBy": ["..."],         # optional
     "orderBy": "asc" | {"field": "asc"},  # optional
     "limit": 100,               # optional
@@ -63,7 +63,7 @@ search_query = {
 {
   "labels": ["..."],
   "where": {},
-  "aggregate": {},
+  "select": {},
   "groupBy": ["..."],
   "orderBy": {"field": "asc"},
   "limit": 100,
@@ -271,7 +271,7 @@ where: {
 Important:
 
 - Use the label key itself (`DEPARTMENT`, `PROJECT`, `EMPLOYEE`) to traverse
-- Use `$alias` to reference traversed nodes in `aggregate` and `groupBy`
+- Use `$alias` to reference traversed nodes in `select` and `groupBy`
 - Do not use unsupported traversal fields such as `$label`, `$as`, `$through`, `$of`
 
 ### Date range rule
@@ -317,11 +317,11 @@ where: {
 </TabItem>
 </Tabs>
 
-## Aggregate and GroupBy
+## GroupBy
 
-SearchQuery supports both per-record aggregation and grouped analytics.
+SearchQuery supports grouped analytics using the `select` and `groupBy` clauses.
 
-### Per-record flat aggregation
+### Per-record flat metrics
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -332,10 +332,10 @@ const rows = await db.records.find({
   where: {
     EMPLOYEE: { $alias: '$employee' }
   },
-  aggregate: {
+  select: {
     projectName: '$record.name',
-    headcount: { fn: 'count', alias: '$employee', unique: true },
-    totalSalary: { fn: 'sum', field: 'salary', alias: '$employee' }
+    headcount: { $count: '$employee' },
+    totalSalary: { $sum: '$employee.salary' }
   },
   limit: 100
 })
@@ -350,10 +350,10 @@ rows = db.records.find({
     "where": {
         "EMPLOYEE": {"$alias": "$employee"}
     },
-    "aggregate": {
+    "select": {
         "projectName": "$record.name",
-        "headcount": {"fn": "count", "alias": "$employee", "unique": True},
-        "totalSalary": {"fn": "sum", "field": "salary", "alias": "$employee"}
+        "headcount": {"$count": "$employee"},
+        "totalSalary": {"$sum": "$employee.salary"}
     },
     "limit": 100
 })
@@ -369,10 +369,10 @@ curl -X POST "https://api.rushdb.com/api/v1/records/search" \
   -d '{
     "labels": ["PROJECT"],
     "where": {"EMPLOYEE": {"$alias": "$employee"}},
-    "aggregate": {
+    "select": {
       "projectName": "$record.name",
-      "headcount": {"fn": "count", "alias": "$employee", "unique": true},
-      "totalSalary": {"fn": "sum", "field": "salary", "alias": "$employee"}
+      "headcount": {"$count": "$employee"},
+      "totalSalary": {"$sum": "$employee.salary"}
     },
     "limit": 100
   }'
@@ -389,9 +389,9 @@ curl -X POST "https://api.rushdb.com/api/v1/records/search" \
 ```typescript
 const byStatus = await db.records.find({
   labels: ['ORDER'],
-  aggregate: {
-    count: { fn: 'count', alias: '$record' },
-    revenue: { fn: 'sum', field: 'total', alias: '$record' }
+  select: {
+    count:   { $count: '*' },
+    revenue: { $sum: '$record.total' }
   },
   groupBy: ['$record.status'],
   orderBy: { revenue: 'desc' }
@@ -404,9 +404,9 @@ const byStatus = await db.records.find({
 ```python
 by_status = db.records.find({
     "labels": ["ORDER"],
-    "aggregate": {
-        "count": {"fn": "count", "alias": "$record"},
-        "revenue": {"fn": "sum", "field": "total", "alias": "$record"}
+    "select": {
+        "count":   {"$count": "*"},
+        "revenue": {"$sum": "$record.total"}
     },
     "groupBy": ["$record.status"],
     "orderBy": {"revenue": "desc"}
@@ -422,9 +422,9 @@ curl -X POST "https://api.rushdb.com/api/v1/records/search" \
   -H "Content-Type: application/json" \
   -d '{
     "labels": ["ORDER"],
-    "aggregate": {
-      "count": {"fn": "count", "alias": "$record"},
-      "revenue": {"fn": "sum", "field": "total", "alias": "$record"}
+    "select": {
+      "count":   {"$count": "*"},
+      "revenue": {"$sum": "$record.total"}
     },
     "groupBy": ["$record.status"],
     "orderBy": {"revenue": "desc"}
@@ -442,8 +442,8 @@ curl -X POST "https://api.rushdb.com/api/v1/records/search" \
 ```typescript
 const totals = await db.records.find({
   labels: ['ORDER'],
-  aggregate: {
-    totalRevenue: { fn: 'sum', field: 'total', alias: '$record' }
+  select: {
+    totalRevenue: { $sum: '$record.total' }
   },
   groupBy: ['totalRevenue'],
   orderBy: { totalRevenue: 'asc' }
@@ -456,8 +456,8 @@ const totals = await db.records.find({
 ```python
 totals = db.records.find({
     "labels": ["ORDER"],
-    "aggregate": {
-        "totalRevenue": {"fn": "sum", "field": "total", "alias": "$record"}
+    "select": {
+        "totalRevenue": {"$sum": "$record.total"}
     },
     "groupBy": ["totalRevenue"],
     "orderBy": {"totalRevenue": "asc"}
@@ -473,8 +473,8 @@ curl -X POST "https://api.rushdb.com/api/v1/records/search" \
   -H "Content-Type: application/json" \
   -d '{
     "labels": ["ORDER"],
-    "aggregate": {
-      "totalRevenue": {"fn": "sum", "field": "total", "alias": "$record"}
+    "select": {
+      "totalRevenue": {"$sum": "$record.total"}
     },
     "groupBy": ["totalRevenue"],
     "orderBy": {"totalRevenue": "asc"}
@@ -489,7 +489,7 @@ curl -X POST "https://api.rushdb.com/api/v1/records/search" \
 - Do not use `limit` in self-group KPI queries
 - Do not use `limit` in dimensional groupBy unless intentionally asking for top N groups
 - `limit` is valid for listing/browsing and per-record flat aggregation
-- For self-group KPI queries, include `orderBy` on the aggregated key to force full-scan aggregation behavior
+- For self-group KPI queries, include `orderBy` on the select key to force full-scan aggregation behavior
 
 ## Reusable Patterns Across APIs
 
@@ -719,10 +719,9 @@ Typical flow:
 
 ## Common Pitfalls to Avoid
 
-- Using `limit` on KPI/self-group aggregate queries
-- Forgetting `alias` on function-based aggregate entries
+- Using `limit` on KPI/self-group queries
 - Using traversal keys like `$label` instead of real label keys (`EMPLOYEE`, `PROJECT`)
-- Treating `groupBy` self-group keys as property paths instead of aggregate key names
+- Treating `groupBy` self-group keys as property paths instead of `select` key names
 - Using plain date strings with `$gt`/`$gte`/`$lt`/`$lte` instead of datetime component objects
 
 ## API Reference Links

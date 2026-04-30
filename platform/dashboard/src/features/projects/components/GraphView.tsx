@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, FC, useState, useEffect, useMemo } from 'react'
 
 import { useStore } from '@nanostores/react'
-import { EyeOff, RotateCcw, ScanSearch, Square, Orbit } from 'lucide-react'
+import { EyeOff, RotateCcw, ScanSearch, Square, Box } from 'lucide-react'
 import { ForceGraph2D, ForceGraph3D } from 'react-force-graph'
 import SpriteText from 'three-spritetext'
 import * as THREE from 'three'
@@ -14,6 +14,7 @@ import {
 } from '~/features/projects/hooks/useProjectQueries'
 import { Button } from '~/elements/Button'
 import { Tooltip } from '~/elements/Tooltip'
+import { CheckboxField } from '~/elements/Checkbox'
 import { $sheetProperty, $sheetRecordId } from '~/features/projects/stores/id.ts'
 import { getLabelColor } from '~/features/labels'
 import { DBRecord, DBRecordInstance, type Relation } from '@rushdb/javascript-sdk'
@@ -249,7 +250,6 @@ export const GraphView: FC = () => {
   const [showProperties, setShowProperties] = useState(true)
   const [showPropertyLinks, setShowPropertyLinks] = useState(true)
   const [showRecordLinks, setShowRecordLinks] = useState(true)
-  const [hiddenNodeIds, setHiddenNodeIds] = useState<string[]>([])
   const [hoveredNodeId, setHoveredNodeId] = useState<string | undefined>(undefined)
   const [hoveredLinkId, setHoveredLinkId] = useState<string | undefined>(undefined)
 
@@ -275,9 +275,7 @@ export const GraphView: FC = () => {
   )
 
   const visibleGraphData = useMemo(() => {
-    const hiddenSet = new Set(hiddenNodeIds)
     const visibleNodes = rawGraphData.nodes.filter((node) => {
-      if (hiddenSet.has(node.id)) return false
       if (!showProperties && node.kind === 'property') return false
       return true
     })
@@ -307,14 +305,7 @@ export const GraphView: FC = () => {
       nodes: visibleNodes,
       links: visibleLinks
     }
-  }, [
-    hiddenNodeIds,
-    rawGraphData.links,
-    rawGraphData.nodes,
-    showProperties,
-    showPropertyLinks,
-    showRecordLinks
-  ])
+  }, [rawGraphData.links, rawGraphData.nodes, showProperties, showPropertyLinks, showRecordLinks])
 
   const hoverHighlights = useMemo<HoverHighlights>(() => {
     const highlightedNodeIds = new Set<string>()
@@ -497,18 +488,9 @@ export const GraphView: FC = () => {
     [graphMode]
   )
 
-  const hideNode = useCallback((nodeId: string) => {
-    setHiddenNodeIds((current) => (current.includes(nodeId) ? current : [...current, nodeId]))
-  }, [])
-
   const handleClick = useCallback(
     (node: GraphNode, event?: MouseEvent) => {
       focusNode(node)
-
-      if (event?.altKey) {
-        hideNode(node.id)
-        return
-      }
 
       if (node.kind === 'record' && node.recordId) {
         $sheetProperty.set(undefined)
@@ -528,7 +510,7 @@ export const GraphView: FC = () => {
         })
       }
     },
-    [focusNode, hideNode]
+    [focusNode]
   )
 
   const handleLinkClick = useCallback((link: any) => {
@@ -582,10 +564,6 @@ export const GraphView: FC = () => {
     return () => {
       window.removeEventListener('resize', resize)
     }
-  }, [])
-
-  const resetHiddenNodes = useCallback(() => {
-    setHiddenNodeIds([])
   }, [])
 
   const fitGraph = useCallback(() => {
@@ -656,18 +634,6 @@ export const GraphView: FC = () => {
         ctx.fill()
       }
 
-      // hide badge
-      ctx.beginPath()
-      ctx.fillStyle = dimmed ? withOpacity('#f43f5e', 0.2) : '#f43f5e'
-      ctx.arc(x + 4.5, y - 4.5, 1.8, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.strokeStyle = '#fff'
-      ctx.lineWidth = 0.9
-      ctx.beginPath()
-      ctx.moveTo(x + 3.4, y - 3.4)
-      ctx.lineTo(x + 5.6, y - 5.6)
-      ctx.stroke()
-
       // vector badge
       if (node.kind === 'property' && node.vectorIndexed) {
         ctx.beginPath()
@@ -711,25 +677,29 @@ export const GraphView: FC = () => {
 
   const renderCommonGraphControls = (
     <>
-      <div className="bg-fill/90 border-content/30 absolute left-4 top-4 z-20 rounded-xl border p-3 shadow-xl backdrop-blur-sm">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide">Graph Layers</div>
-        <div className="flex flex-col gap-2 text-sm">
-          <label className="inline-flex items-center gap-2">
-            <input checked={showProperties} onChange={() => setShowProperties((v) => !v)} type="checkbox" />
-            Show Properties
-          </label>
-          <label className="inline-flex items-center gap-2">
-            <input
-              checked={showPropertyLinks}
-              onChange={() => setShowPropertyLinks((v) => !v)}
-              type="checkbox"
-            />
-            Show Property Links
-          </label>
-          <label className="inline-flex items-center gap-2">
-            <input checked={showRecordLinks} onChange={() => setShowRecordLinks((v) => !v)} type="checkbox" />
-            Show Record Links
-          </label>
+      <div className="bg-fill/90 border-content/30 absolute left-4 top-4 z-20 min-w-[210px] rounded-xl border p-4 shadow-xl backdrop-blur-sm">
+        <div className="text-content-secondary mb-3 text-xs font-semibold uppercase tracking-wide">
+          Graph Layers
+        </div>
+        <div className="flex flex-col gap-2">
+          <CheckboxField
+            label="Show Properties"
+            checked={showProperties}
+            onCheckedChange={() => setShowProperties((v) => !v)}
+            className="mb-0"
+          />
+          <CheckboxField
+            label="Show Property Links"
+            checked={showPropertyLinks}
+            onCheckedChange={() => setShowPropertyLinks((v) => !v)}
+            className="mb-0"
+          />
+          <CheckboxField
+            label="Show Record Links"
+            checked={showRecordLinks}
+            onCheckedChange={() => setShowRecordLinks((v) => !v)}
+            className="mb-0"
+          />
         </div>
       </div>
 
@@ -744,7 +714,7 @@ export const GraphView: FC = () => {
             >
               {graphMode === '3d' ?
                 <Square />
-              : <Orbit />}
+              : <Box />}
               {graphMode === '3d' ? 'Switch 2D' : 'Switch 3D'}
             </Button>
           }
@@ -757,24 +727,11 @@ export const GraphView: FC = () => {
           Fit Graph
         </Button>
 
-        <Button className="rounded-none" onClick={resetHiddenNodes} size="small" variant="inverse">
-          <EyeOff />
-          Reset Hidden
-        </Button>
-
         <Button className="rounded-none" onClick={reheatSimulation} size="small" variant="inverse">
           <RotateCcw />
           Relayout
         </Button>
       </div>
-
-      {selectedProperty && (
-        <div className="bg-fill/90 border-content/30 absolute right-4 top-4 z-20 max-w-xs rounded-xl border p-3 shadow-xl backdrop-blur-sm">
-          <div className="text-xs font-semibold uppercase tracking-wide">Selected Property</div>
-          <div className="mt-1 text-sm font-medium">{selectedProperty.name}</div>
-          <div className="text-content-secondary text-xs">Alt + click node to hide it</div>
-        </div>
-      )}
     </>
   )
 
@@ -796,6 +753,14 @@ export const GraphView: FC = () => {
         }
       `}</style>
       {renderCommonGraphControls}
+
+      {selectedProperty && (
+        <div className="bg-fill/90 border-content/30 absolute right-4 top-4 z-20 max-w-xs rounded-xl border p-3 shadow-xl backdrop-blur-sm">
+          <div className="text-xs font-semibold uppercase tracking-wide">Selected Property</div>
+          <div className="mt-1 text-sm font-medium">{selectedProperty.name}</div>
+          <div className="text-content-secondary text-xs">Alt + click node to hide it</div>
+        </div>
+      )}
 
       {graphMode === '3d' ?
         <ForceGraph3D
@@ -851,7 +816,6 @@ export const GraphView: FC = () => {
           }}
           nodeLabel={getNodeHoverLabel as any}
           onNodeClick={handleClick as any}
-          onNodeRightClick={(node: GraphNode) => hideNode(node.id)}
         />
       : <ForceGraph2D
           ref={fgRef}
@@ -900,7 +864,6 @@ export const GraphView: FC = () => {
           }}
           nodeLabel={getNodeHoverLabel as any}
           onNodeClick={handleClick as any}
-          onNodeRightClick={(node: GraphNode) => hideNode(node.id)}
         />
       }
     </div>

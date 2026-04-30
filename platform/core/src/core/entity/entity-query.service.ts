@@ -17,6 +17,7 @@ import { RELATION_DIRECTION_IN, RELATION_DIRECTION_OUT } from '@/core/entity/ent
 import { TRelationDirection } from '@/core/entity/entity.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { buildAggregation } from '@/core/search/parser'
+import { compileSelectMap, normalizeSelectExpr } from '@/core/search/parser'
 import {
   buildLabelsClause,
   buildPagination,
@@ -239,11 +240,23 @@ export class EntityQueryService {
     const orderByAggregatedField = isOrderByAggregatedField(searchQuery)
     const sortParams = sort(searchQuery.orderBy, orderByAggregatedField ? null : ROOT_RECORD_ALIAS)
 
-    const { withPart: aggregateProjections, returnPart } = buildAggregation(
-      searchQuery?.aggregate,
-      aliasesMap,
-      searchQuery?.groupBy ?? []
-    )
+    // Determine which output-shaping path to use:
+    // - select (new expr-style) → normalizeSelectExpr returns a SelectExprMap → compileSelectMap
+    // - aggregate (legacy fn-style) → normalizeSelectExpr returns null → buildAggregation
+    // TODO: Remove aggregate branch when aggregate DSL is dropped
+    const normalizedSelect = normalizeSelectExpr({
+      select: searchQuery?.select,
+      aggregate: searchQuery?.aggregate
+    })
+
+    const {
+      withPart: aggregateProjections,
+      returnPart,
+      matchPart
+    } =
+      normalizedSelect ?
+        compileSelectMap(normalizedSelect, aliasesMap, searchQuery?.groupBy ?? [])
+      : { ...buildAggregation(searchQuery?.aggregate, aliasesMap, searchQuery?.groupBy ?? []), matchPart: '' }
 
     // convert a clause array to string
     const normalizedQueryClauses = queryClauses
@@ -268,6 +281,10 @@ export class EntityQueryService {
       const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
 
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
+    }
+
+    if (matchPart) {
+      queryBuilder.append(matchPart)
     }
 
     queryBuilder.append(aggregateProjections)

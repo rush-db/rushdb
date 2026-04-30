@@ -18,7 +18,6 @@ The `where` clause is defined in the `where` key of the SearchQuery DTO:
   limit: 10,                 // Results limit
   skip: 0,                   // Results offset
   orderBy: { name: 'asc' },  // Sorting
-  aggregate: { /* aggregations */ } // Aggregation definitions
 }
 ```
 
@@ -631,12 +630,6 @@ When you need to reference related records in aggregations, use the `$alias` ope
         $alias: "$project",          // Define alias for project records
         budget: { $gte: 10000 }
       }
-    }
-  },
-  aggregate: {
-    departmentCount: {
-      fn: "count",
-      alias: "$department"           // Use the alias in aggregation
     }
   }
 }

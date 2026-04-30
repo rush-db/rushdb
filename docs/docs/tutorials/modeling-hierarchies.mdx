@@ -116,7 +116,7 @@ const headcount = await db.records.find({
       }
     }
   },
-  aggregate: {
+  select: {
     employeeName: '$record.name',
     role: '$record.role',
     teamName: '$team.name',
@@ -146,7 +146,7 @@ headcount = db.records.find({
             }
         }
     },
-    "aggregate": {
+    "select": {
         "employeeName": "$record.name",
         "role": "$record.role",
         "teamName": "$team.name",
@@ -171,7 +171,7 @@ curl -s -X POST "$BASE/records/search" \
         "DEPARTMENT": {"DIVISION": {"COMPANY": {"name": "Acme Corp"}}}
       }
     },
-    "aggregate": {"employeeName": "$record.name", "teamName": "$team.name"}
+    "select": {"employeeName": "$record.name", "teamName": "$team.name"}
   }'
 ```
 
@@ -192,9 +192,9 @@ const deptHeadcount = await db.records.find({
     },
     DIVISION: { COMPANY: { name: 'Acme Corp' } }
   },
-  aggregate: {
+  select: {
     deptName: '$record.name',
-    headcount: { fn: 'count', alias: '$emp', unique: true }
+    headcount: { $count: '$emp' }
   },
   groupBy: ['deptName', 'headcount'],
   orderBy: { headcount: 'desc' }
@@ -213,9 +213,9 @@ dept_headcount = db.records.find({
         },
         "DIVISION": {"COMPANY": {"name": "Acme Corp"}}
     },
-    "aggregate": {
+    "select": {
         "deptName": "$record.name",
-        "headcount": {"fn": "count", "alias": "$emp", "unique": True}
+        "headcount": {"$count": "$emp"}
     },
     "groupBy": ["deptName", "headcount"],
     "orderBy": {"headcount": "desc"}
@@ -234,9 +234,9 @@ curl -s -X POST "$BASE/records/search" \
       "TEAM": {"EMPLOYEE": {"$alias": "$emp", "$relation": {"type": "MEMBER_OF", "direction": "out"}}},
       "DIVISION": {"COMPANY": {"name": "Acme Corp"}}
     },
-    "aggregate": {
+    "select": {
       "deptName": "$record.name",
-      "headcount": {"fn": "count", "alias": "$emp", "unique": true}
+      "headcount": {"$count": "$emp"}
     },
     "groupBy": ["deptName", "headcount"],
     "orderBy": {"headcount": "desc"}
@@ -330,10 +330,10 @@ const coAuthors = await db.records.find({
       TOPIC: { name: 'Graph Neural Networks' }
     }
   },
-  aggregate: {
+  select: {
     authorName: '$record.name',
     hIndex: '$record.hIndex',
-    paperCount: { fn: 'count', alias: '$paper', unique: true }
+    paperCount: { $count: '$paper' }
   },
   groupBy: ['authorName', 'hIndex', 'paperCount'],
   orderBy: { paperCount: 'desc' }
@@ -353,10 +353,10 @@ co_authors = db.records.find({
             "TOPIC": {"name": "Graph Neural Networks"}
         }
     },
-    "aggregate": {
+    "select": {
         "authorName": "$record.name",
         "hIndex": "$record.hIndex",
-        "paperCount": {"fn": "count", "alias": "$paper", "unique": True}
+        "paperCount": {"$count": "$paper"}
     },
     "groupBy": ["authorName", "hIndex", "paperCount"],
     "orderBy": {"paperCount": "desc"}
@@ -378,9 +378,9 @@ curl -s -X POST "$BASE/records/search" \
         "TOPIC": {"name": "Graph Neural Networks"}
       }
     },
-    "aggregate": {
+    "select": {
       "authorName": "$record.name",
-      "paperCount": {"fn": "count", "alias": "$paper", "unique": true}
+      "paperCount": {"$count": "$paper"}
     },
     "groupBy": ["authorName", "paperCount"],
     "orderBy": {"paperCount": "desc"}
@@ -478,10 +478,10 @@ const direct = await db.records.find({
       name: 'crypto-utils'
     }
   },
-  aggregate: {
+  select: {
     packageName: '$record.name',
     version: '$record.version',
-    hop: { fn: 'count', alias: '$dep', unique: true }
+    hop: { $count: '$dep' }
   },
   groupBy: ['packageName', 'version', 'hop']
 })
@@ -499,7 +499,7 @@ const indirect = await db.records.find({
       }
     }
   },
-  aggregate: {
+  select: {
     packageName: '$record.name',
     version: '$record.version',
     via: '$mid.name'
@@ -521,7 +521,7 @@ direct = db.records.find({
             "name": "crypto-utils"
         }
     },
-    "aggregate": {
+    "select": {
         "packageName": "$record.name",
         "version": "$record.version"
     }
@@ -540,7 +540,7 @@ indirect = db.records.find({
             }
         }
     },
-    "aggregate": {
+    "select": {
         "packageName": "$record.name",
         "via": "$mid.name"
     }
@@ -562,7 +562,7 @@ curl -s -X POST "$BASE/records/search" \
         "name": "crypto-utils"
       }
     },
-    "aggregate": {"packageName": "$record.name", "version": "$record.version"}
+    "select": {"packageName": "$record.name", "version": "$record.version"}
   }'
 ```
 
@@ -575,7 +575,7 @@ curl -s -X POST "$BASE/records/search" \
 
 | Shape | Key property | Query pattern | Ambush |
 |---|---|---|---|
-| Tree | Single parent per node | Top-down with full-path aggregate | Deep trees require explicit hop count |
+| Tree | Single parent per node | Top-down with full-path select | Deep trees require explicit hop count |
 | Many-to-many | Nodes can appear in multiple relationships | Aggregation by relationship type | Fan-out can be large without limit |
 | Cyclic | Loops are possible | Explicit depth bounds | Unbounded traversal is not supported |
 

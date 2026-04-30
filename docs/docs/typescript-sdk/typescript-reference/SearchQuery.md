@@ -4,7 +4,7 @@ sidebar_position: 8
 
 # SearchQuery
 
-`SearchQuery` is a type that defines the structure for querying [records](../../concepts/records) in RushDB. It provides a flexible way to filter, sort, paginate, and aggregate data. For more information on search concepts, see the [search documentation](../../concepts/search/introduction.md).
+`SearchQuery` is a type that defines the structure for querying [records](../../concepts/records) in RushDB. It provides a flexible way to filter, sort, paginate, and compute metrics using `select` and `groupBy`. The legacy `aggregate` clause is deprecated and should only be used for vector similarity until `select` supports it. For more information on search concepts, see the [search documentation](../../concepts/search/introduction.md).
 
 ## Type Definition
 
@@ -13,7 +13,7 @@ export type SearchQuery<S extends Schema = any> = SearchQueryLabelsClause &
   PaginationClause &
   OrderClause<S> &
   WhereClause<S> &
-  AggregateClause &
+  SelectClause &
   GroupByClause
 ```
 
@@ -74,15 +74,63 @@ export type WhereClause<S extends Schema = Schema> = {
 
 Filters records based on property values and relationships.
 
-### Aggregate Clause
+### Select Clause
 
 ```typescript
-export type AggregateClause = {
-  aggregate?: Aggregate
+export type CollectExpr = {
+  // ── alias-based (requires $alias declared in where) ──
+  from?:   string           // "$alias" — the traversal alias to collect from
+
+  // ── label-based (inline traversal, no alias needed) ──
+  label?:  string           // related record label (e.g. 'DEPARTMENT'); mutually exclusive with from
+  where?:  Record<string, any>  // flat property filter on this traversal level (label-based only)
+
+  // ── common options ──
+  select?: Record<string, string | { $collect: CollectExpr }>  // field projection; nested $collect allowed
+  orderBy?: Order
+  limit?:  number
+  skip?:   number
+  unique?: boolean          // default: true
+}
+// Use $self in select to reference the current level when using label: { name: '$self.name' }
+// from and label are mutually exclusive.
+
+export type TimeBucketExprUnit =
+  | 'day' | 'week' | 'month' | 'quarter' | 'year'
+  | 'hour' | 'minute' | 'second'
+  | 'months' | 'hours' | 'minutes' | 'seconds' | 'years'
+
+export type TimeBucketExpr = {
+  field: string             // "$alias.fieldName" — must be a datetime field
+  unit:  TimeBucketExprUnit
+  size?: number             // required when unit is plural
+}
+
+export type Expr =
+  | string                  // "$alias.field" or "$alias"
+  | number                  // literal
+  | boolean                 // literal
+  | { $ref: string }        // reference another select output key
+  | { $sum: Expr }
+  | { $avg: Expr; $precision?: number }
+  | { $count: '*' | Expr }
+  | { $min: Expr }
+  | { $max: Expr }
+  | { $divide: [Expr, Expr] }
+  | { $multiply: [Expr, Expr] }
+  | { $add: [Expr, Expr] }
+  | { $subtract: [Expr, Expr] }
+  | { $collect: CollectExpr }
+  | { $timeBucket: TimeBucketExpr }
+
+export type SelectExprMap = Record<string, Expr>
+
+export type SelectClause = {
+  select?: SelectExprMap
 }
 ```
 
-Defines aggregation operations to perform on the query results.
+The canonical output-shaping clause. See the [Select Expressions guide](../../concepts/search/aggregations.md) for full documentation.
 
 ### GroupBy Clause
 
@@ -300,7 +348,7 @@ export type Related<M extends Record<string, Model['schema']> = Models> =
     }
 ```
 
-Defines conditions on related records. The key of the nested object **is** the label name (case-sensitive). Use `$alias` to name the traversal for later use in `aggregate`/`groupBy`, and `$relation` to constrain the relationship type or direction:
+Defines conditions on related records. The key of the nested object **is** the label name (case-sensitive). Use `$alias` to name the traversal for later use in `select`/`groupBy`, and `$relation` to constrain the relationship type or direction:
 
 ```typescript
 // Constrain by relationship type and direction
@@ -352,50 +400,21 @@ Learn more about [relationships in RushDB](../../concepts/relationships).
 
 ### Aggregation
 
+`select` expressions support all aggregation operations. See the [Select Expressions guide](../../concepts/search/aggregations.md) for full documentation.
+
 ```typescript
-export type AggregateCollectFn = {
-  fn: 'collect'
-  alias: string
-  field?: string          // omit to collect entire records
-  unique?: boolean        // deduplicate; default true
-  limit?: number          // max items in the collected array
-  skip?: number           // skip N items in the collected array
-  orderBy?: Order         // sort collected items
-  aggregate?: {           // nested collect only — see Nested Collect below
-    [field: string]: AggregateCollectFn
+// Count and sum via select expressions
+const stats = await db.records.find({
+  labels: ['COMPANY'],
+  where: { EMPLOYEE: { $alias: '$employee', salary: { $gte: 50000 } } },
+  select: {
+    companyName:  '$record.name',
+    headcount:    { $count: '*' },
+    totalWage:    { $sum: '$employee.salary' },
+    avgSalary:    { $avg: '$employee.salary', $precision: 0 },
   }
-}
-
-export type AggregateTimeBucketFn = {
-  fn: 'timeBucket'
-  field: string           // datetime field to bucket
-  alias: string
-  granularity: 'day' | 'week' | 'month' | 'quarter' | 'year'
-               | 'months' | 'hours' | 'minutes' | 'seconds' | 'years'
-  size?: number           // bucket size for plural granularities (e.g. months:2 = bi-monthly)
-}
-
-export type AggregateFn<S extends Schema = Schema> =
-  | { fn: 'count'; alias?: string; field?: string; unique?: boolean }
-  | { fn: 'sum';   alias?: string; field: string }
-  | { fn: 'avg';   alias?: string; field: string; precision?: number }
-  | { fn: 'min';   alias?: string; field: string }
-  | { fn: 'max';   alias?: string; field: string }
-  | { fn: 'vector.similarity.cosine' | 'vector.similarity.euclidean'; alias: string; field: string; query: number[] }
-  | AggregateTimeBucketFn
-  | AggregateCollectFn
-
-// Inline reference — copy a field value into the output row without a function:
-//   'outputKey': '$alias.fieldName'
-//   e.g.  companyName: '$record.name',  projectBudget: '$record.budget'
-export type AggregateInlineRef = string  // '$alias.fieldName'
-
-export type Aggregate = {
-  [outputKey: string]: AggregateFn | AggregateInlineRef
-}
+});
 ```
-
-Defines aggregation operations to apply to the query results. `alias` defaults to `'$record'` for root-label fields; set it to the `$alias` declared in `where` for related nodes.
 
 ## GroupBy
 
@@ -409,9 +428,9 @@ Entries are `'$alias.propertyName'` strings. Each distinct value becomes its own
 // Count and avg amount per deal stage
 const result = await db.records.find({
   labels: ['DEAL'],
-  aggregate: {
-    count:  { fn: 'count', alias: '$record' },
-    avgAmt: { fn: 'avg',   field: 'amount', alias: '$record', precision: 2 }
+  select: {
+    count:  { $count: '*' },
+    avgAmt: { $avg: '$record.amount', $precision: 2 }
   },
   groupBy: ['$record.stage'],
   orderBy: { count: 'desc' }
@@ -421,7 +440,7 @@ const result = await db.records.find({
 // Pivot on two keys (category × active)
 const pivot = await db.records.find({
   labels: ['PROJECT'],
-  aggregate: { count: { fn: 'count', alias: '$record' } },
+  select: { count: { $count: '*' } },
   groupBy: ['$record.category', '$record.active'],
   orderBy: { count: 'desc' }
 });
@@ -429,16 +448,16 @@ const pivot = await db.records.find({
 
 ### Mode B — Self-group (one row with global KPIs)
 
-Put the **aggregation key names** themselves into `groupBy` (not `$alias.field` paths).
+Put the **select key names** themselves into `groupBy` (not `$alias.field` paths).
 
 ```typescript
 // Total salary across all employees (single result row)
 const kpis = await db.records.find({
   labels: ['EMPLOYEE'],
-  aggregate: {
-    totalSalary: { fn: 'sum',   field: 'salary', alias: '$record' },
-    headcount:   { fn: 'count',                  alias: '$record' },
-    avgSalary:   { fn: 'avg',   field: 'salary', alias: '$record', precision: 0 }
+  select: {
+    totalSalary: { $sum: '$record.salary' },
+    headcount:   { $count: '*' },
+    avgSalary:   { $avg: '$record.salary', $precision: 0 }
   },
   groupBy: ['totalSalary', 'headcount', 'avgSalary'],
   orderBy: { totalSalary: 'asc' }  // ← required for correct full-scan total
@@ -447,19 +466,19 @@ const kpis = await db.records.find({
 ```
 
 :::caution Late-ordering rule
-For self-group queries, always add `orderBy` on an aggregation key. Without it the engine applies `LIMIT` before aggregation and produces mathematically wrong totals.
+For self-group queries, always add `orderBy` on a `select` output key. Without it the engine applies `LIMIT` before aggregation and produces mathematically wrong totals.
 :::
 
 ## Critical Rules
 
-:::danger Do not combine `limit` with `aggregate`
-Never set `limit` when `aggregate` is present (except to cap the root records in a per-record flat aggregation). `limit` restricts the record scan, so aggregates like `sum` or `avg` operate only on the first N rows and return wrong results.
+:::danger Do not combine `limit` with `select`
+Never set `limit` when `select` is present (except to cap root records in a per-record flat query). `limit` restricts the record scan, so metrics like `$sum` or `$avg` operate only on the first N rows and return wrong results. The legacy `aggregate` clause is deprecated and should only be used for vector similarity until select supports it.
 
 ```typescript
-// ❌ WRONG — limit cuts the scan, totalBudget covers only 10 projects
+// ❌ WRONG — limit cuts the scan
 const wrong = await db.records.find({
   labels: ['PROJECT'],
-  aggregate: { totalBudget: { fn: 'sum', field: 'budget', alias: '$record' } },
+  select: { totalBudget: { $sum: '$record.budget' } },
   groupBy: ['totalBudget'],
   limit: 10   // DO NOT include
 });
@@ -467,7 +486,7 @@ const wrong = await db.records.find({
 // ✅ CORRECT — no limit; full dataset is summed
 const correct = await db.records.find({
   labels: ['PROJECT'],
-  aggregate: { totalBudget: { fn: 'sum', field: 'budget', alias: '$record' } },
+  select: { totalBudget: { $sum: '$record.budget' } },
   groupBy: ['totalBudget'],
   orderBy: { totalBudget: 'asc' }  // triggers late ordering
 });
@@ -559,40 +578,40 @@ const users = await UserModel.find({
 });
 ```
 
-### Aggregation with Inline Refs
+### Aggregation with `select`
 
 ```typescript
-// One row per company with employee stats — inline ref copies field directly
+// One row per company with employee stats
 const stats = await db.records.find({
   labels: ['COMPANY'],
   where: { EMPLOYEE: { $alias: '$employee', salary: { $gte: 50000 } } },
-  aggregate: {
-    companyName:  '$record.name',              // inline ref — no fn needed
-    headcount:    { fn: 'count', unique: true, alias: '$employee' },
-    totalWage:    { fn: 'sum',   field: 'salary', alias: '$employee' },
-    avgSalary:    { fn: 'avg',   field: 'salary', alias: '$employee', precision: 0 },
+  select: {
+    companyName:   '$record.name',
+    headcount:     { $count: '$employee' },
+    totalWage:     { $sum: '$employee.salary' },
+    avgSalary:     { $avg: '$employee.salary', $precision: 0 },
     employeeNames: {
-      fn: 'collect',
-      field: 'name',
-      alias: '$employee',
-      unique: true,
-      orderBy: { name: 'asc' },
-      limit: 10
+      $collect: {
+        from: '$employee',
+        select: { name: '$employee.name' },
+        orderBy: { name: 'asc' },
+        limit: 10
+      }
     }
   }
 });
 ```
 
-### TimeBucket — Time-Series Aggregation
+### TimeBucket — Time-Series Aggregation (using `select`)
 
 ```typescript
 // Daily order count for 2024
 const daily = await db.records.find({
   labels: ['ORDER'],
   where: { issuedAt: { $gte: { $year: 2024 }, $lt: { $year: 2025 } } },
-  aggregate: {
-    day:   { fn: 'timeBucket', field: 'issuedAt', granularity: 'day',   alias: '$record' },
-    count: { fn: 'count',                                                alias: '$record' }
+  select: {
+    day:   { $timeBucket: { field: '$record.issuedAt', unit: 'day' } },
+    count: { $count: '*' }
   },
   groupBy: ['day'],
   orderBy: { day: 'asc' }
@@ -601,20 +620,20 @@ const daily = await db.records.find({
 // Monthly revenue
 const monthly = await db.records.find({
   labels: ['ORDER'],
-  aggregate: {
-    month:   { fn: 'timeBucket', field: 'issuedAt', granularity: 'month', alias: '$record' },
-    revenue: { fn: 'sum',        field: 'amount',                         alias: '$record' }
+  select: {
+    month:   { $timeBucket: { field: '$record.issuedAt', unit: 'month' } },
+    revenue: { $sum: '$record.amount' }
   },
   groupBy: ['month'],
   orderBy: { month: 'asc' }
 });
 
-// Bi-monthly buckets (granularity: 'months', size: 2)
+// Bi-monthly buckets
 const biMonthly = await db.records.find({
   labels: ['ORDER'],
-  aggregate: {
-    period: { fn: 'timeBucket', field: 'issuedAt', granularity: 'months', size: 2, alias: '$record' },
-    count:  { fn: 'count',                                                          alias: '$record' }
+  select: {
+    period: { $timeBucket: { field: '$record.issuedAt', unit: 'months', size: 2 } },
+    count:  { $count: '*' }
   },
   groupBy: ['period'],
   orderBy: { period: 'asc' }
@@ -623,29 +642,58 @@ const biMonthly = await db.records.find({
 
 ### Nested Collect (Hierarchical Output)
 
+Label-based `$collect` traverses inline — no `$alias` declarations needed. Use `$self` to reference the current level:
+
 ```typescript
-// COMPANY → DEPARTMENT → PROJECT tree
+// COMPANY → DEPARTMENT → PROJECT → EMPLOYEE tree (label-based, preferred)
 const tree = await db.records.find({
   labels: ['COMPANY'],
-  where: {
-    DEPARTMENT: { $alias: '$dept',
-      PROJECT:  { $alias: '$proj' }
-    }
-  },
-  aggregate: {
-    company: '$record.name',
+  select: {
     departments: {
-      fn: 'collect',
-      alias: '$dept',
-      aggregate: {
-        projects: {
-          fn: 'collect',
-          alias: '$proj',
-          orderBy: { name: 'asc' }
+      $collect: {
+        label: 'DEPARTMENT',
+        select: {
+          name: '$self.name',
+          projects: {
+            $collect: {
+              label: 'PROJECT',
+              select: {
+                name: '$self.name',
+                employees: {
+                  $collect: {
+                    label: 'EMPLOYEE',
+                    orderBy: { salary: 'desc' },
+                    limit: 3
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
   }
 });
-// Output: [{ company: 'Acme', departments: [{ name: 'Eng', projects: [...] }, ...] }]
+// Output: [{ departments: [{ name: 'Eng', projects: [{ name: 'Platform', employees: [...] }] }] }]
+```
+
+Alias-based form (requires `$alias` in `where`, one hop per `$collect`):
+
+```typescript
+// COMPANY → DEPARTMENT collect using alias
+const tree = await db.records.find({
+  labels: ['COMPANY'],
+  where: {
+    DEPARTMENT: { $alias: '$dept' }
+  },
+  select: {
+    company: '$record.name',
+    departments: {
+      $collect: {
+        from: '$dept',
+        select: { name: '$dept.name' }
+      }
+    }
+  }
+});
 ```

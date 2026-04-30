@@ -3,10 +3,18 @@ import { isArray } from '@/common/utils/isArray'
 import { isEmptyObject } from '@/common/utils/isEmptyObject'
 import { isObject } from '@/common/utils/isObject'
 import { isPrimitive } from '@/common/utils/isPrimitive'
+import { RUSHDB_VALUE_EMPTY_ARRAY } from '@/core/common/constants'
 import { Where, MaybeArray, Aggregate } from '@/core/common/types'
 import { allowedKeys } from '@/core/search/parser/constants'
+import { buildSortCriteria } from '@/core/search/parser/orderBy'
+import { TSearchSort } from '@/core/search/search.types'
 
-import { RELATION_CLAUSE_OPERATOR, ALIAS_CLAUSE_OPERATOR, ID_CLAUSE_OPERATOR } from '../search.constants'
+import {
+  RELATION_CLAUSE_OPERATOR,
+  ALIAS_CLAUSE_OPERATOR,
+  ID_CLAUSE_OPERATOR,
+  SORT_ASC
+} from '../search.constants'
 
 export const wrapInParentheses = (input: string) => `(${input})`
 
@@ -96,4 +104,26 @@ export function nativeVectorSimilarity(
     THEN ${method}(${nodeVec}, ${queryVec})
     ELSE null
   END AS ${asPart}`
+}
+
+export function apocSortMapsArray(arrayClause: string, orderBy?: TSearchSort): string {
+  const sortCriteria = buildSortCriteria(orderBy!)
+
+  const orderByKeyPart = Object.entries(sortCriteria).map(([property, direction]) => {
+    return `"${direction.toLowerCase() === SORT_ASC ? '^' : ''}${property}"`
+  })[0]
+
+  return `apoc.coll.sortMaps(${arrayClause}, ${orderByKeyPart})`
+}
+
+export function apocSortArray(arrayClause: string): string {
+  return `apoc.coll.sort(apoc.coll.flatten(${arrayClause}))`
+}
+
+export function apocUniqArray(arrayClause: string): string {
+  return `apoc.coll.toSet(${arrayClause})`
+}
+
+export function apocRemoveFromArray(arrayClause: string): string {
+  return `apoc.coll.removeAll(${arrayClause}, ["${RUSHDB_VALUE_EMPTY_ARRAY}"])`
 }

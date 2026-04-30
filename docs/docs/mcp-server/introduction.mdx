@@ -13,7 +13,7 @@ Connect Claude, Cursor, or any MCP-compatible client to your RushDB database. Ty
 You: How many MOVIE records have a rating above 8?
 
 Claude: [calls getOntologyMarkdown → confirms MOVIE label and rating field]
-        [calls findRecords: labels=["MOVIE"], aggregate={count:{fn:"count",alias:"$record"}}, where={rating:{$gt:8}}]
+        [calls findRecords: labels=["MOVIE"], select={count:{"$count":"*"}}, where={rating:{$gt:8}}]
 
 Result: 1 movie matched (Inception, rating 8.8)
 ```

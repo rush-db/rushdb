@@ -25,15 +25,24 @@ Calls `findRecords` with `orderBy: {rating: "desc"}, limit: 5`.
 
 ---
 
-## Aggregation
+## Select Expressions (Aggregation)
 
 > "How many records exist per label? Show me a breakdown."
 
 > "What's the average rating of MOVIE records, grouped by genre?"
 
-Calls `findRecords` with `aggregate + groupBy`. **Never include `limit` when `aggregate` is present** — it restricts the record scan and produces incorrect totals.
 
-> "Call getSearchQuerySpec, then run findRecords with labels=\["Order"\], aggregate=\{"total":\{"fn":"sum","field":"amount"\}\}, and groupBy=\["status"\]."
+Calls `findRecords` with `select + groupBy`. **Never include `limit` when `select` is present** — it restricts the record scan and produces incorrect totals.
+
+Call getSearchQuerySpec, then run findRecords with:
+
+```json
+{
+	"labels": ["Order"],
+	"select": { "total": { "$sum": "$record.amount" } },
+	"groupBy": ["status"]
+}
+```
 
 ---
 
@@ -77,5 +86,5 @@ Semantic search requires a ready index. This spans 3 tool calls and is non-obvio
 
 - Always start a new session with: "Load the schema with getOntologyMarkdown"
 - Use exact label names from the schema — they're case-sensitive
-- For aggregations, tell the AI "don't use limit" to avoid incorrect totals
+- For select expressions, tell the AI "don't use limit" to avoid incorrect totals
 - Call `getSearchQuerySpec` before any query using dates, `groupBy`, or relationship traversal

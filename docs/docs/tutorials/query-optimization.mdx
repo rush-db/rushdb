@@ -19,7 +19,7 @@ RushDB executes every `find()` call as a Cypher query against Neo4j. The shape o
 | Factor | Impact |
 |---|---|
 | Number of `where` traversal hops | Multiplied graph scan per additional hop |
-| `fn: "collect"` in aggregates | Materializes all matched records into a list |
+| `$collect` in select | Materializes all matched records into a list |
 | Missing `labels` filter | Scans all record types |
 | High `limit` without indexed field ordering | Full sort on unindexed data |
 | Per-record enrichment inside loops | O(n) queries for n results |
@@ -214,9 +214,9 @@ teams = db.records.find({
 
 ---
 
-## Tip 4: Prefer `count` aggregates over `collect`
+## Tip 4: Prefer `$count` over `$collect`
 
-`fn: "collect"` materializes every matched record ID into a list before returning. `fn: "count"` just increments a counter. Use `collect` only when you need the actual IDs.
+`$collect` materializes every matched record into a list before returning. `$count` just increments a counter. Use `$collect` only when you need the actual records.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -226,14 +226,14 @@ teams = db.records.find({
 const collected = await db.records.find({
   labels: ['ORDER'],
   where: { status: 'pending' },
-  aggregate: { ids: { fn: 'collect', alias: '$record' } }
+  select: { ids: { $collect: { from: '$record' } } }
 })
 
 // ✅ Cheap: count is all you need
 const counted = await db.records.find({
   labels: ['ORDER'],
   where: { status: 'pending' },
-  aggregate: { count: { fn: 'count', alias: '$record' } }
+  select: { count: { $count: '*' } }
 })
 ```
 
@@ -241,11 +241,11 @@ const counted = await db.records.find({
 <TabItem value="python" label="Python">
 
 ```python
-# ✅ Prefer count over collect unless IDs are needed
+# ✅ Prefer $count over $collect unless records are needed
 result = db.records.find({
     "labels": ["ORDER"],
     "where": {"status": "pending"},
-    "aggregate": {"count": {"fn": "count", "alias": "$record"}}
+    "select": {"count": {"$count": "*"}}
 })
 ```
 
@@ -348,7 +348,7 @@ def build_query(params: dict) -> dict:
 | `labels` always set | Avoids full graph scan |
 | Most selective filter at deepest hop | Prunes intermediate node sets early |
 | Traversal depth ≤ 2 hops | Three+ hops need production benchmarking |
-| `fn: "collect"` replaced with `fn: "count"` where possible | `collect` materializes all matched IDs |
+| `$collect` replaced with `$count` where possible | `$collect` materializes all matched IDs |
 | Bulk writes via `importJson` | One round-trip instead of N |
 | `limit` capped server-side | Prevents runaway result sets |
 
