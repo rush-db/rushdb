@@ -22,9 +22,12 @@ import {
   type EmbeddingIndexSourceType
 } from '@/core/ai/embedding-index.utils'
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
+import { estimateEmbeddingBatchKu, estimateTokens } from '@/core/ai/embedding.utils'
+import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
 import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { parseWhereClause } from '@/core/search/parser/buildQuery'
+import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import { randomUUID } from 'crypto'
@@ -40,10 +43,6 @@ import type { InlineVectorEntryDto } from '@/core/ai/dto/inline-vector-entry.dto
 import type { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
 import type { UpsertIndexVectorsDto } from '@/core/ai/dto/upsert-index-vectors.dto'
 import type { EmbeddingIndexRow } from '@/database/sql/schema/types'
-
-import { ProjectRepository } from '@/dashboard/project/model/project.repository'
-import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
-import { estimateEmbeddingBatchKu, estimateTokens } from '@/core/ai/embedding.utils'
 
 /** How long (ms) a cached ontology is considered fresh before a recalculation is triggered. */
 const ONTOLOGY_CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
@@ -137,6 +136,7 @@ export class AiService {
       const sampleValues = r.get('sampleValues')
       const minValue = r.get('minValue')
       const maxValue = r.get('maxValue')
+      const recordsCount = r.get('recordsCount')
 
       if (sampleValues != null) {
         prop.values = sampleValues
@@ -146,6 +146,9 @@ export class AiService {
       }
       if (maxValue != null) {
         prop.max = typeof maxValue === 'object' && maxValue?.toNumber ? maxValue.toNumber() : maxValue
+      }
+      if (recordsCount != null) {
+        prop.recordsCount = (recordsCount as any)?.toNumber?.() ?? Number(recordsCount)
       }
 
       if (!labelPropsMap.has(label)) {

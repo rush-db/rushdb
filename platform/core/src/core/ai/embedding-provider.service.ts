@@ -62,8 +62,12 @@ export class EmbeddingProviderService {
   private parseTokensUsed(usage?: EmbeddingApiUsage): number | undefined {
     const total = usage?.total_tokens
     const prompt = usage?.prompt_tokens
-    if (typeof total === 'number' && Number.isFinite(total) && total > 0) return total
-    if (typeof prompt === 'number' && Number.isFinite(prompt) && prompt > 0) return prompt
+    if (typeof total === 'number' && Number.isFinite(total) && total > 0) {
+      return total
+    }
+    if (typeof prompt === 'number' && Number.isFinite(prompt) && prompt > 0) {
+      return prompt
+    }
     return undefined
   }
 

@@ -49,4 +49,5 @@ export type TPropertyProperties = {
   type: TPropertyType
   projectId: string
   metadata?: string
+  recordsCount?: number
 }

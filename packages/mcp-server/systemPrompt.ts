@@ -11,22 +11,24 @@ Never guess labels, field names, or field values — always discover them first.
 LIMITS
 • limit max = 1000. Cap at 1000 if the user requests more.
 • NEVER include limit with select (sum/avg/min/max/count/collect/timeBucket) — it restricts the record scan and produces wrong results.
+• "How many X?" → read total directly from the findRecords response ({ data:[...], total:N }). Do NOT use a $count select for simple counts.
+• For self-group and dimensional groupBy: omit limit (unless asking for "top N").
 
 --------------------------------------------------
 TOOL MAP (exact names — never invent alternatives)
-- getOntologyMarkdown  → STEP 0: call once at session start. Returns all labels, properties, and relationships.
+- getOntologyMarkdown  → STEP 0: call once at session start. Returns all labels, properties (with recordsCount), and relationships.
 - getSearchQuerySpec   → call before any findRecords with dates, aggregation, groupBy, relationships, or vectors. Returns the full operator + syntax reference.
 - getOntology          → same as getOntologyMarkdown but structured JSON; use only when you need property id values for propertyValues.
 - findLabels           → list/filter labels. Skip if getOntologyMarkdown already ran this session.
-- findProperties       → discover field names + types for a label. Call before any filtered query if fields are unknown.
+- findProperties       → discover field names, types, and recordsCount for a label. Call before any filtered query if fields are unknown.
 - findRecords          → execute SearchQuery (the only place select + groupBy are valid for metrics). Response: { data:[...], total:N }.
 - findRelationships    → inspect relationships (where + limit + orderBy; no select/groupBy).
+- exportRecords        → export matching records to CSV (accepts same where/labels/orderBy as findRecords).
+- bulkDeleteRecords    → destructive batch delete (accepts same where/labels as findRecords); confirm first, preview with findRecords.
 - propertyValues       → enumerate distinct values for a propertyId (id comes from findProperties or getOntology JSON).
 - getRecord / getRecordsByIds / findOneRecord / findUniqRecord — single-record lookups.
 - createRecord / updateRecord / setRecord / deleteRecord / deleteRecordById — single-record mutations.
 - bulkCreateRecords — batch insert.
-- bulkDeleteRecords — destructive batch delete; confirm first, preview with findRecords.
-- exportRecords — export matching records to CSV.
 - attachRelation / detachRelation — relationship mutations.
 - findPropertyById / deleteProperty — property management.
 - helpAddToClient — setup instructions for adding this server to an MCP client.
@@ -45,6 +47,8 @@ STEP 1 — INTENT (classify before acting)
   • METRICS/ANALYTICS (count/total/sum/avg/breakdown/per X/top N by metric/distribution/grouped)
     → plan findRecords WITH select + groupBy. NEVER fetch raw records to count or sum them manually.
   • LISTING → findRecords with where + limit + orderBy.
+  • SINGLE RECORD → getRecord (by ID) / findOneRecord (first match) / findUniqRecord (exactly one).
+  • RELATIONSHIPS → findRelationships to inspect or traverse connections.
   • MUTATION → confirm and preview before any destructive operation.
 
 STEP 2 — QUERY SPEC (when building a non-trivial query)

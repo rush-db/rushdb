@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '@nanostores/react'
 
-import type { DBRecord, DBRecordCreationOptions } from '@rushdb/javascript-sdk'
+import type { DBRecord, DBRecordCreationOptions, PropertyDraft } from '@rushdb/javascript-sdk'
 
 import { toast } from '~/elements/Toast'
 import { api } from '~/lib/api'
@@ -167,6 +167,38 @@ export const useBatchDeleteRecordsMutation = () => {
       toast({
         title: 'Records were successfully deleted'
       })
+    }
+  })
+}
+
+export const useSetRecordMutation = () => {
+  const queryClient = useQueryClient()
+  const projectId = useStore($currentProjectId)
+
+  return useMutation({
+    mutationFn: ({ id, label, data }: { id: string; label: string; data: PropertyDraft[] }) =>
+      api.records.set(id, label, data, {} as RequestInit),
+    onSuccess(_, { id }) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.record(id) })
+      if (!projectId) return
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'records'] })
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'fields'] })
+    }
+  })
+}
+
+export const useUpdateRecordMutation = () => {
+  const queryClient = useQueryClient()
+  const projectId = useStore($currentProjectId)
+
+  return useMutation({
+    mutationFn: ({ id, label, data }: { id: string; label: string; data: PropertyDraft[] }) =>
+      api.records.update(id, label, data, {} as RequestInit),
+    onSuccess(_, { id }) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.record(id) })
+      if (!projectId) return
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'records'] })
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'fields'] })
     }
   })
 }

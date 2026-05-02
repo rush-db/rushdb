@@ -7,7 +7,7 @@ export const pricingDataQueryOptions = (selfHosted: boolean | undefined) =>
   queryOptions({
     queryKey: queryKeys.billing.data(),
     queryFn: () => api.billing.getBillingData(),
-    enabled: !selfHosted,
+    enabled: selfHosted === false,
     staleTime: 10 * 60 * 1000
   })
 
@@ -18,7 +18,7 @@ export const workspaceUsageQueryOptions = (params: {
   queryOptions({
     queryKey: queryKeys.billing.usage(params.workspaceId!),
     queryFn: () => api.billing.getUsage(),
-    enabled: !!params.workspaceId && !params.selfHosted
+    enabled: !!params.workspaceId && params.selfHosted === false
   })
 
 export const kuHistoryQueryOptions = (params: {
@@ -46,5 +46,5 @@ export const kuHistoryQueryOptions = (params: {
         projectId: params.projectId,
         operation: params.operation
       }),
-    enabled: !!params.workspaceId && !params.selfHosted
+    enabled: !!params.workspaceId && params.selfHosted === false
   })

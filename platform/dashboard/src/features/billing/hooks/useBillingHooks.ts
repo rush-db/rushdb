@@ -1,8 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useStore } from '@nanostores/react'
-import { loadStripe } from '@stripe/stripe-js'
-
 import { api } from '~/lib/api'
 import { queryKeys } from '~/lib/queryKeys'
 import { $currentWorkspaceId } from '~/features/workspaces/stores/current'
@@ -94,6 +92,7 @@ export const useCheckoutMutation = () => {
         if (!stripeKey) {
           throw new Error('Stripe is not configured. Set VITE_STRIPE_PUBLIC_KEY in your environment.')
         }
+        const { loadStripe } = await import('@stripe/stripe-js')
         const stripe = await loadStripe(stripeKey)
         if (!stripe) throw new Error('Stripe failed to initialize')
         const session = await api.billing.createSession(body)

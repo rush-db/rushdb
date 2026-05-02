@@ -14,6 +14,7 @@ export type OntologyProperty = {
   min?: number | string
   max?: number | string
   values?: Array<string | number>
+  recordsCount?: number
   /** Non-empty when one or more embedding indexes exist for this (label, property) pair. */
   vectorIndexes?: OntologyVectorIndex[]
 }

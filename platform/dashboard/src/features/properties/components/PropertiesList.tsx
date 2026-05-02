@@ -11,23 +11,23 @@ import { handlePointerEnter, handlePointerLeave } from './PropertyValueTooltip'
 function DataListItem({ property }: { property: Pick<PropertyWithValue, 'name' | 'type' | 'value'> }) {
   return (
     <li
-      className={cn('hover:bg-secondary flex justify-between gap-5 p-2.5 sm:gap-10')}
+      className={cn('hover:bg-secondary flex items-center justify-between gap-5 px-5 py-3 sm:gap-10')}
       onPointerEnter={handlePointerEnter({ property, showOperations: false })}
       onPointerLeave={handlePointerLeave}
     >
-      <PropertyName name={property.name} type={property.type} />
-      <PropertyValue className="truncate text-end" type={property.type} value={property.value} />
+      <PropertyName className="text-sm" name={property.name} type={property.type} />
+      <PropertyValue className="text-sm font-medium truncate text-end" type={property.type} value={property.value} />
     </li>
   )
 }
 
 function DataListItemSkeleton() {
   return (
-    <li className="flex justify-between gap-5 py-2.5 first:pt-0 last:pb-0 sm:gap-10">
+    <li className="flex items-center justify-between gap-5 px-5 py-3 sm:gap-10">
       <Skeleton enabled>
-        <PropertyName name={'Loading...'} type="string" />
+        <PropertyName className="text-sm" name={'Loading...'} type="string" />
       </Skeleton>
-      <Skeleton enabled>Loading...</Skeleton>
+      <Skeleton enabled className="text-sm">Loading...</Skeleton>
     </li>
   )
 }

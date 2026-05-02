@@ -49,7 +49,9 @@ export function buildValHash(
  * Uses a conservative chars->tokens proxy to avoid needing exact tokenizer parity.
  */
 export function estimateTokens(text: string): number {
-  if (!text) return 0
+  if (!text) {
+    return 0
+  }
   return Math.max(1, Math.ceil(text.length / 4))
 }
 
