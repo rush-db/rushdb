@@ -1,6 +1,6 @@
 import { HttpException, Inject, Injectable, Logger } from '@nestjs/common'
-import { Cron } from '@nestjs/schedule'
 import { ConfigService } from '@nestjs/config'
+import { Cron } from '@nestjs/schedule'
 import { int as neo4jInt } from 'neo4j-driver'
 
 import { AiQueryService } from '@/core/ai/ai-query.service'
@@ -32,7 +32,9 @@ export class EmbeddingBackfillScheduler {
 
   @Cron('* * * * *') // every minute
   async runBackfill(): Promise<void> {
-    if (this.running) return
+    if (this.running) {
+      return
+    }
     this.running = true
 
     try {
@@ -47,7 +49,9 @@ export class EmbeddingBackfillScheduler {
   private async backfillPending(): Promise<void> {
     const pending = await this.embeddingIndexRepository.findPending()
     this.logger.debug(`[backfillPending] pending indexes: ${pending.length}`)
-    if (pending.length === 0) return
+    if (pending.length === 0) {
+      return
+    }
 
     const batchSizeRaw = this.configService.get<string>('RUSHDB_EMBEDDING_BATCH_SIZE')
     const batchSizeParsed = Number.parseInt(batchSizeRaw ?? '500', 10)
@@ -125,7 +129,9 @@ export class EmbeddingBackfillScheduler {
           `[backfillIndex] id=${index.id} skip=${skip} unindexed relations found=${relations.length}`
         )
 
-        if (relations.length === 0) break
+        if (relations.length === 0) {
+          break
+        }
 
         // Build texts to embed (array values join with space; other types coerce to string)
         const texts = relations.map(({ value }) =>
@@ -204,7 +210,9 @@ export class EmbeddingBackfillScheduler {
           }
         }
 
-        if (relations.length < batchSize) break
+        if (relations.length < batchSize) {
+          break
+        }
         skip += batchSize
       }
 

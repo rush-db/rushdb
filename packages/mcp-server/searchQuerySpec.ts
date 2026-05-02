@@ -61,43 +61,45 @@ Direct equality, all types:
   isActive: { $ne: false }        // not equal (matches true or unset)
 
 ── DATETIME OPERATORS ───────────────────────────────────────────────
-  NEVER use plain date strings with comparison operators like $gt/$gte/$lt/$lte.
-  use component objects instead:
+  ISO 8601 strings are valid for equality, $in, and range operators ($gt/$gte/$lt/$lte).
+  Use component objects for calendar-semantic boundaries (year / month / day) where
+  expressing the range as calendar units is clearer than computing a UTC timestamp.
 
-  // ISO 8601 exact match or equality only:
+  // ISO 8601 — valid for equality, $in, and range operators:
   created: "2023-01-01T00:00:00Z"
   created: { $in: ["2023-01-01T00:00:00Z", "2023-02-01T00:00:00Z"] }
+  created: { $gte: "2023-01-01T00:00:00Z" }
+  Relative ("last 7 days", "this month"): compute ISO UTC boundary → use ISO string with $gte/$lte.
 
   // Component matching (exact point in time):
   created: { $year: 2023, $month: 1, $day: 1 }
   // Available components: $year $month $day $hour $minute $second $millisecond $microsecond $nanosecond
 
-  // Range comparisons — ALWAYS use component objects:
+  // Calendar-semantic ranges — component objects are clearest:
   Year   "in 1994":    { field: { $gte: { $year:1994 }, $lt: { $year:1995 } } }
   Month  "Jan 1994":   { field: { $gte: { $year:1994,$month:1 }, $lt: { $year:1994,$month:2 } } }
   Day    "1994-03-15": { field: { $gte: { $year:1994,$month:3,$day:15 }, $lt: { $year:1994,$month:3,$day:16 } } }
   Decade "1990s":      { field: { $gte: { $year:1990 }, $lt: { $year:2000 } } }
-  Relative ("last 7 days", "this month"): compute ISO UTC boundary → use ISO string with $gte.
 
   // Month+day WITHOUT year: unsupported — ask the user for a year. Do not mention internal reasons.
 
-── VECTOR SIMILARITY ────────────────────────────────────────────────
-  // Vector similarity is not yet available in select. Use the legacy aggregate clause ONLY for this case:
-  // (All other metrics/analytics must use select.)
-  aggregate: {
-    similarity: {
-      fn: "vector.similarity.cosine",   // cosine | euclidean
-      field: "embedding",
-      query: [1, 2, 3, 4, 5],
-      alias: "$record"
-    }
-  }
-  // TODO: When select supports vector similarity, remove aggregate entirely.
+<!--── VECTOR SIMILARITY ────────────────────────────────────────────────-->
+<!--  // Vector similarity is not yet available in select. Use the legacy aggregate clause ONLY for this case:-->
+<!--  // (All other metrics/analytics must use select.)-->
+<!--  aggregate: {-->
+<!--    similarity: {-->
+<!--      fn: "vector.similarity.cosine",   // cosine | euclidean-->
+<!--      field: "embedding",-->
+<!--      query: [1, 2, 3, 4, 5],-->
+<!--      alias: "$record"-->
+<!--    }-->
+<!--  }-->
+<!--  // TODO: When select supports vector similarity, remove aggregate entirely.-->
 
 ── FIELD EXISTENCE & TYPE ───────────────────────────────────────────
   phoneNumber: { $exists: true }    // only records that have this field (not null/empty)
   phoneNumber: { $exists: false }   // only records that do NOT have this field
-  age: { $type: "number" }          // "string"|"number"|"boolean"|"datetime"|"null"|"vector"
+  age: { $type: "number" }          // "string"|"number"|"boolean"|"datetime"|"null"
 
 ── LOGICAL GROUPING OPERATORS ───────────────────────────────────────
   // Implicit $and (multiple keys at same level = AND):

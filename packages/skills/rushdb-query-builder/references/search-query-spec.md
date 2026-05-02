@@ -8,18 +8,18 @@
 
 1. [SearchQuery Shape](#searchquery-shape)
 2. [WHERE — Filters & Traversal](#1-where--filters--traversal)
-3. [AGGREGATE — Functions & Inline Refs](#2-aggregate--functions--inline-refs)
+3. [SELECT — Expression-Based Output Shaping](#2-select--expression-based-output-shaping)
 4. [GROUPBY — Two Modes](#3-groupby--two-modes)
 5. [COLLECT — Array Gathering](#4-collect--array-gathering)
-6. [TIMEBUCKET — Time-Series](#5-timebucket--time-series)
-7. [LIMIT Rules by Query Mode](#6-limit-rules-by-query-mode)
-8. [Metric Field Discovery Across Labels](#7-metric-field-discovery-across-related-labels)
-9. [Range / Distribution Queries](#8-range--distribution-queries)
-10. [Multi-Label Filter Distribution](#9-multi-label-filter-distribution)
-11. [Enum / Value Normalization](#10-enum--value-normalization)
-12. [Relationship & Path Queries](#11-relationship--path-queries)
-13. [NL → WHERE Quick Reference](#12-nl--where-translation-quick-reference)
-14. [Validation Checklist](#13-validation-checklist)
+6. [LIMIT Rules by Query Mode](#5-limit-rules-by-query-mode)
+7. [Metric Field Discovery Across Labels](#6-metric-field-discovery-across-related-labels)
+8. [Range / Distribution Queries](#7-range--distribution-queries)
+9. [Multi-Label Filter Distribution](#8-multi-label-filter-distribution)
+10. [Enum / Value Normalization](#9-enum--value-normalization)
+11. [Relationship & Path Queries](#10-relationship--path-queries)
+12. [NL → WHERE Quick Reference](#11-nl--where-translation-quick-reference)
+13. [Validation Checklist](#12-validation-checklist)
+14. [Example Patterns](#13-example-patterns)
 
 ---
 
@@ -28,15 +28,15 @@
 ```
 labels?    string[]      — filter by record type(s); multi-label = OR
 where?     object        — filter conditions; see §1
-aggregate? object        — aggregation map; see §2
-groupBy?   string[]      — shapes aggregate output; see §3
+select?    object        — expression-based output shaping; see §2
+groupBy?   string[]      — shapes select output; see §3
 orderBy?   string|object — 'asc'|'desc' or { field:'asc'|'desc' }
 limit?     number        — max root records (default 100; max 1000)
 skip?      number        — pagination offset
 ```
 
 **Critical limits:**
-- NEVER include `limit` when `aggregate` is present (`sum`/`avg`/`min`/`max`/`count`/`collect`/`timeBucket`). `limit` restricts the record scan → results are mathematically wrong. e.g. "total budget of all 33 projects" with `limit:10` returns only the sum of the first 10.
+- NEVER include `limit` when `select` is present (`$sum`/`$avg`/`$min`/`$max`/`$count`/`$collect`/`$timeBucket`). `limit` restricts the record scan → results are mathematically wrong. e.g. "total budget of all 33 projects" with `limit:10` returns only the sum of the first 10.
 - Self-group and dimensional groupBy queries: omit `limit` entirely (or scope to root records only).
 - `limit` is valid only for listing/browsing queries or per-record flat aggregation (one row per root record).
 
@@ -87,31 +87,32 @@ isActive: { $ne: false }        // not equal (matches true or unset)
 
 ### Datetime Operators
 
-⚠ **NEVER use plain date strings with comparison operators like `$gt`/`$gte`/`$lt`/`$lte`.** Use component objects instead.
+ISO 8601 strings work with all operators — equality, `$in`, and range comparisons (`$gt`/`$gte`/`$lt`/`$lte`). Use component objects when you need calendar-semantic boundaries (year / month / day) that are easier to express as calendar units than as a computed UTC timestamp.
 
 ```js
-// ISO 8601 exact match or equality only:
+// ISO 8601 strings — valid for equality, $in, and range operators:
 created: "2023-01-01T00:00:00Z"
 created: { $in: ["2023-01-01T00:00:00Z", "2023-02-01T00:00:00Z"] }
+created: { $gte: "2023-01-01T00:00:00Z" }              // "after a timestamp"
 
-// Component matching (exact point in time):
-created: { $year: 2023, $month: 1, $day: 1 }
+// Relative ranges ("last 7 days"): compute the ISO UTC boundary client-side → use with $gte/$lte:
+created: { $gte: "2026-04-23T00:00:00Z" }
+
+// Component objects — use for calendar-semantic boundaries:
+created: { $year: 2023, $month: 1, $day: 1 }           // exact point in time
 // Available: $year $month $day $hour $minute $second $millisecond $microsecond $nanosecond
 
-// Range comparisons — ALWAYS use component objects:
 // Year "in 1994":     { field: { $gte: { $year:1994 }, $lt: { $year:1995 } } }
 // Month "Jan 1994":   { field: { $gte: { $year:1994,$month:1 }, $lt: { $year:1994,$month:2 } } }
 // Day "1994-03-15":   { field: { $gte: { $year:1994,$month:3,$day:15 }, $lt: { $year:1994,$month:3,$day:16 } } }
 // Decade "1990s":     { field: { $gte: { $year:1990 }, $lt: { $year:2000 } } }
-
-// Relative ("last 7 days", "this month"): compute ISO UTC boundary → use ISO string with $gte
 ```
 
-**Month+day WITHOUT year**: unsupported — ask the user for a year.
+**Month+day WITHOUT year**: unsupported — ask the user for a year. Do not mention internal reasons.
 
 ### Vector Similarity
 
-`$vector` is NOT a `where` operator. Use it only inside `aggregate`:
+Vector similarity is not yet available in `select`. Use the legacy `aggregate` clause ONLY for this case:
 
 ```js
 aggregate: {
@@ -122,6 +123,7 @@ aggregate: {
     alias: "$record"
   }
 }
+// All other metrics/analytics must use select.
 ```
 
 ### Field Existence & Type
@@ -189,7 +191,7 @@ where: { employee: { $label: "EMPLOYEE", $direction: "out", $as: "$emp" } }
 where: { EMPLOYEE: { $alias: "$emp" } }
 ```
 
-**`$alias`** — name a traversed node for use in `aggregate`/`groupBy`:
+**`$alias`** — name a traversed node for use in `select`/`groupBy`:
 
 ```js
 where: {
@@ -259,115 +261,100 @@ where: {
 - String operators (`$contains`, `$startsWith`, `$endsWith`) are case-insensitive
 - Array fields: condition satisfied if ANY element matches (`tags:"typescript"` matches `["js","typescript"]`)
 - Relationship traversal uses OPTIONAL MATCH — records are returned even if no related record exists, unless you add a property filter on that related block
+- Logical operators work at ANY nesting level, including inside relationship blocks
 
 ---
 
-## §2) AGGREGATE — Functions & Inline Refs
+## §2) SELECT — Expression-Based Output Shaping
 
-Every aggregate key maps to either an **INLINE REF** or an **AGGREGATION FUNCTION**.
+`select` is the canonical output-shaping clause. Every key maps to an `Expr`:
 
-### Inline Ref (copy a field value into the output row — no `fn`)
+### Expression Types
 
-```js
-"outputKey": "$alias.fieldName"
-"companyName":   "$record.name"
-"projectBudget": "$record.budget"
+```
+"$record.field"           — field reference (project a field value)
+42 / true                 — literal number or boolean
+{ $ref: "otherKey" }      — reference another select output key (for derived metrics)
+{ $sum: expr }            — sum of an expression
+{ $avg: expr }            — average; add $precision:N to round
+{ $count: "*" | expr }    — count DISTINCT records or field values
+{ $min: expr }            — minimum value
+{ $max: expr }            — maximum value
+{ $divide: [A, B] }       — A / B
+{ $multiply: [A, B] }     — A * B
+{ $add: [A, B] }          — A + B
+{ $subtract: [A, B] }     — A - B
+{ $collect: CollectExpr } — gather related records into an array
+{ $timeBucket: TBExpr }   — time-series bucketing
 ```
 
-### Aggregation Functions (`alias` defaults to `'$record'` if omitted)
+### Basic Examples
 
 ```js
-fn:'count'      — count matching records; optional field + unique:bool
-fn:'sum'        — { fn:'sum',  field:'salary',  alias:'$employee' }
-fn:'avg'        — { fn:'avg',  field:'salary',  alias:'$employee', precision:2 }
-fn:'min'        — { fn:'min',  field:'salary',  alias:'$employee' }
-fn:'max'        — { fn:'max',  field:'salary',  alias:'$employee' }
-fn:'collect'    — gather into array; see §4
-fn:'timeBucket' — temporal bucketing; see §5
-```
-
-`alias: '$record'` for root-label fields; the `$alias` string declared in `where` for related nodes.
-**EVERY fn-based aggregate entry MUST include `alias`.**
-
-### Flat Cross-Label Example (PROJECT root + EMPLOYEE metrics)
-
-```js
-labels: ['PROJECT'],
-where: { budget:{ $lte:10000000 }, EMPLOYEE:{ $alias:'$employee' } },
-aggregate: {
-  projectName:    '$record.name',
-  projectBudget:  '$record.budget',
-  headcount:      { fn:'count',  unique:true,               alias:'$employee' },
-  totalWage:      { fn:'sum',    field:'salary',            alias:'$employee' },
-  avgSalary:      { fn:'avg',    field:'salary', precision:0, alias:'$employee' },
-  minSalary:      { fn:'min',    field:'salary',            alias:'$employee' },
-  maxSalary:      { fn:'max',    field:'salary',            alias:'$employee' }
+select: {
+  name:     "$record.name",
+  total:    { $sum: "$record.amount" },
+  count:    { $count: "*" },
+  avg:      { $avg: "$record.value" },
+  rounded:  { $avg: "$record.value", $precision: 2 }
 }
-// → one row per PROJECT record, each with employee stats embedded
 ```
 
----
-
-## §3) GROUPBY — Two Modes
-
-### Mode A — Dimensional (one row per distinct value)
+### Derived Metrics via `$ref` (evaluated AFTER all non-`$ref` expressions)
 
 ```js
-// groupBy entries use "$alias.propertyName" format
-aggregate: { count:{ fn:'count', alias:'$record' }, avg:{ fn:'avg', field:'total', alias:'$record' } },
-groupBy: ['$record.status'],
-orderBy: { count:'desc' }
-// Output rows: [{ "status":"pending","count":120,"avg":310.42 }, ...]
-// Note: group key appears WITHOUT alias prefix in output ($record.status → "status")
-// Multiple keys = pivot: groupBy: ['$record.category','$record.active']
+select: {
+  revenue: { $sum: "$record.amount" },
+  cost:    { $sum: "$record.cost" },
+  profit:  { $subtract: [{ $ref: "revenue" }, { $ref: "cost" }] },
+  margin:  { $divide:   [{ $ref: "profit" },  { $ref: "revenue" }] }
+}
 ```
 
-### Mode B — Self-Group (collapse to ONE row with global metric)
+### Math inside Aggregation
 
 ```js
-// groupBy entries are aggregation KEY NAMES (no dot, no alias prefix)
-aggregate: { totalBudget:{ fn:'sum', field:'budget', alias:'$record' } },
-groupBy:   ['totalBudget']
-// Output: [{ "totalBudget": 1875251446 }]
-// Multiple KPIs: groupBy: ['totalRevenue','orderCount']
+select: {
+  total: { $sum: { $multiply: ["$record.price", "$record.quantity"] } }
+}
 ```
 
-### ⚠ Late-Ordering Rule — Critical for Correct Totals
+### COLLECT from Related Node — Two Forms
 
-When `orderBy` references an aggregated key, the engine applies ORDER BY + LIMIT AFTER the aggregation (full-scan first, then paginate).
-
-When `orderBy` is absent or references a raw field, LIMIT is applied BEFORE aggregation → only the first N raw records are aggregated → **WRONG totals**.
-
-**Fix**: for self-group and any pure metric query, always add `orderBy` on the aggregation key:
+**FORM A (alias-based — requires `$alias` in where):**
 
 ```js
-aggregate:{ total:{ fn:'sum', field:'amount', alias:'$record' } },
-groupBy:['total'],
-orderBy:{ total:'asc' }   // ← triggers late ordering; ensures full dataset is summed
+where:  { USER: { $alias: "$user" } },
+select: {
+  users: {
+    $collect: {
+      from:    "$user",
+      select:  { id: "$user.id", name: "$user.name" },
+      orderBy: { name: "asc" },
+      limit:   10
+    }
+  }
+}
 ```
 
----
-
-## §4) COLLECT — Array Gathering & Nested Structures
-
-### select $collect — Label-Based (PREFERRED for nesting)
-
-Use `label` instead of `from` for inline traversal with no `$alias` required. `$self` = current level.
+**FORM B (label-based — no `$alias` needed; `$self` = current level; supports unlimited nesting):**
 
 ```js
 select: {
   departments: {
     $collect: {
-      label: 'DEPARTMENT',
+      label: "DEPARTMENT",
       where: { budget: { $gte: 10000 } },  // optional flat filter on this level
       select: {
-        name: '$self.name',
+        name: "$self.name",
         projects: {
           $collect: {
-            label: 'PROJECT',
+            label: "PROJECT",
             select: {
-              name: '$self.name',
-              employees: { $collect: { label: 'EMPLOYEE', orderBy: { salary: 'desc' }, limit: 3 } }
+              name: "$self.name",
+              employees: {
+                $collect: { label: "EMPLOYEE", orderBy: { salary: "desc" }, limit: 3 }
+              }
             }
           }
         }
@@ -377,138 +364,142 @@ select: {
 }
 ```
 
-### select $collect — Alias-Based (requires `$alias` in `where`)
+### TIMEBUCKET
 
 ```js
-where: { EMPLOYEE: { $alias: '$emp' } },
 select: {
-  employees: {
-    $collect: {
-      from: '$emp',
-      select: { name: '$emp.name' },
-      orderBy: { name: 'asc' },
-      limit: 10
-    }
-  }
-}
-```
-
-### aggregate `fn:'collect'` — Legacy (still works; prefer select for new queries)
-
-```js
-{ fn:'collect', field:'name', alias:'$employee', unique:true }
-```
-
-Options:
-- `field?` — specific field; omit to collect entire records
-- `unique?` — deduplicate (default `true`)
-- `limit?` — max items in collected array
-- `skip?` — skip N items in collected array
-- `orderBy?` — sort collected items: `{ salary:'desc' }`
-
-### Nested Collect (legacy aggregate form — requires $alias)
-
-```js
-labels: ['COMPANY'],
-where: {
-  DEPARTMENT: { $alias:'$dept',
-    PROJECT:  { $alias:'$proj',
-      EMPLOYEE: { $alias:'$emp', dob:{ $lte:{ $year:1994 } } }
-    }
-  }
+  bucket: { $timeBucket: { field: "$record.createdAt", unit: "day" } },
+  count:  { $count: "*" }
 },
-aggregate: {
-  company: '$record.name',
+groupBy: ["bucket"]
+```
+
+`unit` options: `"day"` | `"week"` | `"month"` | `"quarter"` | `"year"` | `"months"` | `"hour"` | `"minute"` | `"second"` | `"hours"` | `"minutes"` | `"seconds"` | `"years"`. Add `size:N` when unit is a plural form (e.g. `unit:"months", size:2` = every 2 months).
+
+---
+
+## §3) GROUPBY — Two Modes
+
+### Mode A — Dimensional (one row per distinct value)
+
+```js
+// groupBy entries use "$alias.propertyName" format
+select: { count: { $count: "*" }, avg: { $avg: "$record.total", $precision: 2 } },
+groupBy: ["$record.status"],
+orderBy: { count: "desc" }
+// Output rows: [{ "status":"pending","count":120,"avg":310.42 }, ...]
+// Note: group key appears WITHOUT alias prefix in output ($record.status → "status")
+// Multiple keys = pivot: groupBy: ['$record.category','$record.active']
+```
+
+### Mode B — Self-Group (collapse to ONE row with global metric)
+
+```js
+// groupBy entries are SELECT KEY NAMES (no dot, no alias prefix)
+select:  { totalBudget: { $sum: "$record.budget" } },
+groupBy: ["totalBudget"]
+// Output: [{ "totalBudget": 1875251446 }]
+// Multiple KPIs: groupBy: ['totalRevenue','orderCount']
+```
+
+### ⚠ Late-Ordering Rule — Critical for Correct Totals
+
+When `orderBy` references a select key, the engine applies ORDER BY + LIMIT AFTER the aggregation (full-scan first, then paginate).
+
+When `orderBy` is absent or references a raw field, LIMIT is applied BEFORE aggregation → only the first N raw records are aggregated → **WRONG totals**.
+
+**Fix**: for self-group and any pure metric query, always add `orderBy` on the select key:
+
+```js
+select:  { total: { $sum: "$record.amount" } },
+groupBy: ["total"],
+orderBy: { total: "asc" }   // ← triggers late ordering; ensures full dataset is summed
+```
+
+---
+
+## §4) COLLECT — Array Gathering & Nested Structures
+
+Use `select $collect` (label-based) for all nested queries:
+
+```js
+labels: ["COMPANY"],
+select: {
   departments: {
-    fn:'collect', alias:'$dept',
-    aggregate: {
-      projects: {
-        fn:'collect', alias:'$proj', orderBy:{ projectName:'asc' },
-        aggregate: {
-          employees: { fn:'collect', alias:'$emp', orderBy:{ salary:'desc' }, limit:3 }
+    $collect: {
+      label: "DEPARTMENT",
+      select: {
+        name: "$self.name",         // $self = current traversal level
+        projects: {
+          $collect: {
+            label: "PROJECT",
+            select: {
+              name: "$self.name",
+              employees: { $collect: { label: "EMPLOYEE", orderBy: { salary: "desc" }, limit: 3 } }
+            }
+          }
         }
       }
     }
   }
 }
+// → returns COMPANY → [DEPARTMENT → [PROJECT → [top-3 EMPLOYEE]]] tree; no $alias boilerplate
+// → use where: { field: condition } inside any $collect level to filter that traversal level
 ```
+
+**Collect options (inside `$collect`):**
+
+| Option | Notes |
+|---|---|
+| `label` | related label to collect from (label-based form) |
+| `from` | `$alias` string (alias-based form; requires `$alias` in where) |
+| `where?` | flat filter on this traversal level |
+| `select?` | shape the collected records (omit to collect entire records) |
+| `orderBy?` | sort collected items: `{ salary: "desc" }` |
+| `limit?` | max items in the array |
+| `skip?` | skip N items in the collected array |
 
 ---
 
-## §5) TIMEBUCKET — Time-Series Bucketing
-
-```js
-fn:'timeBucket', field:'createdAt', granularity:'day'|'week'|'month'|'quarter'|'year'
-// Custom N-sized windows:
-granularity:'months'|'hours'|'minutes'|'seconds'|'years', size:N
-```
-
-Examples:
-
-```js
-// Daily counts:
-aggregate:{
-  day:{ fn:'timeBucket', field:'createdAt', granularity:'day', alias:'$record' },
-  count:{ fn:'count', alias:'$record' }
-},
-groupBy:['day'], orderBy:{ day:'asc' }
-
-// Monthly revenue:
-aggregate:{
-  month:{ fn:'timeBucket', field:'issuedAt', granularity:'month', alias:'$record' },
-  revenue:{ fn:'sum', field:'amount', alias:'$record' }
-},
-groupBy:['month'], orderBy:{ month:'asc' }
-
-// Bi-monthly (every 2 months):
-aggregate:{
-  period:{ fn:'timeBucket', field:'startedAt', granularity:'months', size:2, alias:'$record' },
-  n:{ fn:'count', alias:'$record' }
-},
-groupBy:['period'], orderBy:{ period:'asc' }
-```
-
----
-
-## §6) LIMIT Rules by Query Mode
+## §5) LIMIT Rules by Query Mode
 
 | Query mode | Limit |
 |---|---|
-| Self-group (single KPI row) | NO `limit` — but MUST add `orderBy` on aggregation key for late ordering |
-| Dimensional groupBy | NO `limit` to get all groups; add `limit` + `orderBy` on aggregation key for "top N" |
+| Self-group (single KPI row) | NO `limit` — but MUST add `orderBy` on select key for late ordering |
+| Dimensional groupBy | NO `limit` to get all groups; add `limit` + `orderBy` on select key for "top N" |
 | Per-record flat aggregation (one row per root record) | `limit` IS valid (caps root records) |
-| Pure listing (no aggregate) | `limit` always valid |
-| "how many" simple count | Read `total` from the `findRecords` response — do NOT use `fn:'count'` |
+| Pure listing (no select) | `limit` always valid |
+| "how many" simple count | Read `total` from the `findRecords` response — do NOT use `$count` for this |
 
 ---
 
-## §7) Metric Field Discovery Across Related Labels
+## §6) Metric Field Discovery Across Related Labels
 
 If the metric field is NOT on the target label, search related labels before giving up:
 
 1. Confirm target label. `findProperties(labels:[<target>])` — look for the metric field.
 2. If absent, walk adjacent labels via `getOntologyMarkdown` or `findRelationships` probe.
 3. For each candidate related label R: `findProperties(labels:[R])` and attempt the same match.
-4. When found on CHILD: `where:{ CHILD:{ ...filters..., $alias:'$child' } }`, aggregate `alias:'$child'`. Root-level filters stay at the top-level `where`.
+4. When found on CHILD: `where:{ CHILD:{ ...filters..., $alias:'$child' } }`, select referencing `'$child.*'`. Root-level filters stay at the top-level `where`.
 5. Never abandon after one miss — always attempt at least one related-label discovery pass.
 
 ---
 
-## §8) Range / Distribution Queries
+## §7) Range / Distribution Queries
 
-- **type = number or datetime** → `findRecords` aggregate with `fn:'min'` + `fn:'max'`. Add groupBy key names for self-group mode. Or: `getOntology` (JSON) → `propertyValues(propertyId)` → returns `{ min, max }` directly.
+- **type = number or datetime** → `findRecords` with `select:{ min:{ $min:'$record.<field>' }, max:{ $max:'$record.<field>' } }` plus `groupBy:['min','max']`. Or: `getOntology` (JSON) → `propertyValues(propertyId)` → returns `{ min, max }` directly.
 - **type = string or boolean** → `propertyValues(propertyId)` to list all distinct values.
 - NEVER call `findRecords` with a `where` filter to "search for" values of a field — that returns records, not ranges.
 
 ---
 
-## §9) Multi-Label Filter Distribution
+## §8) Multi-Label Filter Distribution
 
 Place each filter with the label that actually holds the field. On zero results, silently retry by moving the filter to the related child block before asking.
 
 ---
 
-## §10) Enum / Value Normalization
+## §9) Enum / Value Normalization
 
 Never hardcode guessed values for enumerated fields:
 
@@ -521,7 +512,7 @@ Never hardcode guessed values for enumerated fields:
 
 ---
 
-## §11) Relationship & Path Queries
+## §10) Relationship & Path Queries
 
 ### Entity Resolution by Name
 
@@ -541,11 +532,11 @@ Pre-check before multi-hop:
 3. On finding path `PARENT→A→B→CHILD`:
    ```js
    where:{ A:{ B:{ CHILD:{ $alias:'$child' } } } }
-   aggregate:{ metric:{ fn:'count'|'avg'|..., alias:'$child' } }
+   select:{ metric:{ $count:'*' } }
    ```
 4. No top-level `limit` for pure grouped aggregations.
 5. Only the root parent label appears in `labels:[]`. Intermediates appear only inside `where`.
-6. NEVER reuse `'$record'` alias for related-node aggregation.
+6. NEVER reuse `'$record'` alias for related-node references.
 7. After path found, collapse redundant intermediate layers.
 8. If BFS exhausts without match: synonym remap using `findProperties` output; if still unavailable, ask.
 
@@ -559,7 +550,7 @@ where:{ B:{ $alias:'$b' } }
 
 ---
 
-## §12) NL → WHERE Translation Quick Reference
+## §11) NL → WHERE Translation Quick Reference
 
 | Natural language | Where syntax |
 |---|---|
@@ -584,21 +575,139 @@ where:{ B:{ $alias:'$b' } }
 
 ---
 
-## §13) Validation Checklist
+## §12) Validation Checklist
 
 Before submitting any `findRecords` call, verify:
 
-- [ ] No `groupBy` without `aggregate`
-- [ ] `alias` present on every fn-based aggregate entry (`'$record'` for root; declared `$alias` for related)
-- [ ] Inline refs (`"$alias.field"` string values) do NOT need `fn` or `alias` key
-- [ ] `limit` absent for self-group and dimensional groupBy (unless scoping root records in flat aggregation)
-- [ ] `orderBy` on aggregation key present for self-group queries (triggers late ordering → correct totals)
+- [ ] No `groupBy` without `select`
+- [ ] `limit` absent for self-group and dimensional groupBy (unless scoping root records in flat select)
+- [ ] `orderBy` on select key present for self-group queries (triggers late ordering → correct totals)
 - [ ] groupBy mode correct:
   - Dimensional: entries are `"$alias.propertyName"` strings
-  - Self-group: entries are aggregation key names (no dot, no alias prefix)
-- [ ] Nested collect: prefer `select $collect` with `label` for new queries (unlimited nesting, no `$alias` needed); legacy `aggregate fn:'collect'` still works for existing queries
+  - Self-group: entries are select key names (no dot, no alias prefix)
 - [ ] Traversal: key = label name (ALL_CAPS). NEVER `$label`/`$direction`/`$as`/`$of`/`$through`
-- [ ] No `'$record'` alias reused for related-node aggregation
+  - WRONG: `{ employee: { $label:'EMPLOYEE' } }`   CORRECT: `{ EMPLOYEE: { $alias:'$emp' } }`
+- [ ] Vector similarity: still uses legacy `aggregate` (not `select`)
 - [ ] Vector threshold semantics: euclidean → `$lte`; others → `$gte`
 - [ ] Month+day without year → ask for year
-- [ ] Aggregation intent? → query MUST include `aggregate` + `groupBy`. Raw records ≠ aggregation
+- [ ] Aggregation intent? → query MUST include `select` + `groupBy`. Raw records ≠ aggregation
+
+---
+
+## §13) Example Patterns
+
+*(Actual label/field names always come from `getOntologyMarkdown` — never from these examples.)*
+
+**List with numeric filter:**
+```js
+findRecords({ labels:['<LABEL>'], where:{ <field>:{ $gt:100000 } }, limit:10 })
+```
+
+**Date range:**
+```js
+findRecords({ labels:['<LABEL>'], where:{ <dateField>:{ $gte:{ $year:1994 }, $lt:{ $year:1995 } } }, limit:10 })
+```
+
+**Dimensional groupBy (count + avg per category):**
+```js
+findRecords({
+  labels: ['<LABEL>'],
+  select:  { count: { $count: '*' }, avg: { $avg: '$record.<field>', $precision: 2 } },
+  groupBy: ['$record.<categoryField>'],
+  orderBy: { count: 'desc' }
+})
+```
+
+**Self-group single KPI:**
+```js
+findRecords({
+  labels:  ['<LABEL>'],
+  select:  { total: { $sum: '$record.<field>' } },
+  groupBy: ['total'],
+  orderBy: { total: 'asc' }    // required for correct full-scan total
+})
+```
+
+**Self-group multiple KPIs:**
+```js
+findRecords({
+  labels: ['<LABEL>'],
+  select: {
+    totalRevenue: { $sum: '$record.<revenueField>' },
+    orderCount:   { $count: '*' },
+    avgOrder:     { $avg: '$record.<revenueField>', $precision: 2 }
+  },
+  groupBy: ['totalRevenue', 'orderCount', 'avgOrder'],
+  orderBy: { totalRevenue: 'asc' }
+})
+```
+
+**Per-record from related label (one row per root record):**
+```js
+labels: ['PROJECT'],
+where:  { budget: { $lte: 10000000 }, EMPLOYEE: { $alias: '$employee' } },
+select: {
+  projectName: '$record.name',
+  headcount:   { $count: '$employee.id' },
+  totalWage:   { $sum: '$employee.salary' },
+  avgSalary:   { $avg: '$employee.salary', $precision: 0 }
+},
+limit: 100   // valid: caps root PROJECT records
+```
+
+**Nested hierarchy (COMPANY → DEPT → PROJECT → EMPLOYEE):**
+```js
+labels: ['COMPANY'],
+where:  { foundedAt: { $lte: { $year: 1980 } } },
+select: {
+  company: '$record.name',
+  departments: {
+    $collect: {
+      label: 'DEPARTMENT',
+      select: {
+        name: '$self.name',
+        projects: {
+          $collect: {
+            label: 'PROJECT',
+            orderBy: { name: 'asc' },
+            select: {
+              name: '$self.name',
+              employees: { $collect: { label: 'EMPLOYEE', orderBy: { salary: 'desc' }, limit: 3 } }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Time series monthly count:**
+```js
+findRecords({
+  labels:  ['<LABEL>'],
+  select:  { month: { $timeBucket: { field: '$record.<dateField>', unit: 'month' } }, count: { $count: '*' } },
+  groupBy: ['month'],
+  orderBy: { month: 'asc' }
+})
+```
+
+**Relationship with specific type/direction:**
+```js
+where: { POST: { $relation: { type: 'AUTHORED', direction: 'in' }, title: { $contains: 'Graph' } } }
+```
+
+**Filter by ID:**
+```js
+where: { $id: { $in: ['id1','id2'] } }
+where: { EMPLOYEE: { $id: 'specific-id' } }
+```
+
+**XOR / exclusive range:**
+```js
+where: { budget: { $xor: { $lte: 10000000, $gte: 15000000 } } }
+```
+
+---
+
+The same `SearchQuery` shape is reused across `findRecords`, `findRelationships` (minus `select`/`groupBy`), `findLabels` (minus `select`/`groupBy`), `findProperties` (minus `select`/`groupBy`), `exportRecords`, and `bulkDeleteRecords`.

@@ -9,13 +9,14 @@ import * as THREE from 'three'
 import {
   useFilteredRecordRelationsQuery,
   useFilteredRecordsQuery,
+  useProjectFieldsQuery,
   useProjectIndexesQuery,
   useProjectLabelsQuery
 } from '~/features/projects/hooks/useProjectQueries'
 import { Button } from '~/elements/Button'
 import { Tooltip } from '~/elements/Tooltip'
 import { CheckboxField } from '~/elements/Checkbox'
-import { $sheetProperty, $sheetRecordId } from '~/features/projects/stores/id.ts'
+import { $sheetProperty, $sheetRecordId, type PropertySheetData } from '~/features/projects/stores/id.ts'
 import { getLabelColor } from '~/features/labels'
 import { DBRecord, DBRecordInstance, type Relation } from '@rushdb/javascript-sdk'
 
@@ -243,10 +244,11 @@ export const GraphView: FC = () => {
   const { data: recordsResult } = useFilteredRecordsQuery()
   const { data: labels } = useProjectLabelsQuery()
   const { data: indexes } = useProjectIndexesQuery()
+  const { data: fields } = useProjectFieldsQuery()
   const relations = relationsResult?.data
   const records = recordsResult?.data
 
-  const [graphMode, setGraphMode] = useState<GraphMode>('3d')
+  const [graphMode, setGraphMode] = useState<GraphMode>('2d')
   const [showProperties, setShowProperties] = useState(true)
   const [showPropertyLinks, setShowPropertyLinks] = useState(true)
   const [showRecordLinks, setShowRecordLinks] = useState(true)
@@ -500,17 +502,21 @@ export const GraphView: FC = () => {
 
       if (node.kind === 'property') {
         $sheetRecordId.set(undefined)
+        const name = node.propertyName ?? node.label
+        const type = node.propertyType ?? 'string'
+        const field = fields?.find((f) => f.name === name && f.type === type)
         $sheetProperty.set({
-          key: node.id,
-          name: node.propertyName ?? node.label,
-          type: node.propertyType ?? 'string',
-          labels: node.propertyLabels ?? [],
+          id: field?.id ?? '',
+          name,
+          type: type as PropertySheetData['type'],
+          recordsCount: field?.recordsCount,
+          metadata: field?.metadata,
           vectorIndexed: !!node.vectorIndexed,
           connectedRecordIds: node.connectedRecordIds ?? []
         })
       }
     },
-    [focusNode]
+    [focusNode, fields]
   )
 
   const handleLinkClick = useCallback((link: any) => {
@@ -677,7 +683,7 @@ export const GraphView: FC = () => {
 
   const renderCommonGraphControls = (
     <>
-      <div className="bg-fill/90 border-content/30 absolute left-4 top-4 z-20 min-w-[210px] rounded-xl border p-4 shadow-xl backdrop-blur-sm">
+      <div className="bg-fill/90 absolute left-4 top-4 z-20 min-w-[210px] rounded-xl border p-4 shadow-xl backdrop-blur-sm">
         <div className="text-content-secondary mb-3 text-xs font-semibold uppercase tracking-wide">
           Graph Layers
         </div>

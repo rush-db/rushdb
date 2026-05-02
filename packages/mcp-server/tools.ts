@@ -118,6 +118,7 @@ export const tools: Tool[] = [
     description:
       'Returns the same graph ontology as getOntologyMarkdown but as structured JSON. ' +
       'Each item has: label (string), count (number), properties (array with id, name, type, ' +
+      'recordsCount (number of records that carry this property), ' +
       'min/max for numbers/datetimes, values[] for strings/booleans, and an optional vectorIndexes array), ' +
       'and relationships (array with label, type, direction: in|out). ' +
       'vectorIndexes is non-empty when one or more embedding indexes exist for that property; ' +
@@ -643,7 +644,7 @@ export const tools: Tool[] = [
       'Discover the field names, types, and IDs available on a record label. ' +
       'Always call this before using field names in any query — never guess or invent field names. ' +
       'Filter by label using: where: { label: { $in: ["LABEL_NAME"] } }. ' +
-      'Each returned property object has: id (string), name (string), type (string | number | boolean | datetime | vector | null). ' +
+      'Each returned property object has: id (string), name (string), type (string | number | boolean | datetime | vector | null), recordsCount (number of records that carry this property). ' +
       'Use the `name` field as the field name in where/orderBy/groupBy clauses. ' +
       'Use the `id` field as the `propertyId` argument to propertyValues. ' +
       'After calling this tool, decide the next step based on the field type: ' +
@@ -669,8 +670,8 @@ export const tools: Tool[] = [
     annotations: READ_ONLY,
     securitySchemes: READ_SCHEMES,
     description:
-      'Fetch the metadata (name, type, label) of a single property by its ID. ' +
-      'Use when you already have a propertyId and need to re-confirm its type before calling propertyValues.',
+      'Fetch the metadata (name, type, label, recordsCount) of a single property by its ID. ' +
+      'Use when you already have a propertyId and need to re-confirm its type or cardinality before calling propertyValues.',
 
     inputSchema: {
       type: 'object',

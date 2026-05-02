@@ -52,24 +52,25 @@ export class AiQueryService {
     // Extract the user-facing label from this record
     qb.append(`WITH [l IN labels(record) WHERE l <> "${RUSHDB_LABEL_RECORD}"][0] AS label,`)
     qb.append(`     prop.id AS propId, prop.name AS propName, prop.type AS propType,`)
-    qb.append(`     record[prop.name] AS rawVal`)
+    qb.append(`     record[prop.name] AS rawVal, record AS rec`)
 
     if (filterLabels && filterLabels.length > 0) {
       qb.append(`WHERE label IN $filterLabels`)
     }
 
-    // Aggregate all values per (label, property)
+    // Aggregate all values per (label, property); count distinct records that carry this property
     qb.append(`WITH label, propId, propName, propType,`)
-    qb.append(`     apoc.coll.toSet(apoc.coll.flatten(collect(DISTINCT rawVal))) AS vals`)
+    qb.append(`     apoc.coll.toSet(apoc.coll.flatten(collect(DISTINCT rawVal))) AS vals,`)
+    qb.append(`     count(DISTINCT rec) AS recordsCount`)
 
     // Compute sampleValues (string/boolean) and min/max (number/datetime)
     qb.append(`UNWIND vals AS v`)
-    qb.append(`WITH label, propId, propName, propType, vals,`)
+    qb.append(`WITH label, propId, propName, propType, vals, recordsCount,`)
     qb.append(`     min(CASE propType WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS minAgg,`)
     qb.append(`     max(CASE propType WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS maxAgg`)
 
     qb.append(`RETURN`)
-    qb.append(`  label, propId, propName, propType,`)
+    qb.append(`  label, propId, propName, propType, recordsCount,`)
     qb.append(`  CASE propType`)
     qb.append(`    WHEN 'string'  THEN vals[0..10]`)
     qb.append(`    WHEN 'boolean' THEN ['true', 'false']`)

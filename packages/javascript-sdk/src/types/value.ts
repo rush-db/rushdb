@@ -47,6 +47,7 @@ export type Property = WithId<{
   metadata?: string
   name: string
   type: PropertyType
+  recordsCount?: number
 }>
 
 export type PropertyWithValue = WithValue<Property>
