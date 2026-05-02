@@ -431,7 +431,7 @@ const lineage = await db.records.find({
       }
     }
   },
-  aggregate: {
+  select: {
     sourceName: '$record.name',
     origin: '$record.origin',
     capturedAt: '$record.capturedAt',
@@ -467,7 +467,7 @@ lineage = db.records.find({
             }
         }
     },
-    "aggregate": {
+    "select": {
         "sourceName": "$record.name",
         "origin": "$record.origin",
         "capturedAt": "$record.capturedAt",
@@ -500,7 +500,7 @@ curl -s -X POST "$BASE/records/search" \
         }
       }
     },
-    "aggregate": {
+    "select": {
       "sourceName": "$record.name",
       "origin": "$record.origin",
       "capturedAt": "$record.capturedAt"
@@ -528,7 +528,7 @@ const failedDownstream = await db.records.find({
       status: 'failed'
     }
   },
-  aggregate: {
+  select: {
     artifactName: '$record.name',
     artifactType: '$record.type',
     failedRunId: '$run.runId',
@@ -551,7 +551,7 @@ failed_downstream = db.records.find({
             "status": "failed"
         }
     },
-    "aggregate": {
+    "select": {
         "artifactName": "$record.name",
         "failedRunId": "$run.runId",
         "failedAt": "$run.finishedAt"
@@ -575,7 +575,7 @@ curl -s -X POST "$BASE/records/search" \
         "status": "failed"
       }
     },
-    "aggregate": {
+    "select": {
       "artifactName": "$record.name",
       "failedRunId": "$run.runId"
     },

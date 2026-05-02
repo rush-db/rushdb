@@ -18,7 +18,6 @@ The `labels` array is defined at the top level of the SearchQuery DTO, alongside
   limit: 10,                 // Results limit
   skip: 0,                   // Results offset
   orderBy: { name: 'asc' },  // Sorting
-  aggregate: { /* aggregations */ } // Aggregation definitions
 }
 ```
 
@@ -120,10 +119,9 @@ Labels are particularly useful when you want to perform aggregations on specific
       $alias: '$employee'
     }
   },
-  aggregate: {
+  select: {
     employeeCount: {
-      fn: 'count',
-      alias: '$employee'
+      $count: '$employee'
     }
   }
 }
@@ -168,12 +166,10 @@ This query counts the number of employees for each company.
       rating: { $gte: 4 }
     }
   },
-  aggregate: {
+  select: {
     avgRating: {
-      fn: 'avg',
-      field: 'rating',
-      alias: '$review',
-      precision: 1
+      $avg: '$review.rating',
+      $precision: 1
     }
   },
   orderBy: { price: 'desc' },
@@ -201,11 +197,11 @@ This example searches for PRODUCT records with a price between 100 and 500 that 
       reputation: { $gte: 100 }
     }
   },
-  orderBy: { publishedAt: 'desc' },
-  limit: 50,
-  aggregate: {
+  select: {
     authorName: '$author.name'
-  }
+  },
+  orderBy: { publishedAt: 'desc' },
+  limit: 50
 }
 ```
 

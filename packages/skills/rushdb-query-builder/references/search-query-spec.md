@@ -350,7 +350,50 @@ orderBy:{ total:'asc' }   // ← triggers late ordering; ensures full dataset is
 
 ## §4) COLLECT — Array Gathering & Nested Structures
 
-### Basic Collect
+### select $collect — Label-Based (PREFERRED for nesting)
+
+Use `label` instead of `from` for inline traversal with no `$alias` required. `$self` = current level.
+
+```js
+select: {
+  departments: {
+    $collect: {
+      label: 'DEPARTMENT',
+      where: { budget: { $gte: 10000 } },  // optional flat filter on this level
+      select: {
+        name: '$self.name',
+        projects: {
+          $collect: {
+            label: 'PROJECT',
+            select: {
+              name: '$self.name',
+              employees: { $collect: { label: 'EMPLOYEE', orderBy: { salary: 'desc' }, limit: 3 } }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### select $collect — Alias-Based (requires `$alias` in `where`)
+
+```js
+where: { EMPLOYEE: { $alias: '$emp' } },
+select: {
+  employees: {
+    $collect: {
+      from: '$emp',
+      select: { name: '$emp.name' },
+      orderBy: { name: 'asc' },
+      limit: 10
+    }
+  }
+}
+```
+
+### aggregate `fn:'collect'` — Legacy (still works; prefer select for new queries)
 
 ```js
 { fn:'collect', field:'name', alias:'$employee', unique:true }
@@ -363,9 +406,7 @@ Options:
 - `skip?` — skip N items in collected array
 - `orderBy?` — sort collected items: `{ salary:'desc' }`
 
-### Nested Collect — Tree-Shaped Results
-
-⚠ Only `fn:'collect'` is valid at nested levels (Cypher limitation):
+### Nested Collect (legacy aggregate form — requires $alias)
 
 ```js
 labels: ['COMPANY'],
@@ -555,7 +596,7 @@ Before submitting any `findRecords` call, verify:
 - [ ] groupBy mode correct:
   - Dimensional: entries are `"$alias.propertyName"` strings
   - Self-group: entries are aggregation key names (no dot, no alias prefix)
-- [ ] Nested collect: only `fn:'collect'` is valid inside a collect's `aggregate` block
+- [ ] Nested collect: prefer `select $collect` with `label` for new queries (unlimited nesting, no `$alias` needed); legacy `aggregate fn:'collect'` still works for existing queries
 - [ ] Traversal: key = label name (ALL_CAPS). NEVER `$label`/`$direction`/`$as`/`$of`/`$through`
 - [ ] No `'$record'` alias reused for related-node aggregation
 - [ ] Vector threshold semantics: euclidean → `$lte`; others → `$gte`

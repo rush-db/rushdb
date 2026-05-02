@@ -304,7 +304,7 @@ curl -s -X POST "$BASE/records/search" \
 
 ---
 
-## Step 4: MRR by region aggregate
+## Step 4: MRR by region (select expressions)
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -313,8 +313,8 @@ curl -s -X POST "$BASE/records/search" \
 const mrrByRegion = await db.records.find({
   labels: ['ACCOUNT'],
   where: { SUBSCRIPTION: { $relation: { type: 'HAS_SUBSCRIPTION', direction: 'out' }, status: 'active' } },
-  aggregate: {
-    totalMrr: { fn: 'sum', field: 'mrr', alias: '$record' },
+  select: {
+    totalMrr: { $sum: '$record.mrr' },
     region: '$record.region'
   },
   groupBy: ['region', 'totalMrr'],
@@ -338,8 +338,8 @@ mrr_by_region = db.records.find({
             "status": "active"
         }
     },
-    "aggregate": {
-        "totalMrr": {"fn": "sum", "field": "mrr", "alias": "$record"},
+    "select": {
+        "totalMrr": {"$sum": "$record.mrr"},
         "region": "$record.region"
     },
     "groupBy": ["region", "totalMrr"],
@@ -358,8 +358,8 @@ curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
   -d '{
     "labels": ["ACCOUNT"],
-    "aggregate": {
-      "totalMrr": {"fn": "sum", "field": "mrr", "alias": "$record"},
+    "select": {
+      "totalMrr": {"$sum": "$record.mrr"},
       "region": "$record.region"
     },
     "groupBy": ["region", "totalMrr"],
@@ -473,7 +473,7 @@ curl -s -X POST "$BASE/records/search" \
 
 ## Production caveat
 
-Customer graphs grow with every activity event. Feature usage logs and touchpoints can reach millions of records for enterprise accounts. Use `limit` and `orderBy` on time-sorted fields (`occurredAt`, `createdAt`) to bound retrieval, and aggregate feature usage counts rather than surfacing every raw log entry.
+Customer graphs grow with every activity event. Feature usage logs and touchpoints can reach millions of records for enterprise accounts. Use `limit` and `orderBy` on time-sorted fields (`occurredAt`, `createdAt`) to bound retrieval, and compute feature usage counts with `select`/`groupBy` rather than surfacing every raw log entry.
 
 ---
 

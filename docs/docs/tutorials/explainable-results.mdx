@@ -1,7 +1,7 @@
 ---
 sidebar_position: 33
 title: "Explainable Results"
-description: Pair raw search results with related evidence, aggregate summaries, and traversal paths so users and agents can understand why a result was returned.
+description: Pair raw search results with related evidence, summary metrics, and traversal paths so users and agents can understand why a result was returned.
 tags: [Search, AI, SearchQuery, TypeScript, Python]
 ---
 
@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 
 # Explainable Results
 
-A result without context forces users to trust it blindly. An explainable result shows *why* it was returned: which fields matched, which related records reinforce it, and what aggregate signal supports it.
+A result without context forces users to trust it blindly. An explainable result shows *why* it was returned: which fields matched, which related records reinforce it, and what summary metric supports it.
 
 This tutorial shows three patterns for building explainable results on top of RushDB:
 
@@ -135,7 +135,7 @@ async function assembleEvidence(articleId: string): Promise<ExplainedResult['evi
     }),
     db.records.find({
       labels: ['ARTICLE'],
-      aggregate: { count: { fn: 'count', alias: '$record' } },
+      select: { count: { $count: '*' } },
       where: {
         ARTICLE: {
           $relation: { type: 'CITES', direction: 'out' },
@@ -200,7 +200,7 @@ def assemble_evidence(article_id: str) -> dict:
     def get_cited_by():
         r = db.records.find({
             "labels": ["ARTICLE"],
-            "aggregate": {"count": {"fn": "count", "alias": "$record"}},
+            "select": {"count": {"$count": "*"}},
             "where": {"ARTICLE": {"$relation": {"type": "CITES", "direction": "out"}, "__id": article_id}}
         })
         return r.data[0].data.get("count", 0) if r.data else 0

@@ -298,7 +298,7 @@ const results = await db.records.find({
       $alias: '$cat'
     }
   },
-  aggregate: {
+  select: {
     productName: '$record.name',
     price: '$record.price',
     categoryName: '$cat.name',
@@ -325,7 +325,7 @@ results = db.records.find({
             "$alias": "$cat"
         }
     },
-    "aggregate": {
+    "select": {
         "productName": "$record.name",
         "price": "$record.price",
         "categoryName": "$cat.name",
@@ -350,7 +350,7 @@ curl -s -X POST "$BASE/records/search" \
       },
       "CATEGORY": {"$alias": "$cat"}
     },
-    "aggregate": {
+    "select": {
       "productName": "$record.name",
       "categoryName": "$cat.name"
     }
@@ -372,7 +372,7 @@ const orderedResults = await db.records.find({
   where: {
     ORDER: { $relation: { type: 'CONTAINS', direction: 'in' } }
   },
-  aggregate: { id: '$record.__id' }
+  select: { id: '$record.__id' }
 })
 
 const orderedIds = orderedResults.data.map((r: any) => r.id)
@@ -400,7 +400,7 @@ ordered = db.records.find({
     "where": {
         "ORDER": {"$relation": {"type": "CONTAINS", "direction": "in"}}
     },
-    "aggregate": {"id": "$record.__id"}
+    "select": {"id": "$record.__id"}
 })
 ordered_ids = [r["id"] for r in ordered.data]
 
@@ -424,7 +424,7 @@ unordered_high = db.records.find({
 # Step 1: collect ordered product IDs (use jq to extract)
 ORDERED_IDS=$(curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
-  -d '{"labels":["PRODUCT"],"where":{"ORDER":{"$relation":{"type":"CONTAINS","direction":"in"}}},"aggregate":{"id":"$record.__id"}}' \
+  -d '{"labels":["PRODUCT"],"where":{"ORDER":{"$relation":{"type":"CONTAINS","direction":"in"}}},"select":{"id":"$record.__id"}}' \
   | jq '[.data[].id]')
 
 # Step 2: query unordered 5-star products
@@ -459,10 +459,10 @@ const summary = await db.records.find({
       $relation: { type: 'PLACED', direction: 'out' }
     }
   },
-  aggregate: {
+  select: {
     customerName: '$record.name',
-    orderCount: { fn: 'count', alias: '$order', unique: true },
-    lastOrderDate: { fn: 'max', field: 'placedAt', alias: '$order' }
+    orderCount: { $count: '$order' },
+    lastOrderDate: { $max: '$order.placedAt' }
   },
   groupBy: ['customerName', 'orderCount', 'lastOrderDate'],
   orderBy: { orderCount: 'desc' }
@@ -481,10 +481,10 @@ summary = db.records.find({
             "$relation": {"type": "PLACED", "direction": "out"}
         }
     },
-    "aggregate": {
+    "select": {
         "customerName": "$record.name",
-        "orderCount": {"fn": "count", "alias": "$order", "unique": True},
-        "lastOrderDate": {"fn": "max", "field": "placedAt", "alias": "$order"}
+        "orderCount": {"$count": "$order"},
+        "lastOrderDate": {"$max": "$order.placedAt"}
     },
     "groupBy": ["customerName", "orderCount", "lastOrderDate"],
     "orderBy": {"orderCount": "desc"}
@@ -505,10 +505,10 @@ curl -s -X POST "$BASE/records/search" \
         "$relation": {"type": "PLACED", "direction": "out"}
       }
     },
-    "aggregate": {
+    "select": {
       "customerName": "$record.name",
-      "orderCount": {"fn": "count", "alias": "$order", "unique": true},
-      "lastOrderDate": {"fn": "max", "field": "placedAt", "alias": "$order"}
+      "orderCount": {"$count": "$order"},
+      "lastOrderDate": {"$max": "$order.placedAt"}
     },
     "groupBy": ["customerName", "orderCount", "lastOrderDate"],
     "orderBy": {"orderCount": "desc"}
@@ -531,10 +531,10 @@ const results = await db.records.find({
     ORDER: { $relation: { type: 'CONTAINS', direction: 'in' } },
     REVIEW: { $alias: '$review', $relation: { type: 'ABOUT', direction: 'in' } }
   },
-  aggregate: {
+  select: {
     productName: '$record.name',
-    reviewCount: { fn: 'count', alias: '$review', unique: true },
-    avgRating: { fn: 'avg', field: 'rating', alias: '$review', precision: 1 }
+    reviewCount: { $count: '$review' },
+    avgRating: { $avg: '$review.rating', $precision: 1 }
   },
   groupBy: ['productName', 'reviewCount', 'avgRating'],
   orderBy: { avgRating: 'desc' }
@@ -555,10 +555,10 @@ results = db.records.find({
             "$relation": {"type": "ABOUT", "direction": "in"}
         }
     },
-    "aggregate": {
+    "select": {
         "productName": "$record.name",
-        "reviewCount": {"fn": "count", "alias": "$review", "unique": True},
-        "avgRating": {"fn": "avg", "field": "rating", "alias": "$review", "precision": 1}
+        "reviewCount": {"$count": "$review"},
+        "avgRating": {"$avg": "$review.rating", "$precision": 1}
     },
     "groupBy": ["productName", "reviewCount", "avgRating"],
     "orderBy": {"avgRating": "desc"}
@@ -578,10 +578,10 @@ curl -s -X POST "$BASE/records/search" \
       "ORDER": {"$relation": {"type": "CONTAINS", "direction": "in"}},
       "REVIEW": {"$alias": "$review", "$relation": {"type": "ABOUT", "direction": "in"}}
     },
-    "aggregate": {
+    "select": {
       "productName": "$record.name",
-      "reviewCount": {"fn": "count", "alias": "$review", "unique": true},
-      "avgRating": {"fn": "avg", "field": "rating", "alias": "$review", "precision": 1}
+      "reviewCount": {"$count": "$review"},
+      "avgRating": {"$avg": "$review.rating", "$precision": 1}
     },
     "groupBy": ["productName", "reviewCount", "avgRating"],
     "orderBy": {"avgRating": "desc"}
@@ -600,7 +600,7 @@ curl -s -X POST "$BASE/records/search" \
 | Multi-hop traversal | Multi-join SQL | Iteration across documents | Single query with nested `where` |
 | Adding a new relationship type | New foreign key column or join table | Schema migration or array append | New `attach` call, zero schema changes |
 | Querying along a new path | Rewrite query or add index | Rewrite aggregation logic | Extend existing `where` block |
-| Aggregate along path | GROUP BY with joins | Map-reduce | Per-hop aggregate in same query |
+| Metrics along path | GROUP BY with joins | Map-reduce | Per-hop metrics in same query |
 
 ---
 

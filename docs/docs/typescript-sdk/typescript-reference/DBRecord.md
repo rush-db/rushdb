@@ -75,11 +75,10 @@ Contains the schema-defined properties of a database record.
 
 ```typescript
 export type DBRecordInferred<S extends Schema, Q extends SearchQuery<S>> =
-  Q extends { aggregate: infer A extends Record<string, any> } ? DBRecord<S> & ExtractAggregateFields<A>
-  : DBRecord<S>
+  DBRecord<S>
 ```
 
-An extension of `DBRecord` that includes any aggregated fields from a search query.
+An extension of `DBRecord` for a search query result. Aggregated fields from `select` expressions are typed based on the query shape.
 
 ## Usage Example
 

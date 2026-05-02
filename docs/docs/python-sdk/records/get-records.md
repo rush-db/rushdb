@@ -37,10 +37,10 @@ movies = db.records.find_by_id(["movie-123", "movie-456"])
 | `labels`    | `list[str]` | Filter by one or more labels                           |
 | `where`     | `dict`      | Field conditions and operators                         |
 | `orderBy`   | `dict`      | `{"field": "asc" \| "desc"}`                           |
-| `limit`     | `int`       | Max records to return. **Omit when using `aggregate`** |
+| `limit`     | `int`       | Max records to return. **Omit when using `select`** |
 | `skip`      | `int`       | Records to skip (pagination offset)                    |
-| `aggregate` | `dict`      | Aggregation functions                                  |
-| `groupBy`   | `list[str]` | Group aggregated results                               |
+| `select`    | `dict`      | Output-shaping expressions (preferred)                 |
+| `groupBy`   | `list[str]` | Group results (with select)                            |
 
 ## Relationship traversal
 
@@ -78,24 +78,24 @@ result = db.records.find({
 {"id":      {"$id": "movie-123"}}         # match by __id
 ```
 
-## Aggregations
+## Select Expressions
 
 ```python
 result = db.records.find({
     "labels": ["MOVIE"],
-    "aggregate": {
-        "count":     {"fn": "count",  "alias": "$record"},
-        "avgRating": {"fn": "avg",    "alias": "$record", "field": "rating"},
-        "titles":    {"fn": "collect","alias": "$record", "field": "title"}
+    "select": {
+        "count":     {"$count": "*"},
+        "avgRating": {"$avg": "$record.rating"},
+        "titles":    {"$collect": {"from": "$record", "select": {"title": "$record.title"}}}
     }
-    # Do NOT add "limit" when using aggregate
+    # Do NOT add "limit" when using select
 })
 ```
 
-Aggregation functions: `count` · `sum` · `avg` · `min` · `max` · `collect`
+Expressions: `$count` · `$sum` · `$avg` · `$min` · `$max` · `$collect` · `$timeBucket` · `$ref` · `$add` · `$subtract` · `$multiply` · `$divide`
 
 :::danger
-**Never set `limit` with `aggregate`** — it restricts the record scan and produces wrong sums/averages.
+**Never set `limit` with `select`** — it restricts the record scan and produces wrong totals.
 :::
 
 ## GroupBy
@@ -103,9 +103,9 @@ Aggregation functions: `count` · `sum` · `avg` · `min` · `max` · `collect`
 ```python
 result = db.records.find({
     "labels": ["MOVIE"],
-    "aggregate": {
-        "count":     {"fn": "count", "alias": "$record"},
-        "avgRating": {"fn": "avg",   "alias": "$record", "field": "rating"}
+    "select": {
+        "count":     {"$count": "*"},
+        "avgRating": {"$avg": "$record.rating"}
     },
     "groupBy": ["$record.genre"],
     "orderBy": {"count": "desc"}   # late-ordering: ensures correct totals
@@ -117,18 +117,44 @@ result = db.records.find({
 ```python
 result = db.records.find({
     "labels": ["MOVIE"],
-    "aggregate": {
-        "month": {"fn": "timeBucket", "field": "releasedAt", "granularity": "month", "alias": "$record"},
-        "count": {"fn": "count",                                                       "alias": "$record"}
+    "select": {
+        "month": {"$timeBucket": {"field": "$record.releasedAt", "unit": "month"}},
+        "count": {"$count": "*"}
     },
     "groupBy": ["month"],
     "orderBy": {"month": "asc"}
 })
 ```
 
-Granularity values: `"day"` · `"week"` · `"month"` · `"quarter"` · `"year"` · `"hours"` · `"minutes"` · `"seconds"` (use plural forms with `"size"` for custom windows).
+Unit values: `"day"` · `"week"` · `"month"` · `"quarter"` · `"year"` · `"hours"` · `"minutes"` · `"seconds"` (use plural forms with `"size"` for custom windows).
 
-## Nested collect
+## Collect related records
+
+Label-based (no alias needed — preferred for nesting):
+
+```python
+result = db.records.find({
+    "labels": ["COMPANY"],
+    "select": {
+        "departments": {
+            "$collect": {
+                "label": "DEPARTMENT",
+                "select": {
+                    "name": "$self.name",
+                    "projects": {
+                        "$collect": {
+                            "label": "PROJECT",
+                            "select": {"name": "$self.name"}
+                        }
+                    }
+                }
+            }
+        }
+    }
+})
+```
+
+Alias-based (requires `$alias` in `where`):
 
 ```python
 result = db.records.find({
@@ -136,19 +162,16 @@ result = db.records.find({
     "where": {
         "ACTOR": {"$alias": "$actor"}
     },
-    "aggregate": {
+    "select": {
         "actors": {
-            "fn": "collect",
-            "alias": "$actor",
-            "aggregate": {
-                "roles": {"fn": "collect", "alias": "$actor", "field": "role"}
+            "$collect": {
+                "from": "$actor",
+                "select": {"name": "$actor.name", "country": "$actor.country"}
             }
         }
     }
 })
 ```
-
-Only `fn: "collect"` is valid inside nested `aggregate` blocks.
 
 ## SearchResult
 

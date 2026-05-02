@@ -75,7 +75,7 @@ const { data: movies, total } = await db.records.find({
 | `orderBy`   | `string \| object` | Sort criteria ([docs](../../concepts/search/pagination-order)) |
 | `limit`     | `number`           | Max records to return (default: 1000)                          |
 | `skip`      | `number`           | Records to skip for pagination                                 |
-| `aggregate` | `object`           | Aggregation map ([docs](../../concepts/search/aggregations))   |
+| `select`    | `object`           | Output-shaping expressions ([docs](../../concepts/search/aggregations))             |
 | `groupBy`   | `string[]`         | Grouping keys, e.g. `['$record.genre']`                        |
 
 ## Relationship traversal
@@ -126,22 +126,22 @@ where: { $or: [{ genre: 'sci-fi' }, { rating: { $gte: 9 } }] }
 
 Full operator reference: [Where clause docs](../../concepts/search/where).
 
-## Aggregations
+## Select Expressions
 
 ```typescript
 const stats = await db.records.find({
   labels: ["MOVIE"],
   where: { ACTOR: { $alias: "$actor", country: "USA" } },
-  aggregate: {
-    title: "$record.title",
-    actorCount: { fn: "count", unique: true, alias: "$actor" },
-    avgRating: { fn: "avg", field: "rating", alias: "$record", precision: 1 },
-    actorNames: { fn: "collect", field: "name", alias: "$actor" },
+  select: {
+    title:      "$record.title",
+    actorCount: { $count: "$actor" },
+    avgRating:  { $avg: "$record.rating", $precision: 1 },
+    actorNames: { $collect: { from: "$actor", select: { name: "$actor.name" } } },
   },
 });
 ```
 
-:::danger Do not set `limit` when using `aggregate` — it cuts the scan and returns mathematically incorrect totals. Use `orderBy` on an aggregated key instead.
+:::danger Do not set `limit` when using `select` — it cuts the scan and returns mathematically incorrect totals. Use `orderBy` on a `select` output key instead.
 :::
 
 ### GroupBy
@@ -149,9 +149,9 @@ const stats = await db.records.find({
 ```typescript
 const byGenre = await db.records.find({
   labels: ["MOVIE"],
-  aggregate: {
-    count: { fn: "count", alias: "$record" },
-    avgRating: { fn: "avg", field: "rating", alias: "$record", precision: 1 },
+  select: {
+    count:     { $count: "*" },
+    avgRating: { $avg: "$record.rating", $precision: 1 },
   },
   groupBy: ["$record.genre"],
   orderBy: { count: "desc" },
@@ -159,51 +159,68 @@ const byGenre = await db.records.find({
 // [{ genre: 'sci-fi', count: 42, avgRating: 7.9 }, ...]
 ```
 
-Full reference: [Aggregations](../../concepts/search/aggregations) · [Grouping](../../concepts/search/group-by)
+Full reference: [Select Expressions](../../concepts/search/aggregations) · [Grouping](../../concepts/search/group-by)
 
 ## TimeBucket (time-series)
 
 ```typescript
 const daily = await db.records.find({
   labels: ["ORDER"],
-  aggregate: {
-    day: {
-      fn: "timeBucket",
-      field: "createdAt",
-      granularity: "day",
-      alias: "$record",
-    },
-    count: { fn: "count", alias: "$record" },
+  select: {
+    day:   { $timeBucket: { field: "$record.createdAt", unit: "day" } },
+    count: { $count: "*" },
   },
   groupBy: ["day"],
   orderBy: { day: "asc" },
 });
 ```
 
-`granularity` values: `day` · `week` · `month` · `quarter` · `year` · `hours` · `minutes` · `seconds` (use plural + `size` for custom window widths).
+`unit` values: `day` · `week` · `month` · `quarter` · `year` · `hours` · `minutes` · `seconds` (use plural + `size` for custom window widths).
 
-## Nested collect (hierarchical results)
+## Collect related records
+
+Label-based (no alias needed — preferred for nesting):
 
 ```typescript
-const tree = await db.records.find({
+const companies = await db.records.find({
+  labels: ["COMPANY"],
+  select: {
+    name: "$record.name",
+    departments: {
+      $collect: {
+        label: "DEPARTMENT",
+        select: {
+          name: "$self.name",
+          projects: {
+            $collect: {
+              label: "PROJECT",
+              select: { name: "$self.name" }
+            }
+          }
+        }
+      }
+    }
+  }
+});
+```
+
+Alias-based (requires `$alias` in `where`):
+
+```typescript
+const movies = await db.records.find({
   labels: ["MOVIE"],
   where: { ACTOR: { $alias: "$actor" } },
-  aggregate: {
-    title: "$record.title",
+  select: {
+    title:  "$record.title",
     actors: {
-      fn: "collect",
-      alias: "$actor",
-      aggregate: {
-        name: "$actor.name",
-        country: "$actor.country",
+      $collect: {
+        from: "$actor",
+        select: { name: "$actor.name", country: "$actor.country" },
       },
     },
   },
 });
 ```
-
-:::note Only `fn: 'collect'` is valid inside a nested `aggregate` block.
-:::
 
 ## In a transaction
 

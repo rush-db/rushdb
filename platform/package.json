@@ -5,6 +5,6 @@
     "dashboard:dev": "cd dashboard && pnpm dev",
     "db:studio:pg": "cd core && pnpm db:studio:pg",
     "db:studio:sqlite": "cd core && pnpm db:studio:sqlite",
-    "dev:platform": "concurrently --kill-others-on-fail -n neo4j,api,dashboard,studio \"pnpm start:debug\" \"pnpm dashboard:dev\" \"pnpm db:studio:pg\""
+    "dev:platform": "concurrently --kill-others-on-fail -n neo4j,api,dashboard,studio \"pnpm compose:up\" \"pnpm start:debug\" \"pnpm dashboard:dev\" \"pnpm db:studio:pg\""
   }
 }

@@ -1,4 +1,9 @@
+/**
+ * @deprecated The aggregate DSL is deprecated. New queries should use the select expression system.
+ * This module will be removed in a future major version.
+ */
 import { BadRequestException } from '@nestjs/common'
+
 import { isArray } from '@/common/utils/isArray'
 import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
@@ -6,7 +11,6 @@ import {
   RUSHDB_KEY_ID,
   ROOT_RECORD_ALIAS,
   RUSHDB_KEY_ID_ALIAS,
-  RUSHDB_VALUE_EMPTY_ARRAY,
   RUSHDB_KEY_PROPERTIES_META
 } from '@/core/common/constants'
 import {
@@ -20,35 +24,19 @@ import {
 } from '@/core/common/types'
 import { PROPERTY_WILDCARD_PROJECTION } from '@/core/search/parser/constants'
 import { AggregateContext } from '@/core/search/parser/types'
-import { isNestedAggregate, nativeVectorSimilarity, wrapInCurlyBraces } from '@/core/search/parser/utils'
-import { SORT_ASC } from '@/core/search/search.constants'
-import { TSearchSort } from '@/core/search/search.types'
+import {
+  apocRemoveFromArray,
+  apocSortArray,
+  apocSortMapsArray,
+  apocUniqArray,
+  isNestedAggregate,
+  nativeVectorSimilarity,
+  wrapInCurlyBraces
+} from '@/core/search/parser/utils'
 
 import { buildOrderByClause, buildSortCriteria } from './orderBy'
 import { pagination } from './pagination'
 import { label } from './pickRecordLabel'
-
-function apocSortMapsArray(arrayClause: string, orderBy?: TSearchSort) {
-  const sortCriteria = buildSortCriteria(orderBy)
-
-  const orderByKeyPart = Object.entries(sortCriteria).map(([property, direction]) => {
-    return `"${direction.toLowerCase() === SORT_ASC ? '^' : ''}${property}"`
-  })[0]
-
-  return `apoc.coll.sortMaps(${arrayClause}, ${orderByKeyPart})`
-}
-
-function apocSortArray(arrayClause: string, orderBy?: TSearchSort) {
-  return `apoc.coll.sort(apoc.coll.flatten(${arrayClause}))`
-}
-
-function apocUniqArray(arrayClause: string) {
-  return `apoc.coll.toSet(${arrayClause})`
-}
-
-function apocRemoveFromArray(arrayClause: string) {
-  return `apoc.coll.removeAll(${arrayClause}, ["${RUSHDB_VALUE_EMPTY_ARRAY}"])`
-}
 
 function parseAggregate(aggregate: Aggregate, aliasesMap: AliasesMap, ctx: AggregateContext) {
   // Process each aggregation instruction

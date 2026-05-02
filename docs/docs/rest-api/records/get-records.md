@@ -36,9 +36,9 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 | `labels`    | `string[]` | Filter by one or more labels                 |
 | `where`     | `object`   | Field conditions and operators               |
 | `orderBy`   | `object`   | `{"field": "asc" \| "desc"}`                 |
-| `limit`     | `number`   | Max records. **Omit when using `aggregate`** |
+| `limit`     | `number`   | Max records. **Omit when using `select`** |
 | `skip`      | `number`   | Records to skip (pagination)                 |
-| `aggregate` | `object`   | Aggregation functions                        |
+| `select`    | `object`   | Output-shaping expressions (preferred)       |
 | `groupBy`   | `string[]` | Group aggregated results                     |
 
 ### Relationship traversal
@@ -58,7 +58,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
   }'
 ```
 
-### Aggregations
+### Select Expressions
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/records/search \
@@ -66,15 +66,15 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
   -H "Content-Type: application/json" \
   -d '{
     "labels": ["MOVIE"],
-    "aggregate": {
-      "count":     {"fn": "count",  "alias": "$record"},
-      "avgRating": {"fn": "avg",    "alias": "$record", "field": "rating"}
+    "select": {
+      "count":     {"$count": "*"},
+      "avgRating": {"$avg": "$record.rating"}
     }
   }'
 ```
 
 :::danger
-**Never set `limit` with `aggregate`** — it restricts the record scan and produces wrong totals.
+**Never set `limit` with `select`** — it restricts the record scan and produces wrong totals.
 :::
 
 ### GroupBy
@@ -85,9 +85,9 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
   -H "Content-Type: application/json" \
   -d '{
     "labels": ["MOVIE"],
-    "aggregate": {
-      "count":     {"fn": "count", "alias": "$record"},
-      "avgRating": {"fn": "avg",   "alias": "$record", "field": "rating"}
+    "select": {
+      "count":     {"$count": "*"},
+      "avgRating": {"$avg": "$record.rating"}
     },
     "groupBy": ["$record.genre"],
     "orderBy": {"count": "desc"}

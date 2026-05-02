@@ -75,9 +75,11 @@ export function getWhereNestingDepth(where: unknown, currentDepth = 0): number {
  * that guard.
  */
 export function isHeavySearch(
-  searchQuery: Partial<Pick<SearchDto, 'aggregate' | 'where' | 'groupBy'>>
+  searchQuery: Partial<Pick<SearchDto, 'select' | 'aggregate' | 'where' | 'groupBy'>>
 ): boolean {
-  const hasAggregations = !!searchQuery.aggregate && Object.keys(searchQuery.aggregate).length > 0
+  const hasAggregations =
+    (!!searchQuery.select && Object.keys(searchQuery.select).length > 0) ||
+    (!!searchQuery.aggregate && Object.keys(searchQuery.aggregate).length > 0)
   const hasGroupBy = Array.isArray(searchQuery.groupBy) && searchQuery.groupBy.length > 0
   const nestingDepth = getWhereNestingDepth(searchQuery.where)
 

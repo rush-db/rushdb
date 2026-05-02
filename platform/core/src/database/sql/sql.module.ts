@@ -93,7 +93,12 @@ export class SqlModule implements OnModuleInit {
               if (!connectionString) {
                 throw new Error('SQL_DB_URL must be set when SQL_DB_TYPE=postgres')
               }
-              const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } })
+              const sslEnv = configService.get<string>('SQL_DB_SSL')
+              const isLocal =
+                connectionString?.includes('localhost') || connectionString?.includes('127.0.0.1')
+              const ssl =
+                sslEnv === 'false' || (!sslEnv && isLocal) ? false : { rejectUnauthorized: false }
+              const pool = new Pool({ connectionString, ssl })
               return drizzle(pool, { schema })
             }
 

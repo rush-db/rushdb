@@ -66,9 +66,9 @@
   ```ts
   const dealsByStage = await db.records.find({
     labels: ['HS_DEAL'],
-    aggregate: {
-      count: { fn: 'count', alias: '$record' },
-      avgAmount: { fn: 'avg', field: 'amount', alias: '$record' }
+    select: {
+      count: { $count: '*' },
+      avgAmount: { $avg: '$record.amount' }
     },
     groupBy: ['$record.dealstage'],
     orderBy: { count: 'desc' }
@@ -80,11 +80,12 @@
 
   - Multiple grouping keys: `groupBy: ['$record.category', '$record.active']`
   - Group by related aliases (declare alias in `where` traversal first)
-  - Works with all existing aggregation functions (count, sum, avg, min, max, collect, similarity, etc.)
-  - Ordering applies to aggregated rows when `groupBy` is present
-  - Requires at least one aggregation entry to take effect
+  - Works with all existing metric functions (count, sum, avg, min, max, collect, etc.)
+  - Ordering applies to metric rows when `groupBy` is present
+  - Requires at least one select entry to take effect
 
-  Result shape when using `groupBy`: each row contains only the grouping fields plus aggregated fields (raw record bodies are not returned unless you also aggregate them via `collect`).
+  Result shape when using `groupBy`: each row contains only the grouping fields plus computed metric fields (raw record bodies are not returned unless you also collect them).
+// Legacy: The aggregate clause is deprecated and should only be used for vector similarity until select supports it.
 
   ***
 

@@ -43,10 +43,13 @@ export type RecordProps<S extends Schema = Schema> =
     }
 
 /**
- * DBRecord with possible aggregation fields based on a search query.
+ * DBRecord with possible computed metric fields based on a search query.
+ * Uses select/groupBy as canonical. The legacy aggregate clause is deprecated and only present for vector similarity until select supports it.
  */
 export type DBRecordInferred<S extends Schema, Q extends SearchQuery<S>> =
-  Q extends { aggregate: infer A extends Record<string, any> } ? DBRecord<S> & ExtractAggregateFields<A>
+  Q extends { select: infer Sel extends Record<string, any> } ? DBRecord<S> & ExtractAggregateFields<Sel>
+  : Q extends { aggregate: infer A extends Record<string, any> } ?
+    DBRecord<S> & ExtractAggregateFields<A> // deprecated, vector similarity only
   : DBRecord<S>
 
 /**

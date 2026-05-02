@@ -255,12 +255,11 @@ export const tools: Tool[] = [
     securitySchemes: READ_SCHEMES,
     description:
       'Search records with a structured SearchQuery. ' +
-      '⚠ BEFORE building any query with dates, aggregation, groupBy, relationship traversal, or vector search — call getSearchQuerySpec to load the complete syntax reference. ' +
-      'INTENT: aggregation request (count/total/sum/avg/breakdown/top N by metric) → MUST include aggregate + groupBy. NEVER fetch raw records to count/sum manually. ' +
-      'RESPONSE: { data:[...records], total:N } — for simple "how many" read total directly; no count aggregate needed. ' +
+      'BEFORE building any query with dates, metrics, groupBy, relationship traversal, or vector search — call getSearchQuerySpec to load the complete syntax reference. ' +
+      'INTENT: metrics/analytics request (count/total/sum/avg/breakdown/top N by metric) → MUST include select + groupBy. NEVER fetch raw records to count/sum manually. ' +
+      'RESPONSE: { data:[...records], total:N } — for simple "how many" read total directly; no count select needed. ' +
       'HARD RULES: ' +
-      '(1) NEVER set limit when aggregate is present — restricts the record scan and produces mathematically wrong results. Omit limit for all aggregation queries. ' +
-      '(2) Every fn-based aggregate entry MUST include alias ("$record" for root fields; the $alias declared in where for related nodes).',
+      '(1) NEVER set limit when select is present — restricts the record scan and produces mathematically wrong results. Omit limit for all metrics queries.',
 
     inputSchema: {
       type: 'object',
@@ -276,7 +275,7 @@ export const tools: Tool[] = [
           type: 'number',
           description:
             'Max records for listing queries (default 10, max 1000). ' +
-            'NEVER set when aggregate is present — restricts the scan and produces wrong results.',
+            'NEVER set when select is present — restricts the scan and produces wrong results.',
           default: 10
         },
         skip: { type: 'number', description: 'Number of records to skip', default: 0 },
@@ -285,45 +284,18 @@ export const tools: Tool[] = [
           description: 'Sorting configuration: key = field, value = asc|desc',
           additionalProperties: { type: 'string', enum: ['asc', 'desc'] }
         },
-        aggregate: {
+        select: {
           type: 'object',
           description:
-            'Map of output-key → aggregation spec. fn: count|sum|avg|min|max|collect|timeBucket. ' +
-            'alias required on every fn-based entry: "$record" for root fields; $alias from where for related nodes. ' +
-            'Call getSearchQuerySpec for full aggregate/groupBy/collect/timeBucket reference.',
-          additionalProperties: {
-            type: 'object',
-            properties: {
-              fn: {
-                type: 'string',
-                enum: ['count', 'sum', 'avg', 'min', 'max', 'collect', 'timeBucket'],
-                description: 'Aggregation function'
-              },
-              field: {
-                type: 'string',
-                description: 'Field to aggregate (required for all fns except count)'
-              },
-              alias: {
-                type: 'string',
-                description: '"$record" for root-label fields; the $alias value from where for related nodes'
-              },
-              precision: { type: 'number', description: 'Decimal places for avg results' },
-              unique: { type: 'boolean', description: 'For collect: deduplicate (default true)' },
-              granularity: {
-                type: 'string',
-                enum: ['day', 'week', 'month', 'quarter', 'year'],
-                description: 'For timeBucket: time bucket size'
-              }
-            },
-            required: ['fn', 'alias']
-          }
+            'Map of output-key → select expression. Supports: $sum, $avg, $min, $max, $count, $collect, $timeBucket, math, and references. ' +
+            'See getSearchQuerySpec for full select/groupBy/collect/timeBucket reference.'
         },
         groupBy: {
           type: 'array',
           items: { type: 'string' },
           description:
             'Two modes: (A) Dimensional — "$alias.propertyName" strings, one row per distinct value; ' +
-            '(B) Self-group — aggregation key names, collapses to one row. Call getSearchQuerySpec for full reference.'
+            '(B) Self-group — select key names, collapses to one row. Call getSearchQuerySpec for full reference.'
         }
       },
       required: []
@@ -435,7 +407,7 @@ export const tools: Tool[] = [
       'Discover and traverse relationships between records. Use this tool in two scenarios: ' +
       '(1) Multi-hop path discovery — fetch a sample record ID, then call findRelationships filtered by that ID to reveal which labels are adjacent; repeat to trace the full path before building a nested findRecords where clause. ' +
       '(2) Direction/type filtering — when the user specifies a relationship type or direction that cannot be expressed in a findRecords where block. ' +
-      'Does NOT support aggregate or groupBy — use findRecords for aggregations across related labels.',
+      'Does NOT support select or groupBy — use findRecords for metrics/analytics across related labels.',
 
     inputSchema: {
       type: 'object',
@@ -559,10 +531,10 @@ export const tools: Tool[] = [
       'Returns the complete RushDB SearchQuery specification as a focused reference document. ' +
       'Covers: all WHERE operators (string/number/boolean/datetime component objects/vector/$exists/$type), ' +
       'relationship traversal syntax ($alias/$relation/$id), logical grouping ($and/$or/$not/$nor/$xor), ' +
-      'all aggregate functions (count/sum/avg/min/max/collect/timeBucket), both groupBy modes (dimensional + self-group), ' +
+      'all select functions ($sum/$avg/$min/$max/$count/$collect/$timeBucket), both groupBy modes (dimensional + self-group), ' +
       'late-ordering rules, COLLECT nesting, limit rules by query mode, multi-hop path discovery, ' +
       'enum normalization, validation checklist, and annotated query examples. ' +
-      'CALL THIS before building any findRecords query that involves dates, aggregation, groupBy, relationship traversal, or vector search. ' +
+      'CALL THIS before building any findRecords query that involves dates, metrics, groupBy, relationship traversal, or vector search. ' +
       'Do not guess operator syntax — use this spec as the source of truth.',
     inputSchema: { type: 'object', properties: {}, required: [] }
   },
@@ -675,7 +647,7 @@ export const tools: Tool[] = [
       'Use the `name` field as the field name in where/orderBy/groupBy clauses. ' +
       'Use the `id` field as the `propertyId` argument to propertyValues. ' +
       'After calling this tool, decide the next step based on the field type: ' +
-      'number or datetime → call propertyValues(propertyId) to get { min, max } for range questions, OR use findRecords with aggregate fn:min/max; ' +
+      'number or datetime → call propertyValues(propertyId) to get { min, max } for range questions, OR use findRecords with select: { min: ..., max: ... }; ' +
       'string or boolean → call propertyValues(propertyId) to get distinct values before filtering.',
     inputSchema: {
       type: 'object',

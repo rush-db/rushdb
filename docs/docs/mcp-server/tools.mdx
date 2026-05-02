@@ -24,7 +24,7 @@ The RushDB MCP server exposes a comprehensive set of tools. Each tool includes a
 - deleteRecordById — Delete a record by ID
 - getRecord — Get a record by ID
 - getRecordsByIds — Get multiple records by their IDs
-- findRecords — Search for records with where/limit/skip/orderBy/aggregate/groupBy
+- findRecords — Search for records with where/limit/skip/orderBy/select/groupBy
 - findOneRecord — Find a single record matching criteria
 - findUniqRecord — Find a unique record matching criteria
 
@@ -273,7 +273,7 @@ Arguments:
 | limit      | number             | no       | 10      | Max records to return |
 | skip       | number             | no       | 0       | Records to skip |
 | orderBy    | object             | no       | —       | Sorting: key = field, value = `asc` or `desc` |
-| aggregate  | object of objects  | no       | —       | Aggregations: each key maps to `{ fn, field?, alias?, granularity? }`. `fn` in `count,sum,avg,min,max,timeBucket`. For `timeBucket`, provide `granularity` like `day`, `week`, `month`, `quarter`, or `year`. |
+| select     | object             | no       | —       | Output-shaping expressions: `{ $sum, $avg, $count, $min, $max, $collect, $timeBucket }` |
 | groupBy    | array of strings   | no       | —       | Fields to group by (records only) |
 
 Example prompt:
@@ -518,7 +518,7 @@ Return the complete RushDB SearchQuery specification as a focused reference docu
 Covers:
 - All `where` operators: string, number, boolean, datetime component objects, `$exists`, `$type`, logical grouping (`$and`/`$or`/`$not`/`$nor`/`$xor`)
 - Relationship traversal syntax: `$alias`, `$relation`, `$id`
-- All aggregate functions: `count`/`sum`/`avg`/`min`/`max`/`collect`/`timeBucket`
+- All `select` expressions: `$count`/`$sum`/`$avg`/`$min`/`$max`/`$collect`/`$timeBucket`
 - Both `groupBy` modes: dimensional (one row per distinct value) and self-group (collapse to single KPI row)
 - Late-ordering rules for correct full-scan totals
 - `COLLECT` nesting for hierarchical output

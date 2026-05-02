@@ -5,7 +5,7 @@ sidebar_position: 0
 
 # Search
 
-RushDB provides a powerful and flexible search system that allows you to efficiently query and traverse your graph data. The Search API is a cornerstone of RushDB, enabling you to find records, filter by conditions, navigate relationships, aggregate results, and format the returned data exactly as needed.
+RushDB provides a powerful and flexible search system that allows you to efficiently query and traverse your graph data. The Search API is a cornerstone of RushDB, enabling you to find records, filter by conditions, navigate relationships, compute metrics, and format the returned data exactly as needed. The legacy aggregate clause is deprecated and should only be used for vector similarity until select supports it.
 
 ## Core Capabilities
 
@@ -13,7 +13,7 @@ RushDB's Search API offers a comprehensive set of features:
 
 - **Powerful Filtering**: Use the [`where` clause](./where.md) with a wide range of operators to precisely filter records
 - **Graph Traversal**: Navigate through connected records with relationship queries
-- **Aggregation**: Perform calculations and transform data using [aggregation functions](./aggregations.md)
+- **Select Expressions**: Compute aggregates, derive metrics, and shape output using the [`select` clause](./aggregations.md)
 - **Pagination and Sorting**: Control result volume and order with [pagination and sorting options](./pagination-order.md)
 - **Label-Based Filtering**: Target specific types of records using [label filtering](./labels.md)
 - **Semantic Search**: Find records by meaning using AI embedding indexes — see [AI Search](../../rest-api/ai)
@@ -29,7 +29,7 @@ interface SearchQuery {
   limit?: number;              // Maximum number of records to return (default: 100)
   skip?: number;               // Number of records to skip (for pagination)
   orderBy?: OrderByClause;     // Sorting configuration
-  aggregate?: AggregateClause; // Data aggregation and transformation
+  select?: SelectExprMap;      // Output-shaping expressions
 }
 ```
 
@@ -95,16 +95,9 @@ The [`where` clause](./where.md) is the primary mechanism for filtering records.
       category: "Electronics"
     }
   },
-  aggregate: {
-    totalSpent: {
-      fn: "sum",
-      field: "amount",
-      alias: "$record"
-    },
-    products: {
-      fn: "collect",
-      alias: "$product"
-    }
+  select: {
+    totalSpent: { $sum: "$record.amount" },
+    products: { $collect: { from: "$product" } }
   }
 }
 ```

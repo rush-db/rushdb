@@ -236,8 +236,8 @@ async function queryWithFallback(label: string, filter: Record<string, unknown>)
         // Check what values actually exist
         const dist = await db.records.find({
           labels: [label],
-          aggregate: {
-            count: { fn: 'count', alias: '$record' },
+          select: {
+            count: { $count: '*' },
             [key]: `$record.${key}`
           },
           groupBy: [key, 'count'],
@@ -270,8 +270,8 @@ def query_with_fallback(label: str, filter_dict: dict) -> object:
                 print(f'Key "{key}" = "{filter_dict[key]}" eliminates all results')
                 dist = db.records.find({
                     "labels": [label],
-                    "aggregate": {
-                        "count": {"fn": "count", "alias": "$record"},
+                    "select": {
+                        "count": {"$count": "*"},
                         key: f"$record.{key}"
                     },
                     "groupBy": [key, "count"],
@@ -293,8 +293,8 @@ curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
   -d '{
     "labels": ["CUSTOMER"],
-    "aggregate": {
-      "count": {"fn": "count", "alias": "$record"},
+    "select": {
+      "count": {"$count": "*"},
       "status": "$record.status"
     },
     "groupBy": ["status", "count"],

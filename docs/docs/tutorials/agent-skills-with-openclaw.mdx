@@ -196,11 +196,11 @@ OpenClaw will:
 
 1. Call `getOntologyMarkdown` → get exact label names and field types.
 2. Call `getSearchQuerySpec` → load the operator reference.
-3. Build and execute `findRecords` with the correct `where`, `aggregate`, and date filter.
+3. Build and execute `findRecords` with the correct `where`, `select`, and date filter.
 
 > OpenClaw: [calls getOntologyMarkdown → confirms `ORDER`, `CUSTOMER` labels and `tier`, `createdAt` fields]
 > [calls getSearchQuerySpec → loads date operator reference]
-> `[calls findRecords: labels=["ORDER"], aggregate={count:{fn:"count",alias:"total"}}, where={$relation:{label:"CUSTOMER",where:{tier:{$eq:"enterprise"}}},createdAt:{$gte:"2025-01-01"}}]`
+> `[calls findRecords: labels=["ORDER"], select={count:{"$count":"*"}}, where={CUSTOMER:{tier:"enterprise"},createdAt:{$gte:"2025-01-01"}}]`
 > **Result:** 342 enterprise orders placed in the last 30 days.
 
 **Slash command tip:**

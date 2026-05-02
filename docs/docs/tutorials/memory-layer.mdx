@@ -306,7 +306,7 @@ const facts = await db.records.find({
       entityId: 'user-42'
     }
   },
-  aggregate: {
+  select: {
     key: '$record.key',
     value: '$record.value',
     setAt: '$record.setAt',
@@ -353,7 +353,7 @@ facts = db.records.find({
             "entityId": "user-42"
         }
     },
-    "aggregate": {
+    "select": {
         "key": "$record.key",
         "value": "$record.value",
         "setAt": "$record.setAt"

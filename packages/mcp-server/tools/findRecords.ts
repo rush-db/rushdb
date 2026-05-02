@@ -20,10 +20,11 @@ export async function findRecords(params: {
   limit?: number
   skip?: number
   orderBy?: Record<string, 'asc' | 'desc'>
+  select?: Record<string, any>
   aggregate?: Record<string, { fn: string; field?: string; alias?: string; where?: any }>
   groupBy?: string[]
 }) {
-  const { labels, where, limit, skip, orderBy, aggregate, groupBy } = params
+  const { labels, where, limit, skip, orderBy, select, aggregate, groupBy } = params
 
   const searchQuery: any = {}
   if (labels && labels.length > 0) searchQuery.labels = labels
@@ -31,13 +32,14 @@ export async function findRecords(params: {
   if (limit) searchQuery.limit = limit
   if (skip) searchQuery.skip = skip
   if (orderBy && Object.keys(orderBy).length > 0) searchQuery.orderBy = orderBy
+  if (select && Object.keys(select).length > 0) searchQuery.select = select
   if (aggregate && Object.keys(aggregate).length > 0) searchQuery.aggregate = aggregate
   if (groupBy && groupBy.length > 0) searchQuery.groupBy = groupBy
 
   const result = await db.records.find(searchQuery)
 
-  // If aggregation present, return raw response so caller gets aggregates.
-  if (searchQuery.aggregate || searchQuery.groupBy) {
+  // If output shaping (select/aggregate) or groupBy present, return raw response so caller gets aggregates.
+  if (searchQuery.select || searchQuery.aggregate || searchQuery.groupBy) {
     return result
   }
 

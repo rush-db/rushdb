@@ -153,8 +153,8 @@ Example:
 ```ts
 // Self-group on an aggregated value
 const deals = await DealModel.find({
-  aggregate: {
-    totalAmount: { fn: 'sum', field: 'amount', alias: '$record' }
+  select: {
+    totalAmount: { $sum: '$record.amount' }
   },
   groupBy: ['totalAmount']
 });
@@ -165,7 +165,7 @@ const firstRow = deals.data[0] as DealAggRow;
 ```
 
 Notes:
-- Use this pattern whenever [`aggregate`](../../concepts/search/aggregations) and/or [`groupBy`](../../concepts/search/group-by) change the returned columns.
+- Use this pattern whenever [`select`](../../concepts/search/aggregations) and/or [`groupBy`](../../concepts/search/group-by) change the returned columns.
 - For regular record fetches (no aggregation/grouping), prefer the plain `typeof Model.recordInstance` without augmenting `data`.
 
 ## Methods
