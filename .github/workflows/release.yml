@@ -13,6 +13,7 @@ permissions:
 
 env:
   ECS_SERVICE_NEST: 'rushdb-ecs-service'
+  ECS_SERVICE_MCP: 'rushdb-mcp-service'
   ECS_CLUSTER: 'rushdb-ecs-cluster'
 
 jobs:
@@ -118,7 +119,7 @@ jobs:
           username: ${{ vars.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}
 
-      - name: Build and push
+      - name: Build and push platform
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -128,6 +129,17 @@ jobs:
           tags: |
             rushdb/platform:latest
             rushdb/platform:${{ needs.release.outputs.version }}
+
+      - name: Build and push MCP server
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: packages/mcp-server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            rushdb/mcp-server:latest
+            rushdb/mcp-server:${{ needs.release.outputs.version }}
 
       - name: Set image output
         id: set-image
@@ -220,10 +232,63 @@ jobs:
           }
           EOF
 
-      - name: Deploy Amazon ECS task definition
+      - name: Deploy platform to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: task-definition.json
           service: ${{ env.ECS_SERVICE_NEST }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: false
+
+      - name: Render MCP task definition
+        run: |
+          cat <<EOF > mcp-task-definition.json
+          {
+            "containerDefinitions": [
+              {
+                "name": "rushdb-mcp",
+                "image": "rushdb/mcp-server:${{ needs.release.outputs.version }}",
+                "cpu": 512,
+                "memory": 1024,
+                "portMappings": [
+                  {
+                    "containerPort": 3001,
+                    "hostPort": 3001,
+                    "protocol": "tcp",
+                    "appProtocol": "http"
+                  }
+                ],
+                "essential": true,
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/rushdb-mcp",
+                    "awslogs-region": "${{ vars.AWS_REGION }}",
+                    "awslogs-stream-prefix": "ecs-rushdb-mcp"
+                  }
+                },
+                "environment": [
+                  { "name": "MCP_TRANSPORT", "value": "http" },
+                  { "name": "PORT", "value": "3001" },
+                  { "name": "RUSHDB_API_URL", "value": "https://api.rushdb.com/api/v1" },
+                  { "name": "MCP_RESOURCE_URL", "value": "https://mcp.rushdb.com" },
+                  { "name": "RUSHDB_OAUTH_ISSUER", "value": "${{ vars.RUSHDB_PUBLIC_URL }}" }
+                ]
+              }
+            ],
+            "family": "rushdb-mcp-task-definition",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "512",
+            "memory": "1024",
+            "executionRoleArn": "${{ secrets.ECS_EXECUTION_ROLE_ARN }}"
+          }
+          EOF
+
+      - name: Deploy MCP server to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: mcp-task-definition.json
+          service: ${{ env.ECS_SERVICE_MCP }}
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: false

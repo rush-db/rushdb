@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+# Cancel in-flight runs for the same branch when a new commit arrives.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ── Branch protection ──────────────────────────────────────────────────────────
+# Require the following status checks before merging:
+#   Settings → Branches → main → Require status checks to pass before merging
+#     ✓ Build & Type-check
+#     ✓ Lint
+#     ✓ Test
+#     ✓ Docs Build
+# ──────────────────────────────────────────────────────────────────────────────
+
+jobs:
+  # ── Build all packages + type-check ─────────────────────────────────────────
+  build:
+    name: Build & Type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.1.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # SDK must be built first — other packages resolve @rushdb/javascript-sdk
+      # from the workspace dist/ directory.
+      - name: Build javascript-sdk
+        run: pnpm --filter ./packages/javascript-sdk build
+
+      - name: Build mcp-server
+        run: pnpm --filter ./packages/mcp-server build
+
+      - name: Build platform/core
+        run: pnpm --filter ./platform/core build
+
+      # Dashboard: type-check only — the full Vite production build requires
+      # NODE_OPTIONS=--max-old-space-size=8192 and is covered by the release job.
+      - name: Type-check platform/dashboard
+        run: pnpm --filter ./platform/dashboard types:check
+
+      - name: Type-check javascript-sdk
+        run: pnpm --filter ./packages/javascript-sdk types:check
+
+      - name: Type-check docs
+        run: pnpm --filter ./docs types:check
+
+  # ── ESLint across all packages that define a lint script ────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.1.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Type-aware lint rules in platform/core require the SDK types to be present.
+      - name: Build javascript-sdk
+        run: pnpm --filter ./packages/javascript-sdk build
+
+      - name: Lint platform/core
+        run: pnpm --filter ./platform/core lint
+
+      - name: Lint platform/dashboard
+        run: pnpm --filter ./platform/dashboard lint
+
+  # ── Unit tests (no external services required) ──────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.1.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build javascript-sdk
+        run: pnpm --filter ./packages/javascript-sdk build
+
+      # 9 pure unit tests for the Cypher query parser — no DB or network required.
+      - name: Test platform/core (unit)
+        run: pnpm --filter ./platform/core test
+        env:
+          NODE_ENV: test
+
+  # ── Docusaurus build (validates all internal links and MDX syntax) ───────────
+  docs:
+    name: Docs Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.1.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build docs
+        run: pnpm --filter ./docs build

@@ -1,21 +1,25 @@
-FROM node:23.11-slim AS node_base
+FROM node:23.11-slim AS base
+RUN npm install -g pnpm@10.1.0
 WORKDIR /app
 
-FROM node_base AS builder
-COPY package.json package-lock.json tsconfig.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts --omit-dev
+FROM base AS builder
+# Copy workspace manifests for layer caching
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY packages/javascript-sdk/package.json ./packages/javascript-sdk/
+COPY packages/mcp-server/package.json ./packages/mcp-server/
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
-COPY . ./
-RUN --mount=type=cache,target=/root/.npm npm run build
+COPY packages/javascript-sdk ./packages/javascript-sdk
+COPY packages/mcp-server ./packages/mcp-server
+RUN pnpm --filter @rushdb/javascript-sdk build
+RUN pnpm --filter @rushdb/mcp-server build
 
-FROM node_base
-COPY package.json package-lock.json ./
-COPY --from=builder /app/build ./build
+FROM node:23.11-slim
+WORKDIR /app
+COPY --from=builder /app/packages/mcp-server/build ./build
+COPY --from=builder /app/packages/mcp-server/package.json ./package.json
 ENV NODE_ENV=production
 # MCP_TRANSPORT: "stdio" (default) | "http"
-# Override with -e MCP_TRANSPORT=http to enable the Streamable HTTP server
-ENV MCP_TRANSPORT=stdio
-# HTTP mode: server listens on this port (only relevant when MCP_TRANSPORT=http)
+ENV MCP_TRANSPORT=http
 EXPOSE 3001
-RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts --omit=dev
 ENTRYPOINT ["node", "/app/build/index.js"]

@@ -943,6 +943,9 @@ if (mcpTransport === 'http') {
   // GET /mcp — required for SSE-based MCP clients (optional but good practice)
   httpApp.get('/mcp', (c) => c.json({ error: 'method_not_allowed', error_description: 'Use POST /mcp' }, 405))
 
+  // Health check for load balancer probes
+  httpApp.get('/health', (c) => c.text('ok'))
+
   serve({ fetch: httpApp.fetch, port }, (info) => {
     process.stderr.write(`RushDB MCP HTTP server running on port ${info.port}\n`)
     process.stderr.write(`Resource URL: ${resourceUrl}\n`)
