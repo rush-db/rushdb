@@ -635,7 +635,7 @@ When you need to reference related records in aggregations, use the `$alias` ope
 }
 ```
 
-> For more detailed information about aggregations, including available functions and advanced usage, see [Aggregations](./aggregations.md).
+> For more detailed information about aggregations, including available functions and advanced usage, see [Select Expressions](./select.md).
 
 ### ID Filtering
 

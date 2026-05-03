@@ -75,7 +75,7 @@ const { data: movies, total } = await db.records.find({
 | `orderBy`   | `string \| object` | Sort criteria ([docs](../../concepts/search/pagination-order)) |
 | `limit`     | `number`           | Max records to return (default: 1000)                          |
 | `skip`      | `number`           | Records to skip for pagination                                 |
-| `select`    | `object`           | Output-shaping expressions ([docs](../../concepts/search/aggregations))             |
+| `select`    | `object`           | Output-shaping expressions ([docs](../../concepts/search/select))             |
 | `groupBy`   | `string[]`         | Grouping keys, e.g. `['$record.genre']`                        |
 
 ## Relationship traversal
@@ -159,7 +159,7 @@ const byGenre = await db.records.find({
 // [{ genre: 'sci-fi', count: 42, avgRating: 7.9 }, ...]
 ```
 
-Full reference: [Select Expressions](../../concepts/search/aggregations) · [Grouping](../../concepts/search/group-by)
+Full reference: [Select Expressions](../../concepts/search/select) · [Grouping](../../concepts/search/group-by)
 
 ## TimeBucket (time-series)
 

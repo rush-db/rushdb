@@ -207,5 +207,5 @@ orderBy: { dealstage: 'asc' }
 - Unexpected duplicate rows? Add more group keys or remove unnecessary keys.
 
 ## See Also
-- [Aggregations](./aggregations.md)
+- [Select Expressions](./select.md)
 - SDK references: TypeScript / Python / REST *get records* pages

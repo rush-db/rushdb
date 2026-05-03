@@ -165,7 +165,7 @@ const firstRow = deals.data[0] as DealAggRow;
 ```
 
 Notes:
-- Use this pattern whenever [`select`](../../concepts/search/aggregations) and/or [`groupBy`](../../concepts/search/group-by) change the returned columns.
+- Use this pattern whenever [`select`](../../concepts/search/select) and/or [`groupBy`](../../concepts/search/group-by) change the returned columns.
 - For regular record fetches (no aggregation/grouping), prefer the plain `typeof Model.recordInstance` without augmenting `data`.
 
 ## Methods

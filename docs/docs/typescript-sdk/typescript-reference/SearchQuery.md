@@ -130,7 +130,7 @@ export type SelectClause = {
 }
 ```
 
-The canonical output-shaping clause. See the [Select Expressions guide](../../concepts/search/aggregations.md) for full documentation.
+The canonical output-shaping clause. See the [Select Expressions guide](../../concepts/search/select.md) for full documentation.
 
 ### GroupBy Clause
 
@@ -400,7 +400,7 @@ Learn more about [relationships in RushDB](../../concepts/relationships).
 
 ### Aggregation
 
-`select` expressions support all aggregation operations. See the [Select Expressions guide](../../concepts/search/aggregations.md) for full documentation.
+`select` expressions support all aggregation operations. See the [Select Expressions guide](../../concepts/search/select.md) for full documentation.
 
 ```typescript
 // Count and sum via select expressions

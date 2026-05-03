@@ -13,7 +13,7 @@ RushDB's Search API offers a comprehensive set of features:
 
 - **Powerful Filtering**: Use the [`where` clause](./where.md) with a wide range of operators to precisely filter records
 - **Graph Traversal**: Navigate through connected records with relationship queries
-- **Select Expressions**: Compute aggregates, derive metrics, and shape output using the [`select` clause](./aggregations.md)
+- **Select Expressions**: Compute aggregates, derive metrics, and shape output using the [`select` clause](./select.md)
 - **Pagination and Sorting**: Control result volume and order with [pagination and sorting options](./pagination-order.md)
 - **Label-Based Filtering**: Target specific types of records using [label filtering](./labels.md)
 - **Semantic Search**: Find records by meaning using AI embedding indexes — see [AI Search](../../rest-api/ai)
@@ -84,7 +84,7 @@ The [`where` clause](./where.md) is the primary mechanism for filtering records.
 
 ### Aggregating Results
 
-[Aggregations](./aggregations.md) allow you to perform calculations and transform the structure of your results:
+[Select Expressions](./select.md) allow you to perform calculations and transform the structure of your results:
 
 ```typescript
 {
@@ -131,6 +131,6 @@ For optimal performance when using the Search API:
 ## Next Steps
 
 - Learn more about [filtering with where clauses](./where.md)
-- Explore [data aggregation capabilities](./aggregations.md)
+- Explore [select expressions and aggregation capabilities](./select.md)
 - Understand [pagination and sorting options](./pagination-order.md)
 - Discover how to filter by [record labels](./labels.md)
