@@ -18,7 +18,10 @@
   "license": "Apache-2.0",
   "version": "1.19.1",
   "files": [
-    "skills",
+    "rushdb-query-builder",
+    "rushdb-agent-memory",
+    "rushdb-data-modeling",
+    "rushdb-faceted-search",
     "README.md"
   ],
   "repository": {
