@@ -2,6 +2,7 @@
   "name": "@rushdb/skills",
   "description": "Agent Skills for RushDB — teach AI agents to query, model data, and use RushDB as persistent memory",
   "keywords": [
+    "agentskills",
     "agent-skills",
     "rushdb",
     "mcp",
@@ -15,7 +16,7 @@
     "cursor"
   ],
   "license": "Apache-2.0",
-  "version": "1.0.0",
+  "version": "1.19.1",
   "files": [
     "skills",
     "README.md"
