@@ -16,7 +16,7 @@ RushDB's Search API offers a comprehensive set of features:
 - **Select Expressions**: Compute aggregates, derive metrics, and shape output using the [`select` clause](./select.md)
 - **Pagination and Sorting**: Control result volume and order with [pagination and sorting options](./pagination-order.md)
 - **Label-Based Filtering**: Target specific types of records using [label filtering](./labels.md)
-- **Semantic Search**: Find records by meaning using AI embedding indexes — see [AI Search](../../rest-api/ai)
+- **Semantic Search**: Find records by meaning using AI embedding indexes — see [AI Search](../../rest-api/ai/overview)
 
 ## SearchQuery Structure
 

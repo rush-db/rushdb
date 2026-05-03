@@ -26,7 +26,7 @@ Interactive docs: [Swagger UI](https://api.rushdb.com/api) · [OpenAPI JSON](htt
 | [Labels](./labels) | Query which types exist and their counts |
 | [Properties](./properties) | Inspect field names, types, and value ranges |
 | [Transactions](./transactions) | Atomic multi-step operations |
-| [AI & Semantic Search](./ai) | Schema export + vector similarity search |
+| [AI & Semantic Search](./ai/overview) | Schema export + vector similarity search |
 | [Raw Queries](./raw-queries) | Cypher pass-through (cloud only) |
 
 

@@ -125,4 +125,4 @@ The ontology is computed once and cached by RushDB. Cache entries are invalidate
 - [Labels](./labels.md) — how labels work as the primary organisational axis
 - [Properties](./properties.md) — property types and the `__proptypes` self-description mechanism
 - [Agent Memory Model](./agent-memory-model.md) — where ontology fits in the full retrieval stack
-- [AI & Semantic Search](../../rest-api/ai.md) — complete REST API reference for ontology endpoints
+- [AI & Semantic Search](../../rest-api/ai/overview) — complete REST API reference for ontology endpoints

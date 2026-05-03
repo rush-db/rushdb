@@ -884,7 +884,7 @@ This query finds active users who have provided an email address but no phone nu
 }
 ```
 
-This query finds records related to documents about neural networks that have chunks mentioning "embedding". For semantic (embedding-based) search, use the dedicated [AI search endpoint](/rest-api/ai#semantic-search).
+This query finds records related to documents about neural networks that have chunks mentioning "embedding". For semantic (embedding-based) search, use the dedicated [AI search endpoint](/rest-api/ai/search).
 </details>
 
 <details>

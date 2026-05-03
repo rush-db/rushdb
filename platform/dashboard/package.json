@@ -7,7 +7,7 @@
   "license": "Elastic License 2.0",
   "scripts": {
     "dev": "NODE_ENV=development vite",
-    "build": "pnpm types:check && vite build",
+    "build": "pnpm types:check && NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "preview": "vite preview",
     "lint": "eslint --ext .js,.jsx,.ts,.tsx .",
     "lint:fix": "pnpm lint --fix",
