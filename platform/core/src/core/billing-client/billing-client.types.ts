@@ -36,6 +36,8 @@ export interface UsageResponse {
   billingModel: 'fixed' | 'overage' | 'usage'
   /** Start of current billing period (ISO 8601) */
   billingPeriodStart: string
+  /** Estimated total charge for the current billing period in USD (base + usage). 0 for free/enterprise. */
+  currentPeriodEstimate: number
 }
 
 /**
