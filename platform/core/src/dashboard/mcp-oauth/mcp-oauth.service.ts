@@ -8,17 +8,18 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
-import { createHash } from 'node:crypto'
 import { uuidv7 } from 'uuidv7'
 
 import { AuthService } from '@/dashboard/auth/auth.service'
-import { TokenService } from '@/dashboard/token/token.service'
-import { ProjectService } from '@/dashboard/project/project.service'
-import { OAuthRepository } from '@/dashboard/mcp-oauth/model/oauth.repository'
-import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
-import { RegisterClientDto } from '@/dashboard/mcp-oauth/dto/register-client.dto'
 import { AuthorizeAcceptDto } from '@/dashboard/mcp-oauth/dto/authorize-accept.dto'
+import { RegisterClientDto } from '@/dashboard/mcp-oauth/dto/register-client.dto'
 import { TokenRequestDto } from '@/dashboard/mcp-oauth/dto/token-request.dto'
+import { OAuthRepository } from '@/dashboard/mcp-oauth/model/oauth.repository'
+import { ProjectService } from '@/dashboard/project/project.service'
+import { TokenService } from '@/dashboard/token/token.service'
+import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
+
+import { createHash } from 'node:crypto'
 
 // Label constants kept for potential external references
 export const LABEL_OAUTH_CLIENT = '__RUSHDB__LABEL__OAUTH_CLIENT__'

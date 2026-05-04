@@ -10,6 +10,8 @@ import { isObject } from '@/common/utils/isObject'
 import { isPrimitiveArray } from '@/common/utils/isPrimitiveArray'
 import { pickPrimitives } from '@/common/utils/pickPrimitives'
 import { toBoolean } from '@/common/utils/toBolean'
+import { AiService } from '@/core/ai/ai.service'
+import { InlineVectorEntryDto } from '@/core/ai/dto/inline-vector-entry.dto'
 import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
 import {
   RUSHDB_KEY_ID,
@@ -22,8 +24,6 @@ import {
 } from '@/core/common/constants'
 import { suggestPropertyType } from '@/core/common/normalizeRecord'
 import { MaybeArray } from '@/core/common/types'
-import { AiService } from '@/core/ai/ai.service'
-import { InlineVectorEntryDto } from '@/core/ai/dto/inline-vector-entry.dto'
 import { CreateEntityDto } from '@/core/entity/dto/create-entity.dto'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import { TEntityPropertiesNormalized } from '@/core/entity/entity.types'

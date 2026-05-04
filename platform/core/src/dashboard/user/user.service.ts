@@ -31,10 +31,11 @@ import { TWorkSpaceInviteToken } from '@/dashboard/workspace/workspace.types'
 
 import * as crypto from 'node:crypto'
 
-import type { UserRow } from '@/database/sql/schema/types'
 import { TUserProperties, TUserRoles } from './model/user.interface'
 import { UserRepository } from './model/user.repository'
 import { User } from './user.entity'
+
+import type { UserRow } from '@/database/sql/schema/types'
 
 @Injectable()
 export class UserService {
@@ -74,7 +75,9 @@ export class UserService {
 
   async markEmailAsConfirmed(login: string, _transaction?: Transaction): Promise<User> {
     const existing = await this.userRepository.findByLogin(login)
-    if (!existing) throw new BadRequestException(`User not found: ${login}`)
+    if (!existing) {
+      throw new BadRequestException(`User not found: ${login}`)
+    }
     const updated = await this.userRepository.update(existing.id, { confirmed: true })
     return this.normalize(updated)
   }
@@ -123,8 +126,12 @@ export class UserService {
     if (allowedLogins.length === 0 || allowedLogins.includes(login)) {
       const userRow = await this.findUserNodeByLogin(login, transaction)
 
-      if (!workspaceId || !email) throw new BadRequestException('Malformed invite provided')
-      if (email !== login) throw new BadRequestException("Provided email doesn't match invitee's email")
+      if (!workspaceId || !email) {
+        throw new BadRequestException('Malformed invite provided')
+      }
+      if (email !== login) {
+        throw new BadRequestException("Provided email doesn't match invitee's email")
+      }
 
       await this.workspaceService.attachUserToWorkspace(
         workspaceId,
@@ -216,7 +223,9 @@ export class UserService {
     _transaction?: Transaction
   ): Promise<User> {
     const existing = await this.userRepository.findById(id)
-    if (!existing) throw new BadRequestException(`User ${id} not found`)
+    if (!existing) {
+      throw new BadRequestException(`User ${id} not found`)
+    }
 
     const fieldsToUpdate = removeUndefinedKeys(userProperties) as any
 
@@ -240,7 +249,9 @@ export class UserService {
       deletedDate: 'deletedDate'
     }
     for (const [key, val] of Object.entries(fieldsToUpdate)) {
-      if (fieldMap[key]) sqlFields[fieldMap[key]] = val
+      if (fieldMap[key]) {
+        sqlFields[fieldMap[key]] = val
+      }
     }
     sqlFields['edited'] = getCurrentISO()
 
@@ -285,7 +296,9 @@ export class UserService {
       currentRole = (await this.userRepository.getUserRoleInProject(userId, targetId)) as TUserRoles
     }
 
-    if (!currentRole) return false
+    if (!currentRole) {
+      return false
+    }
 
     const requiredWeight = USER_ROLE_WEIGHT[accessLevel] ?? 0
     const currentWeight = USER_ROLE_WEIGHT[currentRole] ?? 0
@@ -294,7 +307,9 @@ export class UserService {
 
   async delete({ userId, transaction }: { userId: string; transaction?: Transaction }): Promise<true> {
     const userRow = await this.userRepository.findById(userId)
-    if (!userRow) return true
+    if (!userRow) {
+      return true
+    }
 
     // Delete owned workspaces first
     const workspaceRows = await this.userRepository.findWorkspacesForUser(userId)
@@ -313,7 +328,9 @@ export class UserService {
 
     try {
       const project = await this.projectService.getProjectById(projectId)
-      if (!project) return false
+      if (!project) {
+        return false
+      }
     } catch {
       isDevMode(() =>
         Logger.warn(`[Link user to the project WARN]: Incorrect project id provided ${projectId}`)

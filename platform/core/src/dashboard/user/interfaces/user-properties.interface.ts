@@ -6,4 +6,5 @@ export type AcceptWorkspaceInvitationParams = {
   inviteToken: string
   authUserLogin: string
 }
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface IUserProperties extends Omit<TUserProperties, TIUserAuthProperties> {}

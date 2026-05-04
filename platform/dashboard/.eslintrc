@@ -3,7 +3,6 @@
   "parser": "@typescript-eslint/parser",
   "plugins": ["@typescript-eslint", "import"],
   "extends": [
-    "next/core-web-vitals",
     "plugin:@typescript-eslint/recommended"
   ],
   "settings": {

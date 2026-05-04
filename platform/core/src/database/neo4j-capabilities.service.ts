@@ -1,7 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
-import type { Session } from 'neo4j-driver'
 
 import { NeogmaService } from '@/database/neogma/neogma.service'
+
+import type { Session } from 'neo4j-driver'
 
 /** Minimum Neo4j version required to run RushDB. */
 const MIN_YEAR = 2026
@@ -56,7 +57,9 @@ export class Neo4jCapabilitiesService implements OnModuleInit {
     const [year, month, patch] = version.split('.').map(Number)
 
     // Non-calendar format (e.g. Aura "5.26.0") — cannot validate
-    if (year < 2000) return
+    if (year < 2000) {
+      return
+    }
 
     const supported =
       year > MIN_YEAR ||

@@ -18,10 +18,21 @@
     "release": "changeset publish",
     "version:dev": "changeset version --snapshot dev",
     "release:dev": "changeset publish --tag dev",
-    "reinstall": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && pnpm i"
+    "reinstall": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && pnpm i",
+    "prepare": "husky install"
+  },
+  "lint-staged": {
+    "platform/core/{src,apps,libs,test}/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "platform/dashboard/**/*.{ts,tsx,js,jsx}": "prettier --write",
+    "packages/**/*.{ts,tsx}": "prettier --write",
+    "**/*.{json,md,mdx,yaml,yml,css}": "prettier --write"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.10",
+    "lint-staged": "^15.2.0",
     "concurrently": "^9.2.1",
     "@commitlint/cli": "^17.6.6",
     "@commitlint/config-conventional": "^17.6.6",

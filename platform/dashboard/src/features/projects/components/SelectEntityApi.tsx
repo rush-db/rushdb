@@ -7,7 +7,8 @@ import { RadioGroup } from '~/elements/RadioGroup'
 import { Tooltip } from '~/elements/Tooltip'
 
 import { $recordRawApiEntity, $recordView } from '../stores/current-project'
-import { RawApiEntityType, RecordViewType } from '~/features/projects/types.ts'
+import type { RawApiEntityType } from '~/features/projects/types.ts'
+import { RecordViewType } from '~/features/projects/types.ts'
 import { GraphIcon } from '~/elements/GraphIcon.tsx'
 
 const options = [

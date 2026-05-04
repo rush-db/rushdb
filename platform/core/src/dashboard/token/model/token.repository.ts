@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { and, eq, gt, isNull, ne, or, sql } from 'drizzle-orm'
 
 import { SqlService } from '@/database/sql/sql.service'
+
 import type { InsertTokenRow, TokenRow } from '@/database/sql/schema/types'
 
 export interface TokenWithProjectAndWorkspace {
@@ -39,7 +40,9 @@ export class TokenRepository {
 
   async delete(id: string): Promise<boolean> {
     const rows = await this.db.select({ id: this.tokens.id }).from(this.tokens).where(eq(this.tokens.id, id))
-    if (rows.length === 0) return false
+    if (rows.length === 0) {
+      return false
+    }
     await this.db.delete(this.tokens).where(eq(this.tokens.id, id))
     return true
   }
@@ -109,7 +112,9 @@ export class TokenRepository {
       .select({ id: this.tokens.id })
       .from(this.tokens)
       .where(and(ne(this.tokens.expiration, -1), sql`${epochExpr} < ${nowMs}`))
-    if (expired.length === 0) return 0
+    if (expired.length === 0) {
+      return 0
+    }
     for (const { id } of expired) {
       await this.db.delete(this.tokens).where(eq(this.tokens.id, id))
     }

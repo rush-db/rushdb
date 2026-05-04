@@ -17,7 +17,7 @@ import {
 import { $token } from './token'
 import { $user } from './user'
 import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
-import { InvitedGetUserResponse } from '~/features/auth/types'
+import type { InvitedGetUserResponse } from '~/features/auth/types'
 
 $user.subscribe(({ isLoggedIn, token }, changedKey) => {
   if (changedKey === 'isLoggedIn') {

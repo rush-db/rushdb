@@ -19,6 +19,7 @@ type TWorkspaceProperties = {
   stats?: string
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface IWorkspaceProperties extends TWorkspaceProperties {}
 
 interface IWorkspaceRelatedNodes {
@@ -37,7 +38,7 @@ interface IWorkspaceRelatedNodes {
   Projects: ModelRelatedNodesI<TProjectModel, TProjectInstance>
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface IWorkspaceStatics {}
 
 type TWorkspaceInstance = NeogmaInstance<TWorkspaceProperties, IWorkspaceRelatedNodes>

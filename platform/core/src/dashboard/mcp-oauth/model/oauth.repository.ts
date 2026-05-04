@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm'
 import { uuidv7 } from 'uuidv7'
 
 import { SqlService } from '@/database/sql/sql.service'
+
 import type {
   InsertOauthAuthRequestRow,
   InsertOauthClientRow,
@@ -207,7 +208,9 @@ export class OAuthRepository {
    * Called when projects (and their parent workspace) are deleted.
    */
   async deleteConsentsByProjectIds(projectIds: string[]): Promise<void> {
-    if (!projectIds.length) return
+    if (!projectIds.length) {
+      return
+    }
     await this.db.delete(this.consents).where(inArray(this.consents.projectId, projectIds))
   }
 

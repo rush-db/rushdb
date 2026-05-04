@@ -1,6 +1,6 @@
-import type { WorkspaceRow } from '@/database/sql/schema/types'
-
 import { IWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
+
+import type { WorkspaceRow } from '@/database/sql/schema/types'
 
 export class Workspace {
   // expose dataValues for legacy call sites that read workspace.dataValues.id etc.

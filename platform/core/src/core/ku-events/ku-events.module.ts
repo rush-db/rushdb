@@ -2,9 +2,9 @@ import { HttpModule } from '@nestjs/axios'
 import { Global, Module } from '@nestjs/common'
 import { ScheduleModule } from '@nestjs/schedule'
 
-import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { StorageFootprintScheduler } from '@/core/ku-events/storage-footprint.scheduler'
+import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 
 /**
  * KuEventsModule

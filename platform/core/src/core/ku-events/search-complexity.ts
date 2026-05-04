@@ -39,7 +39,9 @@ export function getWhereNestingDepth(where: unknown, currentDepth = 0): number {
   let maxDepth = currentDepth
 
   for (const [key, value] of Object.entries(obj)) {
-    if (value === null || value === undefined) continue
+    if (value === null || value === undefined) {
+      continue
+    }
 
     if (key === '$and' || key === '$or' || key === '$not' || key === '$xor' || key === '$nor') {
       // Logical groupings — recurse without incrementing depth

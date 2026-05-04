@@ -9,12 +9,12 @@ import {
   Max,
   Min
 } from 'class-validator'
-import { Where } from '@/core/common/types'
 
 import {
   EMBEDDING_INDEX_SIMILARITY_FUNCTIONS,
   EMBEDDING_INDEX_SOURCE_TYPES
 } from '@/core/ai/embedding-index.utils'
+import { Where } from '@/core/common/types'
 
 export class SemanticSearchDto {
   /** Name of the property whose embedding index to query */

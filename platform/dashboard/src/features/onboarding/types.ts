@@ -1,4 +1,5 @@
-import { AVAILABLE_SDK_LANGUAGES, SDK_LANGUAGES } from '~/features/onboarding/constants'
+import type { SDK_LANGUAGES } from '~/features/onboarding/constants'
+import { AVAILABLE_SDK_LANGUAGES } from '~/features/onboarding/constants'
 
 export type SdkLanguage = (typeof SDK_LANGUAGES)[number]
 

@@ -15,7 +15,7 @@ import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { useMemo } from 'react'
 import { Spinner } from '~/elements/Spinner.tsx'
 import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
-import { SubmitHandler } from 'react-hook-form'
+import type { SubmitHandler } from 'react-hook-form'
 import { toast } from '~/elements/Toast.tsx'
 
 interface LoginFormValues {

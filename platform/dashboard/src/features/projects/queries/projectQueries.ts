@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import { OrderDirection } from '@rushdb/javascript-sdk'
+import type { OrderDirection } from '@rushdb/javascript-sdk'
 
 import type { Filter } from '~/features/search/types'
 import type { FiltersCombineMode, Sort } from '~/types'

@@ -17,8 +17,9 @@ import { toBoolean } from '@/common/utils/toBolean'
 import { BILLING_ACCOUNT_PORT, BillingAccountPort } from '@/core/billing-policy/billing-account.port'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { MailService } from '@/dashboard/mail/mail.service'
-import { ProjectService } from '@/dashboard/project/project.service'
+import { OAuthRepository } from '@/dashboard/mcp-oauth/model/oauth.repository'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
+import { ProjectService } from '@/dashboard/project/project.service'
 import { TProjectStats } from '@/dashboard/project/project.types'
 import { TShortUserDataWithRole } from '@/dashboard/user/interfaces/authenticated-user.interface'
 import { USER_ROLE_EDITOR, USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
@@ -30,7 +31,6 @@ import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.d
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 import { Workspace } from '@/dashboard/workspace/entity/workspace.entity'
 import { TWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
-import { OAuthRepository } from '@/dashboard/mcp-oauth/model/oauth.repository'
 import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
 import {
   TExtendedWorkspaceProperties,
@@ -89,7 +89,9 @@ export class WorkspaceService {
 
   async findUserBillingWorkspace(userEmail: string, _transaction?: Transaction): Promise<string> {
     const userRow = await this.userRepository.findByLogin(userEmail)
-    if (!userRow) throw new BadRequestException('User not found')
+    if (!userRow) {
+      throw new BadRequestException('User not found')
+    }
 
     const workspaces = await this.userRepository.findWorkspacesForUser(userRow.id)
     const ownerEntry = workspaces.find((w) => w.role === USER_ROLE_OWNER)
@@ -128,7 +130,9 @@ export class WorkspaceService {
       (acc, project) => {
         try {
           const { stats } = project as any
-          if (!stats) return acc
+          if (!stats) {
+            return acc
+          }
           const { records, properties } = JSON.parse(stats) as TProjectStats
           return {
             records: acc.records + (records ?? 0),
@@ -198,7 +202,9 @@ export class WorkspaceService {
     fieldsToUpdate.edited = getCurrentISO()
 
     const updated = await this.workspaceRepository.update(id, fieldsToUpdate)
-    if (!updated) throw new BadRequestException(`Workspace ${id} not found`)
+    if (!updated) {
+      throw new BadRequestException(`Workspace ${id} not found`)
+    }
     return this.normalize(updated)
   }
 

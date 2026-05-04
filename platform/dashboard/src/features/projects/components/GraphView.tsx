@@ -1,4 +1,5 @@
-import React, { useRef, useCallback, FC, useState, useEffect, useMemo } from 'react'
+import type { FC } from 'react'
+import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react'
 
 import { useStore } from '@nanostores/react'
 import { EyeOff, RotateCcw, ScanSearch, Square, Box } from 'lucide-react'
@@ -18,7 +19,8 @@ import { Tooltip } from '~/elements/Tooltip'
 import { CheckboxField } from '~/elements/Checkbox'
 import { $sheetProperty, $sheetRecordId, type PropertySheetData } from '~/features/projects/stores/id.ts'
 import { getLabelColor } from '~/features/labels'
-import { DBRecord, DBRecordInstance, type Relation } from '@rushdb/javascript-sdk'
+import type { DBRecord, DBRecordInstance } from '@rushdb/javascript-sdk'
+import { type Relation } from '@rushdb/javascript-sdk'
 
 type GraphMode = '2d' | '3d'
 type GraphNodeKind = 'record' | 'property'

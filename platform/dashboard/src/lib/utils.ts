@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { Toast, toast } from '~/elements/Toast'
+import type { Toast } from '~/elements/Toast'
+import { toast } from '~/elements/Toast'
 
 import type { AnyFunction } from '~/types'
 

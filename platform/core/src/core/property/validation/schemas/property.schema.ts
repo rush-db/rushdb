@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import Joi = require('joi')
 import { AnySchema } from 'joi'
 

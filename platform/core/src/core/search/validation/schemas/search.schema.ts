@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import Joi = require('joi')
 
 import { SORT_DESC, SORT_ASC } from '@/core/search/search.constants'

@@ -1,7 +1,8 @@
 import { useStore } from '@nanostores/react'
 import { Braces, DatabaseZap, Edit, TestTube2, Settings2, UploadCloud } from 'lucide-react'
 import { atom, onSet } from 'nanostores'
-import { type ReactNode, Suspense, lazy, useState, ChangeEvent, useEffect, useRef } from 'react'
+import type { ChangeEvent } from 'react'
+import { type ReactNode, Suspense, lazy, useState, useEffect, useRef } from 'react'
 
 import { Button } from '~/elements/Button'
 import { DialogLoadingOverlay } from '~/elements/Dialog'

@@ -1,7 +1,7 @@
 /**
  * This file is responsible for all api calls and data normalization
  */
-import {
+import type {
   AnyObject,
   Property,
   SearchQuery,
@@ -43,7 +43,7 @@ import { BASE_URL } from '~/config.ts'
 
 import { fetcher } from './fetcher'
 import { BillingErrorCodes } from '~/features/billing/constants.ts'
-import { AcceptedUserInviteDto } from '~/features/workspaces/types'
+import type { AcceptedUserInviteDto } from '~/features/workspaces/types'
 import { $limitReachModalOpen } from '~/components/billing/LimitReachedDialog.tsx'
 
 type WithInit = {

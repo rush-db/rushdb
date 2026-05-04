@@ -1,5 +1,5 @@
 import { atom } from 'nanostores'
-import { api } from '~/lib/api.ts'
+import type { api } from '~/lib/api.ts'
 
 export const $editorData = atom<string | undefined>('')
 

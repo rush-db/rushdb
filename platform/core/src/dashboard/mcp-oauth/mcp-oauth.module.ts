@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common'
 
 import { AuthModule } from '@/dashboard/auth/auth.module'
-import { TokenModule } from '@/dashboard/token/token.module'
-import { ProjectModule } from '@/dashboard/project/project.module'
-import { WellKnownController } from '@/dashboard/mcp-oauth/controllers/well-known.controller'
 import { OAuthController } from '@/dashboard/mcp-oauth/controllers/oauth.controller'
-import { McpOauthService } from '@/dashboard/mcp-oauth/mcp-oauth.service'
+import { WellKnownController } from '@/dashboard/mcp-oauth/controllers/well-known.controller'
 import { McpOauthScheduler } from '@/dashboard/mcp-oauth/mcp-oauth.scheduler'
+import { McpOauthService } from '@/dashboard/mcp-oauth/mcp-oauth.service'
 import { OAuthRepository } from '@/dashboard/mcp-oauth/model/oauth.repository'
+import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenRepository } from '@/dashboard/token/model/token.repository'
+import { TokenModule } from '@/dashboard/token/token.module'
 
 @Module({
   imports: [

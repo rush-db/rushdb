@@ -21,8 +21,9 @@ import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { NeogmaDynamicService } from '@/database/neogma-dynamic/neogma-dynamic.service'
 
-import type { ProjectRow } from '@/database/sql/schema/types'
 import * as crypto from 'node:crypto'
+
+import type { ProjectRow } from '@/database/sql/schema/types'
 
 @Injectable()
 export class ProjectService {
@@ -208,7 +209,9 @@ export class ProjectService {
     _transaction?: Transaction
   ): Promise<ProjectEntity> {
     const projectRow = await this.projectRepository.findByIdIncludingDeleted(id)
-    if (!projectRow) throw new BadRequestException(`Project ${id} not found`)
+    if (!projectRow) {
+      throw new BadRequestException(`Project ${id} not found`)
+    }
 
     const { created, edited, ...restProperties } = projectProperties
     const fieldsToUpdate = removeUndefinedKeys(restProperties) as any
@@ -216,7 +219,9 @@ export class ProjectService {
     // Handle customDb update
     if (fieldsToUpdate.customDb && typeof fieldsToUpdate.customDb === 'object') {
       const customDb = await this.attachCustomDb(fieldsToUpdate.customDb)
-      if (customDb) fieldsToUpdate.customDb = customDb
+      if (customDb) {
+        fieldsToUpdate.customDb = customDb
+      }
     } else if (fieldsToUpdate.customDb && typeof fieldsToUpdate.customDb === 'string') {
       delete fieldsToUpdate.customDb // don't overwrite hash with the same hash
     }

@@ -4,10 +4,10 @@ import { Transaction } from 'neo4j-driver'
 
 import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
+import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { User } from '@/dashboard/user/user.entity'
 import { UserService } from '@/dashboard/user/user.service'
-import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { QueryBuilder } from '@/database/QueryBuilder'
 
 import { EncryptionService } from './encryption/encryption.service'

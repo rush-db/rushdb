@@ -1,9 +1,10 @@
+import { HttpService } from '@nestjs/axios'
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { HttpService } from '@nestjs/axios'
 import { firstValueFrom } from 'rxjs'
 
 import { toBoolean } from '@/common/utils/toBolean'
+
 import { BillingInquiryPayload, CheckLimitsResponse, Customer, UsageResponse } from './billing-client.types'
 
 /**
@@ -145,7 +146,9 @@ export class BillingClientService {
    * @returns Customer record or null if not found
    */
   async getCustomer(workspaceId: string): Promise<Customer | null> {
-    if (!this.enabled) return null
+    if (!this.enabled) {
+      return null
+    }
 
     try {
       const response = await firstValueFrom(
@@ -174,7 +177,9 @@ export class BillingClientService {
    * @returns Updated customer or null if failed
    */
   async updateCustomer(workspaceId: string, updates: Partial<Customer>): Promise<Customer | null> {
-    if (!this.enabled) return null
+    if (!this.enabled) {
+      return null
+    }
 
     try {
       const response = await firstValueFrom(
@@ -202,7 +207,9 @@ export class BillingClientService {
    * @param workspaceId - Workspace ID
    */
   async deleteCustomer(workspaceId: string): Promise<boolean> {
-    if (!this.enabled) return true
+    if (!this.enabled) {
+      return true
+    }
 
     try {
       await firstValueFrom(
@@ -295,7 +302,9 @@ export class BillingClientService {
    * @returns Usage summary or null when billing service is disabled
    */
   async getUsage(workspaceId: string): Promise<UsageResponse | null> {
-    if (!this.enabled) return null
+    if (!this.enabled) {
+      return null
+    }
 
     try {
       const response = await firstValueFrom(
@@ -338,7 +347,9 @@ export class BillingClientService {
     hasMore: boolean
     nextCursor: string | null
   } | null> {
-    if (!this.enabled) return null
+    if (!this.enabled) {
+      return null
+    }
 
     try {
       const params = new URLSearchParams({

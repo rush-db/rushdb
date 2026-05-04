@@ -87,7 +87,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       raw.session = undefined
       raw.externalTransaction = undefined
       raw.externalSession = undefined
-    } catch {}
+    } catch {
+      /* empty */
+    }
 
     response.status?.(status).send(
       isHttpException ? exception.getResponse()

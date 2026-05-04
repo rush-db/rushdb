@@ -1,6 +1,6 @@
-import type { ProjectRow } from '@/database/sql/schema/types'
-
 import { IProjectProperties } from '@/dashboard/project/model/project.interface'
+
+import type { ProjectRow } from '@/database/sql/schema/types'
 
 export class ProjectEntity {
   constructor(private readonly projectNode: ProjectRow) {}

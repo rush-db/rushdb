@@ -1,4 +1,4 @@
-import { Property, DBRecord, DBRecordInstance } from '@rushdb/javascript-sdk'
+import type { Property, DBRecord, DBRecordInstance } from '@rushdb/javascript-sdk'
 import type { ReactElement, ReactNode, UIEventHandler } from 'react'
 
 import { useStore } from '@nanostores/react'

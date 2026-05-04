@@ -22,6 +22,7 @@ type TProjectProperties = {
   ontologyCachedAt?: string
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface IProjectProperties extends TProjectProperties {}
 
 interface IRawProjectProperties extends Omit<TProjectProperties, 'customDb'> {
@@ -44,7 +45,7 @@ interface IProjectRelatedNodes {
   Workspaces: ModelRelatedNodesI<TWorkspaceModel, TWorkspaceInstance>
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface IProjectStatics {}
 
 type TProjectInstance = NeogmaInstance<TProjectProperties, IProjectRelatedNodes>

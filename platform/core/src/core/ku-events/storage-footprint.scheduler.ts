@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 
+import { toBoolean } from '@/common/utils/toBolean'
 import { RUSHDB_KEY_PROJECT_ID, RUSHDB_LABEL_RECORD } from '@/core/common/constants'
 import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
-import { toBoolean } from '@/common/utils/toBolean'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
@@ -80,7 +80,9 @@ export class StorageFootprintScheduler {
 
       for (const project of projects) {
         const count = recordCountByProject.get(project.id) ?? 0
-        if (count === 0) continue
+        if (count === 0) {
+          continue
+        }
 
         if (!workspaceMap.has(project.workspaceId)) {
           workspaceMap.set(project.workspaceId, { projects: new Map(), total: 0 })

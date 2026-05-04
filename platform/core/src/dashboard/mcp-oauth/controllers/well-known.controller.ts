@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common'
-import { ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ConfigService } from '@nestjs/config'
+import { ApiOperation, ApiTags } from '@nestjs/swagger'
 
 @ApiTags('OAuth Discovery')
 @Controller()

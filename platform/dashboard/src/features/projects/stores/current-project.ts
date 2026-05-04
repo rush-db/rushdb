@@ -10,7 +10,7 @@ import { $searchParams, changeSearchParam, removeSearchParam } from '~/lib/route
 import { $router, isProjectPage } from '~/lib/router'
 import { addOrRemove, clamp } from '~/lib/utils'
 
-import { RawApiEntityType, RecordViewType } from '../types'
+import type { RawApiEntityType, RecordViewType } from '../types'
 
 import { convertToSearchQuery, decodeQuery, encodeQuery, filterToSearchOperation } from '../utils'
 import { $currentProjectId } from './id'

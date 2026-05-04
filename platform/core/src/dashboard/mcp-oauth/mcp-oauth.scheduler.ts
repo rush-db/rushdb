@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 
-import { TokenRepository } from '@/dashboard/token/model/token.repository'
 import { OAuthRepository } from '@/dashboard/mcp-oauth/model/oauth.repository'
+import { TokenRepository } from '@/dashboard/token/model/token.repository'
 
 @Injectable()
 export class McpOauthScheduler {

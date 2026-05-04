@@ -1,7 +1,7 @@
 import type { PropertyWithValue, Where, DBRecord } from '@rushdb/javascript-sdk'
 
 import { getViableSearchOperations, type AnySearchOperation, type Filter } from '~/features/search/types'
-import { AnyObject, Sort, SortDirection } from '~/types'
+import type { AnyObject, Sort, SortDirection } from '~/types'
 
 import { SearchOperations } from '~/features/search/constants.ts'
 import { removeProperty } from '~/lib/utils'

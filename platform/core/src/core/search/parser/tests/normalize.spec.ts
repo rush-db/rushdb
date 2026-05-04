@@ -1,6 +1,8 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
-import { normalizeSelectExpr } from '@/core/search/parser/normalize'
 import { BadRequestException } from '@nestjs/common'
+
+import { normalizeSelectExpr } from '@/core/search/parser/normalize'
 
 describe('normalizeSelectExpr', () => {
   it('returns null when neither select nor aggregate is provided', () => {

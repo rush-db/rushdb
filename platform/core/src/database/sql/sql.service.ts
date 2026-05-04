@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import { and, eq, SQL } from 'drizzle-orm'
 
 import { SQL_DB, SQL_SCHEMA } from './sql.constants'
+
 import type { SqlDbType } from './sql.module'
 
 /**

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { and, eq, isNull } from 'drizzle-orm'
 
 import { SqlService } from '@/database/sql/sql.service'
+
 import type {
   InsertProjectAccessRow,
   InsertProjectRow,

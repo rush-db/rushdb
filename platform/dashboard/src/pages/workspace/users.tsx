@@ -1,13 +1,6 @@
 import { UsersIcon, X } from 'lucide-react'
-import {
-  useEffect,
-  useState,
-  FormEvent,
-  HTMLAttributes,
-  ThHTMLAttributes,
-  TdHTMLAttributes,
-  useMemo
-} from 'react'
+import type { FormEvent, HTMLAttributes, ThHTMLAttributes, TdHTMLAttributes } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import type { SubmitHandler } from 'react-hook-form'
 
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
@@ -35,7 +28,7 @@ import {
   useRemovePendingInviteMutation
 } from '~/features/workspaces/hooks/useWorkspaceMutations'
 import { object, string, useForm } from '~/lib/form'
-import { PendingInvite } from '~/features/workspaces/types.ts'
+import type { PendingInvite } from '~/features/workspaces/types.ts'
 import { getRoutePath } from '~/lib/router.ts'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { IconButton } from '~/elements/IconButton'

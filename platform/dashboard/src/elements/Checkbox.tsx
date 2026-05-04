@@ -5,8 +5,9 @@ import { Check, Minus } from 'lucide-react'
 import * as React from 'react'
 
 import { cn } from '~/lib/utils'
-import { FormField, FormFieldProps } from '~/elements/FormField.tsx'
-import { Switch } from '~/elements/Switch.tsx'
+import type { FormFieldProps } from '~/elements/FormField.tsx'
+import { FormField } from '~/elements/FormField.tsx'
+import type { Switch } from '~/elements/Switch.tsx'
 
 export const Checkbox = React.forwardRef<
   React.ElementRef<typeof CheckboxPrimitive.Root>,

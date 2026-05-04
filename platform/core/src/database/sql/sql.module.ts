@@ -1,5 +1,6 @@
 import { DynamicModule, Global, Inject, Logger, Module, OnModuleInit } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
+
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -96,8 +97,7 @@ export class SqlModule implements OnModuleInit {
               const sslEnv = configService.get<string>('SQL_DB_SSL')
               const isLocal =
                 connectionString?.includes('localhost') || connectionString?.includes('127.0.0.1')
-              const ssl =
-                sslEnv === 'false' || (!sslEnv && isLocal) ? false : { rejectUnauthorized: false }
+              const ssl = sslEnv === 'false' || (!sslEnv && isLocal) ? false : { rejectUnauthorized: false }
               const pool = new Pool({ connectionString, ssl })
               return drizzle(pool, { schema })
             }

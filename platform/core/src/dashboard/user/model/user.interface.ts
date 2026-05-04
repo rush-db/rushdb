@@ -44,7 +44,7 @@ export type TUserProperties = {
   deletedDate?: string
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface IUserStatics {}
 
 export type TUserInstance = NeogmaInstance<TUserProperties, IUserRelatedNodes, IUserStatics>

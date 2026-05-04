@@ -1,5 +1,5 @@
-import { ArrayMinSize, IsArray, IsNotEmpty, IsNumber, IsString, ValidateNested } from 'class-validator'
 import { Type } from 'class-transformer'
+import { ArrayMinSize, IsArray, IsNotEmpty, IsNumber, IsString, ValidateNested } from 'class-validator'
 
 class UpsertIndexVectorItemDto {
   @IsNotEmpty()

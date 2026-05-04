@@ -1,5 +1,5 @@
 import { persistentMap } from '@nanostores/persistent'
-import { AvailableSdkLanguage } from '~/features/onboarding/types'
+import type { AvailableSdkLanguage } from '~/features/onboarding/types'
 
 export type UserSettings = {
   showUnits: 'false' | 'true'

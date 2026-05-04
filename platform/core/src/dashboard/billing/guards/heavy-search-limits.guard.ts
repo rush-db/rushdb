@@ -2,8 +2,8 @@ import { CanActivate, ExecutionContext, HttpException, HttpStatus, Injectable } 
 import { Inject } from '@nestjs/common'
 import { Transaction } from 'neo4j-driver'
 
-import { isHeavySearch } from '@/core/ku-events/search-complexity'
 import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
+import { isHeavySearch } from '@/core/ku-events/search-complexity'
 import { ProjectService } from '@/dashboard/project/project.service'
 
 /**

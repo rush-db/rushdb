@@ -1,5 +1,6 @@
 import { ArgumentMetadata, BadRequestException } from '@nestjs/common'
 import { Injectable, PipeTransform } from '@nestjs/common'
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import Joi = require('joi')
 
 import { checkTypeAndNameUniqueness } from '@/common/utils/checkTypeAndNameUniqueness'

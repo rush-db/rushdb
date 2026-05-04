@@ -16,6 +16,7 @@ type TTokenProperties = {
 
 export type TAccessLevel = typeof WRITE_ACCESS | typeof READ_ACCESS
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface ITokenProperties extends TTokenProperties {}
 
 interface ITokenRelatedNodes {
@@ -31,7 +32,7 @@ interface ITokenRelatedNodes {
   >
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ITokenStatics {}
 
 type TTokenInstance = NeogmaInstance<TTokenProperties, ITokenRelatedNodes>

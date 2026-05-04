@@ -18,9 +18,10 @@ import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repos
 
 import * as crypto from 'node:crypto'
 
-import type { TokenRow } from '@/database/sql/schema/types'
 import { IProjectProperties } from '../project/model/project.interface'
 import { IWorkspaceProperties } from '../workspace/model/workspace.interface'
+
+import type { TokenRow } from '@/database/sql/schema/types'
 
 @Injectable()
 export class TokenService {
@@ -176,7 +177,7 @@ export class TokenService {
     workspaceId?: string
     workspace?: IWorkspaceProperties
   }> {
-    let projectRow = projectId ? await this.projectRepository.findById(projectId) : undefined
+    const projectRow = projectId ? await this.projectRepository.findById(projectId) : undefined
 
     const resolvedWorkspaceId = workspaceId ?? projectRow?.workspaceId
     const workspaceRow =

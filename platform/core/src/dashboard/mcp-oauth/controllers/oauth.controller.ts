@@ -14,16 +14,15 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger'
 import { FastifyReply } from 'fastify'
 
+import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
-
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
+import { AuthorizeAcceptDto } from '@/dashboard/mcp-oauth/dto/authorize-accept.dto'
+import { RegisterClientDto } from '@/dashboard/mcp-oauth/dto/register-client.dto'
+import { TokenRequestDto } from '@/dashboard/mcp-oauth/dto/token-request.dto'
+import { McpOauthService } from '@/dashboard/mcp-oauth/mcp-oauth.service'
 import { AuthUser } from '@/dashboard/user/decorators/user.decorator'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
-import { McpOauthService } from '@/dashboard/mcp-oauth/mcp-oauth.service'
-import { RegisterClientDto } from '@/dashboard/mcp-oauth/dto/register-client.dto'
-import { AuthorizeAcceptDto } from '@/dashboard/mcp-oauth/dto/authorize-accept.dto'
-import { TokenRequestDto } from '@/dashboard/mcp-oauth/dto/token-request.dto'
-import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 
 const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange'
 

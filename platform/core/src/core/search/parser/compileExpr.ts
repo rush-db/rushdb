@@ -9,11 +9,11 @@ import {
   ROOT_RECORD_ALIAS
 } from '@/core/common/constants'
 import { AliasesMap, CollectExpr, Expr, SelectExprMap, TimeBucketExpr } from '@/core/common/types'
+import { parseWhereClause } from '@/core/search/parser/buildQuery'
 import { PROPERTY_WILDCARD_PROJECTION } from '@/core/search/parser/constants'
 import { pagination } from '@/core/search/parser/pagination'
 import { label } from '@/core/search/parser/pickRecordLabel'
 import { apocSortMapsArray } from '@/core/search/parser/utils'
-import { parseWhereClause } from '@/core/search/parser/buildQuery'
 
 // ── Field ref resolution ─────────────────────────────────────────────────────
 
@@ -565,7 +565,9 @@ export function compileSelectMap(
         continue // Self-groupBy — the aggregation result is already in withLayers
       }
       const dotIndex = groupAlias.indexOf('.')
-      if (dotIndex === -1) continue
+      if (dotIndex === -1) {
+        continue
+      }
       const aliasKey = groupAlias.substring(0, dotIndex)
       const fieldRaw = groupAlias.substring(dotIndex + 1)
       const variable = aliasesMap[aliasKey]
@@ -576,7 +578,9 @@ export function compileSelectMap(
         )
       }
       const fieldName = fieldRaw === RUSHDB_KEY_ID_ALIAS ? RUSHDB_KEY_ID : fieldRaw
-      if (withLayers.length === 0) withLayers.push([])
+      if (withLayers.length === 0) {
+        withLayers.push([])
+      }
       withLayers[0].push(`${variable}.\`${fieldName}\` AS \`${fieldName}\``)
     }
   }

@@ -1,8 +1,8 @@
-import type { UserRow } from '@/database/sql/schema/types'
-
 import { IUserClaims } from './interfaces/user-claims.interface'
 import { IUserProperties } from './interfaces/user-properties.interface'
 import { TUserStatuses } from './model/user.interface'
+
+import type { UserRow } from '@/database/sql/schema/types'
 
 export class User {
   constructor(private readonly row: UserRow) {}

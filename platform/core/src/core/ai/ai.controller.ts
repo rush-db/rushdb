@@ -15,10 +15,10 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
-import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
+import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { AiService } from '@/core/ai/ai.service'
 import { OntologyItem } from '@/core/ai/ai.types'
 import { CreateEmbeddingIndexDto } from '@/core/ai/dto/create-embedding-index.dto'
