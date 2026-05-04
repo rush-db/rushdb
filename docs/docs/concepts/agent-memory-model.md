@@ -18,7 +18,7 @@ RushDB is designed from the ground up as a **structured memory store for AI agen
 
 Every discrete piece of knowledge is a **Record**: a typed key-value object carrying a label, properties, and a system-generated ID. Records connect to one another via **Relationships**, forming a traversable knowledge graph. An agent can store anything from a conversation turn to a product entity as a record, then retrieve it by property values, label, or graph traversal.
 
-→ See [Records](./records.md) and [Relationships](./relationships.md)
+→ See [Records](./records.md) and [Relationships](./relationships.mdx)
 
 ### Semantic Memory — Vector Properties
 

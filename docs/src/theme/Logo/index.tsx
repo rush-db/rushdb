@@ -3,7 +3,7 @@ import Link from '@docusaurus/Link'
 import useBaseUrl from '@docusaurus/useBaseUrl'
 import { useThemeConfig } from '@docusaurus/theme-common'
 
-export default function Logo(): JSX.Element {
+export default function Logo(): React.ReactElement {
   const {
     navbar: { logo, title }
   } = useThemeConfig()

@@ -145,7 +145,7 @@ export default function LanguageTabs({ children }: LanguageTabsProps): React.Rea
   // @ts-ignore
   return (
     <div className="language-tabs">
-      <Tabs groupId="programming-language">{enhanced}</Tabs>
+      <Tabs groupId="programming-language">{enhanced as any}</Tabs>
     </div>
   )
 }

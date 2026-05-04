@@ -345,7 +345,7 @@ curl -X POST "https://api.rushdb.com/api/v1/ai/search" \
 Without a `where` clause, RushDB still performs exact semantic ranking over the label-scoped candidates. Adding `where` reduces the candidate set first, which can improve latency on larger datasets.
 :::
 
-## Step 6: [Relationships](../concepts/relationships.md)
+## Step 6: [Relationships](../concepts/relationships.mdx)
 
 Link each article to an author record. Relationships are first-class in RushDB — they have a type, a direction, and can carry their own properties.
 
@@ -508,7 +508,7 @@ curl -X POST "https://api.rushdb.com/api/v1/transactions/$TX_ID/commit" \
 
   - [Records](../concepts/records.md) — data model and field types
   - [Labels](../concepts/labels.md) — organizing records by category
-  - [Relationships](../concepts/relationships.md) — connecting records into a graph
+  - [Relationships](../concepts/relationships.mdx) — connecting records into a graph
   - [Search & Querying](../concepts/search/introduction.md) — where clauses, ordering, pagination
   - [Transactions](../concepts/transactions.mdx) — atomicity and consistency
   - [TypeScript SDK](../typescript-sdk/introduction)

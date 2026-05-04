@@ -67,6 +67,11 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    # Both platform/core (.eslintrc.js) and platform/dashboard (.eslintrc) use
+    # legacy config format. ESLint 9 defaults to flat config, so opt back into
+    # legacy mode for the entire job.
+    env:
+      ESLINT_USE_FLAT_CONFIG: "false"
     steps:
       - uses: actions/checkout@v4
 
