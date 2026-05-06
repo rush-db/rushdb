@@ -14,6 +14,7 @@ import { uuidv7 } from 'uuidv7'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
+import { BillingClientService } from '@/core/billing-client/billing-client.service'
 import { BILLING_ACCOUNT_PORT, BillingAccountPort } from '@/core/billing-policy/billing-account.port'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { MailService } from '@/dashboard/mail/mail.service'
@@ -52,6 +53,7 @@ export class WorkspaceService {
     private readonly workspaceRepository: WorkspaceRepository,
     @Inject(BILLING_ACCOUNT_PORT)
     private readonly billingAccountService: BillingAccountPort,
+    private readonly billingClientService: BillingClientService,
     private readonly oauthRepository: OAuthRepository,
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService,
@@ -191,6 +193,10 @@ export class WorkspaceService {
     isDevMode(() =>
       Logger.log(`[Link user ${userId} to the workspace LOG]: User linked to the workspace ${workspaceId}`)
     )
+
+    // Emit seat meter event to billing service
+    const members = await this.workspaceRepository.getMembers(workspaceId)
+    await this.billingClientService.emitSeatMeterEvent(workspaceId, members.length)
   }
 
   async patchWorkspace(
@@ -368,6 +374,10 @@ export class WorkspaceService {
       }
     }
 
+    // Emit seat meter event to billing service after all members removed
+    const members = await this.workspaceRepository.getMembers(workspaceId)
+    await this.billingClientService.emitSeatMeterEvent(workspaceId, members.length)
+
     return { message: 'Access revoked where appropriate' }
   }
 
@@ -377,6 +387,10 @@ export class WorkspaceService {
 
     isDevMode(() => Logger.log(`[Revoke access LOG]: Remove project relation for user ${userId}`))
     await this.projectRepository.revokeAllProjectAccessForUserInWorkspace(userId, workspaceId)
+
+    // Emit seat meter event to billing service
+    const members = await this.workspaceRepository.getMembers(workspaceId)
+    await this.billingClientService.emitSeatMeterEvent(workspaceId, members.length)
   }
 
   async getUserRoleInWorkspace(

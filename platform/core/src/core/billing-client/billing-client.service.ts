@@ -399,4 +399,36 @@ export class BillingClientService {
       throw error
     }
   }
+
+  /**
+   * Emit a seat meter event to the billing service when team members are added or removed.
+   * Billing service handles Stripe Meter API communication.
+   *
+   * @param workspaceId - Workspace ID
+   * @param activeMembers - Total active members in the workspace
+   */
+  async emitSeatMeterEvent(workspaceId: string, activeMembers: number): Promise<void> {
+    if (!this.enabled) {
+      this.logger.debug('Billing service not configured, skipping seat meter event')
+      return
+    }
+
+    try {
+      await firstValueFrom(
+        this.httpService.post(
+          `${this.billingUrl}/api/emit-seat-meter`,
+          { workspaceId, activeMembers },
+          {
+            headers: this.secret ? { 'x-rushdb-billing-secret': this.secret } : {},
+            timeout: 5000
+          }
+        )
+      )
+
+      this.logger.debug(`Emitted seat meter event for workspace ${workspaceId} (members: ${activeMembers})`)
+    } catch (error: any) {
+      // Log but don't throw — seat meter emission must not block member operations
+      this.logger.warn(`Failed to emit seat meter event for workspace ${workspaceId}: ${error.message}`)
+    }
+  }
 }
