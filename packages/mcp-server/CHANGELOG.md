@@ -1,5 +1,43 @@
 # @rushdb/mcp-server
 
+## 2.0.0
+
+### Major Changes
+
+- 07920fb: Move website out of monorepo
+- 3b25fad: Major update: native sematic search, ontology api, agentic skills
+
+### Minor Changes
+
+- 1e0acac: Decoupling billing from a platform
+- d3156cb: Add native vector support and docs update
+- bba13b1: Add editing functionality in dashboard
+- 5043f13: Add skills package
+- 6631e4a: Introducing select clause to SearchQuery
+- b351ce4: Refactor dashboard
+- 7bfea19: Add tutorials and BYOV feature
+- edd8598: Improve separation between os and cloud versions
+- f1ac305: Add oauth and mcp improvements
+- 0786d74: Update docs portal
+- 1275daf: Update docs portal & minor dx improvements
+
+### Patch Changes
+
+- Updated dependencies [1e0acac]
+- Updated dependencies [d3156cb]
+- Updated dependencies [07920fb]
+- Updated dependencies [bba13b1]
+- Updated dependencies [5043f13]
+- Updated dependencies [3b25fad]
+- Updated dependencies [6631e4a]
+- Updated dependencies [b351ce4]
+- Updated dependencies [7bfea19]
+- Updated dependencies [edd8598]
+- Updated dependencies [f1ac305]
+- Updated dependencies [0786d74]
+- Updated dependencies [1275daf]
+  - @rushdb/javascript-sdk@2.0.0
+
 ## 1.19.1
 
 ### Patch Changes
