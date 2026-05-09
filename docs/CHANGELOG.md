@@ -1,5 +1,12 @@
 # rushdb-docs
 
+## 2.0.2
+
+### Patch Changes
+
+- 52b5f5c: Fix mcp image
+- fc652b5: Fix docker image build
+
 ## 2.0.1
 
 ### Patch Changes

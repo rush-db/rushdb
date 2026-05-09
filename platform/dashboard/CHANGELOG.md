@@ -1,5 +1,15 @@
 # rushdb-dashboard
 
+## 2.0.2
+
+### Patch Changes
+
+- 52b5f5c: Fix mcp image
+- fc652b5: Fix docker image build
+- Updated dependencies [52b5f5c]
+- Updated dependencies [fc652b5]
+  - @rushdb/javascript-sdk@2.0.2
+
 ## 2.0.1
 
 ### Patch Changes
