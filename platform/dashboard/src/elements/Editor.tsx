@@ -3,9 +3,11 @@ import { Suspense, lazy, useEffect, useState } from 'react'
 import { Skeleton } from '~/elements/Skeleton'
 
 const MonacoEditor = lazy(() =>
-  import('@monaco-editor/react').then((module) => ({
-    default: module.Editor
-  }))
+  import('~/lib/monacoSetup').then(() =>
+    import('@monaco-editor/react').then((module) => ({
+      default: module.Editor
+    }))
+  )
 )
 
 type MonacoProps = ComponentPropsWithoutRef<typeof MonacoEditor>
