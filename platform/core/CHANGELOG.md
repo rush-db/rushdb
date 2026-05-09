@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 2.0.1
+
+### Patch Changes
+
+- b1a491a: Fix chunks size in dashboard distro
+
 ## 2.0.0
 
 ### Major Changes

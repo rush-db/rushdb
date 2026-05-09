@@ -1,5 +1,13 @@
 # @rushdb/mcp-server
 
+## 2.0.1
+
+### Patch Changes
+
+- b1a491a: Fix chunks size in dashboard distro
+- Updated dependencies [b1a491a]
+  - @rushdb/javascript-sdk@2.0.1
+
 ## 2.0.0
 
 ### Major Changes
