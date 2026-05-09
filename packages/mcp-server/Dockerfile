@@ -17,7 +17,9 @@ RUN pnpm --filter @rushdb/mcp-server build
 FROM node:23.11-slim
 WORKDIR /app
 COPY --from=builder /app/packages/mcp-server/build ./build
-COPY --from=builder /app/packages/mcp-server/package.json ./package.json
+# Copy the pre-built SDK (external dep kept out of the esbuild bundle)
+COPY --from=builder /app/packages/javascript-sdk/package.json ./node_modules/@rushdb/javascript-sdk/package.json
+COPY --from=builder /app/packages/javascript-sdk/build ./node_modules/@rushdb/javascript-sdk/build
 ENV NODE_ENV=production
 # MCP_TRANSPORT: "stdio" (default) | "http"
 ENV MCP_TRANSPORT=http

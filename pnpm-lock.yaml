@@ -260,6 +260,9 @@ importers:
       better-sqlite3:
         specifier: ^12.6.2
         version: 12.6.2
+      class-transformer:
+        specifier: ^0.5.1
+        version: 0.5.1
       class-validator:
         specifier: ^0.14.1
         version: 0.14.1
@@ -369,9 +372,6 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.19.0
         version: 8.19.1(eslint@9.2.0)(typescript@5.7.2)
-      class-transformer:
-        specifier: ^0.5.1
-        version: 0.5.1
       commitlint:
         specifier: ~13.2.1
         version: 13.2.1
