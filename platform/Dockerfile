@@ -69,7 +69,7 @@ COPY ./platform/core/package.json ./platform/core/package.json
 
 # Install pnpm and production dependencies
 RUN npm install -g pnpm@10.1.0
-RUN HUSKY=0 pnpm install --prod --frozen-lockfile --no-optional
+RUN pnpm install --prod --frozen-lockfile --no-optional --ignore-scripts
 
 # Copy built files from builder
 COPY --from=builder /app/platform/core/dist ./platform/core/dist
