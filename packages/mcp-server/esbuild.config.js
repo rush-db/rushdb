@@ -35,13 +35,16 @@ const buildOptions = {
   banner: {
     js: '#!/usr/bin/env node'
   },
-  external: [
-    // External packages that should not be bundled
-    '@rushdb/javascript-sdk',
-    '@modelcontextprotocol/sdk',
-    'jsonschema',
-    'dotenv'
-  ],
+  external:
+    isProd ?
+      []
+    : [
+        // External packages that should not be bundled (dev/library use only)
+        '@rushdb/javascript-sdk',
+        '@modelcontextprotocol/sdk',
+        'jsonschema',
+        'dotenv'
+      ],
   minify: isProd,
   sourcemap: !isProd,
   logLevel: 'info'
