@@ -52,9 +52,11 @@ function RadioButton({
 }
 
 const Editor = lazy(() =>
-  import('@monaco-editor/react').then((module) => ({
-    default: module.Editor
-  }))
+  import('~/lib/monacoSetup').then(() =>
+    import('@monaco-editor/react').then((module) => ({
+      default: module.Editor
+    }))
+  )
 )
 
 const $step = atom<IngestModalSteps>('method')

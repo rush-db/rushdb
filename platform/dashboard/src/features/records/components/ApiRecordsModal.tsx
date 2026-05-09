@@ -12,9 +12,11 @@ import { $settings } from '~/features/auth/stores/settings.ts'
 import { $editorData } from '~/features/projects/stores/raw-api.ts'
 
 const Editor = lazy(() =>
-  import('@monaco-editor/react').then((module) => ({
-    default: module.Editor
-  }))
+  import('~/lib/monacoSetup').then(() =>
+    import('@monaco-editor/react').then((module) => ({
+      default: module.Editor
+    }))
+  )
 )
 
 const $open = atom<boolean>(false)

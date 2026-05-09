@@ -20,6 +20,7 @@ import {
   $selectedRelatedRecords,
   resetRelatedRecordsSelection
 } from '~/features/records/stores/related-actionbar'
+import { convertToSearchQuery, filterToSearchOperation } from '~/features/projects/utils'
 
 function useCurrentRecordParams() {
   const projectId = useStore($currentProjectId)
@@ -74,7 +75,6 @@ export const useExportRecordsMutation = () => {
   return useMutation({
     mutationFn: async () => {
       if (!projectId) return
-      const { convertToSearchQuery, filterToSearchOperation } = await import('~/features/projects/utils')
       let properties
       if (combineMode === 'and') {
         properties = filters.map(filterToSearchOperation)
