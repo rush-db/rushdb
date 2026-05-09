@@ -19,7 +19,7 @@ WORKDIR /app
 COPY --from=builder /app/packages/mcp-server/build ./build
 # Copy the pre-built SDK (external dep kept out of the esbuild bundle)
 COPY --from=builder /app/packages/javascript-sdk/package.json ./node_modules/@rushdb/javascript-sdk/package.json
-COPY --from=builder /app/packages/javascript-sdk/build ./node_modules/@rushdb/javascript-sdk/build
+COPY --from=builder /app/packages/javascript-sdk/dist ./node_modules/@rushdb/javascript-sdk/dist
 ENV NODE_ENV=production
 # MCP_TRANSPORT: "stdio" (default) | "http"
 ENV MCP_TRANSPORT=http
