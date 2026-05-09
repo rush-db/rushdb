@@ -37,14 +37,13 @@ const buildOptions = {
   },
   external:
     isProd ?
-      []
-    : [
-        // External packages that should not be bundled (dev/library use only)
-        '@rushdb/javascript-sdk',
-        '@modelcontextprotocol/sdk',
-        'jsonschema',
-        'dotenv'
-      ],
+      [
+        // Bundle @modelcontextprotocol/sdk and other runtime deps into the output
+        // so Docker prod image needs no node_modules install.
+        // Keep only the workspace SDK external — copied explicitly into the image.
+        '@rushdb/javascript-sdk'
+      ]
+    : ['@rushdb/javascript-sdk', '@modelcontextprotocol/sdk', 'jsonschema', 'dotenv'],
   minify: isProd,
   sourcemap: !isProd,
   logLevel: 'info'
