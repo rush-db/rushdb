@@ -33,7 +33,12 @@ const buildOptions = {
   format: 'esm',
   outfile: 'build/index.js',
   banner: {
-    js: '#!/usr/bin/env node'
+    // In prod, bundled CJS deps use dynamic require() which breaks in ESM.
+    // Inject a createRequire shim so they resolve Node built-ins correctly.
+    js:
+      isProd ?
+        '#!/usr/bin/env node\nimport{createRequire}from"module";const require=createRequire(import.meta.url);'
+      : '#!/usr/bin/env node'
   },
   external:
     isProd ?
@@ -55,8 +60,9 @@ const chmodAndLogPlugin = {
   setup(build) {
     build.onEnd((result) => {
       try {
-        if (fs.existsSync('build/index.js')) {
-          fs.chmodSync('build/index.js', '755')
+        const outfile = buildOptions.outfile
+        if (fs.existsSync(outfile)) {
+          fs.chmodSync(outfile, '755')
         }
       } catch (e) {
         console.warn('Failed to chmod output:', e)
