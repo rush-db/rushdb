@@ -9,37 +9,25 @@ import { NothingFound } from '~/elements/NothingFound'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { Metric } from '~/features/projects/components'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
-import {
-  $filteredProjects,
-  $projectsQuery,
-  $workspaceProjects,
-  filterProjects
-} from '~/features/workspaces/stores/projects'
+import { $projectsQuery, filterProjects } from '~/features/workspaces/stores/projects'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { isProjectEmpty } from '~/features/projects/utils'
 import { useEffect, useMemo } from 'react'
 import { api } from '~/lib/api.ts'
 import { $user } from '~/features/auth/stores/user.ts'
-import { $currentWorkspace } from '~/features/workspaces/stores/current-workspace.ts'
 import { Label } from '~/elements/Label.tsx'
-import { AWS_REGIONS } from '~/features/projects/constants.ts'
+import {
+  useCurrentWorkspaceQuery,
+  useWorkspaceProjectsQuery
+} from '~/features/workspaces/hooks/useWorkspaceQueries'
 
 const statsMap: Record<keyof ProjectStats, string> = {
   properties: 'Properties',
-  records: 'Records',
-  avgProperties: 'Avg Properties Per Record'
+  records: 'Records'
 }
 
-function ProjectCard({
-  description,
-  id,
-  stats,
-  name,
-  customDb,
-  status,
-  managedDbRegion
-}: Project & { customDb?: string }) {
+function ProjectCard({ description, id, stats, name, customDb, status }: Project & { customDb?: string }) {
   const isEmpty = isProjectEmpty({
     loading: false,
     totalRecords: stats?.records ?? 0
@@ -57,8 +45,6 @@ function ProjectCard({
     return getRoutePath('project', { id })
   }, [projectIsInactive, isEmpty, id])
 
-  const managedRegion = AWS_REGIONS.find((r) => r.code === managedDbRegion)
-
   return (
     <a
       className="interaction bg-secondary ring-interaction-ring focus-visible:border-interaction-focus [&:hover:not(:focus-visible)]:bg-secondary-hover rounded-lg border border-transparent focus-visible:ring"
@@ -73,18 +59,6 @@ function ProjectCard({
                 <Link size={18} className="pr-2" />
                 External Instance
               </Label>
-            )}
-
-            {managedDbRegion && (
-              <div className="flex flex-col items-center justify-items-end pr-2">
-                <Label className="items-center !text-sm">
-                  <Link size={18} className="pr-2" />
-                  Managed Instance
-                </Label>
-                <p className="text-content2 mt-2 self-end font-mono text-sm">
-                  {managedRegion?.code} {managedRegion?.flag}
-                </p>
-              </div>
             )}
           </div>
           <p className={cn('text-content2 text-sm')}>{description || 'No description provided'}</p>
@@ -112,7 +86,7 @@ function ProjectsSearchInput(props: TInheritableElementProps<'input'>) {
 }
 
 function Header() {
-  const { data: projects } = useStore($workspaceProjects)
+  const { data: projects } = useWorkspaceProjectsQuery()
 
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
@@ -158,7 +132,12 @@ function EmptyProjects() {
 }
 
 function ProjectsCards() {
-  const filteredProjects = useStore($filteredProjects)
+  const { data: projects } = useWorkspaceProjectsQuery()
+  const query = useStore($projectsQuery)
+  const filteredProjects = useMemo(() => {
+    const q = query?.toLowerCase() ?? ''
+    return projects?.filter((p) => (p.name ?? '').toLowerCase().includes(q))
+  }, [projects, query])
 
   if (!filteredProjects || filteredProjects?.length < 1) {
     return <NothingFound />
@@ -174,8 +153,8 @@ function ProjectsCards() {
 }
 
 function Projects() {
-  const { data: projects, loading } = useStore($workspaceProjects)
-  const { data: workspace } = useStore($currentWorkspace)
+  const { data: projects, isPending: loading } = useWorkspaceProjectsQuery()
+  const { data: workspace } = useCurrentWorkspaceQuery()
 
   useEffect(() => {
     if (typeof projects !== 'undefined') {

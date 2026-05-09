@@ -208,7 +208,7 @@ export const RING_COLOR = formatColor(colors['content']['ring']) //formatColor(c
 export const cssVars = Object.entries(colors).reduce((acc, [group, val]) => {
   if ('DEFAULT' in val) {
     Object.entries(val).forEach(([state, color]) => {
-      let colorName = `--${group}-${state}`.replace('DEFAULT', '')
+      const colorName = `--${group}-${state}`.replace('DEFAULT', '')
       // @ts-ignore
       acc[colorName] = color
     })

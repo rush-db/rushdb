@@ -1,6 +1,7 @@
-import type { Property, PropertySingleValue } from '@rushdb/javascript-sdk'
+import type { Property, PropertySingleValue, PropertyValue } from '@rushdb/javascript-sdk'
 import type { Control, UseFormSetValue, UseFormWatch } from 'react-hook-form'
 
+import { useQuery } from '@tanstack/react-query'
 import { useStore } from '@nanostores/react'
 import { X } from 'lucide-react'
 import { atom } from 'nanostores'
@@ -24,12 +25,8 @@ import { Message } from '~/elements/Message'
 import { Popover, PopoverContent, PopoverTrigger } from '~/elements/Popover'
 import { SearchSelect, SelectItem } from '~/elements/SearchSelect'
 import { Slider } from '~/elements/Slider'
-import {
-  $activeLabels,
-  $currentProjectFilters,
-  $currentProjectSuggestedFields,
-  editFilter
-} from '~/features/projects/stores/current-project'
+import { $activeLabels, $currentProjectFilters, editFilter } from '~/features/projects/stores/current-project'
+import { useProjectSuggestedFieldsQuery } from '~/features/projects/hooks/useProjectQueries'
 import { PropertyName } from '~/features/properties/components/PropertyName'
 import { PropertyTypeIcon } from '~/features/properties/components/PropertyTypeIcon'
 import { formatPropertyValue } from '~/features/properties/utils'
@@ -37,33 +34,29 @@ import { SearchOperationIcon } from '~/features/search/components/SearchOperatio
 import { SearchOperations, operatorOptions } from '~/features/search/constants'
 import { isViableSearchOperation } from '~/features/search/types'
 import { api } from '~/lib/api'
-import { createAsyncStore } from '~/lib/fetcher'
 import { mixed, object, string, useForm } from '~/lib/form'
 import { convertToSearchQuery, filterToSearchOperation } from '~/features/projects/utils.ts'
 
 const $fieldId = atom<Property['id'] | undefined>(undefined)
-const $fieldValues = createAsyncStore({
-  key: '$fieldValues',
-  deps: [$fieldId],
-  async fetcher(init) {
-    const fieldId = $fieldId.get()
-    if (!fieldId) {
-      return
-    }
 
-    const labels = $activeLabels.get()
-    let properties = $currentProjectFilters.get().map(filterToSearchOperation)
-
-    return await api.properties.values({
-      init,
-      id: fieldId,
-      searchQuery: {
-        labels,
-        where: convertToSearchQuery(properties)
-      }
-    })
-  }
-})
+function useFieldValuesQuery(query?: string) {
+  const fieldId = useStore($fieldId)
+  const normalizedQuery = (query ?? '').trim()
+  return useQuery({
+    queryKey: ['fieldValues', fieldId, normalizedQuery],
+    queryFn: async () => {
+      const labels = $activeLabels.get()
+      const properties = $currentProjectFilters.get().map(filterToSearchOperation)
+      const result = await api.properties.values({
+        id: fieldId!,
+        searchQuery: { labels, where: convertToSearchQuery(properties), query: normalizedQuery || undefined },
+        init: {} as RequestInit
+      })
+      return result.data
+    },
+    enabled: !!fieldId
+  })
+}
 
 const filterSchema = object({
   field: string().required(),
@@ -225,7 +218,8 @@ function SelectOperationValue({
   const [open, setOpen] = useState(false)
 
   const fieldType = field?.type
-  const { data: fieldValues } = useStore($fieldValues)
+  const currentValueAsQuery = value == null ? undefined : String(value)
+  const { data: fieldValues } = useFieldValuesQuery(currentValueAsQuery)
   const values = fieldValues?.values
 
   return (
@@ -261,7 +255,8 @@ function SelectOperationValue({
                   hasMatch={
                     !!formattedCurrent &&
                     values?.some(
-                      (value) => formatPropertyValue({ value, type: fieldType! }) == formattedCurrent
+                      (value: PropertyValue) =>
+                        formatPropertyValue({ value, type: fieldType! }) == formattedCurrent
                     )
                   }
                   onSelect={() => {
@@ -276,7 +271,7 @@ function SelectOperationValue({
                   {currentValue}
                 </SearchItem>
 
-                {values?.map((value) => {
+                {values?.map((value: PropertyValue) => {
                   const formattedValue = formatPropertyValue({
                     value,
                     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -504,7 +499,9 @@ function NumberValues({
   let selectedMin = watch('min')
   let selectedMax = watch('max')
 
-  const { data: fieldValues } = useStore($fieldValues)
+  const query = watch('value')
+  const liveQuery = query == null ? undefined : String(query)
+  const { data: fieldValues } = useFieldValuesQuery(liveQuery)
 
   if (field?.type !== 'number') {
     return null
@@ -602,7 +599,15 @@ function NumberValues({
     )
   }
 
-  return <SelectOperationValue control={control} field={field} name="value" setValue={setValue} />
+  return (
+    <SelectOperationValue
+      control={control}
+      field={field}
+      name="value"
+      setValue={setValue}
+      value={watch('value')}
+    />
+  )
 }
 
 function DateTimeValues({
@@ -748,7 +753,15 @@ function DateTimeValues({
     )
   }
 
-  return <SelectOperationValue control={control} field={field} name="value" setValue={setValue} />
+  return (
+    <SelectOperationValue
+      control={control}
+      field={field}
+      name="value"
+      setValue={setValue}
+      value={watch('value')}
+    />
+  )
 }
 
 function SelectFilterValues({
@@ -787,13 +800,21 @@ function SelectFilterValues({
     case 'number':
       return <NumberValues control={control} field={field} setValue={setValue} watch={watch} />
     default:
-      return <SelectOperationValue control={control} field={field} name="value" setValue={setValue} />
+      return (
+        <SelectOperationValue
+          control={control}
+          field={field}
+          name="value"
+          setValue={setValue}
+          value={watch('value')}
+        />
+      )
   }
 }
 
 export function FilterPopover({ filter, onRemove }: { filter: Filter; onRemove: (filter: Filter) => void }) {
   const [open, setOpen] = useState(false)
-  const { data: fields = [] } = useStore($currentProjectSuggestedFields)
+  const { data: fields = [] } = useProjectSuggestedFieldsQuery()
 
   const defaultValues = {
     field: filter.name,
@@ -820,7 +841,7 @@ export function FilterPopover({ filter, onRemove }: { filter: Filter; onRemove: 
 
   let rightPart
 
-  const field = fields.find((field) => field.name === selectedField)
+  const field = fields.find((candidate: Property) => candidate.name === selectedField)
 
   // if (isNumberRangeOperation(filter)) {
   //   rightPart = field ? formatMinMax({ ...filter, type: field?.type }) : ''

@@ -39,7 +39,8 @@ class GlobalAuthGuard implements CanActivate {
     const bearerToken = authHeader?.split(' ')[1]
     const isJwt = bearerToken?.split('.').length === 3
 
-    if ((request.headers['token'] || !isJwt) && request.raw.projectId && request.raw.workspaceId) {
+    // SDK TOKEN SHORTCUT: if bearer is not JWT, middleware has already resolved projectId
+    if (!isJwt && bearerToken && request.raw.projectId && request.raw.workspaceId) {
       request.projectId = request.raw.projectId
       request.workspaceId = request.raw.workspaceId
       return true

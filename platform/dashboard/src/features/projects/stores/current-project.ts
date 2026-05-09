@@ -1,28 +1,18 @@
 import { persistentAtom } from '@nanostores/persistent'
 import { nanoid } from 'nanoid'
-import { action, atom, computed } from 'nanostores'
+import { action, atom } from 'nanostores'
 
 import type { AnySearchOperation, Filter } from '~/features/search/types'
-import type { SearchParams } from '~/lib/router'
-import { type FiltersCombineMode, type Sort, SortDirection } from '~/types'
+import { type FiltersCombineMode, type Sort } from '~/types'
 
 import { DEFAULT_LIMIT } from '~/config'
-import { isViableSearchOperation } from '~/features/search/types'
-import { api } from '~/lib/api'
-import { createAsyncStore, createMutator } from '~/lib/fetcher'
 import { $searchParams, changeSearchParam, removeSearchParam } from '~/lib/router'
 import { $router, isProjectPage } from '~/lib/router'
 import { addOrRemove, clamp } from '~/lib/utils'
 
-import { RawApiEntityType, RecordViewType } from '../types'
+import type { RawApiEntityType, RecordViewType } from '../types'
 
-import {
-  convertToSearchQuery,
-  decodeQuery,
-  encodeQuery,
-  filterToSearchOperation,
-  isProjectEmpty
-} from '../utils'
+import { convertToSearchQuery, decodeQuery, encodeQuery, filterToSearchOperation } from '../utils'
 import { $currentProjectId } from './id'
 
 export const $recordView = atom<RecordViewType>('table')
@@ -37,31 +27,12 @@ export const $currentProjectRecordsLimit = atom<number>(DEFAULT_LIMIT)
 
 export const $combineFilters = persistentAtom<FiltersCombineMode>('records:combine-mode', 'and')
 
-export const $currentProject = createAsyncStore({
-  key: '$currentProject',
-  async fetcher(init) {
-    const projectId = $currentProjectId.get()
-
-    if (!projectId) {
-      return
-    }
-
-    return await api.projects.project({ projectId }, init)
-  },
-  deps: [$currentProjectId]
-})
-
 export const $currentProjectFilters = atom<Filter[]>([])
 
-export const $currentProjectLabels = createAsyncStore({
-  key: '$currentProject',
-  async fetcher(init) {
-    return await api.labels.find({ init })
-  },
-  mustHaveDeps: [$currentProjectId]
-})
-
 export const $activeLabels = atom<string[]>([])
+
+// Total records count - set by ProjectRecords component when data loads
+export const $filteredRecordsTotal = atom<number | undefined>(undefined)
 
 $currentProjectId.subscribe(() => {
   $currentProjectFilters.set([])
@@ -83,188 +54,17 @@ $searchParams.subscribe((value) => {
   setTimeout(() => $currentProjectFilters.set(filters), 10)
 })
 
-export const $filteredRecords = createAsyncStore({
-  key: '$projectFilteredRecords',
-  async fetcher(init) {
-    const filters = $currentProjectFilters.get()
-    const orderBy = $recordsOrderBy.get()
-    const skip = $currentProjectRecordsSkip.get()
-    const limit = $currentProjectRecordsLimit.get()
-    const labels = $activeLabels.get()
-    const combineMode = $combineFilters.get()
-    const properties = filters.map(filterToSearchOperation)
-
-    const order = Object.entries(orderBy ?? {}).reduce<Sort>((acc, [key, direction]) => {
-      if (key === '__id') {
-        return direction as SortDirection
-      }
-
-      if (key && direction) {
-        // @ts-ignore
-        acc[key] = direction as SortDirection
-      }
-      return acc
-    }, {})
-
-    const { data, total } = await api.records.find(
-      {
-        where:
-          combineMode === 'or' ? { $or: convertToSearchQuery(properties) } : convertToSearchQuery(properties),
-        orderBy: order,
-        skip,
-        limit,
-        labels
-      },
-      init
-    )
-    return { data, total }
-  },
-  mustHaveDeps: [$currentProjectId],
-  deps: [
-    $currentProjectFilters,
-    $recordsOrderBy,
-    $currentProjectRecordsSkip,
-    $currentProjectRecordsLimit,
-    $activeLabels,
-    $combineFilters
-  ]
-})
-
-export const $filteredRecordsRelations = createAsyncStore({
-  key: '$currentRecordChildren',
-  async fetcher(init) {
-    const filters = $currentProjectFilters.get()
-    const orderBy = $recordsOrderBy.get()
-    const skip = $currentProjectRecordsSkip.get()
-    const limit = $currentProjectRecordsLimit.get()
-    const labels = $activeLabels.get()
-    const combineMode = $combineFilters.get()
-    const properties = filters.map(filterToSearchOperation)
-
-    const order = Object.entries(orderBy ?? {}).reduce<Sort>((acc, [key, direction]) => {
-      if (key === '__id') {
-        return direction as SortDirection
-      }
-
-      if (key && direction) {
-        // @ts-ignore
-        acc[key] = direction as SortDirection
-      }
-      return acc
-    }, {})
-
-    const { data, total } = await api.relationships.find({
-      searchQuery: {
-        where:
-          combineMode === 'or' ? { $or: convertToSearchQuery(properties) } : convertToSearchQuery(properties),
-        orderBy: order,
-        skip,
-        limit,
-        labels
-      },
-      init
-    })
-    return { data, total }
-  },
-  mustHaveDeps: [$currentProjectId],
-  deps: [
-    $currentProjectFilters,
-    $recordsOrderBy,
-    $currentProjectRecordsSkip,
-    $currentProjectRecordsLimit,
-    $activeLabels,
-    $combineFilters
-  ]
-})
-
-export const $currentProjectFields = createAsyncStore({
-  key: '$currentProjectFields',
-  async fetcher(init) {
-    const projectId = $currentProjectId.get()
-
-    if (!projectId) {
-      return
-    }
-
-    const labels = $activeLabels.get()
-    const combineMode = $combineFilters.get()
-    let properties
-
-    if (combineMode === 'and') {
-      // Fetch Properties that don't exist with $and grouping
-      properties = $currentProjectFilters.get().map(filterToSearchOperation)
-    }
-
-    return await api.properties.find({
-      searchQuery: {
-        labels,
-        where: convertToSearchQuery(properties)
-      },
-      init
-    })
-  },
-  deps: [$combineFilters, $currentProjectId, $activeLabels, $currentProjectFilters]
-})
-
-export const $currentProjectSuggestedFields = createAsyncStore({
-  key: '$currentProjectSuggestedFields',
-  async fetcher(init) {
-    const projectId = $currentProjectId.get()
-
-    if (!projectId) {
-      return
-    }
-
-    const labels = $activeLabels.get()
-
-    let properties
-
-    return await api.properties.find({
-      searchQuery: {
-        labels,
-        where: properties
-      },
-      init
-    })
-  },
-  deps: [$currentProjectId, $activeLabels, $currentProjectFilters]
-})
-
 export const incrementRecordsPage = action($currentProjectRecordsSkip, 'incrementPage', (store) => {
   const limit = $currentProjectRecordsLimit.get()
-  const total = $filteredRecords.get().total
+  const total = $filteredRecordsTotal.get()
 
   return store.set(clamp(0, total ?? Infinity, store.get() + limit))
 })
 export const decrementRecordsPage = action($currentProjectRecordsSkip, 'incrementPage', (store) => {
   const limit = $currentProjectRecordsLimit.get()
-  const total = $filteredRecords.get().total
+  const total = $filteredRecordsTotal.get()
 
   store.set(clamp(0, total ?? Infinity, store.get() - limit))
-})
-
-export const $currentProjectTokens = createAsyncStore({
-  key: '$currentProjectTokens',
-  async fetcher(init) {
-    const projectId = $currentProjectId.get()
-
-    if (!projectId) {
-      return
-    }
-
-    return await api.tokens.list({ projectId }, init)
-  }
-})
-
-export const $currentProjectIsEmpty = computed([$filteredRecords], ({ total, loading }) => {
-  return isProjectEmpty({ totalRecords: total, loading })
-})
-
-export const $currentProjectFirstToken = computed([$currentProjectTokens], ({ data, loading }) => {
-  return {
-    token: data?.[0],
-    loading
-  }
 })
 
 export const setRecordsSort = action($recordsOrderBy, 'setRecordsSort', (store, fieldName: string) => {
@@ -329,23 +129,6 @@ export const editFilter = (filter: Filter) => {
       return currentFilter
     }
 
-    const field = $currentProjectSuggestedFields.get().data?.find((field) => field.name === newFilter.name)
-
-    //  validate
-
-    if (!field) {
-      return currentFilter
-    }
-
-    if (
-      !isViableSearchOperation({
-        propertyType: field.type,
-        searchOperation: newFilter.operation
-      })
-    ) {
-      return currentFilter
-    }
-
     return newFilter
   }) satisfies Filter[]
 
@@ -358,55 +141,12 @@ export const toggleLabel = action($activeLabels, 'toggleLabel', (store, labelVal
   store.set(addOrRemove(labels, labelValue))
 })
 
-// @TODO: Consider refactoring here
-export const $export = createMutator({
-  async fetcher({ init }) {
-    const projectId = $currentProjectId.get()
-
-    if (!projectId) {
-      return
-    }
-
-    const labels = $activeLabels.get()
-    const combineMode = $combineFilters.get()
-    const orderBy = $recordsOrderBy.get()
-    const skip = $currentProjectRecordsSkip.get()
-    const limit = $currentProjectRecordsLimit.get()
-
-    let properties
-
-    if (combineMode === 'and') {
-      properties = $currentProjectFilters.get().map(filterToSearchOperation)
-    }
-
-    return await api.records.export(
-      {
-        labels,
-        where: convertToSearchQuery(properties),
-        orderBy,
-        skip,
-        limit
-      },
-      init
-    )
-  },
-  onSuccess(response) {
-    const anchor = document.createElement('a')
-    anchor.setAttribute('href', 'data:attachment/csv;charset=utf-8,' + encodeURI(response.data.fileContent))
-    anchor.setAttribute('target', '_blank')
-    anchor.setAttribute('download', `collect-export_${response.data.dateTime}.csv`)
-    anchor.click()
-    anchor.remove()
-  }
-})
-
 // effects
 
 $router.subscribe((page) => {
   if (isProjectPage(page)) {
     $currentProjectId.set(page.params.id)
   } else {
-    $currentProject.setKey('data', undefined)
     $currentProjectId.set(undefined)
   }
 })

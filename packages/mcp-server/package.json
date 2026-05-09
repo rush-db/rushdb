@@ -6,11 +6,12 @@
     "model-context-protocol",
     "mcp-server",
     "rushdb",
-    "database",
-    "graph-database",
-    "neo4j",
+    "ai-platform",
+    "knowledge-engine",
+    "application-platform",
     "llm",
     "ai-agents",
+    "ai-memory",
     "tools"
   ],
   "license": "Apache-2.0",
@@ -30,13 +31,17 @@
     "prepare": "npm run build",
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "types:check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@rushdb/javascript-sdk": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.20.0",
+    "@modelcontextprotocol/sdk": "1.27.1",
+    "@hono/node-server": "1.19.13",
     "dotenv": "^16.4.7",
+    "hono": "4.12.12",
+    "jose": "^5.9.0",
     "jsonschema": "^1.5.0"
   },
   "devDependencies": {

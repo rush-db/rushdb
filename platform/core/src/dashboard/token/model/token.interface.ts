@@ -10,11 +10,13 @@ type TTokenProperties = {
   expiration: number
   description?: string
   value?: string
-  prefixValue?: string
+  /** ID of the OAuth consent that caused this token to be issued, if applicable. */
+  consentId?: string
 }
 
 export type TAccessLevel = typeof WRITE_ACCESS | typeof READ_ACCESS
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface ITokenProperties extends TTokenProperties {}
 
 interface ITokenRelatedNodes {
@@ -30,7 +32,7 @@ interface ITokenRelatedNodes {
   >
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ITokenStatics {}
 
 type TTokenInstance = NeogmaInstance<TTokenProperties, ITokenRelatedNodes>

@@ -55,21 +55,6 @@ export type StringExpression =
     >
   | StringValue
 
-// VECTOR
-export type TVectorSearchFn = 'jaccard' | 'overlap' | 'cosine' | 'pearson' | 'euclideanDistance' | 'euclidean'
-// Value range                [0,1]     | [0,1]     | [-1,1]   | [-1,1]    | [0, Infinity)       | (0, 1]
-
-export type VectorExpression = RequireAtLeastOne<
-  Record<
-    '$vector',
-    {
-      fn: `gds.similarity.${TVectorSearchFn}`
-      query: number[]
-      threshold: number | RequireAtLeastOne<Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', number>>
-    }
-  >
->
-
 // TYPE
 export type TypeExpression = Record<'$type', TPropertyType>
 
@@ -80,7 +65,6 @@ export type PropertyExpression =
   | NumberExpression
   | StringExpression
   | TypeExpression
-  | VectorExpression
 
 export type PropertyExpressionByType = {
   boolean: BooleanExpression | TypeExpression
@@ -88,7 +72,6 @@ export type PropertyExpressionByType = {
   null: NullExpression | TypeExpression
   number: NumberExpression | TypeExpression
   string: StringExpression | TypeExpression
-  vector: VectorExpression | TypeExpression
 }
 
 export type LogicalGrouping<T> = {
@@ -161,6 +144,7 @@ export type Condition<T extends Schema = Schema> =
 export type Where<T extends Schema = Schema> = (Condition<T> & Related) &
   Partial<LogicalGrouping<Condition<T> & Related>>
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateCollectFn = {
   skip?: number
   alias: string
@@ -171,12 +155,14 @@ export type AggregateCollectFn = {
   unique?: boolean
 }
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateCollectNestedFn = Omit<AggregateCollectFn, 'field'> & {
   aggregate?: { [field: string]: AggregateCollectNestedFn }
 }
 
 export type AliasesMap = Record<string, string>
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateCountFn = {
   field?: string
   fn: 'count'
@@ -184,6 +170,7 @@ export type AggregateCountFn = {
   /** Defaults to '$record' */ alias?: string
 }
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateTimeBucketFn = {
   field: string
   fn: 'timeBucket'
@@ -206,16 +193,23 @@ export type AggregateTimeBucketFn = {
   size?: number
 }
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateFn<S extends Schema = Schema> =
   | { field: string; fn: 'avg'; alias?: string; precision?: number }
   | AggregateCountFn
   | { field: string; fn: 'max'; alias?: string }
   | { field: string; fn: 'min'; alias?: string }
   | { field: string; fn: 'sum'; alias?: string }
-  | { field: string; fn: `gds.similarity.${TVectorSearchFn}`; alias?: string; query: number[] }
+  | {
+      field: string
+      fn: 'vector.similarity.cosine' | 'vector.similarity.euclidean'
+      alias?: string
+      query: number[]
+    }
   | AggregateTimeBucketFn
   | AggregateCollectFn
 
+/** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type Aggregate =
   | {
       [field: string]: string | AggregateFn
@@ -224,6 +218,65 @@ export type Aggregate =
       [field: string]: AggregateCollectNestedFn
     }
 
+// ── Select Expression System ───────────────────────────────────────────────
+
+export type CollectExpr = {
+  /** Reference a pre-declared $alias from the where clause. Mutually exclusive with `label`. */
+  from?: string
+  /** Inline relation traversal — no $alias in where needed. Mutually exclusive with `from`. */
+  label?: string
+  /** Per-level filter (only valid with `label`). Flat property conditions only. */
+  where?: Record<string, any>
+  select?: SelectExprMap
+  orderBy?: TSearchSort
+  limit?: number
+  skip?: number
+  unique?: boolean
+}
+
+export type TimeBucketExprUnit =
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'quarter'
+  | 'year'
+  | 'months'
+  | 'hour'
+  | 'minute'
+  | 'second'
+  | 'hours'
+  | 'minutes'
+  | 'seconds'
+  | 'years'
+
+export type TimeBucketExpr = {
+  /** Field reference, e.g. "$record.createdAt" */
+  field: string
+  unit: TimeBucketExprUnit
+  /** Required when unit is months/hours/minutes/seconds/years */
+  size?: number
+}
+
+export type Expr =
+  | string // "$record.field" field ref, or "$alias" alias ref
+  | number // literal number
+  | boolean // literal boolean
+  | { $ref: string } // cross-expression reference
+  | { $sum: Expr }
+  | { $avg: Expr; $precision?: number }
+  | { $count: '*' | Expr }
+  | { $min: Expr }
+  | { $max: Expr }
+  | { $divide: [Expr, Expr] }
+  | { $multiply: [Expr, Expr] }
+  | { $add: [Expr, Expr] }
+  | { $subtract: [Expr, Expr] }
+  | { $collect: CollectExpr }
+  | { $timeBucket: TimeBucketExpr }
+
+/** Canonical output-shaping clause — replaces `aggregate` */
+export type SelectExprMap = Record<string, Expr>
+
 /* Extend this type */
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface Models {}

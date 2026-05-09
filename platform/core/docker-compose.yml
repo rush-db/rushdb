@@ -1,7 +1,7 @@
 version: "3.8"
 services:
     neo4j:
-        image: neo4j:5.25.1
+        image: neo4j:2026.01.4
         healthcheck:
             test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
             interval: 5s
@@ -14,14 +14,31 @@ services:
             - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
             - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
 #            Uncomment line below to fetch plugins from the internet instead of local volume
-#            - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+#            - NEO4J_PLUGINS=["apoc"]
         volumes:
             - ./neo4j-plugins:/var/lib/neo4j/plugins
             - neo4j-data:/data
             - neo4j-logs:/logs
             - neo4j-conf:/var/lib/neo4j/conf
 
+    postgres:
+        image: postgres:16-alpine
+        healthcheck:
+            test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rushdb}" ]
+            interval: 5s
+            retries: 30
+            start_period: 10s
+        ports:
+            - "5432:5432"
+        environment:
+            - POSTGRES_USER=${POSTGRES_USER:-rushdb}
+            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+            - POSTGRES_DB=${POSTGRES_DB:-rushdb}
+        volumes:
+            - postgres-data:/var/lib/postgresql/data
+
 volumes:
     neo4j-data:
     neo4j-logs:
     neo4j-conf:
+    postgres-data:

@@ -1,4 +1,5 @@
-import { ComponentPropsWithoutRef, Suspense, lazy, useEffect, useState } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Skeleton } from '~/elements/Skeleton'
 
 const MonacoEditor = lazy(() =>
@@ -52,7 +53,7 @@ export const Editor = ({
       }
     }
 
-    let t = setTimeout(formatDocument, 100)
+    const t = setTimeout(formatDocument, 100)
 
     return () => clearTimeout(t)
   }, [editor, value, readOnly, format])

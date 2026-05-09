@@ -5,27 +5,29 @@ import { $router, isProjectPage, isProtectedRoute } from '~/lib/router'
 import { NotFoundPage } from '~/pages/404'
 import { PasswordRecoveryPage } from '~/pages/forgot-password'
 import { NewProjectPage } from '~/pages/project/new'
+import { NewWorkspacePage } from '~/pages/workspace/new'
 import { ProfilePage } from '~/pages/profile.tsx'
 import { SignInPage } from '~/pages/signin'
 import { SignUpPage } from '~/pages/signup'
 import { WorkspaceBillingPage } from '~/pages/workspace/billing'
+import { WorkspaceApiUsagePage } from '~/pages/workspace/api-usage'
 import { WorkspaceProjectsPage } from '~/pages/workspace/projects'
 import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
 import { WorkspaceUsersPage } from '~/pages/workspace/users'
 import { JoinWorkspacePage } from '~/pages/workspace/join'
 import { ConfirmEmail } from '~/pages/auth/confirmEmail'
+import { OAuthConsentPage } from '~/pages/oauth/consent'
 
 import { Toaster } from './elements/Toast'
 import { ProjectLayout } from './layout/ProjectLayout'
 import { AuthGoogle } from './pages/auth/google'
 import { useEffect, useMemo } from 'react'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { AuthGitHub } from '~/pages/auth/github.tsx'
 import { $user } from '~/features/auth/stores/user.ts'
 import { OnboardingTour } from '~/features/tour/components/OnboardingTour.tsx'
 import { OnboardingInit } from '~/features/tour/components/OnboardingInit.tsx'
 import { ErrorBoundary } from '~/features/tour/components/ErrorBoundary.tsx'
-import { ProjectBillingPage } from '~/pages/project/billing.tsx'
 
 function PublicRoutes() {
   const page = useStore($router)
@@ -43,6 +45,8 @@ function PublicRoutes() {
       return <AuthGitHub />
     case 'confirmEmail':
       return <ConfirmEmail />
+    case 'oauthConsent':
+      return <OAuthConsentPage />
     default:
       return <NotFoundPage />
   }
@@ -51,6 +55,7 @@ function PublicRoutes() {
 function ProtectedRoutes() {
   const page = useStore($router)
   const currentUser = useStore($user)
+  const { data: platformSettings } = usePlatformSettings()
 
   const isOwner = useMemo(() => currentUser.currentScope?.role === 'owner', [currentUser])
 
@@ -68,17 +73,22 @@ function ProtectedRoutes() {
     case 'joinWorkspace':
       return <JoinWorkspacePage />
     case 'workspaceBilling':
-      if ($platformSettings.get().data?.selfHosted || !isOwner) {
+      if (platformSettings?.selfHosted || !isOwner) {
         return null
       }
       return <WorkspaceBillingPage />
+    case 'workspaceApiUsage':
+      if (platformSettings?.selfHosted || !isOwner) {
+        return null
+      }
+      return <WorkspaceApiUsagePage />
     case 'projects':
     case 'home':
       return <WorkspaceProjectsPage />
     case 'newProject':
       return isOwner ? <NewProjectPage /> : null
-    // case 'newWorkspace':
-    //   return <NewWorkspacePage />
+    case 'newWorkspace':
+      return <NewWorkspacePage />
     default:
       return <NotFoundPage />
   }
@@ -128,9 +138,9 @@ function Gtm() {
 }
 
 function ProductionScripts() {
-  const { loading, data: platformSettings } = useStore($platformSettings)
+  const { isPending, data: platformSettings } = usePlatformSettings()
 
-  if (loading || platformSettings?.selfHosted) {
+  if (isPending || platformSettings?.selfHosted) {
     return null
   }
 

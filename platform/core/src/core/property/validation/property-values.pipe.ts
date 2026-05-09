@@ -1,5 +1,6 @@
 import { ArgumentMetadata, BadRequestException } from '@nestjs/common'
 import { Injectable, PipeTransform } from '@nestjs/common'
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import Joi = require('joi')
 
 import { checkTypeAndNameUniqueness } from '@/common/utils/checkTypeAndNameUniqueness'
@@ -58,11 +59,16 @@ export class PropertyValuesPipe implements PipeTransform {
     } else if (metadata.type === 'body' && 'data' in value) {
       // @TODO: Implement schema schema validation https://github.com/rush-db/rushdb/issues/43
       const normalized = normalizeRecord(value as CreateEntityDtoSimple)
-      const passthrough: Pick<CreateEntityDtoSimple, 'options'> = {}
+      const passthrough: Pick<CreateEntityDtoSimple, 'options' | 'vectors'> = {}
 
       // Preserve options (e.g., mergeBy/mergeStrategy for upsert) while normalizing `data` to `properties`.
       if ((value as CreateEntityDtoSimple).options) {
         passthrough.options = (value as CreateEntityDtoSimple).options
+      }
+
+      // Preserve inline vectors so the service can write them after the record is persisted.
+      if ((value as CreateEntityDtoSimple).vectors?.length) {
+        passthrough.vectors = (value as CreateEntityDtoSimple).vectors
       }
 
       return { ...normalized, ...passthrough }

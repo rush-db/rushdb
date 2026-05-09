@@ -5,28 +5,86 @@ sidebar_label: Examples
 sidebar_position: 5
 ---
 
-Here are some concrete prompts you can use with your MCP client to interact with RushDB.
+# Examples
 
-## Listing labels
+## Discovery
 
-> Ask the RushDB MCP server to run `FindLabels` with `limit=20`.
+Understand the data shape before querying:
 
-## Creating and querying records
+> "What labels and fields exist in my database? Use getOntologyMarkdown."
 
-> Use `CreateRecord` to add a `Task` with data `{"title": "Write docs", "status": "open"}`.
+The server calls `getOntologyMarkdown` once and returns a compact schema — label names, field types, value ranges, and the relationship map. Use exact label names from this response — they're case-sensitive.
 
-> Now use `FindRecords` with `where={"status": "open"}` and `orderBy={"createdAt": "desc"}` limit 5.
+---
 
-## Setting records
+## Simple query
 
-> Use `SetRecord` for `recordId="<id>"` with label `Task` and data `{"title": "Polish docs", "status": "in-progress"}`.
+> "Find the top 5 movies by rating."
 
-## Attaching relationships
+Calls `findRecords` with `orderBy: {rating: "desc"}, limit: 5`.
 
-> Call `AttachRelation` from `sourceId="<sourceId>"` to `targetIds=["<target1>", "<target2>"]` with `relationType="references"`.
+---
 
-## Transactions
+## Select Expressions (Aggregation)
 
-> Start a transaction, create two `Task` records, attach a relation, and commit.
+> "How many records exist per label? Show me a breakdown."
 
-If something goes wrong, you can ask your client to call `TransactionRollback` with the `transactionId` returned from `TransactionBegin`.
+> "What's the average rating of MOVIE records, grouped by genre?"
+
+
+Calls `findRecords` with `select + groupBy`. **Never include `limit` when `select` is present** — it restricts the record scan and produces incorrect totals.
+
+Call getSearchQuerySpec, then run findRecords with:
+
+```json
+{
+	"labels": ["Order"],
+	"select": { "total": { "$sum": "$record.amount" } },
+	"groupBy": ["status"]
+}
+```
+
+---
+
+## Relationships
+
+> "Find all actors who appeared in films directed by Christopher Nolan."
+
+Calls `findRecords` with nested `where` traversal: ACTOR → MOVIE → DIRECTOR.
+
+---
+
+## Bulk import
+
+> "I'll paste a JSON array of employee records — import them as EMPLOYEE records, upsert on email."
+
+Calls `bulkCreateRecords` with `mergeBy: ["email"], mergeStrategy: "append"`.
+
+---
+
+## Semantic search
+
+> "Find articles most similar to 'distributed database systems'."
+
+Calls `semanticSearch` with the query embedded against the indexed `content` property. Requires a ready embedding index (see workflow below).
+
+---
+
+## Embedding index workflow
+
+Semantic search requires a ready index. This spans 3 tool calls and is non-obvious:
+
+> "Create an embedding index on the `content` property of ARTICLE records, then wait until it's ready, then find articles similar to 'machine learning'."
+
+1. `createEmbeddingIndex` — registers the policy (backfill runs async, not instant)
+2. `getEmbeddingIndexStats` — poll until `indexedRecords === totalRecords`
+3. `semanticSearch` — now runs against the live index
+
+---
+
+## Tips
+
+- Always start a new session with: "Load the schema with getOntologyMarkdown"
+- Use exact label names from the schema — they're case-sensitive
+- For select expressions, tell the AI "don't use limit" to avoid incorrect totals
+- Call `getSearchQuerySpec` before any query using dates, `groupBy`, or relationship traversal

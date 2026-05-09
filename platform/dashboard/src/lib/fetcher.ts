@@ -4,7 +4,6 @@ import { $token } from '~/features/auth/stores/token'
 import { BillingErrorCodes } from '~/features/billing/constants'
 import { $currentProjectId } from '~/features/projects/stores/id'
 import { $currentWorkspaceId } from '~/features/workspaces/stores/current'
-import { createApiStores } from '~/lib/nanorequest'
 import { $limitReachModalOpen } from '~/components/billing/LimitReachedDialog'
 
 type FetcherInit = RequestInit & { transformResponse?: boolean }
@@ -107,7 +106,3 @@ function defaultMutationErrorHandler(error: unknown) {
     })
   }
 }
-
-export const { createAsyncStore, createMutator } = createApiStores({
-  defaultMutationErrorHandler: defaultMutationErrorHandler
-})

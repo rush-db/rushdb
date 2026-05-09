@@ -1,4 +1,4 @@
-import { Property, DBRecord, DBRecordInstance } from '@rushdb/javascript-sdk'
+import type { Property, DBRecord, DBRecordInstance } from '@rushdb/javascript-sdk'
 import type { ReactElement, ReactNode, UIEventHandler } from 'react'
 
 import { useStore } from '@nanostores/react'
@@ -25,14 +25,12 @@ import { cn, composeEventHandlers, isInViewport, range } from '~/lib/utils'
 
 import {
   $hasRecordsSelection,
-  $mixedRecordsSelection,
   $selectedRecords,
   resetRecordsSelection,
   toggleRecordSelection
 } from '../stores/actionbar'
 import {
   $hasRelatedRecordsSelection,
-  $mixedRelatedRecordsSelection,
   $selectedRelatedRecords,
   resetRelatedRecordsSelection,
   toggleRelatedRecordSelection
@@ -257,48 +255,44 @@ export function RecordsTable({
   }
 
   const selectedRecords = useStore($selectedRecords)
-  const hasSelection = useStore($hasRecordsSelection)
-  const mixedSelection = useStore($mixedRecordsSelection)
+  const pageRecordIds = records?.map((record) => record.id) ?? []
+  const selectedRecordsOnPage = pageRecordIds.filter((id) => selectedRecords.includes(id))
+  const hasSelection = selectedRecordsOnPage.length > 0
+  const allSelectedOnPage = pageRecordIds.length > 0 && selectedRecordsOnPage.length === pageRecordIds.length
+  const mixedSelection = hasSelection && !allSelectedOnPage
 
   const selectedRelatedRecords = useStore($selectedRelatedRecords)
-  const hasRelatedSelection = useStore($hasRelatedRecordsSelection)
-  const mixedRelatedSelection = useStore($mixedRelatedRecordsSelection)
+  const selectedRelatedRecordsOnPage = pageRecordIds.filter((id) => selectedRelatedRecords.includes(id))
+  const hasRelatedSelection = selectedRelatedRecordsOnPage.length > 0
+  const allRelatedSelectedOnPage =
+    pageRecordIds.length > 0 && selectedRelatedRecordsOnPage.length === pageRecordIds.length
+  const mixedRelatedSelection = hasRelatedSelection && !allRelatedSelectedOnPage
 
   const getSelectedState = (id: string) =>
-    view === 'main' ?
-      !mixedSelection || selectedRecords.includes(id)
-    : !mixedRelatedSelection || selectedRelatedRecords.includes(id)
+    view === 'main' ? selectedRecords.includes(id) : selectedRelatedRecords.includes(id)
 
-  const checked = view === 'main' ? hasSelection : hasRelatedSelection
+  const checked = view === 'main' ? allSelectedOnPage : allRelatedSelectedOnPage
   const mixed = view === 'main' ? mixedSelection : mixedRelatedSelection
 
   const handleOnCheckedChange = () => {
     if (view === 'main') {
-      if (hasSelection) {
-        if (mixedSelection) {
-          $selectedRecords.set(records?.map((r) => r.id()) as string[])
-        } else {
-          resetRecordsSelection()
-        }
+      if (allSelectedOnPage) {
+        resetRecordsSelection()
       } else {
-        $selectedRecords.set(records?.map((r) => r.id()) as string[])
+        $selectedRecords.set(pageRecordIds)
       }
     }
 
     if (view === 'related') {
-      if (hasRelatedSelection) {
-        if (mixedRelatedSelection) {
-          $selectedRelatedRecords.set(records?.map((r) => r.id()) as string[])
-        } else {
-          resetRelatedRecordsSelection()
-        }
+      if (allRelatedSelectedOnPage) {
+        resetRelatedRecordsSelection()
       } else {
-        $selectedRelatedRecords.set(records?.map((r) => r.id()) as string[])
+        $selectedRelatedRecords.set(pageRecordIds)
       }
     }
   }
 
-  if ((!records || records.length < 1) && !loading) {
+  if (!loading && Array.isArray(records) && records.length === 0) {
     return <NothingFound />
   }
 
@@ -346,7 +340,7 @@ export function RecordsTable({
                     return null
                   }
 
-                  const selected = getSelectedState(record.id())
+                  const selected = getSelectedState(record.id)
 
                   return (
                     <TableRow
@@ -354,7 +348,7 @@ export function RecordsTable({
                         'bg-fill2': index % 2 === 0
                       })}
                       onClick={onRecordClick ? () => onRecordClick(record.data as DBRecord) : undefined}
-                      key={record.id()}
+                      key={record.id}
                       style={{ height: 52.5 }}
                       tabIndex={0}
                     >
@@ -366,11 +360,11 @@ export function RecordsTable({
                           onCheckedChange={() =>
                             view === 'main' ?
                               toggleRecordSelection({
-                                recordId: record.id(),
+                                recordId: record.id,
                                 selected
                               })
                             : toggleRelatedRecordSelection({
-                                recordId: record.id(),
+                                recordId: record.id,
                                 selected
                               })
                           }
@@ -390,19 +384,19 @@ export function RecordsTable({
                             property: {
                               name: '__id',
                               type: 'string',
-                              value: record.id(),
-                              date: record.date().toISOString()
+                              value: record.id,
+                              date: record.date.toISOString()
                             },
                             showOperations: false
                           })}
                           className="py-1"
-                          key={record.id()}
+                          key={record.id}
                           onPointerLeave={handlePointerLeave}
                         >
                           <Skeleton enabled={loading}>
-                            <Label>{record.label()}</Label>
+                            <Label>{record.label}</Label>
 
-                            <PropertyValue className="text-content2" type={'string'} value={record.id()} />
+                            <PropertyValue className="text-content2" type={'string'} value={record.id} />
                           </Skeleton>
                         </DataCell>
                       )}
@@ -418,7 +412,7 @@ export function RecordsTable({
                           return (
                             <DataCell
                               className="text-content3"
-                              key={`${record.id()}-${field.id}-${field.name}`}
+                              key={`${record.id}-${field.id}-${field.name}`}
                             >
                               —
                             </DataCell>
@@ -427,7 +421,7 @@ export function RecordsTable({
 
                         return (
                           <DataCell
-                            key={`${record.id()}-${property.name}`}
+                            key={`${record.id}-${property.name}`}
                             onPointerEnter={handlePointerEnter({ property })}
                             onPointerLeave={handlePointerLeave}
                           >

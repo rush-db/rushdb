@@ -1,7 +1,8 @@
-export type PaidStartPlanId = 'start'
-export type PaidPlanId = 'pro'
-export type FreePlanId = 'free'
-export type PlanId = FreePlanId | PaidStartPlanId | PaidPlanId
+export type FreePlanId = 'free' | 'start'
+export type PaidPlanId = 'pro' | 'scale'
+export type EnterprisePlanId = 'enterprise'
+export type InquiryPlanId = 'custom'
+export type PlanId = FreePlanId | PaidPlanId | EnterprisePlanId | InquiryPlanId
 
 export type PlanPeriod = 'annual' | 'month'
 
@@ -11,23 +12,38 @@ type IncomingPlanData = {
   productId: string
 }
 
-type InstanceSpecs = {
-  ram: number
-  cpu: number
-  disk: number
+type KuPlanData = {
+  monthly: IncomingPlanData
+  annual: IncomingPlanData
+  /** Included KU per month (null = unlimited) */
+  kuIncluded: number | null
+  /** Price per KU above the included allowance (in dollars) */
+  overagePerKu?: number
+  /** For usage-based plans: price per KU consumed (in dollars) */
+  perKuRate?: number
 }
-
-type InstancePricing = {
-  onDemand: IncomingPlanData
-  reserved: IncomingPlanData
-}
-
-type TieredPricingData = Array<{ tier: string } & InstancePricing & InstanceSpecs>
 
 export type BillingData = {
-  pro: {
-    monthly: { amount: number; priceId: string; productId: string }
-    annual: { amount: number; priceId: string; productId: string }
-  }
-  team: TieredPricingData
+  pro: KuPlanData
+  scale?: KuPlanData
+}
+
+export type DisplayPlan = {
+  id: PlanId
+  name: string
+  kuIncluded: number | null
+  monthlyPriceId?: string
+  yearlyPriceId?: string
+  monthlyPrice?: number
+  yearlyPrice?: number
+  perProject?: boolean
+  inquiryOnly?: boolean
+  ctaLabel?: string
+}
+
+export type BillingInquiryPayload = {
+  email: string
+  message?: string
+  workspaceName?: string
+  currentPlan?: string
 }

@@ -6,38 +6,50 @@ import { currencyFormatters } from '~/lib/formatters.ts'
 import { SparklesIcon } from 'lucide-react'
 
 import { Divider } from '~/elements/Divider.tsx'
+import { Button } from '~/elements/Button.tsx'
 import { PlanBenefits } from '~/components/billing/PlanBenefits.tsx'
 import { CheckoutButton } from '~/components/billing/CheckoutButton.tsx'
 import { Message } from '~/elements/Message.tsx'
+import type { DisplayPlan } from '~/features/billing/types.ts'
 
 export function PlanCard({
   plan,
   active,
+  highlighted,
   className,
   perProject,
+  onAction,
   ...props
-}: TPolymorphicComponentProps<'div', { active: boolean; plan: any; perProject?: boolean }>) {
+}: TPolymorphicComponentProps<
+  'div',
+  { active: boolean; highlighted?: boolean; plan: DisplayPlan; perProject?: boolean; onAction?: () => void }
+>) {
   const free = isFreePlan(plan)
+  const inquiryOnly = Boolean(plan.inquiryOnly)
 
   const currentPeriod = useStore($currentPeriod)
 
   const priceAfterDiscount =
     free ? 0
+    : inquiryOnly ? undefined
     : currentPeriod === 'annual' ? plan.yearlyPrice
     : plan.monthlyPrice
 
   const discount =
-    currentPeriod === 'annual' ?
+    currentPeriod === 'annual' && !inquiryOnly && plan.monthlyPrice && plan.yearlyPrice ?
       Math.round(((plan.monthlyPrice - plan.yearlyPrice) / plan.monthlyPrice) * 100)
     : 0
 
-  const hasDiscount = currentPeriod === 'annual' && !free && discount > 0
+  const hasDiscount = currentPeriod === 'annual' && !free && !inquiryOnly && discount > 0
+  const displayPrice = priceAfterDiscount ?? 0
+  const monthlyPrice = plan.monthlyPrice ?? 0
+  const priceId = currentPeriod === 'month' ? plan.monthlyPriceId : plan.yearlyPriceId
 
   return (
     <div
       className={cn(
         'rounded-2xl border shadow-lg',
-        free || plan.id === 'team' ? 'border-secondary' : 'border-accent',
+        highlighted ? 'border-accent' : 'border-secondary',
         'flex h-full flex-col items-start gap-5 p-5',
         free ? 'bg-secondary' : 'bg-fill',
         // free ? 'bg-secondary p-0.5' : 'from-accent-hover to-badge-yellow bg-gradient-to-br p-0.5',
@@ -54,21 +66,26 @@ export function PlanCard({
         )}
       </div>
       <div className="flex w-full justify-between">
-        {(currentPeriod === 'month' || free) && (
+        {inquiryOnly ?
           <div className="block">
-            <span className="font-mono text-3xl font-bold">
-              {currencyFormatters.usd.format(priceAfterDiscount)}
-            </span>
-            <span className="text-content2 text-sm">/{free ? 'forever' : 'month'}</span>
+            <span className="font-mono text-3xl font-bold">Custom</span>
           </div>
-        )}
+        : (currentPeriod === 'month' || free) && (
+            <div className="block">
+              <span className="font-mono text-3xl font-bold">
+                {currencyFormatters.usd.format(displayPrice)}
+              </span>
+              <span className="text-content2 text-sm">/{free ? 'forever' : 'month'}</span>
+            </div>
+          )
+        }
         {hasDiscount && !free ?
           <div className="block">
             <span className="font-mono text-3xl font-bold">
-              {currencyFormatters.usd.format(priceAfterDiscount)}
+              {currencyFormatters.usd.format(displayPrice)}
               {hasDiscount && (
                 <span className="text-content3 text-lg line-through">
-                  {currencyFormatters.usd.format(plan.monthlyPrice)}
+                  {currencyFormatters.usd.format(monthlyPrice)}
                 </span>
               )}
             </span>
@@ -83,10 +100,19 @@ export function PlanCard({
             This plan bills on a per-project basis. To use it, create a new project and select Managed Setup
             in the project creation form.
           </Message>
+        : inquiryOnly ?
+          <Button
+            className="w-full min-w-48 justify-center font-semibold"
+            onClick={onAction}
+            variant="accent"
+          >
+            {plan.ctaLabel}
+            <SparklesIcon />
+          </Button>
         : <CheckoutButton
             className="w-full min-w-48 justify-center font-semibold"
             disabled={active || free}
-            priceId={currentPeriod === 'month' ? plan.monthlyPriceId : plan.yearlyPriceId}
+            priceId={priceId ?? ''}
             variant={free ? 'secondary' : 'accent'}
           >
             {active ?

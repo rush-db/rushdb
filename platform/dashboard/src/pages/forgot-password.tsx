@@ -5,10 +5,10 @@ import { Banner } from '~/elements/Banner'
 import { Button } from '~/elements/Button'
 import { Divider } from '~/elements/Divider'
 import { TextField } from '~/elements/Input'
-import { $resetPassword, $sendRecoveryLink } from '~/features/auth/stores/auth'
 import { AuthLayout } from '~/layout/AuthLayout'
 import { object, string, useForm } from '~/lib/form'
 import { $router, $searchParams, getRoutePath, redirectRoute } from '~/lib/router'
+import { useSendRecoveryLinkMutation, useResetPasswordMutation } from '~/features/auth/hooks/useAuthMutations'
 
 import { schema as signUpSchema } from './signup'
 
@@ -22,11 +22,11 @@ function SendPasswordForm() {
     setError
   } = useForm({ schema })
 
-  const { data, mutate } = useStore($sendRecoveryLink)
+  const { data, mutateAsync } = useSendRecoveryLinkMutation()
 
   const onSubmit = async ({ email }: { email?: string }) => {
     try {
-      await mutate({ email })
+      await mutateAsync({ email })
     } catch (error) {
       setError('email', { message: "Couldn't send a link to that address" })
     }
@@ -72,11 +72,11 @@ function ChangePasswordForm({ token }: { token: string }) {
     schema: signUpSchema
   })
 
-  const { data, mutate } = useStore($resetPassword)
+  const { data, mutateAsync } = useResetPasswordMutation()
 
   const onSubmit = async ({ login, password }: { login: string; password: string }) => {
     try {
-      await mutate({
+      await mutateAsync({
         login,
         token,
         password

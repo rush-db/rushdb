@@ -1,11 +1,12 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import Joi = require('joi')
 
 export const importJsonSchema = Joi.object({
   label: Joi.string(),
-  data: Joi.alternatives().try(Joi.object(), Joi.array().items(Joi.object())),
+  data: Joi.alternatives().try(Joi.object(), Joi.array().items(Joi.object()), Joi.string()),
+  format: Joi.string().valid('json', 'jsonl', 'ndjson').optional(),
   options: Joi.object({
     suggestTypes: Joi.boolean().optional(),
-    castNumberArraysToVectors: Joi.boolean().optional(),
     convertNumericValuesToNumbers: Joi.boolean().optional(),
     capitalizeLabels: Joi.boolean().optional(),
     relationshipType: Joi.string().optional(),
@@ -20,7 +21,6 @@ export const importCsvSchema = Joi.object({
   data: Joi.string(),
   options: Joi.object({
     suggestTypes: Joi.boolean().optional(),
-    castNumberArraysToVectors: Joi.boolean().optional(),
     convertNumericValuesToNumbers: Joi.boolean().optional(),
     capitalizeLabels: Joi.boolean().optional(),
     relationshipType: Joi.string().optional(),
@@ -36,5 +36,16 @@ export const importCsvSchema = Joi.object({
     quoteChar: Joi.string().max(3).optional(),
     escapeChar: Joi.string().max(3).optional(),
     newline: Joi.string().max(4).optional()
-  }).optional()
+  }).optional(),
+  vectors: Joi.array()
+    .items(
+      Joi.array().items(
+        Joi.object({
+          propertyName: Joi.string().required(),
+          vector: Joi.array().items(Joi.number()).required(),
+          similarityFunction: Joi.string().valid('cosine', 'euclidean').optional()
+        })
+      )
+    )
+    .optional()
 })

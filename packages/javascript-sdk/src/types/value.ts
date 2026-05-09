@@ -3,8 +3,7 @@ import type {
   PROPERTY_TYPE_DATETIME,
   PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_STRING,
-  PROPERTY_TYPE_VECTOR
+  PROPERTY_TYPE_STRING
 } from '../common/constants.js'
 import type { MaybeArray } from './utils.js'
 
@@ -40,7 +39,6 @@ export type PropertyType =
   | typeof PROPERTY_TYPE_NULL
   | typeof PROPERTY_TYPE_NUMBER
   | typeof PROPERTY_TYPE_STRING
-  | typeof PROPERTY_TYPE_VECTOR
 
 type WithId<T> = T & { id: string }
 type WithValue<T> = T & { value: PropertyValue }
@@ -49,6 +47,7 @@ export type Property = WithId<{
   metadata?: string
   name: string
   type: PropertyType
+  recordsCount?: number
 }>
 
 export type PropertyWithValue = WithValue<Property>
@@ -69,8 +68,6 @@ export type PropertySingleValue<TType extends PropertyType = PropertyType> =
   : TType extends typeof PROPERTY_TYPE_STRING ? StringValue
   : TType extends typeof PROPERTY_TYPE_NULL ? NullValue
   : TType extends typeof PROPERTY_TYPE_BOOLEAN ? BooleanValue
-  : TType extends typeof PROPERTY_TYPE_VECTOR ? Array<number>
   : StringValue
 
-export type PropertyValue<TType extends PropertyType = PropertyType> =
-  TType extends typeof PROPERTY_TYPE_VECTOR ? Array<number> : MaybeArray<PropertySingleValue<TType>>
+export type PropertyValue<TType extends PropertyType = PropertyType> = MaybeArray<PropertySingleValue<TType>>

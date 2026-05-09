@@ -11,14 +11,13 @@ import { SelectLabels } from '~/features/labels/components/SelectLabels'
 import { SearchBox } from '~/features/projects/components/SearchBox.tsx'
 import {
   $activeLabels,
-  $currentProjectFields,
   $currentProjectFilters,
-  $currentProjectLabels,
   $recordView,
   removeFilter,
   resetFilters
 } from '~/features/projects/stores/current-project'
 import { PropertyName } from '~/features/properties/components/PropertyName'
+import { useProjectFieldsQuery, useProjectLabelsQuery } from '~/features/projects/hooks/useProjectQueries'
 
 import { FilterPopover } from '~/features/search/components/FilterPopover'
 import { cn } from '~/lib/utils'
@@ -66,7 +65,7 @@ function Filters() {
 }
 
 function HiddenFieldsSelector() {
-  const { data: fields } = useStore($currentProjectFields)
+  const { data: fields } = useProjectFieldsQuery()
   const hiddenFields = useStore($hiddenFields)
 
   const internalIdField: Property = {
@@ -105,7 +104,7 @@ function HiddenFieldsSelector() {
 }
 
 export function RecordsHeader() {
-  const { data: labels, loading: loadingLabels } = useStore($currentProjectLabels)
+  const { data: labels, isPending: loadingLabels } = useProjectLabelsQuery()
   const { hasAnyFiltersApplied } = useProjectFiltersState()
   const view = useStore($recordView)
 

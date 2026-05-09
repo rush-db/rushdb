@@ -1,5 +1,4 @@
-import { ModelRelatedNodesI, NeogmaInstance } from 'neogma'
-import { NeogmaModel } from 'neogma/dist/ModelOps/ModelOps'
+import { ModelRelatedNodesI, NeogmaInstance, NeogmaModel } from 'neogma'
 
 import { TProjectInstance, TProjectModel } from '@/dashboard/project/model/project.interface'
 import { TWorkspaceInstance, TWorkspaceModel } from '@/dashboard/workspace/model/workspace.interface'
@@ -45,7 +44,7 @@ export type TUserProperties = {
   deletedDate?: string
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface IUserStatics {}
 
 export type TUserInstance = NeogmaInstance<TUserProperties, IUserRelatedNodes, IUserStatics>

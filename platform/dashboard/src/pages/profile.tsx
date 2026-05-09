@@ -3,23 +3,28 @@ import { useStore } from '@nanostores/react'
 import { TextField } from '~/elements/Input'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { Setting } from '~/elements/Setting'
-import { $user, deleteUser, useUser } from '~/features/auth/stores/user'
+import { $user, useUser } from '~/features/auth/stores/user'
+import { useDeleteUserMutation } from '~/features/auth/hooks/useAuthMutations'
 
 import { Button } from '~/elements/Button.tsx'
 
 import { ConfirmDialog } from '~/elements/ConfirmDialog.tsx'
-import { $paidWorkspace } from '~/features/billing/stores/plans.ts'
+import { isFreePlan } from '~/features/billing/utils.ts'
+import { useCurrentWorkspacePlan } from '~/features/billing/hooks/useBillingHooks'
 import { api } from '~/lib/api.ts'
 
-import { $currentWorkspace, leaveWorkspace } from '~/features/workspaces/stores/current-workspace.ts'
+import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
+import { useLeaveWorkspaceMutation } from '~/features/workspaces/hooks/useWorkspaceMutations'
 
 import { Divider } from '~/elements/Divider.tsx'
+import { openRoute } from '~/lib/router'
 
 function DeleteAccount() {
-  const { mutate: deleteAccount } = useStore(deleteUser)
-  const { mutate: leave } = useStore(leaveWorkspace)
-  const paidUser = useStore($paidWorkspace)
-  const { data: workspace } = useStore($currentWorkspace)
+  const { mutateAsync: deleteAccount } = useDeleteUserMutation()
+  const { mutateAsync: leave } = useLeaveWorkspaceMutation()
+  const { currentPlan } = useCurrentWorkspacePlan()
+  const paidUser = currentPlan && !isFreePlan(currentPlan)
+  const { data: workspace } = useCurrentWorkspaceQuery()
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
 
@@ -57,7 +62,7 @@ function DeleteAccount() {
       <ConfirmDialog
         handler={() => {
           if (isOwner) {
-            return deleteAccount({})
+            return deleteAccount()
           } else if (workspace?.id) {
             return leave({ id: workspace.id })
           }
@@ -142,6 +147,17 @@ export function ProfilePage() {
           <Setting title="Login" readOnly={true}>
             <TextField readOnly disabled value={user.login} />
           </Setting>
+        </ul>
+        <ul>
+          <Setting
+            title="Connected Apps"
+            description="Manage third-party applications that have access to your RushDB data via OAuth."
+            button={
+              <Button onClick={() => openRoute('workspaceSettings')} variant="secondary" size="small">
+                Manage Apps
+              </Button>
+            }
+          />
         </ul>
         <ul>
           <DangerZone />

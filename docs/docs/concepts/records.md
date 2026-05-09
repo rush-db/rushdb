@@ -7,7 +7,7 @@ In RushDB, Records are fundamental data structures that store meaningful key-val
 
 ## How it works
 
-Records in RushDB can be thought of as nodes in a graph database or rows in a traditional database. While the underlying implementation utilizes complex graph structures, from a user perspective, a Record is simply a key-value object containing properties.
+Records in RushDB are the fundamental units of structured knowledge. While the underlying engine uses a rich graph model to represent and connect data, from a developer perspective a Record is simply a typed key-value object containing properties — like a row in a database or a document in a document store, but with seamless relationship traversal built in.
 
 Each record in RushDB consists of:
 
@@ -85,7 +85,6 @@ RushDB supports a wide range of data types to accommodate diverse data needs:
 | `datetime` | ISO 8601 format, including timezones         | `"2012-12-21T18:29:37Z"`   |
 | `boolean`  | True or false values                         | `true`, `false`            |
 | `null`     | Explicit null value                          | `null`                     |
-| `vector`   | Arrays of floating-point numbers or integers | `[0.99070, 0.78912, 1, 0]` |
 
 ### Arrays
 

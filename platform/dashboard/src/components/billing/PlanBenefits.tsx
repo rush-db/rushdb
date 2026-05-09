@@ -2,29 +2,51 @@ import { Check } from 'lucide-react'
 import React from 'react'
 
 const benefitsMap: Record<string, Array<{ description?: string; title: string }>> = {
-  start: [
-    { title: 'Up to 10,000 records', description: 'Perfect for prototypes and small apps' },
+  free: [
+    { title: '100K KU / month', description: '~3,000 records with 10 fields each' },
     { title: '2 projects', description: 'No time limits, no feature restrictions' },
     { title: 'Full REST API and SDKs', description: 'Complete access to all query capabilities' },
-    { title: 'Smart CDN', description: 'Global API endpoints for faster access' },
+    { title: 'Vector & AI search', description: 'Native support for embeddings and similarity' },
+    { title: 'Community support', description: 'Get help from our developer community' }
+  ],
+  start: [
+    { title: '100K KU / month', description: '~3,000 records with 10 fields each' },
+    { title: '2 projects', description: 'No time limits, no feature restrictions' },
+    { title: 'Full REST API and SDKs', description: 'Complete access to all query capabilities' },
+    { title: 'Vector & AI search', description: 'Native support for embeddings and similarity' },
     { title: 'Community support', description: 'Get help from our developer community' }
   ],
   pro: [
-    {
-      title: 'Up to 200,000 records',
-      description: 'On shared infrastructure. Unlimited with your own Neo4j instance'
-    },
-    { title: 'Unlimited projects', description: 'Record limit applies collectively across all projects' },
-    { title: 'Bring your Neo4j', description: 'Connect Neo4j Aura or own instance' },
-    { title: '3 team members', description: 'then $10 per member' }
+    { title: '10M KU / month', description: '~300,000 records with 10 fields each' },
+    { title: 'Overage billing', description: 'Continue beyond 10M KU at a per-KU rate' },
+    { title: 'Unlimited projects', description: 'No per-project limits' },
+    { title: '3 team members', description: 'then $10 per member' },
+    { title: 'Self-hosted support', description: 'Deploy on your own infrastructure' }
   ],
-  team: [
-    { title: 'Up to 1B+ records', description: 'Instant scale up with a single click—grow as needed' },
-    { title: 'Dedicated instances', description: 'Guaranteed performance, security, and throughput' },
-    { title: '10 team members', description: 'then $25 per member' },
+  scale: [
+    { title: 'Unlimited KU', description: 'Usage-based billing — pay only for what you consume' },
+    { title: 'Unlimited team members', description: 'No per-seat limit' },
+    { title: 'SLA guarantee', description: 'Uptime and performance guarantees' },
     { title: 'Daily backups stored for 14 days', description: 'Coming soon' },
-    { title: 'SSO', description: 'Enterprise-grade authentication (coming soon)' },
     { title: 'Priority support', description: 'Fast-track access to expert help' }
+  ],
+  enterprise: [
+    { title: 'Platform license', description: 'Unlimited KU, flat-fee pricing' },
+    { title: 'Bring Your Own Cloud (BYOC)', description: 'Deploy in your private cloud or on-premise' },
+    { title: 'Embedded / OEM use', description: 'Build RushDB into your own product' },
+    { title: 'Dedicated support', description: 'Phone, chat, and dedicated account manager' }
+  ],
+  custom: [
+    {
+      title: 'Custom commercial terms',
+      description: 'Flexible packaging for your deployment and team model'
+    },
+    { title: 'BYOC or on-premise options', description: 'Run RushDB in your environment when required' },
+    { title: 'Solution design support', description: 'Work with us on migration, sizing, and rollout' },
+    {
+      title: 'Dedicated support path',
+      description: 'Prioritized help for production teams and regulated workloads'
+    }
   ]
 }
 

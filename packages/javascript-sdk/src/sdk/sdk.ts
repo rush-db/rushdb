@@ -3,11 +3,11 @@ import type { Schema } from '../types/index.js'
 
 import type { DBRecord } from './record.js'
 import { DBRecordInstance } from './record.js'
-import type { SDKConfig, State, TokenPublicVariables } from './types.js'
+import type { SDKConfig, State } from './types.js'
 
 import { RestAPI } from '../api/api.js'
 import { DEFAULT_TIMEOUT } from '../common/constants.js'
-import { extractMixedPropertiesFromToken, parseConfig, validateInteger } from './utils.js'
+import { parseConfig, validateInteger } from './utils.js'
 import { toBoolean } from '../common/utils.js'
 
 let httpClient: HttpClient
@@ -22,31 +22,20 @@ export class RushDB extends RestAPI {
   }
 
   constructor(token?: string, config?: SDKConfig) {
+    const resolvedToken = token ?? (typeof process !== 'undefined' ? process.env?.RUSHDB_API_KEY : undefined)
     const props = parseConfig(config)
-    super(token, { ...props, httpClient: props.httpClient ?? httpClient })
+    super(resolvedToken, { ...props, httpClient: props.httpClient ?? httpClient })
 
     RushDB.instance = this
-    const [maybeMixed] = extractMixedPropertiesFromToken(token ?? '')
-    this.initializeSync(maybeMixed, token, props)
+    this.initializeSync(resolvedToken, props)
   }
 
-  private initializeSync(mixed: TokenPublicVariables | null, token?: string, props?: any) {
-    const serverSettings =
-      mixed ?
-        {
-          planType: mixed.planType,
-          customDB: mixed.customDB,
-          managedDB: mixed.managedDB,
-          selfHosted: mixed.selfHosted
-        }
-      : null
-
+  private initializeSync(token?: string, props?: any) {
     RushDB.state = {
       initialized: true,
       debug: false,
       timeout: validateInteger('timeout', props?.timeout, DEFAULT_TIMEOUT),
-      token,
-      ...(serverSettings && { serverSettings })
+      token
     }
   }
 

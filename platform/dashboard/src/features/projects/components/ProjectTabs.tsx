@@ -1,4 +1,4 @@
-import { Book, Database, Key, Settings, UploadIcon, Wallet2 } from 'lucide-react'
+import { Book, Database, Key, Search, Settings, UploadIcon, Wallet2 } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -6,18 +6,18 @@ import { getRoutePath } from '~/lib/router'
 import type { Project } from '../types'
 import { useStore } from '@nanostores/react'
 import { $user } from '~/features/auth/stores/user.ts'
-import { useState } from 'react'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { useMemo } from 'react'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 
 export function ProjectTabs({ project }: { project: Project }) {
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
 
-  const { data: platformSettings } = useStore($platformSettings)
+  const { data: platformSettings } = usePlatformSettings()
 
   const projectIsInactive = project.status === 'pending' || project.status === 'provisioning'
 
-  const [tabs, setTabs] = useState(() => {
+  const tabs = useMemo(() => {
     const projectsTabs =
       projectIsInactive ?
         []
@@ -46,6 +46,16 @@ export function ProjectTabs({ project }: { project: Project }) {
           }
         ]
 
+    if (platformSettings?.embeddingEnabled && !projectIsInactive) {
+      projectsTabs.push({
+        href: getRoutePath('projectIndexes', {
+          id: project.id
+        }),
+        icon: <Search />,
+        label: 'Indexes'
+      })
+    }
+
     if (isOwner) {
       projectsTabs.push({
         href: getRoutePath('projectSettings', {
@@ -64,16 +74,8 @@ export function ProjectTabs({ project }: { project: Project }) {
       })
     }
 
-    if (!platformSettings?.selfHosted && isOwner && project.managedDbRegion) {
-      projectsTabs.push({
-        href: getRoutePath('projectBilling', { id: project.id }),
-        icon: <Wallet2 />,
-        label: 'Subscription'
-      })
-    }
-
     return projectsTabs
-  })
+  }, [project, projectIsInactive, isOwner, platformSettings])
 
   return (
     <PageTabs>

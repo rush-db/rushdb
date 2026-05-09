@@ -97,13 +97,14 @@ export class PropertyService {
           propertyId,
           projectId
         })
-        .then((res) => res.records[0].get('property')?.properties as TPropertyProperties)
+        .then((res) => res.records[0].get('property') as TPropertyProperties)
 
       return {
         id: property.id,
         metadata: property.metadata,
         name: property.name,
-        type: property.type
+        type: property.type,
+        recordsCount: property.recordsCount
       }
     } catch {
       return undefined

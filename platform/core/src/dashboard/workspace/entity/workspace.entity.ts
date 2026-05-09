@@ -1,18 +1,23 @@
-import { IWorkspaceProperties, TWorkspaceInstance } from '@/dashboard/workspace/model/workspace.interface'
+import { IWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
+
+import type { WorkspaceRow } from '@/database/sql/schema/types'
 
 export class Workspace {
-  constructor(private readonly node: TWorkspaceInstance) {}
+  // expose dataValues for legacy call sites that read workspace.dataValues.id etc.
+  readonly dataValues: WorkspaceRow
+
+  constructor(private readonly row: WorkspaceRow) {
+    this.dataValues = row
+  }
 
   getProperties(): IWorkspaceProperties {
     return {
-      id: this.node.dataValues.id,
-      name: this.node.dataValues.name,
-      created: this.node.dataValues.created,
-      edited: this.node.dataValues.edited,
-      limits: this.node.dataValues.limits,
-      planId: this.node.dataValues.planId,
-      validTill: this.node.dataValues.validTill,
-      isSubscriptionCancelled: this.node.dataValues.isSubscriptionCancelled
+      id: this.row.id,
+      name: this.row.name,
+      created: this.row.created,
+      edited: this.row.edited,
+      pendingInvites: undefined, // pendingInvites moved to workspace_invites table
+      stats: this.row.stats
     }
   }
 

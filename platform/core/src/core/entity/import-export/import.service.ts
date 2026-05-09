@@ -1,5 +1,4 @@
 import { forwardRef, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
@@ -11,6 +10,9 @@ import { isObject } from '@/common/utils/isObject'
 import { isPrimitiveArray } from '@/common/utils/isPrimitiveArray'
 import { pickPrimitives } from '@/common/utils/pickPrimitives'
 import { toBoolean } from '@/common/utils/toBolean'
+import { AiService } from '@/core/ai/ai.service'
+import { InlineVectorEntryDto } from '@/core/ai/dto/inline-vector-entry.dto'
+import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
 import {
   RUSHDB_KEY_ID,
   RUSHDB_KEY_LABEL,
@@ -30,32 +32,43 @@ import {
   TImportOptions,
   TImportJsonPayload,
   TImportRecordsRelation,
+  TImportSummary,
   WithId,
   TImportQueue
 } from '@/core/entity/import-export/import.types'
+import { KuOperation } from '@/core/ku-events/ku-events.constants'
+import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { PropertyDto } from '@/core/property/dto/property.dto'
 import {
   PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_STRING,
-  PROPERTY_TYPE_VECTOR
+  PROPERTY_TYPE_STRING
 } from '@/core/property/property.constants'
 import { PropertyService } from '@/core/property/property.service'
 import { TPropertyPrimitiveValue } from '@/core/property/property.types'
-import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
+
+type VectorDraft = {
+  draftId: string
+  label: string
+  vectors: InlineVectorEntryDto[]
+}
 
 @Injectable()
 export class ImportService {
   constructor(
-    private readonly configService: ConfigService,
     private readonly entityQueryService: EntityQueryService,
+    private readonly kuEventsService: KuEventsService,
+    @Inject(BILLING_POLICY_PORT)
+    private readonly billingPolicyService: BillingPolicyPort,
 
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
 
     @Inject(forwardRef(() => PropertyService))
-    private readonly propertyService: PropertyService
+    private readonly propertyService: PropertyService,
+
+    private readonly aiService: AiService
   ) {}
 
   getValueParameters(value: MaybeArray<TPropertyPrimitiveValue>) {
@@ -107,13 +120,10 @@ export class ImportService {
           const { isEmptyArray, isInconsistentArray } = valueParameters
           if (isEmptyArray) {
             property.value = RUSHDB_VALUE_EMPTY_ARRAY
-          } else if (options.castNumberArraysToVectors && value.every(isNumeric)) {
-            property.value = value.map(Number)
-            property.type = PROPERTY_TYPE_VECTOR
           } else if (options.convertNumericValuesToNumbers && value.every(isNumeric)) {
             property.value = value.map(Number)
-            property.type = options.castNumberArraysToVectors ? PROPERTY_TYPE_VECTOR : PROPERTY_TYPE_NUMBER
-          } else if (isInconsistentArray && !options.castNumberArraysToVectors && !value.every(isNumeric)) {
+            property.type = PROPERTY_TYPE_NUMBER
+          } else if (isInconsistentArray && !value.every(isNumeric)) {
             property.value = value.map(String)
             property.type = PROPERTY_TYPE_STRING
           } else if (value[0] === null) {
@@ -153,9 +163,10 @@ export class ImportService {
     data: TImportJsonPayload,
     label: string,
     options: TImportOptions
-  ): [Array<WithId<CreateEntityDto>>, TImportRecordsRelation[]] {
+  ): [Array<WithId<CreateEntityDto>>, TImportRecordsRelation[], VectorDraft[]] {
     const entities: Array<WithId<CreateEntityDto>> = []
     const relations: TImportRecordsRelation[] = []
+    const vectorDrafts: VectorDraft[] = []
 
     const queue: Array<TImportQueue> = []
 
@@ -238,6 +249,12 @@ export class ImportService {
         label: options.capitalizeLabels ? key?.toUpperCase() : key
       } as WithId<CreateEntityDto>
 
+      // Extract inline vectors before BFS parse to prevent $vectors from being treated as child entities
+      const rawVectors: InlineVectorEntryDto[] | undefined = (value as any)?.$vectors
+      if (rawVectors !== undefined) {
+        delete (value as any).$vectors
+      }
+
       // If we do not skip, create the entity and relation from parent (if parent exists)
       if (!toBoolean(current?.skip)) {
         if (toBoolean(parentId)) {
@@ -248,6 +265,10 @@ export class ImportService {
           })
         }
         entities.push(recordDraft)
+
+        if (Array.isArray(rawVectors) && rawVectors.length > 0) {
+          vectorDrafts.push({ draftId: recordDraft.id, label: recordDraft.label, vectors: rawVectors })
+        }
       }
 
       // Determine the parent id to pass to children:
@@ -258,29 +279,19 @@ export class ImportService {
       parse({ value, target: recordDraft, parentId: childParentId })
     }
 
-    return [entities, relations]
+    return [entities, relations, vectorDrafts]
   }
 
   async checkLimits(recordsCount: number, projectId: string, transaction: Transaction) {
-    if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-      return true
-    }
-
-    // @FYI: This exists to prevent saving more Records than allowed by current plan
     const workspaceInstance = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
-    const workspaceStats = await this.workspaceService.getAccumulatedWorkspaceStats(
-      workspaceInstance,
-      transaction
-    )
+    const workspaceId = workspaceInstance?.id
 
-    const limits = JSON.parse(workspaceInstance.dataValues.limits) as TWorkspaceLimits
+    // Estimate KU for the import (conservative: assume 10 properties per record average)
+    const estimatedKu = recordsCount * 10
 
-    if (workspaceStats.records + recordsCount > limits.records) {
-      throw new HttpException(
-        'The number of items you are trying to send exceeds your limits.',
-        HttpStatus.PAYMENT_REQUIRED
-      )
-    }
+    await this.billingPolicyService.assertProjectOperationAllowed(workspaceId, { estimatedKu })
+
+    return true
   }
 
   async importRecords(
@@ -296,16 +307,24 @@ export class ImportService {
     projectId: string,
     transaction: Transaction,
     customTransaction: Transaction = transaction
-  ): Promise<boolean | TEntityPropertiesNormalized[]> {
+  ): Promise<boolean | TImportSummary | TEntityPropertiesNormalized[]> {
+    if (typeof data === 'string' || !data || typeof data !== 'object') {
+      throw new HttpException('Import data must be a JSON object or array', HttpStatus.BAD_REQUEST)
+    }
+
     // @FYI: Approximate time for 25MB JSON: 2.5s. RUST WASM?))))))
-    const [records, relations] = this.serializeBFS(data, label, options)
+    const [records, relations, vectorDrafts] = this.serializeBFS(data as TImportJsonPayload, label, options)
 
     // Will throw error if the amount of uploading Records is more than allowed by current plan
     await this.checkLimits(records.length, projectId, transaction)
 
-    const CHUNK_SIZE = 1000
+    // Get workspace for billing attribution
+    const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
+    const workspaceId = workspace?.id
 
-    // @TODO: Accumulate result only if records <= 1000. Otherwise - ignore options.returnResult
+    const CHUNK_SIZE = 1000
+    const shouldAccumulateResult = options.returnResult === true && records.length <= CHUNK_SIZE
+
     let result = []
     // Map draft record ids (generated during serialization) to actual persisted record ids after upsert/create
     const draftToPersistedId = new Map<string, string>()
@@ -314,7 +333,10 @@ export class ImportService {
 
       const data = await this.processRecordsChunk({
         transaction: customTransaction,
-        options,
+        options: {
+          ...options,
+          returnResult: shouldAccumulateResult
+        },
         recordsChunk,
         projectId
       })
@@ -329,7 +351,7 @@ export class ImportService {
         }
       }
 
-      if (options.returnResult) {
+      if (shouldAccumulateResult) {
         const chunkData = data.records?.[0]?.get('data')
         if (Array.isArray(chunkData)) {
           result = result.concat(chunkData)
@@ -344,6 +366,30 @@ export class ImportService {
       type: rel.type
     }))
 
+    // Write inline vectors now that all record IDs are known
+    for (const vd of vectorDrafts) {
+      const persistedId = draftToPersistedId.get(vd.draftId) ?? vd.draftId
+      await this.aiService.resolveAndWriteInlineVectors(
+        projectId,
+        vd.label,
+        persistedId,
+        vd.vectors,
+        customTransaction
+      )
+    }
+
+    // Emit bulk entity creation event (one coalesced event per import, not per chunk)
+    if (records.length > 0) {
+      let totalPropertyCount = 0
+      for (const record of records) {
+        totalPropertyCount += (record.properties ?? []).length
+      }
+
+      this.kuEventsService.emitBulk(workspaceId, projectId, KuOperation.ENTITY_CREATED, records.length, {
+        propertyCount: totalPropertyCount
+      })
+    }
+
     for (let i = 0; i < remappedRelations.length; i += CHUNK_SIZE) {
       const relationsChunk = remappedRelations.slice(i, i + CHUNK_SIZE)
       await this.processRelationshipsChunk({
@@ -351,6 +397,16 @@ export class ImportService {
         projectId,
         transaction: customTransaction
       })
+    }
+
+    // Emit bulk relationship creation event
+    if (remappedRelations.length > 0) {
+      this.kuEventsService.emitBulk(
+        workspaceId,
+        projectId,
+        KuOperation.RELATIONSHIP_CREATED,
+        remappedRelations.length
+      )
     }
 
     const upsertRequested = toBoolean(options.mergeStrategy) || isArray(options.mergeBy)
@@ -362,7 +418,14 @@ export class ImportService {
       })
     }
 
-    return options.returnResult ? result : true
+    if (options.returnResult && !shouldAccumulateResult) {
+      return {
+        message: `Import complete. ${records.length} records processed. Result omitted for large imports — use /records/search to retrieve records.`,
+        count: records.length
+      }
+    }
+
+    return shouldAccumulateResult ? result : true
   }
 
   async processRecordsChunk({

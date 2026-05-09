@@ -25,6 +25,7 @@ import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
 import { EntityService } from '@/core/entity/entity.service'
 import { TRecordRelationsResponse, TRelationDirection } from '@/core/entity/entity.types'
+import { TrackHeavySearchKu } from '@/core/ku-events/track-heavy-search-ku.interceptor'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
 import {
@@ -36,6 +37,8 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { pagination } from '@/core/search/parser/pagination'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
+import { HeavySearchLimitsGuard } from '@/dashboard/billing/guards/heavy-search-limits.guard'
+import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
@@ -54,6 +57,7 @@ export class RelationshipsController {
   })
   @ApiBearerAuth()
   @UseGuards(
+    PlanLimitsGuard,
     IsRelatedToProjectGuard(['targetIds'], {
       nodeProperty: RUSHDB_KEY_ID,
       projectIdProperty: RUSHDB_KEY_PROJECT_ID
@@ -103,7 +107,7 @@ export class RelationshipsController {
   // for example: { source: { where: { $id: ... } }, target: { where: { $id: ... } }, type?: string }
   @Post('/create-many')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
   @HttpCode(HttpStatus.CREATED)
@@ -133,8 +137,9 @@ export class RelationshipsController {
 
   @Post('/search')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(HeavySearchLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
+  @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
   async findRelations(
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -144,7 +149,6 @@ export class RelationshipsController {
     @Query('limit', new DefaultValuePipe(1000), ParseIntPipe) limit?: number
   ): Promise<TRecordRelationsResponse> {
     const projectId = request.projectId
-
     const [data, total] = await Promise.all([
       this.entityService.findRelations({
         searchQuery,

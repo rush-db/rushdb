@@ -163,8 +163,7 @@ const importOptions = {
   convertNumericValuesToNumbers: true,
   capitalizeLabels: false,
   relationshipType: 'OWNS',
-  returnResult: true,
-  castNumberArraysToVectors: false
+  returnResult: true
 };
 
 const importedUsers = await db.records.importJson({ label: 'user', data: data.users, options: importOptions })
@@ -175,7 +174,6 @@ const importedUsers = await db.records.importJson({ label: 'user', data: data.us
 | Option                          | Type    | Default                         | Description                                       |
 |---------------------------------|---------|---------------------------------|---------------------------------------------------|
 | `suggestTypes`                  | Boolean | `true`                          | **Default is `true`** - Automatically infers data types for properties. Set to `false` to disable type inference and store all values as strings |
-| `castNumberArraysToVectors`     | Boolean | `false`                         | Converts numeric arrays to vector type            |
 | `convertNumericValuesToNumbers` | Boolean | `false`                         | Converts string numbers to number type            |
 | `capitalizeLabels`              | Boolean | `false`                         | Converts all labels to uppercase                  |
 | `relationshipType`              | String  | `__RUSHDB__RELATION__DEFAULT__` | Default relationship type between Records (nodes) |
@@ -200,53 +198,7 @@ By default, `suggestTypes` is `true` for all import operations (importJson, impo
 - importJson: nested/mixed JSON. Provide label explicitly, or pass a single-key object like `{ LABEL: [...] }` to infer the label.
 - importCsv: CSV string input with parseConfig; dynamicTyping inherits from options.suggestTypes when omitted.
 
-## How RushDB JSON Import Works
+## See also
 
-When you import data through the TypeScript SDK, RushDB applies a breadth-first search (BFS) algorithm to parse and transform your data:
+- [Writing Records with Vectors](../ai/write-with-vectors.md) — attach pre-computed embedding vectors to records at write time
 
-1. **Data Preparation**: Each record is assigned a unique UUIDv7 `__id` (unless provided)
-2. **Type Inference**: If `suggestTypes` is enabled, RushDB analyzes values to determine appropriate data types
-3. **Graph Construction**: Records become nodes in the graph database with properties and relationships
-4. **Metadata Generation**: Type information is stored in `__proptypes` for each record
-5. **Storage**: Data is efficiently inserted into the underlying Neo4j database
-
-### Data Structure Example
-
-For example, importing this JSON:
-
-```json
-{
-  "car": {
-    "make": "Tesla",
-    "model": "Model 3",
-    "engine": {
-      "power": 283,
-      "type": "electric"
-    }
-  }
-}
-```
-
-Creates this graph structure in RushDB:
-
-- A `car` node with properties `make: "Tesla"` and `model: "Model 3"`
-- An `engine` node with properties `power: 283` and `type: "electric"`
-- A relationship connecting the car to its engine
-- Property metadata nodes tracking property names and types
-
-The TypeScript SDK abstracts this complexity, allowing you to focus on your data models.
-
-## Performance Considerations
-
-- For large data imports (>1,000 records), consider batching your requests in chunks
-- Setting `returnResult: false` is recommended for large imports to improve performance
-- For time-critical imports, pre-process your data to ensure type consistency
-- CSV imports currently read the full string; for very large files consider splitting client-side
-- Upsert on large batches may benefit from using stable unique keys in `mergeBy` to minimize match cost.
-
-## Related Documentation
-
-- [REST API - Import Data](../../rest-api/records/import-data) - Complete API details for data import
-- [Storage Internals](../../concepts/storage) - Technical details about how RushDB stores your data
-- [Properties](../../concepts/properties) - Learn about property handling and type inference
-- [Transactions](../../concepts/transactions.mdx) - Understand how RushDB ensures data integrity during imports

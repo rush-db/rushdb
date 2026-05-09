@@ -18,7 +18,6 @@ The `where` clause is defined in the `where` key of the SearchQuery DTO:
   limit: 10,                 // Results limit
   skip: 0,                   // Results offset
   orderBy: { name: 'asc' },  // Sorting
-  aggregate: { /* aggregations */ } // Aggregation definitions
 }
 ```
 
@@ -323,90 +322,6 @@ You can also use array operators with datetime values:
 }
 ```
 
-### Vector Operators
-
-RushDB supports vector similarity searches through the `$vector` operator, which is useful for semantic searches, embeddings comparison, and machine learning applications.
-
-```typescript
-{
-  where: {
-    embedding: {
-      $vector: {
-        fn: "gds.similarity.cosine",      // Similarity function
-        query: [1, 2, 3, 4, 5],           // Query vector
-        threshold: 0.75                   // Minimum similarity threshold
-      }
-    }
-  }
-}
-```
-
-Available similarity functions:
-- `cosine`: Cosine similarity [-1,1]
-- `euclidean`: Euclidean distance normalized to (0,1]
-- `euclideanDistance`: Raw euclidean distance [0,∞)
-- `jaccard`: Jaccard similarity [0,1]
-- `overlap`: Overlap coefficient [0,1]
-- `pearson`: Pearson correlation [-1,1]
-
-The `threshold` parameter can be:
-- A simple number (with different default behaviors):
-  - For `euclidean` and `euclideanDistance` functions, a simple threshold is treated as `$lte` (less than or equal to)
-  - For all other functions (`cosine`, `jaccard`, `overlap`, `pearson`), a simple threshold is treated as `$gte` (greater than or equal to)
-- An object with comparison operators for more precise filtering:
-
-```typescript
-{
-  where: {
-    embedding: {
-      $vector: {
-        fn: "gds.similarity.cosine",
-        query: [1, 2, 3, 4, 5],
-        threshold: {
-          $gte: 0.5,  // Similarity >= 0.5
-          $lte: 0.8,  // Similarity <= 0.8
-          $ne: 0.75   // Similarity != 0.75
-        }
-      }
-    }
-  }
-}
-```
-
-#### Default Threshold Behavior
-
-When providing a simple number as threshold, the comparison differs by function type:
-
-```typescript
-// For cosine similarity, higher values mean more similar
-// So threshold: 0.75 means "find vectors with similarity >= 0.75"
-{
-  where: {
-    embedding: {
-      $vector: {
-        fn: "gds.similarity.cosine",
-        query: [1, 2, 3, 4, 5],
-        threshold: 0.75  // Interpreted as $gte: 0.75
-      }
-    }
-  }
-}
-
-// For euclidean distance, lower values mean more similar
-// So threshold: 0.5 means "find vectors with distance <= 0.5"
-{
-  where: {
-    embedding: {
-      $vector: {
-        fn: "gds.similarity.euclidean",
-        query: [1, 2, 3, 4, 5],
-        threshold: 0.5  // Interpreted as $lte: 0.5
-      }
-    }
-  }
-}
-```
-
 ## Field Existence Operator
 
 ### $exists
@@ -483,7 +398,6 @@ Available types:
 - `"boolean"`: True/false values
 - `"datetime"`: Date and time values
 - `"null"`: Null values
-- `"vector"`: Vector/array values for similarity search
 
 **Examples:**
 
@@ -499,13 +413,6 @@ Available types:
 {
   where: {
     status: { $type: "boolean" }
-  }
-}
-
-// Find records with vector embeddings
-{
-  where: {
-    embedding: { $type: "vector" }
   }
 }
 
@@ -724,17 +631,11 @@ When you need to reference related records in aggregations, use the `$alias` ope
         budget: { $gte: 10000 }
       }
     }
-  },
-  aggregate: {
-    departmentCount: {
-      fn: "count",
-      alias: "$department"           // Use the alias in aggregation
-    }
   }
 }
 ```
 
-> For more detailed information about aggregations, including available functions and advanced usage, see [Aggregations](./aggregations.md).
+> For more detailed information about aggregations, including available functions and advanced usage, see [Select Expressions](./select.md).
 
 ### ID Filtering
 
@@ -968,7 +869,7 @@ This query finds active users who have provided an email address but no phone nu
 </details>
 
 <details>
-<summary>Vector search with relationship filtering</summary>
+<summary>Multi-hop relationship filtering with text matching</summary>
 
 ```typescript
 {
@@ -976,23 +877,14 @@ This query finds active users who have provided an email address but no phone nu
     DOCUMENT: {
       title: { $contains: "Neural Networks" },
       CHUNK: {
-        content: { $contains: "embedding" },
-        embedding: {
-          $vector: {
-            fn: "gds.similarity.cosine",
-            query: [0.1, 0.2, 0.3, 0.4, 0.5],
-            threshold: {
-              $gte: 0.75
-            }
-          }
-        }
+        content: { $contains: "embedding" }
       }
     }
   }
 }
 ```
 
-This query finds records related to documents about neural networks, specifically chunks that mention "embedding" and have a high vector similarity to the provided embedding.
+This query finds records related to documents about neural networks that have chunks mentioning "embedding". For semantic (embedding-based) search, use the dedicated [AI search endpoint](/rest-api/ai/search).
 </details>
 
 <details>

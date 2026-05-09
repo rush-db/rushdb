@@ -1,4 +1,5 @@
-import { VariantProps, cva } from 'class-variance-authority'
+import type { VariantProps } from 'class-variance-authority'
+import { cva } from 'class-variance-authority'
 
 export const badgeVariants = cva('flex items-center gap-1', {
   defaultVariants: { size: 'medium', variant: 'primary' },
@@ -18,9 +19,5 @@ type BadgeProps = {
 } & VariantProps<typeof badgeVariants>
 
 export function Badge({ children, size, variant, className }: BadgeProps) {
-  return (
-    <div className={badgeVariants({ size, variant, className })}>
-      {children}
-    </div>
-  )
+  return <div className={badgeVariants({ size, variant, className })}>{children}</div>
 }

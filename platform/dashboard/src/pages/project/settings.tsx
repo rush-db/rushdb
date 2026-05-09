@@ -1,5 +1,4 @@
 import { yupResolver } from '@hookform/resolvers/yup'
-import { useStore } from '@nanostores/react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { object, string } from 'yup'
@@ -13,17 +12,17 @@ import { Setting, SettingsList } from '~/elements/Setting'
 import { Skeleton } from '~/elements/Skeleton'
 import { Message } from '~/elements/Message'
 import { DeleteProjectDialog } from '~/features/projects/components/DeleteProjectDialog'
-import { $currentProject } from '~/features/projects/stores/current-project'
-import { updateProject } from '~/features/projects/stores/project'
+import { useCurrentProjectQuery } from '~/features/projects/hooks/useProjectQueries'
+import { useUpdateProjectMutation } from '~/features/projects/hooks/useProjectMutations'
 
 const workspaceNameSchema = object({
   name: string().min(1).max(256).required()
 })
 
 function ProjectNameSetting({}: WithProjectID) {
-  const { data: project } = useStore($currentProject)
+  const { data: project } = useCurrentProjectQuery()
 
-  const { mutate } = useStore(updateProject)
+  const { mutateAsync: mutate } = useUpdateProjectMutation()
 
   const {
     formState: { errors, isDirty, isSubmitting, isValid },
@@ -49,7 +48,10 @@ function ProjectNameSetting({}: WithProjectID) {
       isDirty={isDirty}
       isSubmitting={isSubmitting}
       isValid={isValid}
-      onSubmit={handleSubmit(mutate)}
+      onSubmit={handleSubmit(async (values) => {
+        if (!project?.id) return
+        await mutate({ id: project.id, ...values })
+      })}
       title="Project name"
     >
       <TextField {...register('name')} error={errors.name?.message} />
@@ -58,7 +60,7 @@ function ProjectNameSetting({}: WithProjectID) {
 }
 
 function DeleteProjectSetting({ projectId }: WithProjectID) {
-  const { data: project, loading } = useStore($currentProject)
+  const { data: project, isPending: loading } = useCurrentProjectQuery()
 
   return (
     <Setting
@@ -84,22 +86,7 @@ function DeleteProjectSetting({ projectId }: WithProjectID) {
 }
 
 export function ProjectSettings({ projectId }: WithProjectID) {
-  const { data: project, loading } = useStore($currentProject)
-
-  const statusDescription = (() => {
-    if (!project) return null
-
-    if (project.status === 'pending') {
-      return `Subscription pending — please check your project subscription page to complete activation.`
-    }
-
-    if (project.status === 'provisioning') {
-      const region = project.managedDbRegion || 'your selected region'
-      return `Your project instance is currently provisioning in ${region}. Once provisioning finishes, your project will be ready to use.`
-    }
-
-    return null
-  })()
+  const { data: project, isPending: loading } = useCurrentProjectQuery()
 
   return (
     <>
@@ -108,14 +95,6 @@ export function ProjectSettings({ projectId }: WithProjectID) {
       </PageHeader>
       <PageContent contained>
         <SettingsList>
-          {statusDescription ?
-            <div className="mb-4">
-              <Message as="div" variant="info" size="medium" className={'mb-5 w-fit !p-4'}>
-                <Skeleton enabled={loading}>{statusDescription}</Skeleton>
-              </Message>
-            </div>
-          : null}
-
           <ProjectNameSetting projectId={projectId} />
           <DeleteProjectSetting projectId={projectId} />
         </SettingsList>

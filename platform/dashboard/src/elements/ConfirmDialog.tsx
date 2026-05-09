@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 
 import { useRef, useState } from 'react'
 
-import { DialogTitle, TDialogProps } from './Dialog'
+import type { TDialogProps } from './Dialog'
+import { DialogTitle } from './Dialog'
 
 import { Button } from './Button'
 import { Close, Dialog, DialogFooter } from './Dialog'

@@ -4,7 +4,7 @@ sidebar_position: 8
 
 # Grouping Search Results (`groupBy`)
 
-The `groupBy` option in a SearchQuery lets you pivot, summarize, and aggregate records instead of returning a raw list. It works together with the `aggregate` clause. If no aggregations are provided, `groupBy` is ignored.
+The `groupBy` option in a SearchQuery lets you pivot, summarize, and compute metrics on records instead of returning a raw list. It works together with the `select` clause. If no select expressions are provided, `groupBy` is ignored. The legacy `aggregate` clause is deprecated and should only be used for vector similarity until select supports it.
 
 ## Core Principles
 
@@ -21,9 +21,9 @@ The `groupBy` option in a SearchQuery lets you pivot, summarize, and aggregate r
 ```typescript
 {
   labels: ['ORDER'],
-  aggregate: {
-    count: { fn: 'count', alias: '$record' },
-    avgTotal: { fn: 'avg', field: 'total', alias: '$record' }
+  select: {
+    count:    { $count: '*' },
+    avgTotal: { $avg: '$record.total' }
   },
   groupBy: ['$record.status'],
   orderBy: { count: 'desc' },
@@ -49,9 +49,11 @@ To group by related data, first traverse it in `where` and assign an alias via `
   where: {
     PROJECT: { $alias: '$project' }
   },
-  aggregate: {
-    projectCount: { fn: 'count', alias: '$project' },
-    projectNames: { fn: 'collect', field: 'name', alias: '$project', unique: true }
+  select: {
+    projectCount: { $count: '$project' },
+    projectNames: {
+      $collect: { from: '$project', select: { name: '$project.name' }, unique: true }
+    }
   },
   groupBy: ['$record.name'],
   orderBy: { projectCount: 'desc' }
@@ -63,7 +65,7 @@ To group by related data, first traverse it in `where` and assign an alias via `
 ```typescript
 {
   labels: ['PROJECT'],
-  aggregate: { count: { fn: 'count', alias: '$record' } },
+  select: { count: { $count: '*' } },
   groupBy: ['$record.category', '$record.active'],
   orderBy: { count: 'desc' }
 }
@@ -82,8 +84,8 @@ Example – total deal amount across all deals:
 ```typescript
 {
   labels: ['HS_DEAL'],
-  aggregate: {
-    totalAmount: { fn: 'sum', field: 'amount', alias: '$record' }
+  select: {
+    totalAmount: { $sum: '$record.amount' }
   },
   groupBy: ['totalAmount']
 }
@@ -104,9 +106,9 @@ Multiple metrics example:
 ```typescript
 {
   labels: ['ORDER'],
-  aggregate: {
-    totalRevenue: { fn: 'sum', field: 'total', alias: '$record' },
-    orderCount: { fn: 'count', alias: '$record' }
+  select: {
+    totalRevenue: { $sum: '$record.total' },
+    orderCount:   { $count: '*' }
   },
   groupBy: ['totalRevenue', 'orderCount']
 }
@@ -134,9 +136,9 @@ Use `collect` to retain arrays inside grouped rows:
 {
   labels: ['DEPARTMENT'],
   where: { EMPLOYEE: { $alias: '$employee' } },
-  aggregate: {
-    employees: { fn: 'collect', field: 'name', alias: '$employee', unique: true },
-    employeeCount: { fn: 'count', alias: '$employee' }
+  select: {
+    employees:     { $collect: { from: '$employee', select: { name: '$employee.name' }, unique: true } },
+    employeeCount: { $count: '$employee' }
   },
   groupBy: ['$record.name'],
   orderBy: { employeeCount: 'desc' }
@@ -153,9 +155,9 @@ Each row: `{ name: <departmentName>, employees: [...], employeeCount: N }`.
   where: {
     HS_APPOINTMENT: { $alias: '$appointment' }
   },
-  aggregate: {
-    count: { fn: 'count', alias: '$record' },
-    avgAmount: { fn: 'avg', field: 'amount', alias: '$record' }
+  select: {
+    count:     { $count: '*' },
+    avgAmount: { $avg: '$record.amount' }
   },
   groupBy: ['$appointment.hs_meeting_location'],
   orderBy: { count: 'desc' }
@@ -166,9 +168,9 @@ Each row: `{ name: <departmentName>, employees: [...], employeeCount: N }`.
 
 - `collect` is **unique by default**; set `unique: false` to keep duplicates.
 - `count` without `field` counts distinct records for the specified alias.
-- To count field occurrences (with possible duplicates):
+- To count field occurrences:
   ```typescript
-  { fn: 'count', field: 'country', alias: '$employee', unique: false }
+  { $count: '$employee.country' }
   ```
 
 ## Ordering Grouped Results
@@ -184,7 +186,7 @@ orderBy: { dealstage: 'asc' }
 
 | Scenario                                   | Approach |
 |-------------------------------------------|----------|
-| KPI dashboard by status                   | Group by `$record.status` + count/avg aggregates |
+| KPI dashboard by status                   | Group by `$record.status` + `select` count/avg expressions |
 | Department summary with project list      | Group by department name + `collect` project names |
 | Sales funnel by stage                     | Group by `$record.dealstage` with count & sum |
 | Pivot by category + active flag           | Two keys in `groupBy` |
@@ -193,7 +195,7 @@ orderBy: { dealstage: 'asc' }
 ## Limitations & Tips
 
 - No hierarchical multi-pass grouping; emulate with `collect` arrays.
-- At least one aggregation is required; otherwise grouping is ignored.
+- At least one `select` expression is required; otherwise grouping is ignored.
 - Ensure every alias used in `groupBy` is declared in `where` via `$alias`.
 - Group keys appear in the result using only the property segment (e.g. `$record.stage` -> `stage`).
 - Keep group key count small for performance (high cardinality => more result rows).
@@ -205,5 +207,5 @@ orderBy: { dealstage: 'asc' }
 - Unexpected duplicate rows? Add more group keys or remove unnecessary keys.
 
 ## See Also
-- [Aggregations](./aggregations.md)
+- [Select Expressions](./select.md)
 - SDK references: TypeScript / Python / REST *get records* pages

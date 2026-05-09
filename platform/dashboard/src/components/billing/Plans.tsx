@@ -1,18 +1,43 @@
-import { useStore } from '@nanostores/react'
-import { $availablePlans, $currentWorkspacePlan, $paidWorkspace } from '~/features/billing/stores/plans.ts'
+import { useEffect } from 'react'
+
+import { useAvailablePlans, useCurrentWorkspacePlan } from '~/features/billing/hooks/useBillingHooks'
+import { isFreePlan } from '~/features/billing/utils.ts'
 import { FREE_PLAN } from '~/features/billing/constants.ts'
-import { cn, range } from '~/lib/utils.ts'
-import { Skeleton } from '~/elements/Skeleton.tsx'
-import { NothingFound } from '~/elements/NothingFound.tsx'
 import { PlanCard } from '~/components/billing/PlanCard.tsx'
 import { api } from '~/lib/api'
 import { Link } from '~/elements/Link'
 import { Message } from '~/elements/Message'
+import type { DisplayPlan } from '~/features/billing/types'
 
-export function Plans() {
-  const plans = useStore($availablePlans)
-  const { currentPlan } = useStore($currentWorkspacePlan)
-  const paidUser = useStore($paidWorkspace)
+export function Plans({ intendedPlan }: { intendedPlan?: string } = {}) {
+  const plans = useAvailablePlans()
+  const { currentPlan } = useCurrentWorkspacePlan()
+  const paidUser = currentPlan && !isFreePlan(currentPlan)
+
+  useEffect(() => {
+    if (intendedPlan) {
+      document
+        .getElementById(`billing-plan-${intendedPlan}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [intendedPlan])
+
+  // 1 card: scale is active
+  // 2 cards: pro is active + scale as upgrade
+  // 3 cards: free + pro + scale
+  let visiblePlans: DisplayPlan[]
+  if (currentPlan?.id === 'scale') {
+    visiblePlans = plans.filter((p) => p.id === 'scale')
+  } else if (currentPlan?.id === 'pro') {
+    visiblePlans = plans.filter((p) => p.id === 'pro' || p.id === 'scale')
+  } else {
+    visiblePlans = [FREE_PLAN, ...plans.filter((p) => p.id === 'pro' || p.id === 'scale')]
+  }
+
+  const gridCols =
+    visiblePlans.length === 1 ? 'grid-cols-1 max-w-sm'
+    : visiblePlans.length === 2 ? 'grid-cols-1 sm:grid-cols-2'
+    : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
 
   return (
     <>
@@ -38,27 +63,17 @@ export function Plans() {
           </Message>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {!paidUser && <PlanCard active={true} className="order-last sm:order-first" plan={FREE_PLAN} />}
-
-        {plans?.map((plan) => (
+      <div className={`grid gap-5 ${gridCols}`}>
+        {visiblePlans.map((plan) => (
           <PlanCard
             active={plan.id === currentPlan?.id}
-            className={cn(plan.id === currentPlan?.id ? 'lg:col-span-2' : 'lg:col-span-1')}
+            highlighted={intendedPlan ? plan.id === intendedPlan : plan.id === 'pro'}
+            id={`billing-plan-${plan.id}`}
             key={plan.id}
             plan={plan}
             perProject={plan.perProject}
           />
         ))}
-
-        {!plans &&
-          range(1).map((index) => (
-            <Skeleton className="lg:col-span-2" enabled key={index}>
-              <PlanCard active={false} plan={FREE_PLAN} />
-            </Skeleton>
-          ))}
-
-        {!plans && <NothingFound />}
       </div>
     </>
   )

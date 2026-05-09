@@ -1,223 +1,93 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 ---
 
-# Transactions API
+# Transactions
 
-RushDB provides a powerful Transactions API that allows you to perform multiple database operations atomically. This ensures data consistency by either committing all operations or rolling back all changes if an error occurs.
+## Begin Transaction
 
-## Overview
+`POST /api/v1/tx`
 
-Transactions in RushDB:
-- Allow multiple operations to be executed as a single atomic unit
-- Provide ACID (Atomicity, Consistency, Isolation, Durability) guarantees
-- Automatically rollback after timeout to prevent hanging transactions
-- Can be explicitly committed or rolled back
-
-## Transaction Lifecycle
-
-1. **Create** a transaction to get a transaction ID
-2. **Use** the transaction ID in subsequent API requests
-3. **Commit** the transaction to make changes permanent, or **Rollback** to discard changes
-4. If neither committed nor rolled back within the TTL (Time To Live), the transaction will automatically rollback
-
-## API Endpoints
-
-### Create Transaction
-
-Creates a new transaction and returns a transaction ID.
-
-```http
-POST /api/v1/tx
+```bash
+TX_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/tx \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": 10000}' | jq -r '.data.id')
 ```
 
-#### Request Body
+| Field | Type     | Description                          |
+| ----- | -------- | ------------------------------------ |
+| `ttl` | `number` | TTL in ms. Default: 5000. Max: 30000 |
 
-| Field | Type   | Description |
-|-------|--------|-------------|
-| `ttl` | Number | Optional. Time to live in milliseconds. Default: 5000ms. Maximum: 30000ms (30 seconds). |
+## Check Transaction Existence
 
-#### Example Request
+`GET /api/v1/tx/:txId`
 
-```json
-{
-  "ttl": 10000
-}
+```bash
+curl https://api.rushdb.com/api/v1/tx/$TX_ID \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
 
-#### Response
+## Commit Transaction
 
-```json
-{
-  "success": true,
-  "data": {
-    "id": "018e5c31-f35a-7000-89cd-850db63a1e77"
-  }
-}
+`POST /api/v1/tx/:txId/commit`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
 
-### Get Transaction
+## Roll Back Transaction
 
-Check if a transaction exists.
+`POST /api/v1/tx/:txId/rollback`
 
-```http
-GET /api/v1/tx/:txId
+```bash
+curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/rollback \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```
 
-#### Parameters
+## Use with Requests
 
-| Parameter | Type   | Description |
-|-----------|--------|-------------|
-| `txId`    | String | The transaction ID |
+Pass `X-Transaction-Id` with the transaction ID on any create, update, delete, or relationship endpoint:
 
-#### Response
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "018e5c31-f35a-7000-89cd-850db63a1e77"
-  }
-}
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"label": "MOVIE", "data": {"title": "Inception"}}'
 ```
 
-### Commit Transaction
+## Full example
 
-Commits all changes made within the transaction, making them permanent in the database.
+```bash
+# 1. Begin
+TX_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/tx \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": 10000}' | jq -r '.data.id')
 
-```http
-POST /api/v1/tx/:txId/commit
-```
+# 2. Create records
+MOVIE_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"label": "MOVIE", "data": {"title": "Inception"}, "options": {"returnResult": true}}' | jq -r '.data.__id')
 
-#### Parameters
+ACTOR_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"label": "ACTOR", "data": {"name": "Leonardo DiCaprio"}, "options": {"returnResult": true}}' | jq -r '.data.__id')
 
-| Parameter | Type   | Description |
-|-----------|--------|-------------|
-| `txId`    | String | The transaction ID |
+# 3. Link
+curl -X POST https://api.rushdb.com/api/v1/records/$MOVIE_ID/relationships \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"targetIds": "'$ACTOR_ID'", "type": "STARS_IN"}'
 
-#### Response
-
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Transaction (018e5c31-f35a-7000-89cd-850db63a1e77) has been successfully committed."
-  }
-}
-```
-
-### Rollback Transaction
-
-Discards all changes made within the transaction.
-
-```http
-POST /api/v1/tx/:txId/rollback
-```
-
-#### Parameters
-
-| Parameter | Type   | Description |
-|-----------|--------|-------------|
-| `txId`    | String | The transaction ID |
-
-#### Response
-
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Transaction (018e5c31-f35a-7000-89cd-850db63a1e77) has been rolled back."
-  }
-}
-```
-
-## Using Transactions with Other APIs
-
-To use a transaction with other API endpoints, include the transaction ID in the `X-Transaction-Id` header.
-
-### Example
-
-```http
-POST /api/v1/records
-Content-Type: application/json
-token: RUSHDB_API_KEY
-X-Transaction-Id: 018e5c31-f35a-7000-89cd-850db63a1e77
-
-{
-  "label": "Person",
-  "properties": [
-    {
-      "name": "name",
-      "type": "string",
-      "value": "John Doe"
-    }
-  ]
-}
-```
-
-## Transaction Timeout
-
-Transactions have a timeout mechanism to prevent hanging transactions:
-
-- Default timeout: 5 seconds (5000ms)
-- Maximum timeout: 30 seconds (30000ms)
-- If a transaction isn't committed or rolled back within its TTL, it will be automatically rolled back
-
-## Best Practices
-
-1. **Keep transactions short**: Long-running transactions can lead to resource contention.
-2. **Set appropriate TTL**: Choose a TTL that gives your operations enough time to complete, but not so long that resources are unnecessarily tied up.
-3. **Always commit or rollback**: Explicitly commit or rollback transactions rather than relying on automatic timeout.
-4. **Error handling**: Implement proper error handling in your client code to rollback transactions if operations fail.
-5. **Avoid unnecessary transactions**: For single operations, you don't need to use transactions.
-
-## Transaction Example Workflow
-
-```javascript
-// 1. Create a transaction
-const createTxResponse = await fetch('https://api.rushdb.com/api/v1/tx', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'token': 'RUSHDB_API_KEY'
-  },
-  body: JSON.stringify({ ttl: 10000 })
-});
-
-const { data: { id: txId } } = await createTxResponse.json();
-
-try {
-  // 2. Perform operations within the transaction
-  await fetch('https://api.rushdb.com/api/v1/records', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'token': 'RUSHDB_API_KEY',
-      'X-Transaction-Id': txId
-    },
-    body: JSON.stringify({
-      label: 'Person',
-      properties: [
-        { name: 'name', type: 'string', value: 'John Doe' }
-      ]
-    })
-  });
-
-  // 3. Commit the transaction if all operations succeeded
-  await fetch(`https://api.rushdb.com/api/v1/tx/${txId}/commit`, {
-    method: 'POST',
-    headers: {
-      'token': 'RUSHDB_API_KEY'
-    }
-  });
-} catch (error) {
-  // 4. Rollback the transaction if any operation failed
-  await fetch(`https://api.rushdb.com/api/v1/tx/${txId}/rollback`, {
-    method: 'POST',
-    headers: {
-      'token': 'RUSHDB_API_KEY'
-    }
-  });
-  throw error;
-}
+# 4. Commit
+curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
 ```

@@ -1,31 +1,15 @@
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { cn } from '~/lib/utils'
 
-export function OnboardingStepTitle({
-  children,
-  className
-}: {
-  children: ReactNode
-  className?: string
-}) {
-  return (
-    <h3 className={cn('col-span-2 text-xl text-content', className)}>
-      {children}
-    </h3>
-  )
+export function OnboardingStepTitle({ children, className }: { children: ReactNode; className?: string }) {
+  return <h3 className={cn('text-content col-span-2 text-xl', className)}>{children}</h3>
 }
 
-export function OnboardingStepNumber({
-  children,
-  className
-}: {
-  children: ReactNode
-  className?: string
-}) {
+export function OnboardingStepNumber({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cn(
-        'flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 sm:h-8 sm:w-8',
+        'bg-accent/20 flex h-6 w-6 items-center justify-center rounded-full sm:h-8 sm:w-8',
         className
       )}
     >
@@ -44,7 +28,7 @@ export function OnboardingSubStep({
   return (
     <>
       <OnboardingStepNumber
-        className={cn('col-start-1 ', {
+        className={cn('col-start-1', {
           'bg-accent/10': index === 1,
           'bg-accent/20': index === 2,
           'bg-accent/30': index === 3,
@@ -58,9 +42,7 @@ export function OnboardingSubStep({
       >
         {index}
       </OnboardingStepNumber>
-      <h4 className="col-start-2 font-medium leading-6 text-content sm:text-lg sm:leading-8">
-        {children}
-      </h4>
+      <h4 className="text-content col-start-2 font-medium leading-6 sm:text-lg sm:leading-8">{children}</h4>
     </>
   )
 }
@@ -72,7 +54,7 @@ export function OnboardingStepDescription({
   children: ReactNode
   className?: string
 }) {
-  return <p className={cn('col-span-2 text-content2', className)}>{children}</p>
+  return <p className={cn('text-content2 col-span-2', className)}>{children}</p>
 }
 
 export function OnboardingStepHeader({
@@ -87,7 +69,7 @@ export function OnboardingStepHeader({
   return (
     <div
       className={cn(
-        'flex h-fit flex-col items-start gap-inherit',
+        'gap-inherit flex h-fit flex-col items-start',
         {
           'col-span-1 mb-3 sm:sticky sm:top-12 sm:mb-0': sticky,
           'col-span-full': !sticky
@@ -112,14 +94,8 @@ export function OnboardingStep({
   className?: string
 }) {
   return (
-    <div
-      className={cn('grid grid-cols-1 gap-3 py-5 sm:grid-cols-3', className)}
-    >
-      {title && (
-        <OnboardingStepHeader sticky={stickyHeader}>
-          {title}
-        </OnboardingStepHeader>
-      )}
+    <div className={cn('grid grid-cols-1 gap-3 py-5 sm:grid-cols-3', className)}>
+      {title && <OnboardingStepHeader sticky={stickyHeader}>{title}</OnboardingStepHeader>}
 
       {content}
     </div>

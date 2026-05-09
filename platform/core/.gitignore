@@ -65,6 +65,11 @@ typings/
 .env
 .env.prod
 
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
 # See https://help.github.com/ignore-files/ for more about ignoring files.
 
 # dependencies
@@ -102,6 +107,10 @@ telemetry/prometheus/data/*
 # .tfstate files
 *.tfstate
 *.tfstate.*
+
+# Terraform variable files with secrets — never commit
+*.tfvars
+terraform/crash.log
 
 # Crash log files
 crash.log

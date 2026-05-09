@@ -35,9 +35,10 @@ export class PropertyQueryService {
     const queryBuilder = new QueryBuilder()
 
     queryBuilder.append(
-      `MATCH (property:${RUSHDB_LABEL_PROPERTY} { id: $propertyId, projectId: $projectId })`
+      `MATCH (property:${RUSHDB_LABEL_PROPERTY} { id: $propertyId, projectId: $projectId })-[rel:${RUSHDB_RELATION_VALUE}]->(record)`
     )
-    queryBuilder.append(`RETURN property`)
+    queryBuilder.append(`WITH property, count(rel) as recordsCount`)
+    queryBuilder.append(`RETURN property { .* , recordsCount }`)
 
     return queryBuilder.getQuery()
   }
@@ -169,8 +170,13 @@ export class PropertyQueryService {
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
-      .append(`MATCH (property:${RUSHDB_LABEL_PROPERTY} { projectId: $id } )`)
-      .append(`RETURN collect(DISTINCT property { .id, .metadata, .name, .type }) as properties`)
+      .append(
+        `MATCH (property:${RUSHDB_LABEL_PROPERTY} { projectId: $id } )-[rel:${RUSHDB_RELATION_VALUE}]->(record)`
+      )
+      .append(`WITH property, count(rel) as recordsCount`)
+      .append(
+        `RETURN collect(DISTINCT property { .id, .metadata, .name, .type, recordsCount }) as properties`
+      )
 
     return queryBuilder.getQuery()
   }
@@ -178,9 +184,12 @@ export class PropertyQueryService {
   getPropertyValues({
     searchQuery
   }: {
-    searchQuery?: SearchDto & { query?: string; orderBy?: TSearchSortDirection }
+    searchQuery: SearchDto & { query?: string; orderBy?: TSearchSortDirection }
   }) {
-    const sort = [SORT_ASC, SORT_DESC].includes(searchQuery.orderBy) ? searchQuery.orderBy : undefined
+    const sort =
+      searchQuery.orderBy && [SORT_ASC, SORT_DESC].includes(searchQuery.orderBy) ?
+        searchQuery.orderBy
+      : undefined
 
     const sortPart = sort ? `record[property.name] ${sort}` : `record.${RUSHDB_KEY_ID}`
 
@@ -206,7 +215,7 @@ export class PropertyQueryService {
     if (queryClauses?.filter(toBoolean).length > 0) {
       queryBuilder
         .append(queryClauses.join(`\n`))
-        .append(`AND record[property.name] IS NOT NULL AND property.type <> 'vector'`)
+        .append(`AND record[property.name] IS NOT NULL`)
         .append(
           searchQuery.query ?
             `AND any(value IN record[property.name] WHERE value  =~ "(?i).*${searchQuery.query}.*")`
@@ -215,7 +224,7 @@ export class PropertyQueryService {
         .append(whereClause)
     } else {
       queryBuilder
-        .append(`WHERE record[property.name] IS NOT NULL AND property.type <> 'vector'`)
+        .append(`WHERE record[property.name] IS NOT NULL`)
         .append(
           searchQuery.query ?
             `AND any(value IN record[property.name] WHERE value  =~ "(?i).*${searchQuery.query}.*")`

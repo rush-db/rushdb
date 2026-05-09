@@ -1,0 +1,33 @@
+// Copyright Collect Software, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import { db } from '../util/db.js'
+
+/**
+ * Returns the full graph ontology as compact Markdown tables.
+ * Includes: all labels with record counts, per-label properties with types and
+ * value ranges (min/max for numbers/datetimes, sample values for strings),
+ * cross-label relationship map, and a "Semantic Search" column per property that
+ * shows `sourceType similarityFunction dimensionsd [status]`
+ * (e.g. `managed cosine 1536d [ready]`) for indexed properties, or `—` when none.
+ *
+ * Call this at the start of every conversation before constructing queries.
+ * It replaces the need for separate FindLabels + FindProperties + FindRelationships
+ * discovery calls in most cases.
+ * Pass `force: true` to bypass the 1-hour ontology cache and force a fresh recalculation.
+ */
+export async function getOntologyMarkdown(params: { labels?: string[]; force?: boolean } = {}) {
+  const result = await db.ai.getOntologyMarkdown(params)
+  return result.data
+}

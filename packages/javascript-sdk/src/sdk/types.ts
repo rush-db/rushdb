@@ -1,5 +1,4 @@
 import type { HttpClientInterface } from '../network/HttpClient.js'
-import type { PlanPrefix } from './constants'
 
 type ApiConnectionConfig =
   | {
@@ -20,7 +19,6 @@ export type State = {
     selfHosted: boolean
     customDB?: boolean
     managedDB?: boolean
-    planType?: PlanType
   }
 } & Partial<ApiConnectionConfig>
 
@@ -40,11 +38,3 @@ export type SDKConfig = {
     allowForceDelete?: boolean
   }
 } & ApiConnectionConfig
-
-export type PlanType = keyof typeof PlanPrefix
-
-type RawServerSettings = NonNullable<State['serverSettings']>
-export type TokenPublicVariables = Pick<
-  RawServerSettings,
-  'selfHosted' | 'customDB' | 'managedDB' | 'planType'
->

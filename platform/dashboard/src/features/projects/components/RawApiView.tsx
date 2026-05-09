@@ -1,4 +1,4 @@
-import React, { ChangeEvent, ChangeEventHandler, useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { useStore } from '@nanostores/react'
 
@@ -9,49 +9,43 @@ import { atom } from 'nanostores'
 import { SelectEntityApi } from '~/features/projects/components/SelectEntityApi.tsx'
 import { useSearchQuery } from '~/features/projects/utils.ts'
 import { Editor } from '~/elements/Editor.tsx'
-import {
-  $editorData,
-  $selectedOperation,
-  rawLabels,
-  rawProperties,
-  rawRecords
-} from '~/features/projects/stores/raw-api.ts'
-import { DBRecordsArrayInstance } from '@rushdb/javascript-sdk'
+import { $editorData, $selectedOperation } from '~/features/projects/stores/raw-api.ts'
 import { $recordRawApiEntity } from '~/features/projects/stores/current-project.ts'
 import { ApiRecordsModal } from '~/features/records/components/ApiRecordsModal.tsx'
 import { IconButton } from '~/elements/IconButton'
 import { Menu, MenuItem, MenuTitle } from '~/elements/Menu.tsx'
 
 import { Divider } from '~/elements/Divider.tsx'
-import { Select } from '~/elements/Select.tsx'
 import { api } from '~/lib/api'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
-import { $paidWorkspace } from '~/features/billing/stores/plans.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
+import { useCurrentWorkspacePlan } from '~/features/billing/hooks/useBillingHooks'
+import {
+  useRawLabelsMutation,
+  useRawPropertiesMutation,
+  useRawRecordsMutation
+} from '~/features/projects/hooks/useRawApiMutations'
 
 const $recordsData = atom<string>('')
 const $labelsData = atom<string>('')
 const $propertiesData = atom<string>('')
-const $showCypherQuery = atom<boolean>(false)
+const $showCypherQuery = atom<boolean>(true)
 const $cypherQuery = atom<string>('')
 
 const aggregateExample0 = `{
-    "labels":[
+    "labels": [
         "DEPARTMENT"
     ],
-    "where": {
-        "PROJECT": {
-            "$alias": "$project"
-        }
-    },
-    "aggregate": {
+    "select": {
         "departmentName": "$record.name",
         "departmentDescription": "$record.description",
         "projects": {
-            "fn": "collect",
-            "unique": true,
-            "field": "name",
-            "alias": "$project"
+            "$collect": {
+                "label": "PROJECT",
+                "select": {
+                    "name": "$self.name"
+                }
+            }
         }
     },
     "orderBy": "asc",
@@ -60,7 +54,7 @@ const aggregateExample0 = `{
 }`
 
 const aggregateExample1 = `{
-    "labels":[
+    "labels": [
         "PROJECT"
     ],
     "where": {
@@ -71,34 +65,24 @@ const aggregateExample1 = `{
             "$alias": "$employee"
         }
     },
-    "aggregate": {
+    "select": {
         "projectName": "$record.name",
         "projectBudget": "$record.budget",
         "employeesCount": {
-            "fn": "count",
-            "unique": true,
-            "alias": "$employee"
+            "$count": "$employee"
         },
         "totalWage": {
-            "fn": "sum",
-            "field": "salary",
-            "alias": "$employee"
+            "$sum": "$employee.salary"
         },
         "avgSalary": {
-            "fn": "avg",
-            "field": "salary",
-            "alias": "$employee",
-            "precision": 0
+            "$avg": "$employee.salary",
+            "$precision": 0
         },
         "minSalary": {
-            "fn": "min",
-            "field": "salary",
-            "alias": "$employee"
+            "$min": "$employee.salary"
         },
         "maxSalary": {
-            "fn": "max",
-            "field": "salary",
-            "alias": "$employee"
+            "$max": "$employee.salary"
         }
     },
     "orderBy": "asc",
@@ -124,59 +108,70 @@ const aggregateExample2 = `{
             }
         }
     },
-    "aggregate": {
+    "select": {
         "company": "$record.name",
         "employees": {
-            "fn": "collect",
-            "alias": "$employee",
-            "orderBy": {
-                "salary": "desc"
-            },
-            "limit": 10
+            "$collect": {
+                "from": "$employee",
+                "orderBy": {
+                    "salary": "desc"
+                },
+                "limit": 10
+            }
         }
     }
 }`
 
 const aggregateExample3 = `{
     "labels": [
-        "COMPANY"
+        "PROJECT"
     ],
     "where": {
-        "foundedAt": {
-            "$lte": {
-                "$year": 1980
-            }
-        },
-        "DEPARTMENT": {
-            "$alias": "$department",
-            "PROJECT": {
-                "$alias": "$project",
-                "EMPLOYEE": {
-                    "$alias": "$employee"
-                }
-            }
+        "EMPLOYEE": {
+            "$alias": "$employee"
         }
     },
-    "aggregate": {
+    "select": {
+        "projectName": "$record.name",
+        "totalSalary": {
+            "$sum": "$employee.salary"
+        },
+        "employeeCount": {
+            "$count": "$employee"
+        },
+        "avgSalary": {
+            "$divide": [
+                { "$ref": "totalSalary" },
+                { "$ref": "employeeCount" }
+            ]
+        }
+    },
+    "limit": 10
+}`
+
+const aggregateExample4 = `{
+    "labels": [
+        "COMPANY"
+    ],
+    "select": {
         "departments": {
-            "fn": "collect",
-            "alias": "$department",
-            "aggregate": {
-                "projects": {
-                    "fn": "collect",
-                    "alias": "$project",
-                    "orderBy": {
-                        "projectName": "asc",
-                        "projectId": "desc"
-                    },
-                    "aggregate": {
-                        "employees": {
-                            "fn": "collect",
-                            "orderBy": {
-                                "salary": "desc"
-                            },
-                            "alias": "$employee",
-                            "limit": 3
+            "$collect": {
+                "label": "DEPARTMENT",
+                "select": {
+                    "name": "$self.name",
+                    "projects": {
+                        "$collect": {
+                            "label": "PROJECT",
+                            "select": {
+                                "name": "$self.name",
+                                "employees": {
+                                    "$collect": {
+                                        "label": "EMPLOYEE",
+                                        "orderBy": { "salary": "desc" },
+                                        "limit": 3
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -233,11 +228,8 @@ const queryExample2 = `{
 
 const queryExample3 = `{
   "labels": ["PROJECT"],
-  "aggregate": {
-    "count": {
-      "fn": "count",
-      "alias": "$record"
-    }
+  "select": {
+    "count": { "$count": "*" }
   },
   "groupBy": ["$record.active"],
   "orderBy": {
@@ -282,7 +274,7 @@ const ExampleSelector = () => {
         </div>
       </MenuItem>
       <Divider />
-      <MenuTitle className="mb-2">Aggregation Examples</MenuTitle>
+      <MenuTitle className="mb-2">Select Examples</MenuTitle>
       <Divider />
       <MenuItem
         className="h-[64px]"
@@ -290,8 +282,8 @@ const ExampleSelector = () => {
         onClick={() => $editorData.set(aggregateExample0)}
       >
         <div className="text-left">
-          Basic Aggregation
-          <p className="text-content3 text-xs">Retrieve a list of project names</p>
+          Collect with Projection
+          <p className="text-content3 text-xs">Retrieve related record fields using $collect</p>
         </div>
       </MenuItem>
       <Divider />
@@ -301,8 +293,8 @@ const ExampleSelector = () => {
         onClick={() => $editorData.set(aggregateExample1)}
       >
         <div className="text-left">
-          Advanced Aggregation
-          <p className="text-content3 text-xs">Analyze salary distributions and budget data</p>
+          Aggregation Metrics
+          <p className="text-content3 text-xs">Analyze salary distributions using $sum, $avg, $min, $max</p>
         </div>
       </MenuItem>
       <Divider />
@@ -312,8 +304,8 @@ const ExampleSelector = () => {
         onClick={() => $editorData.set(aggregateExample2)}
       >
         <div className="text-left">
-          Deep Aggregation
-          <p className="text-content3 text-xs">Perform deep traversal to retrieve employees</p>
+          Deep Collect
+          <p className="text-content3 text-xs">Traverse relations and collect top employees by salary</p>
         </div>
       </MenuItem>
       <Divider />
@@ -323,8 +315,21 @@ const ExampleSelector = () => {
         onClick={() => $editorData.set(aggregateExample3)}
       >
         <div className="text-left">
-          Nested Aggregation
-          <p className="text-content3 text-xs">Traverse and return the entire graph topology</p>
+          Derived Metrics
+          <p className="text-content3 text-xs">Compute a ratio from two aggregations using $ref</p>
+        </div>
+      </MenuItem>
+      <Divider />
+      <MenuItem
+        className="h-[64px]"
+        icon={<ClipboardPaste />}
+        onClick={() => $editorData.set(aggregateExample4)}
+      >
+        <div className="text-left">
+          Nested Collect
+          <p className="text-content3 text-xs">
+            Traverse 3 levels deep and collect records using $collect.label
+          </p>
         </div>
       </MenuItem>
     </Menu>
@@ -334,12 +339,13 @@ const ExampleSelector = () => {
 export function RawApiView() {
   const query = useStore($editorData)
   const entity = useStore($recordRawApiEntity)
-  const platformSettings = useStore($platformSettings)
-  const paidUser = useStore($paidWorkspace)
+  const { data: platformSettings } = usePlatformSettings()
+  const { currentPlan } = useCurrentWorkspacePlan()
+  const paidUser = currentPlan && currentPlan.id !== 'free' && currentPlan.id !== 'start'
 
-  const { mutate: findRecords, loading: recordsSubmitting } = useStore(rawRecords)
-  const { mutate: findLabels, loading: labelsSubmitting } = useStore(rawLabels)
-  const { mutate: findProperties, loading: propertiesSubmitting } = useStore(rawProperties)
+  const { mutateAsync: findRecords, isPending: recordsSubmitting } = useRawRecordsMutation()
+  const { mutateAsync: findLabels, isPending: labelsSubmitting } = useRawLabelsMutation()
+  const { mutateAsync: findProperties, isPending: propertiesSubmitting } = useRawPropertiesMutation()
 
   const recordsData = useStore($recordsData)
   const labelsData = useStore($labelsData)
@@ -397,21 +403,29 @@ export function RawApiView() {
     findRecords({
       searchQuery: searchQueryObj
     }).then((response) => {
-      const { data, total } = response as DBRecordsArrayInstance<any>
-      $recordsData.set(JSON.stringify({ data: data?.map?.((d) => d.data) ?? data, total }))
+      const { data, total } = response as unknown as {
+        data?: Array<{ data?: unknown }> | Record<string, number>
+        total?: number
+      }
+      $recordsData.set(
+        JSON.stringify({
+          data: Array.isArray(data) ? data.map((record) => record.data ?? record) : data,
+          total
+        })
+      )
     })
 
     findLabels({
       searchQuery: searchQueryObj
     }).then((response) => {
-      const { data, total } = response as DBRecordsArrayInstance<any>
+      const { data, total } = response as unknown as { data?: unknown; total?: number }
       $labelsData.set(JSON.stringify({ data, total }))
     })
 
     findProperties({
       searchQuery: searchQueryObj
     }).then((response) => {
-      const { data, total } = response as DBRecordsArrayInstance<any>
+      const { data, total } = response as unknown as { data?: unknown; total?: number }
       $propertiesData.set(JSON.stringify({ data, total }))
     })
   }
@@ -442,7 +456,7 @@ export function RawApiView() {
                   {/*  <p className="text-content2 mb-2 text-lg">Method</p>*/}
                   {/*  <OperationSelector />*/}
 
-                  {operation === 'records.find' && (platformSettings.data?.selfHosted || paidUser) && (
+                  {operation === 'records.find' && (
                     <CheckboxField
                       className="mb-0 mr-2"
                       label="Show Cypher"

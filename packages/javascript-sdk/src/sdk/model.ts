@@ -25,6 +25,31 @@ import { isPropertyDraft, pickRecordId } from '../api/utils'
 import { RushDB } from './sdk'
 
 /**
+ * Configuration options for a Model instance.
+ */
+export type ModelConfig = {
+  /**
+   * When true, `set` and `update` will verify the target record's label
+   * matches this model's label before proceeding. Adds one extra DB read.
+   * @default false
+   */
+  validateTargetLabel?: boolean
+}
+
+/**
+ * Options for the `create` method.
+ */
+export type CreateOptions = {
+  /**
+   * Behavior when a uniqueness conflict is detected.
+   * - `'throw'` (default) — throws `UniquenessError`
+   * - `'upsert'` — updates the conflicting record instead
+   * - `'skip'` — returns `null` without throwing
+   */
+  onConflict?: 'throw' | 'upsert' | 'skip'
+}
+
+/**
  * Represents a model in the RushDB database.
  * A model defines the structure and behavior of a specific type of record in the database.
  * It provides methods for CRUD operations and relationship management.
@@ -34,19 +59,19 @@ import { RushDB } from './sdk'
 export class Model<S extends Schema = any> {
   public readonly label: string
   public readonly schema: S
+  private readonly config: ModelConfig
 
   /**
    * Creates a new Model instance.
    *
    * @param modelName - The name/label of the model in the database
    * @param schema - The schema definition that describes the model's structure
-   * @param rushDBInstance - Optional RushDB instance for model registration.
-   *                        This is the recommended way to register models as it automatically
-   *                        registers the model with the RushDB instance during creation.
+   * @param config - Optional model configuration
    */
-  constructor(modelName: string, schema: S) {
+  constructor(modelName: string, schema: S, config?: ModelConfig) {
     this.label = modelName
     this.schema = schema
+    this.config = config ?? {}
   }
 
   /** @description
@@ -210,7 +235,11 @@ export class Model<S extends Schema = any> {
    * @returns Promise resolving to the created record
    * @throws UniquenessError if the record violates uniqueness constraints
    */
-  async create(record: InferSchemaTypesWrite<S>, transaction?: Transaction | string) {
+  async create(
+    record: InferSchemaTypesWrite<S>,
+    transaction?: Transaction | string,
+    options?: CreateOptions
+  ) {
     const data = await mergeDefaultsWithPayload<S>(this.schema, record)
 
     const uniqFields = pickUniqFieldsFromRecord(this.schema, data)
@@ -231,12 +260,31 @@ export class Model<S extends Schema = any> {
 
         return result
       } else {
-        if (!hasOwnTransaction) {
-          await (tx as Transaction).commit()
-        }
+        const onConflict = options?.onConflict ?? 'throw'
 
-        // @TODO: Make it optional
-        throw new UniquenessError(this.label, uniqFields)
+        switch (onConflict) {
+          case 'upsert': {
+            const conflictingRecord = matchingRecords.data[0]
+            const result = await instance.records.set<S>(
+              { target: conflictingRecord.id, label: this.label, data },
+              tx
+            )
+            if (!hasOwnTransaction) {
+              await (tx as Transaction).commit()
+            }
+            return result
+          }
+          case 'skip':
+            if (!hasOwnTransaction) {
+              await (tx as Transaction).commit()
+            }
+            return null
+          default:
+            if (!hasOwnTransaction) {
+              await (tx as Transaction).commit()
+            }
+            throw new UniquenessError(this.label, uniqFields)
+        }
       }
     }
     return await instance.records.create<S>({ label: this.label, data }, transaction)
@@ -289,6 +337,29 @@ export class Model<S extends Schema = any> {
   }
 
   /**
+   * Validates that the target record belongs to this model's label.
+   * @private
+   */
+  private async validateTargetLabel(
+    target: DBRecordTarget,
+    transaction?: Transaction | string
+  ): Promise<void> {
+    const id = pickRecordId(target)
+    if (!id) return
+
+    const instance = RushDB.getInstance()
+    const record = await instance.records.findById(id, transaction)
+    if (!record) {
+      throw new Error(`Record with id "${id}" not found.`)
+    }
+    if (record.data.__label !== this.label) {
+      throw new TypeError(
+        `Target record label "${record.data.__label}" does not match model label "${this.label}".`
+      )
+    }
+  }
+
+  /**
    * Internal method to handle both set and update operations.
    *
    * @param target - The target record to modify
@@ -305,10 +376,14 @@ export class Model<S extends Schema = any> {
     method: 'set' | 'update',
     transaction?: Transaction | string
   ) {
+    if (this.config.validateTargetLabel) {
+      await this.validateTargetLabel(target, transaction)
+    }
+
     // Consider Array as Array<PropertyDraft>
     if (isArray(record) && record.every(isPropertyDraft)) {
-      // @TODO
-      throw new Error(`Model.${method} with Array<PropertyDraft> as payload is not implemented yet.`)
+      const instance = RushDB.getInstance()
+      return await instance.records[method]<S>({ label: this.label, target, data: record }, transaction)
     }
 
     const instance = RushDB.getInstance()
@@ -322,7 +397,7 @@ export class Model<S extends Schema = any> {
 
       const canUpdate =
         !matchingRecords?.data?.length ||
-        (matchingRecords.data.length === 1 && matchingRecords.data[0]?.id() === pickRecordId(target)!)
+        (matchingRecords.data.length === 1 && matchingRecords.data[0]?.id === pickRecordId(target)!)
 
       if (canUpdate) {
         const result = await instance.records[method]<S>({ target, label: this.label, data }, tx)
@@ -350,12 +425,7 @@ export class Model<S extends Schema = any> {
    * @param transaction - Optional transaction or transaction ID
    * @returns Promise resolving to the modified record
    */
-  async set(
-    // @TODO: Check target to match Model type
-    target: DBRecordTarget,
-    record: InferSchemaTypesWrite<S>,
-    transaction?: Transaction | string
-  ) {
+  async set(target: DBRecordTarget, record: InferSchemaTypesWrite<S>, transaction?: Transaction | string) {
     return await this.handleSetOrUpdate(target, record, 'set', transaction)
   }
 
@@ -368,7 +438,6 @@ export class Model<S extends Schema = any> {
    * @returns Promise resolving to the modified record
    */
   async update(
-    // @TODO: Check target to match Model type
     target: DBRecordTarget,
     record: Partial<InferSchemaTypesWrite<S>>,
     transaction?: Transaction | string

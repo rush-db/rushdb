@@ -5,7 +5,7 @@ import { action, onMount, onSet, task } from 'nanostores'
 import type { User } from '~/features/auth/types'
 
 import { api } from '~/lib/api'
-import { FetchError, createMutator } from '~/lib/fetcher'
+import { FetchError } from '~/lib/fetcher'
 import { isDeepEqual } from '~/lib/utils'
 
 import { $token } from './token'
@@ -41,20 +41,6 @@ export const logOut = action($user, 'logOut', () => {
 })
 
 export const useUser = () => useStore($user)
-
-export const updateUser = createMutator({
-  async fetcher(params: Partial<User>) {
-    const updated = await api.user.update(params)
-    $user.set({ ...$user.get(), ...updated })
-    return updated
-  }
-})
-
-export const deleteUser = createMutator({
-  async fetcher() {
-    await api.user.delete({}).then(logOut)
-  }
-})
 
 onMount($user, () => {
   task(async () => {

@@ -1,9 +1,8 @@
-import { useStore } from '@nanostores/react'
-
 import { Button } from '~/elements/Button'
 import { Card, CardBody, CardFooter, CardHeader } from '~/elements/Card'
 import { TextField } from '~/elements/Input'
-import { createWorkspace } from '~/features/workspaces/stores/mutations'
+import { useCreateWorkspaceMutation } from '~/features/workspaces/hooks/useWorkspaceMutations'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
@@ -13,7 +12,7 @@ const schema = object({
 }).required()
 
 function CreateWorkspaceForm({ ...props }: TPolymorphicComponentProps<'form'>) {
-  const { data: newWorkspace, mutate } = useStore(createWorkspace)
+  const { data: newWorkspace, mutateAsync: mutate } = useCreateWorkspaceMutation()
 
   const {
     formState: { errors, isDirty, isSubmitted, isSubmitting },
@@ -28,14 +27,14 @@ function CreateWorkspaceForm({ ...props }: TPolymorphicComponentProps<'form'>) {
 
   return (
     <Card
-      className={cn('w-full max-w-md ', {
+      className={cn('w-full max-w-md', {
         'border-success': showSuccess
       })}
     >
       <form
         {...props}
         className={cn('flex flex-col gap-3')}
-        onSubmit={handleSubmit(mutate)}
+        onSubmit={handleSubmit(async (values) => mutate(values))}
       >
         <CardHeader
           backHref={getRoutePath('home')}
@@ -63,6 +62,16 @@ function CreateWorkspaceForm({ ...props }: TPolymorphicComponentProps<'form'>) {
 }
 
 export function NewWorkspacePage() {
+  const { data: platformSettings } = usePlatformSettings()
+
+  if (!platformSettings?.selfHosted) {
+    return (
+      <div className="grid flex-1 place-items-center">
+        <p className="text-content2">Creating additional workspaces is not available on cloud deployments.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="grid flex-1 place-items-center">
       <CreateWorkspaceForm />

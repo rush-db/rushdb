@@ -40,13 +40,14 @@ import { EntityWriteGuard } from '@/core/entity/entity-write.guard'
 import { TEntityPropertiesNormalized, TRecordSearchResult } from '@/core/entity/entity.types'
 import { createEntitySchema } from '@/core/entity/validation/schemas/create-entity.schema'
 import { editEntitySchema } from '@/core/entity/validation/schemas/edit-entity.schema'
+import { TrackHeavySearchKu } from '@/core/ku-events/track-heavy-search-ku.interceptor'
 import { PropertyService } from '@/core/property/property.service'
 import { PropertyValuesPipe } from '@/core/property/validation/property-values.pipe'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
-import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
+import { HeavySearchLimitsGuard } from '@/dashboard/billing/guards/heavy-search-limits.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
@@ -90,7 +91,7 @@ export class EntityController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard, CustomDbWriteRestrictionGuard)
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
   @UsePipes(ValidationPipe(createEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
   @HttpCode(HttpStatus.CREATED)
@@ -133,7 +134,7 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard(), EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(editEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
@@ -186,7 +187,7 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard(), EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(editEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
@@ -269,9 +270,10 @@ export class EntityController {
 
   @Post('/search')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(HeavySearchLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
+  @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
   async find(
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -309,9 +311,10 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
+  @UseGuards(HeavySearchLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
+  @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
   async findFromId(
     @Param('entityId') entityId: string,
@@ -320,7 +323,6 @@ export class EntityController {
     @Request() request: PlatformRequest
   ): Promise<TRecordSearchResult> {
     const projectId = request.projectId
-
     const [data, total] = await Promise.all([
       this.entityService.find({
         id: entityId,

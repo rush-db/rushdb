@@ -1,39 +1,90 @@
-import { useStore } from '@nanostores/react'
+import { useState } from 'react'
 
 import type { TDialogProps } from '~/elements/Dialog'
 
-import { ConfirmDialog } from '~/elements/ConfirmDialog'
+import { Button } from '~/elements/Button'
+import { Close, Dialog, DialogFooter, DialogTitle } from '~/elements/Dialog'
+import { TextField } from '~/elements/Input'
 
-import { $currentWorkspace } from '../stores/current-workspace'
-import { deleteWorkspace } from '../stores/mutations'
-import { $workspacesList } from '../stores/workspaces'
+import { useCurrentWorkspaceQuery, useWorkspacesQuery } from '../hooks/useWorkspaceQueries'
+import { useDeleteWorkspaceMutation } from '../hooks/useWorkspaceMutations'
+
+const CONFIRM_WORD = 'delete'
 
 export function DeleteWorkspaceDialog({ ...props }: TDialogProps) {
-  const { data: workspaces } = useStore($workspacesList)
-  const { data: workspace } = useStore($currentWorkspace)
-  const { loading, mutate } = useStore(deleteWorkspace)
+  const { data: workspaces } = useWorkspacesQuery()
+  const { data: workspace } = useCurrentWorkspaceQuery()
+  const { isPending: loading, mutateAsync: mutate } = useDeleteWorkspaceMutation()
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState('')
 
-  const singleWorkspace = workspaces && workspaces?.length < 2
+  const singleWorkspace = workspaces && workspaces.length < 2
 
-  const title = singleWorkspace
-    ? `You cannot delete your workspace`
-    : `Do you really want to delete "${workspace?.name ?? 'project'}"?`
+  const title =
+    singleWorkspace ? 'You cannot delete your workspace' : `Delete "${workspace?.name ?? 'workspace'}"?`
 
-  const description = singleWorkspace
-    ? `Your account has only workspace available, create a new one to continue`
-    : `All of your data related to the project will be lost`
+  const confirmed = !singleWorkspace && value === CONFIRM_WORD
 
-  const handler = () => {
-    return mutate({ id: workspace!.id })
+  const handleConfirm = async () => {
+    if (!confirmed || !workspace?.id) return
+    await mutate({ id: workspace.id })
+    setOpen(false)
   }
 
   return (
-    <ConfirmDialog
-      description={description}
-      handler={singleWorkspace || !workspace?.id ? undefined : handler}
-      loading={loading}
-      title={title}
+    <Dialog
+      className="justify-center gap-3"
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) setValue('')
+      }}
+      open={open}
       {...props}
-    />
+    >
+      <DialogTitle className="text-base font-bold">{title}</DialogTitle>
+
+      {singleWorkspace ?
+        <p className="text-content2 text-sm">
+          Your account has only one workspace. Create a new one before deleting this one.
+        </p>
+      : <>
+          <p className="text-content2 text-sm">
+            All projects and their data inside this workspace will be permanently destroyed. This action
+            cannot be undone.
+          </p>
+          <p className="text-content2 text-sm">
+            Type <span className="text-danger font-medium">{CONFIRM_WORD}</span> to confirm:
+          </p>
+          <TextField
+            autoFocus
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && confirmed) handleConfirm()
+            }}
+            placeholder={CONFIRM_WORD}
+          />
+        </>
+      }
+
+      <DialogFooter className="mt-2 flex-col sm:flex-row">
+        {!singleWorkspace && (
+          <Button
+            className="sm:order-2 sm:flex-1"
+            disabled={!confirmed}
+            loading={loading}
+            onClick={handleConfirm}
+            variant="danger"
+          >
+            Delete workspace
+          </Button>
+        )}
+        <Close asChild disabled={loading}>
+          <Button className="sm:flex-1" variant="secondary">
+            Cancel
+          </Button>
+        </Close>
+      </DialogFooter>
+    </Dialog>
   )
 }

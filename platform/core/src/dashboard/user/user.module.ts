@@ -7,7 +7,6 @@ import { BillingModule } from '@/dashboard/billing/billing.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import { UserRepository } from './model/user.repository'
 import { UserController } from './user.controller'
@@ -16,7 +15,7 @@ import { UserService } from './user.service'
 @Global()
 @Module({
   imports: [
-    EntityModule,
+    forwardRef(() => EntityModule),
     forwardRef(() => WorkspaceModule),
     forwardRef(() => ProjectModule),
     forwardRef(() => TokenModule),
@@ -29,8 +28,7 @@ import { UserService } from './user.service'
 export class UserModule implements OnApplicationBootstrap {
   constructor(
     private readonly configService: ConfigService,
-    private readonly userService: UserService,
-    private readonly neogmaService: NeogmaService
+    private readonly userService: UserService
   ) {}
 
   async initUser(): Promise<void> {
@@ -39,35 +37,23 @@ export class UserModule implements OnApplicationBootstrap {
     const adminPassword = this.configService.get('RUSHDB_PASSWORD')
 
     if (isSelfHosted && adminLogin && adminPassword) {
-      const session = this.neogmaService.createSession('init-user')
-      const transaction = session.beginTransaction({ timeout: 30_000 })
-
       try {
-        const user = await this.userService.find(adminLogin, transaction)
+        const user = await this.userService.find(adminLogin)
 
         if (user) {
           return
         }
 
         Logger.log('Initializing user...')
-        await this.userService.create(
-          {
-            login: adminLogin,
-            password: adminPassword,
-            confirmed: true
-          },
-          transaction
-        )
+        await this.userService.create({
+          login: adminLogin,
+          password: adminPassword,
+          confirmed: true
+        })
       } catch (error) {
         Logger.log('Initializing user failed.', error)
-        await transaction.rollback()
       } finally {
         Logger.log('Initializing user finished.')
-        if (transaction.isOpen()) {
-          await transaction.commit()
-          await transaction.close()
-        }
-        await this.neogmaService.closeSession(session)
       }
     }
   }

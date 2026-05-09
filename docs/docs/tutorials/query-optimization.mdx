@@ -1,0 +1,361 @@
+---
+sidebar_position: 31
+title: "Query Optimization"
+description: Shape SearchQuery, traversal breadth, aggregation strategy, and batch patterns to reduce compute cost and improve throughput.
+tags: [Performance, SearchQuery, TypeScript, Python]
+---
+
+import Tabs from '@site/src/components/LanguageTabs';
+import TabItem from '@theme/TabItem';
+
+# Query Optimization
+
+RushDB executes every `find()` call as a Cypher query against Neo4j. The shape of your `SearchQuery` directly controls how much of the graph is traversed and how many graph operations are charged. This tutorial identifies the dominant cost patterns and shows how to reshape queries to reduce them.
+
+---
+
+## Cost drivers
+
+| Factor | Impact |
+|---|---|
+| Number of `where` traversal hops | Multiplied graph scan per additional hop |
+| `$collect` in select | Materializes all matched records into a list |
+| Missing `labels` filter | Scans all record types |
+| High `limit` without indexed field ordering | Full sort on unindexed data |
+| Per-record enrichment inside loops | O(n) queries for n results |
+| `$nin` / `$in` with large arrays | Evaluated against every candidate record |
+
+---
+
+## Tip 1: Always specify `labels`
+
+Without `labels`, RushDB scans every record node in your project.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// ❌ Avoid — scans all labels
+const slow = await db.records.find({
+  where: { status: 'active' }
+})
+
+// ✅ Better — restricts scan to one label
+const fast = await db.records.find({
+  labels: ['USER'],
+  where: { status: 'active' }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# ❌ Avoid
+slow = db.records.find({"where": {"status": "active"}})
+
+# ✅ Better
+fast = db.records.find({"labels": ["USER"], "where": {"status": "active"}})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# ✅ Always pass labels
+curl -s -X POST "$BASE/records/search" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"labels":["USER"],"where":{"status":"active"}}'
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Tip 2: Filter at the deepest hop
+
+Push the most selective filter as deep into the traversal as possible. This prunes the graph early and avoids materializing large intermediate sets.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// ❌ Broad: fetches all orders, then filters by status at outer level
+const broad = await db.records.find({
+  labels: ['CUSTOMER'],
+  where: {
+    status: 'active',         // customer filter
+    ORDER: { $relation: { type: 'PLACED', direction: 'out' } }
+    // No filter on ORDER itself — all orders are traversed
+  }
+})
+
+// ✅ Narrow: prune at the ORDER hop with totalUsd filter
+const narrow = await db.records.find({
+  labels: ['CUSTOMER'],
+  where: {
+    status: 'active',
+    ORDER: {
+      $relation: { type: 'PLACED', direction: 'out' },
+      totalUsd: { $gte: 500 }   // filter at the ORDER hop
+    }
+  }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# ✅ Push filter to the deepest hop
+result = db.records.find({
+    "labels": ["CUSTOMER"],
+    "where": {
+        "status": "active",
+        "ORDER": {
+            "$relation": {"type": "PLACED", "direction": "out"},
+            "totalUsd": {"$gte": 500}
+        }
+    }
+})
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Tip 3: Limit traversal depth
+
+Every additional hop multiplies the graph surface explored. Two hops is usually fine; three or more should be benchmarked at production volume.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Three-hop traversal — verify this performs at your data volume
+const threeHop = await db.records.find({
+  labels: ['TEAM'],
+  where: {
+    USER: {
+      $relation: { type: 'MEMBER_OF', direction: 'in' },
+      ORDER: {
+        $relation: { type: 'PLACED', direction: 'out' },
+        PRODUCT: {
+          $relation: { type: 'CONTAINS', direction: 'out' },
+          sku: 'PROD-001'
+        }
+      }
+    }
+  }
+})
+
+// ✅ Equivalent two-step approach: first resolve products, then query teams
+const orders = await db.records.find({
+  labels: ['ORDER'],
+  where: {
+    PRODUCT: {
+      $relation: { type: 'CONTAINS', direction: 'out' },
+      sku: 'PROD-001'
+    }
+  }
+})
+
+const orderIds = orders.data.map(o => o.__id)
+
+const teams = await db.records.find({
+  labels: ['TEAM'],
+  where: {
+    USER: {
+      $relation: { type: 'MEMBER_OF', direction: 'in' },
+      ORDER: {
+        $relation: { type: 'PLACED', direction: 'out' },
+        __id: { $in: orderIds }
+      }
+    }
+  }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+orders = db.records.find({
+    "labels": ["ORDER"],
+    "where": {
+        "PRODUCT": {
+            "$relation": {"type": "CONTAINS", "direction": "out"},
+            "sku": "PROD-001"
+        }
+    }
+})
+
+order_ids = [o.id for o in orders.data]
+
+teams = db.records.find({
+    "labels": ["TEAM"],
+    "where": {
+        "USER": {
+            "$relation": {"type": "MEMBER_OF", "direction": "in"},
+            "ORDER": {
+                "$relation": {"type": "PLACED", "direction": "out"},
+                "__id": {"$in": order_ids}
+            }
+        }
+    }
+})
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Tip 4: Prefer `$count` over `$collect`
+
+`$collect` materializes every matched record into a list before returning. `$count` just increments a counter. Use `$collect` only when you need the actual records.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// ❌ Expensive: collects all record IDs just to check if any exist
+const collected = await db.records.find({
+  labels: ['ORDER'],
+  where: { status: 'pending' },
+  select: { ids: { $collect: { from: '$record' } } }
+})
+
+// ✅ Cheap: count is all you need
+const counted = await db.records.find({
+  labels: ['ORDER'],
+  where: { status: 'pending' },
+  select: { count: { $count: '*' } }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# ✅ Prefer $count over $collect unless records are needed
+result = db.records.find({
+    "labels": ["ORDER"],
+    "where": {"status": "pending"},
+    "select": {"count": {"$count": "*"}}
+})
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Tip 5: Batch writes instead of serial `create()` loops
+
+A loop calling `create()` once per record makes one HTTP round-trip per write. `importJson` sends all records in a single request.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const records = Array.from({ length: 500 }, (_, i) => ({
+  eventId: `EVT-${i}`,
+  type: 'click',
+  ts: new Date().toISOString()
+}))
+
+// ❌ 500 round-trips
+for (const r of records) {
+  await db.records.create({ label: 'EVENT', data: r })
+}
+
+// ✅ 1 round-trip
+await db.records.importJson({ label: 'EVENT', data: records })
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+records = [{"eventId": f"EVT-{i}", "type": "click", "ts": "2025-01-01T00:00:00Z"} for i in range(500)]
+
+# ✅ Single call
+db.records.import_json({"label": "EVENT", "data": records})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# Build the data array with jq then send in one call
+PAYLOAD=$(jq -n '[range(500)] | map({"eventId": ("EVT-" + tostring), "type":"click"})')
+curl -s -X POST "$BASE/records/import/json" \
+  -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
+  -d "{\"label\":\"EVENT\",\"data\":$PAYLOAD}"
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Tip 6: Cap `limit` in API endpoints
+
+Never pass user-controlled `limit` values directly. Cap at a safe maximum.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const MAX_LIMIT = 100
+
+function buildQuery(params: { limit?: number; skip?: number }): object {
+  return {
+    labels: ['ARTICLE'],
+    limit: Math.min(params.limit ?? 20, MAX_LIMIT),
+    skip: params.skip ?? 0
+  }
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+MAX_LIMIT = 100
+
+def build_query(params: dict) -> dict:
+    return {
+        "labels": ["ARTICLE"],
+        "limit": min(params.get("limit", 20), MAX_LIMIT),
+        "skip": params.get("skip", 0)
+    }
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Quick-reference checklist
+
+| Check | Why it matters |
+|---|---|
+| `labels` always set | Avoids full graph scan |
+| Most selective filter at deepest hop | Prunes intermediate node sets early |
+| Traversal depth ≤ 2 hops | Three+ hops need production benchmarking |
+| `$collect` replaced with `$count` where possible | `$collect` materializes all matched IDs |
+| Bulk writes via `importJson` | One round-trip instead of N |
+| `limit` capped server-side | Prevents runaway result sets |
+
+---
+
+## Next steps
+
+- [Testing SearchQuery](./testing-searchquery.mdx) — verify query correctness across TS, Python, and REST
+- [Discovery Queries](./discovery-queries.mdx) — explore unknown schemas before committing to traversal patterns
+- [Hybrid Retrieval](./hybrid-retrieval.mdx) — structured filter + semantic ranking patterns

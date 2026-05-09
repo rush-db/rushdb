@@ -3,7 +3,6 @@ import type { ParamsArg } from '@nanostores/router'
 
 import { createRouter, createSearchParams, getPagePath, openPage, redirectPage } from '@nanostores/router'
 // eslint-disable-next-line import/no-cycle
-import { $platformSettings } from '~/features/auth/stores/settings'
 import { $inviteToken } from '~/features/workspaces/stores/invite'
 
 const userConfirmationLeavePublicRoutes = {
@@ -16,7 +15,8 @@ const publicRoutes = {
   signin: '/signin',
   signup: '/signup',
   googleAuth: '/auth/google/:token?',
-  githubAuth: '/auth/github/:token?'
+  githubAuth: '/auth/github/:token?',
+  oauthConsent: '/oauth/consent'
 } as const
 
 export const projectRoutes = {
@@ -24,9 +24,10 @@ export const projectRoutes = {
   projectSettings: '/projects/:id/settings',
   projectImportData: '/projects/:id/import',
   projectTokens: '/projects/:id/tokens',
+  projectIndexes: '/projects/:id/indexes',
   projectUsers: '/projects/:id/users',
   projectHelp: '/projects/:id/help',
-  projectBilling: !$platformSettings.get().data?.selfHosted ? '/projects/:id/billing' : '/projects/:id'
+  projectBilling: '/projects/:id/billing'
 } as const
 
 const protectedRoutes = {
@@ -37,7 +38,8 @@ const protectedRoutes = {
   workspaceUsers: '/workspace-users',
   joinWorkspace: '/join-workspace',
   projects: '/',
-  workspaceBilling: !$platformSettings.get().data?.selfHosted ? '/billing' : '/',
+  workspaceBilling: '/billing',
+  workspaceApiUsage: '/api-usage',
   profile: '/profile',
   ...projectRoutes
 } as const

@@ -4,6 +4,8 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
+import { AiService } from '@/core/ai/ai.service'
+import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import { Where } from '@/core/common/types'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import {
@@ -11,11 +13,14 @@ import {
   TRecordRelationsResponse,
   TRelationDirection
 } from '@/core/entity/entity.types'
+import { KuOperation } from '@/core/ku-events/ku-events.constants'
+import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { PropertyService } from '@/core/property/property.service'
 import { TPropertyProperties } from '@/core/property/property.types'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
 import { SearchDto } from '@/core/search/dto/search.dto'
+import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
 import { CreateEntityDto, CreateEntityDtoSimple } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
@@ -24,8 +29,14 @@ import { EditEntityDto } from './dto/edit-entity.dto'
 export class EntityService {
   constructor(
     private readonly entityQueryService: EntityQueryService,
+    private readonly kuEventsService: KuEventsService,
     @Inject(forwardRef(() => PropertyService))
-    private readonly propertyService: PropertyService
+    private readonly propertyService: PropertyService,
+    @Inject(forwardRef(() => WorkspaceService))
+    private readonly workspaceService: WorkspaceService,
+    private readonly embeddingIndexRepository: EmbeddingIndexRepository,
+    @Inject(forwardRef(() => AiService))
+    private readonly aiService: AiService
   ) {}
 
   async create({
@@ -49,7 +60,31 @@ export class EntityService {
     }
 
     const result = await transaction.run(query, { record, projectId })
-    return result.records[0]?.get('data')
+    const data = result.records[0]?.get('data')
+
+    const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
+    this.kuEventsService.emit(workspace?.id, projectId, KuOperation.ENTITY_CREATED, {
+      propertyCount: properties?.length ?? 0
+    })
+
+    // Fire-and-forget: mark embedding indexes as pending for the written properties
+    const propertyNames = (properties ?? []).map((p) => p.name).filter(Boolean)
+    if (propertyNames.length > 0) {
+      const entries = propertyNames.map((name) => ({ propertyName: name, label }))
+      this.embeddingIndexRepository.markPendingForProperties(projectId, entries).catch(() => {})
+    }
+
+    if ((entity as CreateEntityDto).vectors?.length) {
+      await this.aiService.resolveAndWriteInlineVectors(
+        projectId,
+        label,
+        entityId,
+        (entity as CreateEntityDto).vectors,
+        transaction
+      )
+    }
+
+    return data
   }
 
   async getById({
@@ -90,6 +125,23 @@ export class EntityService {
 
     await transaction.run(query, { record, projectId })
 
+    // Fire-and-forget: mark embedding indexes as pending for the edited properties
+    const editPropertyNames = (entity.properties ?? []).map((p) => p.name).filter(Boolean)
+    if (editPropertyNames.length > 0) {
+      const entries = editPropertyNames.map((name) => ({ propertyName: name, label }))
+      this.embeddingIndexRepository.markPendingForProperties(projectId, entries).catch(() => {})
+    }
+
+    if ((entity as EditEntityDto).vectors?.length) {
+      await this.aiService.resolveAndWriteInlineVectors(
+        projectId,
+        label,
+        entityId,
+        (entity as EditEntityDto).vectors,
+        transaction
+      )
+    }
+
     return this.getById({ id: entityId, projectId, transaction })
   }
 
@@ -128,7 +180,28 @@ export class EntityService {
     // clean orphan props regardless of path
     await this.propertyService.deleteOrphanProps({ projectId, transaction })
 
-    return result.records[0]?.get('data')
+    const data = result.records[0]?.get('data')
+
+    const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
+    this.kuEventsService.emit(workspace?.id, projectId, KuOperation.ENTITY_CREATED, {
+      propertyCount: properties?.length ?? 0,
+      upsert: true
+    })
+
+    // Fire-and-forget: mark embedding indexes as pending for the upserted properties
+    const upsertPropertyNames = (properties ?? []).map((p) => p.name).filter(Boolean)
+    if (upsertPropertyNames.length > 0) {
+      const entries = upsertPropertyNames.map((name) => ({ propertyName: name, label }))
+      this.embeddingIndexRepository.markPendingForProperties(projectId, entries).catch(() => {})
+    }
+
+    const vectors = (entity as CreateEntityDto).vectors
+    if (vectors?.length) {
+      const persistedId: string = (data?.['__RUSHDB__KEY__ID__'] as string) ?? entityId
+      await this.aiService.resolveAndWriteInlineVectors(projectId, label, persistedId, vectors, transaction)
+    }
+
+    return data
   }
 
   async deleteById({
@@ -148,6 +221,9 @@ export class EntityService {
       projectId,
       transaction
     })
+
+    const workspace = await this.workspaceService.getWorkspaceByProject(projectId, transaction)
+    this.kuEventsService.emit(workspace?.id, projectId, KuOperation.KNOWLEDGE_DELETED, { id })
 
     return {
       message: `Record ${id} was successfully deleted`

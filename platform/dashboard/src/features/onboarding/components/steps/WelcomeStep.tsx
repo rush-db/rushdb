@@ -1,5 +1,3 @@
-import { useStore } from '@nanostores/react'
-
 import { PageTitle } from '~/elements/PageHeader'
 import { Skeleton } from '~/elements/Skeleton'
 
@@ -9,10 +7,12 @@ import {
   OnboardingStepTitle
 } from '~/features/onboarding/components/OnboardingStep'
 
-import { $currentProjectIsEmpty } from '~/features/projects/stores/current-project'
+import { useFilteredRecordsQuery } from '~/features/projects/hooks/useProjectQueries'
+import { isProjectEmpty } from '~/features/projects/utils'
 
 export function WelcomeStep({ loading }: { loading: boolean }) {
-  const isEmpty = useStore($currentProjectIsEmpty)
+  const { data: recordsResult, isPending: recordsLoading } = useFilteredRecordsQuery()
+  const isEmpty = isProjectEmpty({ totalRecords: recordsResult?.total, loading: recordsLoading })
 
   return (
     <OnboardingStep

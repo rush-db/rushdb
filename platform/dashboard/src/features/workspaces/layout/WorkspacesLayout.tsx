@@ -1,9 +1,9 @@
-import { LayoutDashboard, SettingsIcon, Wallet2, Users } from 'lucide-react'
+import { Activity, LayoutDashboard, SettingsIcon, Wallet2, Users } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { useStore } from '@nanostores/react'
 import { useMemo } from 'react'
 import { $user } from '~/features/auth/stores/user.ts'
@@ -12,7 +12,7 @@ export function WorkspacesLayout({ children, className }: TPolymorphicComponentP
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
 
-  const { data: platformSettings } = useStore($platformSettings)
+  const { data: platformSettings } = usePlatformSettings()
 
   const tabsToRender = useMemo(() => {
     const workspaceTabs = [
@@ -39,11 +39,18 @@ export function WorkspacesLayout({ children, className }: TPolymorphicComponentP
     }
 
     if (!platformSettings?.selfHosted && isOwner) {
-      workspaceTabs.push({
-        href: getRoutePath('workspaceBilling'),
-        icon: <Wallet2 />,
-        label: 'Subscription'
-      })
+      workspaceTabs.push(
+        {
+          href: getRoutePath('workspaceBilling'),
+          icon: <Wallet2 />,
+          label: 'Billing'
+        },
+        {
+          href: getRoutePath('workspaceApiUsage'),
+          icon: <Activity />,
+          label: 'API Usage'
+        }
+      )
     }
 
     return workspaceTabs

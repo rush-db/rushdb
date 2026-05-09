@@ -4,18 +4,19 @@ import type { Project } from '~/features/projects/types'
 
 import { Button } from '~/elements/Button'
 import { NothingFound } from '~/elements/NothingFound'
+import { Spinner } from '~/elements/Spinner'
 
 import { ProjectTabs } from '~/features/projects/components/ProjectTabs'
-import { $currentProject } from '~/features/projects/stores/current-project'
+import { useCurrentProjectQuery } from '~/features/projects/hooks/useProjectQueries'
 import { PropertyValueTooltip } from '~/features/properties/components/PropertyValueTooltip'
 import { $router, getRoutePath, isProjectPage, redirectRoute } from '~/lib/router'
 
 import { ProjectSettings } from '~/pages/project/settings'
 import { ProjectTokens } from '~/pages/project/tokens'
+import { ProjectIndexes } from '~/pages/project/indexes'
 import { ProjectRecordsPage } from '~/pages/project/records'
 import { ProjectHelpPage } from '~/pages/project/help'
 import { ImportRecords } from '~/features/records/components/ImportRecords.tsx'
-import { ProjectBillingPage } from '~/pages/project/billing.tsx'
 
 function ProjectRoutes({ project }: { project: Project }) {
   const page = useStore($router)
@@ -23,14 +24,14 @@ function ProjectRoutes({ project }: { project: Project }) {
   switch (page?.route) {
     case 'projectTokens':
       return <ProjectTokens projectId={project.id} />
+    case 'projectIndexes':
+      return <ProjectIndexes projectId={project.id} />
     case 'projectSettings':
       return <ProjectSettings projectId={project.id} />
     case 'projectImportData':
       return <ImportRecords />
     case 'projectHelp':
       return <ProjectHelpPage />
-    case 'projectBilling':
-      return project.managedDbRegion ? <ProjectBillingPage /> : null
     default:
       return <ProjectRecordsPage />
   }
@@ -41,7 +42,7 @@ export function ProjectLayout() {
 
   const projectId = isProjectPage(page) ? page?.params.id : undefined
 
-  const { data, loading } = useStore($currentProject)
+  const { data, isPending } = useCurrentProjectQuery()
 
   if (!projectId) {
     redirectRoute('projects')
@@ -49,7 +50,15 @@ export function ProjectLayout() {
     return null
   }
 
-  if (!data || loading) {
+  if (isPending) {
+    return (
+      <div className="grid flex-1 place-items-center">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (!data) {
     return (
       <NothingFound
         action={

@@ -22,6 +22,7 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { EntityService } from '@/core/entity/entity.service'
+import { TrackHeavySearchKu } from '@/core/ku-events/track-heavy-search-ku.interceptor'
 import { PropertyService } from '@/core/property/property.service'
 import { TPropertyProperties } from '@/core/property/property.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
@@ -29,7 +30,6 @@ import { TSearchSortDirection } from '@/core/search/search.types'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
-import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
@@ -48,6 +48,7 @@ export class PropertyController {
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
+  @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
   async listProperties(
     @Body() searchQuery: Omit<SearchDto, 'sort' | 'skip' | 'limit'>,
@@ -55,7 +56,6 @@ export class PropertyController {
     @Request() request: PlatformRequest
   ): Promise<TPropertyProperties[]> {
     const projectId = request.projectId
-
     return this.entityService.findProperties({
       projectId,
       searchQuery,
@@ -65,7 +65,7 @@ export class PropertyController {
 
   @Post(':propertyId/values')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard(), CustomDbWriteRestrictionGuard)
+  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
@@ -87,7 +87,7 @@ export class PropertyController {
 
   @Get(':propertyId')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard(), CustomDbWriteRestrictionGuard)
+  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
@@ -109,11 +109,7 @@ export class PropertyController {
 
   @Delete(':propertyId')
   @ApiBearerAuth()
-  @UseGuards(
-    IsRelatedToProjectGuard(),
-    // @TODO: Andrew? help
-    CustomDbWriteRestrictionGuard
-  )
+  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async deleteField(

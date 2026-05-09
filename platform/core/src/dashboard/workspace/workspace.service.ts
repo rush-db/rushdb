@@ -4,9 +4,9 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger
 } from '@nestjs/common'
-import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception'
 import { ConfigService } from '@nestjs/config'
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
@@ -14,9 +14,12 @@ import { uuidv7 } from 'uuidv7'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { toBoolean } from '@/common/utils/toBolean'
+import { BillingClientService } from '@/core/billing-client/billing-client.service'
+import { BILLING_ACCOUNT_PORT, BillingAccountPort } from '@/core/billing-policy/billing-account.port'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
-import { EConfigKeyByPlan } from '@/dashboard/billing/stripe/interfaces/stripe.constans'
 import { MailService } from '@/dashboard/mail/mail.service'
+import { OAuthRepository } from '@/dashboard/mcp-oauth/model/oauth.repository'
+import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { TProjectStats } from '@/dashboard/project/project.types'
 import { TShortUserDataWithRole } from '@/dashboard/user/interfaces/authenticated-user.interface'
@@ -28,50 +31,34 @@ import { validateEmail } from '@/dashboard/user/user.utils'
 import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
 import { Workspace } from '@/dashboard/workspace/entity/workspace.entity'
-import {
-  TWorkspaceInstance,
-  TWorkspaceLimits,
-  TWorkspaceProperties
-} from '@/dashboard/workspace/model/workspace.interface'
+import { TWorkspaceProperties } from '@/dashboard/workspace/model/workspace.interface'
 import { WorkspaceRepository } from '@/dashboard/workspace/model/workspace.repository'
-import { WorkspaceQueryService } from '@/dashboard/workspace/workspace-query.service'
-import {
-  WORKSPACE_LIMITS_START,
-  WORKSPACE_LIMITS_TEAM,
-  WORKSPACE_LIMITS_PRO,
-  WORKSPACE_LIMITS_SELF_HOSTED
-} from '@/dashboard/workspace/workspace.constants'
 import {
   TExtendedWorkspaceProperties,
   TNormalizedPendingInvite,
   TWorkspaceInvitation,
   TWorkSpaceInviteToken
 } from '@/dashboard/workspace/workspace.types'
-import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import * as crypto from 'node:crypto'
 
-/*
- * Create Workspace --> Attach user that called this endpoint
- * Create Project in this Org
- *
- * Add user to project
- * Remove user to project
- * Change user role in project
- *
- * Edit workspace
- * Delete workspace
- * */
+import type { WorkspaceRow } from '@/database/sql/schema/types'
 
 @Injectable()
 export class WorkspaceService {
+  private readonly logger = new Logger(WorkspaceService.name)
+
   constructor(
     private readonly configService: ConfigService,
-    private readonly neogmaService: NeogmaService,
     private readonly workspaceRepository: WorkspaceRepository,
-    private readonly workspaceQueryService: WorkspaceQueryService,
+    @Inject(BILLING_ACCOUNT_PORT)
+    private readonly billingAccountService: BillingAccountPort,
+    private readonly billingClientService: BillingClientService,
+    private readonly oauthRepository: OAuthRepository,
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService,
+    @Inject(forwardRef(() => ProjectRepository))
+    private readonly projectRepository: ProjectRepository,
     @Inject(forwardRef(() => UserRepository))
     private readonly userRepository: UserRepository,
     @Inject(forwardRef(() => UserService))
@@ -80,122 +67,80 @@ export class WorkspaceService {
     private readonly mailService: MailService
   ) {}
 
-  normalize(node: TWorkspaceInstance) {
-    return new Workspace(node)
-  }
-  async getWorkspaceInstance(id: string, transaction: Transaction): Promise<TWorkspaceInstance> {
-    return await this.workspaceRepository.model.findOne({
-      where: { id },
-      throwIfNotFound: false,
-      session: transaction
-    })
+  normalize(row: WorkspaceRow): Workspace {
+    return new Workspace(row)
   }
 
-  async getWorkspace(id: string, transaction: Transaction): Promise<Workspace> {
-    const workspaceInstance = await this.getWorkspaceInstance(id, transaction)
+  async getWorkspace(id: string, _transaction?: Transaction): Promise<Workspace> {
+    const row = await this.workspaceRepository.findById(id)
+    const workspace = this.normalize(row)
 
-    return this.normalize(workspaceInstance)
-  }
-
-  async findUserBillingWorkspace(userEmail: string, transaction: Transaction): Promise<string> {
-    const related = await this.userRepository.model.findRelationships({
-      alias: 'Workspaces',
-      where: {
-        source: {
-          login: userEmail
-        },
-        relationship: {
-          role: USER_ROLE_OWNER
-        }
-      },
-      session: transaction
-    })
-
-    const result = related.map(({ target }) => this.normalize(target).toJson())
-
-    // @TODO: Improve for multiple workspaces owner support
-    return result[0].id
-  }
-
-  async getWorkspaceNode(id: string, transaction: Transaction) {
-    const queryRunner = this.neogmaService.createRunner()
-
-    const workspace = await this.neogmaService
-      .createBuilder()
-      .match({
-        model: this.workspaceRepository.model,
-        where: { id },
-        identifier: 'i'
-      })
-      .return('i')
-      .run(queryRunner, transaction)
-
-    const workspaceRecord = workspace.records[0]?.get('i')
-
-    if (!workspaceRecord) {
-      return
+    if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
+      const workspaceJson = workspace.toJson()
+      const enriched = await this.enrichWithBillingData(workspaceJson)
+      return { ...workspace, toJson: () => enriched, getProperties: () => enriched } as Workspace
     }
 
-    return this.workspaceRepository.model.buildFromRecord(workspaceRecord)
+    return workspace
   }
 
-  async getWorkspacesList(userId: string, transaction: Transaction): Promise<TExtendedWorkspaceProperties[]> {
-    const related = await this.userRepository.model.findRelationships({
-      alias: 'Workspaces',
-      where: {
-        source: {
-          id: userId
-        }
-      },
-      session: transaction
-    })
-
-    return related.map(({ target, relationship }) => {
-      return {
-        ...this.normalize(target).toJson(),
-        role: relationship.role
-      }
-    })
+  /** Alias used by legacy call sites (e.g. workspace.controller.ts invite flow) */
+  async getWorkspaceInstance(id: string, _transaction?: Transaction): Promise<WorkspaceRow> {
+    return this.workspaceRepository.findById(id)
   }
 
-  async getWorkspaceByProject(projectId: string, transaction: Transaction) {
-    const related = await this.workspaceRepository.model.findRelationships({
-      alias: 'Projects',
-      where: {
-        target: {
-          id: projectId
-        }
-      },
-      session: transaction
-    })
+  async findUserBillingWorkspace(userEmail: string, _transaction?: Transaction): Promise<string> {
+    const userRow = await this.userRepository.findByLogin(userEmail)
+    if (!userRow) {
+      throw new BadRequestException('User not found')
+    }
 
-    return related.map(({ source }) => source)?.[0]
+    const workspaces = await this.userRepository.findWorkspacesForUser(userRow.id)
+    const ownerEntry = workspaces.find((w) => w.role === USER_ROLE_OWNER)
+    return ownerEntry?.workspace?.id
   }
 
-  async getAccumulatedWorkspaceStats(workspaceInstance: TWorkspaceInstance, transaction: Transaction) {
-    const related = await workspaceInstance.findRelationships({
-      alias: 'Projects',
-      session: transaction
-    })
+  async getWorkspacesList(
+    userId: string,
+    _transaction?: Transaction
+  ): Promise<TExtendedWorkspaceProperties[]> {
+    const rows = await this.userRepository.findWorkspacesForUser(userId)
 
-    return related.reduce(
-      (acc, { target: project }) => {
+    const workspaces = rows.map(({ workspace, role }) => ({
+      ...this.normalize(workspace).toJson(),
+      role: role as TUserRoles
+    }))
+
+    if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
+      return Promise.all(workspaces.map((ws) => this.enrichWithBillingData(ws)))
+    }
+
+    return workspaces
+  }
+
+  async getWorkspaceByProject(
+    projectId: string,
+    _transaction?: Transaction
+  ): Promise<WorkspaceRow | undefined> {
+    return this.workspaceRepository.findByProjectId(projectId)
+  }
+
+  async getAccumulatedWorkspaceStats(workspaceId: string, _transaction?: Transaction) {
+    const projects = await this.projectRepository.findByWorkspaceId(workspaceId)
+
+    return projects.reduce(
+      (acc, project) => {
         try {
-          const { stats } = project
-
+          const { stats } = project as any
           if (!stats) {
-            return {
-              records: acc.records,
-              properties: acc.properties
-            }
+            return acc
           }
-
           const { records, properties } = JSON.parse(stats) as TProjectStats
           return {
             records: acc.records + (records ?? 0),
             properties: acc.properties + (properties ?? 0)
           }
-        } catch (error) {
+        } catch {
           return acc
         }
       },
@@ -203,140 +148,99 @@ export class WorkspaceService {
     )
   }
 
-  getLimitsByKey(key = ''): TWorkspaceLimits {
-    if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-      return WORKSPACE_LIMITS_SELF_HOSTED
-    }
-
-    if (!toBoolean(key)) {
-      return WORKSPACE_LIMITS_START
-    }
-
-    // @TODO: remove contract between billing service && workspace service
-    switch (key) {
-      case EConfigKeyByPlan.team:
-        return WORKSPACE_LIMITS_TEAM
-      case EConfigKeyByPlan.pro:
-        return WORKSPACE_LIMITS_PRO
-      default:
-        // @TODO: Make Records limits applied only to shared instances (projects)
-        return WORKSPACE_LIMITS_START
-    }
-  }
-
   async createWorkspace(
     { name }: CreateWorkspaceDto,
     userId: string,
-    transaction: Transaction
+    _transaction?: Transaction
   ): Promise<Workspace> {
     const workspaceId = uuidv7()
-    const workspaceNode = await this.workspaceRepository.model.createOne(
-      {
-        name,
-        created: getCurrentISO(),
-        id: workspaceId,
-        limits: JSON.stringify(this.getLimitsByKey())
-      },
-      { session: transaction }
-    )
+    const created = getCurrentISO()
 
-    await workspaceNode.relateTo({
-      alias: 'Users',
-      where: { id: userId },
-      properties: { Since: workspaceNode.created, Role: USER_ROLE_OWNER },
-      session: transaction
+    const workspaceRow = await this.workspaceRepository.create({
+      id: workspaceId,
+      name,
+      created,
+      edited: null
     })
 
-    return this.normalize(workspaceNode)
+    await this.workspaceRepository.addMember({
+      workspaceId,
+      userId,
+      role: USER_ROLE_OWNER,
+      since: created
+    })
+
+    const ownerNode = await this.userRepository.findById(userId)
+    const ownerEmail = ownerNode?.login ?? null
+    await this.billingAccountService.createWorkspaceCustomer(workspaceId, ownerEmail)
+
+    return this.normalize(workspaceRow)
   }
 
   async attachUserToWorkspace(
     workspaceId: string,
     userId: string,
     preferredRole: TUserRoles,
-    transaction: Transaction
+    _transaction?: Transaction
   ): Promise<void> {
-    await transaction.run(this.workspaceQueryService.attachUserToWorkspaceQuery(), {
+    await this.workspaceRepository.addMember({
       workspaceId,
       userId,
-      since: getCurrentISO(),
-      role: preferredRole
+      role: preferredRole,
+      since: getCurrentISO()
     })
 
     isDevMode(() =>
       Logger.log(`[Link user ${userId} to the workspace LOG]: User linked to the workspace ${workspaceId}`)
     )
+
+    // Emit seat meter event to billing service
+    const members = await this.workspaceRepository.getMembers(workspaceId)
+    await this.billingClientService.emitSeatMeterEvent(workspaceId, members.length)
   }
 
   async patchWorkspace(
     id: string,
     workspaceProperties: Partial<TWorkspaceProperties>,
-    transaction: Transaction
+    _transaction?: Transaction
   ): Promise<Workspace> {
-    const workspaceNode = await this.getWorkspaceNode(id, transaction)
+    const fieldsToUpdate = removeUndefinedKeys(workspaceProperties) as any
+    fieldsToUpdate.edited = getCurrentISO()
 
-    if (!workspaceNode && !transaction) {
+    const updated = await this.workspaceRepository.update(id, fieldsToUpdate)
+    if (!updated) {
       throw new BadRequestException(`Workspace ${id} not found`)
     }
-
-    const fieldsToUpdate = removeUndefinedKeys(workspaceProperties)
-
-    Object.entries<TWorkspaceProperties[keyof TWorkspaceProperties]>(fieldsToUpdate).map(([key, value]) => {
-      if (workspaceNode[key] !== value) {
-        workspaceNode[key] = value
-      }
-    })
-
-    workspaceNode['edited'] = getCurrentISO()
-
-    await workspaceNode.save()
-
-    return this.normalize(workspaceNode)
+    return this.normalize(updated)
   }
 
-  async dropWorkspaceSubscription(id: string, transaction: Transaction): Promise<Workspace> {
-    const workspaceNode = await this.getWorkspaceNode(id, transaction)
-    workspaceNode['isSubscriptionCancelled'] = true
-    workspaceNode['edited'] = getCurrentISO()
-
-    await workspaceNode.save()
-
-    return this.normalize(workspaceNode)
+  async dropWorkspaceSubscription(id: string, _transaction?: Transaction): Promise<Workspace> {
+    const updated = await this.workspaceRepository.update(id, {
+      edited: getCurrentISO()
+    })
+    return this.normalize(updated)
   }
 
-  // @TODO: Ask to delete all project or transfer workspace ownership to someone else
-  // @TODO: Delete users from workspace
-  async deleteWorkspace(id: string, transaction: Transaction): Promise<{ message: string }> {
-    const workspace = await this.workspaceRepository.model.findOne({
-      where: { id },
-      session: transaction
-    })
+  async deleteWorkspace(id: string, _transaction?: Transaction): Promise<{ message: string }> {
+    const projects = await this.projectRepository.findByWorkspaceId(id)
+    const projectIds = projects.map((p) => p.id).filter(Boolean) as string[]
 
-    const projects = await this.workspaceRepository.model.findRelationships({
-      alias: 'Projects',
-      where: {
-        source: { id: id }
-      },
-      session: transaction
-    })
+    await Promise.all(projectIds.map((pid) => this.projectService.deleteProject(pid, _transaction, true)))
 
-    const projectsToDelete = projects
-      .map(async (project) =>
-        project.target.id ?
-          await this.projectService.deleteProject(project.target.id, transaction, true)
-        : undefined
-      )
-      .filter(Boolean)
-
-    await workspace.delete({ detach: true, session: transaction })
-    await Promise.all(projectsToDelete)
-
-    return {
-      message: `Workspace ${id} successfully deleted`
+    // Clean up OAuth consents that pointed at now-deleted projects, then
+    // remove any oauth_clients that are no longer referenced by any consent.
+    if (projectIds.length) {
+      await this.oauthRepository.deleteConsentsByProjectIds(projectIds)
     }
+    await this.oauthRepository.deleteOrphanedClients()
+
+    await this.workspaceRepository.delete(id)
+    await this.billingAccountService.deleteWorkspaceCustomer(id)
+
+    return { message: `Workspace ${id} successfully deleted` }
   }
 
-  encryptMemberToken(payload: TWorkSpaceInviteToken) {
+  encryptMemberToken(payload: TWorkSpaceInviteToken): string {
     const encryptionKey = this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
     const iv = crypto.randomBytes(16)
     const invitationString = JSON.stringify({
@@ -344,13 +248,14 @@ export class WorkspaceService {
       projectIds: payload.projectIds,
       email: payload.email
     })
-
     const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey, iv)
-
     return iv.toString('hex') + cipher.update(invitationString, 'utf8', 'base64') + cipher.final('base64')
   }
 
-  async inviteMember(payload: TWorkspaceInvitation, transaction: Transaction): Promise<{ message: string }> {
+  async inviteMember(
+    payload: TWorkspaceInvitation,
+    _transaction?: Transaction
+  ): Promise<{ message: string }> {
     const isEmail = toBoolean(validateEmail(payload.email || ''))
 
     if (!payload.workspaceId || !payload.email || !isEmail) {
@@ -360,27 +265,19 @@ export class WorkspaceService {
 
     const { workspaceId, projectIds, email, ...rest } = payload
 
-    const token = this.encryptMemberToken({
-      workspaceId,
-      projectIds,
-      email
-    })
+    const token = this.encryptMemberToken({ workspaceId, projectIds, email })
 
     try {
-      const pendingList = await this.getPendingInvites(workspaceId, transaction)
-      const isInviteAlreadySent = pendingList.find(({ email }) => email === payload.email)
+      const pendingList = await this.getPendingInvites(workspaceId)
+      const isInviteAlreadySent = pendingList.find((inv) => inv.email === payload.email)
 
       if (!isInviteAlreadySent) {
-        pendingList.push({
-          email: payload.email,
+        await this.workspaceRepository.addInvite({
+          id: uuidv7(),
+          workspaceId,
+          email,
           createdAt: getCurrentISO()
         })
-
-        await transaction.run(this.workspaceQueryService.setPendingInvitesQuery(), {
-          workspaceId: payload.workspaceId,
-          invites: JSON.stringify(pendingList)
-        })
-
         isDevMode(() => Logger.log(`[Invite member LOG]: Invitation ${email} added for user workspace`))
       }
     } catch (e) {
@@ -401,53 +298,28 @@ export class WorkspaceService {
       throw new InternalServerErrorException('Error while sending email')
     }
 
-    return {
-      message: `Invite for ${email} successfully sent`
-    }
+    return { message: `Invite for ${email} successfully sent` }
   }
 
   async getPendingInvites(
     workspaceId: string,
-    transaction: Transaction
+    _transaction?: Transaction
   ): Promise<TNormalizedPendingInvite[]> {
-    const currentPendingInvites = await transaction.run(this.workspaceQueryService.getPendingInvitesQuery(), {
-      workspaceId
-    })
-    const result = currentPendingInvites.records[0]?.get('invites')
-
-    if (!result) {
-      return []
-    }
-
-    try {
-      return JSON.parse(result)
-    } catch {
-      return []
-    }
+    const invites = await this.workspaceRepository.getInvites(workspaceId)
+    return invites.map((inv) => ({ email: inv.email, createdAt: inv.createdAt }))
   }
 
   async removePendingInvite(
     workspaceId: string,
     email: string,
-    transaction: Transaction
+    _transaction?: Transaction
   ): Promise<{ message: string }> {
-    const currentPendingInvites = await this.getPendingInvites(workspaceId, transaction)
-
-    const filtered = currentPendingInvites.filter((item) => item.email !== email)
-
-    await transaction.run(this.workspaceQueryService.setPendingInvitesQuery(), {
-      workspaceId,
-      invites: JSON.stringify(filtered)
-    })
-
+    await this.workspaceRepository.removeInvite(workspaceId, email)
     isDevMode(() => Logger.log(`[Invite member LOG]: Invitation revoke from the ${email}`))
-
-    return {
-      message: 'Invitation revoked'
-    }
+    return { message: 'Invitation revoked' }
   }
 
-  async recomputeProjectsAccessList(id: string, payload: RecomputeAccessListDto, transaction: Transaction) {
+  async recomputeProjectsAccessList(id: string, payload: RecomputeAccessListDto, transaction?: Transaction) {
     for (const [projectId, userIds] of Object.entries(payload)) {
       await this.projectService.processUserAccess({
         projectId,
@@ -455,112 +327,150 @@ export class WorkspaceService {
         transaction
       })
     }
-
     return { message: 'Access lists recomputed' }
   }
 
   async getAccessListByProjects(
     workspaceId: string,
-    transaction: Transaction
+    _transaction?: Transaction
   ): Promise<Record<string, string[]>> {
-    const result = await transaction.run(this.workspaceQueryService.getWorkspaceAccessListQuery(), {
-      workspaceId,
-      role: USER_ROLE_EDITOR
-    })
-
+    const projects = await this.projectRepository.findByWorkspaceId(workspaceId)
     const accessMap: Record<string, string[]> = {}
 
-    for (const record of result.records) {
-      const projectId = record.get('projectId')
-      accessMap[projectId] = record.get('userIds') || []
-    }
+    await Promise.all(
+      projects.map(async (project) => {
+        const list = await this.projectRepository.getAccessListByProjectId(project.id)
+        accessMap[project.id] = list.filter((a) => a.role === USER_ROLE_EDITOR).map((a) => a.userId)
+      })
+    )
 
     return accessMap
   }
 
-  async getUserList(workspaceId: string, transaction: Transaction): Promise<TShortUserDataWithRole[]> {
-    const result = await transaction.run(this.workspaceQueryService.getWorkspaceUserListQuery(), {
-      workspaceId
-    })
-
-    return result.records.map((record) => ({
-      id: record.get('id'),
-      login: record.get('login'),
-      role: record.get('role')
-    })) as TShortUserDataWithRole[]
+  async getUserList(workspaceId: string, _transaction?: Transaction): Promise<TShortUserDataWithRole[]> {
+    const members = await this.workspaceRepository.getMembers(workspaceId)
+    return members.map((m) => ({ id: m.id, login: m.login, role: m.role as TUserRoles }))
   }
 
-  async revokeAccessList(workspaceId: string, userIds: string[], transaction: Transaction) {
+  async revokeAccessList(workspaceId: string, userIds: string[], _transaction?: Transaction) {
     for (const userId of userIds) {
       isDevMode(() => Logger.log(`[Revoke access LOG]: Check other workspaces for user ${userId}`))
-      const countsResult = await transaction.run(
-        this.workspaceQueryService.getUserRoleCountsOutsideWorkspaceQuery(),
-        { userId, workspaceId }
+      const { ownerOther, developerOther } = await this.workspaceRepository.getMembersWithOwnerCount(
+        workspaceId,
+        userId
       )
-
-      const record = countsResult.records[0]
-      const ownerOther =
-        record.get('ownerOther').toNumber ? record.get('ownerOther').toNumber() : record.get('ownerOther')
-      const developerOther =
-        record.get('developerOther').toNumber ?
-          record.get('developerOther').toNumber()
-        : record.get('developerOther')
 
       if (ownerOther > 0 || developerOther > 0) {
         isDevMode(() => Logger.log(`[Revoke access LOG]: Remove ws relation for user ${userId}`))
-        await transaction.run(this.workspaceQueryService.getRemoveWorkspaceRelationQuery(), {
-          userId,
-          workspaceId
-        })
+        await this.workspaceRepository.removeMember(workspaceId, userId)
 
         isDevMode(() => Logger.log(`[Revoke access LOG]: Remove project relation for user ${userId}`))
-        await transaction.run(this.workspaceQueryService.getRemoveProjectRelationsQuery(), {
-          userId,
-          workspaceId
-        })
+        await this.projectRepository.revokeAllProjectAccessForUserInWorkspace(userId, workspaceId)
       } else {
         isDevMode(() =>
           Logger.log(`[Revoke access LOG]: No other entities found for user ${userId}, delete user data`)
         )
-        await this.userService.delete({ userId, transaction })
+        await this.userService.delete({ userId })
       }
     }
+
+    // Emit seat meter event to billing service after all members removed
+    const members = await this.workspaceRepository.getMembers(workspaceId)
+    await this.billingClientService.emitSeatMeterEvent(workspaceId, members.length)
 
     return { message: 'Access revoked where appropriate' }
   }
 
-  async leaveWorkspace(workspaceId: string, userId: string, transaction: Transaction): Promise<void> {
+  async leaveWorkspace(workspaceId: string, userId: string, _transaction?: Transaction): Promise<void> {
     isDevMode(() => Logger.log(`[Revoke access LOG]: Remove ws relation for user ${userId}`))
-    await transaction.run(this.workspaceQueryService.getRemoveWorkspaceRelationQuery(), {
-      userId,
-      workspaceId
-    })
+    await this.workspaceRepository.removeMember(workspaceId, userId)
 
     isDevMode(() => Logger.log(`[Revoke access LOG]: Remove project relation for user ${userId}`))
-    await transaction.run(this.workspaceQueryService.getRemoveProjectRelationsQuery(), {
-      userId,
-      workspaceId
-    })
+    await this.projectRepository.revokeAllProjectAccessForUserInWorkspace(userId, workspaceId)
+
+    // Emit seat meter event to billing service
+    const members = await this.workspaceRepository.getMembers(workspaceId)
+    await this.billingClientService.emitSeatMeterEvent(workspaceId, members.length)
   }
 
   async getUserRoleInWorkspace(
     login: string,
     workspaceId: string,
-    transaction: Transaction
+    _transaction?: Transaction
   ): Promise<TUserRoles> {
-    const result = await transaction.run(this.workspaceQueryService.getUserWorkspaceRoleQuery(), {
-      login,
-      workspaceId
-    })
-
-    const rec = result.records[0]
-
-    if (!rec) {
-      isDevMode(() => Logger.error('[Get User Role ERROR]: No role found'))
-
+    const userRow = await this.userRepository.findByLogin(login)
+    if (!userRow) {
+      isDevMode(() => Logger.error('[Get User Role ERROR]: User not found'))
       throw new ForbiddenException('No user role for workspace found')
     }
 
-    return rec.get('role') as TUserRoles
+    const member = await this.workspaceRepository.getMember(workspaceId, userRow.id)
+    if (!member) {
+      isDevMode(() => Logger.error('[Get User Role ERROR]: No role found'))
+      throw new ForbiddenException('No user role for workspace found')
+    }
+
+    return member.role as TUserRoles
+  }
+
+  async getUserRoleInWorkspaceById(
+    id: string,
+    workspaceId: string,
+    _transaction?: Transaction
+  ): Promise<TUserRoles> {
+    const member = await this.workspaceRepository.getMember(workspaceId, id)
+    if (!member) {
+      isDevMode(() => Logger.error('[Get User Role ERROR]: No role found'))
+      throw new ForbiddenException('No user role for workspace found')
+    }
+    return member.role as TUserRoles
+  }
+
+  private async enrichWithBillingData<T extends TWorkspaceProperties>(workspace: T): Promise<T> {
+    try {
+      const customer = await this.billingAccountService.getWorkspaceCustomer(workspace.id)
+
+      if (!customer) {
+        const { limits, ...workspaceWithoutLimits } = workspace as any
+        return {
+          ...workspaceWithoutLimits,
+          planId: 'free',
+          validTill: undefined,
+          isSubscriptionCancelled: false,
+          projectLimit: 2,
+          userLimit: 1
+        } as T
+      }
+
+      const planIdMap: Record<string, string> = {
+        free: 'free',
+        pro: 'pro',
+        scale: 'scale',
+        enterprise: 'enterprise'
+      }
+
+      const validTill = customer.subscriptionStatus === 'canceled' ? customer.billingPeriodStart : undefined
+      const { limits, ...workspaceWithoutLimits } = workspace as any
+
+      return {
+        ...workspaceWithoutLimits,
+        planId: planIdMap[customer.plan] || 'free',
+        validTill,
+        isSubscriptionCancelled: customer.subscriptionStatus === 'canceled',
+        projectLimit: customer.projectLimit,
+        userLimit: customer.userLimit
+      } as T
+    } catch (error) {
+      this.logger.error(`Failed to enrich workspace ${workspace.id} with billing data: ${error.message}`)
+      const { limits, ...workspaceWithoutLimits } = workspace as any
+      return {
+        ...workspaceWithoutLimits,
+        planId: 'free',
+        validTill: undefined,
+        isSubscriptionCancelled: false,
+        projectLimit: 2,
+        userLimit: 1
+      } as T
+    }
   }
 }

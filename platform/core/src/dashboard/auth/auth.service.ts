@@ -4,11 +4,7 @@ import { Transaction } from 'neo4j-driver'
 
 import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
 import { TVerifyOwnershipConfig } from '@/dashboard/auth/auth.types'
-import {
-  RUSHDB_LABEL_PROJECT,
-  RUSHDB_LABEL_USER,
-  RUSHDB_RELATION_HAS_ACCESS
-} from '@/dashboard/common/constants'
+import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { User } from '@/dashboard/user/user.entity'
 import { UserService } from '@/dashboard/user/user.service'
@@ -21,7 +17,8 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly encryptionService: EncryptionService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly projectRepository: ProjectRepository
   ) {}
 
   createToken(user: User): string {
@@ -68,23 +65,8 @@ export class AuthService {
   //     );
   // }
 
-  async hasProjectAccess(projectId: string, userId: string, transaction: Transaction): Promise<boolean> {
-    const queryBuilder = new QueryBuilder()
-
-    queryBuilder
-      .append(
-        `MATCH (p:${RUSHDB_LABEL_PROJECT} { id: $projectId })<-[rel:${RUSHDB_RELATION_HAS_ACCESS}]-(u:${RUSHDB_LABEL_USER} { id: $userId })`
-      )
-      .append(`RETURN COUNT(rel) as accessRelationCount`)
-
-    const result = await transaction.run(queryBuilder.getQuery(), {
-      projectId,
-      userId
-    })
-
-    const relations = result.records[0].get('accessRelationCount')
-
-    return relations?.low > 0 || relations?.high > 0
+  async hasProjectAccess(projectId: string, userId: string, _transaction?: Transaction): Promise<boolean> {
+    return this.projectRepository.hasAccess(projectId, userId)
   }
 
   async verifyRecordsIds(

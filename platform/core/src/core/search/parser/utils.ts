@@ -3,12 +3,18 @@ import { isArray } from '@/common/utils/isArray'
 import { isEmptyObject } from '@/common/utils/isEmptyObject'
 import { isObject } from '@/common/utils/isObject'
 import { isPrimitive } from '@/common/utils/isPrimitive'
-import { RUSHDB_KEY_PROPERTIES_META } from '@/core/common/constants'
-import { Where, MaybeArray, TVectorSearchFn, Aggregate } from '@/core/common/types'
+import { RUSHDB_VALUE_EMPTY_ARRAY } from '@/core/common/constants'
+import { Where, MaybeArray, Aggregate } from '@/core/common/types'
 import { allowedKeys } from '@/core/search/parser/constants'
-import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
+import { buildSortCriteria } from '@/core/search/parser/orderBy'
+import { TSearchSort } from '@/core/search/search.types'
 
-import { RELATION_CLAUSE_OPERATOR, ALIAS_CLAUSE_OPERATOR, ID_CLAUSE_OPERATOR } from '../search.constants'
+import {
+  RELATION_CLAUSE_OPERATOR,
+  ALIAS_CLAUSE_OPERATOR,
+  ID_CLAUSE_OPERATOR,
+  SORT_ASC
+} from '../search.constants'
 
 export const wrapInParentheses = (input: string) => `(${input})`
 
@@ -46,7 +52,7 @@ export function splitCriteria(input: Where) {
   // !containsAllowedKeys(value, allowedKeys)
   const split = (v: Where) =>
     Object.entries(v).forEach(([key, value]) => {
-      if (isObject(value) && isSubQuery(value as Where) && key !== '$vector') {
+      if (isObject(value) && isSubQuery(value as Where)) {
         subQueries[key] = value
       } else {
         currentLevel[key] = value
@@ -65,11 +71,7 @@ export function splitCriteria(input: Where) {
 export const isPropertyCriteria = (input: MaybeArray<Where<any>>) => {
   if (isObject(input)) {
     return Object.entries(input).every(([key, value]) => {
-      if (key === '$vector' && isObject(value)) {
-        return 'fn' in value && 'threshold' in value && 'query' in value
-      } else {
-        return allowedKeys.includes(key) && isPropertyCriteria(value as Where)
-      }
+      return allowedKeys.includes(key) && isPropertyCriteria(value as Where)
     })
   } else if (isArray(input)) {
     return (input as Array<Where>).every(isPropertyCriteria)
@@ -88,12 +90,8 @@ export function isCurrentLevelCriteria(input: MaybeArray<Where>) {
   }
 }
 
-export const vectorConditionQueryPrefix = (field: string, options: TSearchQueryBuilderOptions) => {
-  return `${options.nodeAlias}.\`${field}\` IS NOT NULL AND apoc.convert.fromJsonMap(${options.nodeAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${field}\` = "vector"`
-}
-
-export function safeGdsSimilarity(
-  method: `gds.similarity.${TVectorSearchFn}`,
+export function nativeVectorSimilarity(
+  method: 'vector.similarity.cosine' | 'vector.similarity.euclidean',
   recordAlias: string,
   field: string,
   query: string,
@@ -102,8 +100,30 @@ export function safeGdsSimilarity(
   const nodeVec = `\`${recordAlias}\`.\`${field}\``
   const queryVec = `[${query}]`
   return `CASE
-    WHEN ${vectorConditionQueryPrefix(field, { nodeAlias: recordAlias })} AND size(${nodeVec}) = size(${queryVec})
+    WHEN ${nodeVec} IS NOT NULL AND size(${nodeVec}) = size(${queryVec})
     THEN ${method}(${nodeVec}, ${queryVec})
     ELSE null
   END AS ${asPart}`
+}
+
+export function apocSortMapsArray(arrayClause: string, orderBy?: TSearchSort): string {
+  const sortCriteria = buildSortCriteria(orderBy!)
+
+  const orderByKeyPart = Object.entries(sortCriteria).map(([property, direction]) => {
+    return `"${direction.toLowerCase() === SORT_ASC ? '^' : ''}${property}"`
+  })[0]
+
+  return `apoc.coll.sortMaps(${arrayClause}, ${orderByKeyPart})`
+}
+
+export function apocSortArray(arrayClause: string): string {
+  return `apoc.coll.sort(apoc.coll.flatten(${arrayClause}))`
+}
+
+export function apocUniqArray(arrayClause: string): string {
+  return `apoc.coll.toSet(${arrayClause})`
+}
+
+export function apocRemoveFromArray(arrayClause: string): string {
+  return `apoc.coll.removeAll(${arrayClause}, ["${RUSHDB_VALUE_EMPTY_ARRAY}"])`
 }

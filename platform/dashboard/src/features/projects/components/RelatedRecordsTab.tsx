@@ -1,11 +1,15 @@
-import { useStore } from '@nanostores/react'
+import { ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react'
+import { useMemo } from 'react'
+import type { Relation } from '@rushdb/javascript-sdk'
+
 import { Banner } from '~/elements/Banner'
 import { NothingFound } from '~/elements/NothingFound'
 import { Spinner } from '~/elements/Spinner'
-import { $currentRecord, $currentRelatedRecords } from '../stores/current-record'
-import { useMemo } from 'react'
-import { ArrowRight, ArrowLeft } from 'lucide-react'
-import { Relation } from '@rushdb/javascript-sdk'
+import { IconButton } from '~/elements/IconButton'
+import { Label } from '~/elements/Label'
+
+import { useCurrentRecordQuery, useCurrentRecordRelatedQuery } from '../hooks/useProjectQueries'
+import { $sheetRecordId } from '../stores/id'
 
 interface RelationGroup {
   type: string
@@ -14,8 +18,9 @@ interface RelationGroup {
 }
 
 export function RelatedRecordsTab() {
-  const { data: relations, loading } = useStore($currentRelatedRecords)
-  const { data: record } = useStore($currentRecord)
+  const { data: relationsResult, isPending: loading } = useCurrentRecordRelatedQuery()
+  const relations = relationsResult?.data
+  const { data: record } = useCurrentRecordQuery()
 
   const groupedRelations = useMemo(() => {
     if (!relations || !record) return []
@@ -28,7 +33,7 @@ export function RelatedRecordsTab() {
       }
 
       const group = grouped.get(relation.type)!
-      if (relation.targetId === record!.__id) {
+      if (relation.targetId === record.__id) {
         group.incoming.push(relation)
       } else {
         group.outgoing.push(relation)
@@ -47,46 +52,52 @@ export function RelatedRecordsTab() {
   }
 
   return (
-    <div className="mt-3 p-6">
-      <div className="space-y-4">
-        {groupedRelations.map(({ type, incoming, outgoing }) => (
-          <div key={type} className="border-b pb-6">
-            <h3 className="text-md mb-2 font-semibold text-gray-300">{type}</h3>
+    <div className="divide-stroke-tertiary flex flex-col divide-y">
+      {groupedRelations.map(({ type, incoming, outgoing }) => (
+        <div key={type}>
+          <div className="bg-fill2 text-content-secondary px-5 py-2 text-xs">{type}</div>
 
-            {incoming.length > 0 && (
-              <div>
-                <h4 className="mb-1 text-sm text-gray-400">Incoming</h4>
-                <ul className="space-y-1">
-                  {incoming.map(({ sourceLabel, sourceId }) => (
-                    <li key={sourceId} className="flex items-center text-gray-300">
-                      <ArrowLeft className="mr-2 h-4 w-4 text-green-400" />
-                      <span className="text-sm">
-                        {sourceLabel} ({sourceId})
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+          <div className="divide-stroke-tertiary divide-y">
+            {incoming.map(({ sourceLabel, sourceId }) => (
+              <div key={sourceId} className="hover:bg-secondary flex items-center gap-3 px-5 py-3">
+                <ArrowLeft className="h-4 w-4 shrink-0 text-green-400" />
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <Label>{sourceLabel}</Label>
+                  <span className="text-content-secondary truncate font-mono text-xs">{sourceId}</span>
+                </div>
+                <IconButton
+                  aria-label="open record"
+                  title="Open record"
+                  variant="ghost"
+                  size="small"
+                  onClick={() => $sheetRecordId.set(sourceId)}
+                >
+                  <ArrowUpRight />
+                </IconButton>
               </div>
-            )}
+            ))}
 
-            {outgoing.length > 0 && (
-              <div className="mt-2">
-                <h4 className="mb-1 text-sm text-gray-400">Outgoing</h4>
-                <ul className="space-y-1">
-                  {outgoing.map(({ targetLabel, targetId }) => (
-                    <li key={targetId} className="flex items-center text-gray-300">
-                      <ArrowRight className="mr-2 h-4 w-4 text-blue-400" />
-                      <span className="text-sm">
-                        {targetLabel} ({targetId})
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+            {outgoing.map(({ targetLabel, targetId }) => (
+              <div key={targetId} className="hover:bg-secondary flex items-center gap-3 px-5 py-3">
+                <ArrowRight className="h-4 w-4 shrink-0 text-blue-400" />
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <Label>{targetLabel}</Label>
+                  <span className="text-content-secondary truncate font-mono text-xs">{targetId}</span>
+                </div>
+                <IconButton
+                  aria-label="open record"
+                  title="Open record"
+                  variant="ghost"
+                  size="small"
+                  onClick={() => $sheetRecordId.set(targetId)}
+                >
+                  <ArrowUpRight />
+                </IconButton>
               </div>
-            )}
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   )
 }

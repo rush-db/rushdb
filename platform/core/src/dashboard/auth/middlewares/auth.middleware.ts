@@ -3,7 +3,6 @@ import { Response, NextFunction } from 'express'
 
 import { PlatformRequest } from '@/common/types/request'
 import { isDevMode } from '@/common/utils/isDevMode'
-import { extractMixedPropertiesFromToken } from '@/common/utils/tokenUtils'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { TokenService } from '@/dashboard/token/token.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
@@ -32,20 +31,17 @@ export class AuthMiddleware implements NestMiddleware {
       const isJwt = bearerToken?.split('.').length === 3
 
       // Flow for SDK auth (token-based)
-      if (request.headers['token'] || !isJwt) {
+      if (bearerToken && !isJwt) {
         const session = this.neogmaService.createSession('auth-middleware-sdk')
         const transaction = session.beginTransaction({ timeout: 30_000 })
         try {
-          const tokenHeader = (request.headers['token'] || bearerToken) as string
+          const tokenHeader = bearerToken as string
           if (tokenHeader) {
             const tokenId = this.tokenService.decrypt(tokenHeader)
-            const prefixedToken = extractMixedPropertiesFromToken(tokenHeader)
 
-            const { hasAccess, projectId, project, workspaceId, workspace } =
+            const { hasAccess, projectId, project, workspaceId, workspace, accessLevel, canWrite } =
               await this.tokenService.validateToken({
-                tokenId,
-                transaction,
-                prefixData: prefixedToken
+                tokenId
               })
 
             if (hasAccess) {
@@ -58,6 +54,8 @@ export class AuthMiddleware implements NestMiddleware {
               raw.workspaceId = workspaceId
               raw.session = session
               raw.transaction = transaction
+              raw.tokenAccessLevel = accessLevel
+              raw.tokenCanWrite = canWrite
 
               return next()
             }
@@ -117,8 +115,7 @@ export class AuthMiddleware implements NestMiddleware {
               await this.tokenService.verifyIntegrity({
                 user,
                 projectId: request.headers['x-project-id'] as string,
-                workspaceId: request.headers['x-workspace-id'] as string,
-                transaction
+                workspaceId: request.headers['x-workspace-id'] as string
               })
 
             // Custom properties will be accessible at request.raw.*

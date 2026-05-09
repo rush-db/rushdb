@@ -5,7 +5,7 @@ import type { ApiParams } from '~/lib/api'
 import type { SearchParams } from '~/lib/router'
 
 import { api } from '~/lib/api'
-import { createMutator, fetcher } from '~/lib/fetcher'
+import { fetcher } from '~/lib/fetcher'
 import {
   $router,
   isProtectedRoute,
@@ -17,7 +17,7 @@ import {
 import { $token } from './token'
 import { $user } from './user'
 import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
-import { InvitedGetUserResponse } from '~/features/auth/types'
+import type { InvitedGetUserResponse } from '~/features/auth/types'
 
 $user.subscribe(({ isLoggedIn, token }, changedKey) => {
   if (changedKey === 'isLoggedIn') {
@@ -39,7 +39,20 @@ $user.subscribe(({ isLoggedIn, token }, changedKey) => {
     }
 
     if (!isProtectedRoute(page?.route) && isLoggedIn === true && !invite) {
-      redirectRoute('home')
+      // If redirected here from the OAuth consent page, go back there after login
+      const params = new URLSearchParams(window.location.search)
+      const returnUrl = params.get('return')
+      const planFromUrl = params.get('plan')
+      const planFromStorage = sessionStorage.getItem('rushdb_plan_intent')
+      const plan = planFromUrl || planFromStorage
+      if (plan && plan !== 'free') {
+        sessionStorage.removeItem('rushdb_plan_intent')
+        window.location.href = `/billing?plan=${encodeURIComponent(plan)}`
+      } else if (returnUrl) {
+        window.location.href = returnUrl
+      } else if (page?.route !== 'oauthConsent') {
+        redirectRoute('home')
+      }
     }
 
     if (isLoggedIn === false && isProtectedRoute(page?.route)) {
@@ -59,9 +72,14 @@ $router.subscribe((page) => {
 
     if (isProtectedRoute(page?.route) && !isLoggedIn) {
       redirectRoute('signin')
-    } else if (isLoggedIn && isPublicRoute(page?.route) && !invite) {
-      redirectRoute('home')
-    } else if (isLoggedIn && isPublicRoute(page?.route) && invite) {
+    } else if (isLoggedIn && isPublicRoute(page?.route) && !invite && page?.route !== 'oauthConsent') {
+      const planParam = new URLSearchParams(window.location.search).get('plan')
+      if (planParam && planParam !== 'free') {
+        window.location.href = `/billing?plan=${encodeURIComponent(planParam)}`
+      } else {
+        redirectRoute('home')
+      }
+    } else if (isLoggedIn && isPublicRoute(page?.route) && invite && page?.route !== 'oauthConsent') {
       redirectRoute('joinWorkspace')
     }
   }
@@ -112,18 +130,6 @@ export const createUser = action($user, 'createUser', (store, params: ApiParams<
     store.set({ ...user, isLoggedIn: true })
   })
 )
-
-export const $sendRecoveryLink = createMutator({
-  async fetcher({ init, email }: ApiParams<typeof api.auth.sendRecoveryLink>) {
-    return await api.auth.sendRecoveryLink({ init, email })
-  }
-})
-
-export const $resetPassword = createMutator({
-  async fetcher({ init, login, token, password }: ApiParams<typeof api.auth.resetPassword>) {
-    return await api.auth.resetPassword({ init, login, token, password })
-  }
-})
 
 export const resendConfirmationLink = () => {
   const { id } = $user.get()

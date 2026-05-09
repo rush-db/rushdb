@@ -1,68 +1,27 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  forwardRef,
-  HttpException,
-  HttpStatus,
-  Inject,
-  Injectable
-} from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
-import { Transaction } from 'neo4j-driver'
+import { CanActivate, ExecutionContext, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common'
 
-import { toBoolean } from '@/common/utils/toBolean'
-import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
+import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
 
 @Injectable()
 export class PlanActiveGuard implements CanActivate {
   constructor(
-    private readonly configService: ConfigService,
-    @Inject(forwardRef(() => WorkspaceService))
-    private readonly workspaceService: WorkspaceService
+    @Inject(BILLING_POLICY_PORT)
+    private readonly billingPolicyService: BillingPolicyPort
   ) {}
 
-  async checkHasSubscription(workspaceId: string, transaction: Transaction): Promise<boolean> {
-    const workspaceInstance = await this.workspaceService.getWorkspaceInstance(workspaceId, transaction)
-
-    if (!workspaceInstance) {
-      throw new HttpException('No workspace ID provided', HttpStatus.BAD_REQUEST)
-    }
-
-    const properties = workspaceInstance.dataValues
-
-    // Check premium plan expiration (if exists)
-    if (properties.planId) {
-      // we don't want to touch our active subscribers
-      // @TODO
-      if (!properties.isSubscriptionCancelled) {
-        return true
-      }
-
-      const validTillDate = new Date(properties.validTill)
-      const increasedValidTillDate = new Date(validTillDate)
-      increasedValidTillDate.setDate(increasedValidTillDate.getDate() + 30)
-      const currentDate = new Date()
-
-      return !(currentDate > increasedValidTillDate)
-    } else {
-      return false
-    }
+  async checkHasSubscription(workspaceId: string): Promise<boolean> {
+    return this.billingPolicyService.isPlanActive(workspaceId)
   }
 
   async canActivate(context: ExecutionContext) {
-    if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-      return true
-    }
-
     const request = context.switchToHttp().getRequest()
     const workspaceId = request.workspaceId
 
     if (!workspaceId) {
       return false
     }
-    const transaction = request.transaction || request.raw?.transaction
 
-    const canProcessRequest = await this.checkHasSubscription(workspaceId, transaction)
+    const canProcessRequest = await this.checkHasSubscription(workspaceId)
 
     if (!canProcessRequest) {
       throw new HttpException('This feature available with subscription enabled', HttpStatus.PAYMENT_REQUIRED)

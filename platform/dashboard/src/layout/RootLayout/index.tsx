@@ -6,16 +6,16 @@ import { ConfirmEmailNotification } from '~/features/auth/components/ConfirmEmai
 import { UserMenu } from '~/features/auth/components/UserMenu'
 
 import { ChangeProjectMenu } from '~/features/projects/components/ChangeProjectMenu'
-import { $currentRecord } from '~/features/projects/stores/current-record'
 import { $currentProjectId } from '~/features/projects/stores/id'
-import { RecordTitle } from '~/features/records/components/RecordTitle'
 import { $router, getRoutePath, isProjectPage } from '~/lib/router'
 import { cn } from '~/lib/utils'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { ChangeWorkspaceMenu } from '~/features/workspaces/components/ChangeWorkspaceMenu.tsx'
 import { Button } from '~/elements/Button'
 import { LimitReachedModal } from '~/components/billing/LimitReachedDialog.tsx'
 import { PaymentCallbackDialog } from '~/components/billing/PaymentCallbackDialog.tsx'
+import { KuHeaderBar } from '~/components/billing/KuHeaderBar.tsx'
+import { KuLimitBanner } from '~/components/billing/KuLimitBanner'
 
 function ProjectNav() {
   const page = useStore($router)
@@ -31,21 +31,6 @@ function ProjectNav() {
     <>
       <AngledSeparator />
       <ChangeProjectMenu />
-    </>
-  )
-}
-
-function CurrentRecordTitle() {
-  const { data: record } = useStore($currentRecord)
-
-  if (!record) {
-    return null
-  }
-
-  return (
-    <>
-      <AngledSeparator />
-      <RecordTitle className="px-3" id={record.__id} label={record.__label} />
     </>
   )
 }
@@ -82,6 +67,7 @@ function Header() {
       </div>
 
       <div className="flex items-center gap-3">
+        <KuHeaderBar />
         <UserMenu />
       </div>
     </header>
@@ -97,9 +83,9 @@ function GlobalNotifications() {
 }
 
 function GlobalModals() {
-  const platformSettings = useStore($platformSettings)
+  const { data: platformSettings } = usePlatformSettings()
 
-  if (platformSettings.data?.selfHosted) {
+  if (platformSettings?.selfHosted) {
     return null
   }
   return (
@@ -114,6 +100,7 @@ export function RootLayout({ children, className, ...props }: TPolymorphicCompon
   return (
     <div className={cn(className, 'flex min-h-screen flex-col')} {...props}>
       <GlobalNotifications />
+      <KuLimitBanner />
       <Header />
       <main className="flex flex-1 flex-col">{children}</main>
       <GlobalModals />

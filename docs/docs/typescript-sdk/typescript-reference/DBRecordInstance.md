@@ -46,7 +46,7 @@ Creates a new `DBRecordInstance`.
 data?: DBRecordInferred<S, Q>
 ```
 
-The actual record data, which may include aggregated fields if the record was retrieved via a query with aggregation.
+The actual record data, which may include computed metric fields if the record was retrieved via a query with select/groupBy. The legacy aggregate clause is deprecated and only present for vector similarity until select supports it.
 
 ## Methods
 
@@ -224,8 +224,8 @@ Removes a relationship from this record to the target record(s).
 const userRecord = await UserModel.findById('user_123');
 
 // Access record data
-console.log(userRecord.id()); // 'user_123'
-console.log(userRecord.label()); // 'User'
+console.log(userRecord.id); // 'user_123'
+console.log(userRecord.label); // 'User'
 console.log(userRecord.data?.name); // 'John Doe'
 
 // Update the record

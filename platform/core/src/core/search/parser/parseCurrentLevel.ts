@@ -17,8 +17,7 @@ import {
   datetimeOperators,
   ID_CLAUSE_OPERATOR,
   logicalOperators,
-  typeOperators,
-  vectorOperators
+  typeOperators
 } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
@@ -41,12 +40,20 @@ export const parseCurrentLevel = (
   }
 
   if (isArray(input)) {
-    const condition = input.map((v) => {
-      return parseCurrentLevel(key, v, options, ctx)
-    })
+    const conditions = input
+      .map((v) => {
+        const result = parseCurrentLevel(key, v, options, ctx)
+        // If an element returned multiple conditions (object with several keys), AND-group
+        // them before merging into the outer operator join so precedence is explicit.
+        if (isArray(result)) {
+          const parts = (result as string[]).filter(toBoolean)
+          return parts.length > 1 ? wrapInParentheses(parts.join(' AND ')) : (parts[0] ?? '')
+        }
+        return result
+      })
+      .filter(toBoolean)
 
-    // @TODO: Parenthesis ??? (...)
-    return condition.flat().join(options.joinOperator ? ` ${options.joinOperator} ` : ' AND ')
+    return conditions.join(options.joinOperator ? ` ${options.joinOperator} ` : ' AND ')
   }
 
   if (isObject(input)) {
@@ -59,17 +66,16 @@ export const parseCurrentLevel = (
       })
     } else {
       if (
-        containsAllowedKeys(currentLevel, [
-          ...comparisonOperators,
-          ...datetimeOperators,
-          ...typeOperators,
-          ...vectorOperators
-        ])
+        containsAllowedKeys(currentLevel, [...comparisonOperators, ...datetimeOperators, ...typeOperators])
       ) {
         const condition = parseComparison(key, currentLevel as PropertyExpression, options)
 
-        // @TODO: Parenthesis ??? (...)
-        return isArray(condition) ? condition.join(' AND ') : condition
+        if (isArray(condition)) {
+          const joined = condition.join(' AND ')
+          // Wrap compound comparisons so the caller's operator has correct precedence.
+          return condition.length > 1 ? wrapInParentheses(joined) : joined
+        }
+        return condition
       }
 
       return Object.entries(currentLevel).map(([k, v]) => {

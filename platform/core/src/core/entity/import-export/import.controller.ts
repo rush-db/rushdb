@@ -9,7 +9,7 @@ import {
   UseInterceptors,
   UsePipes
 } from '@nestjs/common'
-import { BadRequestException } from '@nestjs/common'
+import { BadRequestException, HttpException } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 import { parse } from 'papaparse'
@@ -25,11 +25,15 @@ import { ImportCsvDto } from '@/core/entity/import-export/dto/import-csv.dto'
 import { ImportJsonDto } from '@/core/entity/import-export/dto/import-json.dto'
 import { ImportService } from '@/core/entity/import-export/import.service'
 import {
+  TImportJsonInputFormat,
+  TImportJsonPayload,
+  TImportSummary
+} from '@/core/entity/import-export/import.types'
+import {
   importCsvSchema,
   importJsonSchema
 } from '@/core/entity/import-export/validation/schemas/import.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
-import { CustomDbWriteRestrictionGuard } from '@/dashboard/billing/guards/custom-db-write-restriction.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
@@ -41,9 +45,67 @@ import { TransactionDecorator } from '@/database/transaction.decorator'
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
 
+  private parseJsonLines(input: string): Array<Record<string, any>> {
+    const lines = input
+      .replace(/^\uFEFF/, '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+
+    if (!lines.length) {
+      throw new BadRequestException('Import failed: JSONL/NDJSON payload is empty')
+    }
+
+    return lines.map((line, index) => {
+      try {
+        const parsed = JSON.parse(line)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Line must be a JSON object')
+        }
+        return parsed
+      } catch {
+        throw new BadRequestException(`Import failed: Invalid JSONL/NDJSON at line ${index + 1}`)
+      }
+    })
+  }
+
+  private normalizeJsonData(
+    data: ImportJsonDto['data'],
+    format?: TImportJsonInputFormat
+  ): TImportJsonPayload {
+    if (typeof data !== 'string') {
+      if (!data || typeof data !== 'object') {
+        throw new BadRequestException('Import failed: `data` must be a JSON object, array, or JSON text')
+      }
+      return data as TImportJsonPayload
+    }
+
+    const text = data.replace(/^\uFEFF/, '').trim()
+    if (!text) {
+      throw new BadRequestException('Import failed: text payload is empty')
+    }
+
+    const inputFormat = format ?? 'json'
+
+    if (inputFormat === 'jsonl' || inputFormat === 'ndjson') {
+      return this.parseJsonLines(text)
+    }
+
+    try {
+      const parsed = JSON.parse(text)
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Parsed value is not an object/array')
+      }
+      return parsed as TImportJsonPayload
+    } catch {
+      const maybeJsonLines = this.parseJsonLines(text)
+      return maybeJsonLines
+    }
+  }
+
   @Post('/records/import/json')
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, EntityWriteGuard, CustomDbWriteRestrictionGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
   @UseInterceptors(
     RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]),
     TransformResponseInterceptor
@@ -56,11 +118,20 @@ export class ImportController {
     @TransactionDecorator() transaction: Transaction,
     @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
-  ): Promise<boolean | TEntityPropertiesNormalized[]> {
+  ): Promise<boolean | TImportSummary | TEntityPropertiesNormalized[]> {
     try {
       const projectId = request.projectId
-      return await this.importService.importRecords(body, projectId, transaction, customTx)
+      const normalizedBody: ImportJsonDto = {
+        ...body,
+        data: this.normalizeJsonData(body.data, body.format)
+      }
+      return await this.importService.importRecords(normalizedBody, projectId, transaction, customTx)
     } catch (error) {
+      // Re-throw HTTP exceptions (e.g. 402 Payment Required from billing limit checks)
+      // directly so the correct status code reaches the client.
+      if (error instanceof HttpException) {
+        throw error
+      }
       throw new BadRequestException('Import failed: ' + error.message, { cause: error })
     }
   }
@@ -73,7 +144,7 @@ export class ImportController {
   )
   @UsePipes(ValidationPipe(importCsvSchema, 'body'))
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(PlanLimitsGuard, EntityWriteGuard, CustomDbWriteRestrictionGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
   @AuthGuard('project')
   async collectCsv(
     @Body() body: ImportCsvDto,
@@ -82,7 +153,7 @@ export class ImportController {
     // Main tx to write data (could be default db or external)
     @PreferredTransactionDecorator() customTx: Transaction,
     @Request() request: PlatformRequest
-  ): Promise<boolean | TEntityPropertiesNormalized[]> {
+  ): Promise<boolean | TImportSummary | TEntityPropertiesNormalized[]> {
     const projectId = request.projectId
 
     const defaultConfig = {
@@ -175,6 +246,20 @@ export class ImportController {
 
     if (!cleanedData.length) {
       return true
+    }
+
+    // Inject per-row inline vectors as $vectors so the BFS handles them identically to importJson
+    if (body.vectors?.length) {
+      if (body.vectors.length > cleanedData.length) {
+        throw new BadRequestException(
+          `vectors length (${body.vectors.length}) exceeds the number of CSV data rows (${cleanedData.length})`
+        )
+      }
+      for (let i = 0; i < body.vectors.length; i++) {
+        if (body.vectors[i]?.length) {
+          cleanedData[i] = { ...cleanedData[i], $vectors: body.vectors[i] }
+        }
+      }
     }
 
     return await this.importService.importRecords(

@@ -1,7 +1,7 @@
 /**
  * This file is responsible for all api calls and data normalization
  */
-import {
+import type {
   AnyObject,
   Property,
   SearchQuery,
@@ -17,7 +17,12 @@ import {
 } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
-import type { BillingData } from '~/features/billing/types'
+import type { BillingData, BillingInquiryPayload } from '~/features/billing/types'
+import type {
+  EmbeddingIndex,
+  CreateEmbeddingIndexParams,
+  EmbeddingIndexStats
+} from '~/features/indexes/types'
 import type { Project, ProjectStats, WithProjectID } from '~/features/projects/types'
 import type { ProjectToken } from '~/features/tokens/types'
 import type {
@@ -38,7 +43,7 @@ import { BASE_URL } from '~/config.ts'
 
 import { fetcher } from './fetcher'
 import { BillingErrorCodes } from '~/features/billing/constants.ts'
-import { AcceptedUserInviteDto } from '~/features/workspaces/types'
+import type { AcceptedUserInviteDto } from '~/features/workspaces/types'
 import { $limitReachModalOpen } from '~/components/billing/LimitReachedDialog.tsx'
 
 type WithInit = {
@@ -213,12 +218,8 @@ export const api = {
     }
   },
   workspaces: {
-    async workspace({ id }: Pick<Workspace, 'id'>, init: RequestInit): Promise<Workspace> {
-      const { data } = await fetcher<GenericApiResponse<Override<Workspace, { limits: string }>>>(
-        `/api/v1/workspaces/${id}`,
-        init
-      )
-      return { ...data, limits: JSON.parse(data.limits) }
+    workspace({ id }: Pick<Workspace, 'id'>, init: RequestInit): Promise<Workspace> {
+      return fetcher<Workspace>(`/api/v1/workspaces/${id}`, init)
     },
     list(init: RequestInit) {
       return fetcher<Workspace[]>(`/api/v1/workspaces`, init)
@@ -494,20 +495,80 @@ export const api = {
       })
     },
     async getBillingData() {
-      return fetcher<BillingData>('https://billing.rushdb.com/api/prices', {
+      const billingServiceUrl = import.meta.env.VITE_BILLING_SERVICE_URL
+      return fetcher<BillingData>(`${billingServiceUrl}/api/prices`, {
         method: 'GET'
+      })
+    },
+    async getKuHistory({
+      init,
+      limit,
+      before,
+      since,
+      projectId,
+      operation
+    }: WithInit & {
+      limit?: number
+      before?: string
+      since?: string
+      projectId?: string | null
+      operation?: string | null
+    }) {
+      const params = new URLSearchParams()
+      if (limit) params.set('limit', limit.toString())
+      if (before) params.set('before', before)
+      if (since) params.set('since', since)
+      if (projectId) params.set('projectId', projectId)
+      if (operation) params.set('operation', operation)
+      const query = params.toString() ? `?${params}` : ''
+
+      return fetcher<{
+        events: Array<{
+          id: string
+          workspaceId: string
+          projectId: string
+          operation: string
+          kuConsumed: number
+          metadata: Record<string, unknown> | null
+          timestamp: string
+        }>
+        hasMore: boolean
+        nextCursor: string | null
+      }>(`/api/v1/billing/payment/ku-history${query}`, {
+        ...init,
+        method: 'GET'
+      })
+    },
+    async getUsage(init?: RequestInit) {
+      return fetcher<{
+        plan: string
+        kuConsumed: number
+        kuLimit: number | null
+        kuIncluded: number | null
+        remaining: number | null
+        billingModel: 'fixed' | 'overage' | 'usage'
+        billingPeriodStart: string
+      }>(`/api/v1/billing/payment/usage`, {
+        ...init,
+        method: 'GET'
+      })
+    },
+    async submitInquiry({ init, ...body }: WithInit & BillingInquiryPayload) {
+      return fetcher<{ success: boolean }>(`/api/v1/billing/payment/inquiry`, {
+        ...init,
+        method: 'POST',
+        body: JSON.stringify(body)
       })
     }
   },
   settings: {
     get: ({ init }: WithInit) => {
       return fetcher<{
-        data: {
-          selfHosted: boolean
-          dashboardUrl: string
-          googleOAuthEnabled: boolean
-          githubOAuthEnabled: boolean
-        }
+        selfHosted: boolean
+        dashboardUrl: string
+        googleOAuthEnabled: boolean
+        githubOAuthEnabled: boolean
+        embeddingEnabled: boolean
       }>(`/api/v1/settings`, {
         ...init,
         method: 'GET'
@@ -519,6 +580,94 @@ export const api = {
       return fetcher<string>('/api/v1/query/records/find', {
         method: 'POST',
         body: JSON.stringify(params.searchQuery)
+      })
+    }
+  },
+  oauth: {
+    async getAuthRequest(id: string) {
+      return fetcher<{
+        auth_request_id: string
+        client_name: string
+        scope: string
+        resource: string
+        expires_at: string
+      }>(`/oauth/authorize/request/${id}`, { method: 'GET' })
+    },
+    async acceptAuthorization({
+      authRequestId,
+      projectId,
+      scope
+    }: {
+      authRequestId: string
+      projectId: string
+      scope?: string
+    }) {
+      return fetcher<{ redirectTo: string }>('/oauth/authorize/accept', {
+        method: 'POST',
+        body: JSON.stringify({
+          auth_request_id: authRequestId,
+          project_id: projectId,
+          ...(scope !== undefined ? { scope } : {})
+        })
+      })
+    },
+    async denyAuthorization(authRequestId: string) {
+      return fetcher<{ redirectTo: string }>('/oauth/authorize/deny', {
+        method: 'POST',
+        body: JSON.stringify({ authRequestId })
+      })
+    },
+    async listConsents() {
+      return fetcher<
+        Array<{
+          id: string
+          client_id: string
+          client_name: string
+          scope: string
+          project_id: string
+          project_name: string
+          resource: string
+          created: string
+        }>
+      >('/oauth/consents', { method: 'GET' })
+    },
+    async revokeConsent(id: string) {
+      return fetcher<void>(`/oauth/consents/${id}`, { method: 'DELETE' })
+    }
+  },
+  indexes: {
+    async list({ projectId }: WithProjectID, init?: RequestInit) {
+      return fetcher<EmbeddingIndex[]>(`/api/v1/ai/indexes`, {
+        ...init,
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'GET'
+      })
+    },
+    async create({ projectId, init, ...body }: WithProjectID & CreateEmbeddingIndexParams & WithInit) {
+      return fetcher<EmbeddingIndex>(`/api/v1/ai/indexes`, {
+        ...init,
+        body: JSON.stringify(body),
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'POST'
+      })
+    },
+    async delete({ init, id }: WithInit & { id: string }) {
+      return fetcher<{ deleted: boolean }>(`/api/v1/ai/indexes/${id}`, {
+        ...init,
+        method: 'DELETE'
+      })
+    },
+    async stats({ init, id, projectId }: WithInit & WithProjectID & { id: string }) {
+      return fetcher<EmbeddingIndexStats>(`/api/v1/ai/indexes/${id}/stats`, {
+        ...init,
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'GET'
       })
     }
   }

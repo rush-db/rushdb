@@ -1,13 +1,11 @@
-import { useStore } from '@nanostores/react'
-
 import type { TDialogProps } from '~/elements/Dialog'
 
 import { ConfirmDialog } from '~/elements/ConfirmDialog'
 
 import type { Project } from '../types'
 
-import { $currentProject } from '../stores/current-project'
-import { deleteProject } from '../stores/project'
+import { useCurrentProjectQuery } from '../hooks/useProjectQueries'
+import { useDeleteProjectMutation } from '../hooks/useProjectMutations'
 
 export function DeleteProjectDialog({
   projectId,
@@ -15,15 +13,15 @@ export function DeleteProjectDialog({
 }: TDialogProps & {
   projectId: Project['id']
 }) {
-  const { data: project } = useStore($currentProject)
-  const { loading, mutate } = useStore(deleteProject)
+  const { data: project } = useCurrentProjectQuery()
+  const { isPending: loading, mutateAsync } = useDeleteProjectMutation()
 
   return (
     <ConfirmDialog
       description={`All of your data related to the project will be lost`}
-      handler={() => mutate({ id: projectId })}
+      handler={() => mutateAsync({ id: projectId })}
       loading={loading}
-      title={`Do you really want to delete "${project?.name ?? 'project'}"?`}
+      title={`Do you really want to delete "${project?.name ?? 'project'}"`}
       {...props}
     />
   )

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -10,18 +11,21 @@ import {
   Post,
   UseInterceptors
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { ApiBearerAuth, ApiExcludeController, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
 import { CommonResponseDecorator } from '@/common/decorators/common-response.decorator'
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
+import { toBoolean } from '@/common/utils/toBolean'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
 import { AuthUser } from '@/dashboard/user/decorators/user.decorator'
 import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { UserService } from '@/dashboard/user/user.service'
+import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
 import { EditWorkspaceDto } from '@/dashboard/workspace/dto/edit-workspace.dto'
 import { InviteToWorkspaceDto } from '@/dashboard/workspace/dto/invite-to-workspace.dto'
 import { RecomputeAccessListDto } from '@/dashboard/workspace/dto/recompute-access-list.dto'
@@ -39,28 +43,29 @@ import { TransactionDecorator } from '@/database/transaction.decorator'
 export class WorkspaceController {
   constructor(
     private readonly userService: UserService,
-    private readonly workspaceService: WorkspaceService
+    private readonly workspaceService: WorkspaceService,
+    private readonly configService: ConfigService
   ) {}
 
-  // Don't allow to create more than 1 org. Temporary disabled (!)
-  // @Post()
-  // @ApiTags('Workspaces')
-  // @ApiBearerAuth()
-  // @HttpCode(HttpStatus.CREATED)
-  // @UseGuards(JwtAuthGuard, WorkspacesCountGuard)
-  // async create(
-  //     @Body() workspaceProperties: CreateWorkspaceDto,
-  //     @AuthUser() { id: userId }: IUserClaims,
-  //     @TransactionDecorator() transaction: Transaction
-  // ): Promise<IWorkspaceProperties> {
-  //     const workspace = await this.workspaceService.createWorkspace(
-  //         workspaceProperties,
-  //         userId,
-  //         transaction
-  //     );
-  //
-  //     return workspace.toJson();
-  // }
+  @Post()
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard()
+  @HttpCode(HttpStatus.CREATED)
+  async create(
+    @Body() workspaceProperties: CreateWorkspaceDto,
+    @AuthUser() { id: userId }: IUserClaims,
+    @TransactionDecorator() transaction: Transaction
+  ): Promise<IWorkspaceProperties> {
+    if (!toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
+      throw new ForbiddenException(
+        'Creating additional workspaces is currently disabled on cloud deployments.'
+      )
+    }
+
+    const workspace = await this.workspaceService.createWorkspace(workspaceProperties, userId, transaction)
+    return workspace.toJson()
+  }
 
   @Get(':id')
   @ApiParam({
@@ -146,12 +151,15 @@ export class WorkspaceController {
     @Body() workspacePayload: InviteToWorkspaceDto,
     @TransactionDecorator() transaction: Transaction
   ): Promise<{ message: string }> {
-    const { name } = await this.workspaceService.getWorkspaceInstance(id, transaction)
+    const [workspace, userEntity] = await Promise.all([
+      this.workspaceService.getWorkspaceInstance(id, transaction),
+      this.userService.findById(user.id, transaction)
+    ])
 
     const payload = {
       workspaceId: id,
-      workspaceName: name,
-      senderEmail: user.login,
+      workspaceName: workspace.name,
+      senderEmail: userEntity!.toJson().login,
       ...workspacePayload
     }
     return await this.workspaceService.inviteMember(payload, transaction)
@@ -254,10 +262,11 @@ export class WorkspaceController {
     @AuthUser() authUser: IUserClaims,
     @TransactionDecorator() transaction: Transaction
   ) {
+    const authUserEntity = await this.userService.findById(authUser.id, transaction)
     const { userData, workspaceId } = await this.userService.acceptWorkspaceInvitation(
       {
         inviteToken: token,
-        authUserLogin: authUser.login
+        authUserLogin: authUserEntity!.toJson().login
       },
       transaction
     )

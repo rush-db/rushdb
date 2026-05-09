@@ -7,12 +7,12 @@ import { Menu, MenuButton, MenuItem, MenuTitle } from '~/elements/Menu'
 import { Skeleton } from '~/elements/Skeleton'
 import { getRoutePath } from '~/lib/router'
 
-import { $workspaceProjects } from '../../workspaces/stores/projects'
-import { $currentProject } from '../stores/current-project'
+import { useWorkspaceProjectsQuery } from '../../workspaces/hooks/useWorkspaceQueries'
+import { useCurrentProjectQuery } from '../hooks/useProjectQueries'
 
 export function ChangeProjectMenu() {
-  const { loading, data: currentProject } = useStore($currentProject)
-  const { data: projectsList } = useStore($workspaceProjects)
+  const { isPending: loading, data: currentProject } = useCurrentProjectQuery()
+  const { data: projectsList } = useWorkspaceProjectsQuery()
 
   return (
     <Menu
@@ -25,7 +25,7 @@ export function ChangeProjectMenu() {
     >
       <MenuTitle>Change Project</MenuTitle>
 
-      {projectsList?.map((project, idx) => (
+      {projectsList?.map((project: (typeof projectsList)[number], idx: number) => (
         <Fragment key={project.id}>
           {idx !== 0 && <Divider />}
           <MenuItem as="a" href={getRoutePath('project', { id: project.id })} icon={<Folder />}>

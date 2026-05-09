@@ -16,9 +16,9 @@ import {
 } from '~/features/onboarding/components/OnboardingStep'
 import { SelectSdkLanguage } from '~/features/onboarding/components/SelectSdkLanguage'
 import { docsUrls } from '~/features/onboarding/constants'
-import { AvailableSdkLanguage } from '~/features/onboarding/types'
-import { $currentProjectFirstToken } from '~/features/projects/stores/current-project'
-import { Project } from '~/features/projects/types'
+import type { AvailableSdkLanguage } from '~/features/onboarding/types'
+import { useProjectTokensQuery } from '~/features/projects/hooks/useProjectQueries'
+import type { Project } from '~/features/projects/types'
 import { getRoutePath } from '~/lib/router'
 import { cn, getNumberOfLines } from '~/lib/utils'
 import { setTourStep } from '~/features/tour/stores/tour.ts'
@@ -45,7 +45,7 @@ await db.records.find({
     pushAndQueryDataPy: {
       title: 'Push and query data',
       code: `db.records.create_many("COMPANY", jsonData)
-      
+
 db.records.find({
     "labels": ["COMPANY"],
     "where": {
@@ -78,7 +78,8 @@ db = RushDB("${token}")`
 }
 
 export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
-  const { token, loading } = useStore($currentProjectFirstToken)
+  const { data: tokens, isPending: loading } = useProjectTokensQuery()
+  const token = tokens?.[0]
 
   useEffect(() => {
     if (!loading && token?.value) {
@@ -213,7 +214,8 @@ function InstallSdk({ className }: { className?: string }) {
 function InitializeSdk({ className }: { className?: string }) {
   const { sdkLanguage } = useStore($settings)
 
-  const { token, loading } = useStore($currentProjectFirstToken)
+  const { data: tokens, isPending: loading } = useProjectTokensQuery()
+  const token = tokens?.[0]
 
   const code = getInstallationCode({
     token: token?.value ?? TOKEN_FALLBACK,

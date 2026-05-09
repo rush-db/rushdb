@@ -1,4 +1,3 @@
-import { useStore } from '@nanostores/react'
 import { ArrowLeft } from 'lucide-react'
 
 import type { Project } from '~/features/projects/types'
@@ -10,7 +9,7 @@ import { boolean, number, object, string, useForm } from '~/lib/form'
 
 import type { ProjectToken } from '../types'
 
-import { addToken } from '../stores/tokens'
+import { useAddTokenMutation } from '../hooks/useTokenMutations'
 import { FormField } from '~/elements/FormField'
 
 const schema = object({
@@ -48,7 +47,7 @@ function TokenCreated({
 }
 
 export function AddTokenCard({ projectId, project }: { project?: Project; projectId: Project['id'] }) {
-  const { data: createdToken, error, mutate } = useStore(addToken)
+  const { data: createdToken, error, mutateAsync: mutate } = useAddTokenMutation()
 
   const defaultValues = {
     description: '',
@@ -67,11 +66,8 @@ export function AddTokenCard({ projectId, project }: { project?: Project; projec
     defaultValues,
     schema
   })
-  // @ts-ignore
   const expirationDisabled = watch('noExpire', false)
-  // useEffect(() => {
-  //   reset(defaultValues)
-  // }, [reset, project])
+
   const showSuccess = createdToken && !error && isSubmitted
 
   return (
@@ -83,12 +79,13 @@ export function AddTokenCard({ projectId, project }: { project?: Project; projec
             mutate({
               projectId,
               ...values,
-              expiration: `${values.expiration}d`
+              expiration: `${values.expiration}d`,
+              level: 'write'
             })
           )}
         >
           <CardHeader title="Create token" />
-          <CardBody className="grid grid-cols-1 sm:grid-cols-3">
+          <CardBody className="grid grid-cols-1 sm:grid-cols-2">
             <TextField {...register('name')} error={errors.name?.message} label="API key name" />
             <TextField
               {...register('description')}

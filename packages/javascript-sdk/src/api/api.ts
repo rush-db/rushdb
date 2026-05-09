@@ -26,6 +26,16 @@ import type {
   Where
 } from '../types/index.js'
 import type { ApiResponse } from './types.js'
+import type {
+  CreateEmbeddingIndexParams,
+  EmbeddingIndex,
+  EmbeddingIndexStats,
+  SemanticSearchParams,
+  SemanticSearchResult,
+  UpsertEmbeddingVectorsParams,
+  UpsertEmbeddingVectorsResult,
+  VectorEntry
+} from './types.js'
 
 import {
   getOwnProperties,
@@ -220,11 +230,13 @@ export class RestAPI {
       {
         label,
         data: rawData,
-        options
+        options,
+        vectors
       }: {
         label: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
         options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'>
+        vectors?: VectorEntry[]
       },
       transaction?: Transaction | string
     ): Promise<DBRecordInstance<S>> => {
@@ -240,9 +252,9 @@ export class RestAPI {
       const data = getOwnProperties(removeUndefinedDeep(rawData))
 
       if (isArray(data) && data.every(isPropertyDraft)) {
-        payload.requestData = { label, properties: data, options }
+        payload.requestData = { label, properties: data, options, ...(vectors?.length && { vectors }) }
       } else if (isFlatObject(data)) {
-        payload.requestData = { label, data, options }
+        payload.requestData = { label, data, options, ...(vectors?.length && { vectors }) }
       } else if (isObject(data)) {
         throw new Error(
           'Provided data is not a flat object. Consider using the `importJson` method for nested objects or arrays of nested objects, or use `createMany` for arrays of flat objects.'
@@ -280,6 +292,11 @@ export class RestAPI {
         label: string
         data: Array<InferSchemaTypesWrite<S>>
         options?: DBRecordCreationOptions
+        /**
+         * Per-row inline vectors for external embedding indexes.
+         * `vectors[i]` is applied to `data[i]`. Its length must not exceed `data.length`.
+         */
+        vectors?: VectorEntry[][]
       },
       transaction?: Transaction | string
     ): Promise<DBRecordsArrayInstance<S>> => {
@@ -292,12 +309,24 @@ export class RestAPI {
         )
       }
 
+      if (data.vectors && data.vectors.length > items.length) {
+        throw new Error(
+          `records.createMany: vectors length (${data.vectors.length}) exceeds the number of data rows (${items.length}).`
+        )
+      }
+
+      // Inject per-row vectors as $vectors on each item so the backend BFS handles them
+      const itemsWithVectors =
+        data.vectors?.length ?
+          items.map((item, i) => (data.vectors![i]?.length ? { ...item, $vectors: data.vectors![i] } : item))
+        : items
+
       const txId = pickTransactionId(transaction)
       const path = `/records/import/json`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
-        requestData: { ...data, data: items }
+        requestData: { label: data.label, data: itemsWithVectors, options: data.options }
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
       this.logger?.({ requestId, path, ...payload })
@@ -421,6 +450,12 @@ export class RestAPI {
           newline?: string
         }
         parentId?: string
+        /**
+         * Per-row inline vectors for external embedding indexes.
+         * `vectors[i]` is applied to CSV row `i` (0-based, after header).
+         * Its length must not exceed the number of data rows — validated server-side.
+         */
+        vectors?: VectorEntry[][]
       },
       transaction?: Transaction | string
     ): Promise<DBRecordsArrayInstance<S>> => {
@@ -678,12 +713,14 @@ export class RestAPI {
         target,
         label,
         data: rawData,
-        options
+        options,
+        vectors
       }: {
         target: DBRecordTarget
         label: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
         options?: Omit<DBRecordCreationOptions, 'returnResult' | 'capitalizeLabels' | 'relationshipType'>
+        vectors?: VectorEntry[]
       },
       transaction?: Transaction | string
     ) => {
@@ -700,9 +737,9 @@ export class RestAPI {
       const data = getOwnProperties(removeUndefinedDeep(rawData))
 
       if (isArray(data) && data.every(isPropertyDraft)) {
-        payload.requestData = { label, properties: data }
+        payload.requestData = { label, properties: data, ...(vectors?.length && { vectors }) }
       } else if (isFlatObject(data)) {
-        payload.requestData = { label, data, options }
+        payload.requestData = { label, data, options, ...(vectors?.length && { vectors }) }
       } else if (isObject(data)) {
         throw new Error('Provided data is not a flat object. Consider to use `importJson` method.')
       } else {
@@ -792,7 +829,8 @@ export class RestAPI {
       {
         label,
         data: rawData,
-        options
+        options,
+        vectors
       }: {
         label?: string
         data: InferSchemaTypesWrite<S> | Array<PropertyDraft>
@@ -800,6 +838,7 @@ export class RestAPI {
           mergeBy?: string[]
           mergeStrategy?: 'rewrite' | 'append'
         }
+        vectors?: VectorEntry[]
       },
       transaction?: Transaction | string
     ): Promise<DBRecordInstance<S>> => {
@@ -820,9 +859,14 @@ export class RestAPI {
       }
 
       if (isArray(data) && data.every(isPropertyDraft)) {
-        payload.requestData = { label, properties: data, options: defaultOptions }
+        payload.requestData = {
+          label,
+          properties: data,
+          options: defaultOptions,
+          ...(vectors?.length && { vectors })
+        }
       } else if (isFlatObject(data)) {
-        payload.requestData = { label, data, options: defaultOptions }
+        payload.requestData = { label, data, options: defaultOptions, ...(vectors?.length && { vectors }) }
       } else if (isObject(data)) {
         throw new Error(
           'Provided data is not a flat object. Upsert supports flat objects or property drafts array.'
@@ -1182,17 +1226,17 @@ export class RestAPI {
   // Only for managed/custom db instances connected to cloud
   public query = {
     /**
-     * Runs a raw Cypher query against the connected Neo4j database.
+     * Executes a raw query against the underlying database engine.
      *
      * NOTE: This endpoint is cloud-only — available only on the RushDB managed
      * service or when your project is connected to a custom database through
      * RushDB Cloud. It will not work for self-hosted or local-only deployments.
      *
-     * @param param0 - Object containing the Cypher query and optional params
-     * @param param0.query - Cypher query string to execute
+     * @param param0 - Object containing the query and optional params
+     * @param param0.query - Query string to execute
      * @param param0.params - Optional parameters to pass to the query
      * @param transaction - Optional transaction id or Transaction instance to run the query in
-     * @returns ApiResponse<any> - Raw result returned by the server (Neo4j driver result wrapped in ApiResponse)
+     * @returns ApiResponse<any> - Raw result returned by the server (wrapped in ApiResponse)
      */
     raw: async <T extends any = any>(
       { query, params }: { query: string; params?: FlatObject },
@@ -1213,6 +1257,195 @@ export class RestAPI {
       this.logger?.({ requestId, path, ...payload, responseData: response.data })
 
       return response
+    }
+  }
+
+  /**
+   * API methods for AI-assisted graph exploration.
+   */
+  public ai = {
+    /**
+     * Returns the full graph ontology as structured JSON.
+     * Each item contains the label name, record count, properties with value ranges/samples,
+     * and cross-label relationships with direction.
+     * Properties may include a `vectorIndexes` array when one or more embedding indexes
+     * exist for that property — a non-empty array means the property is queryable with
+     * `db.ai.search()`. Each entry exposes: id, sourceType, similarityFunction, dimensions,
+     * status, and modelKey.
+     * Use property `id` fields to pass to db.properties.values() for deeper drill-down.
+     * @param params - Optional filter. `labels` scopes to specific labels only.
+     *                 `force: true` bypasses the 1-hour ontology cache and triggers a full recalculation.
+     * @param transaction - Optional transaction for atomic operations
+     */
+    getOntology: async (
+      params?: { labels?: string[]; force?: boolean },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/ai/ontology`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: params ?? {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<unknown[]>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+
+    /**
+     * Returns the full graph ontology as compact Markdown tables.
+     * Token-efficient — intended for direct LLM consumption.
+     * Includes: labels with counts, properties with types and value ranges/samples,
+     * cross-label relationship map, and a "Semantic Search" column per property that shows
+     * `sourceType similarityFunction dimensionsd [status]` (e.g. `managed cosine 1536d [ready]`)
+     * for indexed properties, or `—` when no embedding index exists.
+     * @param params - Optional filter. `labels` scopes to specific labels only.
+     *                 `force: true` bypasses the 1-hour ontology cache and triggers a full recalculation.
+     * @param transaction - Optional transaction for atomic operations
+     */
+    getOntologyMarkdown: async (
+      params?: { labels?: string[]; force?: boolean },
+      transaction?: Transaction | string
+    ) => {
+      const txId = pickTransactionId(transaction)
+      const path = `/ai/ontology/md`
+      const payload = {
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        method: 'POST',
+        requestData: params ?? {}
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<string>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      return response
+    },
+
+    /**
+     * Embedding Index management methods.
+     */
+    indexes: {
+      /**
+       * Lists all embedding index policies configured for the current project.
+       */
+      find: async () => {
+        const path = `/ai/indexes`
+        const payload = { method: 'GET', headers: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<EmbeddingIndex[]>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Creates a new embedding index policy for a string property.
+       * @param params.propertyName - Name of the property to index
+       * @param params.modelKey - Embedding model identifier (e.g. 'text-embedding-3-small')
+       * @param params.dimensions - Vector dimensionality produced by the model
+       */
+      create: async (params: CreateEmbeddingIndexParams) => {
+        const path = `/ai/indexes`
+        const { external, ...rest } = params
+        const resolvedParams = external === true ? { ...rest, sourceType: 'external' as const } : rest
+        const payload = {
+          method: 'POST',
+          headers: {},
+          requestData: resolvedParams
+        }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<EmbeddingIndex>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Upserts external vectors for a specific embedding index.
+       * @param id - The target embedding index ID
+       * @param params.items - Array of { recordId, vector }
+       */
+      upsertVectors: async (id: string, params: UpsertEmbeddingVectorsParams) => {
+        const path = `/ai/indexes/${id}/vectors/upsert`
+        const payload = {
+          method: 'POST',
+          headers: {},
+          requestData: params
+        }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<UpsertEmbeddingVectorsResult>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Deletes an embedding index policy by ID.
+       * @param id - The ID of the embedding index to delete
+       */
+      delete: async (id: string) => {
+        const path = `/ai/indexes/${id}`
+        const payload = { method: 'DELETE', headers: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<{ deleted: boolean }>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Returns Neo4j-level statistics for an embedding index.
+       * @param id - The ID of the embedding index
+       */
+      stats: async (id: string) => {
+        const path = `/ai/indexes/${id}/stats`
+        const payload = { method: 'GET', headers: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<EmbeddingIndexStats>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      }
+    },
+
+    /**
+     * Performs semantic (vector) search over records whose `propertyName` has been indexed.
+     *
+     * RushDB performs exact search: candidates are narrowed via MATCH/WHERE first,
+     * then ranked by similarity. You can pass either query text or queryVector.
+     *
+     * @param params - Search parameters including the query text, property name, and optional filters
+     */
+    search: async <S extends Schema = any>(
+      params: SemanticSearchParams
+    ): Promise<DBRecordsArrayInstance<S>> => {
+      const path = `/ai/search`
+      const payload = { method: 'POST', headers: {}, requestData: params }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<SemanticSearchResult<S>[]>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      const dbRecordInstances = (response.data ?? []).map((r) => new DBRecordInstance<S>(r as DBRecord<S>))
+      return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total ?? 0)
     }
   }
 }

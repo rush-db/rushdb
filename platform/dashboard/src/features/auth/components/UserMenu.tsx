@@ -4,16 +4,17 @@ import { LogOut, RotateCcw, User } from 'lucide-react'
 import { Divider } from '~/elements/Divider'
 import { IconButton } from '~/elements/IconButton'
 import { Menu, MenuItem, MenuTitle } from '~/elements/Menu'
-import { $user, logOut, updateUser } from '~/features/auth/stores/user'
+import { $user, logOut } from '~/features/auth/stores/user'
 import { getRoutePath, openRoute } from '~/lib/router'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
+import { useUpdateUserMutation } from '~/features/auth/hooks/useAuthMutations'
 import { $tourRunning, setTourStep } from '~/features/tour/stores/tour.ts'
 import { CurrentSubscriptionInfo } from '~/components/billing/CurrentSubscriptionInfo.tsx'
 
 export function UserMenu() {
   const currentUser = useStore($user)
-  const platformSettings = useStore($platformSettings)
-  const { mutate: updateSettings } = useStore(updateUser)
+  const { data: platformSettings } = usePlatformSettings()
+  const { mutateAsync: updateSettings } = useUpdateUserMutation()
 
   const handleRestart = async () => {
     await updateSettings({ settings: JSON.stringify({ onboardingStatus: 'active' }) })
@@ -24,7 +25,7 @@ export function UserMenu() {
 
   return (
     <div className="flex items-center gap-2">
-      {!platformSettings?.data?.selfHosted ?
+      {!platformSettings?.selfHosted ?
         <a href={getRoutePath('workspaceBilling')} className="px-3">
           <CurrentSubscriptionInfo />
         </a>
@@ -47,7 +48,7 @@ export function UserMenu() {
           </MenuTitle>
         )}
         <Divider />
-        {!platformSettings?.data?.selfHosted ?
+        {!platformSettings?.selfHosted ?
           <MenuItem as="a" href={getRoutePath('workspaceBilling')}>
             <CurrentSubscriptionInfo className="items-start" />
           </MenuItem>

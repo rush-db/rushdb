@@ -5,102 +5,69 @@ import {
   HttpException,
   HttpStatus,
   Inject,
-  Injectable,
-  PayloadTooLargeException
+  Injectable
 } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { FastifyRequest } from 'fastify'
 import { Transaction } from 'neo4j-driver'
 
+import { isNumeric } from '@/common/utils/isNumeric'
 import { toBoolean } from '@/common/utils/toBolean'
+import { CheckLimitsResponse } from '@/core/billing-client/billing-client.types'
+import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
 import { ProjectService } from '@/dashboard/project/project.service'
-import { TWorkspaceLimits } from '@/dashboard/workspace/model/workspace.interface'
-import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
+/**
+ * PlanLimitsGuard - enforces billing and operational limits.
+ *
+ * All limits (KU, projects, users) are now managed by the billing service.
+ * The platform queries the billing service for all limit checks.
+ *
+ * Self-hosted mode bypasses all limits.
+ */
 @Injectable()
 export class PlanLimitsGuard implements CanActivate {
   constructor(
-    private readonly configService: ConfigService,
-    @Inject(forwardRef(() => WorkspaceService))
-    private readonly workspaceService: WorkspaceService,
+    @Inject(BILLING_POLICY_PORT)
+    private readonly billingPolicyService: BillingPolicyPort,
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService
   ) {}
+
+  private isProjectCreateRequest(request: FastifyRequest): boolean {
+    const method = String((request as any)?.method ?? '').toUpperCase()
+    const rawPath =
+      ((request as any)?.routeOptions?.url as string | undefined) ??
+      ((request as any)?.routerPath as string | undefined) ??
+      ((request as any)?.raw?.url as string | undefined) ??
+      ((request as any)?.url as string | undefined) ??
+      ''
+    const path = rawPath.split('?')[0]
+
+    return method === 'POST' && /\/projects\/?$/.test(path)
+  }
 
   async checkLimits(
     workspaceId: string,
     request: FastifyRequest,
     transaction: Transaction
-  ): Promise<boolean> {
-    const workspaceInstance = await this.workspaceService.getWorkspaceInstance(workspaceId, transaction)
-
-    if (!workspaceInstance) {
-      throw new HttpException('No workspace ID provided', HttpStatus.BAD_REQUEST)
-    }
-
-    const properties = workspaceInstance.dataValues
-    const limits = JSON.parse(properties.limits) as TWorkspaceLimits
-
-    const requestSize = Number(
-      request?.raw?.headers?.['content-length'] ??
-        request?.raw?.headers?.['Content-Length'] ??
-        request?.headers?.['Content-Length'] ??
-        request?.headers?.['content-length'] ??
-        request?.socket?.bytesRead
-    )
-
-    // By default, we check import size limits
-    // For binary data uploads we must check formdata and compare its size against limits.fileSize
-    const targetLimit = limits.importSize
-
-    // Check body size limits
-    if (requestSize > targetLimit) {
-      throw new PayloadTooLargeException(
-        `Reduce size to ${targetLimit / 1024}KB. Got ${requestSize / 1024}KB`
-      )
-    }
-
-    // Check premium plan expiration (if exists)
-    if (properties.planId) {
-      // we don't want to touch our active subscribers
-      // @TODO
-      if (!properties.isSubscriptionCancelled) {
-        return true
-      }
-
-      const validTillDate = new Date(properties.validTill)
-      const increasedValidTillDate = new Date(validTillDate)
-      increasedValidTillDate.setDate(increasedValidTillDate.getDate() + 30)
-      const currentDate = new Date()
-
-      return !(currentDate > increasedValidTillDate)
-    }
-
+  ): Promise<CheckLimitsResponse> {
+    // Get current counts for operational limits
     const workspaceSummaryState = await this.projectService.getProjectsProperties(workspaceId, transaction)
-    const projectsCount = workspaceSummaryState.length
+    const projectCount = workspaceSummaryState.length
 
-    const accumulatedWorkspaceStats = await this.workspaceService.getAccumulatedWorkspaceStats(
-      workspaceInstance,
-      transaction
-    )
+    // TODO: Implement user count when user management is ready
+    // const userCount = await this.workspaceService.getUsersCount(workspaceId, transaction)
 
-    // Check project count limits
-    if (!accumulatedWorkspaceStats.records) {
-      return !(limits.projects && projectsCount > limits.projects)
-    }
+    // Check all limits (KU + operational) via billing service
+    const limitsCheck = await this.billingPolicyService.checkLimits(workspaceId, {
+      projectCount
+      // userCount  // Uncomment when user management is implemented
+    })
 
-    // Check Records limits
-    return !(
-      accumulatedWorkspaceStats.records >= limits.records ||
-      (limits.projects && projectsCount > limits.projects)
-    )
+    return limitsCheck
   }
 
   async canActivate(context: ExecutionContext) {
-    if (toBoolean(this.configService.get('RUSHDB_SELF_HOSTED'))) {
-      return true
-    }
-
     const request = context.switchToHttp().getRequest()
     const workspaceId = request.workspaceId
 
@@ -110,10 +77,29 @@ export class PlanLimitsGuard implements CanActivate {
 
     const transaction = request.transaction || request.raw?.transaction
 
-    const canProcessRequest = await this.checkLimits(workspaceId, request, transaction)
+    const limitsCheck = await this.checkLimits(workspaceId, request, transaction)
 
-    if (!canProcessRequest) {
-      throw new HttpException('Excess records or projects', HttpStatus.PAYMENT_REQUIRED)
+    if (!limitsCheck.allowed && this.isProjectCreateRequest(request)) {
+      const projectLimit = limitsCheck?.limits?.projectLimit
+      const projectCount = limitsCheck?.limits?.projectCount
+      const projectLimitReached =
+        toBoolean(projectLimit) && isNumeric(projectCount) && projectCount >= projectLimit
+
+      // Project creation should be gated by operational limits, not KU exhaustion.
+      if (!projectLimitReached) {
+        return true
+      }
+    }
+
+    if (!limitsCheck.allowed) {
+      throw new HttpException(
+        {
+          message: limitsCheck.reason ?? 'Plan limits exceeded',
+          success: false,
+          usage: limitsCheck.usage
+        },
+        HttpStatus.PAYMENT_REQUIRED
+      )
     }
 
     return true

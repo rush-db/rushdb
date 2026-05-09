@@ -5,29 +5,36 @@ sidebar_label: Introduction
 sidebar_position: 1
 ---
 
-Welcome to the RushDB MCP (Model Context Protocol) server. This server exposes RushDB's Labeled Meta Property Graph (LMPG) database to MCP-compatible clients like Claude Desktop, Cursor, or any MCP tooling.
+# MCP Server
 
-With the MCP server you can:
+Connect Claude, Cursor, or any MCP-compatible client to your RushDB database. Type natural language; the server handles discovery, query building, and execution.
 
-- Browse labels and properties
-- Create, read, update, and delete records
-- Attach/Detach relationships
-- Perform flexible queries with filtering, ordering, pagination, and aggregations
-- Run bulk operations
-- Export data to CSV
-- Manage transactions
+```
+You: How many MOVIE records have a rating above 8?
 
-This section covers setup, configuration, available tools, examples, and troubleshooting.
+Claude: [calls getOntologyMarkdown → confirms MOVIE label and rating field]
+        [calls findRecords: labels=["MOVIE"], select={count:{"$count":"*"}}, where={rating:{$gt:8}}]
 
-> Looking for SDKs instead? See the TypeScript SDK and Python SDK sections in the sidebar.
+Result: 1 movie matched (Inception, rating 8.8)
+```
 
-## Discovery-first Query Builder (Prompts)
+## Mandatory workflow
 
-The MCP server exposes a built-in system prompt via the MCP Prompts API:
+The MCP server ships with a built-in system prompt that enforces a four-step workflow:
+
+1. **ONTOLOGY** — call `getOntologyMarkdown` first. Returns all label names (case-sensitive), field names and types, value ranges, and the full relationship map in a single call.
+2. **INTENT** — classify the request: aggregation, listing, or mutation.
+3. **QUERY SPEC** — before any `findRecords` call that uses dates, aggregation, `groupBy`, or relationship traversal, call `getSearchQuerySpec`. It returns the full operator reference, both `groupBy` modes, limit rules, and annotated examples.
+4. **BUILD** — use only label and field names returned from discovery. Labels are case-sensitive. Never invent names or operators.
+
+This workflow prevents hallucinated labels, wrong operator names, and common pagination errors with aggregations.
+
+## Prompts API
+
+The system prompt is also accessible via the MCP Prompts API:
 
 - Name: `rushdb.queryBuilder`
-- Goal: ensure the agent discovers actual labels/properties first (FindLabels/FindProperties), then builds validated SearchQuery objects (with correct use of where/orderBy/aggregate/groupBy) before calling find-related tools.
 
-MCP clients that support Prompts should fetch this prompt at session start and set it as the system message. This makes natural language requests like “How many workers in my company?” resolve reliably without hallucinating labels or fields.
+Clients that support Prompts can fetch it at session start and inject it as the system message. Clients that do not yet support it can call the `getQueryBuilderPrompt` tool for the same text.
 
-If your client doesn’t support Prompts yet, call the utility tool `GetQueryBuilderPrompt` and use the returned text as your session’s system message.
+→ [Quickstart](./quickstart)

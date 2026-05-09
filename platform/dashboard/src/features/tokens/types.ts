@@ -9,4 +9,6 @@ export type ProjectToken = {
   name: string
   noExpire?: boolean
   value?: string // exists when created
+  level?: 'read' | 'write'
+  issuedBy?: string // 'manual' | 'oauth_exchange'
 }

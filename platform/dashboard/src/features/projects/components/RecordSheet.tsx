@@ -1,34 +1,41 @@
+import type { ReactNode } from 'react'
+import { useState, useEffect } from 'react'
 import { useStore } from '@nanostores/react'
-import { Copy, MoreVertical, Trash, X } from 'lucide-react'
+import { idToDate } from '@rushdb/javascript-sdk'
+import { Copy, Database, GitFork, MoreVertical, Pencil, Trash, X } from 'lucide-react'
 
 import { IconButton } from '~/elements/IconButton'
 import { PageHeader } from '~/elements/PageHeader'
 import { Close, Sheet } from '~/elements/Sheet'
 import { Tab, Tabs, TabsContent, TabsList } from '~/elements/Tabs'
 import { RecordTitle } from '~/features/records/components/RecordTitle'
-import { deleteRecordMutation } from '~/features/records/stores/mutations'
+import { useDeleteRecordMutation } from '~/features/records/hooks/useRecordMutations'
 
-import { $currentRecord, $currentRelatedRecords } from '../stores/current-record'
 import { $sheetRecordId } from '../stores/id'
+import { useCurrentRecordQuery, useCurrentRecordRelatedQuery } from '../hooks/useProjectQueries'
 import { RecordDataTab } from './RecordDataTab'
 import { RelatedRecordsTab } from './RelatedRecordsTab.tsx'
 import { ERecordSheetTabs } from '~/features/projects/types.ts'
+import { EditRecordDialog } from './EditRecordDialog'
 import { MenuItem, Menu } from '~/elements/Menu.tsx'
 import { copyToClipboard } from '~/lib/utils.ts'
 import { Divider } from '~/elements/Divider.tsx'
 import { DialogTitle } from '~/elements/Dialog.tsx'
 
-const tabs: ERecordSheetTabs[] = [
-  ERecordSheetTabs.data,
-  // ERecordSheetTabs.api,
-  ERecordSheetTabs.relations
+const tabConfig: { value: ERecordSheetTabs; label: string; icon: ReactNode }[] = [
+  { value: ERecordSheetTabs.data, label: 'Data', icon: <Database /> },
+  { value: ERecordSheetTabs.relations, label: 'Relations', icon: <GitFork /> },
 ]
 
 export function RecordSheet() {
   const id = useStore($sheetRecordId)
-  const { data: record } = useStore($currentRecord)
-  const { data: relations } = useStore($currentRelatedRecords)
-  const { mutate: deleteRecord } = useStore(deleteRecordMutation)
+  const { data: record } = useCurrentRecordQuery()
+  const { data: relationsResult } = useCurrentRecordRelatedQuery()
+  const relations = relationsResult?.data
+  const { mutate: deleteRecord } = useDeleteRecordMutation()
+
+  const [activeTab, setActiveTab] = useState<ERecordSheetTabs>(ERecordSheetTabs.data)
+  useEffect(() => { setActiveTab(ERecordSheetTabs.data) }, [id])
 
   return (
     <Sheet
@@ -39,21 +46,26 @@ export function RecordSheet() {
       }}
       open={id !== undefined}
     >
-      <PageHeader className="bg-fill2 sticky top-0 z-40 justify-start gap-5 px-5 py-3">
-        <Close asChild>
-          <IconButton aria-label="close" variant="ghost">
-            <X />
-          </IconButton>
-        </Close>
-
+      <PageHeader className="bg-fill2 sticky top-0 z-40 min-h-0 justify-start gap-3 px-5 py-4">
         <DialogTitle className="flex-1 truncate text-xl">
-          {record && <RecordTitle id={record.__id} label={record.__label} />}
+          {record && <RecordTitle id={record.__id} label={record.__label} createdAt={idToDate(record.__id)} />}
         </DialogTitle>
+
+        {record && (
+          <EditRecordDialog
+            record={record}
+            trigger={
+              <IconButton aria-label="edit record" title="Edit record" variant="ghost" size="small">
+                <Pencil />
+              </IconButton>
+            }
+          />
+        )}
 
         {record && (
           <Menu
             trigger={
-              <IconButton aria-label="more" title="More" variant="ghost">
+              <IconButton aria-label="more" title="More" variant="ghost" size="small">
                 <MoreVertical />
               </IconButton>
             }
@@ -71,20 +83,26 @@ export function RecordSheet() {
             </MenuItem>
           </Menu>
         )}
+        <Close asChild>
+          <IconButton aria-label="close" variant="ghost" size="small">
+            <X />
+          </IconButton>
+        </Close>
       </PageHeader>
 
-      <Tabs defaultValue={ERecordSheetTabs.data}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ERecordSheetTabs)}>
         <TabsList className="bg-fill2 w-full border-b px-5">
-          {tabs
-            .filter((t) => (!relations ? t !== ERecordSheetTabs.relations : t))
-            .map((t) => (
-              <Tab key={t} value={t}>
-                {t}
+          {tabConfig
+            .filter(({ value }) => relations || value !== ERecordSheetTabs.relations)
+            .map(({ value, label, icon }) => (
+              <Tab key={value} value={value}>
+                {icon}
+                {label}
               </Tab>
             ))}
         </TabsList>
 
-        <TabsContent className="m-5" value={ERecordSheetTabs.data}>
+        <TabsContent value={ERecordSheetTabs.data}>
           <RecordDataTab />
         </TabsContent>
         <TabsContent value={ERecordSheetTabs.relations}>

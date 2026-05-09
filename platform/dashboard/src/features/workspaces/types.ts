@@ -5,17 +5,14 @@ import type { GetUserResponse } from '~/features/auth/types.ts'
 export type Workspace = {
   created: ISO8601
   id: string
-  limits: {
-    projects: number
-    users?: number
-    records: number
-    importSize: number
-  }
   name: string
   planId?: PlanId
   validTill?: ISO8601
   role?: 'owner' | 'developer'
   isSubscriptionCancelled?: boolean
+  // Operational limits from billing service (injected at runtime)
+  projectLimit?: number | null // null = unlimited
+  userLimit?: number | null // null = unlimited
 }
 
 export interface WorkspaceUser {

@@ -98,7 +98,7 @@ describe('records.upsert (e2e)', () => {
     })
 
     // Same ID confirms it matched on all properties
-    expect(first.id()).toBe(second.id())
+    expect(first.id).toBe(second.id)
 
     // Third upsert with different property value (should create new record since not all props match)
     const third = await db.records.upsert({
@@ -109,7 +109,7 @@ describe('records.upsert (e2e)', () => {
     expect(third.data.orderId).toBe('ORD-001')
     expect(third.data.status).toBe('completed')
     // Different ID confirms it's a new record (status didn't match)
-    expect(first.id()).not.toBe(third.id())
+    expect(first.id).not.toBe(third.id)
 
     // Cleanup
     await db.records.delete({ labels: ['Order'], where: { tenantId } })
@@ -138,7 +138,7 @@ describe('records.upsert (e2e)', () => {
     expect(second.data.value).toBe('light')
     expect(second.data.tenantId).toBe(tenantId)
     // Same ID confirms it's an update
-    expect(first.id()).toBe(second.id())
+    expect(first.id).toBe(second.id)
 
     // Cleanup
     await db.records.delete({ labels: ['Setting'], where: { tenantId } })
@@ -241,8 +241,8 @@ describe('records.upsert (e2e)', () => {
     expect(third.data.supplier).toBe('ABC Corp')
 
     // All should be the same record
-    expect(first.id()).toBe(second.id())
-    expect(second.id()).toBe(third.id())
+    expect(first.id).toBe(second.id)
+    expect(second.id).toBe(third.id)
 
     // Cleanup
     await db.records.delete({ labels: ['Inventory'], where: { tenantId } })
@@ -309,7 +309,7 @@ describe('records.upsert (e2e)', () => {
     })
 
     expect(updated.data.value).toBe('updated')
-    expect(result.id()).toBe(updated.id())
+    expect(result.id).toBe(updated.id)
 
     // Cleanup
     await db.records.delete({ where: { tenantId } })

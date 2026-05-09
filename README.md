@@ -4,258 +4,234 @@
 
 # RushDB
 
-### Developer‑first property‑centric graph store
+### The memory layer for AI agents and apps.
 
-RushDB lets you push raw JSON/CSV, auto-normalize it into a labeled meta property graph, and query records, schema, relationships, values, vectors and aggregations through one JSON search interface. No upfront schema design, no new query language to learn.
-RushDB transforms how you work with graph data — no schema required, no complex queries, just push your data and go.
+Push any JSON. Get graph relationships and vector search — automatically.
+No schema. No pipeline. No glue code.
 
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
-[![Follow on X (Twitter)](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
+[![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
+[![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
+[![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
 
-[🌐 Website](https://rushdb.com) • [📖 Documentation](https://docs.rushdb.com) • [☁️ Cloud Platform](https://app.rushdb.com) • [🔍 Examples](https://github.com/rush-db/examples)
+[🌐 Website](https://rushdb.com) • [📖 Documentation](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 Examples](https://github.com/rush-db/examples)
 
 </div>
 
 ---
-## ✨ Core Capabilities
 
-- **Zero-Friction Ingest**: Push arbitrary nested JSON / CSV; RushDB performs BFS normalization into a labeled meta property graph (LMPG)
-- **Unified Search DTO**: One JSON structure for filtering, traversing, grouping (`groupBy`), aggregating, vector similarity & introspection (records / labels / properties / values / relationships)
-- **Property‑Centric Indexing**: Properties become first-class nodes ("HyperProperties") enabling dynamic schema discovery & integrity checks
-- **Vector & Hybrid Search**: Embed, store, and query semantic similarity side‑by‑side with structured predicates
-- **Aggregation & Grouping**: `aggregate` + `groupBy` for pivot tables, KPIs and multi-key rollups without pre-modeling
-- **Self‑Describing Graph**: Auto-discover labels, properties, value ranges and relationship topology for UI generation & AI agents
-- **Incremental Complexity**: Start with naïve data push; evolve into deep traversals & analytical queries—no migrations
-- **Polyglot SDKs**: TypeScript/JavaScript, Python & REST all share identical semantics
+## The problem
 
-## 💼 Use Cases
+Your agent needs memory. The standard answer is three databases: Redis for key-value, a vector store for semantic search, a graph DB for relationships — plus glue code to keep them in sync.
 
-1. **AI Memory & Agentic Trails**
-  Persist multi-turn conversations, reasoning chains and tool outputs. Property overlap inference auto-connects sessions, enabling retrieval, summarization and context window reconstruction without manual relationship modeling.
+RushDB replaces all three. Push JSON once. Query it with graph traversal, semantic search, or both — in one call.
 
-2. **Small Team → Big Ambition**
-  Ship PoCs / MVPs fast: push raw data now, refine model later. Avoid schema migration churn while scaling query sophistication and data volume.
+| Without RushDB | With RushDB |
+|---|---|
+| Redis + Pinecone + Neo4j + glue code | One API |
+| Design schema → write migrations → repeat | Push any shape, no schema required |
+| Separate embedding pipeline | Managed embeddings, server-side |
+| Hand-craft relationship edges | Auto-detected from your data structure |
 
-3. **Search & Intelligence over Connected Catalogs**
-  Product catalogs, knowledge bases (RAG), fraud patterns, biotech entities: traverse, filter, vector match, aggregate & group in one DTO—no separate systems for metadata vs content.
+---
 
-4. **Make Flat Data Breathe**
-  Turn CSV/JSON dumps into a navigable graph in minutes. BFS import + property linking + lightweight aliasing gives relationship intelligence without hand-curating edges.
+## Quick start
 
-5. **Fullstack Apps without CRUD Boilerplate**
-  "What you see is what you push": nested create mirrors nested query. Auto-discovered labels/properties power dynamic forms, filters and analytics—no ORMs, no bespoke resolver layer.
+Get an API key at [app.rushdb.com](https://app.rushdb.com), then:
 
-6. **Operational + Analytical Unification**
-  Real-time user-facing features and exploratory analytics run on the same query surface—no ETL lag or duplicated modeling.
-
-7. **Adaptive Schema Exploration for AI Agents**
-  Agents enumerate labels, properties & value distributions programmatically to self-orient and generate safe follow-up queries.
-
-## 🧪 Architecture: LMPG & HyperProperties
-
-Traditional property graphs bind you to early labeling, manual relationship planning, and separate APIs for schema vs data. RushDB’s **Labeled Meta Property Graph (LMPG)** model inverts this: properties are elevated to graph nodes (HyperProperties) capturing:
-
-| Dimension | Tracked Meta (Examples) | Benefit |
-|-----------|-------------------------|---------|
-| Type distribution | inferred scalar kinds, vector dims | Detect drift & inconsistent ingestion |
-| Cardinality & sparsity | distinct counts, null ratios | Index heuristics & UI filter hints |
-| Value ranges / histograms | min / max / buckets | Instant range sliders & anomaly bounds |
-| Relationship incidence | cross-label co-occurrence | Emergent data model visualization |
-| Temporal evolution | first/last seen timestamps | Freshness & lineage checks |
-
-### Data Observability
-One JSON SearchQuery can retrieve perspectives (records, labels, properties, value ranges, relationships) sharing identical filter semantics. This unified projection removes the “N+1 inspection” pattern and enables:
-* Schema drift detection (compare property sets over time)
-* Automatic filter UI generation (value domains & type inference)
-* Programmatic cataloging for governance & AI agents
-
-### Data Integrity
-HyperProperties enable soft constraints without rigid upfront schemas:
-* Type cohesion scoring & anomaly flagging
-* Optional uniqueness & frequency analysis guiding index strategy
-* Automatic relationship inference via shared property linkage (reduces orphan edges)
-* Consistent vector dimension enforcement at ingestion
-
-### Query Semantics & Data Model
-Let G = (R, P, E_rp, E_pp) where R are record nodes, P are property (HyperProperty) nodes. Edges encode (record ↔ property assignments) and (property ↔ property co-occurrence). Query evaluation leverages property-level adjacency to: (a) prune traversal (perforating execution), (b) derive emergent schema, (c) compose multi-perspective responses in a single pass.
-
-This yields sub-linear schema introspection relative to naïve per-aspect scans because shared filter evaluation is amortized across all requested perspectives.
-
-### Example: Single DTO, Multiple Perspectives
-```ts
-// Pseudocode: obtain records + property stats + grouped aggregations
-const result = await db.records.find({
-  labels: ['TRANSACTION'],
-  where: { status: 'posted', amount: { $gte: 100 } },
-  aggregate: { total: { fn: 'sum', field: 'amount', alias: '$record' } },
-  groupBy: ['$record.category']
-})
-// Parallel: db.properties.find({ same filter })
-```
-
-For deeper architectural exposition see the blog article on [LMPG](https://rushdb.com/blog/labeled-meta-property-graphs-rushdb-s-revolutionary-approach-to-graph-database-architecture).
-
-## 🚀 Quick Start
-
-### 1. Get an API Key (Cloud) or Run Locally
-RushDB Cloud: create a project at https://app.rushdb.com → copy API key.
-Self-host (requires Neo4j 5.25.1+ with APOC & GDS):
 ```bash
-docker run -p 3000:3000 \
-  --name rushdb \
-  -e NEO4J_URL='neo4j+s://your-instance.neo4j.io' \
-  -e NEO4J_USERNAME='neo4j' \
-  -e NEO4J_PASSWORD='password' \
-  rushdb/platform
+npm install @rushdb/javascript-sdk
+# or
+pip install rushdb
 ```
 
-### 2. Ingest Nested Data
+### Store and recall agent memory
 
-#### Python
+```typescript
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB('RUSHDB_API_KEY')
+
+// One-time: tell RushDB to auto-embed 'output' on every write
+await db.ai.indexes.create({ label: 'MEMORY', propertyName: 'output' })
+
+// Store an agent action — no embedder, no vectors array
+await db.records.create({
+  label: 'MEMORY',
+  data: {
+    agent_id: 'agent-42',
+    session_id: 'sess-001',
+    action: 'summarized',
+    topic: 'Q4 results',
+    output: summaryText,
+  },
+})
+
+// Recall by meaning — graph filter + semantic search in one call
+const memories = await db.ai.search({
+  labels: ['MEMORY'],
+  propertyName: 'output',
+  query: 'what did we decide about Q4?',
+  where: { agent_id: 'agent-42' },
+  limit: 10,
+})
+```
+
 ```python
 from rushdb import RushDB
 
-db = RushDB("RUSHDB_API_KEY")
+db = RushDB('RUSHDB_API_KEY')
 
-# Push any nested JSON - RushDB normalizes it into a graph
-db.records.create_many(
-   "COMPANY",
-   {
-      "name": "Google LLC",
-      "rating": 4.9,
-      "DEPARTMENT": [
-         {
-            "name": "Research & Development",
-            "PROJECT": [
-               {
-                  "name": "Bard AI",
-                  "budget": 1200000000,
-                  "EMPLOYEE": [
-                     {
-                        "name": "Jeff Dean",
-                        "position": "Head of AI Research",
-                     }
-                  ],
-               }
-            ],
-         }
-      ],
-   },
+# Store — graph links sessions, actions, and context automatically
+db.records.create(
+    label='MEMORY',
+    data={
+        'agent_id': 'agent-42',
+        'action': 'summarized',
+        'topic': 'Q4 results',
+        'output': summary_text,
+    },
 )
 
-# Traverse relationships with intuitive nested queries
-employees = db.records.find({
-   "labels": ["EMPLOYEE"],
-   "where": {
-      "position": {"$contains": "AI"},
-      "PROJECT": {"DEPARTMENT": {"COMPANY": {"rating": {"$gte": 4}}}},
-   },
+# Recall — traverse relationships and filter by meaning
+results = db.records.find({
+    'labels': ['MEMORY'],
+    'where': {
+        'agent_id': 'agent-42',
+        'topic': {'$contains': 'Q4'},
+    },
+    'limit': 10,
 })
 ```
 
-#### TypeScript/JavaScript
+<details>
+<summary>Also works with nested JSON — RushDB structures it automatically</summary>
+
 ```typescript
-import RushDB from '@rushdb/javascript-sdk';
-
-const db = new RushDB("RUSHDB_API_KEY");
-
-// Push data with automatic relationship creation
+// Push nested JSON — RushDB normalizes it into a graph, no schema needed
 await db.records.importJson({
-   label: "COMPANY",
-   payload: {
-      name: 'Google LLC',
-      rating: 4.9,
-      DEPARTMENT: [{
-         name: 'Research & Development',
-         PROJECT: [{
-            name: 'Bard AI',
-            EMPLOYEE: [{
-               name: 'Jeff Dean',
-               position: 'Head of AI Research',
-            }]
-         }]
+  label: 'COMPANY',
+  payload: {
+    name: 'Acme Corp',
+    DEPARTMENT: [{
+      name: 'Engineering',
+      EMPLOYEE: [{
+        name: 'Alice',
+        role: 'Staff Engineer',
       }]
-   }
-});
+    }]
+  }
+})
 
-// Simple queries that traverse complex relationships
-const aiExperts = await db.records.find({
+// Traverse the auto-created relationships
+const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
   where: {
-    position: { $contains: 'AI' },
-    PROJECT: { DEPARTMENT: { COMPANY: { rating: { $gte: 4 } } } },
+    role: { $contains: 'Engineer' },
+    DEPARTMENT: { COMPANY: { name: 'Acme Corp' } },
   },
-});
+})
 ```
 
-## 💡 Unified Search DTO
+</details>
 
-One structure for all perspectives & operations:
+---
 
-```typescript
-interface SearchQuery {
-  labels?: string[];     // Filter by record labels
-  where?: WhereClause;   // Filter by properties and relationships
-  limit?: number;        // Maximum records to return
-  skip?: number;         // Records to skip (pagination)
-  orderBy?: OrderByClause; // Sorting configuration
-  aggregate?: AggregateClause; // Data aggregation
+## Connect to Claude, Cursor, or any MCP client
+
+RushDB ships an MCP server. Your agent gets persistent, structured memory — out of the box.
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "your-api-key-here"
+      }
+    }
+  }
 }
 ```
 
-Benefits:
-- Learn once—identical across SDKs & REST
-- Automatic schema / property / relationship discovery
-- AI & tooling friendliness (introspect before generating follow-up queries)
-- Operational + analytical reuse (no ETL / view duplication)
+Place this in your Claude Desktop, Cursor, or Windsurf MCP config. The agent can now create records, search by meaning, traverse relationships, and introspect the schema — all via natural language.
 
-## 🛠️ Self-Hosting
+---
 
-### Requirements
-- Neo4j 5.25.1+
-- APOC plugin
-- Graph Data Science plugin (for vector similarity & advanced aggregates)
+## What's in the box
 
-### Minimal Docker Compose
+| Capability | What it means |
+|---|---|
+| **Managed embeddings** | Index any string property once — every write is auto-embedded server-side |
+| **Graph + vector in one query** | Semantic similarity and relationship traversal compose in a single call |
+| **Zero schema** | Push any JSON shape. RushDB infers types, creates properties, links records |
+| **ACID transactions** | Concurrent agents don't corrupt shared memory. Neo4j under the hood |
+| **Self-describing graph** | Agents enumerate labels, properties, and value ranges to orient themselves |
+| **MCP-native** | Full MCP server with discovery-first query prompt built in |
+| **Agent Skills** | Installable `@rushdb/skills` package — teach any skills-compatible agent to query, model, and remember with RushDB in one command |
+| **Unified query API** | One JSON shape for graph, vector, aggregation, and introspection |
+| **Self-host or cloud** | Docker + your Neo4j, or managed cloud. Full data ownership |
+
+---
+
+## Use cases
+
+**Agent memory** — Persist tool outputs, conversation history, and reasoning chains. Graph auto-links sessions, entities, and actions without manual relationship modeling.
+
+**RAG with context** — Go beyond flat chunk retrieval. Filter by relationships, rank by semantic similarity, aggregate — one query.
+
+**Schema-free apps** — Push raw data now, refine later. No migration churn. Labels and properties auto-discovered for dynamic UIs and AI agents.
+
+**Connected data products** — Product catalogs, knowledge bases, fraud graphs, biotech entities: traverse, filter, and aggregate without separate systems.
+
+---
+
+## Self-hosting
+
+Requires Neo4j 2026.01.4+ with APOC and Graph Data Science plugins.
+
 ```yaml
+# docker-compose.yml
 version: '3.8'
 services:
   rushdb:
     image: rushdb/platform
-    container_name: rushdb
     ports:
       - "3000:3000"
     environment:
       - NEO4J_URL=neo4j+s://your-instance.neo4j.io
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=password
+      - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
 ```
 
 <details>
-  <summary>Environment variables</summary>
+<summary>Full environment variables</summary>
 
 | Name | Description | Required | Default |
 |------|-------------|----------|---------|
-| `NEO4J_URL` | Neo4j connection URL | yes | - |
+| `NEO4J_URL` | Neo4j connection URL | yes | — |
 | `NEO4J_USERNAME` | Neo4j username | yes | neo4j |
-| `NEO4J_PASSWORD` | Neo4j password | yes | - |
+| `NEO4J_PASSWORD` | Neo4j password | yes | — |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | 32-char key for API token encryption | yes (prod) | — |
 | `RUSHDB_PORT` | HTTP port | no | 3000 |
-| `RUSHDB_AES_256_ENCRYPTION_KEY` | 32 char encryption key for API tokens | yes (prod) | - |
 | `RUSHDB_LOGIN` | Admin login | no | admin |
 | `RUSHDB_PASSWORD` | Admin password | no | password |
+
 </details>
 
 <details>
-  <summary>Local development (bundled Neo4j)</summary>
+<summary>Local development (bundled Neo4j)</summary>
 
 ```yaml
 version: '3.8'
 services:
   rushdb:
     image: rushdb/platform
-    container_name: rushdb
     depends_on:
       neo4j:
         condition: service_healthy
@@ -266,9 +242,9 @@ services:
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=password
   neo4j:
-    image: neo4j:5.25.1
+    image: neo4j:2026.01.4
     healthcheck:
-      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1"]
       interval: 5s
       retries: 30
       start_period: 10s
@@ -278,38 +254,60 @@ services:
     environment:
       - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
       - NEO4J_AUTH=neo4j/password
-      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+    volumes:
+      - ./neo4j-plugins:/var/lib/neo4j/plugins
 ```
+
 </details>
 
-### CLI (container exec)
 ```bash
-# Create user
+# Manage users via CLI
 rushdb create-user admin@example.com securepassword123
-# Update password
 rushdb update-password admin@example.com newsecurepassword456
 ```
 
-## 📚 Key Docs
+<details>
+<summary>Architecture: how RushDB structures data (LMPG)</summary>
+
+RushDB uses a **Labeled Meta Property Graph (LMPG)** model. Properties are elevated to first-class graph nodes ("HyperProperties") — not just key-value pairs attached to records.
+
+This means:
+- **Auto-detected relationships** — records sharing properties get linked without hand-crafting edges
+- **Schema introspection** — agents can enumerate labels, property types, value ranges, and relationship topology in one query
+- **Soft constraints** — type cohesion scoring, cardinality tracking, and vector dimension enforcement without rigid upfront schemas
+- **Unified query surface** — the same filter expression works across records, labels, properties, and relationships
+
+One SearchQuery retrieves multiple perspectives simultaneously (records + property stats + aggregations), avoiding the N+1 inspection pattern common in separate-system architectures.
+
+[Read the full LMPG architecture post →](https://rushdb.com/blog/labeled-meta-property-graphs-rushdb-s-revolutionary-approach-to-graph-database-architecture)
+
+</details>
+
+---
+
+## Documentation
 
 | Topic | Link |
 |-------|------|
 | Quick Tutorial | https://docs.rushdb.com/get-started/quick-tutorial |
+| Vector / Semantic Search | https://docs.rushdb.com/concepts/search/where#vector-operators |
+| Filtering & Traversal | https://docs.rushdb.com/concepts/search/where |
 | Grouping & Aggregations | https://docs.rushdb.com/concepts/search/group-by |
-| Where / Filtering | https://docs.rushdb.com/concepts/search/where |
-| Vector Search | https://docs.rushdb.com/concepts/search/where#vector-operators |
-| Python SDK | https://docs.rushdb.com/python-sdk/introduction |
 | TypeScript SDK | https://docs.rushdb.com/typescript-sdk/introduction |
+| Python SDK | https://docs.rushdb.com/python-sdk/introduction |
 | REST API | https://docs.rushdb.com/rest-api/introduction |
-
-## 🤝 Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Issues & PRs welcome.
-
+| MCP Server | packages/mcp-server/README.md |
+| Agent Skills | packages/skills/README.md |
 
 ---
 
-## 📄 License
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and PRs welcome.
+
+---
+
+## License
 
 | Path | License |
 |------|---------|
@@ -322,5 +320,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Issues & PRs welcome.
 
 ---
 
----
-Need something not supported yet? Open an issue—design discussions are welcome.
+Need something not supported yet? Open an issue — design discussions are welcome.

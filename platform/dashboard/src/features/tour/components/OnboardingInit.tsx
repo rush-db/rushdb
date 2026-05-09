@@ -1,13 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { useStore } from '@nanostores/react'
-import { $user, updateUser } from '~/features/auth/stores/user'
+import { $user } from '~/features/auth/stores/user'
 import { $tourRunning } from '~/features/tour/stores/tour'
-import { $platformSettings } from '~/features/auth/stores/settings'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
+import { useUpdateUserMutation } from '~/features/auth/hooks/useAuthMutations'
 
 export function OnboardingInit() {
   const user = useStore($user)
-  const platformSettings = useStore($platformSettings)
-  const { mutate: updateSettings } = useStore(updateUser)
+  const { data: platformSettings } = usePlatformSettings()
+  const { mutateAsync: updateSettings } = useUpdateUserMutation()
   const hasInitialized = useRef(false)
   const isOwner = user.currentScope?.role === 'owner'
 
@@ -30,7 +31,7 @@ export function OnboardingInit() {
 
     $tourRunning.set(true)
     hasInitialized.current = true
-  }, [user, platformSettings.data, updateSettings])
+  }, [user, platformSettings, updateSettings])
 
   return null
 }

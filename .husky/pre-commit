@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# ── 1. Auto-fix staged files ───────────────────────────────────────────────────
+# prettier --write + eslint --fix on staged files only.
+# ESLINT_USE_FLAT_CONFIG=false is required because platform/core and
+# platform/dashboard use the legacy .eslintrc format with ESLint 9.
+export ESLINT_USE_FLAT_CONFIG=false
+pnpm lint-staged
+
+# ── 2. TypeScript type-check ───────────────────────────────────────────────────
+pnpm --filter ./packages/javascript-sdk types:check
+pnpm --filter ./packages/mcp-server types:check
+pnpm --filter ./platform/core types:check
+pnpm --filter ./platform/dashboard types:check
+
+# ── 3. Unit tests (no external services required) ─────────────────────────────
+pnpm --filter ./platform/core test

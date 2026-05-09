@@ -1,0 +1,10 @@
+{
+  "label": "AI & Vectors",
+  "position": 1,
+  "collapsed": false,
+  "collapsible": true,
+  "link": {
+    "type": "doc",
+    "id": "rest-api/ai/overview"
+  }
+}

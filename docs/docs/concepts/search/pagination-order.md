@@ -24,13 +24,13 @@ These settings are defined at the top level in the SearchQuery DTO, alongside fi
   limit: 100,               // Results limit (optional)
   skip: 0,                  // Results offset (optional)
   orderBy: { name: 'asc' }, // Sorting (optional)
-  aggregate: { /* aggregations */ }  // Aggregations (optional)
+  select: { /* expressions */ }     // Output-shaping expressions (optional)
 }
 ```
 
 ## Pagination Parameters
 
-### `limit`
+### Limit
 
 - **Type**: `number`
 - **Optional**: Yes
@@ -38,7 +38,7 @@ These settings are defined at the top level in the SearchQuery DTO, alongside fi
 - **Valid Range**: `1` to `1000`
 - **Description**: Specifies the maximum number of records to return in the result set.
 
-### `skip`
+### Skip
 
 - **Type**: `number`
 - **Optional**: Yes
@@ -175,17 +175,19 @@ You can combine pagination and sorting to implement sophisticated data access pa
 
 Ordering interacts with aggregation execution order. RushDB distinguishes between:
 
-1. Early ordering/pagination – Happens before aggregation when you don't explicitly sort by an aggregated key.
-2. Late ordering/pagination – Happens after aggregation when you sort by one (or more) aggregated keys.
+1. Early ordering/pagination – Happens before metrics computation when you don't explicitly sort by a computed key.
+2. Late ordering/pagination – Happens after metrics computation when you sort by one (or more) computed keys.
 
-Why it matters: Early ordering limits the raw input rows feeding the aggregation. Late ordering allows the aggregation to consider the entire matched set first, then applies `ORDER BY`, `SKIP`, `LIMIT` to the aggregated result rows.
+Why it matters: Early ordering limits the raw input rows feeding the metrics computation. Late ordering allows the metrics computation to consider the entire matched set first, then applies `ORDER BY`, `SKIP`, `LIMIT` to the computed result rows.
 
 ### Example: Late Order (Accurate Total)
 
 ```jsonc
 {
   "labels": ["HS_DEAL"],
-  "aggregate": { "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" } },
+  "select": {
+    "totalAmount": { "$sum": "$record.amount" }
+  },
   "orderBy": { "totalAmount": "asc" },
   "groupBy": ["totalAmount"]
 }
@@ -205,7 +207,9 @@ RETURN {`totalAmount`:`totalAmount`} as records
 ```jsonc
 {
   "labels": ["HS_DEAL"],
-  "aggregate": { "totalAmount": { "fn": "sum", "field": "amount", "alias": "$record" } },
+  "select": {
+    "totalAmount": { "$sum": "$record.amount" }
+  },
   "groupBy": ["totalAmount"]
 }
 ```
@@ -223,8 +227,8 @@ In the early order case, only the first 100 deals (by default ID ordering) contr
 
 ### Guidelines
 
-- Specify `orderBy` on aggregated fields whenever the aggregate should reflect the entire match set.
-- Use early ordering intentionally only when you want to aggregate a *windowed* subset (e.g., rolling sample of newest records).
+- Specify `orderBy` on computed fields whenever the metric should reflect the entire match set.
+- Use early ordering intentionally only when you want to compute metrics over a _windowed_ subset (e.g., rolling sample of newest records).
 - The behavior applies to any grouped aggregation, not just the self-group pattern.
 
-See also: [Aggregations guide](./aggregations.md#ordering-by-aggregated-keys-late-order--pagination) for more context.
+See also: [Select Expressions guide](./select.md#ordering-by-select-keys-late-order--pagination) for more context.

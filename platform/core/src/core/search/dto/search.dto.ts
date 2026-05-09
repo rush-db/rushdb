@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger'
 
-import { Aggregate, Where } from '@/core/common/types'
+import { Aggregate, SelectExprMap, Where } from '@/core/common/types'
 import { TSearchSort } from '@/core/search/search.types'
 
 export class SearchDto {
@@ -17,6 +17,10 @@ export class SearchDto {
   where?: Where
 
   @ApiPropertyOptional({ default: {} })
+  select?: SelectExprMap
+
+  /** @deprecated Use `select` instead. To be removed in a future major version. */
+  @ApiPropertyOptional({ default: {}, deprecated: true })
   aggregate?: Aggregate
 
   @ApiPropertyOptional({ default: [] })

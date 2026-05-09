@@ -10,14 +10,13 @@ To use RushDB, you'll need an API token for authentication. Here's how to get on
 
 ## 1. Create an Account
 
-Visit [RushDB Dashboard](https://dashboard.rushdb.com) and sign up for an account if you haven't already.
+Visit [RushDB Dashboard](https://app.rushdb.com) and sign up for an account if you haven't already.
 
 ## 2. Create a Project
 
 1. After signing in, click on "New Project"
 2. Enter a name for your project
-3. Choose your preferred region
-4. Click "Create"
+3. Click "Create"
 
 ## 3. Generate API key
 
@@ -37,30 +36,33 @@ Your API token will be displayed only once. Make sure to:
 
 Example of using environment variables:
 
-import Tabs from '@theme/Tabs';
+import Tabs from '@site/src/components/LanguageTabs';
 import TabItem from '@theme/TabItem';
 
 <Tabs groupId="programming-language">
-  <TabItem value="typescript" label="TypeScript" default>
-```typescript
-// Load from environment variable
-const db = new RushDB(process.env.RUSHDB_API_KEY);
-```
-  </TabItem>
-  <TabItem value="python" label="Python">
+  <TabItem value="python" label="Python" default>
 ```python
 import os
 
 db = RushDB(api_key=os.environ['RUSHDB_API_KEY'])
 ```
   </TabItem>
-  <TabItem value="rest" label="REST API">
+  <TabItem value="typescript" label="TypeScript">
+```typescript
+// RushDB reads RUSHDB_API_KEY from the environment automatically
+const db = new RushDB();
+
+// Or pass it explicitly:
+// const db = new RushDB(process.env.RUSHDB_API_KEY);
+```
+  </TabItem>
+  <TabItem value="shell" label="shell">
 ```bash
 # Set in your shell
-export RUSHDB_API_KEY='RUSHDB_API_KEY'
+export RUSHDB_API_KEY='your-api-key'
 
 # Use in requests
-curl -H "Authorization: Bearer $RUSHDB_API_TOKEN" \
+curl -H "Authorization: Bearer $RUSHDB_API_KEY" \
   https://api.rushdb.com/api/v1/records
 ```
   </TabItem>

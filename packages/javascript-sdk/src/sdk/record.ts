@@ -23,6 +23,7 @@ import { RushDB } from './sdk.js'
 type DBRecordInternalProps<S extends Schema = Schema> = {
   readonly __id: string
   readonly __label: string
+  readonly __score?: number
   readonly __proptypes?: FlattenTypes<
     {
       [Key in RequiredKeysRead<S>]: S[Key]['type']
@@ -42,10 +43,13 @@ export type RecordProps<S extends Schema = Schema> =
     }
 
 /**
- * DBRecord with possible aggregation fields based on a search query.
+ * DBRecord with possible computed metric fields based on a search query.
+ * Uses select/groupBy as canonical. The legacy aggregate clause is deprecated and only present for vector similarity until select supports it.
  */
 export type DBRecordInferred<S extends Schema, Q extends SearchQuery<S>> =
-  Q extends { aggregate: infer A extends Record<string, any> } ? DBRecord<S> & ExtractAggregateFields<A>
+  Q extends { select: infer Sel extends Record<string, any> } ? DBRecord<S> & ExtractAggregateFields<Sel>
+  : Q extends { aggregate: infer A extends Record<string, any> } ?
+    DBRecord<S> & ExtractAggregateFields<A> // deprecated, vector similarity only
   : DBRecord<S>
 
 /**
@@ -108,7 +112,6 @@ export type RelationDetachOptions = {
 export type DBRecordCreationOptions = {
   returnResult?: boolean
   suggestTypes?: boolean
-  castNumberArraysToVectors?: boolean
   convertNumericValuesToNumbers?: boolean
   capitalizeLabels?: boolean
   relationshipType?: string
@@ -130,23 +133,18 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
-   *
    * Checks if this record instance exists.
    * A record is considered to exist if it has a valid ID and label.
-   *
-   * @returns True if the record exists, false otherwise
    */
-  exists() {
+  get exists(): boolean {
     return toBoolean(this.data.__id) && toBoolean(this.data.__label)
   }
 
   /**
-   * Gets the unique ID of this record.
-   *
-   * @returns The record's ID
+   * The unique ID of this record.
    * @throws Error if the ID is missing or invalid
    */
-  id() {
+  get id(): string {
     if (!toBoolean(this.data.__id)) {
       throw new Error(
         `DBRecordInstance: Unable to access 'id'. The Record's \`data.__id\` is missing or incorrect.`
@@ -156,12 +154,10 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
-   * Gets the label (type) of this record.
-   *
-   * @returns The record's label
+   * The label (type) of this record.
    * @throws Error if the label is missing or invalid
    */
-  label() {
+  get label(): string {
     if (!toBoolean(this.data.__label)) {
       throw new Error(
         `DBRecordInstance: Unable to access 'label'. The Record's \`data.__label\` is missing or incorrect.`
@@ -171,12 +167,10 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
-   * Gets the property types of this record.
-   *
-   * @returns The record's property types
+   * The property types of this record.
    * @throws Error if the property types are missing or invalid
    */
-  proptypes() {
+  get proptypes() {
     if (!toBoolean(this.data.__proptypes)) {
       throw new Error(
         `DBRecordInstance: Unable to access 'proptypes'. The Record's \`data.__proptypes\` is missing or incorrect.`
@@ -186,15 +180,12 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
-   * Gets the creation date of this record.
-   * The date is derived from the record's ID.
-   *
-   * @returns The record's creation date
+   * The creation date of this record, derived from its ID.
    * @throws Error if the ID is missing or invalid
    */
-  date() {
+  get date(): Date {
     try {
-      return idToDate(this.id())
+      return idToDate(this.id)
     } catch {
       throw new Error(
         `DBRecordInstance: Unable to access 'date'. The Record's \`data.__id\` is missing or incorrect.`
@@ -203,15 +194,12 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
   }
 
   /**
-   * Gets the creation timestamp of this record.
-   * The timestamp is derived from the record's ID.
-   *
-   * @returns The record's creation timestamp
+   * The creation timestamp of this record, derived from its ID.
    * @throws Error if the ID is missing or invalid
    */
-  timestamp() {
+  get timestamp(): number {
     try {
-      return idToTimestamp(this.id())
+      return idToTimestamp(this.id)
     } catch {
       throw new Error(
         `DBRecordInstance: Unable to access 'timestamp'. The Record's \`data.__id\` is missing or incorrect.`
@@ -232,7 +220,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
     }
 
     const instance = RushDB.getInstance()
-    return await instance.records.deleteById(this.id(), transaction)
+    return await instance.records.deleteById(this.id, transaction)
   }
 
   /**
@@ -252,7 +240,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
     }
 
     const instance = RushDB.getInstance()
-    return instance.records.update({ label: this.label(), target: this.id(), data }, transaction)
+    return instance.records.update({ label: this.label, target: this.id, data }, transaction)
   }
 
   /**
@@ -273,7 +261,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
     }
 
     const instance = RushDB.getInstance()
-    return instance.records.set({ label: this.label(), target: this.id(), data }, transaction)
+    return instance.records.set({ label: this.label, target: this.id, data }, transaction)
   }
 
   /**
@@ -291,7 +279,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
     }
 
     const instance = RushDB.getInstance()
-    return instance.records.attach({ source: this.id(), target, options }, transaction)
+    return instance.records.attach({ source: this.id, target, options }, transaction)
   }
 
   /**
@@ -309,7 +297,7 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
     }
 
     const instance = RushDB.getInstance()
-    return instance.records.detach({ source: this.id(), target, options }, transaction)
+    return instance.records.detach({ source: this.id, target, options }, transaction)
   }
 }
 
@@ -343,11 +331,98 @@ export class DBRecordsArrayInstance<S extends Schema = Schema, Q extends SearchQ
   }
 
   /**
-   * TODO: Future enhancements for this class:
-   * - Bulk actions: Delete multiple records by IDs or search query
-   * - Export records to CSV format
-   * - Update properties across multiple records at once
-   * - Batch relationship operations (attach/detach)
-   * - Pagination support with a next() method to fetch additional results based on searchQuery
+   * Deletes all records in this result set.
+   *
+   * @param transaction - Optional transaction or transaction ID
+   * @returns Promise resolving to the delete result
    */
+  async deleteAll(transaction?: Transaction | string): Promise<{ success: boolean }> {
+    const ids = this.data.map((r) => r.id)
+    if (!ids.length) {
+      return { success: true }
+    }
+    const instance = RushDB.getInstance()
+    return await instance.records.deleteById(ids, transaction)
+  }
+
+  /**
+   * Fetches the next page of results based on the original search query.
+   *
+   * @param options - If `preserveData` is true, appends new results to existing data; otherwise replaces.
+   * @returns Promise resolving to the next page as a new DBRecordsArrayInstance
+   */
+  async next(options?: { preserveData?: boolean }): Promise<DBRecordsArrayInstance<S, Q>> {
+    if (!this.searchQuery) {
+      throw new Error('DBRecordsArrayInstance: Cannot paginate — no searchQuery was provided.')
+    }
+
+    const currentSkip = this.searchQuery.skip ?? 0
+    const currentLimit = this.searchQuery.limit ?? 100
+    const nextQuery: SearchQuery<S> = {
+      ...this.searchQuery,
+      skip: currentSkip + currentLimit
+    }
+
+    const instance = RushDB.getInstance()
+    const result = await instance.records.find<S, Q>(nextQuery as Q, undefined)
+
+    if (options?.preserveData) {
+      this.data = [...this.data, ...result.data]
+      this.total = result.total
+      this.searchQuery = nextQuery
+      return this
+    }
+
+    return result
+  }
+
+  /**
+   * Exports the records in this result set to a CSV string.
+   *
+   * @returns CSV string with headers derived from the first record's properties
+   */
+  exportCsv(): string {
+    if (!this.data.length) return ''
+
+    const systemKeys = new Set(['__id', '__label', '__proptypes'])
+    const headers = Object.keys(this.data[0].data).filter((k) => !systemKeys.has(k))
+
+    const escapeField = (value: unknown): string => {
+      const str = value === null || value === undefined ? '' : String(value)
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    }
+
+    const rows = this.data.map((record) =>
+      headers.map((h) => escapeField((record.data as Record<string, unknown>)[h])).join(',')
+    )
+
+    return [headers.join(','), ...rows].join('\n')
+  }
+
+  /**
+   * Updates properties across all records in this result set.
+   * Records are updated in batches of 100.
+   *
+   * @param patch - The fields to update and their new values
+   * @param transaction - Optional transaction or transaction ID
+   */
+  async setProperties(
+    patch: Partial<InferSchemaTypesWrite<S>>,
+    transaction?: Transaction | string
+  ): Promise<void> {
+    const BATCH_SIZE = 100
+    const instance = RushDB.getInstance()
+
+    for (let i = 0; i < this.data.length; i += BATCH_SIZE) {
+      const batch = this.data.slice(i, i + BATCH_SIZE)
+      await Promise.all(
+        batch.map((record) =>
+          instance.records.update({ target: record.id, label: record.data.__label, data: patch }, transaction)
+        )
+      )
+    }
+  }
 }

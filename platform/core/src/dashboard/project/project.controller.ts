@@ -20,7 +20,6 @@ import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
-import { CustomDbAvailabilityGuard } from '@/dashboard/billing/guards/custom-db-availability.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
 import { CreateProjectDto } from '@/dashboard/project/dto/create-project.dto'
@@ -43,7 +42,7 @@ export class ProjectController {
   @ApiTags('Projects')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(PlanLimitsGuard, CustomDbAvailabilityGuard)
+  @UseGuards(PlanLimitsGuard)
   @AuthGuard('workspace', 'owner')
   async createProject(
     @Body() project: CreateProjectDto,
@@ -71,9 +70,10 @@ export class ProjectController {
     @AuthUser() { id: userId }: IUserClaims,
     @Request() request: PlatformRequest,
     @TransactionDecorator() transaction: Transaction
-  ): Promise<ProjectEntity[]> {
+  ): Promise<IProjectProperties[]> {
     const workspaceId = request.workspaceId
-    return await this.projectService.getProjectsByWorkspaceId(workspaceId, userId, transaction)
+    const entities = await this.projectService.getProjectsByWorkspaceId(workspaceId, userId, transaction)
+    return entities.map((e) => e.toJson())
   }
 
   @Delete(':projectId')
@@ -105,7 +105,6 @@ export class ProjectController {
   @ApiTags('Projects')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(CustomDbAvailabilityGuard)
   @AuthGuard('project', 'owner')
   async updateProject(
     @Param('projectId') id: string,

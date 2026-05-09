@@ -8,8 +8,6 @@ export function PropertyTypeIcon({ size, type }: { size?: number | string; type:
       return <ToggleRight size={size} />
     case 'number':
       return <Hash size={size} />
-    case 'vector':
-      return <Code2 size={size} />
     case 'string':
       return <Type size={size} />
     case 'datetime':

@@ -15,19 +15,14 @@ type TProjectProperties = {
   description?: string
   stats?: string
   customDb?: string
-  managedDbPassword?: string
-  managedDbRegion?: string
-  managedDbTier?: string
   status?: ProjectStatus
-  validTill?: string
-  planId?: string
-  productId?: string
-  priceId?: string
-  isSubscriptionCancelled?: boolean
-  subscriptionPriceId?: string
-  subscriptionProductId?: string
+  /** JSON-serialised OntologyItem[] — persisted on the node as the ontology cache. */
+  ontologyCache?: string
+  /** ISO timestamp of the last ontology recalculation. */
+  ontologyCachedAt?: string
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface IProjectProperties extends TProjectProperties {}
 
 interface IRawProjectProperties extends Omit<TProjectProperties, 'customDb'> {
@@ -50,7 +45,7 @@ interface IProjectRelatedNodes {
   Workspaces: ModelRelatedNodesI<TWorkspaceModel, TWorkspaceInstance>
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface IProjectStatics {}
 
 type TProjectInstance = NeogmaInstance<TProjectProperties, IProjectRelatedNodes>

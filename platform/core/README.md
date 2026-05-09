@@ -12,7 +12,7 @@ It streamlines application development by automating data normalization, managin
 [🌐 Homepage](https://rushdb.com) — [📢 Blog](https://rushdb.com/blog) — [☁️ Platform ](https://app.rushdb.com) — [📖 Docs](https://docs.rushdb.com) — [🧑‍💻 Examples](https://github.com/rush-db/examples)
 </div>
 
---- 
+---
 
 ## Prerequisites
 
@@ -111,11 +111,11 @@ You can customize the application by setting environment variables. Below are th
 - `MAIL_FROM=`
   - The default "from" email address for outgoing emails.
 
-### Billing
-- `STRIPE_SECRET_KEY=`
-  - The secret key for integrating with Stripe for billing.
-- `STRIPE_ENDPOINT_SECRET=`
-  - The webhook signing secret for validating Stripe events.
+### Billing Service
+- `BILLING_SERVICE_URL=`
+  - URL of the external billing service (`internal` app). Leave unset to disable billing enforcement.
+- `RUSHDB_BILLING_SECRET=`
+  - Shared secret used to authenticate requests from the platform to the billing service.
 
 ### Database Configuration
 #### Neo4j

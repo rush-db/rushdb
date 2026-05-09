@@ -1,4 +1,4 @@
-import type { DBRecord } from '@rushdb/javascript-sdk'
+import type { DBRecord, Property } from '@rushdb/javascript-sdk'
 
 import { atom } from 'nanostores'
 
@@ -9,3 +9,10 @@ export const $currentProjectId = atom<Project['id'] | undefined>(undefined)
 export const $currentRecordId = atom<DBRecord['__id'] | undefined>(undefined)
 
 export const $sheetRecordId = atom<DBRecord['__id'] | undefined>(undefined)
+
+export type PropertySheetData = Property & {
+  vectorIndexed: boolean
+  connectedRecordIds: string[]
+}
+
+export const $sheetProperty = atom<PropertySheetData | undefined>(undefined)

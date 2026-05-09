@@ -3,7 +3,7 @@ import type { ComponentPropsWithoutRef } from 'react'
 import { useStore } from '@nanostores/react'
 
 import { Button } from '~/elements/Button'
-import { $checkout } from '~/features/billing/stores/checkout'
+import { useCheckoutMutation } from '~/features/billing/hooks/useBillingHooks'
 import { $router, isProjectPage } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
 
@@ -15,7 +15,7 @@ export const CheckoutButton = ({
 }: ComponentPropsWithoutRef<typeof Button> & {
   priceId: string
 }) => {
-  const { mutate: checkout, loading: checkoutInProgress } = useStore($checkout)
+  const { mutate: checkout, isPending: checkoutInProgress } = useCheckoutMutation()
 
   const loading = loadingProp || checkoutInProgress
 

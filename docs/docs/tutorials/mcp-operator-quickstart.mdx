@@ -1,0 +1,268 @@
+---
+sidebar_position: 13
+title: "MCP Quickstart for Real Operators: Claude, Cursor, and VS Code"
+description: Go beyond installation — learn the operator workflow for grounded, hallucination-resistant agent queries with the RushDB MCP server.
+tags: [MCP, Agents, Tooling, Claude, Cursor]
+---
+
+# MCP Quickstart for Real Operators: Claude, Cursor, and VS Code
+
+The [MCP quickstart](../mcp-server/quickstart.mdx) covers installation in three lines. This tutorial covers what happens after the config file is saved.
+
+Most MCP tutorials stop at "it works." Real operators need to know:
+
+- which tool to call first — and why
+- how to avoid schema hallucinations when an LLM invents field names
+- how to write queries that are grounded in actual data
+- what failure modes look like and how to recover from them
+
+---
+
+## Prerequisites
+
+- RushDB project with at least one label and a few records
+- RushDB MCP server installed and running (see [quickstart](../mcp-server/quickstart.mdx))
+- Claude Desktop, Cursor, or VS Code with Copilot agent mode
+
+---
+
+## The core operator loop
+
+Every productive session with the RushDB MCP server follows three mandatory steps before asking any data question.
+
+```
+Step 0: getOntologyMarkdown
+Step 1: getSearchQuerySpec (if building a query)
+Step 2: execute the query with findRecords
+```
+
+This loop exists because LLMs hallucinate schema. Without seeing the ontology first, a Claude session might assume a label called `User` instead of `CUSTOMER`, or a field called `createdAt` instead of `created_at`. The ontology call costs one round trip and prevents every class of hallucination downstream.
+
+---
+
+## Step 0: Start every session with ontology
+
+Ask Claude, Cursor, or VS Code Copilot:
+
+> "Call `getOntologyMarkdown` and summarize the labels, properties, and relationships."
+
+What you get back includes:
+
+- Exact label names (e.g. `CUSTOMER`, `ORDER`, `PRODUCT`) — case-sensitive
+- Property names with their types and value ranges
+- Cross-label relationships with direction (e.g. `CUSTOMER --PLACED--> ORDER`)
+
+**Never skip this.** It is the ground truth for everything else in the session.
+
+You can scope it to specific labels when your graph is large:
+
+> "Call `getOntologyMarkdown` with labels `['ORDER', 'CUSTOMER']`."
+
+This maps to the tool call:
+
+```json
+{
+  "tool": "getOntologyMarkdown",
+  "input": {
+    "labels": ["ORDER", "CUSTOMER"]
+  }
+}
+```
+
+---
+
+## Step 1: Get the query spec before writing queries
+
+Before you or the LLM starts writing a `findRecords` query, fetch the SearchQuery spec:
+
+> "Call `getSearchQuerySpec`."
+
+This returns the full SearchQuery schema the query must conform to, including `where`, `select`, `groupBy`, `orderBy`, `limit`, `skip`, and all filter operators (`$in`, `$gte`, `$contains`, `$exists`, `$relation`, `$alias`, etc.).
+
+For complex queries, have the LLM use both the ontology and the spec together:
+
+> "Using the ontology you fetched and the SearchQuery spec, write a query that finds all shipped orders for customers in Germany."
+
+The LLM will construct something like:
+
+```json
+{
+  "labels": ["ORDER"],
+  "where": {
+    "status": "shipped",
+    "CUSTOMER": {
+      "country": "DE"
+    }
+  },
+  "orderBy": { "placedAt": "desc" },
+  "limit": 25
+}
+```
+
+Then execute it:
+
+> "Run `findRecords` with the query you just wrote."
+
+---
+
+## Step 2: Execute with `findRecords`
+
+`findRecords` accepts the full SearchQuery and returns matching records. Example prompt:
+
+> "Find the 10 most recently placed orders with status 'shipped' where the customer email contains 'example.com'. Include the order ID, placedAt date, and total."
+
+The MCP tool call:
+
+```json
+{
+  "tool": "findRecords",
+  "input": {
+    "labels": ["ORDER"],
+    "where": {
+      "status": "shipped",
+      "CUSTOMER": {
+        "email": { "$contains": "example.com" }
+      }
+    },
+    "orderBy": { "placedAt": "desc" },
+    "limit": 10,
+    "select": {
+      "orderId": "$record.__id",
+      "placedAt": "$record.placedAt",
+      "total": "$record.total"
+    }
+  }
+}
+```
+
+---
+
+## Practical operator prompts
+
+### Exploring an unfamiliar project for the first time
+
+```
+1. Call getOntologyMarkdown.
+2. List all label names, their record counts, and the relationships between them.
+3. Which label has the most records?
+4. What property holds the primary identifier for each label?
+```
+
+### Generating a targeted search query
+
+```
+1. Call getOntologyMarkdown.
+2. Call getSearchQuerySpec.
+3. Write a findRecords query that returns all TASK records assigned to
+   engineers in the DEPARTMENT labeled "Platform", ordered by dueDate ascending.
+4. Run the query.
+```
+
+### Semantic search via MCP
+
+For projects with embedding indexes:
+
+```
+1. Call getOntologyMarkdown.
+2. Call findEmbeddingIndexes to confirm which labels have AI indexes.
+3. Call semanticSearch with query "cloud cost optimization",
+   propertyName "description", labels ["TASK"], limit 10.
+```
+
+The underlying tool call for step 3:
+
+```json
+{
+  "tool": "semanticSearch",
+  "input": {
+    "query": "cloud cost optimization",
+    "propertyName": "description",
+    "labels": ["TASK"],
+    "limit": 10
+  }
+}
+```
+
+Semantic search always operates within the current project. There is no cross-project search.
+
+### Attaching a relationship between two records
+
+```
+1. Call getOntologyMarkdown.
+2. Find the record IDs for the two records you want to connect:
+   - getRecord for the source
+   - findRecords with a narrow where clause for the target
+3. Call attachRelation with those IDs and a relationship type from the ontology.
+```
+
+### Deleting records safely
+
+Always preview before deleting:
+
+```
+1. Call findRecords with the same where clause you plan to use for deletion.
+2. Confirm the record count and IDs look correct.
+3. Then call bulkDeleteRecords with that where clause.
+```
+
+`bulkDeleteRecords` takes the same SearchQuery shape as `findRecords` — it deletes all records matching the filter.
+
+---
+
+## Failure modes and recovery
+
+### "I don't see any records"
+
+Most common causes, in order:
+
+1. Wrong label name — label names are case-sensitive. Call `getOntologyMarkdown` to confirm exact casing.
+2. Wrong field name — field names are case-sensitive. Check the ontology's properties list.
+3. Wrong relational traversal key — in `where`, relationship traversal uses the related label name directly (e.g. `CUSTOMER`, not `customer` or `customerId`).
+
+Recovery prompt:
+
+> "The last findRecords returned 0 results. Call getOntologyMarkdown, show me the exact label and field names, then rewrite the query."
+
+### "The query returned unexpected results"
+
+Ask Claude to explain the query:
+
+> "Explain why this query would return records that match X but not Y, given this ontology."
+
+Then narrow the filter and retry.
+
+### "I got a query error"
+
+Pass the error back to the LLM:
+
+> "findRecords returned error: [paste error]. Given the SearchQuery spec, what is wrong with this query? Fix and retry."
+
+---
+
+## Enable discovery-first behavior automatically
+
+To lock in Step 0 behavior for every session, activate the `rushdb.queryBuilder` prompt.
+
+In Claude Desktop:
+
+> "Call `getQueryBuilderPrompt` and apply the result as your system message for this conversation."
+
+In agents/API contexts: use `ListPrompts` to fetch `rushdb.queryBuilder`, then prepend it to the system message.
+
+This makes the LLM call ontology before every query automatically, without you needing to ask.
+
+---
+
+## Production caveat
+
+The MCP server runs `findRecords` queries inside your project's data scope. It cannot access records from other projects. If an agent query returns fewer results than expected, the first thing to check is whether the API key is scoped to the correct project.
+
+For write operations (`createRecord`, `attachRelation`, `bulkDeleteRecords`), always confirm record IDs before executing — recovery from accidental bulk writes requires manual work.
+
+---
+
+## Next steps
+
+- [MCP tools reference](../mcp-server/tools.mdx) — full tool list with input schemas
+- [Agent-Safe Query Planning with Ontology First](./agent-safe-query-planning.mdx) — building repeatable agent patterns with failure recovery
+- [Hybrid Retrieval: Structured Filters Plus Semantic Search](./hybrid-retrieval.mdx) — combining semantic search with graph traversal

@@ -6,10 +6,10 @@ import { GoogleButton } from '~/features/auth/components/GoogleButton'
 import { createUser } from '~/features/auth/stores/auth'
 import { AuthLayout } from '~/layout/AuthLayout'
 import { object, string, useForm } from '~/lib/form'
-import { $searchParams, getRoutePath } from '~/lib/router'
 import { useStore } from '@nanostores/react'
-import { $platformSettings } from '~/features/auth/stores/settings.ts'
-import { useMemo } from 'react'
+import { $searchParams, getRoutePath } from '~/lib/router'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
+import { useEffect, useMemo } from 'react'
 import { Spinner } from '~/elements/Spinner.tsx'
 import { toast } from '~/elements/Toast.tsx'
 import type { SubmitHandler } from 'react-hook-form'
@@ -83,9 +83,16 @@ function SignUpForm() {
 }
 
 export function SignUpPage() {
-  const { loading, data: platformSettings } = useStore($platformSettings)
+  const { data: platformSettings, isPending: loading } = usePlatformSettings()
   const search = useStore($searchParams)
   const invite = search.invite
+  const plan = search.plan
+
+  useEffect(() => {
+    if (plan && plan !== 'free') {
+      sessionStorage.setItem('rushdb_plan_intent', plan)
+    }
+  }, [plan])
 
   const hasGoogleOAuth = useMemo(
     () => platformSettings?.googleOAuthEnabled,

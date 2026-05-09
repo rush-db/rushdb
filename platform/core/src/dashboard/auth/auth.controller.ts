@@ -1,8 +1,12 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
+  ForbiddenException,
   Get,
+  HttpStatus,
+  Logger,
   Param,
   Post,
   Query,
@@ -56,40 +60,45 @@ export class AuthController {
     @Body() user: CreateUserDto,
     @TransactionDecorator() transaction: Transaction
   ): Promise<IAuthenticatedUser> {
-    // @TODO: handle existing user error properly
+    const hasMailerConfig =
+      this.configService.get('MAIL_HOST') &&
+      this.configService.get('MAIL_USER') &&
+      this.configService.get('MAIL_PASSWORD') &&
+      this.configService.get('MAIL_FROM')
+
     try {
-      const hasMailerConfig =
-        this.configService.get('MAIL_HOST') &&
-        this.configService.get('MAIL_USER') &&
-        this.configService.get('MAIL_PASSWORD') &&
-        this.configService.get('MAIL_FROM')
+      const { userData } = await this.userService.create(
+        {
+          ...user,
+          // Set `confirmed: true` when no mailer config provided
+          confirmed: !hasMailerConfig
+        },
+        transaction
+      )
 
-      return this.userService
-        .create(
-          {
-            ...user,
-            // Set `confirmed: true` when no mailer config provided
-            confirmed: !hasMailerConfig
-          },
-          transaction
+      const createdUserData = userData.toJson()
+
+      if (createdUserData.isEmail && hasMailerConfig) {
+        await this.emailConfirmationService.sendVerificationLink(
+          createdUserData.login,
+          createdUserData.firstName
         )
-        .then(async ({ userData }) => {
-          const createdUserData = userData.toJson()
+      }
 
-          if (createdUserData.isEmail && hasMailerConfig) {
-            await this.emailConfirmationService.sendVerificationLink(
-              createdUserData.login,
-              createdUserData.firstName
-            )
-          }
-
-          return {
-            ...createdUserData,
-            token: this.authService.createToken(userData)
-          }
-        })
+      return {
+        ...createdUserData,
+        token: this.authService.createToken(userData)
+      }
     } catch (e) {
-      throw new BadRequestException('Provided email is not allowed')
+      if (e?.status === HttpStatus.CONFLICT) {
+        throw new ConflictException('An account with this email already exists')
+      }
+      // Re-throw known HTTP exceptions (e.g. disallowed login) as-is
+      if (e?.status && e.status < 500) {
+        throw e
+      }
+      Logger.error('[Auth] Registration failed', e?.message)
+      throw new BadRequestException('Registration failed. Please try again.')
     }
   }
 

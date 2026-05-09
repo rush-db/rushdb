@@ -1,3 +1,9 @@
+/**
+ * @deprecated The aggregate DSL is deprecated. New queries should use the select expression system.
+ * This module will be removed in a future major version.
+ */
+import { BadRequestException } from '@nestjs/common'
+
 import { isArray } from '@/common/utils/isArray'
 import { isObject } from '@/common/utils/isObject'
 import { toBoolean } from '@/common/utils/toBolean'
@@ -5,7 +11,6 @@ import {
   RUSHDB_KEY_ID,
   ROOT_RECORD_ALIAS,
   RUSHDB_KEY_ID_ALIAS,
-  RUSHDB_VALUE_EMPTY_ARRAY,
   RUSHDB_KEY_PROPERTIES_META
 } from '@/core/common/constants'
 import {
@@ -19,35 +24,19 @@ import {
 } from '@/core/common/types'
 import { PROPERTY_WILDCARD_PROJECTION } from '@/core/search/parser/constants'
 import { AggregateContext } from '@/core/search/parser/types'
-import { isNestedAggregate, safeGdsSimilarity, wrapInCurlyBraces } from '@/core/search/parser/utils'
-import { SORT_ASC } from '@/core/search/search.constants'
-import { TSearchSort } from '@/core/search/search.types'
+import {
+  apocRemoveFromArray,
+  apocSortArray,
+  apocSortMapsArray,
+  apocUniqArray,
+  isNestedAggregate,
+  nativeVectorSimilarity,
+  wrapInCurlyBraces
+} from '@/core/search/parser/utils'
 
 import { buildOrderByClause, buildSortCriteria } from './orderBy'
 import { pagination } from './pagination'
 import { label } from './pickRecordLabel'
-
-function apocSortMapsArray(arrayClause: string, orderBy?: TSearchSort) {
-  const sortCriteria = buildSortCriteria(orderBy)
-
-  const orderByKeyPart = Object.entries(sortCriteria).map(([property, direction]) => {
-    return `"${direction.toLowerCase() === SORT_ASC ? '^' : ''}${property}"`
-  })[0]
-
-  return `apoc.coll.sortMaps(${arrayClause}, ${orderByKeyPart})`
-}
-
-function apocSortArray(arrayClause: string, orderBy?: TSearchSort) {
-  return `apoc.coll.sort(apoc.coll.flatten(${arrayClause}))`
-}
-
-function apocUniqArray(arrayClause: string) {
-  return `apoc.coll.toSet(${arrayClause})`
-}
-
-function apocRemoveFromArray(arrayClause: string) {
-  return `apoc.coll.removeAll(${arrayClause}, ["${RUSHDB_VALUE_EMPTY_ARRAY}"])`
-}
 
 function parseAggregate(aggregate: Aggregate, aliasesMap: AliasesMap, ctx: AggregateContext) {
   // Process each aggregation instruction
@@ -117,7 +106,7 @@ function parseAggregate(aggregate: Aggregate, aliasesMap: AliasesMap, ctx: Aggre
   }
 }
 
-export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap, groupBy: string[]) {
+export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap, groupBy: string[] = []) {
   if (isObject(aggregate) && Object.keys(aggregate).length) {
     const isNested = isNestedAggregate(aggregate)
 
@@ -182,8 +171,12 @@ export function buildAggregation(aggregate: Aggregate, aliasesMap: AliasesMap, g
                 const [recordAlias, ...fieldDescriptors] = variable.split('.')
                 const propertyNameRaw = fieldDescriptors.join('.')
 
-                // @TODO: throw error if alias is missing
-                // const recordQueryVariable = aliasesMap[recordAlias]
+                if (!aliasesMap[recordAlias]) {
+                  throw new BadRequestException(
+                    `Group-by variable "${variable}" references unknown alias "${recordAlias}". ` +
+                      `Ensure "${recordAlias}" is declared in the aggregate section.`
+                  )
+                }
 
                 const propertyName = propertyNameRaw === RUSHDB_KEY_ID_ALIAS ? RUSHDB_KEY_ID : propertyNameRaw
 
@@ -251,14 +244,9 @@ export function buildAggregationFunction(
       case 'max':
         return `max(${recordAlias}.${fieldAlias}) AS ${asPart}`
 
-      // gds
-      case 'gds.similarity.cosine':
-      case 'gds.similarity.jaccard':
-      case 'gds.similarity.euclidean':
-      case 'gds.similarity.euclideanDistance':
-      case 'gds.similarity.overlap':
-      case 'gds.similarity.pearson':
-        return safeGdsSimilarity(
+      case 'vector.similarity.cosine':
+      case 'vector.similarity.euclidean':
+        return nativeVectorSimilarity(
           instruction.fn,
           recordAlias,
           instruction.field,

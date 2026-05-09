@@ -7,8 +7,7 @@ import type {
   NumberExpression,
   PropertyExpression,
   PropertyExpressionByType,
-  StringExpression,
-  VectorSearchFn
+  StringExpression
 } from './expressions.js'
 import type { Schema } from './schema.js'
 import type { AnyObject, MaybeArray, RequireAtLeastOne } from './utils.js'
@@ -84,6 +83,9 @@ export type Where<S extends Schema = Schema> =
 export type OrderDirection = 'asc' | 'desc'
 export type Order<S extends Schema = Schema> = OrderDirection | Partial<Record<keyof S, OrderDirection>>
 
+/**
+ * @deprecated The aggregate clause is deprecated. Use select/groupBy for all metrics/analytics. Only use aggregate for vector similarity until select supports it.
+ */
 export type AggregateCollectFn = {
   alias: string
   field?: string
@@ -94,12 +96,21 @@ export type AggregateCollectFn = {
   unique?: boolean
 }
 
+/**
+ * @deprecated See AggregateCollectFn.
+ */
 export type AggregateCollectNestedFn = Omit<AggregateCollectFn, 'field'> & {
   aggregate?: { [field: string]: AggregateCollectNestedFn }
 }
 
+/**
+ * @deprecated See AggregateCollectFn.
+ */
 export type AggregateCountFn = { field?: string; fn: 'count'; unique?: boolean; alias?: string }
 
+/**
+ * @deprecated See AggregateCollectFn.
+ */
 export type AggregateTimeBucketFn = {
   field: string
   fn: 'timeBucket'
@@ -110,16 +121,27 @@ export type AggregateTimeBucketFn = {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+/**
+ * @deprecated The aggregate clause is deprecated. Use select/groupBy for all metrics/analytics. Only use aggregate for vector similarity until select supports it.
+ */
 export type AggregateFn<S extends Schema = Schema> =
   | { field: string; fn: 'avg'; alias?: string; precision?: number }
   | AggregateCountFn
   | { field: string; fn: 'max'; alias?: string }
   | { field: string; fn: 'min'; alias?: string }
   | { field: string; fn: 'sum'; alias?: string }
-  | { field: string; fn: `gds.similarity.${VectorSearchFn}`; alias?: string; query: number[] }
+  | {
+      field: string
+      fn: 'vector.similarity.cosine' | 'vector.similarity.euclidean'
+      alias?: string
+      query: number[]
+    }
   | AggregateTimeBucketFn
   | AggregateCollectFn
 
+/**
+ * @deprecated See AggregateCollectFn.
+ */
 export type Aggregate =
   | {
       [field: string]: AggregateCollectNestedFn
@@ -165,10 +187,88 @@ export type GroupByClause = {
   groupBy?: Array<string>
 }
 
+// ── Select Expression System ───────────────────────────────────────────────
+
+export type CollectExpr = {
+  from: string
+  select?: SelectExprMap
+  orderBy?: Order
+  limit?: number
+  skip?: number
+  unique?: boolean
+}
+
+export type TimeBucketExpr = {
+  /** Field reference, e.g. "$record.createdAt" */
+  field: string
+  unit:
+    | 'day'
+    | 'week'
+    | 'month'
+    | 'quarter'
+    | 'year'
+    | 'months'
+    | 'hour'
+    | 'minute'
+    | 'second'
+    | 'hours'
+    | 'minutes'
+    | 'seconds'
+    | 'years'
+  /** Required when unit is months/hours/minutes/seconds/years */
+  size?: number
+}
+
+export type Expr =
+  | string // "$record.field" field ref or "$alias" alias ref
+  | number // literal number
+  | boolean // literal boolean
+  | { $ref: string } // cross-expression reference
+  | { $sum: Expr }
+  | { $avg: Expr; $precision?: number }
+  | { $count: '*' | Expr }
+  | { $min: Expr }
+  | { $max: Expr }
+  | { $divide: [Expr, Expr] }
+  | { $multiply: [Expr, Expr] }
+  | { $add: [Expr, Expr] }
+  | { $subtract: [Expr, Expr] }
+  | { $collect: CollectExpr }
+  | { $timeBucket: TimeBucketExpr }
+
+/** Canonical output-shaping clause — replaces `aggregate` */
+export type SelectExprMap = Record<string, Expr>
+
+type InferExprType<E extends Expr> =
+  E extends string ? any
+  : E extends number ? number
+  : E extends boolean ? boolean
+  : E extends { $sum: any } ? number
+  : E extends { $avg: any } ? number
+  : E extends { $count: any } ? number
+  : E extends { $min: any } ? number
+  : E extends { $max: any } ? number
+  : E extends { $divide: any } ? number
+  : E extends { $multiply: any } ? number
+  : E extends { $add: any } ? number
+  : E extends { $subtract: any } ? number
+  : E extends { $collect: any } ? Array<any>
+  : E extends { $timeBucket: any } ? string
+  : any
+
+export type ExtractSelectFields<S extends SelectExprMap> = {
+  [K in keyof S]: InferExprType<S[K]>
+}
+
+export type SelectClause = {
+  select?: SelectExprMap
+}
+
 export type SearchQuery<S extends Schema = any> = SearchQueryLabelsClause &
   PaginationClause &
   OrderClause<S> &
   WhereClause<S> &
+  SelectClause &
   AggregateClause &
   GroupByClause
 

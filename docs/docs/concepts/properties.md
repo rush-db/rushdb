@@ -1,6 +1,7 @@
 ---
 sidebar_position: 3
 ---
+
 # Properties
 
 The fundamental unit of meaningful data in RushDB is known as a **Property**. Properties are first-class citizens in the RushDB architecture and serve as critical links that interconnect diverse data within [Records](../concepts/records) across the graph database.
@@ -27,21 +28,21 @@ And this is how those **Records** can be represented in code:
 ```typescript
 // Record:Jacket
 const jacket = {
-    color: "Matte black" // Property `color`     [string]
-}
+  color: "Matte black", // Property `color`     [string]
+};
 
 // Record:SportCar
 const sportCar = {
-    name: "Porsche 911", // Property `name`      [string]
-    color: "Dark grey",  // Property `color`     [string]
-    maxSpeed: 295        // Property `maxSpeed`  [number]
-}
+  name: "Porsche 911", // Property `name`      [string]
+  color: "Dark grey", // Property `color`     [string]
+  maxSpeed: 295, // Property `maxSpeed`  [number]
+};
 
 // Record:House
 const house = {
-    name: "Villa Vista", // Property `name`      [string]
-    color: "Pale green"  // Property `color`     [string]
-}
+  name: "Villa Vista", // Property `name`      [string]
+  color: "Pale green", // Property `color`     [string]
+};
 ```
 
 ## Internal Structure
@@ -62,6 +63,7 @@ graph LR
 ```
 
 This approach enables:
+
 1. Performant queries across different record types
 2. Discovery of hidden insights in data through property-based connections
 3. Optimized graph traversals leveraging Neo4j's native capabilities
@@ -74,11 +76,11 @@ However, rest assured that RushDB adeptly manages this complexity without hesita
 important considerations you should be aware of:
 
 1. **Property** is designed to accommodate only consistent values. This means that RushDB will strive to retain the
-original value type. However, if there are any inconsistent or non-convertible values in the data, RushDB will
-automatically convert them to a _string_ type.
-
+   original value type. However, if there are any inconsistent or non-convertible values in the data, RushDB will
+   automatically convert them to a _string_ type.
 
 Payload contains inconsistent values but can be converted to desired _number_ type:
+
 ```js
 {
     name: "Combination",
@@ -94,6 +96,7 @@ Payload contains inconsistent values but can be converted to desired _number_ ty
 ```
 
 Payload contains inconsistent values but cannot be converted to desired _number_ type:
+
 ```js
 {
     name: "Secret",
@@ -114,15 +117,15 @@ Payload contains inconsistent values but cannot be converted to desired _number_
 
 ```js
 [
-    {
-        type: "Raincoat",
-        size: "M"
-    },
-    {
-        type: "Cardigan",
-        size: 38
-    }
-]
+  {
+    type: "Raincoat",
+    size: "M",
+  },
+  {
+    type: "Cardigan",
+    size: 38,
+  },
+];
 ```
 
 Will be saved as distinct properties (size:string and size:number) connecting to their respective records.
@@ -131,7 +134,8 @@ Will be saved as distinct properties (size:string and size:number) connecting to
 
 RushDB supports a variety of data types to accommodate diverse data needs in your applications:
 
-### `string`
+### String
+
 Used for any textual information with virtually unlimited length.
 
 ```js
@@ -142,7 +146,8 @@ Used for any textual information with virtually unlimited length.
 }
 ```
 
-### `number`
+### Number
+
 Accommodates both floating-point numbers and integers.
 
 ```js
@@ -153,7 +158,8 @@ Accommodates both floating-point numbers and integers.
 }
 ```
 
-### `boolean`
+### Boolean
+
 Represents true or false values.
 
 ```js
@@ -164,7 +170,8 @@ Represents true or false values.
 }
 ```
 
-### `datetime`
+### Datetime
+
 Follows ISO 8601 format, including timezone information.
 
 ```js
@@ -175,7 +182,8 @@ Follows ISO 8601 format, including timezone information.
 }
 ```
 
-### `null`
+### Null
+
 Represents the absence of a value.
 
 ```js
@@ -186,22 +194,11 @@ Represents the absence of a value.
 }
 ```
 
-### `vector`
-Arrays of floating-point numbers or integers, particularly useful for vector similarity searches and machine learning operations.
-
-```js
-{
-    name: "imageEmbedding",
-    type: "vector",
-    value: [0.99070, 0.78912, 1.0, 0.0]
-}
-```
-
 ### Arrays
 
 RushDB also supports arrays as property values, but they must contain consistent value types:
 
-> **Note:** Every data type mentioned above (except `vector`, since it's already an array by default) supports an array representation.
+> **Note:** Every data type mentioned above supports an array representation.
 
 ```js
 // String array

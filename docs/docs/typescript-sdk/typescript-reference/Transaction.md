@@ -9,12 +9,14 @@ In RushDB, a transaction allows you to execute multiple database operations atom
 ## Properties
 
 | Property | Type   | Description                                                                                                                  |
-|----------|--------|------------------------------------------------------------------------------------------------------------------------------|
+| -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | `id`     | string | The unique identifier for this transaction. This ID is used internally when making API calls within the transaction context. |
 
 ## Methods
 
-### `commit()`
+### Commit
+
+`commit()`
 
 Commits all operations performed within this transaction, making the changes permanent in the database.
 
@@ -23,9 +25,11 @@ async commit(): Promise<ApiResponse<{ message: string }>>
 ```
 
 #### Returns
+
 - `Promise<ApiResponse<{ message: string }>>`: A promise resolving to the API response with a success message.
 
 #### Example
+
 ```typescript
 const transaction = await db.tx.begin();
 // Perform database operations...
@@ -33,7 +37,9 @@ const result = await transaction.commit();
 console.log(result.data.message); // "Transaction (id) has been successfully committed."
 ```
 
-### `rollback()`
+### Roll Back
+
+`rollback()`
 
 Rolls back all operations performed within this transaction, discarding all changes.
 
@@ -42,9 +48,11 @@ async rollback(): Promise<ApiResponse<{ message: string }>>
 ```
 
 #### Returns
+
 - `Promise<ApiResponse<{ message: string }>>`: A promise resolving to the API response with a rollback confirmation message.
 
 #### Example
+
 ```typescript
 const transaction = await db.tx.begin();
 // Perform database operations...
@@ -67,17 +75,23 @@ const transaction = await db.tx.begin({ ttl: 10000 });
 
 try {
   // Create a record within the transaction
-  const person = await db.records.create({
-    label: "Person",
-    data: { name: "Jane Smith", age: 28 }
-  }, transaction);
+  const person = await db.records.create(
+    {
+      label: "Person",
+      data: { name: "Jane Smith", age: 28 },
+    },
+    transaction,
+  );
 
   // Update a record within the same transaction
-  await db.records.update({
-    target: person,
-    label: "Person",
-    data: { age: 29 }
-  }, transaction);
+  await db.records.update(
+    {
+      target: person,
+      label: "Person",
+      data: { age: 29 },
+    },
+    transaction,
+  );
 
   // Commit the transaction to make changes permanent
   await transaction.commit();

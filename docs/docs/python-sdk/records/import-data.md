@@ -4,231 +4,98 @@ sidebar_position: 1
 
 # Import Data
 
-The RushDB Python SDK provides powerful methods for importing data into your database. You can import data from various formats including JSON and CSV, with options to customize how the data is processed and stored.
+Pass nested dicts — RushDB walks the structure and links each level as a related record.
 
-## Overview
-
-The import functionality in the Python SDK allows you to:
-- Import JSON data structures
-- Import CSV data from files or strings
-- Control data type inference and handling
-- Set default relationship types
-- Configure property value handling
-- Perform batch upsert (create-or-update) during import using `mergeBy` / `mergeStrategy`
-
-## Importing CSV Data
-
-### import_csv()
-
-Imports records from CSV data into RushDB.
-
-**Signature:**
 ```python
-def import_csv(
-    self,
-    label: str,
-    data: str,
-    options: Optional[Dict[str, bool]] = None,
-    parse_config: Optional[Dict[str, Any]] = None,
-    transaction: Optional[Transaction] = None
-) -> List[Dict[str, Any]]
-```
-
-**Arguments:**
-- `label` (str): Label for all imported records
-- `data` (str): CSV data to import as a string
-- `options` (Optional[Dict[str, bool]]): Import options
-  - `suggestTypes` (bool, **default: `True`**): Automatically infers data types for properties. Set to `False` to disable type inference and store all values as strings
-  - `castNumberArraysToVectors` (bool): When true, converts numeric arrays to vector type
-  - `convertNumericValuesToNumbers` (bool): When true, converts string numbers to number type
-  - `capitalizeLabels` (bool): When true, converts all labels to uppercase
-  - `relationshipType` (str): Default relationship type between nodes
-  - `returnResult` (bool): When true, returns imported records in response
-  - `mergeBy` (List[str]): Optional list of property names for matching existing records (upsert). If omitted and `mergeStrategy` provided, all incoming property keys are used. Empty list also means all keys.
-  - `mergeStrategy` (str): `'append'` (default) to add/update properties preserving others, or `'rewrite'` to replace all existing properties.
-
-:::info Default Behavior
-By default, `suggestTypes` is set to `True` for all import operations (CSV and JSON). This means RushDB automatically infers data types from your values. To store all properties as strings without type inference, you must explicitly set `suggestTypes=False` in the options.
-:::
-- `parse_config` (Optional[Dict[str, Any]]): CSV parsing configuration (PapaParse compatible subset):
-    - `delimiter` (str): Field delimiter character
-    - `header` (bool): Treat first row as header row
-    - `skipEmptyLines` (bool | 'greedy'): Skip empty lines
-    - `dynamicTyping` (bool): Convert numeric/boolean values automatically
-    - `quoteChar` (str): Character used for quoting fields
-    - `escapeChar` (str): Character used for escaping quotes
-    - `newline` (str): Explicit newline sequence
-- `transaction` (Optional[Transaction]): Optional transaction object
-
-**Returns:**
-- `List[Dict[str, Any]]`: Imported records data (if returnResult is True)
-
-**Example:**
-```python
-# Import records from CSV string
-csv_data = """name,email,age
-John Doe,john@example.com,30
-Jane Smith,jane@example.com,25
-Bob Wilson,bob@example.com,45"""
-
-records = client.records.import_csv(
-    label="CUSTOMER",
-    data=csv_data,
-    options={
-        "returnResult": True,
-        "suggestTypes": True,
-        "convertNumericValuesToNumbers": True,
-        "mergeBy": ["email"],            # upsert match key
-        "mergeStrategy": "append"         # or "rewrite"
+db.records.create_many(
+    label="MOVIE",
+    data={
+        "title": "Inception",
+        "rating": 8.8,
+        "ACTOR": [
+            {"name": "Leonardo DiCaprio", "country": "USA"},
+            {"name": "Ken Watanabe",      "country": "Japan"}
+        ]
     }
 )
-
-# Import records from CSV file
-with open('employees.csv', 'r') as file:
-    csv_content = file.read()
-
-records = client.records.import_csv(
-    label="EMPLOYEE",
-    data=csv_content,
-    options={
-        "returnResult": True,
-        "suggestTypes": True,
-        "mergeStrategy": "rewrite"  # replace properties for matched employees
-    },
-    parse_config={"header": True, "skipEmptyLines": True, "dynamicTyping": True}
-)
+# MOVIE → ACTOR × 2: all created and linked automatically
 ```
 
-## Importing JSON Data
+## Flat batch (`create_many`)
 
-### create_many()
+Use `create_many` with a list for flat rows — no nested objects inside items.
 
-Imports records from JSON data into RushDB.
-
-**Signature:**
 ```python
-def create_many(
-    self,
-    label: str,
-    data: Union[Dict[str, Any], List[Dict[str, Any]]],
-    options: Optional[Dict[str, Any]] = None,
-    transaction: Optional[Transaction] = None
-) -> List[Dict[str, Any]]
-```
-
-**Arguments:**
-- `label` (str): Label for the root node(s)
-- `data` (Union[Dict[str, Any], List[Dict[str, Any]]]): JSON data to import as dict or find of dicts
-- `options` (Optional[Dict[str, Any]]): Import options
-  - `suggestTypes` (bool, **default: `True`**): Automatically infers data types for properties. Set to `False` to disable type inference and store all values as strings
-  - `castNumberArraysToVectors` (bool): When true, converts numeric arrays to vector type
-  - `convertNumericValuesToNumbers` (bool): When true, converts string numbers to number type
-  - `capitalizeLabels` (bool): When true, converts all labels to uppercase
-  - `relationshipType` (str): Default relationship type between nodes
-  - `returnResult` (bool): When true, returns imported records in response
-  - `mergeBy` (List[str]): Upsert match keys for batch create/import; empty or omitted with `mergeStrategy` means all keys.
-  - `mergeStrategy` (str): `'append'` (default) or `'rewrite'`.
-- `transaction` (Optional[Transaction]): Optional transaction object
-
-**Returns:**
-- `List[Dict[str, Any]]`: Imported records data (if returnResult is True)
-
-**Example:**
-```python
-# Import a single JSON object
-person_data = {
-    "name": "John Doe",
-    "age": "30",
-    "addresses": [
-        {
-            "type": "home",
-            "street": "123 Main St",
-            "city": "Anytown"
-        },
-        {
-            "type": "work",
-            "street": "456 Business Rd",
-            "city": "Workville"
-        }
+db.records.create_many(
+    label="ACTOR",
+    data=[
+        {"name": "Leonardo DiCaprio", "country": "USA"},
+        {"name": "Ken Watanabe",      "country": "Japan"}
     ],
-    "scores": [85, 90, 95],
-    "active": True
-}
-
-records = client.records.create_many(
-    label="PERSON",
-    data=person_data,
-    options={
-        "returnResult": True,
-        "suggestTypes": True,
-        "convertNumericValuesToNumbers": True,
-        "relationshipType": "OWNS"
-    }
-)
-
-# Import multiple JSON objects
-employees_data = [
-    {
-        "name": "Alice Johnson",
-        "department": "Engineering",
-        "skills": ["Python", "JavaScript", "AWS"]
-    },
-    {
-        "name": "Bob Smith",
-        "department": "Marketing",
-        "skills": ["SEO", "Content Writing", "Analytics"]
-    }
-]
-
-records = client.records.create_many(
-    label="EMPLOYEE",
-    data=employees_data,
-    options={
-        "returnResult": True,
-        "suggestTypes": True,
-        "mergeBy": ["name", "department"],  # composite match
-        "mergeStrategy": "append"
-    }
+    options={"suggestTypes": True}
 )
 ```
 
-## Data Type Handling
+## CSV import (`import_csv`)
 
-### Automatic Type Inference
+```python
+with open("actors.csv") as f:
+    csv_content = f.read()
 
-**By default, `suggestTypes` is set to `True` for all import operations** (import_csv and create_many). This means RushDB automatically infers the following data types from your values:
+db.records.import_csv(
+    label="ACTOR",
+    data=csv_content,
+    options={"returnResult": False},
+    parse_config={"header": True, "dynamicTyping": True}
+)
+```
 
-- `string`: Text values
-- `number`: Numeric values
-- `boolean`: `True`/`False` values
-- `null`: `None` values
-- `datetime`: ISO8601 format strings (e.g., "2025-04-23T10:30:00Z")
-- `vector`: Arrays of numbers (when `castNumberArraysToVectors` is `True`)
+### `parse_config` options
 
-To disable automatic type inference and store all values as strings, you must **explicitly set `suggestTypes=False`** in your options dictionary.
+| Option | Default | Description |
+|---|---|---|
+| `delimiter` | `,` | Column separator |
+| `header` | `True` | First row is header |
+| `skipEmptyLines` | `True` | Ignore blank rows |
+| `dynamicTyping` | `True` | Auto-convert numbers and booleans |
+| `quoteChar` | `"` | Quote character |
+| `escapeChar` | `"` | Escape character |
+| `newline` | auto | Explicit newline sequence |
 
-### Additional Type Conversions
+## Options
 
-When `convertNumericValuesToNumbers` is enabled, string values that represent numbers (e.g., '123') will be automatically converted to their numeric equivalents (e.g., 123).
+| Option | Default | Description |
+|---|---|---|
+| `suggestTypes` | `True` | Infer property types automatically |
+| `convertNumericValuesToNumbers` | `False` | Convert string numbers to number type |
+| `capitalizeLabels` | `False` | Uppercase all inferred label names |
+| `relationshipType` | `__RUSHDB__RELATION__DEFAULT__` | Relationship type for nested links |
+| `returnResult` | `True` | Return created records in response |
+| `mergeBy` | — | Fields to match on for upsert |
+| `mergeStrategy` | `append` | `append` or `rewrite` |
 
-### Array Handling
+## Upsert during import
 
-Arrays with consistent data types (e.g., all numbers, all strings) will be handled seamlessly according to their type. However, for inconsistent arrays (e.g., `[1, 'two', None, False]`), all values will be automatically converted to strings to mitigate data loss, and the property type will be stored as `string`.
+```python
+# Append — update matched, preserve other fields
+db.records.create_many(
+    label="ACTOR",
+    data=actors,
+    options={"mergeBy": ["name"], "mergeStrategy": "append"}
+)
 
-## Graph Construction
+# Rewrite — replace all properties for matched records
+db.records.import_csv(
+    label="ACTOR",
+    data=csv_content,
+    options={"mergeBy": ["name"], "mergeStrategy": "rewrite"}
+)
+```
 
-When importing nested JSON data, RushDB automatically creates relationships between parent and child nodes. For example, if you import a person with addresses, RushDB will create:
+## Quick rules recap
 
-1. A node with the "PERSON" label for the person data
-2. Nodes with the "ADDRESS" label for each address
-3. Relationships from the person to each address (using the default relationship type or the one specified)
+- `create_many` with a dict or list of dicts: flat or nested JSON
+- `import_csv`: CSV string input with `parse_config`; `dynamicTyping` inherits from `options.suggestTypes` when omitted
+- Set `returnResult: False` for large imports to improve performance
 
-This allows you to maintain complex data structures in a graph database format without manually creating the relationships.
 
-## Performance Considerations
-
-- For large imports, consider setting `returnResult: False` to improve performance
-- Imports are processed in batches for optimal database performance
-- Consider using transactions for large imports to ensure data consistency
-- For very large datasets (millions of records), consider breaking the import into multiple smaller operations
-- For upsert imports, prefer stable unique keys in `mergeBy` to reduce match overhead.
