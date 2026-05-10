@@ -18,18 +18,60 @@ import { AuthService } from './auth.service'
 import { EmailConfirmationService } from './email-confirmation/email-confirmation.service'
 import { EncryptionService } from './encryption/encryption.service'
 
+function decodePem(value?: string): string | undefined {
+  if (!value) {
+    return undefined
+  }
+  return value.replace(/\\n/g, '\n')
+}
+
+function decodeBase64Pem(value?: string): string | undefined {
+  if (!value) {
+    return undefined
+  }
+  try {
+    return decodePem(Buffer.from(value, 'base64').toString('utf8'))
+  } catch {
+    return undefined
+  }
+}
+
 @Global()
 @Module({
   imports: [
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('RUSHDB_AES_256_ENCRYPTION_KEY'),
-        signOptions: {
-          expiresIn: TOKEN_EXPIRES_IN
+      useFactory: (configService: ConfigService) => {
+        const privateKey =
+          decodePem(configService.get<string>('RUSHDB_JWT_PRIVATE_KEY')) ||
+          decodeBase64Pem(configService.get<string>('RUSHDB_JWT_PRIVATE_KEY_BASE64'))
+        const publicKey =
+          decodePem(configService.get<string>('RUSHDB_JWT_PUBLIC_KEY')) ||
+          decodeBase64Pem(configService.get<string>('RUSHDB_JWT_PUBLIC_KEY_BASE64'))
+        const keyid = configService.get<string>('RUSHDB_JWT_KID')
+
+        // Prefer RS256 for OAuth tokens when keys are provided; keep HS256 fallback
+        // for local/self-hosted setups that still rely on the shared secret.
+        if (privateKey) {
+          return {
+            privateKey,
+            publicKey,
+            signOptions: {
+              expiresIn: TOKEN_EXPIRES_IN,
+              algorithm: 'RS256',
+              ...(keyid ? { keyid } : {})
+            }
+          }
         }
-      })
+
+        return {
+          secret: configService.get<string>('RUSHDB_AES_256_ENCRYPTION_KEY'),
+          signOptions: {
+            expiresIn: TOKEN_EXPIRES_IN
+          }
+        }
+      }
     }),
     TokenModule,
     ProjectModule,

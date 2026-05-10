@@ -17,6 +17,7 @@ import type { RequestContext } from './db.js'
 
 const RUSHDB_API_URL = process.env.RUSHDB_API_URL || 'https://api.rushdb.com/api/v1'
 const RUSHDB_OAUTH_ISSUER = process.env.RUSHDB_OAUTH_ISSUER || 'https://api.rushdb.com'
+const MCP_RESOURCE_URL = process.env.MCP_RESOURCE_URL
 const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange'
 
 /**
@@ -100,11 +101,15 @@ async function resolveJwtContext(jwt: string, projectId?: string): Promise<Reque
 
   let payload: any
   try {
+    const validAudiences = [MCP_RESOURCE_URL, RUSHDB_OAUTH_ISSUER].filter((value): value is string =>
+      Boolean(value)
+    )
+
     // Try JWKS verification first (RS256 — production path)
     const JWKS = createRemoteJWKSet(new URL(`${RUSHDB_OAUTH_ISSUER}/.well-known/jwks.json`))
     const result = await jwtVerify(jwt, JWKS, {
       issuer: RUSHDB_OAUTH_ISSUER,
-      audience: RUSHDB_OAUTH_ISSUER
+      audience: validAudiences
     })
     payload = result.payload
   } catch (_jwksError) {

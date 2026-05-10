@@ -75,8 +75,8 @@ jobs:
         with:
           version: pnpm changeset version
           publish: pnpm release --filter ./packages/javascript-sdk... --filter ./packages/mcp-server...
-          commit: "chore(release): version packages v${{ steps.determine-version.outputs.version }}"
-          title: "chore(release): version packages v${{ steps.determine-version.outputs.version }}"
+          commit: 'chore(release): version packages v${{ steps.determine-version.outputs.version }}'
+          title: 'chore(release): version packages v${{ steps.determine-version.outputs.version }}'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -196,6 +196,9 @@ jobs:
                   { "name": "LOG_LEVEL", "value": "info" },
                   { "name": "RUSHDB_DASHBOARD_URL", "value": "${{ vars.RUSHDB_DASHBOARD_URL }}" },
                   { "name": "RUSHDB_AES_256_ENCRYPTION_KEY", "value": "${{ secrets.RUSHDB_AES_256_ENCRYPTION_KEY }}" },
+                  { "name": "RUSHDB_JWT_PRIVATE_KEY_BASE64", "value": "${{ secrets.RUSHDB_JWT_PRIVATE_KEY_BASE64 }}" },
+                  { "name": "RUSHDB_JWT_PUBLIC_KEY_BASE64", "value": "${{ secrets.RUSHDB_JWT_PUBLIC_KEY_BASE64 }}" },
+                  { "name": "RUSHDB_JWT_KID", "value": "${{ vars.RUSHDB_JWT_KID }}" },
                   { "name": "RUSHDB_SELF_HOSTED", "value": "false" },
                   { "name": "RUSHDB_SERVE_STATIC", "value": "false" },
                   { "name": "NEO4J_URL", "value": "${{ secrets.NEO4J_URL }}" },
