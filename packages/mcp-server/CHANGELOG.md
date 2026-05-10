@@ -1,5 +1,13 @@
 # @rushdb/mcp-server
 
+## 2.0.3
+
+### Patch Changes
+
+- 7fdb94a: Fix MCP auth flow
+- Updated dependencies [7fdb94a]
+  - @rushdb/javascript-sdk@2.0.3
+
 ## 2.0.2
 
 ### Patch Changes
