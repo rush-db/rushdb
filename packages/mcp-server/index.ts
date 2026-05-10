@@ -940,8 +940,32 @@ if (mcpTransport === 'http') {
     })
   })
 
-  // GET /mcp — required for SSE-based MCP clients (optional but good practice)
-  httpApp.get('/mcp', (c) => c.json({ error: 'method_not_allowed', error_description: 'Use POST /mcp' }, 405))
+  // GET /mcp — some clients perform an SSE capability probe via GET before
+  // issuing JSON-RPC POST requests. Return 200 with a lightweight SSE frame
+  // to satisfy probes while still directing real RPC traffic to POST /mcp.
+  httpApp.get('/mcp', (c) => {
+    const accept = (c.req.header('accept') || '').toLowerCase()
+    if (accept.includes('text/event-stream')) {
+      return new Response(': mcp probe ok\n\n', {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive'
+        }
+      })
+    }
+    return c.json({ status: 'ok', message: 'Use POST /mcp for JSON-RPC requests.' }, 200)
+  })
+
+  // Root info endpoint helps clients/probes avoid generic 404s.
+  httpApp.get('/', (c) =>
+    c.json({
+      status: 'ok',
+      name: 'rushdb-mcp-server',
+      endpoints: ['/mcp', '/health', '/.well-known/openid-configuration']
+    })
+  )
 
   // Health check for load balancer probes
   httpApp.get('/health', (c) => c.text('ok'))
