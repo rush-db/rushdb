@@ -1,5 +1,13 @@
 # @rushdb/mcp-server
 
+## 2.0.4
+
+### Patch Changes
+
+- bc52537: MCP OAuth API improvements
+- Updated dependencies [bc52537]
+  - @rushdb/javascript-sdk@2.0.4
+
 ## 2.0.3
 
 ### Patch Changes

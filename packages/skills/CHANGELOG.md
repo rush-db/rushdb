@@ -1,5 +1,11 @@
 # @rushdb/skills
 
+## 2.0.4
+
+### Patch Changes
+
+- bc52537: MCP OAuth API improvements
+
 ## 2.0.3
 
 ### Patch Changes
