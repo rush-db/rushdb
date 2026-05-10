@@ -55,13 +55,17 @@ MCP_TRANSPORT=http \
 RUSHDB_API_URL=http://localhost:3000/api/v1 \
 RUSHDB_OAUTH_ISSUER=http://localhost:3000 \
 MCP_RESOURCE_URL=https://<your-mcp-ngrok-subdomain>.ngrok-free.app \
-RUSHDB_AES_256_ENCRYPTION_KEY=32SymbolStringForTokenEncryption \
+RUSHDB_JWT_PRIVATE_KEY_BASE64=<base64-pem-private-key> \
+RUSHDB_JWT_PUBLIC_KEY_BASE64=<base64-pem-public-key> \
+RUSHDB_JWT_KID=local-rs256-key-1 \
 node packages/mcp-server/build/index.js
 ```
 
 > **`MCP_RESOURCE_URL`** must be the ngrok URL from step 2. Every time ngrok restarts it issues a new URL (unless you have a paid static domain), so you'll need to restart the MCP server with the updated value.
 
-> **`RUSHDB_AES_256_ENCRYPTION_KEY`** must be exactly 32 characters. It is used to sign and verify JWT access tokens — use the same value the platform is configured with.
+> Preferred: run OAuth with RS256 keys (`RUSHDB_JWT_PRIVATE_KEY*` + `RUSHDB_JWT_PUBLIC_KEY*`) so AI clients can verify tokens via JWKS.
+
+> Backward-compatible fallback: `RUSHDB_AES_256_ENCRYPTION_KEY` (32 chars) is still supported for local HS256 signing if RS256 keys are not set.
 
 ---
 
@@ -112,10 +116,13 @@ Connected applications can be revoked from the **Workspace Settings** page (`/wo
 
 ## Environment Variable Reference
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `MCP_TRANSPORT` | Transport mode. Use `http` for OAuth/remote clients | `http` |
-| `RUSHDB_API_URL` | Base URL of the RushDB REST API | `http://localhost:3000/api/v1` |
-| `RUSHDB_OAUTH_ISSUER` | OAuth issuer — must match the platform origin | `http://localhost:3000` |
-| `MCP_RESOURCE_URL` | Public URL of this MCP server (used in OAuth metadata) | `https://xxxx.ngrok-free.app` |
-| `RUSHDB_AES_256_ENCRYPTION_KEY` | 32-character key for JWT signing/verification | `32SymbolStringForTokenEncryption` |
+| Variable                                                   | Description                                               | Example                            |
+| ---------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------- |
+| `MCP_TRANSPORT`                                            | Transport mode. Use `http` for OAuth/remote clients       | `http`                             |
+| `RUSHDB_API_URL`                                           | Base URL of the RushDB REST API                           | `http://localhost:3000/api/v1`     |
+| `RUSHDB_OAUTH_ISSUER`                                      | OAuth issuer — must match the platform origin             | `http://localhost:3000`            |
+| `MCP_RESOURCE_URL`                                         | Public URL of this MCP server (used in OAuth metadata)    | `https://xxxx.ngrok-free.app`      |
+| `RUSHDB_JWT_PRIVATE_KEY` / `RUSHDB_JWT_PRIVATE_KEY_BASE64` | RS256 private key used to sign OAuth JWTs                 | `-----BEGIN PRIVATE KEY-----...`   |
+| `RUSHDB_JWT_PUBLIC_KEY` / `RUSHDB_JWT_PUBLIC_KEY_BASE64`   | RS256 public key exposed in JWKS                          | `-----BEGIN PUBLIC KEY-----...`    |
+| `RUSHDB_JWT_KID`                                           | Key id included in JWT header and JWKS entries            | `rushdb-mcp-rs256`                 |
+| `RUSHDB_AES_256_ENCRYPTION_KEY`                            | HS256 fallback secret for local/self-hosted compatibility | `32SymbolStringForTokenEncryption` |

@@ -2,10 +2,56 @@ import { Controller, Get } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { ApiOperation, ApiTags } from '@nestjs/swagger'
 
+import { createPublicKey } from 'node:crypto'
+
 @ApiTags('OAuth Discovery')
 @Controller()
 export class WellKnownController {
   constructor(private readonly configService: ConfigService) {}
+
+  private decodePem(value?: string): string | undefined {
+    if (!value) {
+      return undefined
+    }
+    return value.replace(/\\n/g, '\n')
+  }
+
+  private decodeBase64Pem(value?: string): string | undefined {
+    if (!value) {
+      return undefined
+    }
+    try {
+      return this.decodePem(Buffer.from(value, 'base64').toString('utf8'))
+    } catch {
+      return undefined
+    }
+  }
+
+  private get jwtKid(): string {
+    return this.configService.get<string>('RUSHDB_JWT_KID') || 'rushdb-mcp-rs256'
+  }
+
+  private get jwtPublicPem(): string | undefined {
+    const explicitPublic =
+      this.decodePem(this.configService.get<string>('RUSHDB_JWT_PUBLIC_KEY')) ||
+      this.decodeBase64Pem(this.configService.get<string>('RUSHDB_JWT_PUBLIC_KEY_BASE64'))
+    if (explicitPublic) {
+      return explicitPublic
+    }
+
+    const privatePem =
+      this.decodePem(this.configService.get<string>('RUSHDB_JWT_PRIVATE_KEY')) ||
+      this.decodeBase64Pem(this.configService.get<string>('RUSHDB_JWT_PRIVATE_KEY_BASE64'))
+    if (!privatePem) {
+      return undefined
+    }
+
+    try {
+      return createPublicKey(privatePem).export({ format: 'pem', type: 'spki' }).toString()
+    } catch {
+      return undefined
+    }
+  }
 
   private get issuer(): string {
     return this.configService.get<string>('RUSHDB_OAUTH_ISSUER') || 'https://api.rushdb.com'
@@ -42,10 +88,27 @@ export class WellKnownController {
   }
 
   @Get('.well-known/jwks.json')
-  @ApiOperation({ summary: 'JSON Web Key Set (JWKS) — placeholder for RS256 upgrade path' })
+  @ApiOperation({ summary: 'JSON Web Key Set (JWKS) for OAuth access-token verification' })
   getJwks() {
-    // Placeholder: returns empty keyset. When upgrading from HS256 to RS256,
-    // replace with the actual public key set.
-    return { keys: [] }
+    const publicPem = this.jwtPublicPem
+    if (!publicPem) {
+      return { keys: [] }
+    }
+
+    try {
+      const jwk = createPublicKey(publicPem).export({ format: 'jwk' }) as Record<string, unknown>
+      return {
+        keys: [
+          {
+            ...jwk,
+            use: 'sig',
+            alg: 'RS256',
+            kid: this.jwtKid
+          }
+        ]
+      }
+    } catch {
+      return { keys: [] }
+    }
   }
 }
