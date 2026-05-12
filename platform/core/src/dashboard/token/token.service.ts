@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import ms from 'ms'
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import ms = require('ms')
 import { Transaction } from 'neo4j-driver'
 import { uuidv7 } from 'uuidv7'
 
