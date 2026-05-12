@@ -1,5 +1,11 @@
 # @rushdb/skills
 
+## 2.0.5
+
+### Patch Changes
+
+- eb50f23: Fix OAuth MCP Flow
+
 ## 2.0.4
 
 ### Patch Changes
