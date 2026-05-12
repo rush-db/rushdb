@@ -66,6 +66,18 @@ Ask Claude:
 
 **Override API URL** (self-hosted / staging): add `"RUSHDB_API_URL": "https://your-host/api/v1"` to any `env` block above.
 
+## Hosted MCP endpoint (connected clients)
+
+For connected clients that use an HTTP MCP endpoint, use:
+
+`https://mcp.rushdb.com/mcp`
+
+Do not use the root domain (`https://mcp.rushdb.com`) for connector setup.
+
+If you are testing locally through a tunnel, use the full tunnel endpoint path as well:
+
+`https://<your-ngrok-host>.ngrok-free.app/mcp`
+
 ## Enable the Query Builder prompt (recommended)
 
 To make discovery-first behavior automatic:
