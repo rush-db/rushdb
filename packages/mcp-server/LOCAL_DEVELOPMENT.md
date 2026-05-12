@@ -20,6 +20,14 @@ pnpm dev
 
 This runs `platform/core` (NestJS REST API) and `platform/dashboard` (React UI) concurrently.
 
+Before connecting ChatGPT, make sure `platform/core` has:
+
+```bash
+RUSHDB_PUBLIC_URL=http://localhost:3000
+```
+
+The value must match the MCP server's `RUSHDB_OAUTH_ISSUER` (for Docker-based MCP runs this is often `http://host.docker.internal:3000`). If these differ, OAuth may link successfully but MCP action discovery fails with `401 Reauthentication required`.
+
 ---
 
 ## 2. Expose the MCP Server with ngrok
@@ -102,9 +110,19 @@ Before connecting an AI client, confirm the discovery endpoints are reachable:
 # OpenID configuration (needed for RFC 8414 / OAuth 2.0 Authorization Server Metadata)
 curl https://<your-mcp-ngrok-subdomain>.ngrok-free.app/.well-known/openid-configuration | jq
 
-# MCP endpoint health
-curl https://<your-mcp-ngrok-subdomain>.ngrok-free.app/mcp
+# JWKS should be non-empty when RS256 is configured
+curl https://<your-mcp-ngrok-subdomain>.ngrok-free.app/.well-known/jwks.json | jq
+
+# MCP probe should return text/event-stream
+curl -i https://<your-mcp-ngrok-subdomain>.ngrok-free.app/mcp -H 'Accept: text/event-stream'
 ```
+
+If ChatGPT shows `OAuth linked, action discovery failed`:
+
+1. Re-check that `RUSHDB_PUBLIC_URL` (platform/core) matches `RUSHDB_OAUTH_ISSUER` (MCP server runtime).
+2. Ensure `/.well-known/jwks.json` contains keys (not an empty array).
+3. Remove and recreate the ChatGPT connector to force a fresh OAuth token.
+4. Restart both platform/core and MCP server after env changes.
 
 ---
 

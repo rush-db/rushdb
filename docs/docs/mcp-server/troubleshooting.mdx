@@ -11,15 +11,15 @@ sidebar_position: 6
 
 The MCP server maps HTTP status codes to actionable messages returned directly to the model:
 
-| Status | Message returned to LLM |
-|--------|-------------------------|
+| Status | Message returned to LLM                                                                                                                        |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | 400    | Bad request — query or payload is invalid. Check field names, operators, and required arguments. Call `getSearchQuerySpec` for correct syntax. |
-| 401    | Unauthorized — API key is missing or invalid. |
-| 403    | Forbidden — the API key lacks permission for this operation. |
-| 404    | Not found — resource does not exist. Verify record IDs and label names (case-sensitive). Call `getOntologyMarkdown` to rediscover the schema. |
-| 409    | Conflict — operation conflicts with existing data (e.g. duplicate key). |
-| 422    | Unprocessable — field types or required fields don't match the schema. |
-| 5xx    | Server error — retry or contact support. |
+| 401    | Unauthorized — API key is missing or invalid.                                                                                                  |
+| 403    | Forbidden — the API key lacks permission for this operation.                                                                                   |
+| 404    | Not found — resource does not exist. Verify record IDs and label names (case-sensitive). Call `getOntologyMarkdown` to rediscover the schema.  |
+| 409    | Conflict — operation conflicts with existing data (e.g. duplicate key).                                                                        |
+| 422    | Unprocessable — field types or required fields don't match the schema.                                                                         |
+| 5xx    | Server error — retry or contact support.                                                                                                       |
 
 :::tip Self-correction
 Because the model receives an actionable hint rather than a bare status code, it can self-correct — for example, calling `getOntologyMarkdown` automatically after a 404 without you needing to intervene.
@@ -28,6 +28,27 @@ Because the model receives an actionable hint rather than a bare status code, it
 ---
 
 ## Common issues
+
+**ChatGPT connector: `OAuth linked, action discovery failed`**
+
+Often appears with:
+
+- `MCP_ACTION_DISCOVERY_FAILED`
+- `Reauthentication required`
+
+Checklist:
+
+1. Connector URL must include `/mcp`:
+   - Production: `https://mcp.rushdb.com/mcp`
+   - Local tunnel: `https://<your-ngrok-host>.ngrok-free.app/mcp`
+2. Verify discovery and probe endpoints:
+   - `/.well-known/openid-configuration` returns 200 JSON
+   - `/.well-known/jwks.json` returns a non-empty `keys` array
+   - `/mcp` GET probe returns `text/event-stream`
+3. If OAuth env vars changed, restart both the OAuth issuer and MCP server.
+4. Remove and recreate the ChatGPT connector to force a fresh OAuth token.
+
+---
 
 **Missing API key**
 

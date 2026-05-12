@@ -239,7 +239,7 @@ export class McpOauthService {
     const codeId = 'oauthcode_' + uuidv7()
     await this.oauthRepository.createCode({
       id: codeId,
-      consentId: consent.id,
+      consentId: consent!.id,
       clientId: authRequest.clientId,
       redirectUri: authRequest.redirectUri,
       codeChallenge: authRequest.codeChallenge ?? '',
@@ -323,17 +323,14 @@ export class McpOauthService {
     // Code is single-use - delete immediately
     await this.oauthRepository.deleteCode(code)
 
-    // Issue JWT access token
-    const accessToken = this.jwtService.sign(
-      {
-        sub: consentRow.userId,
-        scope: consentRow.scope,
-        project_id: consentRow.projectId,
-        consent_id: codeRow.consentId,
-        aud: codeRow.resource || this.issuer
-      },
-      { expiresIn: ACCESS_TOKEN_TTL_S }
-    )
+    const accessToken = this.signOAuthAccessToken({
+      iss: this.issuer,
+      sub: consentRow.userId,
+      scope: consentRow.scope,
+      project_id: consentRow.projectId,
+      consent_id: codeRow.consentId,
+      aud: codeRow.resource || this.issuer
+    })
 
     return {
       access_token: accessToken,
@@ -357,10 +354,11 @@ export class McpOauthService {
       throw new BadRequestException('project_id is required for token exchange')
     }
 
-    // Verify the OAuth JWT
+    // Verify the OAuth JWT using the current key configuration instead of
+    // relying on JwtModule startup defaults.
     let payload: any
     try {
-      payload = this.jwtService.verify(subject_token)
+      payload = this.verifyOAuthAccessToken(subject_token)
     } catch (e) {
       throw new UnauthorizedException('Invalid or expired subject_token')
     }
@@ -449,6 +447,70 @@ export class McpOauthService {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+
+  private decodePem(value?: string): string | undefined {
+    if (!value) {
+      return undefined
+    }
+    return value.replace(/\\n/g, '\n')
+  }
+
+  private decodeBase64Pem(value?: string): string | undefined {
+    if (!value) {
+      return undefined
+    }
+    try {
+      return this.decodePem(Buffer.from(value, 'base64').toString('utf8'))
+    } catch {
+      return undefined
+    }
+  }
+
+  private get oauthJwtConfig() {
+    const privateKey =
+      this.decodePem(this.configService.get<string>('RUSHDB_JWT_PRIVATE_KEY')) ||
+      this.decodeBase64Pem(this.configService.get<string>('RUSHDB_JWT_PRIVATE_KEY_BASE64'))
+    const publicKey =
+      this.decodePem(this.configService.get<string>('RUSHDB_JWT_PUBLIC_KEY')) ||
+      this.decodeBase64Pem(this.configService.get<string>('RUSHDB_JWT_PUBLIC_KEY_BASE64'))
+    const keyid = this.configService.get<string>('RUSHDB_JWT_KID') || undefined
+    const secret = this.configService.get<string>('RUSHDB_AES_256_ENCRYPTION_KEY')
+
+    return { privateKey, publicKey, keyid, secret }
+  }
+
+  private signOAuthAccessToken(payload: Record<string, unknown>): string {
+    const { privateKey, publicKey, keyid, secret } = this.oauthJwtConfig
+
+    if (privateKey) {
+      return this.jwtService.sign(payload, {
+        expiresIn: ACCESS_TOKEN_TTL_S,
+        algorithm: 'RS256',
+        privateKey,
+        ...(keyid ? { keyid } : {})
+      })
+    }
+
+    return this.jwtService.sign(payload, {
+      expiresIn: ACCESS_TOKEN_TTL_S,
+      secret
+    })
+  }
+
+  private verifyOAuthAccessToken(token: string): any {
+    const { publicKey, privateKey, secret } = this.oauthJwtConfig
+
+    if (publicKey || privateKey) {
+      return this.jwtService.verify(token, {
+        publicKey: publicKey || privateKey,
+        algorithms: ['RS256']
+      })
+    }
+
+    return this.jwtService.verify(token, {
+      secret
+    })
+  }
 
   private async getClient(clientId: string) {
     return this.oauthRepository.findClientById(clientId)

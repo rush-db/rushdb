@@ -231,13 +231,14 @@ function createMcpServer(): Server {
             limit: args.limit as number | undefined,
             skip: args.skip as number | undefined,
             orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined,
+            select: args.select as Record<string, any> | undefined,
             aggregate: args.aggregate as
               | Record<string, { fn: string; field?: string; alias?: string; where?: any }>
               | undefined,
             groupBy: args.groupBy as string[] | undefined
           })
 
-          const isAggregate = Boolean(args.aggregate) || Boolean(args.groupBy)
+          const isAggregate = Boolean(args.select) || Boolean(args.aggregate) || Boolean(args.groupBy)
           const isEmpty =
             isAggregate ? false : (
               Array.isArray((foundRecords as any)?.data) && (foundRecords as any).data.length === 0
@@ -940,32 +941,38 @@ if (mcpTransport === 'http') {
     })
   })
 
-  // GET /mcp — some clients perform an SSE capability probe via GET before
-  // issuing JSON-RPC POST requests. Return 200 with a lightweight SSE frame
-  // to satisfy probes while still directing real RPC traffic to POST /mcp.
-  httpApp.get('/mcp', (c) => {
-    const accept = (c.req.header('accept') || '').toLowerCase()
-    if (accept.includes('text/event-stream')) {
-      return new Response(': mcp probe ok\n\n', {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive'
-        }
-      })
-    }
-    return c.json({ status: 'ok', message: 'Use POST /mcp for JSON-RPC requests.' }, 200)
-  })
+  const sseProbeResponse = () =>
+    new Response(': mcp probe ok\n\n', {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive'
+      }
+    })
+
+  // GET /mcp — several MCP clients run a strict SSE probe before any POST.
+  // Always return SSE here so probe behavior does not depend on Accept headers.
+  httpApp.get('/mcp', () => sseProbeResponse())
 
   // Root info endpoint helps clients/probes avoid generic 404s.
-  httpApp.get('/', (c) =>
-    c.json({
+  httpApp.get('/', (c) => {
+    const accept = (c.req.header('accept') || '').toLowerCase()
+    const probeLikeAccept =
+      !accept ||
+      accept.includes('text/event-stream') ||
+      (accept.includes('*/*') && !accept.includes('text/html'))
+
+    if (probeLikeAccept) {
+      return sseProbeResponse()
+    }
+
+    return c.json({
       status: 'ok',
       name: 'rushdb-mcp-server',
       endpoints: ['/mcp', '/health', '/.well-known/openid-configuration']
     })
-  )
+  })
 
   // Health check for load balancer probes
   httpApp.get('/health', (c) => c.text('ok'))
