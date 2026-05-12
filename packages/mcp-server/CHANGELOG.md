@@ -1,5 +1,13 @@
 # @rushdb/mcp-server
 
+## 2.0.5
+
+### Patch Changes
+
+- eb50f23: Fix OAuth MCP Flow
+- Updated dependencies [eb50f23]
+  - @rushdb/javascript-sdk@2.0.5
+
 ## 2.0.4
 
 ### Patch Changes
