@@ -1,5 +1,6 @@
 import type { SdkLanguage } from '~/features/onboarding/types'
 
+import jsLogo from './assets/js-logo.png'
 import pythonLogo from './assets/python-logo.png'
 import typescriptLogo from './assets/ts-logo.png'
 
@@ -16,6 +17,12 @@ export const docsUrls = {
       usage: 'https://docs.rushdb.com/python-sdk/records/create-records',
       github: 'https://github.com/rush-db/rushdb-python',
       logo: pythonLogo
+    },
+    shell: {
+      installation: 'https://docs.rushdb.com/rest-api/introduction',
+      usage: 'https://docs.rushdb.com/rest-api/records/import-data',
+      github: 'https://github.com/rush-db/rushdb',
+      logo: jsLogo
     }
   },
   dashboard: {
@@ -36,6 +43,10 @@ export const docsUrls = {
   >
 }
 
-export const SDK_LANGUAGES = ['typescript', 'python'] as const
+export const SDK_LANGUAGES = ['python', 'typescript', 'shell'] as const
 
-export const AVAILABLE_SDK_LANGUAGES = ['typescript', 'python'] as const satisfies readonly SdkLanguage[]
+export const AVAILABLE_SDK_LANGUAGES = [
+  'python',
+  'typescript',
+  'shell'
+] as const satisfies readonly SdkLanguage[]

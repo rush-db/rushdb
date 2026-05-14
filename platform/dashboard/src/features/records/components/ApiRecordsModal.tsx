@@ -53,8 +53,13 @@ function CodeSnippet() {
               }, 100)
               editor.getAction('editor.action.formatDocument')?.run()
             }}
-            defaultLanguage={sdkLanguage}
-            value={sdkLanguage === 'python' ? PyTemplate(editorData!) : JSTemplate(editorData!)}
+            defaultLanguage={sdkLanguage === 'shell' ? 'shell' : sdkLanguage}
+            value={
+              sdkLanguage === 'python' ? PyTemplate(editorData!)
+              : sdkLanguage === 'shell' ?
+                ShellTemplate(editorData!)
+              : JSTemplate(editorData!)
+            }
             height="100%"
             onChange={(v) => $codeData.set(v ?? '')}
             theme="vs-dark"
@@ -76,6 +81,12 @@ const PyTemplate = (body: string) => `from rushdb import RushDB
 db = RushDB("RUSHDB_API_KEY")
 
 db.records.find(${body})`
+
+const ShellTemplate = (body: string) => `curl -X POST 'https://api.rushdb.com/api/v1/records/search' \\
+  -H 'accept: */*' \\
+  -H 'Authorization: Bearer <YOUR_API_KEY>' \\
+  -H 'Content-Type: application/json' \\
+  -d '${body}'`
 
 export function ApiRecordsModal() {
   const open = useStore($open)
