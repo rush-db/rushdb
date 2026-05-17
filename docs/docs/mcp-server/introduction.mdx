@@ -7,7 +7,7 @@ sidebar_position: 1
 
 # MCP Server
 
-Connect Claude, Cursor, or any MCP-compatible client to your RushDB database. Type natural language; the server handles discovery, query building, and execution.
+Connect Claude, ChatGPT, Cursor, or any MCP-compatible client to your RushDB database. Type natural language; the server handles discovery, query building, and execution.
 
 ```
 You: How many MOVIE records have a rating above 8?
@@ -17,6 +17,18 @@ Claude: [calls getOntologyMarkdown → confirms MOVIE label and rating field]
 
 Result: 1 movie matched (Inception, rating 8.8)
 ```
+
+## Connection modes
+
+**Remote OAuth** — connect directly from ChatGPT, Claude.ai, or any web-based AI assistant. No local installation required. Authenticates via your RushDB account at:
+
+```
+https://mcp.rushdb.com/mcp
+```
+
+**Local (API key)** — install `@rushdb/mcp-server` in Claude Desktop, Cursor, VS Code, or any stdio-based MCP client. Provide your RushDB API key as an environment variable.
+
+→ [Quickstart](./quickstart) for setup instructions for both modes.
 
 ## Mandatory workflow
 
