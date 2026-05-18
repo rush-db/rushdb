@@ -10,7 +10,7 @@ Group writes atomically — all succeed or all roll back.
 
 ```python
 # Auto-commit on success, auto-rollback on exception
-with db.transactions.begin() as tx:
+with db.tx.begin() as tx:
     leo = db.records.create(label="ACTOR", data={"name": "Leonardo DiCaprio"}, transaction=tx)
     inception = db.records.create(label="MOVIE", data={"title": "Inception"}, transaction=tx)
     db.records.attach(source=leo, target=inception, options={"type": "ACTED_IN"}, transaction=tx)
@@ -20,7 +20,7 @@ with db.transactions.begin() as tx:
 ## Manual commit / rollback
 
 ```python
-tx = db.transactions.begin()
+tx = db.tx.begin()
 try:
     movie = db.records.create(label="MOVIE", data={"title": "Inception"}, transaction=tx)
     actor = db.records.create(label="ACTOR", data={"name": "Leonardo DiCaprio"}, transaction=tx)
@@ -33,25 +33,23 @@ except Exception:
 
 ## API
 
-| Method | Description |
-|---|---|
-| `db.transactions.begin(ttl?)` | Start a new transaction |
-| `tx.commit()` | Persist all operations |
-| `tx.rollback()` | Discard all operations |
+| Method              | Description             |
+| ------------------- | ----------------------- |
+| `db.tx.begin(ttl?)` | Start a new transaction |
+| `tx.commit()`       | Persist all operations  |
+| `tx.rollback()`     | Discard all operations  |
 
 ## Timeouts
 
-| Setting | Value |
-|---|---|
-| Default TTL | 5000 ms |
+| Setting     | Value    |
+| ----------- | -------- |
+| Default TTL | 5000 ms  |
 | Maximum TTL | 30000 ms |
 
 ```python
-tx = db.transactions.begin(ttl=15000)   # 15 s timeout
+tx = db.tx.begin(ttl=15000)   # 15 s timeout
 ```
 
 ## Supported operations
 
 `create` · `create_many` · `update` · `set` · `delete` · `delete_by_id` · `attach` · `detach` · `find`
-
-

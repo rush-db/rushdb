@@ -1,8 +1,9 @@
 ---
 sidebar_position: 7
 ---
-import Tabs from '@site/src/components/LanguageTabs';
-import TabItem from '@theme/TabItem';
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
 
 # Transactions
 
@@ -18,28 +19,29 @@ Transactions in RushDB are built on Neo4j's native transaction capabilities, pro
 - **Durability**: Once a transaction is committed, changes are permanent even in case of system failure.
 
 For example:
+
 <Tabs groupId="programming-language">
   <TabItem value="typescript" label="TypeScript" default>
   ```typescript
   // Start a transaction
   const tx = await db.tx.begin({ ttl: 10000 });
 
-  try {
-    // Create a new user record within the transaction
-    const user = await db.records.create(
-      {
-        label: 'User',
-        data: {
-          name: 'Alice Smith',
-          email: 'alice@example.com',
-          emailConfirmed: false
-        }
-      },
-      tx
-    );
+try {
+// Create a new user record within the transaction
+const user = await db.records.create(
+{
+label: 'User',
+data: {
+name: 'Alice Smith',
+email: 'alice@example.com',
+emailConfirmed: false
+}
+},
+tx
+);
 
     // Create a related profile record within the same transaction
-    const profile = await db.record.create(
+    const profile = await db.records.create(
       {
         label: "Profile",
         data: {
@@ -65,61 +67,63 @@ For example:
     // Commit the transaction to make all changes permanent
     await tx.commit();
     // or await db.tx.commit(tx);
-  } catch (error) {
-    // If any operation fails, roll back the entire transaction
-    await tx.rollback();
-    // or await db.tx.rollback(tx);
-    throw error;
-  }
+
+} catch (error) {
+// If any operation fails, roll back the entire transaction
+await tx.rollback();
+// or await db.tx.rollback(tx);
+throw error;
+}
+
+````
+</TabItem>
+<TabItem value="python" label="Python">
+  ```python
+  # Start a transaction
+  tx = db.tx.begin(ttl=10000)
+
+  try:
+      # Create a new user record within the transaction
+      user = db.records.create(
+          label="User",
+          data={
+              "name": "Alice Smith",
+              "email": "alice@example.com",
+              "emailConfirmed": False
+          },
+          transaction=tx
+      )
+
+      # Create a related profile record within the same transaction
+      profile = db.records.create(
+          label="Profile",
+          data={
+              "bio": "Software engineer",
+              "joinDate": datetime.now().isoformat()
+          },
+          transaction=tx
+      )
+
+      # Create a relationship between the records within the same transaction
+      db.records.attach(
+          source=user,
+          target=profile,
+          options={
+              "type": "HAS_PROFILE"
+          },
+          transaction=tx
+      )
+
+      # Commit the transaction to make all changes permanent
+      tx.commit()
+      # or db.tx.commit(tx)
+  except Exception as error:
+      # If any operation fails, roll back the entire transaction
+      tx.rollback()
+      # or db.tx.rollback(tx)
+      raise error
   ```
 </TabItem>
-  <TabItem value="python" label="Python">
-    ```python
-    # Start a transaction
-    tx = db.tx.begin(ttl=10000)
-
-    try:
-        # Create a new user record within the transaction
-        user = db.records.create(
-            label="User",
-            data={
-                "name": "Alice Smith",
-                "email": "alice@example.com",
-                "emailConfirmed": False
-            },
-            transaction=tx
-        )
-
-        # Create a related profile record within the same transaction
-        profile = db.records.create(
-            label="Profile",
-            data={
-                "bio": "Software engineer",
-                "joinDate": datetime.now().isoformat()
-            },
-            transaction=tx
-        )
-
-        # Create a relationship between the records within the same transaction
-        db.records.attach(
-            source=user,
-            target=profile,
-            options={
-                "type": "HAS_PROFILE"
-            },
-            transaction=tx
-        )
-
-        # Commit the transaction to make all changes permanent
-        tx.commit()
-        # or db.tx.commit(tx)
-    except Exception as error:
-        # If any operation fails, roll back the entire transaction
-        tx.rollback()
-        # or db.tx.rollback(tx)
-        raise error
-    ```
-  </TabItem>
 </Tabs>
 
 ## Transaction Lifecycle
@@ -160,16 +164,16 @@ When creating interconnected data structures, transactions ensure that all compo
 
 ```mermaid
 graph TD
-    A[Create User] -->|Success| B[Create Profile]
-    B -->|Success| C[Create Address]
-    C -->|Success| D[Create Relationships]
-    D -->|Success| E[Commit Transaction]
+  A[Create User] -->|Success| B[Create Profile]
+  B -->|Success| C[Create Address]
+  C -->|Success| D[Create Relationships]
+  D -->|Success| E[Commit Transaction]
 
-    A -->|Failure| F[Rollback]
-    B -->|Failure| F
-    C -->|Failure| F
-    D -->|Failure| F
-```
+  A -->|Failure| F[Rollback]
+  B -->|Failure| F
+  C -->|Failure| F
+  D -->|Failure| F
+````
 
 This approach ensures that complex data structures are properly maintained, with [Records](../concepts/records) and their [Relationships](../concepts/relationships) remaining consistent.
 
@@ -197,43 +201,44 @@ When multiple users or services access the same data simultaneously, transaction
     await tx1.rollback();
   }
 
-  // Service 2 (concurrent)
-  const tx2 = await db.tx.begin();
-  try {
-    const record = await db.records.findById(recordId, tx2);
-    // Will see the original record state until tx1 is committed
-    await tx2.commit()
-  } catch (error) {
-    await tx2.rollback()
-  }
-  ```
-  </TabItem>
-  <TabItem value="python" label="Python">
-    ```python
-    # Service 1
-    tx1 = db.tx.begin()
-    try:
-        record = db.records.find_by_id(record_id, transaction=tx1)
-        db.records.update(
-            target=record,
-            label=record.label(),
-            data={"status": "processing"},
-            transaction=tx1
-        )
-        tx1.commit()
-    except Exception as error:
-        tx1.rollback()
+// Service 2 (concurrent)
+const tx2 = await db.tx.begin();
+try {
+const record = await db.records.findById(recordId, tx2);
+// Will see the original record state until tx1 is committed
+await tx2.commit()
+} catch (error) {
+await tx2.rollback()
+}
 
-    # Service 2 (concurrent)
-    tx2 = db.tx.begin()
-    try:
-        record = db.records.find_by_id(record_id, transaction=tx2)
-        # Will see the original record state until tx1 is committed
-        tx2.commit()
-    except Exception as error:
-        tx2.rollback()
-    ```
-  </TabItem>
+````
+</TabItem>
+<TabItem value="python" label="Python">
+  ```python
+  # Service 1
+  tx1 = db.tx.begin()
+  try:
+      record = db.records.find_by_id(record_id, transaction=tx1)
+      db.records.update(
+          target=record,
+          label=record.label(),
+          data={"status": "processing"},
+          transaction=tx1
+      )
+      tx1.commit()
+  except Exception as error:
+      tx1.rollback()
+
+  # Service 2 (concurrent)
+  tx2 = db.tx.begin()
+  try:
+      record = db.records.find_by_id(record_id, transaction=tx2)
+      # Will see the original record state until tx1 is committed
+      tx2.commit()
+  except Exception as error:
+      tx2.rollback()
+  ```
+</TabItem>
 </Tabs>
 
 Transactions help prevent race conditions when multiple operations might affect the same [Records](../concepts/records) or [Properties](../concepts/properties).
@@ -242,33 +247,34 @@ Transactions help prevent race conditions when multiple operations might affect 
 
 When upgrading data structures or transforming records, transactions ensure that data integrity is maintained:
 <Tabs groupId="programming-language">
-  <TabItem value="typescript" label="TypeScript" default>
-  ```typescript
-  const tx = await db.tx.begin({ ttl: 30000 }); // Longer TTL for migrations
-  try {
-    const users = await db.records.find({ labels: ["User"] }, tx);
+<TabItem value="typescript" label="TypeScript" default>
+```typescript
+const tx = await db.tx.begin({ ttl: 30000 }); // Longer TTL for migrations
+try {
+  const users = await db.records.find({ labels: ["User"] }, tx);
 
-    for (const user of users) {
-      // Create new format record
-      await db.records.create(
-        {
-          label: "Person",
-          data: {
-            fullName: `${user.firstName} ${user.lastName}`,
-            email: user.email,
-            migratedFrom: user.__id
-          }
-        },
-        tx
-      );
-    }
-
-    await tx.commit();
-  } catch (error) {
-    await tx.rollback();
-    console.error("Migration failed:", error);
+  for (const user of users) {
+    // Create new format record
+    await db.records.create(
+      {
+        label: "Person",
+        data: {
+          fullName: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+          migratedFrom: user.__id
+        }
+      },
+      tx
+    );
   }
-  ```
+
+  await tx.commit();
+} catch (error) {
+  await tx.rollback();
+  console.error("Migration failed:", error);
+}
+````
+
   </TabItem>
   <TabItem value="python" label="Python">
     ```python
@@ -293,6 +299,7 @@ When upgrading data structures or transforming records, transactions ensure that
         tx.rollback()
         print(f"Migration failed: {error}")
     ```
+
   </TabItem>
 </Tabs>
 
@@ -346,17 +353,28 @@ This provides the robustness of Neo4j's proven transaction system with the ease 
 
 Each interface covers the full transaction API — pick the one that fits your stack:
 
-<div className="grid grid-cols-1 gap-3 sm:grid-cols-3 not-prose" style={{marginTop: '0.5rem'}}>
-  <a href="/typescript-sdk/transactions" className="flex flex-col rounded-xl border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline">
+<div className="not-prose grid grid-cols-1 gap-3 sm:grid-cols-3" style={{ marginTop: '0.5rem' }}>
+  <a
+    href="/typescript-sdk/transactions"
+    className="flex flex-col rounded-xl border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline"
+  >
     <span className="mb-1 text-[14px] font-bold text-[var(--ifm-font-color-base)]">TypeScript SDK</span>
     <span className="text-[13px] text-[var(--ifm-color-emphasis-600)]">db.tx.begin · commit · rollback</span>
   </a>
-  <a href="/python-sdk/transactions" className="flex flex-col rounded-xl border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline">
+  <a
+    href="/python-sdk/transactions"
+    className="flex flex-col rounded-xl border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline"
+  >
     <span className="mb-1 text-[14px] font-bold text-[var(--ifm-font-color-base)]">Python SDK</span>
     <span className="text-[13px] text-[var(--ifm-color-emphasis-600)]">db.tx.begin · commit · rollback</span>
   </a>
-  <a href="/rest-api/transactions" className="flex flex-col rounded-xl border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline">
+  <a
+    href="/rest-api/transactions"
+    className="flex flex-col rounded-xl border border-[var(--ifm-color-emphasis-200)] bg-[var(--ifm-card-background-color)] p-5 text-inherit no-underline hover:bg-[var(--ifm-color-emphasis-100)] hover:no-underline"
+  >
     <span className="mb-1 text-[14px] font-bold text-[var(--ifm-font-color-base)]">REST API</span>
-    <span className="text-[13px] text-[var(--ifm-color-emphasis-600)]">POST /transactions · commit · rollback</span>
+    <span className="text-[13px] text-[var(--ifm-color-emphasis-600)]">
+      POST /transactions · commit · rollback
+    </span>
   </a>
 </div>

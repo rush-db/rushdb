@@ -62,7 +62,7 @@ db.records.detach(
 ## With a transaction
 
 ```python
-tx = db.transactions.begin()
+tx = db.tx.begin()
 try:
     db.records.attach(source=movie, target=actor, options={"type": "STARS_IN"}, transaction=tx)
     tx.commit()

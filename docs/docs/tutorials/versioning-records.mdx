@@ -1,12 +1,12 @@
 ---
 sidebar_position: 25
-title: "Versioning Records Without Losing Queryability"
+title: 'Versioning Records Without Losing Queryability'
 description: Compare in-place mutation, append-only versions, and hybrid versioning approaches — and how to query latest state while preserving historical analysis.
 tags: [Lineage, Versioning, Transactions, TypeScript, Python]
 ---
 
-import Tabs from '@site/src/components/LanguageTabs';
-import TabItem from '@theme/TabItem';
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
 
 # Versioning Records Without Losing Queryability
 
@@ -140,17 +140,10 @@ graph LR
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-async function createDocumentWithVersion(
-  title: string,
-  body: string,
-  authorId: string
-) {
+async function createDocumentWithVersion(title: string, body: string, authorId: string) {
   const tx = await db.tx.begin()
   try {
-    const doc = await db.records.create(
-      { label: 'DOCUMENT', data: { title, authorId } },
-      tx
-    )
+    const doc = await db.records.create({ label: 'DOCUMENT', data: { title, authorId } }, tx)
 
     const v1 = await db.records.create(
       {
@@ -224,7 +217,11 @@ async function addVersion(docId: string, newBody: string, authorId: string) {
       tx
     )
     await db.records.attach(
-      { source: docResult.data[0], target: newVersion, options: { type: 'CURRENT_VERSION', direction: 'out' } },
+      {
+        source: docResult.data[0],
+        target: newVersion,
+        options: { type: 'CURRENT_VERSION', direction: 'out' }
+      },
       tx
     )
 
@@ -242,11 +239,7 @@ async function addVersion(docId: string, newBody: string, authorId: string) {
   }
 }
 
-const { doc } = await createDocumentWithVersion(
-  'Architecture Overview',
-  'First draft.',
-  'user-5'
-)
+const { doc } = await createDocumentWithVersion('Architecture Overview', 'First draft.', 'user-5')
 
 const v2 = await addVersion(doc.__id, 'Improved with diagrams.', 'user-5')
 ```
@@ -256,7 +249,7 @@ const v2 = await addVersion(doc.__id, 'Improved with diagrams.', 'user-5')
 
 ```python
 def create_document_with_version(title: str, body: str, author_id: str):
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         doc = db.records.create("DOCUMENT", {"title": title, "authorId": author_id}, transaction=tx)
         v1 = db.records.create("VERSION", {
@@ -267,10 +260,10 @@ def create_document_with_version(title: str, body: str, author_id: str):
             "isCurrent": True
         }, transaction=tx)
         db.records.attach(doc.id, v1.id, {"type": "CURRENT_VERSION", "direction": "out"}, transaction=tx)
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
         return doc, v1
     except Exception:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 
 
@@ -287,7 +280,7 @@ def add_version(doc_id: str, new_body: str, author_id: str):
     })
     current = current_result.data[0]
 
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         db.records.update(current.id, {"isCurrent": False}, transaction=tx)
         new_version = db.records.create("VERSION", {
@@ -303,10 +296,10 @@ def add_version(doc_id: str, new_body: str, author_id: str):
         db.records.attach(doc_result.data[0].id, new_version.id, {"type": "CURRENT_VERSION", "direction": "out"}, transaction=tx)
         db.records.attach(new_version.id, current.id, {"type": "SUPERSEDED_BY", "direction": "out"}, transaction=tx)
 
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
         return new_version
     except Exception:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 ```
 
@@ -362,13 +355,13 @@ Keep the entity's current state queryable in one record while logging all change
 
 ## Choosing the right approach
 
-| Requirement | Best approach |
-|---|---|
-| No history needed | In-place mutation (PATCH/PUT) |
-| Full historical content retrieval | Append-only VERSION chain |
-| Audit log only (who / when / what changed) | Hybrid: mutable state + EVENT log |
+| Requirement                                   | Best approach                               |
+| --------------------------------------------- | ------------------------------------------- |
+| No history needed                             | In-place mutation (PATCH/PUT)               |
+| Full historical content retrieval             | Append-only VERSION chain                   |
+| Audit log only (who / when / what changed)    | Hybrid: mutable state + EVENT log           |
 | Point-in-time query (what was the state at T) | Append-only VERSION or Temporal STATE chain |
-| High write throughput | In-place mutation |
+| High write throughput                         | In-place mutation                           |
 
 ---
 

@@ -32,15 +32,15 @@ movies = db.records.find_by_id(["movie-123", "movie-456"])
 
 ## SearchQuery parameters
 
-| Parameter   | Type        | Description                                            |
-| ----------- | ----------- | ------------------------------------------------------ |
-| `labels`    | `list[str]` | Filter by one or more labels                           |
-| `where`     | `dict`      | Field conditions and operators                         |
-| `orderBy`   | `dict`      | `{"field": "asc" \| "desc"}`                           |
-| `limit`     | `int`       | Max records to return. **Omit when using `select`** |
-| `skip`      | `int`       | Records to skip (pagination offset)                    |
-| `select`    | `dict`      | Output-shaping expressions (preferred)                 |
-| `groupBy`   | `list[str]` | Group results (with select)                            |
+| Parameter | Type        | Description                                         |
+| --------- | ----------- | --------------------------------------------------- |
+| `labels`  | `list[str]` | Filter by one or more labels                        |
+| `where`   | `dict`      | Field conditions and operators                      |
+| `orderBy` | `dict`      | `{"field": "asc" \| "desc"}`                        |
+| `limit`   | `int`       | Max records to return. **Omit when using `select`** |
+| `skip`    | `int`       | Records to skip (pagination offset)                 |
+| `select`  | `dict`      | Output-shaping expressions (preferred)              |
+| `groupBy` | `list[str]` | Group results (with select)                         |
 
 ## Relationship traversal
 
@@ -189,7 +189,7 @@ for r in result:  # iterable
 ## With a transaction
 
 ```python
-tx = db.transactions.begin()
+tx = db.tx.begin()
 try:
     result = db.records.find({"labels": ["MOVIE"]}, transaction=tx)
     tx.commit()
