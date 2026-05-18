@@ -15,8 +15,8 @@ Every concept introduced here applies equally to agent memory, product catalogs,
 - A RushDB account and API token — see [Get API Key](../get-started/get-api-key)
 - TypeScript/JavaScript, Python, or any HTTP client
 
-import Tabs from '@site/src/components/LanguageTabs';
-import TabItem from '@theme/TabItem';
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
 
 ## Step 1: Initialize
 
@@ -26,14 +26,16 @@ import TabItem from '@theme/TabItem';
 from rushdb import RushDB
 
 db = RushDB("RUSHDB_API_KEY")
-```
+
+````
   </TabItem>
   <TabItem value="typescript" label="TypeScript">
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
 
 const db = new RushDB('RUSHDB_API_KEY');
-```
+````
+
   </TabItem>
   <TabItem value="shell" label="shell">
 ```bash
@@ -149,31 +151,38 @@ Create an embedding index on the `content` field, wait for backfill to complete,
 import time
 
 # Create the embedding index
+
 index = db.ai.indexes.create({
-    "label": "ARTICLE",
-    "propertyName": "content"
+"label": "ARTICLE",
+"propertyName": "content"
 }).data
 
 # Poll until all records are indexed
+
 stats = db.ai.indexes.stats(index["id"]).data
 while stats["indexedRecords"] < stats["totalRecords"]:
-    time.sleep(0.5)
-    stats = db.ai.indexes.stats(index["id"]).data
+time.sleep(0.5)
+stats = db.ai.indexes.stats(index["id"]).data
 
 # Search by meaning
+
 results = db.ai.search({
-    "propertyName": "content",
-    "query": "how do agents remember things across conversations",
-    "labels": ["ARTICLE"],
-    "limit": 3
+"propertyName": "content",
+"query": "how do agents remember things across conversations",
+"labels": ["ARTICLE"],
+"limit": 3
 }).data
 
 for result in results:
-    print(f"[{result['__score']:.3f}] {result['title']}")
+print(f"[{result['__score']:.3f}] {result['title']}")
+
 # [0.891] Building AI agents with persistent memory
+
 # [0.743] Vector search explained
+
 # [0.612] Getting started with graph databases
-```
+
+````
   </TabItem>
   <TabItem value="typescript" label="TypeScript">
 ```typescript
@@ -204,7 +213,8 @@ for (const result of results) {
 // [0.891] Building AI agents with persistent memory
 // [0.743] Vector search explained
 // [0.612] Getting started with graph databases
-```
+````
+
   </TabItem>
   <TabItem value="shell" label="shell">
 ```bash
@@ -216,20 +226,23 @@ INDEX_ID=$(curl -s -X POST "https://api.rushdb.com/api/v1/ai/indexes" \
   | jq -r '.data.id')
 
 # Check stats — wait until indexedRecords == totalRecords
+
 curl "https://api.rushdb.com/api/v1/ai/indexes/$INDEX_ID/stats" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY"
+ -H "Authorization: Bearer $RUSHDB_API_KEY"
 
 # Search by meaning
+
 curl -X POST "https://api.rushdb.com/api/v1/ai/search" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "propertyName": "content",
-    "query": "how do agents remember things across conversations",
-    "labels": ["ARTICLE"],
-    "limit": 3
-  }'
-```
+ -H "Authorization: Bearer $RUSHDB_API_KEY" \
+ -H "Content-Type: application/json" \
+ -d '{
+"propertyName": "content",
+"query": "how do agents remember things across conversations",
+"labels": ["ARTICLE"],
+"limit": 3
+}'
+
+````
   </TabItem>
 </Tabs>
 
@@ -251,7 +264,8 @@ ai_articles = db.records.find({
 
 print([a.data["title"] for a in ai_articles])
 # ['Vector search explained', 'Building AI agents with persistent memory']
-```
+````
+
   </TabItem>
   <TabItem value="typescript" label="TypeScript">
 ```typescript
@@ -264,7 +278,8 @@ const aiArticles = await db.records.find({
 
 console.log(aiArticles.map(a => a.data.title))
 // ['Vector search explained', 'Building AI agents with persistent memory']
-```
+
+````
   </TabItem>
   <TabItem value="shell" label="shell">
 ```bash
@@ -277,7 +292,8 @@ curl -X POST "https://api.rushdb.com/api/v1/records/search" \
       "tags": { "$in": ["ai"] }
     }
   }'
-```
+````
+
   </TabItem>
 </Tabs>
 
@@ -302,8 +318,9 @@ filtered = db.ai.search({
 }).data
 
 for result in filtered:
-    print(f"[{result['__score']:.3f}] {result['title']}")
-```
+print(f"[{result['__score']:.3f}] {result['title']}")
+
+````
   </TabItem>
   <TabItem value="typescript" label="TypeScript">
 ```typescript
@@ -321,7 +338,8 @@ const { data: filtered } = await db.ai.search({
 for (const result of filtered) {
   console.log(`[${result.__score.toFixed(3)}] ${result.title}`)
 }
-```
+````
+
   </TabItem>
   <TabItem value="shell" label="shell">
 ```bash
@@ -359,12 +377,14 @@ author = db.records.create(
 )
 
 # Attach alice's articles to the author
+
 for article in [a for a in articles if a.data.get("author") == "alice"]:
-    article.attach(
-        target=author,
-        options={"type": "WRITTEN_BY", "direction": "out"}
-    )
-```
+article.attach(
+target=author,
+options={"type": "WRITTEN_BY", "direction": "out"}
+)
+
+````
   </TabItem>
   <TabItem value="typescript" label="TypeScript">
 ```typescript
@@ -381,7 +401,8 @@ for (const article of articles.filter(a => a.data.author === 'alice')) {
     options: { type: 'WRITTEN_BY' }
   })
 }
-```
+````
+
   </TabItem>
   <TabItem value="shell" label="shell">
 ```bash
@@ -395,14 +416,16 @@ AUTHOR_ID=$(curl -s -X POST "https://api.rushdb.com/api/v1/records" \
   }' | jq -r '.data.__id')
 
 # Attach an article to the author (replace ARTICLE_ID with the actual ID)
+
 curl -X POST "https://api.rushdb.com/api/v1/relationships/$ARTICLE_ID" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+ -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "targetIds": ["'"$AUTHOR_ID"'"],
-    "type": "WRITTEN_BY"
-  }'
-```
+"type": "WRITTEN_BY"
+}'
+
+````
   </TabItem>
 </Tabs>
 
@@ -413,7 +436,7 @@ Wrap multiple writes in a transaction to guarantee all-or-nothing atomicity.
 <Tabs groupId="programming-language">
   <TabItem value="python" label="Python" default>
 ```python
-with db.transactions.begin() as tx:
+with db.tx.begin() as tx:
     new_article = db.records.create(
         label="ARTICLE",
         data={
@@ -431,37 +454,39 @@ with db.transactions.begin() as tx:
         transaction=tx
     )
     # Commits automatically on exit; rolls back on exception
-```
+````
+
   </TabItem>
   <TabItem value="typescript" label="TypeScript">
 ```typescript
-const tx = await db.transactions.begin()
+const tx = await db.tx.begin()
 
 try {
-  const newArticle = await db.records.create({
-    label: 'ARTICLE',
-    data: {
-      title: 'Transactions made simple',
-      content: 'ACID guarantees ensure your data stays consistent even when things fail.',
-      tags: ['databases'],
-      author: 'bob'
-    },
-    transaction: tx
-  })
+const newArticle = await db.records.create({
+label: 'ARTICLE',
+data: {
+title: 'Transactions made simple',
+content: 'ACID guarantees ensure your data stays consistent even when things fail.',
+tags: ['databases'],
+author: 'bob'
+},
+transaction: tx
+})
 
-  await newArticle.attach({
-    target: author,
-    options: { type: 'WRITTEN_BY' },
-    transaction: tx
-  })
+await newArticle.attach({
+target: author,
+options: { type: 'WRITTEN_BY' },
+transaction: tx
+})
 
-  await tx.commit()
-  console.log('Article created and linked — committed.')
+await tx.commit()
+console.log('Article created and linked — committed.')
 } catch (err) {
-  await tx.rollback()
-  console.error('Rolled back:', err)
+await tx.rollback()
+console.error('Rolled back:', err)
 }
-```
+
+````
   </TabItem>
   <TabItem value="shell" label="shell">
 ```bash
@@ -499,18 +524,18 @@ curl -X POST "https://api.rushdb.com/api/v1/relationships/$NEW_ARTICLE_ID" \
 # Commit
 curl -X POST "https://api.rushdb.com/api/v1/transactions/$TX_ID/commit" \
   -H "Authorization: Bearer $RUSHDB_API_KEY"
-```
+````
+
   </TabItem>
 </Tabs>
 
-
 ## Next Steps
 
-  - [Records](../concepts/records.md) — data model and field types
-  - [Labels](../concepts/labels.md) — organizing records by category
-  - [Relationships](../concepts/relationships.mdx) — connecting records into a graph
-  - [Search & Querying](../concepts/search/introduction.md) — where clauses, ordering, pagination
-  - [Transactions](../concepts/transactions.mdx) — atomicity and consistency
-  - [TypeScript SDK](../typescript-sdk/introduction)
-  - [Python SDK](../python-sdk/introduction)
-  - [REST API](../rest-api/introduction)
+- [Records](../concepts/records.md) — data model and field types
+- [Labels](../concepts/labels.md) — organizing records by category
+- [Relationships](../concepts/relationships.mdx) — connecting records into a graph
+- [Search & Querying](../concepts/search/introduction.md) — where clauses, ordering, pagination
+- [Transactions](../concepts/transactions.mdx) — atomicity and consistency
+- [TypeScript SDK](../typescript-sdk/introduction)
+- [Python SDK](../python-sdk/introduction)
+- [REST API](../rest-api/introduction)

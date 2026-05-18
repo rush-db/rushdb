@@ -1,12 +1,12 @@
 ---
 sidebar_position: 26
-title: "Compliance and Retention Patterns"
+title: 'Compliance and Retention Patterns'
 description: Implement expiration, archival, and field-level redaction for GDPR, CCPA, and other data lifecycle requirements in RushDB without breaking graph structure.
 tags: [Compliance, Retention, GDPR, Archival, Redaction, TypeScript, Python]
 ---
 
-import Tabs from '@site/src/components/LanguageTabs';
-import TabItem from '@theme/TabItem';
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
 
 # Compliance and Retention Patterns
 
@@ -30,12 +30,12 @@ graph LR
   ORDER -.->|archived| ARCHIVE[ARCHIVE_RECORD<br/>cold storage project]
 ```
 
-| Label | What it represents |
-|---|---|
-| `USER` | Record that may hold PII subject to erasure |
-| `ORDER` | Business record with a retention window |
+| Label              | What it represents                                    |
+| ------------------ | ----------------------------------------------------- |
+| `USER`             | Record that may hold PII subject to erasure           |
+| `ORDER`            | Business record with a retention window               |
 | `RETENTION_POLICY` | Shared node encoding retention rules (window, action) |
-| `EVENT` | Immutable audit log entry |
+| `EVENT`            | Immutable audit log entry                             |
 
 ---
 
@@ -319,7 +319,7 @@ curl -s -X DELETE "$BASE/records" \
 
 ## Step 4: Redact PII fields (right to erasure)
 
-GDPR Article 17 and CCPA require erasing personal data on request. The requirement is to erase the *data*, not necessarily the *record* — the record may need to stay for accounting or relationship integrity. Replace PII fields with `null` and stamp `redactedAt`.
+GDPR Article 17 and CCPA require erasing personal data on request. The requirement is to erase the _data_, not necessarily the _record_ — the record may need to stay for accounting or relationship integrity. Replace PII fields with `null` and stamp `redactedAt`.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -334,9 +334,7 @@ async function redactUser(userId: string) {
   const tx = await db.tx.begin()
   try {
     // Redact USER record
-    const userNulls = Object.fromEntries(
-      PII_FIELDS_BY_LABEL['USER'].map((f) => [f, null])
-    )
+    const userNulls = Object.fromEntries(PII_FIELDS_BY_LABEL['USER'].map((f) => [f, null]))
     await db.records.update(
       userId,
       { ...userNulls, redacted: true, redactedAt: new Date().toISOString() },
@@ -355,9 +353,7 @@ async function redactUser(userId: string) {
     })
 
     for (const order of orders.data) {
-      const orderNulls = Object.fromEntries(
-        PII_FIELDS_BY_LABEL['ORDER'].map((f) => [f, null])
-      )
+      const orderNulls = Object.fromEntries(PII_FIELDS_BY_LABEL['ORDER'].map((f) => [f, null]))
       await db.records.update(order.__id, orderNulls, tx)
     }
 
@@ -383,7 +379,7 @@ PII_FIELDS_BY_LABEL = {
 
 
 def redact_user(user_id: str):
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         user_nulls = {f: None for f in PII_FIELDS_BY_LABEL["USER"]}
         db.records.update(user_id, {
@@ -406,10 +402,10 @@ def redact_user(user_id: str):
             order_nulls = {f: None for f in PII_FIELDS_BY_LABEL["ORDER"]}
             db.records.update(order.id, order_nulls, transaction=tx)
 
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
         print(f"Redacted user {user_id} and {len(orders.data)} associated orders")
     except Exception:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 
 
@@ -454,10 +450,10 @@ Use `select` aggregations to produce a retention health report: how many records
 const report = await db.records.find({
   labels: ['ORDER'],
   select: {
-    total:    { $count: '*' },
+    total: { $count: '*' },
     archived: { $sum: { $cond: [{ $eq: ['$record.archived', true] }, 1, 0] } },
     redacted: { $sum: { $cond: [{ $eq: ['$record.redacted', true] }, 1, 0] } },
-    policy:   '$record.retentionPolicy'
+    policy: '$record.retentionPolicy'
   },
   groupBy: ['policy']
 })

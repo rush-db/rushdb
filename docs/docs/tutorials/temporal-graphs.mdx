@@ -1,12 +1,12 @@
 ---
 sidebar_position: 17
-title: "Temporal Graphs: Modeling State and Event Time Together"
+title: 'Temporal Graphs: Modeling State and Event Time Together'
 description: Represent durable entities alongside time-stamped events so you can answer both current-state and historical questions without losing lineage.
 tags: [Graph Modeling, Events, Time-Series, Transactions]
 ---
 
-import Tabs from '@site/src/components/LanguageTabs';
-import TabItem from '@theme/TabItem';
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
 
 # Temporal Graphs: Modeling State and Event Time Together
 
@@ -180,7 +180,7 @@ try {
     // Link entity to event
     db.records.attach({ source: user, target: event1, options: { type: 'EXPERIENCED' } }, tx),
     // Link event to resulting state
-    db.records.attach({ source: event1, target: state2, options: { type: 'RESULTED_IN' } }, tx),
+    db.records.attach({ source: event1, target: state2, options: { type: 'RESULTED_IN' } }, tx)
   ])
 
   await db.tx.commit(tx)
@@ -194,7 +194,7 @@ try {
 <TabItem value="python" label="Python">
 
 ```python
-tx = db.transactions.begin()
+tx = db.tx.begin()
 
 try:
     # Mark old state
@@ -222,9 +222,9 @@ try:
     db.records.attach(user.id, event1.id, {"type": "EXPERIENCED"}, transaction=tx)
     db.records.attach(event1.id, state2.id, {"type": "RESULTED_IN"}, transaction=tx)
 
-    db.transactions.commit(tx)
+    db.tx.commit(tx)
 except Exception:
-    db.transactions.rollback(tx)
+    db.tx.rollback(tx)
     raise
 ```
 
@@ -474,9 +474,9 @@ const upgrades = await db.records.find({
     }
   },
   select: {
-    eventCount:   { $count: '*' },
+    eventCount: { $count: '*' },
     firstUpgrade: { $min: '$record.occurredAt' },
-    lastUpgrade:  { $max: '$record.occurredAt' }
+    lastUpgrade: { $max: '$record.occurredAt' }
   },
   groupBy: ['eventCount', 'firstUpgrade', 'lastUpgrade']
 })
@@ -533,12 +533,12 @@ curl -s -X POST "$BASE/records/search" \
 
 ## When to use this pattern vs. simple field updates
 
-| Scenario | Approach |
-|---|---|
-| Only current state matters | Update the field in-place with `PATCH` |
-| You need to know what changed and when | Temporal graph with EVENT nodes |
-| You need to reconstruct state at any past date | STATE chain with `since` and `isCurrent` |
-| Compliance requires immutable audit trail | Append-only STATE + EVENT nodes; never delete |
+| Scenario                                       | Approach                                      |
+| ---------------------------------------------- | --------------------------------------------- |
+| Only current state matters                     | Update the field in-place with `PATCH`        |
+| You need to know what changed and when         | Temporal graph with EVENT nodes               |
+| You need to reconstruct state at any past date | STATE chain with `since` and `isCurrent`      |
+| Compliance requires immutable audit trail      | Append-only STATE + EVENT nodes; never delete |
 
 ---
 

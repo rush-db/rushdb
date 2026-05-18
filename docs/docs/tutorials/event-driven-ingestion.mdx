@@ -1,12 +1,12 @@
 ---
 sidebar_position: 29
-title: "Event-Driven Ingestion from Webhooks and Queues"
+title: 'Event-Driven Ingestion from Webhooks and Queues'
 description: Handle partial, repeated, and out-of-order events from webhooks or message queues without corrupting connected graph state.
 tags: [Ingestion, Transactions, TypeScript, Python]
 ---
 
-import Tabs from '@site/src/components/LanguageTabs';
-import TabItem from '@theme/TabItem';
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
 
 # Event-Driven Ingestion from Webhooks and Queues
 
@@ -91,7 +91,7 @@ import os
 db = RushDB(os.environ["RUSHDB_API_KEY"], base_url="https://api.rushdb.com/api/v1")
 
 def upsert_order(event: dict) -> str:
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         existing = db.records.find({
             "labels": ["ORDER"],
@@ -105,10 +105,10 @@ def upsert_order(event: dict) -> str:
             record = db.records.create("ORDER", event, transaction=tx)
             order_id = record.id
 
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
         return order_id
     except Exception as e:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 ```
 
@@ -183,7 +183,15 @@ async function handleCheckout(event: CheckoutEvent): Promise<void> {
       await db.records.update(order.__id, { status: event.status }, tx)
     } else {
       order = await db.records.create(
-        { label: 'ORDER', data: { orderId: event.orderId, status: event.status, totalUsd: event.totalUsd, createdAt: event.createdAt } },
+        {
+          label: 'ORDER',
+          data: {
+            orderId: event.orderId,
+            status: event.status,
+            totalUsd: event.totalUsd,
+            createdAt: event.createdAt
+          }
+        },
         tx
       )
     }
@@ -208,11 +216,14 @@ async function handleCheckout(event: CheckoutEvent): Promise<void> {
     })
 
     if (alreadyLinked.data.length === 0) {
-      await db.records.attach({
-        source: customers.data[0],
-        target: order,
-        options: { type: 'PLACED', direction: 'out' }
-      }, tx)
+      await db.records.attach(
+        {
+          source: customers.data[0],
+          target: order,
+          options: { type: 'PLACED', direction: 'out' }
+        },
+        tx
+      )
     }
 
     await db.tx.commit(tx)
@@ -228,7 +239,7 @@ async function handleCheckout(event: CheckoutEvent): Promise<void> {
 
 ```python
 def handle_checkout(event: dict) -> None:
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         existing = db.records.find({"labels": ["ORDER"], "where": {"orderId": event["orderId"]}})
 
@@ -261,9 +272,9 @@ def handle_checkout(event: dict) -> None:
         if not already_linked.data:
             db.records.attach(customers.data[0].id, order.id, {"type": "PLACED", "direction": "out"}, transaction=tx)
 
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
     except Exception:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 ```
 
@@ -399,12 +410,12 @@ def apply_order_status(order_id: str, new_status: str, event_at: str) -> None:
 
 ## Production checklist
 
-| Concern | Practice |
-|---|---|
-| Duplicate events | Find by natural key before creating |
-| Duplicate edges | Check relationship exists before `attach()` |
-| Out-of-order state | Compare `lastEventAt` timestamps before updating |
-| Partial failures | Wrap multi-record writes in a transaction |
+| Concern            | Practice                                            |
+| ------------------ | --------------------------------------------------- |
+| Duplicate events   | Find by natural key before creating                 |
+| Duplicate edges    | Check relationship exists before `attach()`         |
+| Out-of-order state | Compare `lastEventAt` timestamps before updating    |
+| Partial failures   | Wrap multi-record writes in a transaction           |
 | Large queue spikes | Use `importJson` for batches; don't loop `create()` |
 
 ---

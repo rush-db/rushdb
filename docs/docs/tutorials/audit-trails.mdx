@@ -1,12 +1,12 @@
 ---
 sidebar_position: 24
-title: "Audit Trails with Immutable Events and Derived State"
+title: 'Audit Trails with Immutable Events and Derived State'
 description: Log business events as immutable records separate from current state so teams can reconstruct what happened, not just what is true now.
 tags: [Lineage, Audit, Transactions, TypeScript, Python]
 ---
 
-import Tabs from '@site/src/components/LanguageTabs';
-import TabItem from '@theme/TabItem';
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
 
 # Audit Trails with Immutable Events and Derived State
 
@@ -27,11 +27,11 @@ graph LR
   EVENT_3 -->|PERFORMED_BY| ACTOR
 ```
 
-| Label | What it represents |
-|---|---|
-| `ENTITY` | The mutable record reflecting current state |
-| `EVENT` | An immutable fact: what changed, when, and who triggered it |
-| `ACTOR` | The user or service that performed the action |
+| Label    | What it represents                                          |
+| -------- | ----------------------------------------------------------- |
+| `ENTITY` | The mutable record reflecting current state                 |
+| `EVENT`  | An immutable fact: what changed, when, and who triggered it |
+| `ACTOR`  | The user or service that performed the action               |
 
 ---
 
@@ -47,17 +47,11 @@ import RushDB from '@rushdb/javascript-sdk'
 
 const db = new RushDB(process.env.RUSHDB_API_KEY!)
 
-async function createOrderWithAudit(
-  orderData: Record<string, unknown>,
-  actorId: string
-) {
+async function createOrderWithAudit(orderData: Record<string, unknown>, actorId: string) {
   const tx = await db.tx.begin()
 
   try {
-    const order = await db.records.create(
-      { label: 'ORDER', data: { ...orderData, status: 'pending' } },
-      tx
-    )
+    const order = await db.records.create({ label: 'ORDER', data: { ...orderData, status: 'pending' } }, tx)
 
     const event = await db.records.create(
       {
@@ -104,7 +98,7 @@ db = RushDB(os.environ["RUSHDB_API_KEY"], base_url="https://api.rushdb.com/api/v
 
 
 def create_order_with_audit(order_data: dict, actor_id: str):
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         order = db.records.create("ORDER", {**order_data, "status": "pending"}, transaction=tx)
 
@@ -118,10 +112,10 @@ def create_order_with_audit(order_data: dict, actor_id: str):
 
         db.records.attach(order.id, event.id, {"type": "HAS_EVENT", "direction": "out"}, transaction=tx)
 
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
         return order
     except Exception as e:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 
 
@@ -182,12 +176,7 @@ When the order status changes, update the entity and append a new EVENT — all 
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-async function changeStatus(
-  orderId: string,
-  newStatus: string,
-  actorId: string,
-  reason?: string
-) {
+async function changeStatus(orderId: string, newStatus: string, actorId: string, reason?: string) {
   // Read current state first (outside transaction — read-then-write pattern)
   const current = await db.records.find({
     labels: ['ORDER'],
@@ -242,7 +231,7 @@ def change_status(order_id: str, new_status: str, actor_id: str, reason: str | N
     current = db.records.find({"labels": ["ORDER"], "where": {"__id": order_id}})
     prev_status = current.data[0].get("status") if current.data else None
 
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         db.records.update(order_id, {"status": new_status}, transaction=tx)
 
@@ -262,9 +251,9 @@ def change_status(order_id: str, new_status: str, actor_id: str, reason: str | N
             {"type": "HAS_EVENT", "direction": "out"},
             transaction=tx
         )
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
     except Exception as e:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 
 
@@ -391,7 +380,7 @@ const complianceReport = await db.records.find({
     type: 'status_changed'
   },
   select: {
-    count:   { $count: '*' },
+    count: { $count: '*' },
     actorId: '$record.actorId'
   },
   groupBy: ['actorId', 'count'],

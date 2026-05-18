@@ -39,7 +39,7 @@ Calling `delete()` without a `where` clause deletes **all** records with the giv
 ## With a transaction
 
 ```python
-tx = db.transactions.begin()
+tx = db.tx.begin()
 try:
     db.records.delete_by_id("movie-123", transaction=tx)
     tx.commit()
