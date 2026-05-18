@@ -7,6 +7,39 @@ sidebar_position: 2
 
 # Quickstart
 
+Two ways to connect:
+
+- **Remote OAuth** — connect directly from ChatGPT, Claude.ai, or any web-based AI client with no local installation. Uses `https://mcp.rushdb.com/mcp` and authenticates via your RushDB account.
+- **Local (API key)** — install the MCP package in Claude Desktop, Cursor, VS Code, or any stdio-based client. Requires a RushDB API key.
+
+---
+
+## ChatGPT
+
+Connect RushDB to ChatGPT as a connector — no local installation required:
+
+1. In ChatGPT, open **Settings → Connectors → Add connector**
+2. Enter the MCP URL: `https://mcp.rushdb.com/mcp`
+3. Complete the OAuth sign-in with your RushDB account
+4. Select the project you want to expose to ChatGPT
+
+After linking, ChatGPT can query and write to your RushDB project directly.
+
+:::tip Troubleshooting
+If you see `OAuth linked, action discovery failed`, see the [Troubleshooting](./troubleshooting) page.
+:::
+
+---
+
+## Claude.ai
+
+1. In Claude.ai, open **Settings → Integrations → Add integration**
+2. Enter the MCP URL: `https://mcp.rushdb.com/mcp`
+3. Authorize with your RushDB account via OAuth
+4. The integration is now active across Claude.ai conversations
+
+---
+
 ## Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -66,17 +99,22 @@ Ask Claude:
 
 **Override API URL** (self-hosted / staging): add `"RUSHDB_API_URL": "https://your-host/api/v1"` to any `env` block above.
 
-## Hosted MCP endpoint (connected clients)
+## Remote MCP endpoint
 
-For connected clients that use an HTTP MCP endpoint, use:
+The hosted endpoint for all remote and web-based clients:
 
-`https://mcp.rushdb.com/mcp`
+```
+https://mcp.rushdb.com/mcp
+```
 
-Do not use the root domain (`https://mcp.rushdb.com`) for connector setup.
+Do not use the root domain (`https://mcp.rushdb.com`) — always include `/mcp`.
 
-If you are testing locally through a tunnel, use the full tunnel endpoint path as well:
+Local tunnel testing: `https://<your-ngrok-host>.ngrok-free.app/mcp`
 
-`https://<your-ngrok-host>.ngrok-free.app/mcp`
+OAuth discovery metadata is available at:
+
+- `https://mcp.rushdb.com/.well-known/openid-configuration`
+- `https://mcp.rushdb.com/.well-known/jwks.json`
 
 ## Enable the Query Builder prompt (recommended)
 

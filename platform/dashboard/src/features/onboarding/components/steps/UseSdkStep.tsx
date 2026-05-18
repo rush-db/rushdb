@@ -25,7 +25,13 @@ import { setTourStep } from '~/features/tour/stores/tour.ts'
 
 const TOKEN_FALLBACK = 'TOKEN'
 
-const getCreateFirstRecordSteps = ({ language }: { language: AvailableSdkLanguage }) => {
+const getCreateFirstRecordSteps = ({
+  language,
+  token
+}: {
+  language: AvailableSdkLanguage
+  token: string
+}) => {
   const typescriptSteps = {
     pushAndQueryDataTs: {
       title: 'Push and query data',
@@ -56,9 +62,42 @@ db.records.find({
     }
   }
 
+  const shellSteps = {
+    pushAndQueryDataShell: {
+      title: 'Push and query data',
+      code: `curl -X POST 'https://api.rushdb.com/api/v1/records/import/json' \\
+  -H 'accept: */*' \\
+  -H 'Authorization: Bearer ${token}' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "label": "COMPANY",
+    "data": [
+      {
+        "name": "OpenAI",
+        "rating": 5,
+        "category": "AI"
+      }
+    ]
+  }'
+
+curl -X POST 'https://api.rushdb.com/api/v1/records/search' \\
+  -H 'accept: */*' \\
+  -H 'Authorization: Bearer ${token}' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "labels": ["COMPANY"],
+    "where": {
+      "rating": { "$gte": 4 },
+      "name": { "$contains": "AI" }
+    }
+  }'`
+    }
+  }
+
   return {
     typescript: typescriptSteps,
-    python: pythonSteps
+    python: pythonSteps,
+    shell: shellSteps
   }[language]
 }
 
@@ -71,9 +110,15 @@ const db = new RushDB('${token}')`
 
 db = RushDB("${token}")`
 
+  const shellCode = (token: string) => `curl -X POST 'https://api.rushdb.com/api/v1/records/search' \\
+  -H 'Authorization: Bearer ${token}' \\
+  -H 'Content-Type: application/json' \\
+  -d '{}'`
+
   return {
     typescript: jsCode(token),
-    python: pyCode(token)
+    python: pyCode(token),
+    shell: shellCode(token)
   }[language]
 }
 
@@ -88,6 +133,7 @@ export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
   }, [loading, token])
 
   const { sdkLanguage } = useStore($settings)
+  const showInstallStep = sdkLanguage !== 'shell'
 
   return (
     <OnboardingStep
@@ -112,20 +158,7 @@ export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
       }
       content={
         <div className="grid grid-cols-[max-content_1fr] gap-3 sm:col-span-2">
-          <OnboardingSubStep index={1}>Authorization</OnboardingSubStep>
-
-          <p className="text-content2 col-span-2 sm:col-span-1 sm:col-start-2">
-            Both SDK and API require an API Key for every request.{' '}
-            {(token || loading) && (
-              <span
-                className={cn({
-                  skeleton: loading
-                })}
-              >
-                We created one for you to get you started as soon as possible.
-              </span>
-            )}
-          </p>
+          <OnboardingSubStep index={1}>Copy authorization token</OnboardingSubStep>
 
           <CopyInput
             data-tour="project-help-sdk-input"
@@ -136,45 +169,27 @@ export function UseSdkStep({ projectId }: { projectId?: Project['id'] }) {
             })}
           />
 
-          <p className="text-content2 col-span-2 sm:col-span-1 sm:col-start-2">
-            You can issue your own API keys from the{' '}
-            <Link
-              disabled={!projectId}
-              href={projectId ? getRoutePath('projectTokens', { id: projectId }) : ''}
-            >
-              API keys page
-            </Link>
-            .
-          </p>
+          <OnboardingSubStep index={2}>Setup</OnboardingSubStep>
 
-          <>
-            <OnboardingSubStep index={2}>Install SDK</OnboardingSubStep>
-
-            <SelectSdkLanguage className="col-span-2 -ml-1 sm:col-span-1 sm:col-start-2" />
-
-            <InstallSdk className="col-span-2 sm:col-span-1 sm:col-start-2" />
-          </>
-
-          <>
-            <OnboardingSubStep index={3}>Initialize SDK</OnboardingSubStep>
-            <Card className="bg-fill col-span-2 rounded-md p-1 sm:col-span-1 sm:col-start-2">
+          <div className="col-span-2 flex flex-col gap-2 sm:col-span-1 sm:col-start-2">
+            <SelectSdkLanguage className="-ml-1" />
+            {showInstallStep && <InstallSdk />}
+            <Card className="bg-fill rounded-md p-1">
               <InitializeSdk />
             </Card>
-          </>
+          </div>
 
-          <>
-            <OnboardingSubStep index={4}>Start building</OnboardingSubStep>
-            <StartBuilding className="col-span-2 sm:col-span-1 sm:col-start-2" />
-          </>
+          <OnboardingSubStep index={3}>Push data</OnboardingSubStep>
 
-          <>
-            <OnboardingSubStep index={5}>See your records update</OnboardingSubStep>
+          <StartBuilding className="col-span-2 sm:col-span-1 sm:col-start-2" />
 
-            <p className="text-content2 col-span-2 sm:col-span-1 sm:col-start-2">
-              You can see your records update in the dashboard on the{' '}
-              <Link href={projectId ? getRoutePath('project', { id: projectId }) : ''}>Records</Link> page .
-            </p>
-          </>
+          <OnboardingSubStep index={4}>See your records update</OnboardingSubStep>
+
+          <p className="text-content2 col-span-2 sm:col-span-1 sm:col-start-2">
+            Head to the{' '}
+            <Link href={projectId ? getRoutePath('project', { id: projectId }) : ''}>Records</Link> page to
+            see your data live.
+          </p>
         </div>
       }
     />
@@ -226,6 +241,8 @@ function InitializeSdk({ className }: { className?: string }) {
     <Editor
       value={code}
       height={`${getNumberOfLines(code) * 1.2}em`}
+      defaultLanguage={sdkLanguage === 'shell' ? 'shell' : sdkLanguage}
+      format={sdkLanguage !== 'shell'}
       readOnly
       lineNumbers="off"
       className={cn(
@@ -240,15 +257,18 @@ function InitializeSdk({ className }: { className?: string }) {
 
 function StartBuilding({ className }: { className?: string }) {
   const { sdkLanguage } = useStore($settings)
+  const { data: tokens } = useProjectTokensQuery()
+  const token = tokens?.[0]
 
   const [editorVisible, setEditorVisible] = useState<boolean>(true)
 
   const steps = useMemo(
     () =>
       getCreateFirstRecordSteps({
-        language: sdkLanguage
+        language: sdkLanguage,
+        token: token?.value ?? TOKEN_FALLBACK
       }),
-    [sdkLanguage]
+    [sdkLanguage, token?.value]
   )
 
   // Dirty hack to reset Editor when language has changed
@@ -273,6 +293,8 @@ function StartBuilding({ className }: { className?: string }) {
               <Editor
                 defaultValue={code}
                 height={`${getNumberOfLines(code) * 1.2}em`}
+                defaultLanguage={sdkLanguage === 'shell' ? 'shell' : sdkLanguage}
+                format={sdkLanguage !== 'shell'}
                 readOnly
                 className={className}
                 lineNumbers="off"
