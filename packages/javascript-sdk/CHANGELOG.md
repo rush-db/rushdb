@@ -1,5 +1,12 @@
 # @rushdb/javascript-sdk
 
+## 2.0.6
+
+### Patch Changes
+
+- c555b56: Minor docs update
+- 72ee13f: Dashboard help panel improvements
+
 ## 2.0.5
 
 ### Patch Changes
