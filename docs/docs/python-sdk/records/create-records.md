@@ -79,7 +79,7 @@ movie = db.records.upsert(
 ## With a transaction
 
 ```python
-tx = db.transactions.begin()
+tx = db.tx.begin()
 try:
     movie = db.records.create(
         label="MOVIE",

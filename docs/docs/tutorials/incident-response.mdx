@@ -1,12 +1,12 @@
 ---
 sidebar_position: 27
-title: "Incident Response Graphs"
+title: 'Incident Response Graphs'
 description: Model operational incidents as graph structures to answer root cause, blast radius, and resolution timeline questions in a single query.
 tags: [Incident Response, Graphs, Operations, Root Cause Analysis, TypeScript, Python]
 ---
 
-import Tabs from '@site/src/components/LanguageTabs';
-import TabItem from '@theme/TabItem';
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
 
 # Incident Response Graphs
 
@@ -33,14 +33,14 @@ graph LR
   SERVICE -->|SERVES| CUSTOMER[CUSTOMER<br/>blast radius]
 ```
 
-| Label | What it represents |
-|---|---|
-| `ALERT` | A threshold breach or anomaly detection signal |
-| `INCIDENT` | The declared incident record — owns status, severity, timestamps |
-| `SERVICE` | A component in your infrastructure or application graph |
-| `INCIDENT_EVENT` | An ordered entry in the investigation timeline |
-| `ACTION` | A remediation step taken to resolve the incident |
-| `CUSTOMER` | An end-user or tenant affected by the incident |
+| Label            | What it represents                                               |
+| ---------------- | ---------------------------------------------------------------- |
+| `ALERT`          | A threshold breach or anomaly detection signal                   |
+| `INCIDENT`       | The declared incident record — owns status, severity, timestamps |
+| `SERVICE`        | A component in your infrastructure or application graph          |
+| `INCIDENT_EVENT` | An ordered entry in the investigation timeline                   |
+| `ACTION`         | A remediation step taken to resolve the incident                 |
+| `CUSTOMER`       | An end-user or tenant affected by the incident                   |
 
 ---
 
@@ -167,7 +167,7 @@ def declare_incident(
     summary: str,
     owner_id: str
 ):
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         incident = db.records.create("INCIDENT", {
             "summary": summary,
@@ -192,11 +192,11 @@ def declare_incident(
         }, transaction=tx)
         db.records.attach(incident.id, open_event.id, {"type": "HAS_EVENT", "direction": "out"}, transaction=tx)
 
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
         print(f"Incident {incident.id} declared ({severity})")
         return incident
     except Exception:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 
 
@@ -254,12 +254,7 @@ As the incident evolves, append INCIDENT_EVENT records for every significant upd
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-async function logIncidentEvent(
-  incidentId: string,
-  type: string,
-  note: string,
-  actorId: string
-) {
+async function logIncidentEvent(incidentId: string, type: string, note: string, actorId: string) {
   const tx = await db.tx.begin()
   try {
     const event = await db.records.create(
@@ -292,9 +287,24 @@ async function logIncidentEvent(
   }
 }
 
-await logIncidentEvent(incident.__id, 'hypothesis', 'Suspect database connection pool exhaustion on checkout-db', 'oncall-eng-007')
-await logIncidentEvent(incident.__id, 'action_taken', 'Increased connection pool limit from 50 to 200 and restarted checkout service', 'oncall-eng-007')
-await logIncidentEvent(incident.__id, 'escalation', 'Escalated to DBA team for root cause confirmation', 'oncall-eng-007')
+await logIncidentEvent(
+  incident.__id,
+  'hypothesis',
+  'Suspect database connection pool exhaustion on checkout-db',
+  'oncall-eng-007'
+)
+await logIncidentEvent(
+  incident.__id,
+  'action_taken',
+  'Increased connection pool limit from 50 to 200 and restarted checkout service',
+  'oncall-eng-007'
+)
+await logIncidentEvent(
+  incident.__id,
+  'escalation',
+  'Escalated to DBA team for root cause confirmation',
+  'oncall-eng-007'
+)
 ```
 
 </TabItem>
@@ -302,7 +312,7 @@ await logIncidentEvent(incident.__id, 'escalation', 'Escalated to DBA team for r
 
 ```python
 def log_incident_event(incident_id: str, event_type: str, note: str, actor_id: str):
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         event = db.records.create("INCIDENT_EVENT", {
             "type": event_type,
@@ -311,10 +321,10 @@ def log_incident_event(incident_id: str, event_type: str, note: str, actor_id: s
             "occurredAt": datetime.now(timezone.utc).isoformat()
         }, transaction=tx)
         db.records.attach(incident_id, event.id, {"type": "HAS_EVENT", "direction": "out"}, transaction=tx)
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
         return event
     except Exception:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 
 
@@ -414,7 +424,7 @@ console.log(`Blast radius: ${blastRadius.data[0]?.count ?? 0} customers affected
 
 ```python
 def set_root_cause(incident_id: str, root_cause_service_id: str, note: str, actor_id: str):
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         db.records.update(incident_id, {"rootCauseId": root_cause_service_id}, transaction=tx)
         db.records.attach(
@@ -422,10 +432,10 @@ def set_root_cause(incident_id: str, root_cause_service_id: str, note: str, acto
             {"type": "ROOT_CAUSE", "direction": "out"},
             transaction=tx
         )
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
         log_incident_event(incident_id, "root_cause_identified", note, actor_id)
     except Exception:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 
 
@@ -549,7 +559,7 @@ await resolveIncident(
 ```python
 def resolve_incident(incident_id: str, resolution: dict, actor_id: str):
     resolved_at = datetime.now(timezone.utc).isoformat()
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         db.records.update(incident_id, {"status": "resolved", "resolvedAt": resolved_at}, transaction=tx)
 
@@ -562,11 +572,11 @@ def resolve_incident(incident_id: str, resolution: dict, actor_id: str):
         }, transaction=tx)
 
         db.records.attach(incident_id, action.id, {"type": "RESOLVED_BY", "direction": "out"}, transaction=tx)
-        db.transactions.commit(tx)
+        db.tx.commit(tx)
         log_incident_event(incident_id, "resolved", resolution["summary"], actor_id)
         print(f"Incident {incident_id} resolved")
     except Exception:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
         raise
 
 

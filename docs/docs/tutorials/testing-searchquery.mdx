@@ -1,12 +1,12 @@
 ---
 sidebar_position: 32
-title: "Testing SearchQuery Across TypeScript, Python, and REST"
+title: 'Testing SearchQuery Across TypeScript, Python, and REST'
 description: Write parity-driven tests that prove one query intent behaves identically across every RushDB surface.
 tags: [Testing, SearchQuery, TypeScript, Python]
 ---
 
-import Tabs from '@site/src/components/LanguageTabs';
-import TabItem from '@theme/TabItem';
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
 
 # Testing SearchQuery Across TypeScript, Python, and REST
 
@@ -23,6 +23,7 @@ Every `records.find()` call maps to an underlying `POST /records/search`. The co
 > Given the same SearchQuery body, every SDK surface and the REST API must return the same `data[]` and `total`.
 
 The three variables that can break parity:
+
 1. **Serialization** — an SDK may serialize a field name differently than the REST contract expects
 2. **Default values** — an SDK may silently inject defaults (e.g. `limit: 20`) that the raw query did not include
 3. **Case sensitivity** — label names, relationship types, and field names are case-sensitive
@@ -47,8 +48,8 @@ export async function seedTestData() {
     label: 'PRODUCT',
     data: [
       { sku: 'P-001', name: 'Widget Alpha', category: 'widgets', price: 29.99, inStock: true },
-      { sku: 'P-002', name: 'Widget Beta',  category: 'widgets', price: 49.99, inStock: false },
-      { sku: 'P-003', name: 'Gadget One',   category: 'gadgets', price: 99.00, inStock: true }
+      { sku: 'P-002', name: 'Widget Beta', category: 'widgets', price: 49.99, inStock: false },
+      { sku: 'P-003', name: 'Gadget One', category: 'gadgets', price: 99.0, inStock: true }
     ]
   })
   return result
@@ -127,7 +128,7 @@ describe('SearchQuery parity — PRODUCT', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.RUSHDB_TEST_API_KEY}`
+        Authorization: `Bearer ${process.env.RUSHDB_TEST_API_KEY}`
       },
       body: JSON.stringify(query)
     })
@@ -141,9 +142,12 @@ describe('SearchQuery parity — PRODUCT', () => {
       db.records.find(query),
       fetch('https://api.rushdb.com/api/v1/records/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.RUSHDB_TEST_API_KEY}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.RUSHDB_TEST_API_KEY}`
+        },
         body: JSON.stringify(query)
-      }).then(r => r.json())
+      }).then((r) => r.json())
     ])
     expect(sdkResult.data[0].__id).toBe(restResponse.data[0].__id)
   })
@@ -231,7 +235,7 @@ it('select count by category returns correct totals', async () => {
   const result = await db.records.find({
     labels: ['PRODUCT'],
     select: {
-      count:    { $count: '*' },
+      count: { $count: '*' },
       category: '$record.category'
     },
     groupBy: ['category', 'count'],
@@ -299,12 +303,12 @@ it('rolled-back create does not persist the record', async () => {
 
 ```python
 def test_rollback_does_not_persist():
-    tx = db.transactions.begin()
+    tx = db.tx.begin()
     try:
         db.records.create("PRODUCT", {"sku": "ROLLBACK-TEST", "category": "test"}, transaction=tx)
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
     except Exception:
-        db.transactions.rollback(tx)
+        db.tx.rollback(tx)
 
     result = db.records.find({"labels": ["PRODUCT"], "where": {"sku": "ROLLBACK-TEST"}})
     assert result.total == 0
@@ -317,14 +321,14 @@ def test_rollback_does_not_persist():
 
 ## Common parity failure modes
 
-| Symptom | Likely cause |
-|---|---|
-| SDK returns 0, REST returns N | Label name casing mismatch (`article` vs `ARTICLE`) |
-| REST returns 0, SDK returns N | SDK is injecting a default `where` clause |
-| Results differ between SDK versions | SDK updated default `limit` or sort order |
-| `total` correct but `data[]` differs | `orderBy` field not specified — sort is non-deterministic |
-| Python returns float, REST returns int | Python SDK deserializing numeric field differently |
-| Transaction test flaky | Two tests sharing the same natural key collide across runs |
+| Symptom                                | Likely cause                                               |
+| -------------------------------------- | ---------------------------------------------------------- |
+| SDK returns 0, REST returns N          | Label name casing mismatch (`article` vs `ARTICLE`)        |
+| REST returns 0, SDK returns N          | SDK is injecting a default `where` clause                  |
+| Results differ between SDK versions    | SDK updated default `limit` or sort order                  |
+| `total` correct but `data[]` differs   | `orderBy` field not specified — sort is non-deterministic  |
+| Python returns float, REST returns int | Python SDK deserializing numeric field differently         |
+| Transaction test flaky                 | Two tests sharing the same natural key collide across runs |
 
 ---
 
