@@ -29,6 +29,8 @@ type BulkCreateRecordsArgs = {
 type BulkCreateRecordsResult = {
   message: string
   ids: string[]
+  data: Record<string, any>[]
+  total: number
 }
 
 export async function bulkCreateRecords({
@@ -51,9 +53,12 @@ export async function bulkCreateRecords({
       await db.records.createMany({ label, data, options: normalizedOptions }, transactionId)
     : await db.records.importJson({ label, data, options: normalizedOptions }, transactionId)
   const ids = result.data.map((record: any) => record.id)
+  const records = result.data.map((record: any) => record.data)
 
   return {
     message: `Successfully created ${ids.length} records with label '${label}'`,
-    ids
+    ids,
+    data: records,
+    total: result.total
   }
 }

@@ -30,6 +30,7 @@ export async function createRecord(params: {
   return {
     success: true,
     id: result.id,
-    message: `Record created successfully with label '${label}'`
+    message: `Record created successfully with label '${label}'`,
+    record: result.data
   }
 }

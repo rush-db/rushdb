@@ -68,7 +68,11 @@ export class WellKnownController {
       jwks_uri: `${this.issuer}/.well-known/jwks.json`,
       scopes_supported: ['records:read', 'records:write'],
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', 'urn:ietf:params:oauth:grant-type:token-exchange'],
+      grant_types_supported: [
+        'authorization_code',
+        'refresh_token',
+        'urn:ietf:params:oauth:grant-type:token-exchange'
+      ],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
       service_documentation: 'https://docs.rushdb.com'

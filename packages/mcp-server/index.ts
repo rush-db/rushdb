@@ -59,6 +59,25 @@ import { getSearchQuerySpec } from './tools/getSearchQuerySpec.js'
 import { requestContext, RequestContext } from './util/db.js'
 import { resolveRequestContext, makeMcpAuthError } from './util/auth.js'
 
+type TextContent = {
+  type: string
+  text?: string
+  [key: string]: unknown
+}
+
+type ToolResult = {
+  content?: TextContent[]
+  structuredContent?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+function toolResult<T extends Record<string, unknown>>(structuredContent: T, text: string) {
+  return {
+    structuredContent,
+    content: [{ type: 'text', text }]
+  }
+}
+
 // ─── MCP Server factory ───────────────────────────────────────────────────────
 // Each call creates an independent MCP Server instance with all handlers wired.
 // In STDIO mode a single server is created once.
@@ -129,510 +148,345 @@ function createMcpServer(): Server {
     const args = request.params.arguments || {}
 
     try {
-      switch (toolName) {
-        case 'getOntologyMarkdown': {
-          const md = await getOntologyMarkdown({
-            labels: args.labels as string[] | undefined,
-            force: args.force as boolean | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: md ?? 'No ontology data found.'
-              }
-            ]
-          }
-        }
-
-        case 'getOntology': {
-          const ontology = await getOntology({
-            labels: args.labels as string[] | undefined,
-            force: args.force as boolean | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: ontology ? JSON.stringify(ontology, null, 2) : 'No ontology data found.'
-              }
-            ]
-          }
-        }
-
-        case 'findLabels':
-          const foundLabels = await findLabels({
-            where: args.where as Record<string, any> | undefined,
-            limit: args.limit as number | undefined,
-            skip: args.skip as number | undefined,
-            orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text:
-                  foundLabels.length > 0 ?
-                    foundLabels.map((l: any) => `${l.name}: ${l.count} records`).join('\n')
-                  : 'No labels found'
-              }
-            ]
+      const result = await (async () => {
+        switch (toolName) {
+          case 'getOntologyMarkdown': {
+            const md = await getOntologyMarkdown({
+              labels: args.labels as string[] | undefined,
+              force: args.force as boolean | undefined
+            })
+            const markdown = md ?? ''
+            return toolResult({ markdown }, markdown || 'No ontology data found.')
           }
 
-        case 'createRecord':
-          const createResult = await createRecord({
-            label: args.label as string,
-            data: args.data as Record<string, any>,
-            transactionId: args.transactionId as string | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `${createResult.message}\nID: ${createResult.id}`
-              }
-            ]
-          }
-
-        case 'updateRecord':
-          const updateResult = await updateRecord({
-            recordId: args.recordId as string,
-            label: args.label as string,
-            data: args.data as Record<string, any>,
-            transactionId: args.transactionId as string | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: updateResult.message
-              }
-            ]
-          }
-
-        case 'deleteRecord':
-          const deleteResult = await deleteRecord({
-            recordId: args.recordId as string,
-            transactionId: args.transactionId as string | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: deleteResult.message
-              }
-            ]
-          }
-
-        case 'findRecords':
-          const foundRecords = await findRecords({
-            labels: args.labels as string[] | undefined,
-            where: args.where as Record<string, any> | undefined,
-            limit: args.limit as number | undefined,
-            skip: args.skip as number | undefined,
-            orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined,
-            select: args.select as Record<string, any> | undefined,
-            aggregate: args.aggregate as
-              | Record<string, { fn: string; field?: string; alias?: string; where?: any }>
-              | undefined,
-            groupBy: args.groupBy as string[] | undefined
-          })
-
-          const isAggregate = Boolean(args.select) || Boolean(args.aggregate) || Boolean(args.groupBy)
-          const isEmpty =
-            isAggregate ? false : (
-              Array.isArray((foundRecords as any)?.data) && (foundRecords as any).data.length === 0
+          case 'getOntology': {
+            const ontology = await getOntology({
+              labels: args.labels as string[] | undefined,
+              force: args.force as boolean | undefined
+            })
+            return toolResult(
+              { ontology: ontology ?? [] },
+              ontology ? JSON.stringify(ontology, null, 2) : 'No ontology data found.'
             )
-          return {
-            content: [
-              {
-                type: 'text',
-                text: isEmpty ? 'No matching records found.' : JSON.stringify(foundRecords, null, 2)
-              }
-            ]
           }
 
-        case 'getRecord':
-          const record = await getRecord({
-            recordId: args.recordId as string
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(record, null, 2)
-              }
-            ]
+          case 'findLabels':
+            const foundLabels = await findLabels({
+              where: args.where as Record<string, any> | undefined,
+              limit: args.limit as number | undefined,
+              skip: args.skip as number | undefined,
+              orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
+            })
+            return toolResult(
+              { labels: foundLabels },
+              foundLabels.length > 0 ?
+                foundLabels.map((l: any) => `${l.name}: ${l.count} records`).join('\n')
+              : 'No labels found'
+            )
+
+          case 'createRecord':
+            const createResult = await createRecord({
+              label: args.label as string,
+              data: args.data as Record<string, any>,
+              transactionId: args.transactionId as string | undefined,
+              options: args.options as
+                | { mergeStrategy?: 'append' | 'rewrite'; mergeBy?: string[] }
+                | undefined
+            })
+            return toolResult(createResult, `${createResult.message}\nID: ${createResult.id}`)
+
+          case 'updateRecord':
+            const updateResult = await updateRecord({
+              recordId: args.recordId as string,
+              label: args.label as string,
+              data: args.data as Record<string, any>,
+              transactionId: args.transactionId as string | undefined
+            })
+            return toolResult(updateResult, updateResult.message)
+
+          case 'deleteRecord':
+            const deleteResult = await deleteRecord({
+              recordId: args.recordId as string,
+              transactionId: args.transactionId as string | undefined
+            })
+            return toolResult(deleteResult, deleteResult.message)
+
+          case 'findRecords':
+            const foundRecords = await findRecords({
+              labels: args.labels as string[] | undefined,
+              where: args.where as Record<string, any> | undefined,
+              limit: args.limit as number | undefined,
+              skip: args.skip as number | undefined,
+              orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined,
+              select: args.select as Record<string, any> | undefined,
+              aggregate: args.aggregate as
+                | Record<string, { fn: string; field?: string; alias?: string; where?: any }>
+                | undefined,
+              groupBy: args.groupBy as string[] | undefined
+            })
+
+            const isAggregate = Boolean(args.select) || Boolean(args.aggregate) || Boolean(args.groupBy)
+            const isEmpty =
+              isAggregate ? false : (
+                Array.isArray((foundRecords as any)?.data) && (foundRecords as any).data.length === 0
+              )
+            return toolResult(
+              foundRecords as Record<string, unknown>,
+              isEmpty ? 'No matching records found.' : JSON.stringify(foundRecords, null, 2)
+            )
+
+          case 'getRecord':
+            const record = await getRecord({
+              recordId: args.recordId as string
+            })
+            return toolResult(
+              { record: record ?? null },
+              record ? JSON.stringify(record, null, 2) : 'Record not found'
+            )
+
+          case 'attachRelation':
+            const attachResult = await attachRelation({
+              sourceId: args.sourceId as string,
+              targetId: args.targetId as string | undefined,
+              targetIds: args.targetIds as string[] | undefined,
+              relationType: args.relationType as string | undefined,
+              direction: args.direction as 'outgoing' | 'incoming' | 'bidirectional' | undefined,
+              transactionId: args.transactionId as string | undefined
+            })
+            return toolResult(attachResult, attachResult.message)
+
+          case 'detachRelation':
+            const detachResult = await detachRelation({
+              sourceId: args.sourceId as string,
+              targetId: args.targetId as string | undefined,
+              targetIds: args.targetIds as string[] | undefined,
+              relationType: args.relationType as string | undefined,
+              direction: args.direction as 'outgoing' | 'incoming' | 'bidirectional' | undefined,
+              transactionId: args.transactionId as string | undefined
+            })
+            return toolResult(detachResult, detachResult.message)
+
+          case 'findRelationships':
+            const relations = await findRelationships({
+              where: args.where as Record<string, any> | undefined,
+              limit: args.limit as number | undefined,
+              skip: args.skip as number | undefined,
+              orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
+            })
+            return toolResult(
+              { relationships: relations },
+              relations.length > 0 ? JSON.stringify(relations, null, 2) : 'No relations found'
+            )
+
+          case 'bulkCreateRecords':
+            const bulkCreateResult = await bulkCreateRecords({
+              label: args.label as string,
+              data: args.data as Record<string, any>[],
+              transactionId: args.transactionId as string | undefined,
+              options: args.options as
+                | { mergeStrategy?: 'append' | 'rewrite'; mergeBy?: string[]; returnResult?: boolean }
+                | undefined
+            })
+            return toolResult(
+              bulkCreateResult,
+              `${bulkCreateResult.message}\nIDs: ${bulkCreateResult.ids.join(', ')}`
+            )
+
+          case 'bulkDeleteRecords':
+            const bulkDeleteResult = await bulkDeleteRecords({
+              labels: args.labels as string[] | undefined,
+              where: args.where as Record<string, any>,
+              transactionId: args.transactionId as string | undefined
+            })
+            return toolResult({ success: true, message: bulkDeleteResult.message }, bulkDeleteResult.message)
+
+          case 'exportRecords':
+            const exportResult = await exportRecords({
+              labels: args.labels as string[] | undefined,
+              where: args.where as Record<string, any> | undefined,
+              limit: args.limit as number | undefined
+            })
+            return toolResult(
+              exportResult,
+              `Export completed at ${exportResult.dateTime}\n\n${exportResult.csv}`
+            )
+
+          case 'helpAddToClient':
+            const helpAddToClientResult = await helpAddToClient()
+            return toolResult(helpAddToClientResult, helpAddToClientResult.instructions)
+
+          case 'getQueryBuilderPrompt':
+            return toolResult({ prompt: SYSTEM_PROMPT }, SYSTEM_PROMPT)
+
+          case 'getSearchQuerySpec': {
+            const spec = await getSearchQuerySpec()
+            return toolResult(spec, spec.spec)
           }
 
-        case 'attachRelation':
-          const attachResult = await attachRelation({
-            sourceId: args.sourceId as string,
-            targetId: args.targetId as string | undefined,
-            targetIds: args.targetIds as string[] | undefined,
-            relationType: args.relationType as string | undefined,
-            direction: args.direction as 'outgoing' | 'incoming' | 'bidirectional' | undefined,
-            transactionId: args.transactionId as string | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: attachResult.message
-              }
-            ]
+          case 'setRecord':
+            const setResult = await setRecord({
+              recordId: args.recordId as string,
+              label: args.label as string,
+              data: args.data as Record<string, any>,
+              transactionId: args.transactionId as string | undefined
+            })
+            return toolResult(setResult, setResult.message)
+
+          case 'findOneRecord':
+            const foundOneRecord = await findOneRecord({
+              labels: args.labels as string[] | undefined,
+              where: args.where as Record<string, any> | undefined
+            })
+            return toolResult(
+              { record: foundOneRecord ?? null },
+              foundOneRecord ? JSON.stringify(foundOneRecord, null, 2) : 'No matching record found.'
+            )
+
+          case 'findUniqRecord':
+            const foundUniqRecord = await findUniqRecord({
+              labels: args.labels as string[] | undefined,
+              where: args.where as Record<string, any> | undefined
+            })
+            return toolResult(
+              { record: foundUniqRecord ?? null },
+              foundUniqRecord ? JSON.stringify(foundUniqRecord, null, 2) : 'No unique record found.'
+            )
+
+          case 'deleteRecordById':
+            const deleteByIdResult = await deleteRecordById({
+              recordId: args.recordId as string,
+              transactionId: args.transactionId as string | undefined
+            })
+            return toolResult(deleteByIdResult, deleteByIdResult.message)
+
+          case 'propertyValues': {
+            const pvResult = await propertyValues({
+              propertyId: args.propertyId as string,
+              query: args.query as string | undefined,
+              orderBy: args.orderBy as 'asc' | 'desc' | undefined,
+              limit: args.limit as number | undefined,
+              skip: args.skip as number | undefined
+            })
+            return toolResult(
+              { propertyValues: pvResult ?? null },
+              pvResult ? JSON.stringify(pvResult, null, 2) : 'No property values found'
+            )
           }
 
-        case 'detachRelation':
-          const detachResult = await detachRelation({
-            sourceId: args.sourceId as string,
-            targetId: args.targetId as string | undefined,
-            targetIds: args.targetIds as string[] | undefined,
-            relationType: args.relationType as string | undefined,
-            direction: args.direction as 'outgoing' | 'incoming' | 'bidirectional' | undefined,
-            transactionId: args.transactionId as string | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: detachResult.message
-              }
-            ]
+          case 'findProperties':
+            const foundProperties = await findProperties({
+              where: args.where as Record<string, any> | undefined,
+              limit: args.limit as number | undefined,
+              skip: args.skip as number | undefined,
+              orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
+            })
+            return toolResult(
+              { properties: foundProperties },
+              foundProperties.length > 0 ? JSON.stringify(foundProperties, null, 2) : 'No properties found'
+            )
+          case 'getRecordsByIds':
+            const recordsByIds = await getRecordsByIds({ recordIds: args.recordIds as string[] })
+            return toolResult(
+              { data: recordsByIds.data, total: recordsByIds.count },
+              recordsByIds.count > 0 ? JSON.stringify(recordsByIds.data, null, 2) : 'No records found'
+            )
+
+          case 'findPropertyById':
+            const foundProperty = await findPropertyById({
+              propertyId: args.propertyId as string
+            })
+            return toolResult(
+              { property: foundProperty ?? null },
+              foundProperty ? JSON.stringify(foundProperty, null, 2) : 'Property not found'
+            )
+
+          case 'deleteProperty':
+            const deletePropertyResult = await deleteProperty({
+              propertyId: args.propertyId as string
+            })
+            return toolResult(deletePropertyResult, deletePropertyResult.message)
+
+          case 'findEmbeddingIndexes': {
+            const indexes = await findEmbeddingIndexes()
+            return toolResult(
+              { indexes: indexes ?? [] },
+              indexes && indexes.length > 0 ? JSON.stringify(indexes, null, 2) : 'No embedding indexes found'
+            )
           }
 
-        case 'findRelationships':
-          const relations = await findRelationships({
-            where: args.where as Record<string, any> | undefined,
-            limit: args.limit as number | undefined,
-            skip: args.skip as number | undefined,
-            orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: relations.length > 0 ? JSON.stringify(relations, null, 2) : 'No relations found'
-              }
-            ]
+          case 'createEmbeddingIndex': {
+            const newIndex = await createEmbeddingIndex({
+              label: args.label as string,
+              propertyName: args.propertyName as string,
+              sourceType: args.sourceType as 'managed' | 'external' | undefined,
+              similarityFunction: args.similarityFunction as 'cosine' | 'euclidean' | undefined,
+              dimensions: args.dimensions as number | undefined
+            })
+            return toolResult(
+              { index: newIndex ?? null },
+              newIndex ? JSON.stringify(newIndex, null, 2) : 'Embedding index created'
+            )
           }
 
-        case 'bulkCreateRecords':
-          const bulkCreateResult = await bulkCreateRecords({
-            label: args.label as string,
-            data: args.data as Record<string, any>[],
-            transactionId: args.transactionId as string | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `${bulkCreateResult.message}\nIDs: ${bulkCreateResult.ids.join(', ')}`
-              }
-            ]
+          case 'deleteEmbeddingIndex': {
+            const deleteIndexResult = await deleteEmbeddingIndex({
+              indexId: args.indexId as string
+            })
+            return toolResult(
+              { result: deleteIndexResult ?? null },
+              deleteIndexResult ? JSON.stringify(deleteIndexResult, null, 2) : 'Embedding index deleted'
+            )
           }
 
-        case 'bulkDeleteRecords':
-          const bulkDeleteResult = await bulkDeleteRecords({
-            labels: args.labels as string[] | undefined,
-            where: args.where as Record<string, any>,
-            transactionId: args.transactionId as string | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: bulkDeleteResult.message
-              }
-            ]
+          case 'getEmbeddingIndexStats': {
+            const stats = await getEmbeddingIndexStats({
+              indexId: args.indexId as string
+            })
+            return toolResult(
+              { stats: stats ?? null },
+              stats ? JSON.stringify(stats, null, 2) : 'No stats available'
+            )
           }
 
-        case 'exportRecords':
-          const exportResult = await exportRecords({
-            labels: args.labels as string[] | undefined,
-            where: args.where as Record<string, any> | undefined,
-            limit: args.limit as number | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `Export completed at ${exportResult.dateTime}\n\n${exportResult.csv}`
-              }
-            ]
+          case 'upsertEmbeddingVectors': {
+            const upsertResult = await upsertEmbeddingVectors({
+              indexId: args.indexId as string,
+              items: args.items as Array<{ recordId: string; vector: number[] }>
+            })
+            return toolResult(
+              { result: upsertResult ?? null },
+              upsertResult ? JSON.stringify(upsertResult, null, 2) : 'Vectors upserted'
+            )
           }
 
-        case 'helpAddToClient':
-          const helpAddToClientResult = await helpAddToClient()
-          return {
-            content: [
-              {
-                type: 'text',
-                text: helpAddToClientResult.instructions
-              }
-            ]
+          case 'semanticSearch': {
+            const searchResults = await semanticSearch({
+              propertyName: args.propertyName as string,
+              query: args.query as string | undefined,
+              queryVector: args.queryVector as number[] | undefined,
+              labels: args.labels as string[],
+              sourceType: args.sourceType as 'managed' | 'external' | undefined,
+              similarityFunction: args.similarityFunction as 'cosine' | 'euclidean' | undefined,
+              dimensions: args.dimensions as number | undefined,
+              where: args.where as Record<string, unknown> | undefined,
+              topK: args.topK as number | undefined,
+              limit: args.limit as number | undefined,
+              skip: args.skip as number | undefined
+            })
+            return toolResult(
+              { data: searchResults ?? [], total: searchResults?.length ?? 0 },
+              searchResults && searchResults.length > 0 ?
+                JSON.stringify(searchResults, null, 2)
+              : 'No matching records found.'
+            )
           }
 
-        case 'getQueryBuilderPrompt':
-          return {
-            content: [
-              {
-                type: 'text',
-                text: SYSTEM_PROMPT
-              }
-            ]
-          }
-
-        case 'getSearchQuerySpec': {
-          const spec = await getSearchQuerySpec()
-          return {
-            content: [
-              {
-                type: 'text',
-                text: spec.spec
-              }
-            ]
-          }
+          default:
+            throw new McpError(ErrorCode.MethodNotFound, 'Tool not found')
         }
+      })()
 
-        case 'setRecord':
-          const setResult = await setRecord({
-            recordId: args.recordId as string,
-            label: args.label as string,
-            data: args.data as Record<string, any>,
-            transactionId: args.transactionId as string | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: setResult.message
-              }
-            ]
-          }
-
-        case 'findOneRecord':
-          const foundOneRecord = await findOneRecord({
-            labels: args.labels as string[] | undefined,
-            where: args.where as Record<string, any> | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: foundOneRecord ? JSON.stringify(foundOneRecord, null, 2) : 'No matching record found.'
-              }
-            ]
-          }
-
-        case 'findUniqRecord':
-          const foundUniqRecord = await findUniqRecord({
-            labels: args.labels as string[] | undefined,
-            where: args.where as Record<string, any> | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: foundUniqRecord ? JSON.stringify(foundUniqRecord, null, 2) : 'No unique record found.'
-              }
-            ]
-          }
-
-        case 'deleteRecordById':
-          const deleteByIdResult = await deleteRecordById({
-            recordId: args.recordId as string,
-            transactionId: args.transactionId as string | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: deleteByIdResult.message
-              }
-            ]
-          }
-
-        case 'propertyValues': {
-          const pvResult = await propertyValues({
-            propertyId: args.propertyId as string,
-            query: args.query as string | undefined,
-            orderBy: args.orderBy as 'asc' | 'desc' | undefined,
-            limit: args.limit as number | undefined,
-            skip: args.skip as number | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: pvResult ? JSON.stringify(pvResult, null, 2) : 'No property values found'
-              }
-            ]
-          }
-        }
-
-        case 'findProperties':
-          const foundProperties = await findProperties({
-            where: args.where as Record<string, any> | undefined,
-            limit: args.limit as number | undefined,
-            skip: args.skip as number | undefined,
-            orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text:
-                  foundProperties.length > 0 ?
-                    JSON.stringify(foundProperties, null, 2)
-                  : 'No properties found'
-              }
-            ]
-          }
-        case 'getRecordsByIds':
-          const recordsByIds = await getRecordsByIds({ recordIds: args.recordIds as string[] })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: recordsByIds.count > 0 ? JSON.stringify(recordsByIds.data, null, 2) : 'No records found'
-              }
-            ]
-          }
-
-        case 'findPropertyById':
-          const foundProperty = await findPropertyById({
-            propertyId: args.propertyId as string
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: foundProperty ? JSON.stringify(foundProperty, null, 2) : 'Property not found'
-              }
-            ]
-          }
-
-        case 'deleteProperty':
-          const deletePropertyResult = await deleteProperty({
-            propertyId: args.propertyId as string
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: deletePropertyResult.message
-              }
-            ]
-          }
-
-        case 'findEmbeddingIndexes': {
-          const indexes = await findEmbeddingIndexes()
-          return {
-            content: [
-              {
-                type: 'text',
-                text:
-                  indexes && indexes.length > 0 ?
-                    JSON.stringify(indexes, null, 2)
-                  : 'No embedding indexes found'
-              }
-            ]
-          }
-        }
-
-        case 'createEmbeddingIndex': {
-          const newIndex = await createEmbeddingIndex({
-            label: args.label as string,
-            propertyName: args.propertyName as string,
-            sourceType: args.sourceType as 'managed' | 'external' | undefined,
-            similarityFunction: args.similarityFunction as 'cosine' | 'euclidean' | undefined,
-            dimensions: args.dimensions as number | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: newIndex ? JSON.stringify(newIndex, null, 2) : 'Embedding index created'
-              }
-            ]
-          }
-        }
-
-        case 'deleteEmbeddingIndex': {
-          const deleteIndexResult = await deleteEmbeddingIndex({
-            indexId: args.indexId as string
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text:
-                  deleteIndexResult ? JSON.stringify(deleteIndexResult, null, 2) : 'Embedding index deleted'
-              }
-            ]
-          }
-        }
-
-        case 'getEmbeddingIndexStats': {
-          const stats = await getEmbeddingIndexStats({
-            indexId: args.indexId as string
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: stats ? JSON.stringify(stats, null, 2) : 'No stats available'
-              }
-            ]
-          }
-        }
-
-        case 'upsertEmbeddingVectors': {
-          const upsertResult = await upsertEmbeddingVectors({
-            indexId: args.indexId as string,
-            items: args.items as Array<{ recordId: string; vector: number[] }>
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text: upsertResult ? JSON.stringify(upsertResult, null, 2) : 'Vectors upserted'
-              }
-            ]
-          }
-        }
-
-        case 'semanticSearch': {
-          const searchResults = await semanticSearch({
-            propertyName: args.propertyName as string,
-            query: args.query as string | undefined,
-            queryVector: args.queryVector as number[] | undefined,
-            labels: args.labels as string[],
-            sourceType: args.sourceType as 'managed' | 'external' | undefined,
-            similarityFunction: args.similarityFunction as 'cosine' | 'euclidean' | undefined,
-            dimensions: args.dimensions as number | undefined,
-            where: args.where as Record<string, unknown> | undefined,
-            topK: args.topK as number | undefined,
-            limit: args.limit as number | undefined,
-            skip: args.skip as number | undefined
-          })
-          return {
-            content: [
-              {
-                type: 'text',
-                text:
-                  searchResults && searchResults.length > 0 ?
-                    JSON.stringify(searchResults, null, 2)
-                  : 'No matching records found.'
-              }
-            ]
-          }
-        }
-
-        default:
-          throw new McpError(ErrorCode.MethodNotFound, 'Tool not found')
-      }
+      return result
     } catch (error) {
       console.error('Error executing tool:', error)
 
@@ -650,14 +504,9 @@ function createMcpServer(): Server {
         message.includes('Network error') ||
         !process.env.RUSHDB_API_KEY
       ) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: "It seems like you haven't configured your RushDB credentials. Would you like me to open the RushDB dashboard for you so you can sign up and get your credentials?"
-            }
-          ]
-        }
+        const text =
+          "It seems like you haven't configured your RushDB credentials. Would you like me to open the RushDB dashboard for you so you can sign up and get your credentials?"
+        return toolResult({ error: text }, text)
       }
 
       // Map raw HTTP status codes from the SDK fetcher into actionable messages
@@ -687,20 +536,11 @@ function createMcpServer(): Server {
         } else {
           hint = `HTTP error ${status} from RushDB API.`
         }
-        return {
-          content: [{ type: 'text', text: hint }]
-        }
+        return toolResult({ error: hint }, hint)
       }
 
       // Generic error fallback
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Error: ${message}`
-          }
-        ]
-      }
+      return toolResult({ error: message }, `Error: ${message}`)
     }
   })
 

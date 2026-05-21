@@ -16,15 +16,16 @@ export class McpOauthScheduler {
   @Cron(CronExpression.EVERY_HOUR)
   async cleanupExpiredOAuthNodes(): Promise<void> {
     try {
-      const [tokens, authReqs, codes] = await Promise.all([
+      const [tokens, authReqs, codes, refreshTokens] = await Promise.all([
         this.tokenRepository.deleteExpired(),
         this.oauthRepository.deleteExpiredAuthRequests(),
-        this.oauthRepository.deleteExpiredCodes()
+        this.oauthRepository.deleteExpiredCodes(),
+        this.oauthRepository.deleteExpiredRefreshTokens()
       ])
 
-      if (tokens + authReqs + codes > 0) {
+      if (tokens + authReqs + codes + refreshTokens > 0) {
         this.logger.log(
-          `[OAuth cleanup] deleted ${tokens} expired tokens, ${authReqs} auth requests, ${codes} auth codes`
+          `[OAuth cleanup] deleted ${tokens} expired tokens, ${authReqs} auth requests, ${codes} auth codes, ${refreshTokens} refresh tokens`
         )
       }
     } catch (err) {

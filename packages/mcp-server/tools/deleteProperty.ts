@@ -17,10 +17,11 @@ import { db } from '../util/db.js'
 export async function deleteProperty(params: { propertyId: string }) {
   const { propertyId } = params
 
-  await db.properties.delete(propertyId)
+  const result = await db.properties.delete(propertyId)
 
   return {
     success: true,
-    message: `Property '${propertyId}' deleted successfully`
+    message: `Property '${propertyId}' deleted successfully`,
+    property: result.data
   }
 }

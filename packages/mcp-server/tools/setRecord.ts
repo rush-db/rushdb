@@ -22,10 +22,11 @@ export async function setRecord(params: {
 }) {
   const { recordId, label, data, transactionId } = params
 
-  await db.records.set({ target: recordId, label, data }, transactionId)
+  const result = await db.records.set({ target: recordId, label, data }, transactionId)
 
   return {
     success: true,
-    message: `Record '${recordId}' set successfully with label '${label}'`
+    message: `Record '${recordId}' set successfully with label '${label}'`,
+    record: result.data
   }
 }

@@ -19,7 +19,7 @@ import { ProjectService } from '@/dashboard/project/project.service'
 import { TokenService } from '@/dashboard/token/token.service'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 
 // Label constants kept for potential external references
 export const LABEL_OAUTH_CLIENT = '__RUSHDB__LABEL__OAUTH_CLIENT__'
@@ -30,6 +30,7 @@ export const LABEL_OAUTH_CODE = '__RUSHDB__LABEL__OAUTH_CODE__'
 const AUTH_REQUEST_TTL_MS = 10 * 60 * 1000 // 10 minutes
 const AUTH_CODE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 const ACCESS_TOKEN_TTL_S = 3600 // 1 hour
+const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 const PROJECT_TOKEN_TTL = '1h'
 
 const SUPPORTED_SCOPES = ['records:read', 'records:write']
@@ -66,7 +67,7 @@ export class McpOauthService {
       registration_endpoint: `${base}/oauth/register`,
       scopes_supported: SUPPORTED_SCOPES,
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', TOKEN_EXCHANGE_GRANT],
+      grant_types_supported: ['authorization_code', 'refresh_token', TOKEN_EXCHANGE_GRANT],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
       revocation_endpoint: `${base}/oauth/revoke`
@@ -332,11 +333,97 @@ export class McpOauthService {
       aud: codeRow.resource || this.issuer
     })
 
+    const rawRefreshToken = randomBytes(32).toString('hex')
+    const hashedRefreshToken = createHash('sha256').update(rawRefreshToken).digest('hex')
+    const now = new Date()
+    await this.oauthRepository.createRefreshToken({
+      id: hashedRefreshToken,
+      consentId: codeRow.consentId,
+      clientId: codeRow.clientId,
+      userId: consentRow.userId,
+      projectId: consentRow.projectId,
+      scope: consentRow.scope,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + REFRESH_TOKEN_TTL_MS).toISOString()
+    })
+
     return {
       access_token: accessToken,
       token_type: 'bearer',
       expires_in: ACCESS_TOKEN_TTL_S,
+      refresh_token: rawRefreshToken,
       scope: consentRow.scope
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Token endpoint - refresh_token grant (RFC 6749 §6)
+  // ---------------------------------------------------------------------------
+
+  async handleRefreshToken(dto: TokenRequestDto) {
+    const { refresh_token, client_id } = dto
+
+    if (!refresh_token) {
+      throw new BadRequestException('refresh_token is required')
+    }
+    if (!client_id) {
+      throw new BadRequestException('client_id is required')
+    }
+
+    const hashedIncoming = createHash('sha256').update(refresh_token).digest('hex')
+    const tokenRow = await this.oauthRepository.findRefreshToken(hashedIncoming)
+
+    if (!tokenRow) {
+      throw new UnauthorizedException('Invalid or expired refresh_token')
+    }
+    if (new Date(tokenRow.expiresAt) < new Date()) {
+      await this.oauthRepository.deleteRefreshToken(hashedIncoming)
+      throw new UnauthorizedException('refresh_token has expired')
+    }
+    if (tokenRow.clientId !== client_id) {
+      throw new ForbiddenException('client_id mismatch')
+    }
+
+    const consentRow = await this.oauthRepository.findConsentById(tokenRow.consentId)
+    if (!consentRow || consentRow.revokedAt) {
+      await this.oauthRepository.deleteRefreshToken(hashedIncoming)
+      throw new UnauthorizedException('Consent has been revoked')
+    }
+
+    // Rotate: invalidate the used token immediately (prevents replay)
+    await this.oauthRepository.deleteRefreshToken(hashedIncoming)
+
+    // Issue new access token
+    const newAccessToken = this.signOAuthAccessToken({
+      iss: this.issuer,
+      sub: tokenRow.userId,
+      scope: tokenRow.scope,
+      project_id: tokenRow.projectId,
+      consent_id: tokenRow.consentId,
+      aud: this.issuer
+    })
+
+    // Issue new refresh token (rotation)
+    const newRawRefreshToken = randomBytes(32).toString('hex')
+    const newHashedRefreshToken = createHash('sha256').update(newRawRefreshToken).digest('hex')
+    const now = new Date()
+    await this.oauthRepository.createRefreshToken({
+      id: newHashedRefreshToken,
+      consentId: tokenRow.consentId,
+      clientId: tokenRow.clientId,
+      userId: tokenRow.userId,
+      projectId: tokenRow.projectId,
+      scope: tokenRow.scope,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + REFRESH_TOKEN_TTL_MS).toISOString()
+    })
+
+    return {
+      access_token: newAccessToken,
+      token_type: 'bearer',
+      expires_in: ACCESS_TOKEN_TTL_S,
+      refresh_token: newRawRefreshToken,
+      scope: tokenRow.scope
     }
   }
 
@@ -439,7 +526,10 @@ export class McpOauthService {
     }
 
     await this.oauthRepository.revokeConsent(consentId)
-    await this.tokenService.deleteByConsentId(consentId)
+    await Promise.all([
+      this.tokenService.deleteByConsentId(consentId),
+      this.oauthRepository.deleteRefreshTokensByConsentId(consentId)
+    ])
 
     return { success: true }
   }

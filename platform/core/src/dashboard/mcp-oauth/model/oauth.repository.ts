@@ -9,10 +9,12 @@ import type {
   InsertOauthClientRow,
   InsertOauthCodeRow,
   InsertOauthConsentRow,
+  InsertOauthRefreshTokenRow,
   OauthAuthRequestRow,
   OauthClientRow,
   OauthCodeRow,
-  OauthConsentRow
+  OauthConsentRow,
+  OauthRefreshTokenRow
 } from '@/database/sql/schema/types'
 
 @Injectable()
@@ -33,6 +35,9 @@ export class OAuthRepository {
   }
   private get codes() {
     return this.sql.tables.oauthCodes
+  }
+  private get refreshTokens() {
+    return this.sql.tables.oauthRefreshTokens
   }
 
   // ── Clients ──────────────────────────────────────────────────────────────────
@@ -253,6 +258,57 @@ export class OAuthRepository {
 
     for (const id of expiredIds) {
       await this.db.delete(this.codes).where(eq(this.codes.id, id))
+    }
+    return expiredIds.length
+  }
+
+  // ── Refresh Tokens ────────────────────────────────────────────────────────────
+
+  /**
+   * Persists a refresh token record. The `id` field MUST be the SHA-256 hex
+   * digest of the raw token — the raw value is never stored.
+   */
+  async createRefreshToken(data: InsertOauthRefreshTokenRow): Promise<void> {
+    await this.db.insert(this.refreshTokens).values(data)
+  }
+
+  /**
+   * Looks up a refresh token by its hashed ID (SHA-256 hex of the raw value).
+   */
+  async findRefreshToken(hashedId: string): Promise<OauthRefreshTokenRow | undefined> {
+    const rows = await this.db.select().from(this.refreshTokens).where(eq(this.refreshTokens.id, hashedId))
+    return rows[0]
+  }
+
+  /**
+   * Deletes a single refresh token (used for rotation: invalidate before issuing a new one).
+   */
+  async deleteRefreshToken(hashedId: string): Promise<void> {
+    await this.db.delete(this.refreshTokens).where(eq(this.refreshTokens.id, hashedId))
+  }
+
+  /**
+   * Deletes all refresh tokens tied to a consent (called on consent revocation).
+   */
+  async deleteRefreshTokensByConsentId(consentId: string): Promise<void> {
+    await this.db.delete(this.refreshTokens).where(eq(this.refreshTokens.consentId, consentId))
+  }
+
+  /**
+   * Removes all expired refresh tokens. Called by the scheduler.
+   */
+  async deleteExpiredRefreshTokens(): Promise<number> {
+    const now = new Date().toISOString()
+    const expiredIds = (
+      await this.db
+        .select({ id: this.refreshTokens.id, expiresAt: this.refreshTokens.expiresAt })
+        .from(this.refreshTokens)
+    )
+      .filter((r) => r.expiresAt < now)
+      .map((r) => r.id)
+
+    for (const id of expiredIds) {
+      await this.db.delete(this.refreshTokens).where(eq(this.refreshTokens.id, id))
     }
     return expiredIds.length
   }

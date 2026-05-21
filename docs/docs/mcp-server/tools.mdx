@@ -5,7 +5,7 @@ sidebar_label: Tools
 sidebar_position: 4
 ---
 
-The RushDB MCP server exposes a comprehensive set of tools. Each tool includes a `name`, `description`, and `inputSchema`. Below is a summary of the available tools and example usages.
+The RushDB MCP server exposes a comprehensive set of tools. Each tool includes a `name`, `description`, `inputSchema`, `outputSchema`, and client-facing annotations. Tool calls return both human-readable text and structured MCP `structuredContent`, so clients can render or reuse returned records, totals, CSV exports, ontology data, and operation metadata without parsing text.
 
 ## Database discovery
 
@@ -84,6 +84,19 @@ Ask your MCP client:
 
 For detailed input schemas, see the tool definitions in the MCP server source (`packages/mcp-server/tools.ts`).
 
+Output schemas are also defined in `packages/mcp-server/tools.ts`. The most common shapes are:
+
+| Tools                                               | Structured output                                                                                                                   |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `findRecords`, `getRecordsByIds`, `semanticSearch`  | `{ data, total }`                                                                                                                   |
+| `createRecord`                                      | `{ success, id, message, record }`                                                                                                  |
+| `updateRecord`, `setRecord`                         | `{ success, message, record }`                                                                                                      |
+| `bulkCreateRecords`                                 | `{ message, ids, data, total }`                                                                                                     |
+| `findLabels`, `findProperties`, `findRelationships` | Named arrays such as `{ labels }`, `{ properties }`, `{ relationships }`                                                            |
+| Delete/export/utility tools                         | Operation-specific fields such as `{ success, message }`, `{ csv, dateTime, message }`, `{ markdown }`, `{ spec }`, or `{ prompt }` |
+
+Some write tools are annotated as destructive for MCP clients. For example, `setRecord` replaces all fields on a record, and `detachRelation` removes relationships.
+
 ---
 
 ## Tool reference
@@ -100,9 +113,9 @@ Return the full database schema as Markdown: all label names (case-sensitive), t
 
 Arguments:
 
-| Name   | Type             | Required | Default | Description |
-|--------|------------------|----------|---------|-------------|
-| labels | array of strings | no       | —       | Restrict output to specific labels; omit for the full schema |
+| Name   | Type             | Required | Default | Description                                                                     |
+| ------ | ---------------- | -------- | ------- | ------------------------------------------------------------------------------- |
+| labels | array of strings | no       | —       | Restrict output to specific labels; omit for the full schema                    |
 | force  | boolean          | no       | —       | Pass `true` to bypass the 1-hour ontology cache and force a fresh recalculation |
 
 Example prompt:
@@ -117,9 +130,9 @@ Return the same ontology data as structured JSON instead of Markdown. Each prope
 
 Arguments:
 
-| Name   | Type             | Required | Default | Description |
-|--------|------------------|----------|---------|-------------|
-| labels | array of strings | no       | —       | Restrict output to specific labels |
+| Name   | Type             | Required | Default | Description                                                                     |
+| ------ | ---------------- | -------- | ------- | ------------------------------------------------------------------------------- |
+| labels | array of strings | no       | —       | Restrict output to specific labels                                              |
 | force  | boolean          | no       | —       | Pass `true` to bypass the 1-hour ontology cache and force a fresh recalculation |
 
 Example prompt:
@@ -134,12 +147,12 @@ List or filter record labels and their counts.
 
 Arguments:
 
-| Name    | Type    | Required | Default | Description |
-|---------|---------|----------|---------|-------------|
-| where   | object  | no       | —       | Filter conditions for labels (e.g., by activity flags, counts) |
-| limit   | number  | no       | —       | Maximum number of labels to return |
-| skip    | number  | no       | —       | Number of labels to skip |
-| orderBy | object  | no       | —       | Sorting: key = field, value = `asc` or `desc` |
+| Name    | Type   | Required | Default | Description                                                    |
+| ------- | ------ | -------- | ------- | -------------------------------------------------------------- |
+| where   | object | no       | —       | Filter conditions for labels (e.g., by activity flags, counts) |
+| limit   | number | no       | —       | Maximum number of labels to return                             |
+| skip    | number | no       | —       | Number of labels to skip                                       |
+| orderBy | object | no       | —       | Sorting: key = field, value = `asc` or `desc`                  |
 
 Example prompt:
 
@@ -153,15 +166,16 @@ Create a new record with the specified label and data.
 
 Arguments:
 
-| Name          | Type   | Required | Default | Description |
-|---------------|--------|----------|---------|-------------|
-| label         | string | yes      | —       | Label for the record |
-| data          | object | yes      | —       | Record data to insert |
-| transactionId | string | no       | —       | Optional transaction ID for atomic creation |
-| options.mergeStrategy | `append|rewrite` | no | append | Upsert strategy: `append` keeps unspecified existing properties; `rewrite` replaces existing property relations |
-| options.mergeBy | array of strings | no | all keys (if empty array provided) | Fields used to match an existing record. Presence (even empty array) triggers upsert semantics |
+| Name                  | Type             | Required | Default                            | Description                                                                                    |
+| --------------------- | ---------------- | -------- | ---------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| label                 | string           | yes      | —                                  | Label for the record                                                                           |
+| data                  | object           | yes      | —                                  | Record data to insert                                                                          |
+| transactionId         | string           | no       | —                                  | Optional transaction ID for atomic creation                                                    |
+| options.mergeStrategy | `append          | rewrite` | no                                 | append                                                                                         | Upsert strategy: `append` keeps unspecified existing properties; `rewrite` replaces existing property relations |
+| options.mergeBy       | array of strings | no       | all keys (if empty array provided) | Fields used to match an existing record. Presence (even empty array) triggers upsert semantics |
 
 Upsert behavior:
+
 - Provide either `options.mergeStrategy` or `options.mergeBy` (or both) to switch from pure create to upsert.
 - If `mergeBy` is omitted and `mergeStrategy` is present, all incoming keys are used to match.
 - Empty `mergeBy: []` explicitly means "use all keys".
@@ -171,6 +185,8 @@ Example prompt:
 
 > Call `createRecord` with `label="User"`, `data={"email":"a@b.com","name":"Ann"}`, and `options={"mergeBy":["email"],"mergeStrategy":"append"}` to upsert by email.
 
+Structured output: `{ success, id, message, record }`, where `record` is the created or upserted record data.
+
 ---
 
 ### updateRecord
@@ -179,16 +195,18 @@ Partially update fields of an existing record.
 
 Arguments:
 
-| Name          | Type   | Required | Default | Description |
-|---------------|--------|----------|---------|-------------|
+| Name          | Type   | Required | Default | Description                |
+| ------------- | ------ | -------- | ------- | -------------------------- |
 | recordId      | string | yes      | —       | ID of the record to update |
-| label         | string | yes      | —       | Label for the record |
-| data          | object | yes      | —       | Partial data to update |
-| transactionId | string | no       | —       | Optional transaction ID |
+| label         | string | yes      | —       | Label for the record       |
+| data          | object | yes      | —       | Partial data to update     |
+| transactionId | string | no       | —       | Optional transaction ID    |
 
 Example prompt:
 
 > Use `updateRecord` with `recordId="<id>"`, `label="Task"`, and `data={"status":"done"}`.
+
+Structured output: `{ success, message, record }`, where `record` is the updated record data.
 
 ---
 
@@ -198,16 +216,18 @@ Replace all fields of a record (full update).
 
 Arguments:
 
-| Name          | Type   | Required | Default | Description |
-|---------------|--------|----------|---------|-------------|
-| recordId      | string | yes      | —       | ID of the record to set |
-| label         | string | yes      | —       | Label for the record |
+| Name          | Type   | Required | Default | Description                                 |
+| ------------- | ------ | -------- | ------- | ------------------------------------------- |
+| recordId      | string | yes      | —       | ID of the record to set                     |
+| label         | string | yes      | —       | Label for the record                        |
 | data          | object | yes      | —       | Full record data (replaces existing fields) |
-| transactionId | string | no       | —       | Optional transaction ID |
+| transactionId | string | no       | —       | Optional transaction ID                     |
 
 Example prompt:
 
 > Call `setRecord` for `recordId="<id>"`, `label="Task"`, data `{"title":"Polish docs","status":"in-progress"}`.
+
+Structured output: `{ success, message, record }`, where `record` is the replacement record data.
 
 ---
 
@@ -217,10 +237,10 @@ Delete a record by its ID. `deleteRecord` is an alias of `deleteRecordById`.
 
 Arguments:
 
-| Name          | Type   | Required | Default | Description |
-|---------------|--------|----------|---------|-------------|
+| Name          | Type   | Required | Default | Description                |
+| ------------- | ------ | -------- | ------- | -------------------------- |
 | recordId      | string | yes      | —       | ID of the record to delete |
-| transactionId | string | no       | —       | Optional transaction ID |
+| transactionId | string | no       | —       | Optional transaction ID    |
 
 Example prompt:
 
@@ -234,8 +254,8 @@ Retrieve a specific record by ID.
 
 Arguments:
 
-| Name     | Type   | Required | Default | Description |
-|----------|--------|----------|---------|-------------|
+| Name     | Type   | Required | Default | Description                  |
+| -------- | ------ | -------- | ------- | ---------------------------- |
 | recordId | string | yes      | —       | ID of the record to retrieve |
 
 Example prompt:
@@ -250,9 +270,9 @@ Retrieve multiple records by an array of IDs.
 
 Arguments:
 
-| Name      | Type              | Required | Default | Description |
-|-----------|-------------------|----------|---------|-------------|
-| recordIds | array of strings  | yes      | —       | IDs of records to retrieve |
+| Name      | Type             | Required | Default | Description                |
+| --------- | ---------------- | -------- | ------- | -------------------------- |
+| recordIds | array of strings | yes      | —       | IDs of records to retrieve |
 
 Example prompt:
 
@@ -266,19 +286,21 @@ Search for records with advanced filtering, sorting, paging, grouping, and aggre
 
 Arguments:
 
-| Name       | Type               | Required | Default | Description |
-|------------|--------------------|----------|---------|-------------|
-| labels     | array of strings   | no       | —       | Filter by record labels |
-| where      | object             | no       | —       | Query conditions |
-| limit      | number             | no       | 10      | Max records to return |
-| skip       | number             | no       | 0       | Records to skip |
-| orderBy    | object             | no       | —       | Sorting: key = field, value = `asc` or `desc` |
-| select     | object             | no       | —       | Output-shaping expressions: `{ $sum, $avg, $count, $min, $max, $collect, $timeBucket }` |
-| groupBy    | array of strings   | no       | —       | Fields to group by (records only) |
+| Name    | Type             | Required | Default | Description                                                                             |
+| ------- | ---------------- | -------- | ------- | --------------------------------------------------------------------------------------- |
+| labels  | array of strings | no       | —       | Filter by record labels                                                                 |
+| where   | object           | no       | —       | Query conditions                                                                        |
+| limit   | number           | no       | 10      | Max records to return                                                                   |
+| skip    | number           | no       | 0       | Records to skip                                                                         |
+| orderBy | object           | no       | —       | Sorting: key = field, value = `asc` or `desc`                                           |
+| select  | object           | no       | —       | Output-shaping expressions: `{ $sum, $avg, $count, $min, $max, $collect, $timeBucket }` |
+| groupBy | array of strings | no       | —       | Fields to group by (records only)                                                       |
 
 Example prompt:
 
 > Run `findRecords` with `where={"status":"open"}`, `orderBy={"createdAt":"desc"}`, `limit=5`.
+
+Structured output: `{ data, total }`.
 
 ---
 
@@ -288,8 +310,8 @@ Find a single record that matches the criteria (returns one or none).
 
 Arguments:
 
-| Name   | Type             | Required | Default | Description |
-|--------|------------------|----------|---------|-------------|
+| Name   | Type             | Required | Default | Description      |
+| ------ | ---------------- | -------- | ------- | ---------------- |
 | labels | array of strings | no       | —       | Filter by labels |
 | where  | object           | no       | —       | Query conditions |
 
@@ -305,9 +327,9 @@ Find a unique record that matches the criteria (errors if multiple match in some
 
 Arguments:
 
-| Name   | Type             | Required | Default | Description |
-|--------|------------------|----------|---------|-------------|
-| labels | array of strings | no       | —       | Filter by labels |
+| Name   | Type             | Required | Default | Description                                        |
+| ------ | ---------------- | -------- | ------- | -------------------------------------------------- |
+| labels | array of strings | no       | —       | Filter by labels                                   |
 | where  | object           | no       | —       | Query conditions expected to match a single record |
 
 Example prompt:
@@ -322,14 +344,14 @@ Create relationships from a source record to one or more target records.
 
 Arguments:
 
-| Name          | Type                      | Required | Default   | Description |
-|---------------|---------------------------|----------|-----------|-------------|
-| sourceId      | string                    | yes      | —         | ID of the source record |
-| targetId      | string                    | no       | —         | ID of a single target (deprecated if `targetIds` provided) |
-| targetIds     | array of strings          | no       | —         | IDs of multiple targets |
-| relationType  | string                    | no       | —         | Relationship type label |
-| direction     | `outgoing|incoming|bidirectional` | no | outgoing | Direction of the relation |
-| transactionId | string                    | no       | —         | Optional transaction ID |
+| Name          | Type             | Required | Default        | Description                                                |
+| ------------- | ---------------- | -------- | -------------- | ---------------------------------------------------------- | -------- | ------------------------- |
+| sourceId      | string           | yes      | —              | ID of the source record                                    |
+| targetId      | string           | no       | —              | ID of a single target (deprecated if `targetIds` provided) |
+| targetIds     | array of strings | no       | —              | IDs of multiple targets                                    |
+| relationType  | string           | no       | —              | Relationship type label                                    |
+| direction     | `outgoing        | incoming | bidirectional` | no                                                         | outgoing | Direction of the relation |
+| transactionId | string           | no       | —              | Optional transaction ID                                    |
 
 Example prompt:
 
@@ -343,14 +365,14 @@ Remove relationships between records.
 
 Arguments:
 
-| Name          | Type                      | Required | Default   | Description |
-|---------------|---------------------------|----------|-----------|-------------|
-| sourceId      | string                    | yes      | —         | ID of the source record |
-| targetId      | string                    | no       | —         | ID of a single target (deprecated if `targetIds` provided) |
-| targetIds     | array of strings          | no       | —         | IDs of multiple targets |
-| relationType  | string                    | no       | —         | Relationship type to remove |
-| direction     | `outgoing|incoming|bidirectional` | no | outgoing | Direction filter |
-| transactionId | string                    | no       | —         | Optional transaction ID |
+| Name          | Type             | Required | Default        | Description                                                |
+| ------------- | ---------------- | -------- | -------------- | ---------------------------------------------------------- | -------- | ---------------- |
+| sourceId      | string           | yes      | —              | ID of the source record                                    |
+| targetId      | string           | no       | —              | ID of a single target (deprecated if `targetIds` provided) |
+| targetIds     | array of strings | no       | —              | IDs of multiple targets                                    |
+| relationType  | string           | no       | —              | Relationship type to remove                                |
+| direction     | `outgoing        | incoming | bidirectional` | no                                                         | outgoing | Direction filter |
+| transactionId | string           | no       | —              | Optional transaction ID                                    |
 
 Example prompt:
 
@@ -364,11 +386,11 @@ Search for relationships with filters, sorting, and paging.
 
 Arguments:
 
-| Name    | Type   | Required | Default | Description |
-|---------|--------|----------|---------|-------------|
-| where   | object | no       | —       | Query conditions for relationships |
-| limit   | number | no       | 10      | Max number to return |
-| skip    | number | no       | 0       | Number to skip |
+| Name    | Type   | Required | Default | Description                                   |
+| ------- | ------ | -------- | ------- | --------------------------------------------- |
+| where   | object | no       | —       | Query conditions for relationships            |
+| limit   | number | no       | 10      | Max number to return                          |
+| skip    | number | no       | 0       | Number to skip                                |
 | orderBy | object | no       | —       | Sorting: key = field, value = `asc` or `desc` |
 
 Example prompt:
@@ -383,16 +405,17 @@ Create multiple records in a single operation.
 
 Arguments:
 
-| Name          | Type             | Required | Default | Description |
-|---------------|------------------|----------|---------|-------------|
-| label         | string           | yes      | —       | Label for all records |
-| data          | array of objects | yes      | —       | Array of record payloads (flat objects use batch create; nested objects use JSON import path) |
-| transactionId | string           | no       | —       | Optional transaction ID |
-| options.mergeStrategy | `append|rewrite` | no | append | Upsert strategy applied globally: `append` merges, `rewrite` replaces existing property relations |
-| options.mergeBy | array of strings | no | all keys (if empty array) | Global match fields; empty array means all keys per record; presence triggers upsert |
-| options.returnResult | boolean | no | true | Return created/upserted records (IDs always returned separately) |
+| Name                  | Type             | Required | Default                   | Description                                                                                   |
+| --------------------- | ---------------- | -------- | ------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| label                 | string           | yes      | —                         | Label for all records                                                                         |
+| data                  | array of objects | yes      | —                         | Array of record payloads (flat objects use batch create; nested objects use JSON import path) |
+| transactionId         | string           | no       | —                         | Optional transaction ID                                                                       |
+| options.mergeStrategy | `append          | rewrite` | no                        | append                                                                                        | Upsert strategy applied globally: `append` merges, `rewrite` replaces existing property relations |
+| options.mergeBy       | array of strings | no       | all keys (if empty array) | Global match fields; empty array means all keys per record; presence triggers upsert          |
+| options.returnResult  | boolean          | no       | true                      | Return created/upserted records (IDs always returned separately)                              |
 
 Upsert notes:
+
 - Same semantics as `createRecord`, but applied across the batch.
 - If records are flat objects, uses the `createMany` path; otherwise falls back to JSON import BFS with upsert.
 - For large batches consider reducing the size or increasing transaction TTL if timeouts occur.
@@ -400,6 +423,8 @@ Upsert notes:
 Example prompt:
 
 > Call `bulkCreateRecords` for `label="User"` with `data=[{"email":"a@b.com","name":"Ann"},{"email":"b@c.com","name":"Bill"}]` and `options={"mergeBy":["email"],"mergeStrategy":"append"}`.
+
+Structured output: `{ message, ids, data, total }`, where `data` contains the created or upserted record data.
 
 ---
 
@@ -409,11 +434,11 @@ Delete multiple records matching a query.
 
 Arguments:
 
-| Name          | Type             | Required | Default | Description |
-|---------------|------------------|----------|---------|-------------|
-| labels        | array of strings | no       | —       | Filter by labels |
+| Name          | Type             | Required | Default | Description                    |
+| ------------- | ---------------- | -------- | ------- | ------------------------------ |
+| labels        | array of strings | no       | —       | Filter by labels               |
 | where         | object           | yes      | —       | Criteria for records to delete |
-| transactionId | string           | no       | —       | Optional transaction ID |
+| transactionId | string           | no       | —       | Optional transaction ID        |
 
 Example prompt:
 
@@ -427,11 +452,11 @@ Export records to CSV.
 
 Arguments:
 
-| Name    | Type             | Required | Default | Description |
-|---------|------------------|----------|---------|-------------|
-| labels  | array of strings | no       | —       | Filter by labels |
-| where   | object           | no       | —       | Criteria for records to export |
-| limit   | number           | no       | —       | Max records to export |
+| Name    | Type             | Required | Default | Description                                              |
+| ------- | ---------------- | -------- | ------- | -------------------------------------------------------- |
+| labels  | array of strings | no       | —       | Filter by labels                                         |
+| where   | object           | no       | —       | Criteria for records to export                           |
+| limit   | number           | no       | —       | Max records to export                                    |
 | orderBy | object           | no       | —       | Sorting for export: key = field, value = `asc` or `desc` |
 
 Example prompt:
@@ -446,13 +471,13 @@ Get values for a specific property.
 
 Arguments:
 
-| Name       | Type                     | Required | Default | Description |
-|------------|--------------------------|----------|---------|-------------|
-| propertyId | string                   | yes      | —       | ID of the property |
-| query      | string                   | no       | —       | Filter values (search term) |
-| orderBy    | `asc|desc`               | no       | —       | Ordering of values |
-| limit      | number                   | no       | —       | Max number of values |
-| skip       | number                   | no       | —       | Number of values to skip |
+| Name       | Type   | Required | Default | Description                 |
+| ---------- | ------ | -------- | ------- | --------------------------- | ------------------ |
+| propertyId | string | yes      | —       | ID of the property          |
+| query      | string | no       | —       | Filter values (search term) |
+| orderBy    | `asc   | desc`    | no      | —                           | Ordering of values |
+| limit      | number | no       | —       | Max number of values        |
+| skip       | number | no       | —       | Number of values to skip    |
 
 Example prompt:
 
@@ -466,11 +491,11 @@ Search for properties with filters, sorting, and paging.
 
 Arguments:
 
-| Name    | Type   | Required | Default | Description |
-|---------|--------|----------|---------|-------------|
-| where   | object | no       | —       | Filter conditions |
-| limit   | number | no       | 10      | Max properties to return |
-| skip    | number | no       | 0       | Number to skip |
+| Name    | Type   | Required | Default | Description                                   |
+| ------- | ------ | -------- | ------- | --------------------------------------------- |
+| where   | object | no       | —       | Filter conditions                             |
+| limit   | number | no       | 10      | Max properties to return                      |
+| skip    | number | no       | 0       | Number to skip                                |
 | orderBy | object | no       | —       | Sorting: key = field, value = `asc` or `desc` |
 
 Example prompt:
@@ -485,8 +510,8 @@ Retrieve a specific property by ID.
 
 Arguments:
 
-| Name       | Type   | Required | Default | Description |
-|------------|--------|----------|---------|-------------|
+| Name       | Type   | Required | Default | Description        |
+| ---------- | ------ | -------- | ------- | ------------------ |
 | propertyId | string | yes      | —       | ID of the property |
 
 Example prompt:
@@ -501,13 +526,15 @@ Delete a property by ID.
 
 Arguments:
 
-| Name       | Type   | Required | Default | Description |
-|------------|--------|----------|---------|-------------|
+| Name       | Type   | Required | Default | Description                  |
+| ---------- | ------ | -------- | ------- | ---------------------------- |
 | propertyId | string | yes      | —       | ID of the property to delete |
 
 Example prompt:
 
 > Call `deleteProperty` with `propertyId="<property-id>"`.
+
+Structured output: `{ success, message, property }`, where `property` is the deleted property metadata returned by the API.
 
 ---
 
@@ -516,6 +543,7 @@ Example prompt:
 Return the complete RushDB SearchQuery specification as a focused reference document. Call this before building any `findRecords` query that involves dates, aggregation, `groupBy`, or relationship traversal.
 
 Covers:
+
 - All `where` operators: string, number, boolean, datetime component objects, `$exists`, `$type`, logical grouping (`$and`/`$or`/`$not`/`$nor`/`$xor`)
 - Relationship traversal syntax: `$alias`, `$relation`, `$id`
 - All `select` expressions: `$count`/`$sum`/`$avg`/`$min`/`$max`/`$collect`/`$timeBucket`
@@ -577,12 +605,12 @@ Create a new embedding index policy for a property. For **managed** indexes (def
 
 Arguments:
 
-| Name               | Type   | Required | Default     | Description |
-|--------------------|--------|----------|-------------|-------------|
-| label              | string | yes      | —           | Record label to scope the index to (e.g. `"Book"`, `"Task"`) |
-| propertyName       | string | yes      | —           | Name of the string property whose values will be embedded |
-| sourceType         | string | no       | `"managed"` | `"managed"` (RushDB generates embeddings) or `"external"` (client provides vectors) |
-| similarityFunction | string | no       | `"cosine"`  | `"cosine"` or `"euclidean"` |
+| Name               | Type   | Required | Default     | Description                                                                                                                        |
+| ------------------ | ------ | -------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| label              | string | yes      | —           | Record label to scope the index to (e.g. `"Book"`, `"Task"`)                                                                       |
+| propertyName       | string | yes      | —           | Name of the string property whose values will be embedded                                                                          |
+| sourceType         | string | no       | `"managed"` | `"managed"` (RushDB generates embeddings) or `"external"` (client provides vectors)                                                |
+| similarityFunction | string | no       | `"cosine"`  | `"cosine"` or `"euclidean"`                                                                                                        |
 | dimensions         | number | no       | auto        | Vector dimensionality. **Required** for external indexes. For managed indexes, defaults to the server-configured model dimensions. |
 
 Example prompt:
@@ -597,8 +625,8 @@ Write pre-computed embedding vectors to an **external** vector index for a set o
 
 Arguments:
 
-| Name    | Type   | Required | Default | Description |
-|---------|--------|----------|---------|-------------|
+| Name    | Type   | Required | Default | Description                                                      |
+| ------- | ------ | -------- | ------- | ---------------------------------------------------------------- |
 | indexId | string | yes      | —       | ID of the external embedding index (from `findEmbeddingIndexes`) |
 | items   | array  | yes      | —       | Array of `{ recordId: string, vector: number[] }` pairs to write |
 
@@ -614,8 +642,8 @@ Delete an embedding index policy by its ID and strip all stored embedding vector
 
 Arguments:
 
-| Name    | Type   | Required | Default | Description |
-|---------|--------|----------|---------|-------------|
+| Name    | Type   | Required | Default | Description                         |
+| ------- | ------ | -------- | ------- | ----------------------------------- |
 | indexId | string | yes      | —       | ID of the embedding index to delete |
 
 Example prompt:
@@ -630,8 +658,8 @@ Return Neo4j-level statistics for an embedding index: `totalRecords` and `indexe
 
 Arguments:
 
-| Name    | Type   | Required | Default | Description |
-|---------|--------|----------|---------|-------------|
+| Name    | Type   | Required | Default | Description                                             |
+| ------- | ------ | -------- | ------- | ------------------------------------------------------- |
 | indexId | string | yes      | —       | ID of the embedding index (from `findEmbeddingIndexes`) |
 
 Example prompt:
@@ -653,18 +681,18 @@ Requires an embedding index in `"ready"` status for the given `label` + `propert
 
 Arguments:
 
-| Name               | Type             | Required | Default | Description |
-|--------------------|------------------|----------|---------|-------------|
-| propertyName       | string           | yes      | —       | Name of the indexed property to search against |
-| query              | string           | no       | —       | Free-text query (managed indexes). Mutually exclusive with `queryVector` |
-| queryVector        | number[]         | no       | —       | Pre-computed embedding vector (external indexes). Mutually exclusive with `query` |
-| labels             | array of strings | yes      | —       | One or more record labels to scope the search; first label resolves the embedding index |
-| sourceType         | string           | no       | —       | `"managed"` or `"external"`. Required when both index types exist for the same label+property |
+| Name               | Type             | Required | Default | Description                                                                                               |
+| ------------------ | ---------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------- |
+| propertyName       | string           | yes      | —       | Name of the indexed property to search against                                                            |
+| query              | string           | no       | —       | Free-text query (managed indexes). Mutually exclusive with `queryVector`                                  |
+| queryVector        | number[]         | no       | —       | Pre-computed embedding vector (external indexes). Mutually exclusive with `query`                         |
+| labels             | array of strings | yes      | —       | One or more record labels to scope the search; first label resolves the embedding index                   |
+| sourceType         | string           | no       | —       | `"managed"` or `"external"`. Required when both index types exist for the same label+property             |
 | similarityFunction | string           | no       | —       | `"cosine"` or `"euclidean"`. Disambiguates when multiple indexes share the same label+property+sourceType |
-| where              | object           | no       | —       | Optional filter applied before scoring (activates prefilter mode) |
-| topK               | number           | no       | 20      | Max candidates from the vector index (direct mode only) |
-| limit              | number           | no       | 20      | Maximum number of results to return |
-| skip               | number           | no       | 0       | Number of results to skip for pagination |
+| where              | object           | no       | —       | Optional filter applied before scoring (activates prefilter mode)                                         |
+| topK               | number           | no       | 20      | Max candidates from the vector index (direct mode only)                                                   |
+| limit              | number           | no       | 20      | Maximum number of results to return                                                                       |
+| skip               | number           | no       | 0       | Number of results to skip for pagination                                                                  |
 
 Example prompt:
 

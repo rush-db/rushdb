@@ -38,5 +38,8 @@ export type InsertOauthConsentRow = typeof sqliteSchema.oauthConsents.$inferInse
 export type OauthCodeRow = typeof sqliteSchema.oauthCodes.$inferSelect
 export type InsertOauthCodeRow = typeof sqliteSchema.oauthCodes.$inferInsert
 
+export type OauthRefreshTokenRow = typeof sqliteSchema.oauthRefreshTokens.$inferSelect
+export type InsertOauthRefreshTokenRow = typeof sqliteSchema.oauthRefreshTokens.$inferInsert
+
 export type EmbeddingIndexRow = typeof sqliteSchema.embeddingIndexes.$inferSelect
 export type InsertEmbeddingIndexRow = typeof sqliteSchema.embeddingIndexes.$inferInsert

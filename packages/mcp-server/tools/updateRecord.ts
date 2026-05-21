@@ -22,10 +22,11 @@ export async function updateRecord(params: {
 }) {
   const { recordId, label, data, transactionId } = params
 
-  await db.records.update({ target: recordId, label, data }, transactionId)
+  const result = await db.records.update({ target: recordId, label, data }, transactionId)
 
   return {
     success: true,
-    message: `Record updated successfully`
+    message: `Record updated successfully`,
+    record: result.data
   }
 }
