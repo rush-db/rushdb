@@ -153,6 +153,19 @@ export const oauthCodes = pgTable('oauth_codes', {
   expiresAt: text('expires_at').notNull()
 })
 
+export const oauthRefreshTokens = pgTable('oauth_refresh_tokens', {
+  id: text('id').primaryKey(),
+  consentId: text('consent_id')
+    .notNull()
+    .references(() => oauthConsents.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull(),
+  userId: text('user_id').notNull(),
+  projectId: text('project_id').notNull(),
+  scope: text('scope').notNull(),
+  createdAt: text('created_at').notNull(),
+  expiresAt: text('expires_at').notNull()
+})
+
 export const embeddingIndexes = pgTable(
   'embedding_indexes',
   {
@@ -196,6 +209,7 @@ export const pgSchema = {
   oauthAuthRequests,
   oauthConsents,
   oauthCodes,
+  oauthRefreshTokens,
   embeddingIndexes
 }
 

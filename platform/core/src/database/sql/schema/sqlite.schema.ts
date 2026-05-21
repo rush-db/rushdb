@@ -153,6 +153,25 @@ export const oauthCodes = sqliteTable('oauth_codes', {
   expiresAt: text('expires_at').notNull()
 })
 
+/**
+ * Stores hashed refresh token values (SHA-256 hex).
+ * The raw token is returned to the client once and never persisted.
+ * Deleting a consent row cascades to its refresh tokens.
+ */
+export const oauthRefreshTokens = sqliteTable('oauth_refresh_tokens', {
+  /** SHA-256 hex digest of the raw token value */
+  id: text('id').primaryKey(),
+  consentId: text('consent_id')
+    .notNull()
+    .references(() => oauthConsents.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull(),
+  userId: text('user_id').notNull(),
+  projectId: text('project_id').notNull(),
+  scope: text('scope').notNull(),
+  createdAt: text('created_at').notNull(),
+  expiresAt: text('expires_at').notNull()
+})
+
 export const embeddingIndexes = sqliteTable(
   'embedding_indexes',
   {
@@ -196,6 +215,7 @@ export const sqliteSchema = {
   oauthAuthRequests,
   oauthConsents,
   oauthCodes,
+  oauthRefreshTokens,
   embeddingIndexes
 }
 

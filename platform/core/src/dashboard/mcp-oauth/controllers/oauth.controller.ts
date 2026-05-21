@@ -117,6 +117,8 @@ export class OAuthController {
       return this.oauthService.exchangeCode(dto)
     } else if (grant_type === TOKEN_EXCHANGE_GRANT) {
       return this.oauthService.exchangeToken(dto)
+    } else if (grant_type === 'refresh_token') {
+      return this.oauthService.handleRefreshToken(dto)
     } else {
       throw new BadRequestException(`Unsupported grant_type: ${grant_type}`)
     }

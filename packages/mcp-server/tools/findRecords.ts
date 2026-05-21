@@ -38,11 +38,6 @@ export async function findRecords(params: {
 
   const result = await db.records.find(searchQuery)
 
-  // If output shaping (select/aggregate) or groupBy present, return raw response so caller gets aggregates.
-  if (searchQuery.select || searchQuery.aggregate || searchQuery.groupBy) {
-    return result
-  }
-
   return {
     data: result.data.map((record: any) => record.data),
     total: result.total

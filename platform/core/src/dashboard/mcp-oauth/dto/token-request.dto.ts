@@ -59,4 +59,11 @@ export class TokenRequestDto {
   @IsString()
   @ApiPropertyOptional({ example: 'proj_1', description: 'Target project for token exchange' })
   project_id?: string
+
+  // --- refresh_token fields (RFC 6749 §6) ---
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({ description: 'Opaque refresh token issued during authorization_code exchange' })
+  refresh_token?: string
 }
