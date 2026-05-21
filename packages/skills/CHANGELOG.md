@@ -1,5 +1,11 @@
 # @rushdb/skills
 
+## 2.0.7
+
+### Patch Changes
+
+- 6e712a7: MCP refresh tokens fix
+
 ## 2.0.6
 
 ### Patch Changes
