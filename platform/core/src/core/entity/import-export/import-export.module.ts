@@ -8,6 +8,7 @@ import { ExportService } from '@/core/entity/import-export/export.service'
 import { ImportController } from '@/core/entity/import-export/import.controller'
 import { ImportService } from '@/core/entity/import-export/import.service'
 import { PropertyModule } from '@/core/property/property.module'
+import { RelationshipPatternsModule } from '@/core/relationship-patterns/relationship-patterns.module'
 import { TransactionModule } from '@/core/transactions/transaction.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
@@ -25,6 +26,7 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
     BillingPolicyModule,
     forwardRef(() => EntityModule),
     forwardRef(() => PropertyModule),
+    forwardRef(() => RelationshipPatternsModule),
     forwardRef(() => TransactionModule)
   ],
   providers: [ImportService, ExportService],

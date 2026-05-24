@@ -767,6 +767,45 @@ export class EntityQueryService {
       )
       .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
       .append(')')
+      .append('YIELD total, committedOperations, failedOperations, errorMessages')
+      .append('RETURN total, committedOperations, failedOperations, errorMessages')
+
+    return queryBuilder.getQuery()
+  }
+
+  retypeRelationsByLabels({
+    sourceLabel,
+    targetLabel,
+    sourceRelationType,
+    targetRelationType,
+    direction
+  }: {
+    sourceLabel: string
+    targetLabel: string
+    sourceRelationType?: string
+    targetRelationType?: string
+    direction?: TRelationDirection
+  }) {
+    const safeSourceLabel = this.sanitizeNeo4jIdentifier(sourceLabel)
+    const safeTargetLabel = this.sanitizeNeo4jIdentifier(targetLabel)
+    const sourceRelType = sourceRelationType ? sourceRelationType : RUSHDB_RELATION_DEFAULT
+    const targetRelType = targetRelationType ? targetRelationType : RUSHDB_RELATION_DEFAULT
+    const relPattern =
+      direction === RELATION_DIRECTION_IN ? `<-[newRel:${targetRelType}]-` : `-[newRel:${targetRelType}]->`
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append('CALL apoc.periodic.iterate(')
+      .append(
+        `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })-[:${sourceRelType}]-(t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} }) RETURN DISTINCT s, t',`
+      )
+      .append(
+        `'MERGE (s)${relPattern}(t) WITH s, t OPTIONAL MATCH (s)-[old:${sourceRelType}]-(t) DELETE old RETURN count(*)',`
+      )
+      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
+      .append(')')
+      .append('YIELD total, committedOperations, failedOperations, errorMessages')
+      .append('RETURN total, committedOperations, failedOperations, errorMessages')
 
     return queryBuilder.getQuery()
   }
@@ -797,6 +836,36 @@ export class EntityQueryService {
       )
       .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
       .append(')')
+      .append('YIELD total, committedOperations, failedOperations, errorMessages')
+      .append('RETURN total, committedOperations, failedOperations, errorMessages')
+
+    return queryBuilder.getQuery()
+  }
+
+  deleteRelationsByLabels({
+    sourceLabel,
+    targetLabel,
+    relationType
+  }: {
+    sourceLabel: string
+    targetLabel: string
+    relationType?: string
+  }) {
+    const safeSourceLabel = this.sanitizeNeo4jIdentifier(sourceLabel)
+    const safeTargetLabel = this.sanitizeNeo4jIdentifier(targetLabel)
+    const relType = relationType ? relationType : RUSHDB_RELATION_DEFAULT
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append('CALL apoc.periodic.iterate(')
+      .append(
+        `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })-[rel:${relType}]-(t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} }) RETURN rel',`
+      )
+      .append(`'DELETE rel RETURN count(*)',`)
+      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
+      .append(')')
+      .append('YIELD total, committedOperations, failedOperations, errorMessages')
+      .append('RETURN total, committedOperations, failedOperations, errorMessages')
 
     return queryBuilder.getQuery()
   }

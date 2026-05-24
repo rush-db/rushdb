@@ -176,6 +176,28 @@ const config: Config = {
   plugins: [
     tailwindPlugin,
     require('./plugins/tutorials-data.cjs'),
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        redirects: [
+          // Old basic-concepts/ → concepts/
+          { from: '/basic-concepts/properties', to: '/concepts/properties' },
+          { from: '/basic-concepts/records', to: '/concepts/records' },
+          { from: '/basic-concepts/relations', to: '/concepts/relationships' },
+          { from: '/basic-concepts/transactions', to: '/concepts/transactions' },
+          // Old advanced/ → concepts/
+          { from: '/advanced/properties', to: '/concepts/properties' },
+          { from: '/advanced/data-types', to: '/concepts/properties' },
+          { from: '/advanced/records', to: '/concepts/records' },
+          { from: '/advanced/relationships', to: '/concepts/relationships' },
+          { from: '/advanced/querying-data', to: '/concepts/search/introduction' },
+          { from: '/advanced/search-aggregation', to: '/concepts/search/introduction' },
+          { from: '/advanced/enhanced-typescript', to: '/typescript-sdk/introduction' },
+          // Old python-sdk/records-api → python-sdk/records/
+          { from: '/python-sdk/records-api', to: '/python-sdk/records/create-records' }
+        ]
+      }
+    ],
     async function pluginLlmsTxt(context) {
       return {
         name: 'llms-txt-plugin',

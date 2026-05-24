@@ -17,6 +17,13 @@ import { $currentProjectId } from './id'
 
 export const $recordView = atom<RecordViewType>('table')
 
+const RECORD_VIEW_SEARCH_PARAM = 'view'
+const recordViewValues = new Set<RecordViewType>(['table', 'graph', 'raw-api'])
+
+function isRecordViewType(value?: string): value is RecordViewType {
+  return recordViewValues.has(value as RecordViewType)
+}
+
 export const $recordRawApiEntity = persistentAtom<RawApiEntityType>('records:raw-api:entity', 'records')
 
 export const $recordsOrderBy = atom<Sort>()
@@ -52,6 +59,9 @@ $searchParams.subscribe((value) => {
   }
   // Workaround to apply filters after project page is loaded and query params isn't empty.
   setTimeout(() => $currentProjectFilters.set(filters), 10)
+
+  const view = value[RECORD_VIEW_SEARCH_PARAM]
+  $recordView.set(isRecordViewType(view) ? view : 'table')
 })
 
 export const incrementRecordsPage = action($currentProjectRecordsSkip, 'incrementPage', (store) => {
@@ -157,4 +167,14 @@ $currentProjectFilters.subscribe(() => {
 
 $recordsOrderBy.subscribe(() => {
   $currentProjectRecordsSkip.set(0)
+})
+
+$recordView.subscribe((view) => {
+  const page = $router.get()
+
+  if (!isProjectPage(page) || $searchParams.get()[RECORD_VIEW_SEARCH_PARAM] === view) {
+    return
+  }
+
+  changeSearchParam(RECORD_VIEW_SEARCH_PARAM, view)
 })

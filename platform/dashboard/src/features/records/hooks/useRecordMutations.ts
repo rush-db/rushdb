@@ -6,7 +6,7 @@ import type { DBRecord, DBRecordCreationOptions, PropertyDraft } from '@rushdb/j
 import { toast } from '~/elements/Toast'
 import { api } from '~/lib/api'
 import { queryKeys } from '~/lib/queryKeys'
-import { $currentProjectId } from '~/features/projects/stores/id'
+import { $currentProjectId, $sheetRecordId } from '~/features/projects/stores/id'
 import {
   $currentProjectFilters,
   $recordsOrderBy,
@@ -38,8 +38,14 @@ export const useDeleteRecordMutation = () => {
   const params = useCurrentRecordParams()
   return useMutation({
     mutationFn: ({ id }: { id: DBRecord['__id'] }) => api.records.deleteById({ id }),
-    onSuccess() {
+    onSuccess(_, { id }) {
       if (!params.projectId) return
+      if ($sheetRecordId.get() === id) {
+        $sheetRecordId.set(undefined)
+      }
+      queryClient.removeQueries({ queryKey: queryKeys.projects.record(id) })
+      queryClient.removeQueries({ queryKey: queryKeys.projects.recordFields(id) })
+      queryClient.removeQueries({ queryKey: queryKeys.projects.recordRelated(id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.labels(params.projectId) })
       queryClient.invalidateQueries({
         queryKey: queryKeys.projects.fields(params.projectId, {

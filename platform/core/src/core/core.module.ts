@@ -6,6 +6,7 @@ import { EntityModule } from '@/core/entity/entity.module'
 import { ImportExportModule } from '@/core/entity/import-export/import-export.module'
 import { PropertyModule } from '@/core/property/property.module'
 import { QueryModule } from '@/core/query/query.module'
+import { RelationshipPatternsModule } from '@/core/relationship-patterns/relationship-patterns.module'
 import { TransactionModule } from '@/core/transactions/transaction.module'
 import { AuthMiddleware } from '@/dashboard/auth/middlewares/auth.middleware'
 import { TokenModule } from '@/dashboard/token/token.module'
@@ -18,6 +19,7 @@ import { SessionAndTransactionAttachMiddleware } from '@/database/session-and-tr
     BillingPolicyModule,
     AiModule,
     EntityModule,
+    RelationshipPatternsModule,
     PropertyModule,
     ImportExportModule,
     TransactionModule,
@@ -29,6 +31,7 @@ import { SessionAndTransactionAttachMiddleware } from '@/database/session-and-tr
     BillingPolicyModule,
     AiModule,
     EntityModule,
+    RelationshipPatternsModule,
     PropertyModule,
     ImportExportModule,
     TransactionModule,

@@ -25,6 +25,7 @@ export const projectRoutes = {
   projectImportData: '/projects/:id/import',
   projectTokens: '/projects/:id/tokens',
   projectIndexes: '/projects/:id/indexes',
+  projectRelationships: '/projects/:id/relationships',
   projectUsers: '/projects/:id/users',
   projectHelp: '/projects/:id/help',
   projectBilling: '/projects/:id/billing'

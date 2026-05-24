@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { Cron } from '@nestjs/schedule'
 import { int as neo4jInt } from 'neo4j-driver'
 
+import { isDevMode } from '@/common/utils/isDevMode'
 import { AiQueryService } from '@/core/ai/ai-query.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
@@ -48,7 +49,9 @@ export class EmbeddingBackfillScheduler {
 
   private async backfillPending(): Promise<void> {
     const pending = await this.embeddingIndexRepository.findPending()
-    this.logger.debug(`[backfillPending] pending indexes: ${pending.length}`)
+
+    isDevMode(() => this.logger.debug(`[backfillPending] pending indexes: ${pending.length}`))
+
     if (pending.length === 0) {
       return
     }

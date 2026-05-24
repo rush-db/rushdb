@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react'
 
 import { useStore } from '@nanostores/react'
-import { EyeOff, RotateCcw, ScanSearch, Square, Box } from 'lucide-react'
+import { Layers, RotateCcw, ScanSearch } from 'lucide-react'
 import { ForceGraph2D, ForceGraph3D } from 'react-force-graph'
 import SpriteText from 'three-spritetext'
 import * as THREE from 'three'
@@ -16,17 +16,20 @@ import {
 } from '~/features/projects/hooks/useProjectQueries'
 import { Button } from '~/elements/Button'
 import { Tooltip } from '~/elements/Tooltip'
-import { CheckboxField } from '~/elements/Checkbox'
+import { Checkbox } from '~/elements/Checkbox'
+import { Tab, Tabs, TabsList } from '~/elements/Tabs'
+import { IconButton } from '~/elements/IconButton'
+import { Menu, MenuTitle } from '~/elements/Menu'
 import { $sheetProperty, $sheetRecordId, type PropertySheetData } from '~/features/projects/stores/id.ts'
 import { getLabelColor } from '~/features/labels'
 import type { DBRecord, DBRecordInstance } from '@rushdb/javascript-sdk'
 import { type Relation } from '@rushdb/javascript-sdk'
 
-type GraphMode = '2d' | '3d'
+export type GraphMode = '2d' | '3d'
 type GraphNodeKind = 'record' | 'property'
 type GraphLinkKind = 'record-relation' | 'property-value'
 
-type GraphNode = {
+export type GraphNode = {
   id: string
   kind: GraphNodeKind
   label: string
@@ -39,7 +42,7 @@ type GraphNode = {
   connectedRecordIds?: string[]
 }
 
-type GraphLink = {
+export type GraphLink = {
   id: string
   kind: GraphLinkKind
   source: string
@@ -55,6 +58,28 @@ type GraphOutput = {
 type HoverHighlights = {
   nodeIds: Set<string>
   linkIds: Set<string>
+}
+
+function LayerToggle({
+  checked,
+  description,
+  label,
+  onCheckedChange
+}: {
+  checked: boolean
+  description: string
+  label: string
+  onCheckedChange: () => void
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <Checkbox checked={checked} className="mt-1" onCheckedChange={onCheckedChange} />
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-content text-sm font-medium">{label}</span>
+        <span className="text-content2 text-sm leading-snug">{description}</span>
+      </span>
+    </label>
+  )
 }
 
 function getGraphRefId(ref: unknown): string | undefined {
@@ -237,10 +262,49 @@ function getNodeHoverLabel(node: GraphNode): string {
 const HEADER_HEIGHT = 182
 const FOOTER_HEIGHT = 61
 
+function renderLinkLabel2D({
+  ctx,
+  globalScale,
+  highlighted,
+  labelScale = 1,
+  link,
+  visible = highlighted
+}: {
+  ctx: CanvasRenderingContext2D
+  globalScale: number
+  highlighted: boolean
+  labelScale?: number
+  link: GraphLink
+  visible?: boolean
+}) {
+  if (!visible || !link.relationType || link.kind !== 'record-relation') {
+    return
+  }
+
+  const source = link.source as unknown as { x?: number; y?: number }
+  const target = link.target as unknown as { x?: number; y?: number }
+  const sourceX = source.x ?? 0
+  const sourceY = source.y ?? 0
+  const targetX = target.x ?? 0
+  const targetY = target.y ?? 0
+  const x = (sourceX + targetX) / 2
+  const y = (sourceY + targetY) / 2
+  const fontSize = Math.min(Math.max((8 * labelScale) / globalScale, 2.5), 11 * labelScale)
+
+  ctx.save()
+  ctx.font = `${fontSize}px monospace`
+  ctx.fillStyle = highlighted ? '#d9e2ec' : '#9aa7b8'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(link.relationType, x, y)
+  ctx.restore()
+}
+
 export const GraphView: FC = () => {
   const fgRef = useRef<any>(null)
   const pinned2DPositionsRef = useRef<Record<string, { x: number; y: number }>>({})
   const pinned3DPositionsRef = useRef<Record<string, { x: number; y: number; z: number }>>({})
+  const draggingNodeIdRef = useRef<string | undefined>(undefined)
 
   const { data: relationsResult } = useFilteredRecordRelationsQuery()
   const { data: recordsResult } = useFilteredRecordsQuery()
@@ -254,6 +318,8 @@ export const GraphView: FC = () => {
   const [showProperties, setShowProperties] = useState(true)
   const [showPropertyLinks, setShowPropertyLinks] = useState(true)
   const [showRecordLinks, setShowRecordLinks] = useState(true)
+  const [showRecordLabels, setShowRecordLabels] = useState(true)
+  const [showRelationshipTypes, setShowRelationshipTypes] = useState(true)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | undefined>(undefined)
   const [hoveredLinkId, setHoveredLinkId] = useState<string | undefined>(undefined)
 
@@ -397,6 +463,10 @@ export const GraphView: FC = () => {
   )
 
   useEffect(() => {
+    if (draggingNodeIdRef.current) {
+      return
+    }
+
     if (graphMode === '2d') {
       // Apply saved 2D pinned positions when available.
       visibleGraphData.nodes.forEach((node) => {
@@ -429,46 +499,6 @@ export const GraphView: FC = () => {
       }
     })
   }, [graphMode, visibleGraphData])
-
-  useEffect(() => {
-    if (graphMode !== '3d') return
-
-    visibleGraphData.nodes.forEach((node) => {
-      const object3D = (node as any).__threeObj as THREE.Object3D | undefined
-      if (!object3D) return
-
-      const highlighted = isNodeHighlighted(node.id)
-      const dimmed = hasHoverSelection && !highlighted
-
-      object3D.scale.setScalar(
-        dimmed ? 0.85
-        : highlighted ? 1.2
-        : 1
-      )
-
-      object3D.traverse((child) => {
-        const material = (child as any).material
-        if (!material) return
-
-        const materials = Array.isArray(material) ? material : [material]
-        materials.forEach((mat: any) => {
-          if (typeof mat.opacity === 'number') {
-            mat.transparent = dimmed
-            mat.opacity = dimmed ? 0.2 : 1
-          }
-          if (mat.emissive && typeof mat.emissive.setHex === 'function') {
-            mat.emissive.setHex(
-              dimmed ? 0x000000
-              : highlighted && hasHoverSelection ? 0x1a1a1a
-              : 0x000000
-            )
-          }
-        })
-      })
-    })
-
-    fgRef.current?.refresh?.()
-  }, [graphMode, hasHoverSelection, isNodeHighlighted, visibleGraphData.nodes])
 
   const focusNode = useCallback(
     (node: any) => {
@@ -575,8 +605,64 @@ export const GraphView: FC = () => {
   }, [])
 
   const fitGraph = useCallback(() => {
-    fgRef.current?.zoomToFit?.(400, 30)
-  }, [])
+    if (graphMode !== '3d') {
+      fgRef.current?.zoomToFit?.(400, 30)
+      return
+    }
+
+    const positionedNodes = visibleGraphData.nodes
+      .map((node) => {
+        const mutable = node as any
+        return {
+          x: Number(mutable.x),
+          y: Number(mutable.y),
+          z: Number(mutable.z)
+        }
+      })
+      .filter((node) => Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z))
+
+    if (!positionedNodes.length) {
+      fgRef.current?.zoomToFit?.(400, 30)
+      return
+    }
+
+    const center = positionedNodes.reduce(
+      (acc, node) => ({
+        x: acc.x + node.x / positionedNodes.length,
+        y: acc.y + node.y / positionedNodes.length,
+        z: acc.z + node.z / positionedNodes.length
+      }),
+      { x: 0, y: 0, z: 0 }
+    )
+    const distances = positionedNodes
+      .map((node) => Math.hypot(node.x - center.x, node.y - center.y, node.z - center.z))
+      .sort((a, b) => a - b)
+    const mainClusterRadius =
+      distances[Math.min(distances.length - 1, Math.floor(distances.length * 0.9))] ?? 80
+    const distance = Math.min(900, Math.max(120, mainClusterRadius * 2.4))
+    const camera = fgRef.current?.camera?.()
+    const direction = new THREE.Vector3(
+      camera?.position?.x ?? 0,
+      camera?.position?.y ?? 0,
+      camera?.position?.z ?? 1
+    )
+      .sub(new THREE.Vector3(center.x, center.y, center.z))
+      .normalize()
+
+    if (!Number.isFinite(direction.x) || !Number.isFinite(direction.y) || !Number.isFinite(direction.z)) {
+      direction.set(0, 0, 1)
+    }
+
+    fgRef.current?.cameraPosition?.(
+      {
+        x: center.x + direction.x * distance,
+        y: center.y + direction.y * distance,
+        z: center.z + direction.z * distance
+      },
+      center,
+      500
+    )
+  }, [graphMode, visibleGraphData.nodes])
 
   const reheatSimulation = useCallback(() => {
     // Relayout should start from a clean simulation state with no pinned nodes.
@@ -593,33 +679,67 @@ export const GraphView: FC = () => {
     fgRef.current?.d3ReheatSimulation?.()
   }, [visibleGraphData.nodes])
 
-  const createNodeObject3D = useCallback((node: GraphNode) => {
-    const size = 9
+  const createNodeObject3D = useCallback(
+    (node: GraphNode) => {
+      const size = 9
 
-    if (node.kind === 'property') {
-      return new THREE.Mesh(
-        new THREE.BoxGeometry(size, size, size),
+      if (node.kind === 'property') {
+        return new THREE.Mesh(
+          new THREE.BoxGeometry(size, size, size),
+          new THREE.MeshLambertMaterial({ color: node.color })
+        )
+      }
+
+      const group = new THREE.Group()
+
+      const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(size / 2, 20, 20),
         new THREE.MeshLambertMaterial({ color: node.color })
       )
-    }
+      group.add(sphere)
 
-    const group = new THREE.Group()
+      if (showRecordLabels) {
+        // Keep record labels visible in 3D with a dimmed color to reduce visual noise.
+        const label = new SpriteText(node.label)
+        label.color = '#9aa7b8'
+        label.textHeight = 1.45
+        label.position.set(0, -6.3, 0)
+        group.add(label)
+      }
 
-    const sphere = new THREE.Mesh(
-      new THREE.SphereGeometry(size / 2, 20, 20),
-      new THREE.MeshLambertMaterial({ color: node.color })
-    )
-    group.add(sphere)
+      return group
+    },
+    [showRecordLabels]
+  )
 
-    // Keep record labels always visible in 3D with a dimmed color to reduce visual noise.
-    const label = new SpriteText(node.label)
-    label.color = '#9aa7b8'
-    label.textHeight = 2.2
-    label.position.set(0, -7.5, 0)
-    group.add(label)
+  const createLinkObject3D = useCallback(
+    (link: GraphLink) => {
+      if (!showRelationshipTypes || !link.relationType || link.kind !== 'record-relation') {
+        return undefined
+      }
 
-    return group
-  }, [])
+      const label = new SpriteText(link.relationType)
+      const highlighted = !hasHoverSelection || hoveredLinkId === link.id
+      label.color = highlighted ? '#d9e2ec' : '#9aa7b8'
+      label.textHeight = highlighted ? 1.25 : 1
+      return label
+    },
+    [hasHoverSelection, hoveredLinkId, showRelationshipTypes]
+  )
+
+  const updateLinkObjectPosition3D = useCallback(
+    (object: THREE.Object3D | undefined, { start, end }: any) => {
+      if (!object) {
+        return false
+      }
+
+      object.position.x = start.x + (end.x - start.x) * 0.52
+      object.position.y = start.y + (end.y - start.y) * 0.52
+      object.position.z = start.z + (end.z - start.z) * 0.52
+      return true
+    },
+    []
+  )
 
   const renderNode2D = useCallback(
     (node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -650,16 +770,16 @@ export const GraphView: FC = () => {
         ctx.fill()
       }
 
-      if (node.kind === 'record') {
+      if (node.kind === 'record' && showRecordLabels) {
         const fontSize = Math.max(8 / globalScale, 2.5)
-        ctx.font = `${fontSize}px Sans-Serif`
+        ctx.font = `${fontSize}px monospace`
         ctx.fillStyle = dimmed ? withOpacity('#9aa7b8', 0.2) : '#9aa7b8'
         ctx.textAlign = 'center'
         ctx.fillText(node.label, x, y + 9)
       }
       ctx.restore()
     },
-    [hasHoverSelection, isNodeHighlighted]
+    [hasHoverSelection, isNodeHighlighted, showRecordLabels]
   )
 
   const renderNodePointerArea2D = useCallback(
@@ -683,62 +803,100 @@ export const GraphView: FC = () => {
     []
   )
 
+  const renderLink2D = useCallback(
+    (link: GraphLink, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      renderLinkLabel2D({
+        ctx,
+        globalScale,
+        highlighted: isLinkHighlighted(link.id),
+        link,
+        visible: showRelationshipTypes && isLinkHighlighted(link.id)
+      })
+    },
+    [isLinkHighlighted, showRelationshipTypes]
+  )
+
   const renderCommonGraphControls = (
     <>
-      <div className="bg-fill/90 absolute left-4 top-4 z-20 min-w-[210px] rounded-xl border p-4 shadow-xl backdrop-blur-sm">
-        <div className="text-content-secondary mb-3 text-xs font-semibold uppercase tracking-wide">
-          Graph Layers
-        </div>
-        <div className="flex flex-col gap-2">
-          <CheckboxField
-            label="Show Properties"
-            checked={showProperties}
-            onCheckedChange={() => setShowProperties((v) => !v)}
-            className="mb-0"
-          />
-          <CheckboxField
-            label="Show Property Links"
-            checked={showPropertyLinks}
-            onCheckedChange={() => setShowPropertyLinks((v) => !v)}
-            className="mb-0"
-          />
-          <CheckboxField
-            label="Show Record Links"
-            checked={showRecordLinks}
-            onCheckedChange={() => setShowRecordLinks((v) => !v)}
-            className="mb-0"
-          />
-        </div>
-      </div>
-
-      <div className="border-content/30 bg-content text-fill animate-in fixed bottom-24 left-1/2 z-20 flex -translate-x-1/2 items-center overflow-clip rounded-2xl shadow-2xl ring">
-        <Tooltip
+      <div className="absolute left-4 top-4 z-20 flex flex-col gap-2">
+        <Menu
+          align="start"
+          className="min-w-[240px] p-2"
+          modal={false}
           trigger={
-            <Button
-              className="rounded-none"
-              onClick={() => setGraphMode((current) => (current === '3d' ? '2d' : '3d'))}
+            <IconButton
+              aria-label="Graph layers"
+              className="bg-fill/90 shadow-xl backdrop-blur-sm"
               size="small"
-              variant="inverse"
+              variant="outline"
             >
-              {graphMode === '3d' ?
-                <Square />
-              : <Box />}
-              {graphMode === '3d' ? 'Switch 2D' : 'Switch 3D'}
-            </Button>
+              <Layers />
+            </IconButton>
           }
         >
-          <span>Toggle between 2D and 3D graph view</span>
-        </Tooltip>
+          <MenuTitle className="px-2 pb-1 pt-1 uppercase tracking-wide">Graph Layers</MenuTitle>
+          <div className="flex flex-col gap-3 px-2 pb-2" onClick={(event) => event.stopPropagation()}>
+            <div className="flex flex-col gap-2">
+              <div className="text-content3 text-sm font-semibold uppercase">Nodes</div>
+              <LayerToggle
+                checked={showProperties}
+                description="Show shared property nodes around records."
+                label="Property nodes"
+                onCheckedChange={() => setShowProperties((v) => !v)}
+              />
+            </div>
 
-        <Button className="rounded-none" onClick={fitGraph} size="small" variant="inverse">
+            <div className="flex flex-col gap-2">
+              <div className="text-content3 text-sm font-semibold uppercase">Links</div>
+              <LayerToggle
+                checked={showPropertyLinks}
+                description="Show links between properties and records."
+                label="Property links"
+                onCheckedChange={() => setShowPropertyLinks((v) => !v)}
+              />
+              <LayerToggle
+                checked={showRecordLinks}
+                description="Show relationships between records."
+                label="Record relationships"
+                onCheckedChange={() => setShowRecordLinks((v) => !v)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="text-content3 text-sm font-semibold uppercase">Labels</div>
+              <LayerToggle
+                checked={showRecordLabels}
+                description="Show label names under record nodes."
+                label="Record labels"
+                onCheckedChange={() => setShowRecordLabels((v) => !v)}
+              />
+              <LayerToggle
+                checked={showRelationshipTypes}
+                description="Show relationship type names on record links."
+                label="Relationship types"
+                onCheckedChange={() => setShowRelationshipTypes((v) => !v)}
+              />
+            </div>
+          </div>
+        </Menu>
+        <IconButton
+          aria-label="Fit graph"
+          className="bg-fill/90 shadow-xl backdrop-blur-sm"
+          onClick={fitGraph}
+          size="small"
+          variant="outline"
+        >
           <ScanSearch />
-          Fit Graph
-        </Button>
-
-        <Button className="rounded-none" onClick={reheatSimulation} size="small" variant="inverse">
+        </IconButton>
+        <IconButton
+          aria-label="Relayout graph"
+          className="bg-fill/90 shadow-xl backdrop-blur-sm"
+          onClick={reheatSimulation}
+          size="small"
+          variant="outline"
+        >
           <RotateCcw />
-          Relayout
-        </Button>
+        </IconButton>
       </div>
     </>
   )
@@ -762,8 +920,19 @@ export const GraphView: FC = () => {
       `}</style>
       {renderCommonGraphControls}
 
+      <Tabs
+        className="absolute right-4 top-4 z-20"
+        onValueChange={(value) => setGraphMode(value as GraphMode)}
+        value={graphMode}
+      >
+        <TabsList>
+          <Tab value="2d">2D</Tab>
+          <Tab value="3d">3D</Tab>
+        </TabsList>
+      </Tabs>
+
       {selectedProperty && (
-        <div className="bg-fill/90 border-content/30 absolute right-4 top-4 z-20 max-w-xs rounded-xl border p-3 shadow-xl backdrop-blur-sm">
+        <div className="bg-fill/90 border-content/30 absolute right-4 top-20 z-20 max-w-xs rounded-xl border p-3 shadow-xl backdrop-blur-sm">
           <div className="text-xs font-semibold uppercase tracking-wide">Selected Property</div>
           <div className="mt-1 text-sm font-medium">{selectedProperty.name}</div>
           <div className="text-content-secondary text-xs">Alt + click node to hide it</div>
@@ -777,42 +946,63 @@ export const GraphView: FC = () => {
           showNavInfo={false}
           graphData={visibleGraphData}
           linkWidth={(link: GraphLink) => {
-            const highlighted = isLinkHighlighted(link.id)
-            const base = link.kind === 'record-relation' ? 1.05 : 0.55
-            return highlighted ? base * 1.2 : base
+            return 0
           }}
-          linkOpacity={hasHoverSelection ? 0.14 : 0.3}
+          linkOpacity={1}
           linkColor={(link: GraphLink) => {
             const highlighted = isLinkHighlighted(link.id)
-            const base = link.kind === 'record-relation' ? 'rgba(210,220,230,0.52)' : 'rgba(210,220,230,0.2)'
-            return highlighted ? base : 'rgba(140,150,160,0.08)'
+            if (highlighted) {
+              return link.kind === 'record-relation' ? '#d8e0e8' : '#86909b'
+            }
+            return link.kind === 'record-relation' ? '#5f6872' : '#3f4852'
           }}
-          nodeOpacity={1}
-          nodeRelSize={6}
+          nodeOpacity={hasHoverSelection ? 0.24 : 1}
+          nodeRelSize={4.5}
           nodeId={'id'}
           linkSource={'source'}
           linkTarget={'target'}
           nodeResolution={24}
           height={canvasSize.height}
           width={canvasSize.width}
-          nodeColor={(node: GraphNode) => node.color}
+          nodeColor={(node: GraphNode) =>
+            !hasHoverSelection || isNodeHighlighted(node.id) ? node.color : withOpacity(node.color, 0.22)
+          }
           linkDirectionalArrowRelPos={1}
-          linkDirectionalArrowLength={(link: GraphLink) => (link.kind === 'record-relation' ? 2.2 : 0)}
-          linkDirectionalArrowResolution={16}
+          linkDirectionalArrowLength={(link: GraphLink) => (link.kind === 'record-relation' ? 1.15 : 0)}
+          linkDirectionalArrowColor={(link: GraphLink) =>
+            isLinkHighlighted(link.id) ? '#d8e0e8' : '#5f6872'
+          }
+          linkDirectionalArrowResolution={12}
           nodeThreeObject={createNodeObject3D as any}
+          linkThreeObject={createLinkObject3D as any}
+          linkThreeObjectExtend
+          linkPositionUpdate={updateLinkObjectPosition3D as any}
           onLinkClick={handleLinkClick}
           onNodeHover={(node: GraphNode | null) => {
+            if (draggingNodeIdRef.current) {
+              return
+            }
             setHoveredLinkId(undefined)
             setHoveredNodeId(node?.id)
           }}
           onLinkHover={(link: GraphLink | null) => {
+            if (draggingNodeIdRef.current) {
+              return
+            }
             setHoveredNodeId(undefined)
             setHoveredLinkId(link?.id)
+          }}
+          onNodeDrag={(node: any) => {
+            draggingNodeIdRef.current = String(node.id ?? '')
+            node.fx = node.x
+            node.fy = node.y
+            node.fz = node.z
           }}
           onNodeDragEnd={(node: any) => {
             node.fx = node.x
             node.fy = node.y
             node.fz = node.z
+            draggingNodeIdRef.current = undefined
 
             if (node?.id && Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
               pinned3DPositionsRef.current[String(node.id)] = {
@@ -846,22 +1036,46 @@ export const GraphView: FC = () => {
             }
             return hasHoverSelection ? 'rgba(140,150,160,0.1)' : 'rgba(210,220,230,0.2)'
           }}
+          nodeRelSize={5}
+          linkDirectionalArrowRelPos={1}
+          linkDirectionalArrowLength={(link: GraphLink) => (link.kind === 'record-relation' ? 2.2 : 0)}
+          linkDirectionalArrowColor={(link: GraphLink) => {
+            if (isLinkHighlighted(link.id)) {
+              return 'rgb(210,220,230)'
+            }
+            return hasHoverSelection ? 'rgb(140,150,160)' : 'rgb(210,220,230)'
+          }}
+          linkCanvasObjectMode={() => 'after'}
+          linkCanvasObject={renderLink2D as any}
           nodeCanvasObject={renderNode2D as any}
           nodePointerAreaPaint={renderNodePointerArea2D as any}
           cooldownTicks={120}
           onNodeHover={(node: GraphNode | null) => {
+            if (draggingNodeIdRef.current) {
+              return
+            }
             setHoveredLinkId(undefined)
             setHoveredNodeId(node?.id)
           }}
           onLinkHover={(link: GraphLink | null) => {
+            if (draggingNodeIdRef.current) {
+              return
+            }
             setHoveredNodeId(undefined)
             setHoveredLinkId(link?.id)
+          }}
+          onNodeDrag={(node: any) => {
+            draggingNodeIdRef.current = String(node.id ?? '')
+            node.fx = node.x
+            node.fy = node.y
+            node.fz = undefined
           }}
           onNodeDragEnd={(node: any) => {
             // 2D mode persists manually dragged positions.
             node.fx = node.x
             node.fy = node.y
             node.fz = undefined
+            draggingNodeIdRef.current = undefined
 
             if (node?.id && Number.isFinite(node.x) && Number.isFinite(node.y)) {
               pinned2DPositionsRef.current[String(node.id)] = {

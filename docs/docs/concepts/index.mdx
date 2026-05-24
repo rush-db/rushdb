@@ -1,0 +1,307 @@
+---
+sidebar_position: 0
+title: Main Concepts
+description: The fundamental ideas behind RushDB — how it stores, links, and queries your data.
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Main Concepts
+
+RushDB is a **graph database built for developers and AI agents**. You push raw data — JSON objects, nested trees, flat arrays — and RushDB automatically infers types, decomposes nested structures into linked records, and builds a fully traversable graph. No schema definitions. No migration files. No manual relationship wiring.
+
+This page gives you the mental model you need to work with RushDB effectively. Each section links to a deeper reference when you're ready for it.
+
+---
+
+## Records
+
+A **Record** is the fundamental unit of data in RushDB. Think of it as a typed row in a table, a document in a document store, or a node in a graph — but with seamless relationship traversal built in.
+
+Every record has:
+
+- A **label** — a category name like `User`, `Article`, or `Product`
+- **Properties** — typed key-value fields (`name: "John"`, `score: 4.9`, `active: true`)
+- A system-generated **ID** (UUIDv7) — lexicographically sortable, embeds a creation timestamp
+
+```typescript
+{
+  // ── generated on write ──────────────────────────────────────
+  "__id":        "01968aa4-22c1-781a-8e8c-8fe6be6c3fd4", // UUIDv7; embeds creation timestamp
+  "__label":     "User",                                  // record type
+  "__proptypes": {                                        // types inferred from your data
+    "name":            "string",
+    "email":           "string",
+    "rating":          "number",
+    "emailConfirmed":  "boolean",
+    "registeredAt":    "datetime"
+  },
+
+  // ── written by you ──────────────────────────────────────────
+  "name":           "John Galt",
+  "email":          "john.galt@example.com",
+  "rating":         4.98,
+  "emailConfirmed": true,
+  "registeredAt":   "2022-07-19T08:30:28.000Z"
+}
+```
+
+Records never require a predefined schema. RushDB infers the type of every value at write time.
+
+→ [Records in depth](./records.md)
+
+---
+
+## Labels
+
+A **Label** is the type name assigned to a record — `User`, `Car`, `Invoice`. Labels work like table names in a relational database but without the rigidity: there is no table to define ahead of time.
+
+Key characteristics:
+
+- Every record has exactly **one custom label** (required)
+- Labels are **case-sensitive** (`User` ≠ `user`)
+- When importing nested JSON, child objects automatically inherit their label from the **parent key name** — no manual assignment needed
+
+Labels are the primary lens for filtering: `labels: ["User", "Admin"]` in a search query.
+
+→ [Labels in depth](./labels.md)
+
+---
+
+## Properties
+
+A **Property** is a named, typed field shared across all records that carry it. In RushDB's internal graph model, properties are first-class nodes — not just columns — which means the same `color` property node connects every `Car`, `Jacket`, and `House` record that has a color field.
+
+Property nodes hold **only the `(name, type)` pair** — no values. Actual values live exclusively on the Record node. This means Property nodes act as schema/metadata guardrails: they define what fields exist and what types they carry, while records remain the sole source of truth for user-defined data.
+
+This design enables a capability unique to RushDB: **discovering relationships between otherwise unconnected records** by finding records that share the same property value — without duplicating any data in the property layer.
+
+Supported types: `string`, `number`, `boolean`, `datetime`, `null`, and arrays of a consistent type.
+
+→ [Properties in depth](./properties.md)
+
+---
+
+## Relationships
+
+**Relationships** are the edges that connect records in the graph. They are first-class citizens — not foreign key references, not join tables — which means traversing them is fast regardless of dataset size.
+
+RushDB manages two relationship types automatically:
+
+| Type                                          | Created by      | Purpose                                 |
+| --------------------------------------------- | --------------- | --------------------------------------- |
+| **Default** (`__RUSHDB__RELATION__DEFAULT__`) | Data ingestion  | Parent → child links for nested objects |
+| **Value** (`__RUSHDB__RELATION__VALUE__`)     | Property system | Property node → Record connections      |
+
+You can also define **custom relationships** of any type and direction between any two records — created, updated, and deleted through the API or SDKs at any time.
+
+→ [Relationships in depth](./relationships.mdx)
+
+---
+
+## Data Ingestion
+
+RushDB accepts data the way it arrives — no upfront schema required. The ingestion pipeline does five things automatically:
+
+1. **Parse** — Walk the input with a breadth-first algorithm. Each nested object becomes a separate record.
+2. **Infer types** — Every value is classified as `string`, `number`, `boolean`, `datetime`, or `null`.
+3. **Assign labels** — Top-level records use the label you provide; nested objects derive theirs from the parent key name.
+4. **Wire relationships** — Parent and child records are linked with default relationships.
+5. **Index properties** — Property nodes are created and connected to each record via value relationships.
+
+A single `importJson` call on this input:
+
+```json
+{
+  "company": {
+    "name": "Acme Corp",
+    "founded": "2020-01-15T00:00:00Z",
+    "departments": [
+      { "name": "Engineering", "headcount": 42 },
+      { "name": "Design", "headcount": 12 }
+    ]
+  }
+}
+```
+
+produces **4 linked records** (`Company`, `Department` × 2) — all typed, all connected.
+
+For flat, row-shaped data (CSV-like), use `createMany` instead — it skips the BFS decomposition and is the fastest write path.
+
+→ [Data Ingestion in depth](./data-ingestion.mdx)
+
+---
+
+## Search
+
+All queries in RushDB use a single, composable **SearchQuery** structure. The `where` clause supports exact match, range, text contains, negation, boolean logic, and **multi-hop graph traversal** — querying across relationships in the same expression:
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const { data } = await db.records.find({
+  labels: ['Article'],
+  where: {
+    status: 'published',
+    Author: {
+      // traverse the relationship to Author records
+      country: 'Germany'
+    }
+  },
+  orderBy: { registeredAt: 'desc' },
+  limit: 20
+})
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python
+results = db.records.find({
+    "labels": ["Article"],
+    "where": {
+        "status": "published",
+        "Author": {       # traverse the relationship to Author records
+            "country": "Germany"
+        }
+    },
+    "orderBy": { "registeredAt": "desc" },
+    "limit": 20
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["Article"],
+    "where": {
+      "status": "published",
+      "Author": { "country": "Germany" }
+    },
+    "orderBy": { "registeredAt": "desc" },
+    "limit": 20
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+→ [Search in depth](./search/introduction.md)
+
+---
+
+## Semantic Search
+
+RushDB lets you search by **meaning**, not just exact values. Create an embedding index on any string property and every record that carries that property becomes searchable by natural-language similarity — while still composing with all standard field filters.
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const { data } = await db.ai.search({
+  propertyName: 'description',
+  query: 'space exploration',
+  labels: ['Movie'],
+  where: { genre: 'sci-fi', year: { $gte: 2000 } },
+  limit: 10
+})
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python
+results = db.ai.search({
+    "propertyName": "description",
+    "query": "space exploration",
+    "labels": ["Movie"],
+    "where": { "genre": "sci-fi", "year": { "$gte": 2000 } },
+    "limit": 10
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/ai/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "propertyName": "description",
+    "query": "space exploration",
+    "labels": ["Movie"],
+    "where": { "genre": "sci-fi", "year": { "$gte": 2000 } },
+    "limit": 10
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+Two modes are available:
+
+- **Managed** — RushDB generates and stores embeddings automatically.
+- **External (BYOV)** — Your application supplies pre-computed vectors; RushDB stores and indexes them.
+
+Both modes use Neo4j's native vector index and compose fully with the structured `where` clause.
+
+→ [Semantic Search in depth](./semantic-search.mdx) · [Bring Your Own Vectors](./bring-your-own-vectors.mdx)
+
+---
+
+## Transactions
+
+A **Transaction** groups any number of read and write operations into a single atomic unit. Either all operations succeed and are committed, or none of them persist.
+
+RushDB transactions are built on Neo4j's native ACID guarantees:
+
+- **Atomicity** — All-or-nothing. No partial writes.
+- **Consistency** — The database moves from one valid state to another.
+- **Isolation** — Concurrent transactions do not interfere with each other.
+- **Durability** — Committed changes survive system failures.
+
+Transactions have a configurable TTL. If the client does not commit before expiry, the transaction is automatically rolled back.
+
+→ [Transactions in depth](./transactions.mdx)
+
+---
+
+## Storage Architecture
+
+RushDB uses a **dual storage model**:
+
+- **Neo4j** — stores all records, properties, and relationships. Graph traversal, vector similarity search, and ACID transactions all run here.
+- **SQL** (SQLite locally, PostgreSQL in production) — stores operational metadata: users, workspaces, projects, and API tokens.
+
+This separation keeps account management in a familiar relational layer while keeping all knowledge graph operations in Neo4j, where they are most efficient.
+
+→ [Storage in depth](./storage.md)
+
+---
+
+## RushDB as Agent Memory
+
+RushDB is designed to serve as **structured long-term memory for AI agents**. It provides three memory layers out of the box:
+
+| Layer          | What it stores                                           | RushDB primitive               |
+| -------------- | -------------------------------------------------------- | ------------------------------ |
+| **Episodic**   | Facts, events, entities, and their connections           | Records + Relationships        |
+| **Semantic**   | Meaning encoded as dense vectors                         | Vector Properties + AI Indexes |
+| **Structural** | Schema: what labels, properties, and relationships exist | Ontology API                   |
+
+A typical agent retrieval flow:
+
+1. Call the **Ontology API** to discover what labels and properties exist in the current project.
+2. Use a structured **`where` filter** to narrow candidates by known field values.
+3. Apply a **`vector.similarity`** aggregation to re-rank by semantic relevance.
+4. Return scored, fully structured records — not raw text chunks — to the agent.
+
+→ [Agent Memory Model in depth](./agent-memory-model.md) · [Ontology & Schema Discovery](./ontology-schema-discovery.md)

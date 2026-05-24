@@ -7,6 +7,7 @@ import { EntityController } from '@/core/entity/entity.controller'
 import { EntityService } from '@/core/entity/entity.service'
 import { LabelsController } from '@/core/labels/controller'
 import { PropertyModule } from '@/core/property/property.module'
+import { RelationshipPatternsModule } from '@/core/relationship-patterns/relationship-patterns.module'
 import { RelationshipsController } from '@/core/relationships/controller'
 import { TransactionModule } from '@/core/transactions/transaction.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
@@ -23,7 +24,8 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
     // Core modules
     forwardRef(() => PropertyModule),
     forwardRef(() => TransactionModule),
-    forwardRef(() => AiModule)
+    forwardRef(() => AiModule),
+    forwardRef(() => RelationshipPatternsModule)
   ],
   providers: [EntityService, EntityQueryService, EmbeddingIndexRepository],
   exports: [EntityService, EntityQueryService],

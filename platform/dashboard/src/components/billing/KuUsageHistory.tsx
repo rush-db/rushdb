@@ -27,7 +27,8 @@ const OPERATION_LABELS: Record<string, string> = {
   relationship_created: 'Relationship Created',
   storage_footprint: 'Daily Storage Footprint',
   compute_operation: 'Compute Operation',
-  knowledge_deleted: 'Knowledge Deleted'
+  knowledge_deleted: 'Knowledge Deleted',
+  relationship_analysis: 'Relationship Analysis'
 }
 
 // Format metadata for display in the events list
@@ -72,6 +73,16 @@ function formatMetadata(operation: string, metadata: Record<string, unknown> | n
   // Query heavy operation - show type
   if (operation === 'compute_operation' && metadata.type) {
     return `type: ${metadata.type}`
+  }
+
+  // Relationship analysis - show trigger, token count, candidate count
+  if (operation === 'relationship_analysis') {
+    const parts: string[] = []
+    if (metadata.trigger) parts.push(String(metadata.trigger))
+    if (typeof metadata.totalTokens === 'number')
+      parts.push(`${metadata.totalTokens.toLocaleString()} tokens`)
+    if (typeof metadata.candidateCount === 'number') parts.push(`${metadata.candidateCount} candidates`)
+    return parts.join(' • ')
   }
 
   // Default: show simple key-value pairs (excluding count and complex objects)

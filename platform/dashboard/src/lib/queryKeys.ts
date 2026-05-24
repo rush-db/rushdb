@@ -30,6 +30,7 @@ export const queryKeys = {
     suggestedFields: (projectId: string, params: { labels: string[]; filters: Filter[] }) =>
       ['projects', projectId, 'suggested-fields', params] as const,
     indexes: (projectId: string) => ['projects', projectId, 'indexes'] as const,
+    relationshipPatterns: (projectId: string) => ['projects', projectId, 'relationship-patterns'] as const,
     stats: (projectId: string) => ['projects', projectId, 'stats'] as const,
     records: (
       projectId: string,

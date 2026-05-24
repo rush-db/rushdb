@@ -1,15 +1,27 @@
-import { CallHandler, ExecutionContext, Injectable, Logger, mixin, NestInterceptor } from '@nestjs/common'
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  Logger,
+  mixin,
+  NestInterceptor,
+  Optional
+} from '@nestjs/common'
 import { Session, Transaction } from 'neo4j-driver'
 import { Observable } from 'rxjs'
 import { tap } from 'rxjs/operators'
 
 import { isDevMode } from '@/common/utils/isDevMode'
+import { AiService } from '@/core/ai/ai.service'
+import { RelationshipPatternsService } from '@/core/relationship-patterns/relationship-patterns.service'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 
 export enum ESideEffectType {
-  RECOUNT_PROJECT_STRUCTURE = 'recountProjectNodes'
+  RECOUNT_PROJECT_STRUCTURE = 'recountProjectNodes',
+  RECALCULATE_ONTOLOGY_CACHE = 'recalculateOntologyCache',
+  RELATIONSHIP_AUTOMATION_AFTER_WRITE = 'relationshipAutomationAfterWrite'
 }
 
 /**
@@ -41,7 +53,11 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
   class RunSideEffectInterceptor implements NestInterceptor {
     constructor(
       readonly neogmaService: NeogmaService,
-      readonly projectService: ProjectService
+      readonly projectService: ProjectService,
+      @Optional()
+      readonly relationshipPatternsService?: RelationshipPatternsService,
+      @Optional()
+      readonly aiService?: AiService
     ) {}
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
       const request = context.switchToHttp().getRequest()
@@ -87,14 +103,46 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
                   this.projectService.recomputeProjectNodes(projectId, transaction, externalTransaction)
               })
 
+              const recalculateOntologyCacheSideEffect = () => ({
+                init: async () => {
+                  if (!this.aiService) {
+                    return
+                  }
+                  await this.aiService.getOntology({
+                    projectId,
+                    force: true,
+                    transaction: externalTransaction ?? transaction
+                  })
+                }
+              })
+
+              const relationshipAutomationSideEffect = () => ({
+                init: async () => {
+                  if (!this.relationshipPatternsService) {
+                    return
+                  }
+                  await this.relationshipPatternsService.markAfterWrite(projectId)
+                  await this.relationshipPatternsService.applyApprovedPatterns(projectId, transaction)
+                }
+              })
+
               sideEffects.forEach((sideEffectName) => {
                 switch (sideEffectName) {
                   case ESideEffectType.RECOUNT_PROJECT_STRUCTURE:
                     sideEffectsList.push(recountProjectStructureSideEffect())
+                    break
+                  case ESideEffectType.RECALCULATE_ONTOLOGY_CACHE:
+                    sideEffectsList.push(recalculateOntologyCacheSideEffect())
+                    break
+                  case ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE:
+                    sideEffectsList.push(relationshipAutomationSideEffect())
+                    break
                 }
               })
 
-              await Promise.all(sideEffectsList.map((sideEffect) => sideEffect.init()))
+              for (const sideEffect of sideEffectsList) {
+                await sideEffect.init()
+              }
 
               if (transaction.isOpen()) {
                 await transaction.commit()

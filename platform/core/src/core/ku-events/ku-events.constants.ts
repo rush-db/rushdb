@@ -11,5 +11,9 @@ export enum KuOperation {
   /** Emitted daily by the storage-footprint scheduler for every project.
    *  Count = current number of records stored. The billing service uses
    *  this to apply a prorated daily charge for ongoing data-at-rest. */
-  STORAGE_FOOTPRINT = 'storage_footprint'
+  STORAGE_FOOTPRINT = 'storage_footprint',
+  /** Emitted each time an LLM-powered relationship pattern analysis runs
+   *  (either triggered manually by the user or via the background scheduler).
+   *  Reflects the compute cost of ontology-to-candidate LLM inference. */
+  RELATIONSHIP_ANALYSIS = 'relationship_analysis'
 }

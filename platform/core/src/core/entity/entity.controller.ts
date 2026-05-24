@@ -93,7 +93,13 @@ export class EntityController {
   @ApiBearerAuth()
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
   @UsePipes(ValidationPipe(createEntitySchema, 'body'), PropertyValuesPipe)
-  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
+  @UseInterceptors(
+    RunSideEffectMixin([
+      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
+      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
+    ])
+  )
   @HttpCode(HttpStatus.CREATED)
   @AuthGuard('project')
   async create(
@@ -137,7 +143,13 @@ export class EntityController {
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(editEntitySchema, 'body'), PropertyValuesPipe)
-  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
+  @UseInterceptors(
+    RunSideEffectMixin([
+      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
+      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
+    ])
+  )
   @HttpCode(HttpStatus.CREATED)
   async update(
     @Param('entityId') entityId: string,
@@ -190,7 +202,13 @@ export class EntityController {
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(editEntitySchema, 'body'), PropertyValuesPipe)
-  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
+  @UseInterceptors(
+    RunSideEffectMixin([
+      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
+      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
+    ])
+  )
   @HttpCode(HttpStatus.CREATED)
   async set(
     @Param('entityId') entityId: string,
@@ -233,7 +251,13 @@ export class EntityController {
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
-  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
+  @UseInterceptors(
+    RunSideEffectMixin([
+      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
+      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
+    ])
+  )
   async delete(
     @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchQuery: SearchDto = {},
@@ -258,7 +282,13 @@ export class EntityController {
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
-  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]))
+  @UseInterceptors(
+    RunSideEffectMixin([
+      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
+      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
+    ])
+  )
   async deleteById(
     @Param('entityId') entityId: string,
     @PreferredTransactionDecorator() transaction: Transaction,

@@ -12,8 +12,22 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1748822400000,
+      "when": 1779408000000,
       "tag": "0001_oauth_refresh_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779494400000,
+      "tag": "0002_relationship_patterns",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779580800000,
+      "tag": "0003_relationship_pattern_mode",
       "breakpoints": true
     }
   ]

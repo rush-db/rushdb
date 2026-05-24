@@ -336,22 +336,32 @@ export class McpOauthService {
     const rawRefreshToken = randomBytes(32).toString('hex')
     const hashedRefreshToken = createHash('sha256').update(rawRefreshToken).digest('hex')
     const now = new Date()
-    await this.oauthRepository.createRefreshToken({
-      id: hashedRefreshToken,
-      consentId: codeRow.consentId,
-      clientId: codeRow.clientId,
-      userId: consentRow.userId,
-      projectId: consentRow.projectId,
-      scope: consentRow.scope,
-      createdAt: now.toISOString(),
-      expiresAt: new Date(now.getTime() + REFRESH_TOKEN_TTL_MS).toISOString()
-    })
+
+    let issuedRefreshToken: string | undefined
+    try {
+      await this.oauthRepository.createRefreshToken({
+        id: hashedRefreshToken,
+        consentId: codeRow.consentId,
+        clientId: codeRow.clientId,
+        userId: consentRow.userId,
+        projectId: consentRow.projectId,
+        scope: consentRow.scope,
+        createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + REFRESH_TOKEN_TTL_MS).toISOString()
+      })
+      issuedRefreshToken = rawRefreshToken
+    } catch (err) {
+      this.logger.warn(
+        '[OAuth] Failed to persist refresh token (table may not exist yet), proceeding without it',
+        err
+      )
+    }
 
     return {
       access_token: accessToken,
       token_type: 'bearer',
       expires_in: ACCESS_TOKEN_TTL_S,
-      refresh_token: rawRefreshToken,
+      ...(issuedRefreshToken ? { refresh_token: issuedRefreshToken } : {}),
       scope: consentRow.scope
     }
   }

@@ -102,6 +102,7 @@ export function Menu({
   children,
   trigger,
   className,
+  modal,
   open,
   onOpenChange,
   ...contentProps
@@ -109,9 +110,9 @@ export function Menu({
   children?: ReactNode
   trigger?: ReactNode
 } & MenuContentProps &
-  Pick<DropdownMenuProps, 'onOpenChange' | 'open'>) {
+  Pick<DropdownMenuProps, 'modal' | 'onOpenChange' | 'open'>) {
   return (
-    <Root onOpenChange={onOpenChange} open={open}>
+    <Root modal={modal} onOpenChange={onOpenChange} open={open}>
       {trigger ?
         <Trigger asChild>{trigger}</Trigger>
       : null}
