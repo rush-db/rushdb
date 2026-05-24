@@ -222,7 +222,10 @@ jobs:
                   { "name": "RUSHDB_EMBEDDING_BASE_URL", "value": "${{ secrets.RUSHDB_EMBEDDING_BASE_URL }}" },
                   { "name": "RUSHDB_EMBEDDING_API_KEY", "value": "${{ secrets.RUSHDB_EMBEDDING_API_KEY }}" },
                   { "name": "RUSHDB_EMBEDDING_MODEL", "value": "${{ vars.RUSHDB_EMBEDDING_MODEL }}" },
-                  { "name": "RUSHDB_EMBEDDING_DIMENSIONS", "value": "${{ vars.RUSHDB_EMBEDDING_DIMENSIONS }}" }
+                  { "name": "RUSHDB_EMBEDDING_DIMENSIONS", "value": "${{ vars.RUSHDB_EMBEDDING_DIMENSIONS }}" },
+                  { "name": "RUSHDB_LLM_BASE_URL", "value": "${{ vars.RUSHDB_LLM_BASE_URL }}" },
+                  { "name": "RUSHDB_LLM_API_KEY", "value": "${{ secrets.RUSHDB_LLM_API_KEY }}" },
+                  { "name": "RUSHDB_LLM_MODEL", "value": "${{ vars.RUSHDB_LLM_MODEL }}" }
                 ]
               }
             ],

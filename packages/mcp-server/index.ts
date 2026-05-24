@@ -713,6 +713,11 @@ if (mcpTransport === 'http') {
     httpApp.get(path, (c) => c.json(protectedResourceDoc))
   }
 
+  // OpenAI domain verification challenge
+  httpApp.get('/.well-known/openai-apps-challenge', (c) =>
+    c.text('ryakzvxhOuUz_i_9ehoMOp-utTItOQZopqyeLlxPTwI')
+  )
+
   // MCP Streamable HTTP endpoint
   httpApp.post('/mcp', async (c) => {
     const authHeader = c.req.header('Authorization') || ''
