@@ -23,6 +23,7 @@ import type {
   CreateEmbeddingIndexParams,
   EmbeddingIndexStats
 } from '~/features/indexes/types'
+import type { RelationshipPatternsResponse } from '~/features/relationship-patterns/types'
 import type { Project, ProjectStats, WithProjectID } from '~/features/projects/types'
 import type { ProjectToken } from '~/features/tokens/types'
 import type {
@@ -215,6 +216,62 @@ export const api = {
       pagination?: Pick<SearchQuery, 'limit' | 'skip'>
     } & WithInit) {
       return rushDBInstance.relationships.find({ ...searchQuery, ...pagination })
+    }
+  },
+  relationshipPatterns: {
+    async list({ projectId, init }: WithProjectID & WithInit) {
+      return fetcher<RelationshipPatternsResponse>(`/api/v1/relationships/patterns`, {
+        ...init,
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'GET'
+      })
+    },
+    async analyze({ projectId, init }: WithProjectID & WithInit) {
+      return fetcher<{ queued: true }>(`/api/v1/relationships/patterns/analyze`, {
+        ...init,
+        body: JSON.stringify({}),
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'POST'
+      })
+    },
+    async approve({ projectId, id, init }: WithProjectID & WithInit & { id: string }) {
+      return fetcher(`/api/v1/relationships/patterns/${id}/approve`, {
+        ...init,
+        body: JSON.stringify({}),
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'POST'
+      })
+    },
+    async ignore({ projectId, id, init }: WithProjectID & WithInit & { id: string }) {
+      return fetcher(`/api/v1/relationships/patterns/${id}/ignore`, {
+        ...init,
+        body: JSON.stringify({}),
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'POST'
+      })
+    },
+    async delete({
+      projectId,
+      id,
+      deleteExisting,
+      init
+    }: WithProjectID & WithInit & { id: string; deleteExisting?: boolean }) {
+      const params = deleteExisting ? '?deleteExisting=true' : ''
+      return fetcher<{ deleted: true }>(`/api/v1/relationships/patterns/${id}${params}`, {
+        ...init,
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'DELETE'
+      })
     }
   },
   workspaces: {

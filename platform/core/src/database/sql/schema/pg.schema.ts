@@ -197,6 +197,50 @@ export const embeddingIndexes = pgTable(
   ]
 )
 
+export const relationshipPatterns = pgTable(
+  'relationship_patterns',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    sourceLabel: text('source_label').notNull(),
+    sourceKey: text('source_key'),
+    sourceWhere: text('source_where'),
+    targetLabel: text('target_label').notNull(),
+    targetKey: text('target_key'),
+    targetWhere: text('target_where'),
+    direction: text('direction').notNull().default('out'),
+    type: text('type').notNull(),
+    confidence: integer('confidence').notNull().default(0),
+    status: text('status').notNull().default('suggested'),
+    origin: text('origin').notNull().default('llm'),
+    mode: text('mode').notNull().default('join_pattern'),
+    signatureHash: text('signature_hash').notNull(),
+    rationale: text('rationale'),
+    sampleMatchCount: integer('sample_match_count'),
+    lastAppliedAt: text('last_applied_at'),
+    lastAnalyzedAt: text('last_analyzed_at'),
+    lastError: text('last_error'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (t) => [uniqueIndex('rel_pattern_signature_uniq').on(t.projectId, t.signatureHash)]
+)
+
+export const relationshipAnalysisQueue = pgTable('relationship_analysis_queue', {
+  projectId: text('project_id')
+    .primaryKey()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  requestedAt: text('requested_at').notNull(),
+  notBefore: text('not_before').notNull(),
+  status: text('status').notNull().default('pending'),
+  lastRunAt: text('last_run_at'),
+  lastError: text('last_error'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+})
+
 export const pgSchema = {
   users,
   workspaces,
@@ -210,7 +254,9 @@ export const pgSchema = {
   oauthConsents,
   oauthCodes,
   oauthRefreshTokens,
-  embeddingIndexes
+  embeddingIndexes,
+  relationshipPatterns,
+  relationshipAnalysisQueue
 }
 
 export type PgSchema = typeof pgSchema

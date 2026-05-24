@@ -43,3 +43,9 @@ export type InsertOauthRefreshTokenRow = typeof sqliteSchema.oauthRefreshTokens.
 
 export type EmbeddingIndexRow = typeof sqliteSchema.embeddingIndexes.$inferSelect
 export type InsertEmbeddingIndexRow = typeof sqliteSchema.embeddingIndexes.$inferInsert
+
+export type RelationshipPatternRow = typeof sqliteSchema.relationshipPatterns.$inferSelect
+export type InsertRelationshipPatternRow = typeof sqliteSchema.relationshipPatterns.$inferInsert
+
+export type RelationshipAnalysisQueueRow = typeof sqliteSchema.relationshipAnalysisQueue.$inferSelect
+export type InsertRelationshipAnalysisQueueRow = typeof sqliteSchema.relationshipAnalysisQueue.$inferInsert

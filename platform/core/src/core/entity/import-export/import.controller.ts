@@ -107,7 +107,11 @@ export class ImportController {
   @ApiBearerAuth()
   @UseGuards(PlanLimitsGuard, EntityWriteGuard)
   @UseInterceptors(
-    RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]),
+    RunSideEffectMixin([
+      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
+      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
+    ]),
     TransformResponseInterceptor
   )
   @UsePipes(ValidationPipe(importJsonSchema, 'body'))
@@ -139,7 +143,11 @@ export class ImportController {
   @Post('/records/import/csv')
   @ApiBearerAuth()
   @UseInterceptors(
-    RunSideEffectMixin([ESideEffectType.RECOUNT_PROJECT_STRUCTURE]),
+    RunSideEffectMixin([
+      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
+      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
+    ]),
     TransformResponseInterceptor
   )
   @UsePipes(ValidationPipe(importCsvSchema, 'body'))

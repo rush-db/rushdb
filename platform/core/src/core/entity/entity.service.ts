@@ -409,7 +409,7 @@ export class EntityService {
     projectId: string
     transaction: Transaction
     manyToMany?: boolean
-  }): Promise<void> {
+  }): Promise<number> {
     const query = this.entityQueryService.createRelationsByKeys({
       sourceLabel: source.label,
       sourceKey: source.key,
@@ -422,7 +422,67 @@ export class EntityService {
       manyToMany
     })
 
-    await transaction.run(query, { projectId })
+    const result = await transaction.run(query, { projectId })
+    const row = result.records[0]
+    const failedOperations = row?.get('failedOperations')
+    const failedCount =
+      typeof failedOperations?.toNumber === 'function' ?
+        failedOperations.toNumber()
+      : Number(failedOperations ?? 0)
+
+    if (failedCount > 0) {
+      const errorMessages = row?.get('errorMessages')
+      throw new Error(`Relationship creation failed: ${JSON.stringify(errorMessages ?? {})}`)
+    }
+
+    const committedOperations = row?.get('committedOperations')
+    return typeof committedOperations?.toNumber === 'function' ?
+        committedOperations.toNumber()
+      : Number(committedOperations ?? 0)
+  }
+
+  async retypeRelationsByLabels({
+    source,
+    target,
+    sourceType,
+    targetType,
+    direction,
+    projectId,
+    transaction
+  }: {
+    source: { label: string }
+    target: { label: string }
+    sourceType?: string
+    targetType?: string
+    direction?: TRelationDirection
+    projectId: string
+    transaction: Transaction
+  }): Promise<number> {
+    const query = this.entityQueryService.retypeRelationsByLabels({
+      sourceLabel: source.label,
+      targetLabel: target.label,
+      sourceRelationType: sourceType,
+      targetRelationType: targetType,
+      direction: direction === 'in' ? 'in' : 'out'
+    })
+
+    const result = await transaction.run(query, { projectId })
+    const row = result.records[0]
+    const failedOperations = row?.get('failedOperations')
+    const failedCount =
+      typeof failedOperations?.toNumber === 'function' ?
+        failedOperations.toNumber()
+      : Number(failedOperations ?? 0)
+
+    if (failedCount > 0) {
+      const errorMessages = row?.get('errorMessages')
+      throw new Error(`Relationship retype failed: ${JSON.stringify(errorMessages ?? {})}`)
+    }
+
+    const committedOperations = row?.get('committedOperations')
+    return typeof committedOperations?.toNumber === 'function' ?
+        committedOperations.toNumber()
+      : Number(committedOperations ?? 0)
   }
 
   async deleteRelationsByKeys({
@@ -441,7 +501,7 @@ export class EntityService {
     projectId: string
     transaction: Transaction
     manyToMany?: boolean
-  }): Promise<void> {
+  }): Promise<number> {
     const query = this.entityQueryService.deleteRelationsByKeys({
       sourceLabel: source.label,
       sourceKey: source.key,
@@ -454,7 +514,61 @@ export class EntityService {
       manyToMany
     })
 
-    await transaction.run(query, { projectId })
+    const result = await transaction.run(query, { projectId })
+    const row = result.records[0]
+    const failedOperations = row?.get('failedOperations')
+    const failedCount =
+      typeof failedOperations?.toNumber === 'function' ?
+        failedOperations.toNumber()
+      : Number(failedOperations ?? 0)
+
+    if (failedCount > 0) {
+      const errorMessages = row?.get('errorMessages')
+      throw new Error(`Relationship deletion failed: ${JSON.stringify(errorMessages ?? {})}`)
+    }
+
+    const committedOperations = row?.get('committedOperations')
+    return typeof committedOperations?.toNumber === 'function' ?
+        committedOperations.toNumber()
+      : Number(committedOperations ?? 0)
+  }
+
+  async deleteRelationsByLabels({
+    source,
+    target,
+    type,
+    projectId,
+    transaction
+  }: {
+    source: { label: string }
+    target: { label: string }
+    type?: string
+    projectId: string
+    transaction: Transaction
+  }): Promise<number> {
+    const query = this.entityQueryService.deleteRelationsByLabels({
+      sourceLabel: source.label,
+      targetLabel: target.label,
+      relationType: type
+    })
+
+    const result = await transaction.run(query, { projectId })
+    const row = result.records[0]
+    const failedOperations = row?.get('failedOperations')
+    const failedCount =
+      typeof failedOperations?.toNumber === 'function' ?
+        failedOperations.toNumber()
+      : Number(failedOperations ?? 0)
+
+    if (failedCount > 0) {
+      const errorMessages = row?.get('errorMessages')
+      throw new Error(`Relationship deletion failed: ${JSON.stringify(errorMessages ?? {})}`)
+    }
+
+    const committedOperations = row?.get('committedOperations')
+    return typeof committedOperations?.toNumber === 'function' ?
+        committedOperations.toNumber()
+      : Number(committedOperations ?? 0)
   }
 
   async delete({

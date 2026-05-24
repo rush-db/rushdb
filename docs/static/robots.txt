@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Prevent crawlers from following API example URLs embedded in LLM-oriented text files.
+# Blocks /llms-full.txt, /llms-concepts-full.txt, etc. but keeps /llms.txt accessible for AI crawlers.
+Disallow: /llms-
+
+Sitemap: https://docs.rushdb.com/sitemap.xml

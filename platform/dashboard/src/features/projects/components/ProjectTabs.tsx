@@ -1,4 +1,4 @@
-import { Book, Database, Key, Search, Settings, UploadIcon, Wallet2 } from 'lucide-react'
+import { Book, Database, Key, Search, Settings, UploadIcon, Waypoints } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -6,6 +6,7 @@ import { getRoutePath } from '~/lib/router'
 import type { Project } from '../types'
 import { useStore } from '@nanostores/react'
 import { $user } from '~/features/auth/stores/user.ts'
+import type { JSX } from 'react'
 import { useMemo } from 'react'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 
@@ -18,7 +19,12 @@ export function ProjectTabs({ project }: { project: Project }) {
   const projectIsInactive = project.status === 'pending' || project.status === 'provisioning'
 
   const tabs = useMemo(() => {
-    const projectsTabs =
+    const projectsTabs: {
+      href: ReturnType<typeof getRoutePath>
+      icon: JSX.Element
+      label: string
+      dataTour?: string
+    }[] =
       projectIsInactive ?
         []
       : [
@@ -27,22 +33,12 @@ export function ProjectTabs({ project }: { project: Project }) {
             icon: <Database />,
             label: 'Records'
           },
-
           {
-            href: getRoutePath('projectImportData', {
+            href: getRoutePath('projectRelationships', {
               id: project.id
             }),
-            icon: <UploadIcon />,
-            label: 'Import Data',
-            dataTour: 'project-import-data-chip'
-          },
-          {
-            href: getRoutePath('projectTokens', {
-              id: project.id
-            }),
-            icon: <Key />,
-            label: 'API Keys',
-            dataTour: 'project-token-chip'
+            icon: <Waypoints />,
+            label: 'Relationships'
           }
         ]
 
@@ -55,6 +51,25 @@ export function ProjectTabs({ project }: { project: Project }) {
         label: 'Indexes'
       })
     }
+
+    projectsTabs.push(
+      {
+        href: getRoutePath('projectImportData', {
+          id: project.id
+        }),
+        icon: <UploadIcon />,
+        label: 'Import Data',
+        dataTour: 'project-import-data-chip'
+      },
+      {
+        href: getRoutePath('projectTokens', {
+          id: project.id
+        }),
+        icon: <Key />,
+        label: 'API Keys',
+        dataTour: 'project-token-chip'
+      }
+    )
 
     if (isOwner) {
       projectsTabs.push({

@@ -18,6 +18,7 @@ import { ApiBearerAuth, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
+import { ESideEffectType, RunSideEffectMixin } from '@/common/interceptors/run-side-effect.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
@@ -65,6 +66,7 @@ export class RelationshipsController {
   )
   @UsePipes(ValidationPipe(createRelationSchema, 'body'))
   @AuthGuard('project')
+  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_ONTOLOGY_CACHE]))
   @HttpCode(HttpStatus.CREATED)
   async attach(
     @Param('entityId') entityId: string,
@@ -92,6 +94,7 @@ export class RelationshipsController {
   )
   @UsePipes(ValidationPipe(deleteRelationsSchema, 'body'))
   @AuthGuard('project')
+  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_ONTOLOGY_CACHE]))
   @HttpCode(HttpStatus.OK)
   async detach(
     @Param('entityId') entityId: string,
@@ -110,6 +113,7 @@ export class RelationshipsController {
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
+  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_ONTOLOGY_CACHE]))
   @HttpCode(HttpStatus.CREATED)
   async createMany(
     @Body()
@@ -174,6 +178,7 @@ export class RelationshipsController {
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
+  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_ONTOLOGY_CACHE]))
   @HttpCode(HttpStatus.OK)
   async deleteMany(
     @Body()

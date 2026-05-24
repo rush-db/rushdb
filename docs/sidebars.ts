@@ -50,12 +50,14 @@ const sidebars: SidebarsConfig = {
       label: 'Core Concepts',
       collapsed: false,
       items: [
+        'concepts/index',
         'concepts/records',
         'concepts/data-ingestion',
         'concepts/labels',
         'concepts/properties',
         'concepts/relationships',
         'concepts/semantic-search',
+        'concepts/bring-your-own-vectors',
         'concepts/storage',
         'concepts/transactions',
         {
@@ -71,6 +73,12 @@ const sidebars: SidebarsConfig = {
           ]
         }
       ]
+    },
+    {
+      type: 'category',
+      label: 'Pricing & Billing',
+      collapsed: false,
+      items: ['concepts/knowledge-units', 'concepts/billing-model']
     }
   ]
 }

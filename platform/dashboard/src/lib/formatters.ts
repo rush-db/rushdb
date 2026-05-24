@@ -22,3 +22,10 @@ export const collectDateToString = (collectDate: DatetimeObject) => {
 }
 
 export const formatIsoToLocal = (iso: ISO8601) => new Date(iso).toLocaleDateString()
+
+export const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short'
+})
+
+export const formatIsoToLocalDateTime = (iso: ISO8601 | string) => dateTimeFormatter.format(new Date(iso))

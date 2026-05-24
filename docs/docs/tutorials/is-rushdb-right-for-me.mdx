@@ -1,0 +1,380 @@
+---
+sidebar_position: 5
+title: 'Is RushDB Right for My Problem? A Practical Decision Guide'
+description: A scenario-driven catalog showing seven problems RushDB is designed for, where it outperforms fragmented stacks, and where it isn't the right fit.
+tags: [Getting Started, Architecture, Case Study, TypeScript]
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Is RushDB Right for My Problem?
+
+Before committing to a new database, you want to know: **will this actually make my life easier, or just move complexity around?**
+
+This tutorial answers that by showing seven concrete scenarios where RushDB fits well, then tells you honestly where it does not.
+
+---
+
+## Scenario 1 — Rapid prototyping: from idea to working app
+
+**The problem:** every new side project, prototype, or internal tool hits the same wall — before you can build the interesting part you have to set up a database schema, configure indexes, wire up a search layer, and manage migrations. By the time the infrastructure is ready, the momentum is gone.
+
+RushDB removes that wall entirely. One API key, one connection line, and you have a persistent, typed, searchable, relationship-aware database that accepts any JSON you throw at it.
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB(process.env.RUSHDB_API_KEY!)
+// That's it. Persistent storage is ready.
+// No schema. No migrations. No index configuration.
+```
+
+Push anything:
+
+```typescript
+// A product catalogue
+await db.records.importJson({ label: 'PRODUCT', data: products })
+
+// A knowledge base
+await db.records.importJson({ label: 'ARTICLE', data: articles })
+
+// A recipe collection with nested ingredients and steps
+await db.records.importJson({
+  label: 'RECIPE',
+  data: {
+    name: 'Sourdough',
+    prepTime: 30,
+    ingredients: [
+      { name: 'flour', amount: 500, unit: 'g' },
+      { name: 'water', amount: 375, unit: 'ml' }
+    ],
+    steps: [{ order: 1, text: 'Mix flour and water...' }]
+  }
+})
+// RushDB creates RECIPE + INGREDIENT + STEP records and wires the relationships.
+// Types inferred. IDs assigned. Ready to query.
+```
+
+Semantic search, relationship traversal, and faceted filtering are available on the same data immediately — no extra configuration:
+
+```typescript
+// Find recipes semantically similar to "quick weeknight dinner"
+// (after creating a managed index — one more call)
+const results = await db.ai.search({
+  label: 'RECIPE',
+  propertyName: 'name',
+  query: 'quick weeknight dinner',
+  where: { prepTime: { $lte: 30 } }
+})
+```
+
+### Works the same way for any domain
+
+| What you're building          | What you push                 | What you get                                                             |
+| ----------------------------- | ----------------------------- | ------------------------------------------------------------------------ |
+| Product catalogue             | Nested product JSON           | Filterable, searchable catalogue with category relationships             |
+| Knowledge management platform | Articles, tags, authors       | Full-text + semantic search, author graphs, tag traversal                |
+| Community platform            | Users, posts, topics          | Relationship-aware feeds, expertise graphs, similar-post recommendations |
+| Personal CRM                  | Contacts, interactions, notes | Connected timeline, semantic recall, relationship history                |
+| Internal tool / dashboard     | Any CSV or API response       | Typed, queryable dataset in seconds                                      |
+
+### Vibe-coding with AI assistants
+
+If you use an AI coding assistant (Claude, Copilot, Cursor, Windsurf), install `@rushdb/skills` once and your assistant already knows how RushDB works — the query syntax, data modeling patterns, relationship design, faceted search, and memory layer usage:
+
+```bash
+npx skills add rush-db/rushdb --path packages/skills
+# or: npm install @rushdb/skills
+```
+
+After that, describing what you want is enough. The assistant constructs the correct `importJson`, `find`, `attach`, and `ai.search` calls without you having to look anything up. The typical flow:
+
+```
+You:       "I want to build a recipe app with ingredient relationships
+            and the ability to search by dietary preferences"
+Assistant: [writes importJson, creates embedding index, writes ai.search — all correct]
+You:       "Add a filter for prep time under 30 minutes"
+Assistant: [adds where: { prepTime: { $lte: 30 } } to the existing search call]
+```
+
+No docs lookup. No trial and error on the query shape. Just describe and iterate.
+
+**Go deeper:** [Thinking in Graphs](/tutorials/thinking-in-graphs) · [Customer 360](/tutorials/customer-360) · [`@rushdb/skills` on npm](https://www.npmjs.com/package/@rushdb/skills)
+
+---
+
+## Scenario 2 — Faceted search experiences
+
+**The problem:** you want to build a filter sidebar — "filter by category, price range, brand, rating" — without knowing the full list of valid values upfront, and without maintaining a separate index.
+
+RushDB's **Properties API** and **Labels API** expose the shape of your stored data as live metadata. No extra indexing step. No sync job.
+
+```typescript
+// What labels exist and how many records each has?
+const labels = await db.labels.find()
+// → [{ name: 'PRODUCT', count: 12400 }, { name: 'CATEGORY', count: 38 }, ...]
+
+// What values does the 'status' property have across all PRODUCT records?
+const statusValues = await db.properties.values({
+  labels: ['PRODUCT'],
+  where: { name: 'status' }
+})
+// → { values: ['available', 'out_of_stock', 'discontinued'] }
+
+// What is the price range across filtered products?
+const priceRange = await db.properties.values({
+  labels: ['PRODUCT'],
+  where: { name: 'price', category: 'Electronics' } // pre-filtered
+})
+// → { min: 9.99, max: 3299.00 }
+```
+
+Wire these directly to your filter UI — every facet is always in sync with the actual data, zero maintenance.
+
+**Go deeper:** [Properties API reference](/rest-api/properties) · [Labels API reference](/rest-api/labels)
+
+---
+
+## Scenario 3 — RAG in a few lines of code
+
+**The problem:** you want retrieval-augmented generation but you do not want to operate a vector database, a chunking pipeline, an embedding sync job, and an LLM orchestration layer separately.
+
+```typescript
+// 1. Push documents — RushDB infers types, assigns IDs
+await db.records.createMany(
+  'CHUNK',
+  chunks.map((c) => ({
+    source: c.filename,
+    section: c.heading,
+    body: c.text
+  }))
+)
+
+// 2. Create a managed embedding index on the 'body' field
+//    RushDB embeds every record automatically and backfills existing ones
+await db.ai.indexes.create({
+  label: 'CHUNK',
+  propertyName: 'body',
+  sourceType: 'managed'
+})
+
+// 3. Retrieve relevant chunks at query time — filtered + ranked by similarity
+const context = await db.ai.search({
+  label: 'CHUNK',
+  propertyName: 'body',
+  query: userQuestion,
+  where: { source: { $in: allowedSources } }, // access-control filter
+  limit: 5
+})
+
+// 4. Pass to your LLM of choice
+const answer = await llm.complete({
+  system: 'Answer based on the context provided.',
+  context: context.data.map((c) => c.body).join('\n\n'),
+  user: userQuestion
+})
+```
+
+No Pinecone, no LangChain retriever, no sync pipeline. When documents change, update the record — the embedding updates automatically.
+
+**Go deeper:** [RAG Pipeline in Minutes](/tutorials/rag-pipeline) · [Hybrid Retrieval](/tutorials/hybrid-retrieval)
+
+---
+
+## Scenario 4 — Knowledge graphs from messy data
+
+**The problem:** you have heterogeneous, loosely structured data from multiple sources — CSV exports, API responses, scraped JSON — and you want a traversable, queryable knowledge graph without writing a schema upfront.
+
+```typescript
+// Import a CSV of companies — types inferred, no schema needed
+await db.records.importCsv({
+  label: 'COMPANY',
+  data: csvString,
+  options: { suggestTypes: true, capitalizeLabels: true }
+})
+
+// Import a JSON API response — nested objects become linked records automatically
+await db.records.importJson({
+  label: 'INCIDENT',
+  data: apiResponse, // arbitrarily nested — RushDB handles it
+  options: { mergeBy: ['incidentId'], mergeStrategy: 'append' }
+})
+
+// Now traverse: which companies are linked to open incidents in region EU?
+const exposed = await db.records.find({
+  labels: ['COMPANY'],
+  where: {
+    region: 'EU',
+    incidents: {
+      // relationship-scoped filter
+      status: 'open',
+      severity: { $gte: 3 }
+    }
+  }
+})
+```
+
+Different sources, different shapes, unified graph — without a single migration.
+
+**Go deeper:** [Data Ingestion concepts](/concepts/data-ingestion) · [Research Knowledge Graph](/tutorials/research-knowledge-graph) · [Supply Chain Traceability](/tutorials/supply-chain-traceability)
+
+---
+
+## Scenario 5 — Analytical workloads over connected data
+
+**The problem:** you need cohort analysis, aggregations, and time-bucketing across records — but the grouping dimensions cross relationship boundaries (e.g., "active users by plan tier, broken down by their most-used feature").
+
+RushDB's `select`, `groupBy`, and relationship-aware `where` compose into analytical queries without leaving the SDK:
+
+```typescript
+// Monthly signups per plan tier — time-bucketed
+const signupsByMonth = await db.records.find({
+  labels: ['USER'],
+  where: { createdAt: { $gte: '2025-01-01' } },
+  groupBy: ['$record.planTier'],
+  select: {
+    planTier: '$record.planTier',
+    signups: { $count: '*' },
+    month: { $timeBucket: { field: '$record.createdAt', unit: 'month' } }
+  },
+  orderBy: { month: 'asc' }
+})
+
+// Aggregate across relationships: avg order value per customer segment
+const avgOrderBySegment = await db.records.find({
+  labels: ['ORDER'],
+  where: {
+    status: 'completed',
+    customer: { segment: { $in: ['enterprise', 'pro'] } } // traverse ORDER → CUSTOMER
+  },
+  groupBy: ['$customer.segment'],
+  select: {
+    segment: '$customer.segment',
+    avgValue: { $avg: '$record.total' },
+    orderCount: { $count: '*' }
+  }
+})
+```
+
+**Go deeper:** [Select Expressions](/concepts/search/select) · [SearchQuery Advanced Patterns](/tutorials/searchquery-advanced-patterns)
+
+---
+
+## Scenario 6 — Persistent memory for agents and LLM apps
+
+**The problem:** agent memory that lives in application code or in-process variables disappears on restart, does not survive microservice boundaries, and cannot be queried by other services. Flat vector retrieval returns similar chunks but loses the connections between them.
+
+RushDB stores three kinds of agent memory as a connected graph:
+
+```typescript
+// FACT — durable property of an entity (never stale, queryable)
+await db.records.create('FACT', {
+  subject: 'user:u_42',
+  predicate: 'prefers',
+  object: 'TypeScript',
+  confidence: 0.95,
+  source: 'inferred_from_stack'
+})
+
+// EPISODE — time-stamped interaction (persists across restarts)
+await db.records.importJson({
+  label: 'EPISODE',
+  data: {
+    sessionId: 's_789',
+    timestamp: new Date().toISOString(),
+    userMessage: 'How do I configure the embedding model?',
+    agentResponse: '...',
+    documentsReferenced: [{ docId: 'doc_config', title: 'Embedding Configuration' }]
+  }
+})
+
+// Later — another service, after restart, across microservices:
+const recentContext = await db.records.find({
+  labels: ['EPISODE'],
+  where: {
+    sessionId: 's_789',
+    timestamp: { $gte: oneHourAgo }
+  },
+  orderBy: { timestamp: 'desc' },
+  limit: 10
+})
+```
+
+Memory is a graph node. It can be linked to other facts, episodes, and documents. Any service with the API key can read it. No restart clears it.
+
+**Go deeper:** [RushDB as a Memory Layer](/tutorials/memory-layer) · [Building Team Memory](/tutorials/building-team-memory) · [Episodic Memory](/tutorials/episodic-memory)
+
+---
+
+## Scenario 7 — Second brain and MCP context for LLMs
+
+**The problem:** LLMs forget context between sessions, lose decisions made in past conversations, and cannot reason over the history of a project or team. Each new session starts from zero.
+
+RushDB acts as a persistent second brain — and exposes it to any LLM client via the **MCP server** without any custom integration code.
+
+```typescript
+// Store a decision made during a planning session
+await db.records.importJson({
+  label: 'DECISION',
+  data: {
+    title: 'Use BYOV for legal document embeddings',
+    rationale:
+      'Compliance requires raw text to stay on-prem. Fine-tuned legal model gives 18% better recall.',
+    madeBy: 'team:engineering',
+    madeAt: new Date().toISOString(),
+    linkedTo: [
+      { type: 'PROJECT', id: 'proj_legal_search' },
+      { type: 'CONSTRAINT', description: 'Data residency: EU-only' }
+    ]
+  }
+})
+```
+
+When the same team opens a new session — weeks later, different LLM client, different developer — the MCP server gives the model instant access to that decision, its rationale, and everything it links to. The intelligence does not live in anyone's chat history. It lives in the graph.
+
+```yaml
+# mcp.yaml — drop this next to your project, connect any MCP-compatible LLM client
+servers:
+  rushdb:
+    type: http
+    url: https://api.rushdb.com/mcp
+    headers:
+      Authorization: Bearer ${RUSHDB_API_KEY}
+```
+
+**Go deeper:** [MCP Server introduction](/mcp-server/introduction) · [Agent Safe Query Planning](/tutorials/agent-safe-query-planning) · [Agent Skills with OpenClaw](/tutorials/agent-skills-with-openclaw)
+
+---
+
+## Where RushDB is not the right fit
+
+| Scenario                                                              | Better fit                   |
+| --------------------------------------------------------------------- | ---------------------------- |
+| Pure transactional workloads (banking ledgers, inventory)             | PostgreSQL / CockroachDB     |
+| Time-series data at very high write rates (metrics, sensor streams)   | InfluxDB / TimescaleDB       |
+| Blob / file storage                                                   | S3 + metadata index          |
+| Simple CRUD with flat, stable schema and no search requirements       | Any relational DB            |
+| Data warehouse / analytical queries over hundreds of millions of rows | BigQuery / Redshift / DuckDB |
+
+RushDB is not a general-purpose database. It is designed for data that is **connected, evolving, and queried in multiple dimensions at once**.
+
+---
+
+## Quick self-assessment
+
+Score one point for each row that describes your problem:
+
+```
+□  Data is nested or comes from multiple sources with inconsistent shapes
+□  Relationships between records matter as much as the records themselves
+□  You want full-text or semantic search co-located with field filters
+□  Your schema changes faster than ALTER TABLE migrations allow
+□  You need agent or LLM memory that survives restarts and service boundaries
+□  You want to expose a knowledge graph to an LLM without custom integration
+□  You are building faceted search and don't want a separate indexing pipeline
+```
+
+**3 or more:** RushDB is a strong fit. Start with the [quick tutorial](/get-started/quick-tutorial).
+**1–2:** RushDB may help, but a simpler tool might too. Read [Thinking in Graphs](/tutorials/thinking-in-graphs) to calibrate.
+**0:** You probably don't need RushDB right now.
