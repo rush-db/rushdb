@@ -1,4 +1,4 @@
-CREATE TABLE "oauth_refresh_tokens" (
+CREATE TABLE IF NOT EXISTS "oauth_refresh_tokens" (
 	"id" text PRIMARY KEY NOT NULL,
 	"consent_id" text NOT NULL,
 	"client_id" text NOT NULL,
@@ -9,4 +9,10 @@ CREATE TABLE "oauth_refresh_tokens" (
 	"expires_at" text NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "oauth_refresh_tokens" ADD CONSTRAINT "oauth_refresh_tokens_consent_id_oauth_consents_id_fk" FOREIGN KEY ("consent_id") REFERENCES "public"."oauth_consents"("id") ON DELETE cascade ON UPDATE no action;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'oauth_refresh_tokens_consent_id_oauth_consents_id_fk'
+  ) THEN
+    ALTER TABLE "oauth_refresh_tokens" ADD CONSTRAINT "oauth_refresh_tokens_consent_id_oauth_consents_id_fk" FOREIGN KEY ("consent_id") REFERENCES "public"."oauth_consents"("id") ON DELETE cascade ON UPDATE no action;
+  END IF;
+END $$;
