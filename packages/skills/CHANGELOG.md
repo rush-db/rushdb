@@ -1,5 +1,15 @@
 # @rushdb/skills
 
+## 2.1.0
+
+### Minor Changes
+
+- 3000fa6: Add relationship patterns suggestions
+
+### Patch Changes
+
+- 5d65783: OpenAI MCP domain verification
+
 ## 2.0.7
 
 ### Patch Changes
