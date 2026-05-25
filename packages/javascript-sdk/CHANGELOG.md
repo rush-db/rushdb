@@ -1,5 +1,12 @@
 # @rushdb/javascript-sdk
 
+## 2.1.1
+
+### Patch Changes
+
+- 5ee52f8: SQL migrations sync fix
+- 149a2da: Minor fixes
+
 ## 2.1.0
 
 ### Minor Changes
