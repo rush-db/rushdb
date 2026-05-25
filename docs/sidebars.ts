@@ -41,7 +41,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Getting Started',
       collapsed: false,
-      items: ['index', 'get-started/get-api-key', 'get-started/quick-tutorial']
+      items: ['index', 'get-started/quick-tutorial', 'get-started/get-api-key']
     },
     'concepts/agent-memory-model',
     'concepts/ontology-schema-discovery',

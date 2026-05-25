@@ -536,6 +536,10 @@ export class RelationshipPatternsService {
         return undefined
       }
 
+      if (this.hasSemanticRelationshipBetween(source, target)) {
+        return undefined
+      }
+
       if (!candidate.source.key || !candidate.target.key) {
         return undefined
       }
@@ -564,10 +568,31 @@ export class RelationshipPatternsService {
     return mode === 'retype_existing_relationship' ? 'retype_existing_relationship' : 'join_pattern'
   }
 
+  private isDefaultRelationType(type: string): boolean {
+    return type === RUSHDB_RELATION_DEFAULT || type === 'RUSHDB_DEFAULT_RELATION'
+  }
+
   private hasDefaultRelationshipBetween(source: OntologyItem, target: OntologyItem): boolean {
-    const isDefault = (type: string) => type === RUSHDB_RELATION_DEFAULT || type === 'RUSHDB_DEFAULT_RELATION'
-    return source.relationships.some(
-      (relationship) => relationship.label === target.label && isDefault(relationship.type)
+    return (
+      source.relationships.some(
+        (relationship) => relationship.label === target.label && this.isDefaultRelationType(relationship.type)
+      ) ||
+      target.relationships.some(
+        (relationship) => relationship.label === source.label && this.isDefaultRelationType(relationship.type)
+      )
+    )
+  }
+
+  private hasSemanticRelationshipBetween(source: OntologyItem, target: OntologyItem): boolean {
+    return (
+      source.relationships.some(
+        (relationship) =>
+          relationship.label === target.label && !this.isDefaultRelationType(relationship.type)
+      ) ||
+      target.relationships.some(
+        (relationship) =>
+          relationship.label === source.label && !this.isDefaultRelationType(relationship.type)
+      )
     )
   }
 
