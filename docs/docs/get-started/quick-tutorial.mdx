@@ -1,541 +1,223 @@
 ---
-title: Quick Tutorial
-description: Get started with RushDB in minutes
+title: Quick Start
+description: The fastest path to RushDB — pick your preferred tool.
 sidebar_position: 1
 ---
 
-# Quick Tutorial
+# Quick Start
 
-In this tutorial you'll build a small **knowledge base** — push a batch of articles, search by meaning, filter by field value, link articles to their authors, and wrap multi-step writes in a transaction.
+RushDB is a graph database built for agents and structured data. Pick the path that fits how you work:
 
-Every concept introduced here applies equally to agent memory, product catalogs, document stores, or any other data shape you throw at RushDB.
+| Path                        | Best for                         | Time   |
+| --------------------------- | -------------------------------- | ------ |
+| [Web AI connector](#web-ai) | ChatGPT or Claude.ai, no install | ~1 min |
+| [Local MCP](#local-mcp)     | Claude Desktop, Cursor, VS Code  | ~3 min |
+| [Skills](#copilot-skills)   | Any MCP-capable agent in VS Code | ~2 min |
+| [SDK / REST](#sdk)          | Custom apps and pipelines        | ~5 min |
 
-## Prerequisites
+Need an API key first? → [Get API Key](./get-api-key)
 
-- A RushDB account and API token — see [Get API Key](../get-started/get-api-key)
-- TypeScript/JavaScript, Python, or any HTTP client
+---
+
+## Web AI connector \{#web-ai\}
+
+Connect to ChatGPT or Claude.ai using the hosted MCP endpoint. No local install, no API key needed for web clients — just OAuth.
+
+**ChatGPT:**
+
+1. Open **Settings → Connectors → Add connector**
+2. Enter URL: `https://mcp.rushdb.com/mcp`
+3. Sign in with your RushDB account
+
+**Claude.ai:**
+
+1. Open **Settings → Integrations → Add integration**
+2. Enter URL: `https://mcp.rushdb.com/mcp`
+3. Authorize with your RushDB account
+
+Then verify the connection:
+
+> "Call getOntologyMarkdown and show me what's in my RushDB project."
+
+→ [Full MCP client list and options](../mcp-server/quickstart)
+
+---
+
+## Local MCP \{#local-mcp\}
+
+Works with Claude Desktop, Cursor, VS Code, or any stdio-based MCP client. Requires a RushDB API key.
+
+**Claude Desktop** — edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["-y", "@rushdb/mcp-server"],
+      "env": { "RUSHDB_API_KEY": "your-api-key-here" }
+    }
+  }
+}
+```
+
+**Cursor** — add to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["-y", "@rushdb/mcp-server"],
+      "env": { "RUSHDB_API_KEY": "your-api-key-here" }
+    }
+  }
+}
+```
+
+**VS Code** — add to `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "rushdb": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@rushdb/mcp-server"],
+      "env": { "RUSHDB_API_KEY": "your-api-key-here" }
+    }
+  }
+}
+```
+
+After connecting, bootstrap agent memory in one prompt:
+
+> "Set up RushDB as my persistent memory layer."
+
+The agent calls `getOntologyMarkdown`, creates a `SESSION` record, and confirms recall is working. Full bootstrap prompt and memory model: [rushdb.com/agent-setup](https://rushdb.com/agent-setup).
+
+:::tip Verify the connection
+Ask: _"Call getOntologyMarkdown and show me what labels exist in my project."_ A working connection returns the schema; an empty project returns an empty ontology — both are correct responses.
+:::
+
+---
+
+## Skills \{#copilot-skills\}
+
+Install the RushDB skills to give your agent structured domain knowledge — so it knows how to query, model data, and manage agent memory without you explaining it every session.
+
+Compatible with Claude, GitHub Copilot, Cursor, Windsurf, and any [Agent Skills](https://agentskills.io/)-compatible client.
+
+| Skill                   | What it enables                                                  |
+| ----------------------- | ---------------------------------------------------------------- |
+| `rushdb-agent-memory`   | Store sessions, decisions, and context; recall by meaning        |
+| `rushdb-query-builder`  | Build `findRecords` filters, aggregations, and semantic searches |
+| `rushdb-data-modeling`  | Design labels, properties, relationships, and nested schemas     |
+| `rushdb-faceted-search` | Build faceted filter UIs from property metadata                  |
+
+**Install:**
+
+```bash
+npx skills add rush-db/rushdb --path packages/skills
+```
+
+Or via npm:
+
+```bash
+npm install @rushdb/skills
+```
+
+Source and docs: [github.com/rush-db/rushdb — packages/skills](https://github.com/rush-db/rushdb/tree/main/packages/skills)
+
+:::note
+Skills work best when the MCP server is also connected. The skills tell the agent _how_ to use RushDB; the MCP server gives it the _tools_ to do so.
+:::
+
+---
+
+## SDK \{#sdk\}
+
+For custom apps, data pipelines, or direct programmatic control.
 
 import Tabs from '@site/src/components/LanguageTabs'
 import TabItem from '@theme/TabItem'
 
-## Step 1: Initialize
-
 <Tabs groupId="programming-language">
-  <TabItem value="python" label="Python" default>
-```python
-from rushdb import RushDB
-
-db = RushDB("RUSHDB_API_KEY")
-
-````
-  </TabItem>
-  <TabItem value="typescript" label="TypeScript">
+  <TabItem value="typescript" label="TypeScript" default>
 ```typescript
 import RushDB from '@rushdb/javascript-sdk';
 
 const db = new RushDB('RUSHDB_API_KEY');
+
+// Push data
+await db.records.importJson({
+label: 'MEMORY',
+data: [{ content: 'RushDB stores structured memory for AI agents.' }]
+});
+
+// Query by meaning
+const { data: results } = await db.ai.search({
+propertyName: 'content',
+query: 'how agents remember things',
+labels: ['MEMORY']
+});
+
+````
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python
+from rushdb import RushDB
+
+db = RushDB('RUSHDB_API_KEY')
+
+# Push data
+db.records.create_many(
+    label='MEMORY',
+    data=[{'content': 'RushDB stores structured memory for AI agents.'}]
+)
+
+# Query by meaning
+results = db.ai.search({
+    'propertyName': 'content',
+    'query': 'how agents remember things',
+    'labels': ['MEMORY']
+}).data
 ````
 
   </TabItem>
-  <TabItem value="shell" label="shell">
-```bash
-export RUSHDB_API_KEY="your-api-key"
-```
-  </TabItem>
-</Tabs>
-
-## Step 2: Push [Records](../concepts/records.md)
-
-Use `importJson` to push a batch of articles in one call. RushDB infers field types automatically and returns record instances you can use immediately.
-
-<Tabs groupId="programming-language">
-  <TabItem value="python" label="Python" default>
-```python
-articles = db.records.create_many(
-    label="ARTICLE",
-    data=[
-        {
-            "title": "Getting started with graph databases",
-            "content": "Graph databases model data as nodes and edges, making relationship queries fast and intuitive.",
-            "tags": ["databases", "graphs"],
-            "author": "alice"
-        },
-        {
-            "title": "Vector search explained",
-            "content": "Vector embeddings let you search by semantic meaning rather than exact keywords.",
-            "tags": ["ai", "search"],
-            "author": "bob"
-        },
-        {
-            "title": "Building AI agents with persistent memory",
-            "content": "Agents that remember past interactions can reason across sessions and personalize responses.",
-            "tags": ["ai", "agents"],
-            "author": "alice"
-        }
-    ],
-    options={ "returnResult": True }
-)
-```
-  </TabItem>
-  <TabItem value="typescript" label="TypeScript">
-```typescript
-const { data: articles } = await db.records.importJson({
-  label: 'ARTICLE',
-  data: [
-    {
-      title: 'Getting started with graph databases',
-      content: 'Graph databases model data as nodes and edges, making relationship queries fast and intuitive.',
-      tags: ['databases', 'graphs'],
-      author: 'alice'
-    },
-    {
-      title: 'Vector search explained',
-      content: 'Vector embeddings let you search by semantic meaning rather than exact keywords.',
-      tags: ['ai', 'search'],
-      author: 'bob'
-    },
-    {
-      title: 'Building AI agents with persistent memory',
-      content: 'Agents that remember past interactions can reason across sessions and personalize responses.',
-      tags: ['ai', 'agents'],
-      author: 'alice'
-    }
-  ],
-  options: { returnResult: true }
-})
-```
-  </TabItem>
-  <TabItem value="shell" label="shell">
+  <TabItem value="shell" label="REST">
 ```bash
 curl -X POST "https://api.rushdb.com/api/v1/records/import/json" \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "label": "ARTICLE",
-    "data": [
-      {
-        "title": "Getting started with graph databases",
-        "content": "Graph databases model data as nodes and edges, making relationship queries fast and intuitive.",
-        "tags": ["databases", "graphs"],
-        "author": "alice"
-      },
-      {
-        "title": "Vector search explained",
-        "content": "Vector embeddings let you search by semantic meaning rather than exact keywords.",
-        "tags": ["ai", "search"],
-        "author": "bob"
-      },
-      {
-        "title": "Building AI agents with persistent memory",
-        "content": "Agents that remember past interactions can reason across sessions and personalize responses.",
-        "tags": ["ai", "agents"],
-        "author": "alice"
-      }
-    ]
-  }'
+  -d '{"label": "MEMORY", "data": [{"content": "RushDB stores structured memory for AI agents."}]}'
 ```
   </TabItem>
 </Tabs>
 
-:::tip Same pattern for agent memory
-Swap `label: 'ARTICLE'` for `label: 'MEMORY'` and push conversation snippets, tool results, or any structured context. The rest of the tutorial — semantic search, filters, relationships — applies unchanged.
-:::
+→ [TypeScript SDK](../typescript-sdk/introduction) · [Python SDK](../python-sdk/introduction) · [REST API](../rest-api/introduction)
 
-## Step 3: Semantic Search
+---
 
-Create an embedding index on the `content` field, wait for backfill to complete, then search by meaning.
+## What to build
 
-<Tabs groupId="programming-language">
-  <TabItem value="python" label="Python" default>
-```python
-import time
+| Use case                                    | Guide                                                                 |
+| ------------------------------------------- | --------------------------------------------------------------------- |
+| Agent memory — sessions, decisions, context | [Episodic Memory for Multi-Step Agents](../tutorials/episodic-memory) |
+| GraphRAG — graph + vector search            | [GraphRAG Tutorial](../tutorials/graphrag)                            |
+| Semantic search over your data              | [Semantic Search in 5 Minutes](../tutorials/ai-semantic-search)       |
+| Hybrid filter + semantic search             | [Hybrid Retrieval](../tutorials/hybrid-retrieval)                     |
+| Explore an unknown dataset                  | [Discovery Queries](../tutorials/discovery-queries)                   |
+| Safe agent query planning                   | [Agent-Safe Query Planning](../tutorials/agent-safe-query-planning)   |
 
-# Create the embedding index
+---
 
-index = db.ai.indexes.create({
-"label": "ARTICLE",
-"propertyName": "content"
-}).data
+## Concepts to know
 
-# Poll until all records are indexed
+Three ideas explain how RushDB works:
 
-stats = db.ai.indexes.stats(index["id"]).data
-while stats["indexedRecords"] < stats["totalRecords"]:
-time.sleep(0.5)
-stats = db.ai.indexes.stats(index["id"]).data
+- **Records** — a node with a label and any JSON properties. No schema required upfront.
+- **Labels** — the record's type (`SESSION`, `DECISION`, `ARTICLE`). You define them by pushing data.
+- **Relationships** — named, directed edges between records. Auto-created from nested JSON.
 
-# Search by meaning
-
-results = db.ai.search({
-"propertyName": "content",
-"query": "how do agents remember things across conversations",
-"labels": ["ARTICLE"],
-"limit": 3
-}).data
-
-for result in results:
-print(f"[{result['__score']:.3f}] {result['title']}")
-
-# [0.891] Building AI agents with persistent memory
-
-# [0.743] Vector search explained
-
-# [0.612] Getting started with graph databases
-
-````
-  </TabItem>
-  <TabItem value="typescript" label="TypeScript">
-```typescript
-// Create the embedding index — backfill starts immediately
-const { data: index } = await db.ai.indexes.create({
-  label: 'ARTICLE',
-  propertyName: 'content'
-})
-
-// Poll until all records are indexed
-let stats = await db.ai.indexes.stats(index.id)
-while (stats.data.indexedRecords < stats.data.totalRecords) {
-  await new Promise(r => setTimeout(r, 500))
-  stats = await db.ai.indexes.stats(index.id)
-}
-
-// Search by meaning — returns results sorted by cosine similarity
-const { data: results } = await db.ai.search({
-  propertyName: 'content',
-  query: 'how do agents remember things across conversations',
-  labels: ['ARTICLE'],
-  limit: 3
-})
-
-for (const result of results) {
-  console.log(`[${result.__score.toFixed(3)}] ${result.title}`)
-}
-// [0.891] Building AI agents with persistent memory
-// [0.743] Vector search explained
-// [0.612] Getting started with graph databases
-````
-
-  </TabItem>
-  <TabItem value="shell" label="shell">
-```bash
-# Create the embedding index
-INDEX_ID=$(curl -s -X POST "https://api.rushdb.com/api/v1/ai/indexes" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"label": "ARTICLE", "propertyName": "content"}' \
-  | jq -r '.data.id')
-
-# Check stats — wait until indexedRecords == totalRecords
-
-curl "https://api.rushdb.com/api/v1/ai/indexes/$INDEX_ID/stats" \
- -H "Authorization: Bearer $RUSHDB_API_KEY"
-
-# Search by meaning
-
-curl -X POST "https://api.rushdb.com/api/v1/ai/search" \
- -H "Authorization: Bearer $RUSHDB_API_KEY" \
- -H "Content-Type: application/json" \
- -d '{
-"propertyName": "content",
-"query": "how do agents remember things across conversations",
-"labels": ["ARTICLE"],
-"limit": 3
-}'
-
-````
-  </TabItem>
-</Tabs>
-
-Each result includes a `__score` field (0–1) — cosine similarity between the query embedding and the record's content embedding. Higher is more relevant.
-
-## Step 4: Structured Query
-
-Use `records.find` to filter by exact field values. This is independent of the embedding index.
-
-<Tabs groupId="programming-language">
-  <TabItem value="python" label="Python" default>
-```python
-ai_articles = db.records.find({
-    "labels": ["ARTICLE"],
-    "where": {
-        "tags": { "$in": ["ai"] }
-    }
-})
-
-print([a.data["title"] for a in ai_articles])
-# ['Vector search explained', 'Building AI agents with persistent memory']
-````
-
-  </TabItem>
-  <TabItem value="typescript" label="TypeScript">
-```typescript
-const aiArticles = await db.records.find({
-  labels: ['ARTICLE'],
-  where: {
-    tags: { $in: ['ai'] }
-  }
-})
-
-console.log(aiArticles.map(a => a.data.title))
-// ['Vector search explained', 'Building AI agents with persistent memory']
-
-````
-  </TabItem>
-  <TabItem value="shell" label="shell">
-```bash
-curl -X POST "https://api.rushdb.com/api/v1/records/search" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "labels": ["ARTICLE"],
-    "where": {
-      "tags": { "$in": ["ai"] }
-    }
-  }'
-````
-
-  </TabItem>
-</Tabs>
-
-See the [Where clause reference](../concepts/search/where.md) for the full list of operators (`$gt`, `$lt`, `$contains`, `$not`, and more).
-
-## Step 5: Semantic Search with Filter
-
-Combine a `where` filter with `db.ai.search` to scope semantic search to a subset of records. RushDB narrows candidates by field values first, then ranks them by cosine similarity.
-
-<Tabs groupId="programming-language">
-  <TabItem value="python" label="Python" default>
-```python
-# Only search within AI-tagged articles
-filtered = db.ai.search({
-    "propertyName": "content",
-    "query": "memory and learning",
-    "labels": ["ARTICLE"],
-    "where": {
-        "tags": { "$in": ["ai"] }
-    },
-    "limit": 5
-}).data
-
-for result in filtered:
-print(f"[{result['__score']:.3f}] {result['title']}")
-
-````
-  </TabItem>
-  <TabItem value="typescript" label="TypeScript">
-```typescript
-// Only search within AI-tagged articles
-const { data: filtered } = await db.ai.search({
-  propertyName: 'content',
-  query: 'memory and learning',
-  labels: ['ARTICLE'],
-  where: {
-    tags: { $in: ['ai'] }
-  },
-  limit: 5
-})
-
-for (const result of filtered) {
-  console.log(`[${result.__score.toFixed(3)}] ${result.title}`)
-}
-````
-
-  </TabItem>
-  <TabItem value="shell" label="shell">
-```bash
-curl -X POST "https://api.rushdb.com/api/v1/ai/search" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "propertyName": "content",
-    "query": "memory and learning",
-    "labels": ["ARTICLE"],
-    "where": {
-      "tags": { "$in": ["ai"] }
-    },
-    "limit": 5
-  }'
-```
-  </TabItem>
-</Tabs>
-
-:::note
-Without a `where` clause, RushDB still performs exact semantic ranking over the label-scoped candidates. Adding `where` reduces the candidate set first, which can improve latency on larger datasets.
-:::
-
-## Step 6: [Relationships](../concepts/relationships.mdx)
-
-Link each article to an author record. Relationships are first-class in RushDB — they have a type, a direction, and can carry their own properties.
-
-<Tabs groupId="programming-language">
-  <TabItem value="python" label="Python" default>
-```python
-# Create an author record
-author = db.records.create(
-    label="AUTHOR",
-    data={"name": "Alice", "email": "alice@example.com"}
-)
-
-# Attach alice's articles to the author
-
-for article in [a for a in articles if a.data.get("author") == "alice"]:
-article.attach(
-target=author,
-options={"type": "WRITTEN_BY", "direction": "out"}
-)
-
-````
-  </TabItem>
-  <TabItem value="typescript" label="TypeScript">
-```typescript
-// Create an author record
-const author = await db.records.create({
-  label: 'AUTHOR',
-  data: { name: 'Alice', email: 'alice@example.com' }
-})
-
-// Attach alice's articles to the author
-for (const article of articles.filter(a => a.data.author === 'alice')) {
-  await article.attach({
-    target: author,
-    options: { type: 'WRITTEN_BY' }
-  })
-}
-````
-
-  </TabItem>
-  <TabItem value="shell" label="shell">
-```bash
-# Create an author record — save the returned __id
-AUTHOR_ID=$(curl -s -X POST "https://api.rushdb.com/api/v1/records" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "label": "AUTHOR",
-    "data": {"name": "Alice", "email": "alice@example.com"}
-  }' | jq -r '.data.__id')
-
-# Attach an article to the author (replace ARTICLE_ID with the actual ID)
-
-curl -X POST "https://api.rushdb.com/api/v1/relationships/$ARTICLE_ID" \
- -H "Authorization: Bearer $RUSHDB_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "targetIds": ["'"$AUTHOR_ID"'"],
-"type": "WRITTEN_BY"
-}'
-
-````
-  </TabItem>
-</Tabs>
-
-## Step 7: [Transactions](../concepts/transactions.mdx) (Optional)
-
-Wrap multiple writes in a transaction to guarantee all-or-nothing atomicity.
-
-<Tabs groupId="programming-language">
-  <TabItem value="python" label="Python" default>
-```python
-with db.tx.begin() as tx:
-    new_article = db.records.create(
-        label="ARTICLE",
-        data={
-            "title": "Transactions made simple",
-            "content": "ACID guarantees ensure your data stays consistent even when things fail.",
-            "tags": ["databases"],
-            "author": "bob"
-        },
-        transaction=tx
-    )
-
-    new_article.attach(
-        target=author,
-        options={"type": "WRITTEN_BY", "direction": "out"},
-        transaction=tx
-    )
-    # Commits automatically on exit; rolls back on exception
-````
-
-  </TabItem>
-  <TabItem value="typescript" label="TypeScript">
-```typescript
-const tx = await db.tx.begin()
-
-try {
-const newArticle = await db.records.create({
-label: 'ARTICLE',
-data: {
-title: 'Transactions made simple',
-content: 'ACID guarantees ensure your data stays consistent even when things fail.',
-tags: ['databases'],
-author: 'bob'
-},
-transaction: tx
-})
-
-await newArticle.attach({
-target: author,
-options: { type: 'WRITTEN_BY' },
-transaction: tx
-})
-
-await tx.commit()
-console.log('Article created and linked — committed.')
-} catch (err) {
-await tx.rollback()
-console.error('Rolled back:', err)
-}
-
-````
-  </TabItem>
-  <TabItem value="shell" label="shell">
-```bash
-# Begin transaction
-TX_ID=$(curl -s -X POST "https://api.rushdb.com/api/v1/transactions" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY" \
-  -H "Content-Type: application/json" \
-  | jq -r '.id')
-
-# Create article within transaction
-NEW_ARTICLE_ID=$(curl -s -X POST "https://api.rushdb.com/api/v1/records" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY" \
-  -H "Content-Type: application/json" \
-  -H "X-Transaction-ID: $TX_ID" \
-  -d '{
-    "label": "ARTICLE",
-    "data": {
-      "title": "Transactions made simple",
-      "content": "ACID guarantees ensure your data stays consistent even when things fail.",
-      "tags": ["databases"],
-      "author": "bob"
-    }
-  }' | jq -r '.data.__id')
-
-# Attach to author within same transaction
-curl -X POST "https://api.rushdb.com/api/v1/relationships/$NEW_ARTICLE_ID" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY" \
-  -H "Content-Type: application/json" \
-  -H "X-Transaction-ID: $TX_ID" \
-  -d '{
-    "targetIds": ["'"$AUTHOR_ID"'"],
-    "type": "WRITTEN_BY"
-  }'
-
-# Commit
-curl -X POST "https://api.rushdb.com/api/v1/transactions/$TX_ID/commit" \
-  -H "Authorization: Bearer $RUSHDB_API_KEY"
-````
-
-  </TabItem>
-</Tabs>
-
-## Next Steps
-
-- [Records](../concepts/records.md) — data model and field types
-- [Labels](../concepts/labels.md) — organizing records by category
-- [Relationships](../concepts/relationships.mdx) — connecting records into a graph
-- [Search & Querying](../concepts/search/introduction.md) — where clauses, ordering, pagination
-- [Transactions](../concepts/transactions.mdx) — atomicity and consistency
-- [TypeScript SDK](../typescript-sdk/introduction)
-- [Python SDK](../python-sdk/introduction)
-- [REST API](../rest-api/introduction)
+→ [Data model overview](../concepts/data-ingestion.mdx) · [Relationships](../concepts/relationships.mdx) · [Search](../concepts/search/introduction.md)
