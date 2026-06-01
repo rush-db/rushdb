@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 2.2.0
+
+### Minor Changes
+
+- 2e9a82a: Docs update and SDK DX improvements
+
 ## 2.1.1
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @rushdb/mcp-server
 
+## 2.2.0
+
+### Minor Changes
+
+- 2e9a82a: Docs update and SDK DX improvements
+
+### Patch Changes
+
+- Updated dependencies [2e9a82a]
+  - @rushdb/javascript-sdk@2.2.0
+
 ## 2.1.1
 
 ### Patch Changes
