@@ -1,0 +1,45 @@
+name: Publish Helm Chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'charts/**'
+      - '.github/workflows/helm-publish.yml'
+  # Also allow manual runs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Package and push to GHCR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.17.0
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username ${{ github.actor }} \
+            --password-stdin
+
+      - name: Package chart
+        run: helm package charts/rushdb --destination /tmp/charts
+
+      - name: Push chart to GHCR
+        run: helm push /tmp/charts/rushdb-*.tgz oci://ghcr.io/rush-db/charts
+
+      - name: Log out
+        if: always()
+        run: helm registry logout ghcr.io

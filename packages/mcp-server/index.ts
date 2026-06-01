@@ -33,6 +33,11 @@ import { getRecord } from './tools/getRecord.js'
 import { attachRelation } from './tools/attachRelation.js'
 import { detachRelation } from './tools/detachRelation.js'
 import { findRelationships } from './tools/findRelationships.js'
+import { listRelationshipPatterns } from './tools/listRelationshipPatterns.js'
+import { analyzeRelationshipPatterns } from './tools/analyzeRelationshipPatterns.js'
+import { approveRelationshipPattern } from './tools/approveRelationshipPattern.js'
+import { ignoreRelationshipPattern } from './tools/ignoreRelationshipPattern.js'
+import { deleteRelationshipPattern } from './tools/deleteRelationshipPattern.js'
 import { bulkCreateRecords } from './tools/bulkCreateRecords.js'
 import { bulkDeleteRecords } from './tools/bulkDeleteRecords.js'
 import { exportRecords } from './tools/exportRecords.js'
@@ -277,6 +282,45 @@ function createMcpServer(): Server {
               { relationships: relations },
               relations.length > 0 ? JSON.stringify(relations, null, 2) : 'No relations found'
             )
+
+          case 'listRelationshipPatterns': {
+            const patterns = await listRelationshipPatterns()
+            return toolResult(
+              patterns,
+              patterns.patterns.length > 0 ?
+                JSON.stringify(patterns, null, 2)
+              : 'No relationship patterns found.'
+            )
+          }
+
+          case 'analyzeRelationshipPatterns': {
+            const analysis = await analyzeRelationshipPatterns()
+            return toolResult(analysis, 'Relationship pattern analysis queued.')
+          }
+
+          case 'approveRelationshipPattern': {
+            const pattern = await approveRelationshipPattern({ id: args.id as string })
+            return toolResult(
+              { pattern: pattern ?? null },
+              pattern ? JSON.stringify(pattern, null, 2) : 'Relationship pattern not found.'
+            )
+          }
+
+          case 'ignoreRelationshipPattern': {
+            const pattern = await ignoreRelationshipPattern({ id: args.id as string })
+            return toolResult(
+              { pattern: pattern ?? null },
+              pattern ? JSON.stringify(pattern, null, 2) : 'Relationship pattern not found.'
+            )
+          }
+
+          case 'deleteRelationshipPattern': {
+            const deletePatternResult = await deleteRelationshipPattern({
+              id: args.id as string,
+              deleteExisting: args.deleteExisting as boolean | undefined
+            })
+            return toolResult(deletePatternResult, 'Relationship pattern deleted.')
+          }
 
           case 'bulkCreateRecords':
             const bulkCreateResult = await bulkCreateRecords({

@@ -1,0 +1,95 @@
+{{- if .Values.neo4j.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rushdb.neo4j.fullname" . }}
+  labels:
+    {{- include "rushdb.neo4j.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "rushdb.neo4j.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate   # single-instance; Recreate avoids two pods competing for the PVC
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.neo4j.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "rushdb.neo4j.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.neo4j.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.neo4j.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.neo4j.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.neo4j.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: neo4j
+          image: "{{ .Values.neo4j.image.repository }}:{{ .Values.neo4j.image.tag }}"
+          imagePullPolicy: {{ .Values.neo4j.image.pullPolicy }}
+          ports:
+            - name: bolt
+              containerPort: {{ .Values.neo4j.service.boltPort }}
+              protocol: TCP
+            - name: http
+              containerPort: {{ .Values.neo4j.service.httpPort }}
+              protocol: TCP
+          env:
+            - name: NEO4J_PLUGINS
+              value: {{ .Values.neo4j.plugins | quote }}
+            - name: NEO4J_dbms_security_procedures_unrestricted
+              value: "apoc.*"
+            - name: NEO4J_dbms_security_procedures_allowlist
+              value: "apoc.*"
+            {{- range $key, $val := .Values.neo4j.extraEnv }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ include "rushdb.neo4j.fullname" . }}
+          {{- with .Values.neo4j.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.neo4j.resources | nindent 12 }}
+          livenessProbe:
+            tcpSocket:
+              port: bolt
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 5
+          readinessProbe:
+            tcpSocket:
+              port: bolt
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
+          {{- if .Values.neo4j.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+      {{- if .Values.neo4j.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "rushdb.neo4j.fullname" . }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,211 @@
+---
+slug: /build/reliability/transactions
+sidebar_position: 1
+title: Transactions
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Transactions
+
+Group multiple write operations into an atomic unit — all succeed together or all roll back together.
+
+---
+
+## Basic Pattern
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+The idiomatic approach uses the context manager — auto-commits on success, auto-rolls back on exception:
+
+```python
+# Context manager (recommended)
+with db.tx.begin() as tx:
+    leo = db.records.create(label="ACTOR", data={"name": "Leonardo DiCaprio"}, transaction=tx)
+    inception = db.records.create(label="MOVIE", data={"title": "Inception"}, transaction=tx)
+    db.records.attach(source=leo, target=inception, options={"type": "ACTED_IN"}, transaction=tx)
+# committed automatically — no explicit commit() needed
+```
+
+Or manually for more control:
+
+```python
+tx = db.tx.begin()
+try:
+    movie = db.records.create(label="MOVIE", data={"title": "Inception"}, transaction=tx)
+    actor = db.records.create(label="ACTOR", data={"name": "Leonardo DiCaprio"}, transaction=tx)
+    db.records.attach(source=movie, target=actor, options={"type": "STARS_IN"}, transaction=tx)
+    tx.commit()
+except Exception:
+    tx.rollback()
+    raise
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const tx = await db.tx.begin()
+// optional: db.tx.begin({ ttl: 10_000 })
+
+try {
+  const movie = await db.records.create({ label: 'MOVIE', data: { title: 'Dune', rating: 8.0 } }, tx)
+
+  const actor = await db.records.create({ label: 'ACTOR', data: { name: 'Timothée Chalamet' } }, tx)
+
+  await db.records.attach({ source: movie, target: actor, options: { type: 'STARS' } }, tx)
+
+  await tx.commit() // or: await db.tx.commit(tx)
+} catch (e) {
+  await tx.rollback() // or: await db.tx.rollback(tx)
+  throw e
+}
+```
+
+Pass `tx` as the **last argument** to any record or relationship method.
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+Use `X-Transaction-Id` header on any write endpoint:
+
+```bash
+# 1. Begin
+TX_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/tx \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": 10000}' | jq -r '.data.id')
+
+# 2. Create records
+MOVIE_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"label": "MOVIE", "data": {"title": "Inception"}, "options": {"returnResult": true}}' | jq -r '.data.__id')
+
+ACTOR_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"label": "ACTOR", "data": {"name": "Leonardo DiCaprio"}, "options": {"returnResult": true}}' | jq -r '.data.__id')
+
+# 3. Link
+curl -X POST https://api.rushdb.com/api/v1/records/$MOVIE_ID/relationships \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"targetIds": "'$ACTOR_ID'", "type": "STARS_IN"}'
+
+# 4. Commit
+curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## API Reference
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+| Method                         | Description                                             |
+| ------------------------------ | ------------------------------------------------------- |
+| `db.tx.begin(ttl?)` as ctx mgr | Start transaction, auto-commit/rollback on scope exit   |
+| `db.tx.begin(ttl?)`            | Start a new transaction; returns a `Transaction` object |
+| `tx.commit()`                  | Persist all operations                                  |
+| `tx.rollback()`                | Discard all operations                                  |
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+| Method                  | Description                                                  |
+| ----------------------- | ------------------------------------------------------------ |
+| `db.tx.begin({ ttl? })` | Start a transaction. Returns a `Transaction` with `.id`      |
+| `db.tx.get(tx)`         | Check if a transaction still exists (returns 404 if expired) |
+| `db.tx.commit(tx)`      | Commit — makes all changes permanent                         |
+| `db.tx.rollback(tx)`    | Rollback — discards all changes                              |
+| `tx.commit()`           | Shorthand on the transaction object itself                   |
+| `tx.rollback()`         | Shorthand on the transaction object itself                   |
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+| Endpoint                         | Description                          |
+| -------------------------------- | ------------------------------------ |
+| `POST /api/v1/tx`                | Begin transaction. Returns `{ id }`  |
+| `GET /api/v1/tx/:txId`           | Check if transaction still exists    |
+| `POST /api/v1/tx/:txId/commit`   | Commit — makes all changes permanent |
+| `POST /api/v1/tx/:txId/rollback` | Rollback — discards all changes      |
+
+Add `X-Transaction-Id: $TX_ID` to any create, update, delete, or relationship request.
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Timeouts
+
+Uncommitted transactions are automatically rolled back after the TTL expires.
+
+| Parameter   | Value       |
+| ----------- | ----------- |
+| Default TTL | `5 000` ms  |
+| Maximum TTL | `30 000` ms |
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+tx = db.tx.begin(ttl=15000)   # 15 s timeout
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const tx = await db.tx.begin({ ttl: 15_000 }) // 15 s timeout
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/tx \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": 15000}'
+```
+
+| Field | Type     | Description                              |
+| ----- | -------- | ---------------------------------------- |
+| `ttl` | `number` | TTL in ms. Default: `5000`. Max: `30000` |
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Supported Operations
+
+All record and relationship write operations support transactions:
+
+| Category      | Operations                                                                                            |
+| ------------- | ----------------------------------------------------------------------------------------------------- |
+| Records       | `create` / `create_many` / `createMany` · `update` · `set` · `delete` / `delete_by_id` / `deleteById` |
+| Relationships | `attach` / `detach`                                                                                   |
+| Reads         | `find` (within transaction — reads your uncommitted writes)                                           |
+
+---
+
+## See also
+
+- [Store Records](/build/data/store-records) — in-transaction create, update, delete examples
+- [Connect Records](/build/graph/connect-records) — in-transaction attach, detach examples
+- [Find & Query](/build/data/find-and-query) — in-transaction read examples
+- [TypeScript Transaction type](/reference/typescript/Transaction)

@@ -108,10 +108,15 @@ The agent calls `FindRelationships` to traverse the graph of connected records.
 
 ### Relationships
 
-| Tool             | What it does                              |
-| ---------------- | ----------------------------------------- |
-| `AttachRelation` | Create a relationship between two records |
-| `DetachRelation` | Remove a relationship                     |
+| Tool                          | What it does                                                         |
+| ----------------------------- | -------------------------------------------------------------------- |
+| `AttachRelation`              | Create a relationship between two records                            |
+| `DetachRelation`              | Remove a relationship                                                |
+| `ListRelationshipPatterns`    | List inferred relationship patterns and analysis status              |
+| `AnalyzeRelationshipPatterns` | Queue ontology analysis for relationship suggestions                 |
+| `ApproveRelationshipPattern`  | Approve and apply a suggested pattern                                |
+| `IgnoreRelationshipPattern`   | Ignore a suggested pattern                                           |
+| `DeleteRelationshipPattern`   | Delete a saved pattern and optionally its materialized relationships |
 
 ### Utilities
 

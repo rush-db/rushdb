@@ -2,6 +2,7 @@
 title: Quick Start
 description: The fastest path to RushDB — pick your preferred tool.
 sidebar_position: 1
+displayed_sidebar: docs
 ---
 
 # Quick Start
@@ -15,7 +16,7 @@ RushDB is a graph database built for agents and structured data. Pick the path t
 | [Skills](#copilot-skills)   | Any MCP-capable agent in VS Code | ~2 min |
 | [SDK / REST](#sdk)          | Custom apps and pipelines        | ~5 min |
 
-Need an API key first? → [Get API Key](./get-api-key)
+Need an API key first? → [Get API Key](/deploy/get-api-key)
 
 ---
 
@@ -39,7 +40,7 @@ Then verify the connection:
 
 > "Call getOntologyMarkdown and show me what's in my RushDB project."
 
-→ [Full MCP client list and options](../mcp-server/quickstart)
+→ [Full MCP client list and options](/connect/mcp)
 
 ---
 
@@ -108,12 +109,13 @@ Install the RushDB skills to give your agent structured domain knowledge — so 
 
 Compatible with Claude, GitHub Copilot, Cursor, Windsurf, and any [Agent Skills](https://agentskills.io/)-compatible client.
 
-| Skill                   | What it enables                                                  |
-| ----------------------- | ---------------------------------------------------------------- |
-| `rushdb-agent-memory`   | Store sessions, decisions, and context; recall by meaning        |
-| `rushdb-query-builder`  | Build `findRecords` filters, aggregations, and semantic searches |
-| `rushdb-data-modeling`  | Design labels, properties, relationships, and nested schemas     |
-| `rushdb-faceted-search` | Build faceted filter UIs from property metadata                  |
+| Skill                    | What it enables                                                  |
+| ------------------------ | ---------------------------------------------------------------- |
+| `rushdb-agent-memory`    | Store sessions, decisions, and context; recall by meaning        |
+| `rushdb-query-builder`   | Build `findRecords` filters, aggregations, and semantic searches |
+| `rushdb-data-modeling`   | Design labels, properties, relationships, and nested schemas     |
+| `rushdb-faceted-search`  | Build faceted filter UIs from property metadata                  |
+| `rushdb-domain-template` | Design a schema for any domain through guided conversation       |
 
 **Install:**
 
@@ -195,7 +197,7 @@ curl -X POST "https://api.rushdb.com/api/v1/records/import/json" \
   </TabItem>
 </Tabs>
 
-→ [TypeScript SDK](../typescript-sdk/introduction) · [Python SDK](../python-sdk/introduction) · [REST API](../rest-api/introduction)
+→ [TypeScript SDK](/reference/typescript) · [Python SDK](/reference/python) · [REST API](../rest-api/introduction)
 
 ---
 
@@ -220,4 +222,4 @@ Three ideas explain how RushDB works:
 - **Labels** — the record's type (`SESSION`, `DECISION`, `ARTICLE`). You define them by pushing data.
 - **Relationships** — named, directed edges between records. Auto-created from nested JSON.
 
-→ [Data model overview](../concepts/data-ingestion.mdx) · [Relationships](../concepts/relationships.mdx) · [Search](../concepts/search/introduction.md)
+→ [Data model overview](/build/data/import-data) · [Relationships](/build/graph) · [Search](/reference/search-query)

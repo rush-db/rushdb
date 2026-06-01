@@ -4,6 +4,8 @@ import tailwindPlugin from './plugins/tailwind-config.cjs'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 
+const CopyWebpackPlugin = require('copy-webpack-plugin')
+
 // Helper function to generate categorized content files
 async function generateCategorizedContentFiles(
   llmsDir: string,
@@ -13,30 +15,24 @@ async function generateCategorizedContentFiles(
 ) {
   // Create mapping from file content to routes to categorize the full content
   const categories = {
-    concepts: [] as string[],
-    'typescript-sdk': [] as string[],
-    'python-sdk': [] as string[],
-    'rest-api': [] as string[],
-    'mcp-server': [] as string[],
-    tutorials: [] as string[],
+    learn: [] as string[],
+    connect: [] as string[],
+    deploy: [] as string[],
+    'rushdb-cloud': [] as string[],
     'get-started': [] as string[]
   }
 
   // Group content by file paths directly
   for (const [filePath, content] of filePathToContent.entries()) {
     // Categorize by file path prefix
-    if (filePath.startsWith('concepts/')) {
-      categories.concepts.push(content)
-    } else if (filePath.startsWith('typescript-sdk/')) {
-      categories['typescript-sdk'].push(content)
-    } else if (filePath.startsWith('python-sdk/')) {
-      categories['python-sdk'].push(content)
-    } else if (filePath.startsWith('rest-api/')) {
-      categories['rest-api'].push(content)
-    } else if (filePath.startsWith('mcp-server/')) {
-      categories['mcp-server'].push(content)
-    } else if (filePath.startsWith('tutorials/')) {
-      categories.tutorials.push(content)
+    if (filePath.startsWith('learn/')) {
+      categories.learn.push(content)
+    } else if (filePath.startsWith('connect/')) {
+      categories.connect.push(content)
+    } else if (filePath.startsWith('deploy/')) {
+      categories.deploy.push(content)
+    } else if (filePath.startsWith('rushdb-cloud/')) {
+      categories['rushdb-cloud'].push(content)
     } else if (filePath.startsWith('get-started/')) {
       categories['get-started'].push(content)
     }
@@ -162,6 +158,10 @@ const config: Config = {
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
 
+  // Serve raw .mdx/.md source files at their natural paths (e.g. /deploy/infra-neo4j.mdx)
+  // so CopyPageButton can fetch content locally without depending on GitHub raw.
+  staticDirectories: ['static', 'docs'],
+
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
 
@@ -176,25 +176,135 @@ const config: Config = {
   plugins: [
     tailwindPlugin,
     require('./plugins/tutorials-data.cjs'),
+    async function pluginRawDocs(context) {
+      return {
+        name: 'raw-docs-plugin',
+        configureWebpack(_config, isServer) {
+          if (isServer) return {}
+
+          return {
+            plugins: [
+              new CopyWebpackPlugin({
+                patterns: [
+                  {
+                    from: path.join(context.siteDir, 'docs'),
+                    to: 'raw-docs',
+                    globOptions: {
+                      ignore: ['**/_category_.json']
+                    }
+                  }
+                ]
+              })
+            ]
+          }
+        }
+      }
+    },
     [
       '@docusaurus/plugin-client-redirects',
       {
         redirects: [
-          // Old basic-concepts/ → concepts/
-          { from: '/basic-concepts/properties', to: '/concepts/properties' },
-          { from: '/basic-concepts/records', to: '/concepts/records' },
-          { from: '/basic-concepts/relations', to: '/concepts/relationships' },
-          { from: '/basic-concepts/transactions', to: '/concepts/transactions' },
-          // Old advanced/ → concepts/
-          { from: '/advanced/properties', to: '/concepts/properties' },
-          { from: '/advanced/data-types', to: '/concepts/properties' },
-          { from: '/advanced/records', to: '/concepts/records' },
-          { from: '/advanced/relationships', to: '/concepts/relationships' },
-          { from: '/advanced/querying-data', to: '/concepts/search/introduction' },
-          { from: '/advanced/search-aggregation', to: '/concepts/search/introduction' },
-          { from: '/advanced/enhanced-typescript', to: '/typescript-sdk/introduction' },
-          // Old python-sdk/records-api → python-sdk/records/
-          { from: '/python-sdk/records-api', to: '/python-sdk/records/create-records' }
+          { from: '/', to: '/get-started/quick-tutorial' },
+          // Legacy concepts now live in the curated Learn sections.
+          { from: '/basic-concepts/properties', to: '/build/schema/labels-and-properties' },
+          { from: '/basic-concepts/records', to: '/build/data/store-records' },
+          { from: '/basic-concepts/relations', to: '/build/graph/' },
+          { from: '/basic-concepts/transactions', to: '/build/reliability/transactions' },
+          { from: '/advanced/properties', to: '/build/schema/labels-and-properties' },
+          { from: '/advanced/data-types', to: '/build/data/labeled-meta-property-graph' },
+          { from: '/advanced/records', to: '/build/data/store-records' },
+          { from: '/advanced/relationships', to: '/build/graph/' },
+          { from: '/advanced/querying-data', to: '/reference/search-query' },
+          { from: '/advanced/search-aggregation', to: '/reference/select-expressions' },
+          { from: '/advanced/enhanced-typescript', to: '/reference/typescript/' },
+          { from: '/concepts', to: '/build/data/labeled-meta-property-graph' },
+          { from: '/concepts/bring-your-own-vectors', to: '/build/ai-search/bring-your-own-vectors' },
+          { from: '/concepts/data-ingestion', to: '/build/data/import-data' },
+          { from: '/concepts/labels', to: '/build/schema/labels-and-properties' },
+          { from: '/concepts/properties', to: '/build/schema/labels-and-properties' },
+          { from: '/concepts/records', to: '/build/data/store-records' },
+          { from: '/concepts/relationships', to: '/build/graph/' },
+          { from: '/concepts/search', to: '/reference/search-query' },
+          { from: '/concepts/search/introduction', to: '/reference/search-query' },
+          { from: '/concepts/search/labels', to: '/reference/search-labels' },
+          { from: '/concepts/search/pagination-order', to: '/reference/pagination-order' },
+          { from: '/concepts/search/select', to: '/reference/select-expressions' },
+          { from: '/concepts/search/group-by', to: '/reference/group-by' },
+          { from: '/concepts/search/where', to: '/reference/where-operators' },
+          { from: '/concepts/semantic-search', to: '/build/ai-search/semantic-search' },
+          { from: '/concepts/storage', to: '/build/data/labeled-meta-property-graph' },
+          { from: '/concepts/transactions', to: '/build/reliability/transactions' },
+          { from: '/concepts/billing-model', to: '/cloud/billing-model' },
+          { from: '/concepts/knowledge-units', to: '/cloud/knowledge-units' },
+          { from: '/pricing-and-billing/billing-model', to: '/cloud/billing-model' },
+          { from: '/pricing-and-billing/knowledge-units', to: '/cloud/knowledge-units' },
+          { from: '/build/models', to: '/reference/typescript/Model' },
+          { from: '/deploy/local-setup', to: '/deploy/local-docker' },
+          { from: '/deploy/dashboard-configuration', to: '/deploy/get-api-key' },
+          { from: '/get-started/get-api-key', to: '/deploy/get-api-key' },
+          // Moved deployment tutorials.
+          { from: '/tutorials/configuring-dashboard', to: '/deploy/get-api-key' },
+          { from: '/tutorials/connect-aura-instance', to: '/deploy/connect-aura' },
+          { from: '/tutorials/deployment', to: '/deploy/docker-remote' },
+          { from: '/tutorials/local-setup', to: '/deploy/local-docker' },
+          { from: '/tutorials/mcp-operator-quickstart', to: '/deploy/mcp-operator-quickstart' },
+          { from: '/tutorials/self-hosted-project-setup', to: '/deploy/self-hosted-project-setup' },
+          // The standalone MCP guide has been consolidated into Connect.
+          { from: '/mcp-server/introduction', to: '/connect/mcp' },
+          { from: '/mcp-server/quickstart', to: '/connect/mcp' },
+          { from: '/mcp-server/configuration', to: '/connect/mcp' },
+          { from: '/mcp-server/tools', to: '/connect/mcp' },
+          { from: '/mcp-server/examples', to: '/connect/mcp' },
+          { from: '/mcp-server/troubleshooting', to: '/connect/mcp' },
+          // SDK guides are represented by Learn workflows and generated references.
+          { from: '/typescript-sdk/introduction', to: '/reference/typescript/' },
+          { from: '/typescript-sdk/labels', to: '/build/schema/labels-and-properties' },
+          { from: '/typescript-sdk/properties', to: '/build/schema/labels-and-properties' },
+          { from: '/typescript-sdk/models', to: '/reference/typescript/Model' },
+          { from: '/typescript-sdk/raw-queries', to: '/build/raw-queries' },
+          { from: '/typescript-sdk/relationships', to: '/build/graph/connect-records' },
+          { from: '/typescript-sdk/transactions', to: '/build/reliability/transactions' },
+          { from: '/typescript-sdk/records/create-records', to: '/build/data/store-records' },
+          { from: '/typescript-sdk/records/get-records', to: '/build/data/find-and-query' },
+          { from: '/typescript-sdk/records/update-records', to: '/build/data/store-records' },
+          { from: '/typescript-sdk/records/delete-records', to: '/build/data/store-records' },
+          { from: '/typescript-sdk/records/import-data', to: '/build/data/import-data' },
+          { from: '/typescript-sdk/ai/overview', to: '/build/ai-search/semantic-search' },
+          { from: '/typescript-sdk/ai/indexing', to: '/build/ai-search/manage-indexes' },
+          { from: '/typescript-sdk/ai/advanced-indexing', to: '/build/ai-search/bring-your-own-vectors' },
+          { from: '/typescript-sdk/ai/search', to: '/build/ai-search/semantic-search' },
+          { from: '/typescript-sdk/ai/write-with-vectors', to: '/build/ai-search/write-with-vectors' },
+          { from: '/typescript-sdk/typescript-reference/DBRecord', to: '/reference/typescript/DBRecord' },
+          { from: '/typescript-sdk/typescript-reference/DBRecordInstance', to: '/reference/typescript/DBRecordInstance' },
+          { from: '/typescript-sdk/typescript-reference/DBRecordTarget', to: '/reference/typescript/DBRecordTarget' },
+          { from: '/typescript-sdk/typescript-reference/DBRecordsArrayInstance', to: '/reference/typescript/DBRecordsArrayInstance' },
+          { from: '/typescript-sdk/typescript-reference/Model', to: '/reference/typescript/Model' },
+          { from: '/typescript-sdk/typescript-reference/RelationTarget', to: '/reference/typescript/RelationTarget' },
+          { from: '/typescript-sdk/typescript-reference/RushDB', to: '/reference/typescript/RushDB' },
+          { from: '/typescript-sdk/typescript-reference/SearchQuery', to: '/reference/typescript/SearchQuery' },
+          { from: '/typescript-sdk/typescript-reference/Transaction', to: '/reference/typescript/Transaction' },
+          { from: '/python-sdk/introduction', to: '/reference/python/' },
+          { from: '/python-sdk/labels', to: '/build/schema/labels-and-properties' },
+          { from: '/python-sdk/properties', to: '/build/schema/labels-and-properties' },
+          { from: '/python-sdk/raw-queries', to: '/build/raw-queries' },
+          { from: '/python-sdk/relationships', to: '/build/graph/connect-records' },
+          { from: '/python-sdk/transactions', to: '/build/reliability/transactions' },
+          { from: '/python-sdk/records-api', to: '/build/data/store-records' },
+          { from: '/python-sdk/records/create-records', to: '/build/data/store-records' },
+          { from: '/python-sdk/records/get-records', to: '/build/data/find-and-query' },
+          { from: '/python-sdk/records/update-records', to: '/build/data/store-records' },
+          { from: '/python-sdk/records/delete-records', to: '/build/data/store-records' },
+          { from: '/python-sdk/records/import-data', to: '/build/data/import-data' },
+          { from: '/python-sdk/ai/overview', to: '/build/ai-search/semantic-search' },
+          { from: '/python-sdk/ai/indexing', to: '/build/ai-search/manage-indexes' },
+          { from: '/python-sdk/ai/advanced-indexing', to: '/build/ai-search/bring-your-own-vectors' },
+          { from: '/python-sdk/ai/search', to: '/build/ai-search/semantic-search' },
+          { from: '/python-sdk/ai/write-with-vectors', to: '/build/ai-search/write-with-vectors' },
+          { from: '/python-sdk/python-reference/record', to: '/reference/python/record' },
+          { from: '/python-sdk/python-reference/RushDB', to: '/reference/python/RushDB' },
+          { from: '/python-sdk/python-reference/search-result', to: '/reference/python/search-result' },
+          { from: '/python-sdk/python-reference/SearchQuery', to: '/reference/python/SearchQuery' },
+          { from: '/python-sdk/python-reference/transaction', to: '/reference/python/transaction' }
         ]
       }
     ],
@@ -268,13 +378,35 @@ const config: Config = {
 
           // Categorize docs by section
           const categories = {
-            concepts: [] as string[],
-            'typescript-sdk': [] as string[],
-            'python-sdk': [] as string[],
-            'rest-api': [] as string[],
-            'mcp-server': [] as string[],
-            tutorials: [] as string[],
+            learn: [] as string[],
+            connect: [] as string[],
+            deploy: [] as string[],
+            'rushdb-cloud': [] as string[],
             'get-started': [] as string[]
+          }
+
+          const docPermalinks = new Map<string, string>()
+          try {
+            const globalDataPath = path.join(context.generatedFilesDir, 'globalData.json')
+            const globalData = JSON.parse(await fs.promises.readFile(globalDataPath, 'utf8')) as {
+              'docusaurus-plugin-content-docs'?: {
+                default?: {
+                  versions?: Array<{
+                    name?: string
+                    docs?: Array<{ id?: string; path?: string }>
+                  }>
+                }
+              }
+            }
+            const versions = globalData['docusaurus-plugin-content-docs']?.default?.versions ?? []
+            const currentVersion = versions.find((version) => version.name === 'current') ?? versions[0]
+            currentVersion?.docs?.forEach((doc) => {
+              if (doc.id && doc.path) {
+                docPermalinks.set(doc.id, doc.path)
+              }
+            })
+          } catch (err) {
+            console.warn('Unable to load Docusaurus permalinks for llms.txt; falling back to doc IDs.', err)
           }
 
           // Group all docs records by category and prepare content maps
@@ -282,22 +414,19 @@ const config: Config = {
           const docsRecords: string[] = []
 
           Object.entries(currentVersionDocsRoutes).forEach(([path, record]) => {
-            const docEntry = `- [${record.title}](https://docs.rushdb.com/${path}): ${record.description}`
+            const permalink = docPermalinks.get(path) ?? `/${path}`
+            const docEntry = `- [${record.title}](https://docs.rushdb.com${permalink}): ${record.description}`
             docsRecords.push(docEntry)
 
             // Categorize by path prefix
-            if (path.startsWith('concepts/')) {
-              categories.concepts.push(docEntry)
-            } else if (path.startsWith('typescript-sdk/')) {
-              categories['typescript-sdk'].push(docEntry)
-            } else if (path.startsWith('python-sdk/')) {
-              categories['python-sdk'].push(docEntry)
-            } else if (path.startsWith('rest-api/')) {
-              categories['rest-api'].push(docEntry)
-            } else if (path.startsWith('mcp-server/')) {
-              categories['mcp-server'].push(docEntry)
-            } else if (path.startsWith('tutorials/')) {
-              categories.tutorials.push(docEntry)
+            if (path.startsWith('learn/')) {
+              categories.learn.push(docEntry)
+            } else if (path.startsWith('connect/')) {
+              categories.connect.push(docEntry)
+            } else if (path.startsWith('deploy/')) {
+              categories.deploy.push(docEntry)
+            } else if (path.startsWith('rushdb-cloud/')) {
+              categories['rushdb-cloud'].push(docEntry)
             } else if (path.startsWith('get-started/')) {
               categories['get-started'].push(docEntry)
             }
@@ -315,12 +444,15 @@ const config: Config = {
           // Generate isolated txt files for each category
           for (const [categoryName, categoryDocs] of Object.entries(categories)) {
             if (categoryDocs.length > 0) {
-              const categoryTitle = categoryName
-                .split('-')
-                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                .join(' ')
+              const categoryTitle =
+                categoryName === 'rushdb-cloud'
+                  ? 'RushDB Cloud'
+                  : `RushDB ${categoryName
+                      .split('-')
+                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(' ')}`
 
-              const categoryTxt = `# RushDB ${categoryTitle}\n\n${categoryDocs.join('\n')}`
+              const categoryTxt = `# ${categoryTitle}\n\n${categoryDocs.join('\n')}`
               const categoryPath = path.join(llmsDir, `llms-${categoryName}.txt`)
 
               try {
@@ -378,46 +510,17 @@ const config: Config = {
       },
       image: 'img/og.png',
       navbar: {
-        title: 'rushdb docs',
+        title: 'docs',
         logo: {
           alt: 'RushDB Logo',
           src: 'img/logo.svg'
         },
         items: [
           {
-            label: 'Python SDK',
-            to: '/python-sdk/introduction',
-            className: 'python-sdk',
+            label: 'Learn',
+            to: '/build/data/',
             position: 'left',
-            activeBaseRegex: '/python-sdk/'
-          },
-          {
-            label: 'TypeScript SDK',
-            to: '/typescript-sdk/introduction',
-            className: 'typescript-sdk',
-            position: 'left',
-            activeBaseRegex: '/typescript-sdk/'
-          },
-          {
-            label: 'REST API',
-            to: '/rest-api/introduction',
-            className: 'rest-api',
-            position: 'left',
-            activeBaseRegex: '/rest-api/'
-          },
-          {
-            label: 'MCP Server',
-            to: '/mcp-server/introduction',
-            className: 'mcp-server',
-            position: 'left',
-            activeBaseRegex: '/mcp-server/'
-          },
-          {
-            type: 'docSidebar',
-            sidebarId: 'tutorials',
-            label: 'Tutorials',
-            position: 'left',
-            className: 'tutorials-link'
+            activeBaseRegex: '/(build|connect|deploy|reference|rest-api|tutorials)/'
           },
           {
             href: 'https://github.com/rush-db/rushdb',
@@ -438,63 +541,6 @@ const config: Config = {
             className: 'cta-button'
           }
         ]
-      },
-      footer: {
-        links: [
-          {
-            title: 'Documentation',
-            items: [
-              {
-                label: 'Getting Started',
-                to: '/get-started/quick-tutorial'
-              },
-              {
-                label: 'Basic Concepts',
-                to: '/concepts/records'
-              }
-            ]
-          },
-          {
-            title: 'APIs & Integrations',
-            items: [
-              {
-                label: 'REST API',
-                to: '/rest-api/introduction'
-              },
-              {
-                label: 'Python SDK',
-                to: '/python-sdk/introduction'
-              },
-              {
-                label: 'TypeScript SDK',
-                to: '/typescript-sdk/introduction'
-              },
-              {
-                label: 'MCP Server',
-                to: '/mcp-server/introduction'
-              }
-            ]
-          },
-          {
-            title: 'Community',
-            items: [
-              {
-                label: 'X (Twitter)',
-                href: 'https://x.com/RushDatabase'
-              },
-              {
-                label: 'LinkedIn',
-                href: 'https://www.linkedin.com/company/rushdb'
-              },
-              {
-                label: 'GitHub',
-                href: 'https://github.com/rush-db/rushdb'
-              }
-            ],
-            className: 'text-right'
-          }
-        ],
-        copyright: `© ${new Date().getFullYear()}, Collect Software Inc.`
       },
       prism: {
         theme: lightCodeTheme,

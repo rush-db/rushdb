@@ -1,0 +1,46 @@
+---
+slug: /reference/mcp/
+sidebar_position: 0
+title: MCP Server
+---
+
+# MCP Server Reference
+
+RushDB exposes a Model Context Protocol server for agents that need to discover, query, mutate, and traverse a project graph. Each tool publishes its input and output JSON schemas to the connected MCP client.
+
+Use [Connect with MCP](/connect/mcp) for hosted OAuth and local `npx` setup instructions.
+
+## Endpoint
+
+Hosted MCP clients connect to:
+
+```text
+https://mcp.rushdb.com/mcp
+```
+
+Local MCP clients run:
+
+```bash
+npx -y @rushdb/mcp-server
+```
+
+## Start Here
+
+The server exposes a discovery-first workflow:
+
+1. Call `getOntologyMarkdown` once at the start of a session.
+2. Call `getSearchQuerySpec` before building queries with dates, metrics, `groupBy`, relationship traversal, or vectors.
+3. Use exact label and property names returned by discovery tools.
+4. Preview and confirm destructive operations before calling them.
+
+## Reference
+
+| Page                                                               | Description                                                   |
+| ------------------------------------------------------------------ | ------------------------------------------------------------- |
+| [All MCP Tools](/reference/mcp/tools)                              | Complete catalog of all 37 tools, grouped by task             |
+| [MCP Setup](/connect/mcp)                                          | Hosted OAuth, local client configuration, and troubleshooting |
+| [Suggested Relationship Patterns](/build/graph/suggested-patterns) | Review and apply inferred relationship structures             |
+
+## Prompt
+
+Clients with MCP Prompts support can fetch `rushdb.queryBuilder`. Clients without prompt support can call `getQueryBuilderPrompt` to retrieve the same discovery-first instructions.

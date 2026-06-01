@@ -27,6 +27,11 @@ export type ToolName =
   | 'attachRelation'
   | 'detachRelation'
   | 'findRelationships'
+  | 'listRelationshipPatterns'
+  | 'analyzeRelationshipPatterns'
+  | 'approveRelationshipPattern'
+  | 'ignoreRelationshipPattern'
+  | 'deleteRelationshipPattern'
   | 'bulkCreateRecords'
   | 'bulkDeleteRecords'
   | 'exportRecords'
@@ -117,6 +122,98 @@ const EMBEDDING_INDEX_SCHEMA: Schema = {
     updatedAt: { type: 'string' }
   },
   additionalProperties: true
+}
+
+const RELATIONSHIP_PATTERN_ENDPOINT_SCHEMA: Schema = {
+  type: 'object',
+  properties: {
+    label: { type: 'string' },
+    key: { type: 'string' },
+    where: { type: 'object', additionalProperties: true }
+  },
+  required: ['label'],
+  additionalProperties: false
+}
+
+const RELATIONSHIP_PATTERN_SCHEMA: Schema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    status: { type: 'string', enum: ['suggested', 'approved', 'ignored', 'error'] },
+    origin: { type: 'string', enum: ['llm', 'manual'] },
+    source: RELATIONSHIP_PATTERN_ENDPOINT_SCHEMA,
+    target: RELATIONSHIP_PATTERN_ENDPOINT_SCHEMA,
+    direction: { type: 'string', enum: ['in', 'out'] },
+    type: { type: 'string' },
+    mode: { type: 'string', enum: ['join_pattern', 'retype_existing_relationship'] },
+    confidence: { type: 'number' },
+    rationale: { type: 'string' },
+    sampleMatchCount: { type: 'number' },
+    lastAppliedAt: { type: 'string' },
+    lastAnalyzedAt: { type: 'string' },
+    lastError: { type: 'string' },
+    createdAt: { type: 'string' },
+    updatedAt: { type: 'string' }
+  },
+  required: [
+    'id',
+    'status',
+    'origin',
+    'source',
+    'target',
+    'direction',
+    'type',
+    'mode',
+    'confidence',
+    'createdAt',
+    'updatedAt'
+  ],
+  additionalProperties: false
+}
+
+const RELATIONSHIP_PATTERN_LIST_SCHEMA: Schema = {
+  type: 'object',
+  properties: {
+    patterns: { type: 'array', items: RELATIONSHIP_PATTERN_SCHEMA },
+    relationships: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          label: { type: 'string' },
+          relationships: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                label: { type: 'string' },
+                type: { type: 'string' },
+                direction: { type: 'string' }
+              },
+              required: ['label', 'type', 'direction'],
+              additionalProperties: false
+            }
+          }
+        },
+        required: ['label', 'relationships'],
+        additionalProperties: false
+      }
+    },
+    analysis: {
+      type: 'object',
+      properties: {
+        status: { type: 'string' },
+        requestedAt: { type: 'string' },
+        notBefore: { type: 'string' },
+        lastRunAt: { type: 'string' },
+        lastError: { type: 'string' }
+      },
+      required: ['status'],
+      additionalProperties: false
+    }
+  },
+  required: ['patterns', 'relationships'],
+  additionalProperties: false
 }
 
 const MESSAGE_SCHEMA: Schema = {
@@ -218,6 +315,31 @@ const outputSchemas = {
       }
     },
     required: ['relationships'],
+    additionalProperties: false
+  },
+  listRelationshipPatterns: RELATIONSHIP_PATTERN_LIST_SCHEMA,
+  analyzeRelationshipPatterns: {
+    type: 'object',
+    properties: { queued: { type: 'boolean' } },
+    required: ['queued'],
+    additionalProperties: false
+  },
+  approveRelationshipPattern: {
+    type: 'object',
+    properties: { pattern: { anyOf: [RELATIONSHIP_PATTERN_SCHEMA, { type: 'null' }] } },
+    required: ['pattern'],
+    additionalProperties: false
+  },
+  ignoreRelationshipPattern: {
+    type: 'object',
+    properties: { pattern: { anyOf: [RELATIONSHIP_PATTERN_SCHEMA, { type: 'null' }] } },
+    required: ['pattern'],
+    additionalProperties: false
+  },
+  deleteRelationshipPattern: {
+    type: 'object',
+    properties: { deleted: { type: 'boolean' } },
+    required: ['deleted'],
     additionalProperties: false
   },
   bulkCreateRecords: {
@@ -721,6 +843,74 @@ export const tools: Tool[] = (
           }
         },
         required: []
+      }
+    },
+    {
+      name: 'listRelationshipPatterns',
+      annotations: READ_ONLY,
+      securitySchemes: READ_SCHEMES,
+      description:
+        'List inferred relationship patterns for the current project. ' +
+        'Returns suggestions and their lifecycle status, current ontology relationship summaries, and the latest analysis status. ' +
+        'Use this before approving, ignoring, or deleting a relationship pattern.',
+      inputSchema: { type: 'object', properties: {}, required: [] }
+    },
+    {
+      name: 'analyzeRelationshipPatterns',
+      annotations: WRITE,
+      securitySchemes: WRITE_SCHEMES,
+      description:
+        'Queue ontology analysis to generate relationship pattern suggestions for the current project. ' +
+        'This may invoke the configured LLM. Poll listRelationshipPatterns to inspect completion status and suggestions.',
+      inputSchema: { type: 'object', properties: {}, required: [] }
+    },
+    {
+      name: 'approveRelationshipPattern',
+      annotations: WRITE,
+      securitySchemes: WRITE_SCHEMES,
+      description:
+        'Approve and apply a suggested relationship pattern. ' +
+        'Call listRelationshipPatterns first so the user can review the inferred source, target, direction, type, mode, and confidence.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'ID of the suggested relationship pattern to approve.' }
+        },
+        required: ['id']
+      }
+    },
+    {
+      name: 'ignoreRelationshipPattern',
+      annotations: WRITE,
+      securitySchemes: WRITE_SCHEMES,
+      description:
+        'Ignore a suggested relationship pattern without applying it. ' +
+        'Call listRelationshipPatterns first so the user can review the inferred pattern.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'ID of the suggested relationship pattern to ignore.' }
+        },
+        required: ['id']
+      }
+    },
+    {
+      name: 'deleteRelationshipPattern',
+      annotations: DESTROY,
+      securitySchemes: WRITE_SCHEMES,
+      description:
+        'Delete a saved relationship pattern. Irreversible. Confirm with the user before calling. ' +
+        'When deleteExisting is true, relationships previously materialized by this pattern are also removed.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'ID of the relationship pattern to delete.' },
+          deleteExisting: {
+            type: 'boolean',
+            description: 'Also remove relationships previously materialized by this pattern.'
+          }
+        },
+        required: ['id']
       }
     },
     {

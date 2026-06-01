@@ -1,0 +1,227 @@
+---
+slug: /build/graph/bulk-relationships
+sidebar_position: 2
+title: Bulk Relationships
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Bulk Relationships
+
+Connect or disconnect many records at once by matching on property keys. Useful after importing flat data from CSV, MongoDB exports, or external APIs where related records arrive separately with reference fields.
+
+---
+
+## Bulk Create by Key Match
+
+Connect records by matching a property on the source label to a property on the target label. All pairs where the values are equal are linked.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.relationships.create_many()`
+
+```python
+# MOVIE.directorId == DIRECTOR.id → create DIRECTED_BY
+db.relationships.create_many(
+    source={"label": "MOVIE",    "key": "directorId"},
+    target={"label": "DIRECTOR", "key": "id"},
+    type="DIRECTED_BY",
+    direction="out"
+)
+# Creates: (MOVIE) -[:DIRECTED_BY]-> (DIRECTOR) where MOVIE.directorId = DIRECTOR.id
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.relationships.createMany()`
+
+```typescript
+await db.relationships.createMany({
+  source: { label: 'MOVIE', key: 'directorId' },
+  target: { label: 'DIRECTOR', key: 'id' },
+  type: 'DIRECTED_BY',
+  direction: 'out'
+})
+// Creates: MOVIE -[:DIRECTED_BY]-> DIRECTOR where MOVIE.directorId = DIRECTOR.id
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/relationships/create-many`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/relationships/create-many \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": {"label": "MOVIE",    "key": "directorId"},
+    "target": {"label": "DIRECTOR", "key": "id"},
+    "type": "DIRECTED_BY",
+    "direction": "out"
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+### Parameters
+
+| Field        | Type                    | Description                                                                        |
+| ------------ | ----------------------- | ---------------------------------------------------------------------------------- |
+| `source`     | `{label, key?, where?}` | Source selector — label + key for equality join, or `where` for filter-based match |
+| `target`     | `{label, key?, where?}` | Target selector — same                                                             |
+| `type`       | `string`                | Relationship type to create                                                        |
+| `direction`  | `"in" \| "out"`         | Direction from source to target                                                    |
+| `manyToMany` | `boolean`               | Cartesian product mode (see below)                                                 |
+
+---
+
+## Bulk Delete by Key Match
+
+Same shape as `createMany`. Removes relationships where the key values match.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+db.relationships.delete_many(
+    source={"label": "MOVIE",    "key": "directorId"},
+    target={"label": "DIRECTOR", "key": "id"},
+    type="DIRECTED_BY",
+    direction="out"
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.relationships.deleteMany()`
+
+```typescript
+await db.relationships.deleteMany({
+  source: { label: 'MOVIE', key: 'directorId' },
+  target: { label: 'DIRECTOR', key: 'id' },
+  type: 'DIRECTED_BY',
+  direction: 'out'
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/relationships/delete-many`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/relationships/delete-many \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": {"label": "MOVIE",    "key": "directorId"},
+    "target": {"label": "DIRECTOR", "key": "id"},
+    "type": "DIRECTED_BY"
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Many-to-Many (Cartesian)
+
+Connect or disconnect **all** records matching source conditions with **all** records matching target conditions.
+
+:::warning
+This mode creates a cartesian product — all source × all target pairs are linked. It is **opt-in** and requires non-empty `where` filters on **both** sides to prevent accidental unbounded operations.
+:::
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+# Tag all sci-fi movies with all genre tags
+db.relationships.create_many(
+    source={"label": "MOVIE", "where": {"genre": "sci-fi"}},
+    target={"label": "TAG",   "where": {"category": "genre"}},
+    type="HAS_TAG",
+    many_to_many=True
+)
+```
+
+Delete example:
+
+```python
+# Remove HAS_TAG between all sci-fi movies and all genre tags
+db.relationships.delete_many(
+    source={"label": "MOVIE", "where": {"genre": "sci-fi"}},
+    target={"label": "TAG",   "where": {"category": "genre"}},
+    type="HAS_TAG",
+    many_to_many=True
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Create
+await db.relationships.createMany({
+  source: { label: 'MOVIE', where: { genre: 'sci-fi' } },
+  target: { label: 'TAG', where: { category: 'genre' } },
+  type: 'HAS_TAG',
+  manyToMany: true
+})
+
+// Delete
+await db.relationships.deleteMany({
+  source: { label: 'MOVIE', where: { genre: 'sci-fi' } },
+  target: { label: 'TAG', where: { category: 'genre' } },
+  type: 'HAS_TAG',
+  manyToMany: true
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+# Create
+curl -X POST https://api.rushdb.com/api/v1/relationships/create-many \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": {"label": "MOVIE", "where": {"genre": "sci-fi"}},
+    "target": {"label": "TAG",   "where": {"category": "genre"}},
+    "type": "HAS_TAG",
+    "manyToMany": true
+  }'
+
+# Delete
+curl -X POST https://api.rushdb.com/api/v1/relationships/delete-many \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": {"label": "MOVIE", "where": {"genre": "sci-fi"}},
+    "target": {"label": "TAG",   "where": {"category": "genre"}},
+    "type": "HAS_TAG",
+    "manyToMany": true
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+:::warning Both `source.where` and `target.where` must be non-empty when `manyToMany: true`.
+:::
+
+---
+
+## See also
+
+- [Connect Records](/build/graph/connect-records) — attach / detach individual record pairs
+- [Import Data](/build/data/import-data) — nested JSON auto-creates relationships on import
+- [Find & Query — Relationship Traversal](/build/data/find-and-query#relationship-traversal) — filter records via graph edges

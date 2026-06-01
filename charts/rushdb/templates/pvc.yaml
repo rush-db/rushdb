@@ -1,0 +1,17 @@
+{{- if and (eq .Values.rushdb.sqlDbType "sqlite") .Values.rushdb.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "rushdb.fullname" . }}
+  labels:
+    {{- include "rushdb.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.rushdb.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.rushdb.persistence.size }}
+  {{- if .Values.rushdb.persistence.storageClass }}
+  storageClassName: {{ .Values.rushdb.persistence.storageClass }}
+  {{- end }}
+{{- end }}

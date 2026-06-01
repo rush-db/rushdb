@@ -22,6 +22,7 @@
     "rushdb-agent-memory",
     "rushdb-data-modeling",
     "rushdb-faceted-search",
+    "rushdb-domain-template",
     "README.md"
   ],
   "repository": {

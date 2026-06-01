@@ -1,0 +1,272 @@
+---
+slug: /build/schema/labels-and-properties
+sidebar_position: 1
+title: Labels & Properties
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Labels & Properties
+
+RushDB is schema-free — labels and properties emerge automatically as you write records. These APIs let you inspect, enumerate, and manage your schema at runtime.
+
+---
+
+## Labels
+
+A **label** is a string tag applied to every record (e.g. `"Movie"`, `"User"`, `"Order"`). The labels API lets you discover which labels exist and how many records each has.
+
+### Find Labels
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.labels.find()`
+
+```python
+# All labels and their record counts
+result = db.labels.find({})
+# → [LabelResult(name='MOVIE', count=3), LabelResult(name='ACTOR', count=3), ...]
+
+# Labels that have records matching a condition
+result = db.labels.find({"where": {"rating": {"$gte": 8}}})
+# → [LabelResult(name='MOVIE', count=1)]
+```
+
+`db.labels.find()` accepts a standard [`where`](/reference/where-operators) clause. It returns all labels that have at least one record matching the condition.
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.labels.find()`
+
+```typescript
+// All labels
+const { data } = await db.labels.find()
+// { MOVIE: 84, ACTOR: 312, DIRECTOR: 47 }
+
+// Labels for records where rating > 8
+const { data } = await db.labels.find({
+  where: { rating: { $gt: 8 } }
+})
+// { MOVIE: 21 }
+```
+
+`find()` accepts the same `where`, `skip`, `limit` parameters as `db.records.find()`.
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/labels/search`
+
+```bash
+# All labels
+curl -X POST https://api.rushdb.com/api/v1/labels/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# Labels that have records matching a condition
+curl -X POST https://api.rushdb.com/api/v1/labels/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"where": {"rating": {"$gte": 8}}}'
+```
+
+Response: `{ [label]: count }` map.
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Properties
+
+A **property** is a field definition created automatically when you write a record with a new key. The properties API lets you inspect types, enumerate distinct values, and delete fields.
+
+### Find Properties
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.properties.find()`
+
+```python
+# All properties
+props = db.properties.find()
+
+# Filtered by type
+props = db.properties.find({
+    "where": {"type": "string"},
+    "limit": 20
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.properties.find()`
+
+```typescript
+const { data } = await db.properties.find({
+  where: { type: 'number' }
+})
+// [{ id, name: 'rating', type: 'number', ... }, ...]
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/properties/search`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/properties/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"where": {"type": "string"}}'
+```
+
+  </TabItem>
+</Tabs>
+
+### Find by ID
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.properties.find_by_id(property_id)`
+
+```python
+prop = db.properties.find_by_id("prop-123")
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.properties.findById(id)`
+
+```typescript
+const prop = await db.properties.findById('property-id')
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`GET /api/v1/properties/:propertyId`
+
+```bash
+curl https://api.rushdb.com/api/v1/properties/prop-123 \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
+```
+
+  </TabItem>
+</Tabs>
+
+### Get Property Values
+
+Enumerate distinct values for a property — useful for building filter UIs, autocomplete, or feeding into `db.ai.get_ontology()`.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.properties.values(property_id, search_query?)`
+
+```python
+values_data = db.properties.values(
+    property_id="prop-123",
+    search_query={
+        "query": "sci",    # filter values containing this text
+        "orderBy": "asc",
+        "limit": 100
+    }
+)
+
+print(values_data.get("values"))  # list of distinct values
+print(values_data.get("min"))     # numeric min (number/datetime props)
+print(values_data.get("max"))     # numeric max (number/datetime props)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.properties.values(propertyId, params?)`
+
+```typescript
+const { data: genres } = await db.properties.values('prop-id-genre')
+// ['sci-fi', 'action', 'drama', ...]
+
+// With filter
+const { data } = await db.properties.values('prop-id', {
+  query: 'sci', // text prefix filter
+  orderBy: 'asc',
+  limit: 10
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/properties/:propertyId/values`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/properties/prop-123/values \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "sci", "orderBy": "asc", "limit": 100}'
+```
+
+| Field     | Type              | Description                        |
+| --------- | ----------------- | ---------------------------------- |
+| `query`   | `string`          | Filter values containing this text |
+| `orderBy` | `"asc" \| "desc"` | Sort direction                     |
+| `skip`    | `number`          | Pagination offset                  |
+| `limit`   | `number`          | Max values to return               |
+
+  </TabItem>
+</Tabs>
+
+### Delete Property
+
+:::warning
+Deletes the property definition and removes it from **all records** that have it. This is irreversible.
+:::
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.properties.delete(property_id)`
+
+```python
+db.properties.delete("prop-123")
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.properties.delete(id)`
+
+```typescript
+await db.properties.delete('property-id')
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`DELETE /api/v1/properties/:propertyId`
+
+```bash
+curl -X DELETE https://api.rushdb.com/api/v1/properties/prop-123 \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## See also
+
+- [Discover Your Schema](/build/schema/discover-your-schema) — live ontology via `db.ai.getOntology()`
+- [Find & Query](/build/data/find-and-query) — query records by property value
+- [Where Operators](/reference/where-operators) — filter syntax reference

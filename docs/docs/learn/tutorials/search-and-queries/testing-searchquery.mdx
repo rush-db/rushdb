@@ -1,0 +1,340 @@
+---
+slug: /tutorials/testing-searchquery
+sidebar_position: 32
+title: 'Testing SearchQuery Across TypeScript, Python, and REST'
+description: Write parity-driven tests that prove one query intent behaves identically across every RushDB surface.
+tags: [Testing, SearchQuery, TypeScript, Python]
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Testing SearchQuery Across TypeScript, Python, and REST
+
+A SearchQuery written in TypeScript must return the same records as the same query written in Python or issued as a raw REST call. This is called **query parity**. Parity tests catch SDK bugs, version drift, and silent behavioral differences before they reach production.
+
+This tutorial shows how to structure parity-driven tests, common failure modes, and a repeatable test harness you can adapt to any record type.
+
+---
+
+## The parity contract
+
+Every `records.find()` call maps to an underlying `POST /records/search`. The contract is:
+
+> Given the same SearchQuery body, every SDK surface and the REST API must return the same `data[]` and `total`.
+
+The three variables that can break parity:
+
+1. **Serialization** — an SDK may serialize a field name differently than the REST contract expects
+2. **Default values** — an SDK may silently inject defaults (e.g. `limit: 20`) that the raw query did not include
+3. **Case sensitivity** — label names, relationship types, and field names are case-sensitive
+
+---
+
+## Step 1: Set up a shared test fixture
+
+All parity tests should run against live data created in a dedicated test project.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// tests/fixtures/setup.ts
+import RushDB from '@rushdb/javascript-sdk'
+
+export const db = new RushDB(process.env.RUSHDB_TEST_API_KEY!)
+
+export async function seedTestData() {
+  const result = await db.records.importJson({
+    label: 'PRODUCT',
+    data: [
+      { sku: 'P-001', name: 'Widget Alpha', category: 'widgets', price: 29.99, inStock: true },
+      { sku: 'P-002', name: 'Widget Beta', category: 'widgets', price: 49.99, inStock: false },
+      { sku: 'P-003', name: 'Gadget One', category: 'gadgets', price: 99.0, inStock: true }
+    ]
+  })
+  return result
+}
+
+export async function teardownTestData() {
+  await db.records.deleteMany({
+    labels: ['PRODUCT'],
+    where: { sku: { $in: ['P-001', 'P-002', 'P-003'] } }
+  })
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# tests/fixtures/setup.py
+from rushdb import RushDB
+import os
+
+db = RushDB(os.environ["RUSHDB_TEST_API_KEY"], base_url="https://api.rushdb.com/api/v1")
+
+def seed_test_data():
+    return db.records.import_json({
+        "label": "PRODUCT",
+        "data": [
+            {"sku": "P-001", "name": "Widget Alpha", "category": "widgets", "price": 29.99, "inStock": True},
+            {"sku": "P-002", "name": "Widget Beta",  "category": "widgets", "price": 49.99, "inStock": False},
+            {"sku": "P-003", "name": "Gadget One",   "category": "gadgets", "price": 99.00, "inStock": True}
+        ]
+    })
+
+def teardown_test_data():
+    db.records.delete_many({
+        "labels": ["PRODUCT"],
+        "where": {"sku": {"$in": ["P-001", "P-002", "P-003"]}}
+    })
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 2: Write a parity test
+
+Compare results from the TypeScript SDK against a raw REST call to verify the same payload produces the same results.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// tests/parity/product-search.test.ts
+import { describe, beforeAll, afterAll, it, expect } from '@jest/globals'
+import { db, seedTestData, teardownTestData } from '../fixtures/setup'
+
+describe('SearchQuery parity — PRODUCT', () => {
+  beforeAll(seedTestData)
+  afterAll(teardownTestData)
+
+  const query = {
+    labels: ['PRODUCT'],
+    where: { category: 'widgets', inStock: true },
+    orderBy: { price: 'asc' as const }
+  }
+
+  it('SDK find() returns in-stock widgets ordered by price', async () => {
+    const result = await db.records.find(query)
+    expect(result.total).toBe(1)
+    expect(result.data[0].sku).toBe('P-001')
+  })
+
+  it('REST POST /records/search returns same result as SDK', async () => {
+    const response = await fetch('https://api.rushdb.com/api/v1/records/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.RUSHDB_TEST_API_KEY}`
+      },
+      body: JSON.stringify(query)
+    })
+    const json = await response.json()
+    expect(json.total).toBe(1)
+    expect(json.data[0].sku).toBe('P-001')
+  })
+
+  it('SDK and REST return the same __id for the same record', async () => {
+    const [sdkResult, restResponse] = await Promise.all([
+      db.records.find(query),
+      fetch('https://api.rushdb.com/api/v1/records/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.RUSHDB_TEST_API_KEY}`
+        },
+        body: JSON.stringify(query)
+      }).then((r) => r.json())
+    ])
+    expect(sdkResult.data[0].__id).toBe(restResponse.data[0].__id)
+  })
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# tests/parity/test_product_search.py
+import pytest
+import requests
+import os
+from tests.fixtures.setup import db, seed_test_data, teardown_test_data
+
+QUERY = {
+    "labels": ["PRODUCT"],
+    "where": {"category": "widgets", "inStock": True},
+    "orderBy": {"price": "asc"}
+}
+
+@pytest.fixture(scope="module", autouse=True)
+def test_data():
+    seed_test_data()
+    yield
+    teardown_test_data()
+
+def test_sdk_returns_in_stock_widgets():
+    result = db.records.find(QUERY)
+    assert result.total == 1
+    assert result.data[0]["sku"] == "P-001"
+
+def test_rest_returns_same_result():
+    resp = requests.post(
+        "https://api.rushdb.com/api/v1/records/search",
+        json=QUERY,
+        headers={"Authorization": f"Bearer {os.environ['RUSHDB_TEST_API_KEY']}"}
+    )
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["data"][0]["sku"] == "P-001"
+
+def test_sdk_and_rest_return_same_id():
+    sdk_result = db.records.find(QUERY)
+    rest_result = requests.post(
+        "https://api.rushdb.com/api/v1/records/search",
+        json=QUERY,
+        headers={"Authorization": f"Bearer {os.environ['RUSHDB_TEST_API_KEY']}"}
+    ).json()
+    assert sdk_result.data[0].id == rest_result["data"][0]["__id"]
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# Smoke-test via REST — assert total is 1 and first sku is P-001
+RESULT=$(curl -s -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_TEST_API_KEY" \
+  -d '{"labels":["PRODUCT"],"where":{"category":"widgets","inStock":true},"orderBy":{"price":"asc"}}')
+
+TOTAL=$(echo "$RESULT" | jq '.total')
+SKU=$(echo "$RESULT" | jq -r '.data[0].sku')
+
+[ "$TOTAL" = "1" ] && echo "✅ total=1" || echo "❌ total=$TOTAL"
+[ "$SKU" = "P-001" ]  && echo "✅ sku=P-001" || echo "❌ sku=$SKU"
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 3: Test select expression parity
+
+`select` queries are the most likely to diverge between SDK versions. Test them explicitly.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+it('select count by category returns correct totals', async () => {
+  const result = await db.records.find({
+    labels: ['PRODUCT'],
+    select: {
+      count: { $count: '*' },
+      category: '$record.category'
+    },
+    groupBy: ['category', 'count'],
+    orderBy: { count: 'desc' }
+  })
+
+  // widgets has 2 records, gadgets has 1
+  expect(result.data[0].category).toBe('widgets')
+  expect(result.data[0].count).toBe(2)
+  expect(result.data[1].category).toBe('gadgets')
+  expect(result.data[1].count).toBe(1)
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+def test_select_count_by_category():
+    result = db.records.find({
+        "labels": ["PRODUCT"],
+        "select": {
+            "count":    {"$count": "*"},
+            "category": "$record.category"
+        },
+        "groupBy": ["category", "count"],
+        "orderBy": {"count": "desc"}
+    })
+    assert result.data[0]["category"] == "widgets"
+    assert result.data[0]["count"] == 2
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 4: Test transaction parity
+
+Verify that transactional writes and rollbacks behave identically across surfaces.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+it('rolled-back create does not persist the record', async () => {
+  const tx = await db.tx.begin()
+  try {
+    await db.records.create({ label: 'PRODUCT', data: { sku: 'ROLLBACK-TEST', category: 'test' } }, tx)
+    await db.tx.rollback(tx)
+  } catch {
+    await db.tx.rollback(tx)
+  }
+
+  const result = await db.records.find({
+    labels: ['PRODUCT'],
+    where: { sku: 'ROLLBACK-TEST' }
+  })
+  expect(result.total).toBe(0)
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+def test_rollback_does_not_persist():
+    tx = db.tx.begin()
+    try:
+        db.records.create("PRODUCT", {"sku": "ROLLBACK-TEST", "category": "test"}, transaction=tx)
+        db.tx.rollback(tx)
+    except Exception:
+        db.tx.rollback(tx)
+
+    result = db.records.find({"labels": ["PRODUCT"], "where": {"sku": "ROLLBACK-TEST"}})
+    assert result.total == 0
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Common parity failure modes
+
+| Symptom                                | Likely cause                                               |
+| -------------------------------------- | ---------------------------------------------------------- |
+| SDK returns 0, REST returns N          | Label name casing mismatch (`article` vs `ARTICLE`)        |
+| REST returns 0, SDK returns N          | SDK is injecting a default `where` clause                  |
+| Results differ between SDK versions    | SDK updated default `limit` or sort order                  |
+| `total` correct but `data[]` differs   | `orderBy` field not specified — sort is non-deterministic  |
+| Python returns float, REST returns int | Python SDK deserializing numeric field differently         |
+| Transaction test flaky                 | Two tests sharing the same natural key collide across runs |
+
+---
+
+## Next steps
+
+- [Query Optimization](/tutorials/query-optimization) — reduce the cost of the queries you've confirmed are correct
+- [Discovery Queries](/tutorials/discovery-queries) — explore the schema before writing parity tests
+- [Explainable Results](/tutorials/explainable-results) — surface evidence alongside test-verified search results

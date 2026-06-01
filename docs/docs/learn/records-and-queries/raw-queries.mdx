@@ -1,0 +1,138 @@
+---
+slug: /build/raw-queries
+sidebar_position: 2
+title: Raw Queries
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Raw Queries
+
+:::warning Requires a connected Neo4j instance
+This endpoint is only available when your project is connected to your own Neo4j database. Connecting a custom Neo4j instance is available on the free tier — see the RushDB dashboard to set it up.
+:::
+
+Run arbitrary Cypher queries against your connected Neo4j database. This is intended for advanced use-cases where the SearchQuery API is not expressive enough.
+
+---
+
+## Basic Usage
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.query.raw()`
+
+```python
+from rushdb import RushDB
+
+db = RushDB("RUSHDB_API_KEY")
+
+result = db.query.raw({
+    "query": "MATCH (n:Person) RETURN n LIMIT $limit",
+    "params": {"limit": 10}
+})
+
+print(result.get("data"))
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.query.raw()`
+
+```typescript
+const result = await db.query.raw({
+  query: 'MATCH (n:Person) RETURN n LIMIT $limit',
+  params: { limit: 10 }
+})
+
+// `result` contains the server response with query records as returned by Neo4j driver
+console.log(result)
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/query/raw`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/query/raw \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "query": "MATCH (n:Person) RETURN n LIMIT $limit",
+    "params": { "limit": 10 }
+  }'
+```
+
+Response: raw Neo4j driver result object.
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Real-World Example
+
+Find people employed by a company and return selected fields:
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+company = "Acme Corp"
+result = db.query.raw({
+    "query": """
+        MATCH (c:Company { name: $company })<-[:EMPLOYS]-(p:Person)
+        RETURN p { .name, .email, company: c.name } AS employee
+        ORDER BY p.name
+        LIMIT $limit
+    """,
+    "params": {"company": company, "limit": 50}
+})
+
+print(result.get("data"))
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const company = 'Acme Corp'
+const result = await db.query.raw({
+  query: `
+    MATCH (c:Company { name: $company })<-[:EMPLOYS]-(p:Person)
+    RETURN p { .name, .email, company: c.name } AS employee
+    ORDER BY p.name
+    LIMIT $limit
+  `,
+  params: { company, limit: 50 }
+})
+
+console.log(result.data)
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/query/raw \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "query": "MATCH (c:Company { name: $company })<-[:EMPLOYS]-(p:Person) RETURN p { .name, .email, company: c.name } AS employee ORDER BY p.name LIMIT $limit",
+    "params": { "company": "Acme Corp", "limit": 50 }
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## See also
+
+- [Find & Query](/build/data/find-and-query) — SearchQuery API (recommended for most use cases)
+- [Connect Records](/build/graph/connect-records) — relationship traversal via SearchQuery

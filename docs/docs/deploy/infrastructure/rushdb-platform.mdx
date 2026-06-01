@@ -1,0 +1,162 @@
+---
+slug: /deploy/infra-platform
+title: RushDB Platform
+description: How the RushDB NestJS application process works — ports, startup dependencies, static serving, health check, CLI, and resource requirements.
+sidebar_position: 1
+displayed_sidebar: docs
+tags: [Infrastructure, NestJS, Node.js, Self-Hosted]
+---
+
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
+# RushDB Platform
+
+RushDB is a single **NestJS** application built on the **Fastify** adapter. It serves both the REST API and (optionally) the built-in dashboard as static files from the same process.
+
+## Runtime overview
+
+| Attribute         | Value                                        |
+| ----------------- | -------------------------------------------- |
+| Framework         | NestJS + Fastify                             |
+| Node.js           | 18 – 22                                      |
+| Default port      | `3000` (all interfaces — `0.0.0.0`)          |
+| API prefix        | `/api/v1`                                    |
+| Swagger UI        | `/api`                                       |
+| Body limit        | 2 GB (for large batch imports)               |
+| Health endpoint   | `GET /` → `"RushDB is running"`              |
+| Settings endpoint | `GET /settings` → OAuth flags, feature flags |
+
+---
+
+## Key environment variables
+
+| Variable                        | Required | Default    | Description                                                                                               |
+| ------------------------------- | :------: | ---------- | --------------------------------------------------------------------------------------------------------- |
+| `RUSHDB_SELF_HOSTED`            |    ✅    | —          | Must be `true`. Enables self-hosted mode, disables billing, seeds the admin account.                      |
+| `RUSHDB_PORT`                   |          | `3000`     | Port the API listens on.                                                                                  |
+| `RUSHDB_LOGIN`                  |    ✅    | `admin`    | Admin account login created on first startup.                                                             |
+| `RUSHDB_PASSWORD`               |    ✅    | `password` | Admin password — used **only** if the account does not yet exist.                                         |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` |    ✅    | —          | Exactly 32 characters. AES-256 key for token encryption and JWT signing. Generate: `openssl rand -hex 32` |
+| `RUSHDB_SERVE_STATIC`           |          | `false`    | Set to `true` to serve the dashboard from the same process (see below).                                   |
+| `RUSHDB_DASHBOARD_URL`          |          | —          | Public URL of the dashboard. Used in OAuth redirects and email links.                                     |
+| `RUSHDB_PUBLIC_URL`             |          | —          | Public URL of the API. Used as the OAuth issuer (`RUSHDB_OAUTH_ISSUER`).                                  |
+
+See [Environment Variables](/deploy/config-env-variables) for the full reference.
+
+---
+
+## Startup dependencies
+
+RushDB will crash on startup if it cannot reach Neo4j or the SQL database. The startup order must be:
+
+```
+1. Neo4j (bolt :7687 must accept connections)
+2. PostgreSQL / SQLite file accessible
+3. RushDB platform process
+```
+
+In the Docker Compose setup this is enforced with `depends_on` + `condition: service_healthy` on both Neo4j and PostgreSQL. When running from source, start the databases first.
+
+:::tip Built-in wait-for-Neo4j
+The `DatabaseModule` retries the Neo4j HTTP health endpoint (`http://neo4j:7474`) up to 15 times with a 5-second interval before raising an error. This provides ~75 seconds of tolerance for slow Neo4j startup.
+:::
+
+---
+
+## Dashboard serving
+
+RushDB can serve the built-in dashboard from the same process or delegate it to a CDN / separate origin.
+
+<Tabs groupId="serve-static">
+<TabItem value="combined" label="Combined (API + dashboard)">
+
+Set `RUSHDB_SERVE_STATIC=true`. The `public/` directory (pre-built dashboard assets) is served at `/*`, excluding `/api*`.
+
+```env
+RUSHDB_SERVE_STATIC=true
+RUSHDB_DASHBOARD_URL=https://rushdb.example.com
+```
+
+Requests to `/` return the dashboard HTML. Requests to `/api/v1/*` are handled by the API router.
+
+:::note
+When `RUSHDB_SERVE_STATIC=true`, the `GET /` health endpoint is replaced by the dashboard index page. Use `GET /settings` for liveness probes in this mode.
+:::
+
+</TabItem>
+<TabItem value="separate" label="Separate origins">
+
+Set `RUSHDB_SERVE_STATIC=false` (default). Host the dashboard separately (CDN, Vercel, Nginx static, etc.) and point it at the API URL.
+
+```env
+RUSHDB_SERVE_STATIC=false
+RUSHDB_DASHBOARD_URL=https://app.rushdb.example.com
+```
+
+`GET /` returns `"RushDB is running"` — useful as a lightweight health check.
+
+</TabItem>
+</Tabs>
+
+---
+
+## CORS
+
+CORS is enabled by default and accepts requests from any origin (`origin: true`). Custom headers allowed in requests:
+
+```
+Authorization
+X-Workspace-Id
+X-Project-Id
+X-Transaction-Id
+Content-Disposition
+Content-Type
+```
+
+If you need to restrict origins, place a reverse proxy (nginx, Caddy) in front and enforce `Origin` checking there — the application-level CORS is intentionally permissive for self-hosted flexibility.
+
+---
+
+## Swagger / OpenAPI
+
+The OpenAPI spec is auto-generated and served at:
+
+```
+http(s)://your-host:3000/api
+```
+
+All API endpoints require a `Bearer` token. The Swagger UI has a built-in "Authorize" button to paste a project token.
+
+---
+
+## CLI commands
+
+RushDB ships with a console CLI (requires `RUSHDB_SELF_HOSTED=true`). Run from the container or from `platform/core/dist/`:
+
+```bash
+# Change a user's password
+docker exec -it rushdb node dist/main update-password <login> <newPassword>
+
+# Create a new user
+docker exec -it rushdb node dist/main create-user <login> <password>
+
+# Restore a project from a backup dump
+docker exec -it rushdb node dist/main db-restore <projectId> <filePath>
+```
+
+For `docker compose`, replace `docker exec -it rushdb` with `docker compose exec rushdb`.
+
+---
+
+## Resource requirements
+
+These are baseline figures for a lightly loaded self-hosted instance:
+
+| Resource | Minimum   | Recommended                |
+| -------- | --------- | -------------------------- |
+| CPU      | 0.25 vCPU | 1 vCPU                     |
+| Memory   | 256 MB    | 512 MB – 1 GB              |
+| Disk     | —         | Depends on SQLite PVC size |
+
+Neo4j typically dominates resource consumption. See [Neo4j & Aura](/deploy/infra-neo4j) for its requirements.

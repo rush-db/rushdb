@@ -1,0 +1,219 @@
+---
+slug: /deploy/config-env-variables
+title: Environment Variables
+description: Complete reference for all RushDB environment variables.
+sidebar_position: 1
+displayed_sidebar: docs
+tags: [Configuration, Environment Variables, Self-Hosted]
+---
+
+# Environment Variables
+
+All configuration is done via environment variables. The authoritative template is [`platform/core/.env.example`](https://github.com/rush-db/rushdb/blob/main/platform/core/.env.example) in the repository.
+
+---
+
+## Required (Self-Hosted)
+
+These four variables must be set or RushDB will not start correctly.
+
+| Variable                        | Default | Description                                                                                                                                                                             |
+| ------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RUSHDB_SELF_HOSTED`            | —       | Must be `true` to enable self-hosted mode                                                                                                                                               |
+| `RUSHDB_LOGIN`                  | —       | Admin account username                                                                                                                                                                  |
+| `RUSHDB_PASSWORD`               | —       | Admin account password                                                                                                                                                                  |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | —       | **Exactly 32 characters.** Used for AES-256 API token encryption and JWT signing. Do not change after initial setup without re-encrypting stored data. Generate: `openssl rand -hex 32` |
+
+---
+
+## Neo4j
+
+| Variable         | Default                 | Description                                     |
+| ---------------- | ----------------------- | ----------------------------------------------- |
+| `NEO4J_URL`      | `bolt://localhost:7687` | Bolt connection URL. Use `neo4j+s://` for Aura. |
+| `NEO4J_USERNAME` | `neo4j`                 | Neo4j username                                  |
+| `NEO4J_PASSWORD` | —                       | **Required.** Neo4j password                    |
+
+See [Neo4j & Aura](/deploy/infra-neo4j) for setup details.
+
+---
+
+## SQL Database
+
+Stores dashboard entities — users, workspaces, projects, tokens, OAuth sessions.
+
+| Variable      | Default       | Description                                                                                                     |
+| ------------- | ------------- | --------------------------------------------------------------------------------------------------------------- |
+| `SQL_DB_TYPE` | `sqlite`      | `sqlite` (zero-config) or `postgres`                                                                            |
+| `SQL_DB_PATH` | `./rushdb.db` | Path to the SQLite file. Only used when `SQL_DB_TYPE=sqlite`                                                    |
+| `SQL_DB_URL`  | —             | PostgreSQL connection URL, e.g. `postgresql://user:pass@host:5432/rushdb`. Required when `SQL_DB_TYPE=postgres` |
+| `SQL_DB_SSL`  | —             | Set to `true` to enable SSL/TLS for the PostgreSQL connection                                                   |
+
+See [PostgreSQL / SQLite](/deploy/infra-database) for setup details.
+
+---
+
+## Network & App
+
+| Variable                | Default                 | Description                                                                                                                               |
+| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `RUSHDB_PORT`           | `3000`                  | Port the API server listens on                                                                                                            |
+| `RUSHDB_DASHBOARD_URL`  | `http://localhost:3005` | Public URL of the dashboard. Used in OAuth redirect URIs and password-reset email links                                                   |
+| `RUSHDB_SERVE_STATIC`   | `false`                 | Set to `true` to serve the frontend static assets from the same process                                                                   |
+| `RUSHDB_ALLOWED_LOGINS` | `[]`                    | JSON array of email addresses allowed to log in. Empty means all logins are allowed. Example: `'["alice@example.com","bob@example.com"]'` |
+
+---
+
+## AI — Embeddings
+
+Enables vector similarity search. All four variables must be set together; omit them entirely to disable embedding indexes.
+
+| Variable                          | Default                     | Description                                                                |
+| --------------------------------- | --------------------------- | -------------------------------------------------------------------------- |
+| `RUSHDB_EMBEDDING_BASE_URL`       | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible embeddings endpoint                       |
+| `RUSHDB_EMBEDDING_API_KEY`        | —                           | Bearer token for the embedding provider                                    |
+| `RUSHDB_EMBEDDING_MODEL`          | —                           | Model identifier, e.g. `text-embedding-3-small`, `qwen/qwen3-embedding-8b` |
+| `RUSHDB_EMBEDDING_DIMENSIONS`     | —                           | Number of dimensions the model outputs. Must match the model exactly.      |
+| `RUSHDB_EMBEDDING_BATCH_SIZE`     | `500`                       | Records per batch during index backfill                                    |
+| `RUSHDB_EMBEDDING_MAX_RUNTIME_MS` | `50000`                     | Max milliseconds the backfill scheduler runs per tick                      |
+
+---
+
+## AI — Relationship Suggestions (LLM)
+
+Powers automatic relationship candidate inference from your data ontology.
+
+| Variable              | Default                     | Description                                                |
+| --------------------- | --------------------------- | ---------------------------------------------------------- |
+| `RUSHDB_LLM_BASE_URL` | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible chat completions endpoint |
+| `RUSHDB_LLM_API_KEY`  | —                           | Bearer token for the LLM provider                          |
+| `RUSHDB_LLM_MODEL`    | —                           | Model identifier, e.g. `gpt-4.1-mini`                      |
+
+---
+
+## Email (SMTP)
+
+Required for email confirmation, password reset, and workspace invite flows. All four must be set together; omit to disable email features.
+
+| Variable        | Default | Description                                                       |
+| --------------- | ------- | ----------------------------------------------------------------- |
+| `MAIL_HOST`     | —       | SMTP server hostname, e.g. `smtp.gmail.com`                       |
+| `MAIL_USER`     | —       | SMTP auth username                                                |
+| `MAIL_PASSWORD` | —       | SMTP auth password                                                |
+| `MAIL_FROM`     | —       | From address shown on outgoing emails, e.g. `noreply@example.com` |
+
+---
+
+## OAuth Providers
+
+| Variable           | Default | Description                    |
+| ------------------ | ------- | ------------------------------ |
+| `GOOGLE_CLIENT_ID` | —       | Google OAuth 2.0 client ID     |
+| `GOOGLE_SECRET`    | —       | Google OAuth 2.0 client secret |
+| `GH_CLIENT_ID`     | —       | GitHub OAuth app client ID     |
+| `GH_SECRET`        | —       | GitHub OAuth app client secret |
+
+Both providers require `RUSHDB_DASHBOARD_URL` to be set for redirect URIs.
+
+---
+
+## Rate Limiting
+
+| Variable                      | Default | Description                    |
+| ----------------------------- | ------- | ------------------------------ |
+| `RATE_LIMITER_REQUESTS_LIMIT` | `10`    | Max requests per window per IP |
+| `RATE_LIMITER_TTL`            | `1000`  | Window size in milliseconds    |
+
+---
+
+## Pagination
+
+| Variable                          | Default | Description                                                       |
+| --------------------------------- | ------- | ----------------------------------------------------------------- |
+| `RUSHDB_PAGINATION_DEFAULT_LIMIT` | `100`   | Default page size when `limit` is not specified in a search query |
+| `RUSHDB_PAGINATION_MAX_LIMIT`     | `1000`  | Maximum allowed `limit` value. Requests above this are clamped.   |
+
+---
+
+## Advanced
+
+### MCP OAuth — RS256 JWT Signing
+
+By default MCP OAuth tokens are signed with the symmetric `RUSHDB_AES_256_ENCRYPTION_KEY`. For production deployments that need JWKS discovery (RS256), set an asymmetric key pair instead.
+
+| Variable                        | Default            | Description                                                                          |
+| ------------------------------- | ------------------ | ------------------------------------------------------------------------------------ |
+| `RUSHDB_JWT_PRIVATE_KEY`        | —                  | PEM-encoded RSA private key (multiline). Prefer the `_BASE64` variant in containers. |
+| `RUSHDB_JWT_PUBLIC_KEY`         | —                  | PEM-encoded RSA public key                                                           |
+| `RUSHDB_JWT_PRIVATE_KEY_BASE64` | —                  | Base64-encoded PEM private key — easier to pass in env without escaping              |
+| `RUSHDB_JWT_PUBLIC_KEY_BASE64`  | —                  | Base64-encoded PEM public key                                                        |
+| `RUSHDB_JWT_KID`                | `rushdb-mcp-rs256` | Key ID published in `/.well-known/jwks.json`                                         |
+
+Generate a key pair:
+
+```bash
+openssl genrsa -out private.pem 2048
+openssl rsa -in private.pem -pubout -out public.pem
+# Base64-encode for containers:
+base64 -i private.pem | tr -d '\n'   # → RUSHDB_JWT_PRIVATE_KEY_BASE64
+base64 -i public.pem  | tr -d '\n'   # → RUSHDB_JWT_PUBLIC_KEY_BASE64
+```
+
+### Captcha
+
+| Variable              | Default | Description                                      |
+| --------------------- | ------- | ------------------------------------------------ |
+| `SERVICE_CAPTCHA_KEY` | —       | Server-side private key for CAPTCHA verification |
+
+## Core
+
+| Variable                | Default | Description                                                                                |
+| ----------------------- | ------- | ------------------------------------------------------------------------------------------ |
+| `RUSHDB_PORT`           | `3000`  | Port the RushDB API listens on                                                             |
+| `RUSHDB_LOG_LEVEL`      | `info`  | Log verbosity: `debug` \| `info` \| `warn` \| `error`                                      |
+| `RUSHDB_ENCRYPTION_KEY` | —       | **Required.** 32-byte hex key for at-rest encryption. Generate with `openssl rand -hex 32` |
+| `RUSHDB_ENCRYPTION_IV`  | —       | **Required.** 16-byte hex IV. Generate with `openssl rand -hex 16`                         |
+
+## Database (SQL)
+
+RushDB uses a relational database for project metadata and user data.
+
+| Variable            | Default            | Description                                     |
+| ------------------- | ------------------ | ----------------------------------------------- |
+| `SQL_DB_TYPE`       | `sqlite`           | `sqlite` or `postgres`                          |
+| `SQL_DB_PATH`       | `./data/rushdb.db` | Path to SQLite file (when `SQL_DB_TYPE=sqlite`) |
+| `POSTGRES_HOST`     | `localhost`        | PostgreSQL host                                 |
+| `POSTGRES_PORT`     | `5432`             | PostgreSQL port                                 |
+| `POSTGRES_USER`     | `rushdb`           | PostgreSQL user                                 |
+| `POSTGRES_PASSWORD` | —                  | PostgreSQL password                             |
+| `POSTGRES_DB`       | `rushdb`           | Database name                                   |
+
+See [PostgreSQL / SQLite](/deploy/infra-database) for setup details.
+
+## Neo4j (Graph)
+
+| Variable         | Default                 | Description                  |
+| ---------------- | ----------------------- | ---------------------------- |
+| `NEO4J_URL`      | `bolt://localhost:7687` | Neo4j Bolt connection URL    |
+| `NEO4J_USERNAME` | `neo4j`                 | Neo4j username               |
+| `NEO4J_PASSWORD` | —                       | **Required.** Neo4j password |
+
+See [Neo4j & Aura](/deploy/infra-neo4j) for setup details.
+
+## Embeddings (AI Search)
+
+| Variable                | Default | Description                                 |
+| ----------------------- | ------- | ------------------------------------------- |
+| `EMBEDDINGS_PROVIDER`   | —       | `openai` \| `cohere` \| `custom`            |
+| `EMBEDDINGS_MODEL`      | —       | Model name (e.g. `text-embedding-3-small`)  |
+| `EMBEDDINGS_API_KEY`    | —       | API key for the embedding provider          |
+| `EMBEDDINGS_DIMENSIONS` | —       | Vector dimensions (must match model output) |
+
+## Authentication
+
+| Variable     | Default | Description                                                             |
+| ------------ | ------- | ----------------------------------------------------------------------- |
+| `JWT_SECRET` | —       | **Required.** Secret for signing JWT tokens. Use `openssl rand -hex 64` |
+| `JWT_EXPIRY` | `7d`    | Token expiry duration (e.g. `1d`, `7d`, `30d`)                          |
+
+See [Authorization](/deploy/get-api-key) for API key management.

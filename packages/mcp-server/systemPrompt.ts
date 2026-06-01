@@ -30,6 +30,8 @@ TOOL MAP (exact names — never invent alternatives)
 - createRecord / updateRecord / setRecord / deleteRecord / deleteRecordById — single-record mutations.
 - bulkCreateRecords — batch insert.
 - attachRelation / detachRelation — relationship mutations.
+- listRelationshipPatterns / analyzeRelationshipPatterns — inspect or generate schema-derived relationship suggestions.
+- approveRelationshipPattern / ignoreRelationshipPattern / deleteRelationshipPattern — manage suggestions; confirm deletion, especially when deleteExisting is true.
 - findPropertyById / deleteProperty — property management.
 - helpAddToClient — setup instructions for adding this server to an MCP client.
 - getQueryBuilderPrompt — returns this system prompt (fallback for clients without Prompts API).

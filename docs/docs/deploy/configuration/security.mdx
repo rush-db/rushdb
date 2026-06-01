@@ -1,0 +1,396 @@
+---
+slug: /deploy/config-security
+title: Security
+description: How RushDB stores data, enforces project isolation, and what to harden in production.
+sidebar_position: 3
+displayed_sidebar: docs
+tags: [Configuration, Security, Self-Hosted, Production]
+---
+
+# Security
+
+## Production Checklist
+
+- [ ] TLS termination in front of `RUSHDB_PORT` (never expose HTTP to the internet)
+- [ ] Neo4j Bolt (`7687`) and Browser (`7474`) ports **not** reachable from the public internet
+- [ ] `RUSHDB_AES_256_ENCRYPTION_KEY` is a random 32-character string — not the default
+- [ ] `RUSHDB_PASSWORD` changed from `password`
+- [ ] `.env` not committed to version control
+- [ ] SQL and Neo4j data volumes backed up
+
+---
+
+## Data Storage Architecture
+
+RushDB uses **two databases in tandem**:
+
+| Layer          | Database                   | What lives here                                                                                   |
+| -------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Metadata**   | SQL (SQLite or PostgreSQL) | Users, workspaces, projects, API tokens, OAuth sessions, workspace invites, project access grants |
+| **Graph data** | Neo4j                      | Records, property nodes, relationships — your actual application data                             |
+
+### SQL layer
+
+The SQL schema is managed by [Drizzle ORM](https://orm.drizzle.team). The main tables are:
+
+```
+users               – login, hashed password, OAuth accounts
+workspaces          – top-level tenant grouping
+workspace_members   – (userId, workspaceId, role, since)
+projects            – (id, workspaceId, name, …)
+project_access      – (projectId, userId, role, since)
+tokens              – (id, projectId, level, expiration, value ← AES-256 ciphertext)
+oauth_clients       – MCP OAuth registered clients
+oauth_consents      – per-user per-client authorisation grants
+```
+
+Passwords are stored as bcrypt hashes. Token values are AES-256-CBC ciphertexts (see [API Token Security](#api-token-security) below).
+
+### Neo4j graph layer
+
+Every piece of user data in the graph carries two internal system labels/properties that RushDB manages exclusively:
+
+| Symbol                          | Value         | Purpose                                             |
+| ------------------------------- | ------------- | --------------------------------------------------- |
+| `__RUSHDB__LABEL__RECORD__`     | Node label    | Marks every data node as a RushDB record            |
+| `__RUSHDB__KEY__PROJECT__ID__`  | Node property | Scopes the node to a specific project               |
+| `__RUSHDB__LABEL__PROPERTY__`   | Node label    | Shared property-type node (name + type + projectId) |
+| `__RUSHDB__RELATION__DEFAULT__` | Relationship  | User-defined relationship between records           |
+| `__RUSHDB__RELATION__VALUE__`   | Relationship  | Edge from record → property-type node               |
+
+A record node looks like this in the graph:
+
+```
+(:__RUSHDB__LABEL__RECORD__:`YourLabel` {
+  __RUSHDB__KEY__ID__:         "01938abc-…",
+  __RUSHDB__KEY__PROJECT__ID__: "01937def-…",
+  // … your fields …
+})
+```
+
+Neo4j indexes created at startup:
+
+```cypher
+-- Fast record lookups by ID
+CREATE INDEX index_record_id FOR (n:__RUSHDB__LABEL__RECORD__) ON (n.__RUSHDB__KEY__ID__)
+-- Fast project scoping (used in every query)
+CREATE INDEX index_record_projectid FOR (n:__RUSHDB__LABEL__RECORD__) ON (n.__RUSHDB__KEY__PROJECT__ID__)
+-- Property name lookups
+CREATE INDEX index_property_name FOR (n:__RUSHDB__LABEL__PROPERTY__) ON (n.name)
+```
+
+---
+
+## Project Isolation
+
+Project isolation is enforced at the **Cypher query level**. Every read and write query pattern includes the projectId as a mandatory node property match:
+
+```cypher
+-- Pattern used in every generated query — the projectId is always a bound parameter
+MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+```
+
+This is analogous to a **mandatory WHERE clause** in a multi-tenant SQL application — similar to how ClickHouse row policies or PostgreSQL Row Level Security add a predicate to every query for a given role:
+
+```sql
+-- SQL equivalent (what RushDB does in Cypher)
+SELECT * FROM records WHERE project_id = $projectId
+```
+
+Because `$projectId` is derived from the validated API token (extracted server-side, never from user input), a caller cannot query another project's records by substituting a different ID — the token value is verified, decrypted to its ID, joined to the `tokens` SQL table, and the `projectId` field on that row is used as the binding.
+
+**Property-type nodes** are similarly scoped: the uniqueness constraint includes `projectId`:
+
+```cypher
+CREATE CONSTRAINT FOR (p:__RUSHDB__LABEL__PROPERTY__)
+REQUIRE (p.name, p.type, p.projectId, p.metadata) IS UNIQUE
+```
+
+This means two projects can each have a property named `email` of type `string` and they will be distinct nodes that never overlap.
+
+**What isolation does NOT cover:** All projects on a single RushDB instance share the same Neo4j database. There is no database-level or graph-level partition — isolation is purely by `projectId` property filter. For strongest physical isolation, run separate RushDB instances per tenant with separate Neo4j instances.
+
+---
+
+## API Token Security
+
+API tokens are UUIDs encrypted with AES-256-CBC before being stored in SQL:
+
+```
+token ID (UUID v7)
+    │
+    ▼
+AES-256-CBC(key=RUSHDB_AES_256_ENCRYPTION_KEY, iv=random 16 bytes)
+    │
+    ▼
+hex(iv) + base64(ciphertext)   ← stored in tokens.value
+```
+
+The token value presented by the client (`Authorization: Bearer <token>`) is the ciphertext. On every API request:
+
+1. Decrypt the bearer value with `RUSHDB_AES_256_ENCRYPTION_KEY` to recover the token UUID
+2. Look up the UUID in the `tokens` SQL table
+3. Verify the token is not expired (`created + expiration_ms > now`)
+4. Read `tokens.projectId` and `tokens.level` from the row
+5. Inject `projectId` as a bound parameter into all Cypher queries for this request
+
+Because the UUID is the lookup key and the ciphertext is what travels over the wire, a database dump of the `tokens` table is not sufficient to forge a valid token — you also need `RUSHDB_AES_256_ENCRYPTION_KEY`.
+
+**Token access levels:**
+
+| Level   | Allowed operations                 |
+| ------- | ---------------------------------- |
+| `write` | All CRUD + relationship management |
+| `read`  | Read-only queries and searches     |
+
+---
+
+## Authentication & Access Control
+
+### Admin account (self-hosted bootstrap)
+
+When `RUSHDB_SELF_HOSTED=true`, RushDB creates an admin account on first startup using the values of two environment variables:
+
+| Variable          | Default    | Purpose                              |
+| ----------------- | ---------- | ------------------------------------ |
+| `RUSHDB_LOGIN`    | `admin`    | Admin account username (email/login) |
+| `RUSHDB_PASSWORD` | `password` | Admin account password               |
+
+The bootstrap logic runs once per startup and only creates the user if they **do not yet exist**:
+
+```
+RUSHDB_SELF_HOSTED=true  +  RUSHDB_LOGIN  +  RUSHDB_PASSWORD
+        │
+        ▼
+   User already exists?
+   ├─ Yes → skip (env vars are ignored, stored bcrypt hash is unchanged)
+   └─ No  → create user, bcrypt hash the password (10 rounds), seed default workspace
+```
+
+:::warning Change the defaults before first start
+`RUSHDB_LOGIN` and `RUSHDB_PASSWORD` are only used to **create** the account. After the account exists, changing these environment variables has no effect on the stored password. Set them to production values before the first boot — not after.
+:::
+
+**To change the password after first boot**, use the built-in CLI:
+
+```bash
+# Docker
+docker exec -it rushdb node dist/main update-password admin new-secure-password
+
+# docker compose
+docker compose exec rushdb node dist/main update-password admin new-secure-password
+
+# From source
+cd platform/core && node dist/main update-password admin new-secure-password
+```
+
+**To create additional admin users**:
+
+```bash
+docker exec -it rushdb node dist/main create-user alice@example.com my-password
+```
+
+CLI commands are only available when `RUSHDB_SELF_HOSTED=true`.
+
+---
+
+### Restricting sign-ups
+
+By default, any email can register an account on the dashboard (relevant when OAuth providers are configured). To restrict this to a specific allow-list:
+
+```env
+RUSHDB_ALLOWED_LOGINS=["alice@example.com","bob@example.com"]
+```
+
+When `RUSHDB_ALLOWED_LOGINS` is non-empty, attempts to create accounts or accept workspace invitations from unlisted emails are rejected with `400 Bad Request`.
+
+---
+
+### Sessions (dashboard / human users)
+
+Sessions are JWT-signed using `RUSHDB_AES_256_ENCRYPTION_KEY` (HS256 by default; RS256 when `RUSHDB_JWT_PRIVATE_KEY` is configured). See [Environment Variables — MCP OAuth](/deploy/config-env-variables#mcp-oauth--rs256-jwt-signing) for the RS256 key setup.
+
+Access is checked at two layers on every dashboard request:
+
+1. **Workspace membership** — verified via `workspace_members` SQL table. Required for any dashboard action.
+2. **Project access** — verified via `project_access` SQL table. Users can be Owner or Editor per project.
+
+Roles:
+
+| Role     | Scope     | Capabilities                                       |
+| -------- | --------- | -------------------------------------------------- |
+| `owner`  | Project   | Full access including delete and access management |
+| `editor` | Project   | Read/write data, manage tokens                     |
+| `admin`  | Workspace | Manage workspace members and all projects          |
+
+---
+
+### API tokens (programmatic access)
+
+All API calls authenticate with `Authorization: Bearer <token>`. Tokens are created per-project from the dashboard and are scoped to exactly one project — there are no cross-project tokens. Token access levels:
+
+| Level   | Allowed operations                 |
+| ------- | ---------------------------------- |
+| `write` | All CRUD + relationship management |
+| `read`  | Read-only queries and searches     |
+
+See [API Token Security](#api-token-security) above for the full encryption pipeline.
+
+---
+
+## TLS / HTTPS
+
+Never expose port `3000` without TLS in production.
+
+**Caddy** (automatic TLS via Let's Encrypt):
+
+```caddyfile
+api.yourdomain.com {
+  reverse_proxy localhost:3000
+}
+```
+
+**nginx**:
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name api.yourdomain.com;
+  ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+
+  location / {
+    proxy_pass         http://127.0.0.1:3000;
+    proxy_set_header   Host $host;
+    proxy_set_header   X-Real-IP $remote_addr;
+  }
+}
+```
+
+---
+
+## Network Isolation
+
+- `NEO4J_URL` bolt port (`7687`) — **internal only**. RushDB talks to Neo4j directly; this port must never be reachable from the internet.
+- Neo4j Browser (`7474`, `7473`) — disable or firewall in production. Only needed for ad-hoc admin queries.
+- PostgreSQL (`5432`) — internal only.
+- SSH (`22`) — restrict to your IP range.
+
+For Docker Compose deployments, do not publish Neo4j or PostgreSQL ports unless you need them for local dev:
+
+```yaml
+# ✅ internal only — do NOT add ports: mapping in production
+neo4j:
+  image: neo4j:2026.01.4
+  # ports: – omit this section
+```
+
+---
+
+## Secrets Management
+
+Generate strong random values:
+
+```bash
+# Encryption key
+openssl rand -hex 32
+
+# Or a 32-character alphanumeric string
+LC_ALL=C tr -dc 'A-Za-z0-9!@#$%^&*' </dev/urandom | head -c 32; echo
+```
+
+:::warning
+`RUSHDB_AES_256_ENCRYPTION_KEY` must be **exactly 32 characters**. Wrong length causes a startup crash. Do not change this value after initial setup without re-encrypting stored tokens first.
+:::
+
+Store secrets in a secrets manager, not in version-controlled files:
+
+| Tool                | Integration                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| AWS Secrets Manager | Pass values via ECS task definition environment, or use the AWS Secrets Manager CSI driver |
+| HashiCorp Vault     | Inject via Vault Agent or the envconsul sidecar                                            |
+| Doppler             | `doppler run -- docker compose up`                                                         |
+
+---
+
+## Encryption Key Rotation
+
+`RUSHDB_AES_256_ENCRYPTION_KEY` protects all stored token ciphertext values. To rotate:
+
+1. Export current token values (decrypt with old key)
+2. Re-encrypt with new key
+3. Write new ciphertext back to the `tokens` table
+4. Update `RUSHDB_AES_256_ENCRYPTION_KEY` in your environment
+5. Restart RushDB
+
+:::danger
+Changing the key without re-encrypting first will make all existing API tokens permanently unreadable. Plan a maintenance window; tokens in use will become invalid until regenerated.
+:::
+
+## TLS / HTTPS
+
+Never expose RushDB directly on port `3000` without TLS in production. Use a reverse proxy:
+
+**Caddy** (automatic TLS via Let's Encrypt):
+
+```caddyfile
+api.yourdomain.com {
+  reverse_proxy localhost:3000
+}
+```
+
+**nginx**:
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name api.yourdomain.com;
+  ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+  }
+}
+```
+
+## Secrets Management
+
+Generate strong random values for all secrets in `.env`:
+
+```bash
+# Encryption key (32 bytes hex)
+openssl rand -hex 32
+
+# Encryption IV (16 bytes hex)
+openssl rand -hex 16
+
+# JWT secret (64 bytes hex)
+openssl rand -hex 64
+```
+
+Never commit `.env` to version control. Use a secrets manager (AWS Secrets Manager, HashiCorp Vault, Doppler) in production.
+
+## Network Isolation
+
+- Keep Neo4j Bolt (`7687`) and PostgreSQL (`5432`) ports **internal only** — never expose to the public internet
+- Block Neo4j Browser (`7474`, `7473`) in production
+- Restrict SSH (`22`) to your IP range via firewall rules
+
+## Encryption Key Rotation
+
+RushDB encrypts project credentials at rest using `RUSHDB_ENCRYPTION_KEY` and `RUSHDB_ENCRYPTION_IV`. To rotate:
+
+1. Generate new key/IV values
+2. Run the migration script (see platform docs) to re-encrypt existing data
+3. Update `.env` and restart
+
+:::warning
+Changing `RUSHDB_ENCRYPTION_KEY` without running the migration will render existing project credentials unreadable.
+:::
+
+## Authentication
+
+All API calls require a valid API key passed as the `Authorization: Bearer <token>` header. See [Authorization](/deploy/get-api-key) for key management.

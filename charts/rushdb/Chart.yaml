@@ -1,0 +1,18 @@
+apiVersion: v2
+name: rushdb
+description: RushDB — developer-friendly graph database platform
+type: application
+version: 2.2.0
+appVersion: '2.2.0'
+keywords:
+  - rushdb
+  - graph
+  - database
+  - neo4j
+home: https://rushdb.com
+sources:
+  - https://github.com/rush-db/rushdb
+maintainers:
+  - name: RushDB Team
+    url: https://rushdb.com
+icon: https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg

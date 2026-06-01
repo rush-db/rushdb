@@ -1,0 +1,88 @@
+/* ── Track ─────────────────────────────────────────────────────────────── */
+
+.track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+  outline: none;
+}
+
+.track:focus-visible {
+  box-shadow: 0 0 0 2px var(--ifm-color-primary);
+}
+
+.trackLight {
+  background: #e2e8f0;
+}
+
+.trackDark {
+  background: #2d3748;
+}
+
+/* ── Background icons (visible through track) ──────────────────────────── */
+
+.icons {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5px;
+  pointer-events: none;
+}
+
+.sun {
+  color: #f59e0b;
+  opacity: 0.9;
+}
+
+.moon {
+  color: #94a3b8;
+  opacity: 0.9;
+}
+
+/* ── Thumb ─────────────────────────────────────────────────────────────── */
+
+.thumb {
+  position: absolute;
+  top: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition:
+    left 0.2s ease,
+    background 0.2s ease;
+  pointer-events: none;
+}
+
+.thumbLight {
+  left: 3px;
+  background: #fff;
+}
+
+.thumbDark {
+  left: 23px;
+  background: #1e293b;
+}
+
+/* ── Thumb icon ────────────────────────────────────────────────────────── */
+
+.thumbIcon {
+  color: #f59e0b;
+}
+
+.thumbDark .thumbIcon {
+  color: #94a3b8;
+}

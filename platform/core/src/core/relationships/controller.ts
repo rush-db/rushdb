@@ -75,7 +75,11 @@ export class RelationshipsController {
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
-    return await this.entityService.attach(entityId, attachDto, projectId, transaction)
+    const normalizedDto: AttachDto = {
+      ...attachDto,
+      direction: attachDto.direction?.toLowerCase() as TRelationDirection | undefined
+    }
+    return await this.entityService.attach(entityId, normalizedDto, projectId, transaction)
   }
 
   @Put(':entityId')
@@ -103,7 +107,11 @@ export class RelationshipsController {
     @Request() request: PlatformRequest
   ): Promise<{ message: string }> {
     const projectId = request.projectId
-    return await this.entityService.detach(entityId, detachDto, projectId, transaction)
+    const normalizedDto: DetachDto = {
+      ...detachDto,
+      direction: detachDto.direction?.toLowerCase() as TRelationDirection | undefined
+    }
+    return await this.entityService.detach(entityId, normalizedDto, projectId, transaction)
   }
 
   // @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach

@@ -22,12 +22,13 @@ npm install @rushdb/skills
 
 ## Available Skills
 
-| Skill | What it teaches |
-|---|---|
-| [`rushdb-query-builder`](#rushdb-query-builder) | Discovery-first workflow, SearchQuery syntax, aggregation, relationship traversal |
-| [`rushdb-agent-memory`](#rushdb-agent-memory) | Using RushDB as persistent structured memory for AI agents |
-| [`rushdb-data-modeling`](#rushdb-data-modeling) | LMPG model, label/property/relationship design, nested JSON import |
-| [`rushdb-faceted-search`](#rushdb-faceted-search) | Build faceted filter UIs — discover properties, enumerate values, map to widgets, assemble `where` |
+| Skill                                               | What it teaches                                                                                                              |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| [`rushdb-query-builder`](#rushdb-query-builder)     | Discovery-first workflow, SearchQuery syntax, aggregation, relationship traversal                                            |
+| [`rushdb-agent-memory`](#rushdb-agent-memory)       | Using RushDB as persistent structured memory for AI agents                                                                   |
+| [`rushdb-data-modeling`](#rushdb-data-modeling)     | LMPG model, label/property/relationship design, nested JSON import                                                           |
+| [`rushdb-faceted-search`](#rushdb-faceted-search)   | Build faceted filter UIs — discover properties, enumerate values, map to widgets, assemble `where`                           |
+| [`rushdb-domain-template`](#rushdb-domain-template) | Design a tailored schema for any domain through guided conversation — interview → labels + relationships + bootstrap payload |
 
 ---
 
@@ -38,6 +39,7 @@ Teaches the mandatory 3-step workflow for querying RushDB: ontology discovery �
 Includes a bundled reference file (`references/search-query-spec.md`) with the complete operator reference, syntax rules, and annotated examples loaded on demand.
 
 **Triggers when an agent needs to:**
+
 - List, filter, or search records
 - Count, sum, average, or group data
 - Traverse relationships between record types
@@ -53,6 +55,7 @@ Teaches how to use RushDB as a drop-in persistent memory layer for AI agents —
 Includes a reference file (`references/memory-patterns.md`) with example JSON structures for sessions, decisions, and entities.
 
 **Triggers when an agent needs to:**
+
 - Store session data or conversation context
 - Recall past decisions or prior context
 - Build an entity graph that survives across sessions
@@ -66,6 +69,7 @@ Includes a reference file (`references/memory-patterns.md`) with example JSON st
 Teaches RushDB's property-centric LMPG (Labels, Multi-Properties, Graph) model: label naming conventions, property types, relationship design, how nested JSON auto-creates relationships on import, and schema evolution patterns.
 
 **Triggers when an agent needs to:**
+
 - Design a schema or data model
 - Choose labels and property names
 - Understand how nested JSON is imported
@@ -81,11 +85,25 @@ Teaches the full workflow for generating faceted filter UIs: call `getOntology` 
 Covers the eager/lazy loading split, context-aware vs. original value enumeration, the two-hook pattern used in real RushDB apps, active filter chips, and full reset.
 
 **Triggers when an agent needs to:**
+
 - Generate a filter sidebar, faceted search UI, or drill-down panel
 - Enumerate available values for a property
 - Map property types to UI controls
 - Build a `where` clause that updates as the user selects filters
 - Generate `useProperties` / `usePropertyValues` style hooks
+
+---
+
+### `rushdb-domain-template`
+
+Guides users through designing a tailored RushDB schema via a structured interview (5 questions), then outputs a schema summary, a ready-to-run `bulkCreateRecords` bootstrap payload, and starter queries. Includes compact template cards for 10 common domains (e-commerce, SaaS/DevOps, CRM, healthcare, fintech, content, agent memory, project management, scientific research, and product management) — all adapted to RushDB's record-centric LMPG model.
+
+**Triggers when a user:**
+
+- Is starting a new project and doesn't know what labels to define
+- Asks "what records should I create for X?"
+- Wants to get up and running quickly with a known domain
+- Needs a starting point they can customise rather than designing from scratch
 
 ---
 

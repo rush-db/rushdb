@@ -1,0 +1,349 @@
+---
+slug: /tutorials/byov-external-embeddings
+sidebar_position: 35
+title: 'Bring Your Own Vectors (BYOV) — External Embeddings'
+description: Use your own embedding model to generate vectors and store them in RushDB, then search with queryVector instead of query text.
+tags: [AI, BYOV, Embeddings, TypeScript, Python]
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Bring Your Own Vectors (BYOV) — External Embeddings
+
+By default, RushDB generates embeddings for you using the configured server-side embedding model. With BYOV you generate the vectors yourself — using any model, any provider, even a locally fine-tuned one — and push them alongside your records. RushDB stores and indexes them, and you search with a pre-computed `queryVector` instead of a raw query string.
+
+Use BYOV when:
+
+- You have a fine-tuned or domain-specific embedding model
+- Your compliance requirements prohibit sending raw text to a third-party embedding API
+- You want to co-locate embedding cost with your own infrastructure
+
+---
+
+## How it differs from managed embeddings
+
+|                       | Managed                                     | BYOV (external)         |
+| --------------------- | ------------------------------------------- | ----------------------- |
+| Who generates vectors | RushDB (server-side)                        | You (client-side)       |
+| Search parameter      | `query: "text"`                             | `queryVector: number[]` |
+| Index `sourceType`    | `managed` (default)                         | `external`              |
+| Shorthand             | —                                           | `external: true`        |
+| Dimensions            | Set by server `RUSHDB_EMBEDDING_DIMENSIONS` | Set per index by you    |
+
+Both index types can coexist on the same label and property.
+
+---
+
+## Step 1: Create an external embedding index
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB(process.env.RUSHDB_API_KEY!)
+
+await db.ai.indexes.create({
+  label: 'ARTICLE',
+  propertyName: 'body',
+  external: true, // shorthand for sourceType: 'external'
+  similarityFunction: 'cosine',
+  dimensions: 1536 // must match your model's output dimensions
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+from rushdb import RushDB
+import os
+
+db = RushDB(os.environ['RUSHDB_API_KEY'], base_url='https://api.rushdb.com/api/v1')
+
+db.ai.indexes.create({
+    'label': 'ARTICLE',
+    'propertyName': 'body',
+    'external': True,           # shorthand for sourceType: 'external'
+    'similarityFunction': 'cosine',
+    'dimensions': 1536
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "ARTICLE",
+    "propertyName": "body",
+    "sourceType": "external",
+    "similarityFunction": "cosine",
+    "dimensions": 1536
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+An external index starts in `awaiting_vectors` status — it has no backfill work to do because RushDB never calls your embedding provider. It becomes `ready` as soon as vectors are stored.
+
+---
+
+## Step 2: Push records with inline vectors
+
+Use the `vectors` parameter on `create` (or `createMany` for batches) to deliver embeddings alongside the data in one call.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Your embedding function — swap with any provider
+async function embed(text: string): Promise<number[]> {
+  const res = await fetch('https://api.openai.com/v1/embeddings', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'text-embedding-3-small', input: text })
+  })
+  const json = await res.json()
+  return json.data[0].embedding
+}
+
+const articles = [
+  { title: 'Intro to Graph Databases', body: 'Graph databases store data as nodes and edges...' },
+  { title: 'Vector Search Explained', body: 'Vector search finds semantically similar documents...' }
+]
+
+// Option A: batch import with createMany
+const vectors = await Promise.all(
+  articles.map(async (a) => [{ propertyName: 'body', vector: await embed(a.body) }])
+)
+await db.records.createMany({ label: 'ARTICLE', data: articles, vectors })
+
+// Option B: one record at a time
+for (const article of articles) {
+  await db.records.create({
+    label: 'ARTICLE',
+    data: article,
+    vectors: [{ propertyName: 'body', vector: await embed(article.body) }]
+  })
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import openai
+import os
+
+openai_client = openai.OpenAI(api_key=os.environ['OPENAI_API_KEY'])
+
+def embed(text: str) -> list[float]:
+    resp = openai_client.embeddings.create(model='text-embedding-3-small', input=text)
+    return resp.data[0].embedding
+
+articles = [
+    {'title': 'Intro to Graph Databases', 'body': 'Graph databases store data as nodes and edges...'},
+    {'title': 'Vector Search Explained',  'body': 'Vector search finds semantically similar documents...'}
+]
+
+# Option A: batch import with create_many
+vectors = [[{'propertyName': 'body', 'vector': embed(a['body'])}] for a in articles]
+db.records.create_many(label='ARTICLE', data=articles, vectors=vectors)
+
+# Option B: one record at a time
+for article in articles:
+    db.records.create(
+        label='ARTICLE',
+        data=article,
+        vectors=[{'propertyName': 'body', 'vector': embed(article['body'])}],
+    )
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# Generate embedding via OpenAI and push a single record to RushDB
+VECTOR=$(curl -s https://api.openai.com/v1/embeddings \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"text-embedding-3-small","input":"Graph databases store data as nodes and edges"}' \
+  | jq '.data[0].embedding')
+
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"label\":\"ARTICLE\",\"data\":{\"title\":\"Intro to Graph Databases\",\"body\":\"Graph databases store data as nodes and edges\"},\"vectors\":[{\"propertyName\":\"body\",\"vector\":$VECTOR}]}"
+
+# For batch imports use the flat-rows format with a top-level vectors array:
+# POST /api/v1/records/import/json with {"label":"ARTICLE","data":[...],"vectors":[[...],[...]]}
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 3: Search with a pre-computed query vector
+
+Instead of `query: "text"` you pass `queryVector: number[]`. RushDB infers `dimensions` from the vector length.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const queryVector = await embed('how do graph databases handle relationships?')
+
+const results = await db.ai.search({
+  propertyName: 'body',
+  queryVector, // dimensions inferred from queryVector.length
+  labels: ['ARTICLE'],
+  limit: 5
+})
+
+for (const article of results.data) {
+  console.log(`${article.title} — score: ${article.__score.toFixed(3)}`)
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+query_vector = embed('how do graph databases handle relationships?')
+
+results = db.ai.search({
+    'propertyName': 'body',
+    'queryVector': query_vector,   # dimensions inferred from vector length
+    'labels': ['ARTICLE'],
+    'limit': 5
+})
+
+for article in results.data:
+    print(f"{article.get('title')} — score: {article.score:.3f}")
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+QUERY_VECTOR=$(curl -s https://api.openai.com/v1/embeddings \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"text-embedding-3-small","input":"how do graph databases handle relationships?"}' \
+  | jq '.data[0].embedding')
+
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"propertyName\":\"body\",\"queryVector\":$QUERY_VECTOR,\"labels\":[\"ARTICLE\"],\"limit\":5}"
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Combining `queryVector` with structured filters
+
+`queryVector` works with `where` exactly like `query` — the `where` clause executes first, then semantic ranking runs over the filtered set.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const queryVector = await embed('reducing database latency')
+
+const results = await db.ai.search({
+  propertyName: 'body',
+  queryVector,
+  labels: ['ARTICLE'],
+  where: {
+    status: 'published',
+    category: 'infrastructure',
+    publishedAt: { $gte: '2025-01-01' }
+  },
+  limit: 10
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+results = db.ai.search({
+    'propertyName': 'body',
+    'queryVector': embed('reducing database latency'),
+    'labels': ['ARTICLE'],
+    'where': {
+        'status': 'published',
+        'category': 'infrastructure',
+        'publishedAt': {'$gte': '2025-01-01'}
+    },
+    'limit': 10
+})
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Disambiguation: two indexes on the same property
+
+If you create both a `cosine` and `euclidean` index on the same label+property, specify `similarityFunction` in the `vectors` entry to target the right one.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+vectors: [
+  { propertyName: 'body', similarityFunction: 'cosine', vector: cosineEmbedding },
+  { propertyName: 'body', similarityFunction: 'euclidean', vector: euclideanEmbedding }
+]
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+vectors=[
+    {"propertyName": "body", "similarityFunction": "cosine",    "vector": cosine_embedding},
+    {"propertyName": "body", "similarityFunction": "euclidean", "vector": euclidean_embedding}
+]
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+"vectors": [
+  {"propertyName": "body", "similarityFunction": "cosine",    "vector": [0.1, 0.2, ...]},
+  {"propertyName": "body", "similarityFunction": "euclidean", "vector": [0.3, 0.4, ...]}
+]
+```
+
+</TabItem>
+</Tabs>
+
+| Vector array entries               | Matching indexes | Outcome                                      |
+| ---------------------------------- | ---------------- | -------------------------------------------- |
+| 1 entry, no `similarityFunction`   | 1 match          | OK — writes to that index                    |
+| 1 entry, no `similarityFunction`   | 2 matches        | `422 Ambiguous — specify similarityFunction` |
+| 1 entry, no `similarityFunction`   | 0 matches        | `404 No external index found`                |
+| 1 entry, with `similarityFunction` | —                | Matched by both dimension + function         |
+
+---
+
+## Next steps
+
+- [Hybrid Retrieval](/tutorials/hybrid-retrieval) — `where` filters + semantic ranking in one call
+- [GraphRAG](/tutorials/graphrag) — use BYOV embeddings in a retrieval-augmented generation pipeline with graph traversal
+- [RAG Evaluation](/tutorials/rag-evaluation) — benchmark precision before and after swapping embedding models

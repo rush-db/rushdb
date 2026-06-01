@@ -1,0 +1,438 @@
+---
+slug: /tutorials/explainable-results
+sidebar_position: 33
+title: 'Explainable Results'
+description: Pair raw search results with related evidence, summary metrics, and traversal paths so users and agents can understand why a result was returned.
+tags: [Search, AI, SearchQuery, TypeScript, Python]
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Explainable Results
+
+A result without context forces users to trust it blindly. An explainable result shows _why_ it was returned: which fields matched, which related records reinforce it, and what summary metric supports it.
+
+This tutorial shows three patterns for building explainable results on top of RushDB:
+
+1. **Field-level match explanation** — which fields matched the query
+2. **Evidence assembly** — related records that corroborate the result
+3. **Score + signal summary** — pairing semantic `__score` with structured signals
+
+---
+
+## Pattern 1: Field-level match explanation
+
+After structured retrieval, compute which fields matched the query and return them alongside the record.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB(process.env.RUSHDB_API_KEY!)
+
+interface MatchedField {
+  field: string
+  value: unknown
+  queryValue: unknown
+}
+
+function explainMatch(record: Record<string, unknown>, query: Record<string, unknown>): MatchedField[] {
+  const matches: MatchedField[] = []
+  for (const [field, queryValue] of Object.entries(query)) {
+    if (field.startsWith('$') || typeof queryValue === 'object') continue
+    if (record[field] !== undefined) {
+      matches.push({ field, value: record[field], queryValue })
+    }
+  }
+  return matches
+}
+
+async function searchWithExplanation(where: Record<string, unknown>) {
+  const result = await db.records.find({ labels: ['ARTICLE'], where })
+
+  return result.data.map((record) => ({
+    id: record.__id,
+    title: record.title,
+    matchedFields: explainMatch(record as Record<string, unknown>, where)
+  }))
+}
+
+// Usage
+const results = await searchWithExplanation({
+  status: 'published',
+  category: 'engineering'
+})
+// Each result includes:
+// { id, title, matchedFields: [{ field: 'status', value: 'published', queryValue: 'published' }, ...] }
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+from rushdb import RushDB
+import os
+
+db = RushDB(os.environ["RUSHDB_API_KEY"], base_url="https://api.rushdb.com/api/v1")
+
+def explain_match(record_data: dict, query: dict) -> list[dict]:
+    matches = []
+    for field, query_value in query.items():
+        if field.startswith("$") or isinstance(query_value, dict):
+            continue
+        if field in record_data:
+            matches.append({"field": field, "value": record_data[field], "queryValue": query_value})
+    return matches
+
+def search_with_explanation(where: dict) -> list[dict]:
+    result = db.records.find({"labels": ["ARTICLE"], "where": where})
+    return [
+        {
+            "id": a.id,
+            "title": a.data.get("title"),
+            "matchedFields": explain_match(a.data, where)
+        }
+        for a in result.data
+    ]
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Pattern 2: Evidence assembly via graph traversal
+
+After retrieving a primary result, traverse related records to assemble corroborating evidence.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+interface ExplainedResult {
+  id: string
+  title: string
+  score?: number
+  evidence: {
+    author: { name: string; affiliation?: string } | null
+    relatedTopics: string[]
+    citedBy: number
+  }
+}
+
+async function assembleEvidence(articleId: string): Promise<ExplainedResult['evidence']> {
+  const [authorResult, citedByResult, topicResult] = await Promise.all([
+    db.records.find({
+      labels: ['AUTHOR'],
+      where: {
+        ARTICLE: {
+          $relation: { type: 'AUTHORED_BY', direction: 'in' },
+          __id: articleId
+        }
+      }
+    }),
+    db.records.find({
+      labels: ['ARTICLE'],
+      select: { count: { $count: '*' } },
+      where: {
+        ARTICLE: {
+          $relation: { type: 'CITES', direction: 'out' },
+          __id: articleId
+        }
+      }
+    }),
+    db.records.find({
+      labels: ['TOPIC'],
+      where: {
+        ARTICLE: {
+          $relation: { type: 'COVERS', direction: 'in' },
+          __id: articleId
+        }
+      }
+    })
+  ])
+
+  return {
+    author:
+      authorResult.data[0] ?
+        { name: authorResult.data[0].name as string, affiliation: authorResult.data[0].affiliation as string }
+      : null,
+    relatedTopics: topicResult.data.map((t) => t.name as string),
+    citedBy: (citedByResult.data[0]?.count as number) ?? 0
+  }
+}
+
+async function explainedSemanticSearch(userQuery: string): Promise<ExplainedResult[]> {
+  const results = await db.ai.search({
+    query: userQuery,
+    propertyName: 'content',
+    labels: ['ARTICLE'],
+    where: { status: 'published' },
+    limit: 5
+  })
+
+  return Promise.all(
+    results.data.map(async (article) => ({
+      id: article.__id,
+      title: article.title as string,
+      score: article.__score as number,
+      evidence: await assembleEvidence(article.__id)
+    }))
+  )
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+from concurrent.futures import ThreadPoolExecutor
+
+def assemble_evidence(article_id: str) -> dict:
+    def get_author():
+        r = db.records.find({
+            "labels": ["AUTHOR"],
+            "where": {"ARTICLE": {"$relation": {"type": "AUTHORED_BY", "direction": "in"}, "__id": article_id}}
+        })
+        return {"name": r.data[0].data.get("name")} if r.data else None
+
+    def get_cited_by():
+        r = db.records.find({
+            "labels": ["ARTICLE"],
+            "select": {"count": {"$count": "*"}},
+            "where": {"ARTICLE": {"$relation": {"type": "CITES", "direction": "out"}, "__id": article_id}}
+        })
+        return r.data[0].data.get("count", 0) if r.data else 0
+
+    def get_topics():
+        r = db.records.find({
+            "labels": ["TOPIC"],
+            "where": {"ARTICLE": {"$relation": {"type": "COVERS", "direction": "in"}, "__id": article_id}}
+        })
+        return [t.data.get("name") for t in r.data]
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        author_f  = pool.submit(get_author)
+        cited_f   = pool.submit(get_cited_by)
+        topics_f  = pool.submit(get_topics)
+
+    return {
+        "author":        author_f.result(),
+        "citedBy":       cited_f.result(),
+        "relatedTopics": topics_f.result()
+    }
+
+def explained_semantic_search(user_query: str) -> list[dict]:
+    results = db.ai.search({
+        "query": user_query,
+        "propertyName": "content",
+        "labels": ["ARTICLE"],
+        "where": {"status": "published"},
+        "limit": 5
+    })
+
+    return [
+        {
+            "id": a.id,
+            "title": a.get("title"),
+            "score": a.score,
+            "evidence": assemble_evidence(a.id)
+        }
+        for a in results.data
+    ]
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Pattern 3: Score + structured signal summary
+
+For agent contexts, produce a brief natural-language explanation rather than raw data.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+function buildExplanationText(result: {
+  title: string
+  score: number
+  evidence: { author: { name: string } | null; relatedTopics: string[]; citedBy: number }
+}): string {
+  const parts: string[] = []
+
+  parts.push(`"${result.title}" is a strong match (relevance: ${(result.score * 100).toFixed(0)}%).`)
+
+  if (result.evidence.author) {
+    parts.push(`Written by ${result.evidence.author.name}.`)
+  }
+
+  if (result.evidence.relatedTopics.length > 0) {
+    parts.push(`Topics: ${result.evidence.relatedTopics.slice(0, 3).join(', ')}.`)
+  }
+
+  if (result.evidence.citedBy > 0) {
+    parts.push(
+      `Cited by ${result.evidence.citedBy} other article${result.evidence.citedBy === 1 ? '' : 's'}.`
+    )
+  }
+
+  return parts.join(' ')
+}
+
+// Example output:
+// "Reducing Latency in Distributed Systems" is a strong match (relevance: 87%).
+// Written by Jane Smith. Topics: distributed systems, latency, caching.
+// Cited by 12 other articles.
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+def build_explanation_text(result: dict) -> str:
+    parts = []
+    score_pct = int((result.get("score") or 0) * 100)
+    parts.append(f'"{result["title"]}" is a strong match (relevance: {score_pct}%).')
+
+    evidence = result.get("evidence", {})
+    if evidence.get("author"):
+        parts.append(f'Written by {evidence["author"]["name"]}.')
+
+    topics = evidence.get("relatedTopics", [])
+    if topics:
+        parts.append(f'Topics: {", ".join(topics[:3])}.')
+
+    cited_by = evidence.get("citedBy", 0)
+    if cited_by > 0:
+        label = "article" if cited_by == 1 else "articles"
+        parts.append(f'Cited by {cited_by} other {label}.')
+
+    return " ".join(parts)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Pattern 4: REST-only evidence pipeline
+
+If you are building an agent or backend service without an SDK, assemble evidence with sequential REST calls.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// 1. Semantic search for the primary result
+const results = await db.ai.search({
+  query: 'reducing latency',
+  propertyName: 'content',
+  labels: ['ARTICLE'],
+  limit: 1
+})
+
+const article = results.data[0]
+
+// 2. Fetch author evidence
+const authorResult = await db.records.find({
+  labels: ['AUTHOR'],
+  where: {
+    ARTICLE: {
+      __id: article.__id,
+      $relation: { type: 'AUTHORED_BY', direction: 'in' }
+    }
+  }
+})
+
+console.log(
+  `Result: ${article.title} (score: ${article.__score}) — Author: ${authorResult.data[0]?.name ?? 'unknown'}`
+)
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# 1. Semantic search for the primary result
+results = db.ai.search({
+    "query": "reducing latency",
+    "propertyName": "content",
+    "labels": ["ARTICLE"],
+    "limit": 1
+})
+
+article = results.data[0]
+
+# 2. Fetch author evidence
+author_result = db.records.find({
+    "labels": ["AUTHOR"],
+    "where": {
+        "ARTICLE": {
+            "__id": article.data["__id"],
+            "$relation": {"type": "AUTHORED_BY", "direction": "in"}
+        }
+    }
+})
+
+author_name = author_result.data[0].data.get("name", "unknown") if author_result.data else "unknown"
+print(f"Result: {article.data['title']} (score: {article.data['__score']}) — Author: {author_name}")
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+BASE="https://api.rushdb.com/api/v1"
+TOKEN="$RUSHDB_API_KEY"
+H='Content-Type: application/json'
+
+# 1. Semantic search for the primary result
+RESULTS=$(curl -s -X POST "$BASE/ai/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{"query":"reducing latency","propertyName":"content","labels":["ARTICLE"],"limit":1}')
+
+ARTICLE_ID=$(echo "$RESULTS" | jq -r '.data[0].__id')
+SCORE=$(echo "$RESULTS" | jq -r '.data[0].__score')
+TITLE=$(echo "$RESULTS" | jq -r '.data[0].title')
+
+# 2. Fetch author evidence
+AUTHOR=$(curl -s -X POST "$BASE/records/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d "{\"labels\":[\"AUTHOR\"],\"where\":{\"ARTICLE\":{\"__id\":\"$ARTICLE_ID\",\"\$relation\":{\"type\":\"AUTHORED_BY\",\"direction\":\"in\"}}}}" \
+  | jq -r '.data[0].name // "unknown"')
+
+echo "Result: $TITLE (score: $SCORE) — Author: $AUTHOR"
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## When to use explainability
+
+| Context                     | Recommended patterns                         |
+| --------------------------- | -------------------------------------------- |
+| User-facing search results  | Field match highlights + related topic tags  |
+| AI agent tool responses     | Score + structured summary text              |
+| Compliance / audit surfaces | Full evidence assembly with provenance links |
+| Debug / development         | Field-level match + raw score logging        |
+
+---
+
+## Production caveat
+
+Evidence assembly makes one additional query per result per evidence type. For 10 results and 3 evidence types, that is 30 extra queries. Cache evidence for repeated result IDs within the same session, or pre-join commonly needed evidence fields during ingestion.
+
+---
+
+## Next steps
+
+- [Search UX Patterns](/tutorials/search-ux-patterns) — structured and semantic search for the end user
+- [Hybrid Retrieval](/tutorials/hybrid-retrieval) — `where` filter + semantic scoring in one call
+- [Research Knowledge Graph](/tutorials/research-knowledge-graph) — citation and co-authorship graphs to power evidence traversal

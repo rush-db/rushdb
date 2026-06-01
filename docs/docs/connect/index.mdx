@@ -1,0 +1,125 @@
+---
+sidebar_position: 1
+title: Connect RushDB
+displayed_sidebar: docs
+---
+
+# Connect RushDB
+
+Start with the path that matches how you work. Each option gets you to a working RushDB connection first, then points to the next useful workflow.
+
+| Goal                                                 | Fastest path                                      | Time   |
+| ---------------------------------------------------- | ------------------------------------------------- | ------ |
+| Use RushDB from ChatGPT or Claude.ai                 | [Hosted MCP connector](#hosted-mcp-connector)     | ~1 min |
+| Give Cursor, Claude Desktop, or VS Code RushDB tools | [Local MCP server](#local-mcp-server)             | ~3 min |
+| Teach an AI agent correct RushDB workflows           | [Install Agent Skills](#install-agent-skills)     | ~2 min |
+| Add persistent memory to an agent                    | [Bootstrap agent memory](#bootstrap-agent-memory) | ~5 min |
+| Build an application or data pipeline                | [Use an SDK or REST](#use-an-sdk-or-rest)         | ~5 min |
+
+Need an API key for a local or application connection? [Create one in the dashboard](/deploy/get-api-key).
+
+---
+
+## Hosted MCP Connector
+
+For ChatGPT, Claude.ai, and other web-based MCP clients, add this URL as a connector:
+
+```
+https://mcp.rushdb.com/mcp
+```
+
+Sign in with your RushDB account and choose the project to expose. No local installation or API key is required.
+
+**Verify:**
+
+> Call `getOntologyMarkdown` and show me what labels exist in my RushDB project.
+
+[Set up a hosted MCP connector →](/connect/mcp#hosted-oauth-no-installation)
+
+---
+
+## Local MCP Server
+
+For Claude Desktop, Cursor, VS Code, and other local MCP clients, run the MCP server with your project API key:
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["-y", "@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+Restart your client, then run the same ontology verification prompt.
+
+[Choose your local MCP client →](/connect/mcp#local-mcp-api-key)
+
+---
+
+## Install Agent Skills
+
+Install RushDB Agent Skills so your assistant knows how to query, model data, and manage persistent memory:
+
+```bash
+npx skills add rush-db/rushdb --path packages/skills
+```
+
+Start a new agent session after installation so the skills are discovered.
+
+[Install and verify Agent Skills →](/connect/skills)
+
+---
+
+## Bootstrap Agent Memory
+
+After MCP and Skills are installed, give your agent the canonical machine-readable setup guide:
+
+```
+Fetch https://rushdb.com/agent-setup and follow the instructions exactly.
+```
+
+The agent discovers the live schema, creates a `SESSION`, imports existing preferences when available, and validates recall.
+
+[Bootstrap persistent memory →](/build/agent-memory/quickstart)
+
+---
+
+## Use an SDK or REST
+
+For application code, use the TypeScript SDK, Python SDK, or JSON REST API. The first useful test is a nested import: RushDB creates the records and their relationships in one request.
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "PROJECT",
+    "data": {
+      "name": "RushDB adoption",
+      "TASK": [
+        {"title": "Connect RushDB", "status": "done"},
+        {"title": "Query linked records", "status": "pending"}
+      ]
+    }
+  }'
+```
+
+[Connect with TypeScript, Python, or REST →](/connect/sdks)
+
+---
+
+## Choose What to Build
+
+| Use case                          | Guide                                                     |
+| --------------------------------- | --------------------------------------------------------- |
+| Persistent agent memory           | [Agent Memory Quickstart](/build/agent-memory/quickstart) |
+| Semantic search over your data    | [Semantic Search](/build/ai-search/semantic-search)       |
+| Graph-enriched retrieval          | [GraphRAG Tutorial](/tutorials/graphrag)                  |
+| Explore an unknown dataset safely | [Discovery Queries](/tutorials/discovery-queries)         |
+| Design labels and relationships   | [Data Modeling](/build/data/import-data)                  |

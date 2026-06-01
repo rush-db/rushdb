@@ -1,0 +1,614 @@
+---
+slug: /build/ai-search/bring-your-own-vectors
+sidebar_position: 4
+title: Bring Your Own Vectors
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Bring Your Own Vectors (BYOV)
+
+**External indexes** let you supply pre-computed embedding vectors instead of having the server compute them. Use them when you need:
+
+- A custom or private model the server cannot access
+- Multimodal embeddings (image, audio, document structure)
+- Vectors already produced by your ML pipeline
+- Reproducible embeddings not tied to the server's active model
+
+---
+
+## External vs Managed Comparison
+
+|                               | Managed                          | External                                                       |
+| ----------------------------- | -------------------------------- | -------------------------------------------------------------- |
+| `sourceType`                  | `"managed"`                      | `"external"`                                                   |
+| Initial status                | `"pending"`                      | `"awaiting_vectors"`                                           |
+| Who computes embeddings       | RushDB server (configured model) | Your application                                               |
+| `dimensions` required         | No (uses server default)         | **Yes**                                                        |
+| Backfill for existing records | Automatic                        | Manual via `upsertVectors` / `upsert_vectors` or inline writes |
+
+---
+
+## Create an External Index
+
+An external index starts with status `awaiting_vectors` and transitions to `ready` once at least one vector has been written.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.ai.indexes.create()`
+
+```python
+response = db.ai.indexes.create({
+    "label": "Article",
+    "propertyName": "body",
+    "sourceType": "external",
+    "dimensions": 768,
+    "similarityFunction": "cosine",
+})
+print(response.data["status"])  # 'awaiting_vectors'
+```
+
+> `dimensions` is **required** for external indexes — the server cannot infer it without an embedding model.
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.ai.indexes.create()`
+
+```typescript
+// Shorthand: external: true
+const { data: extIndex } = await db.ai.indexes.create({
+  label: 'Article',
+  propertyName: 'body',
+  external: true,
+  dimensions: 768,
+  similarityFunction: 'cosine'
+})
+// extIndex.sourceType === 'external'
+// extIndex.status    === 'awaiting_vectors'
+
+// Explicit: sourceType: 'external'
+const { data: extIndex } = await db.ai.indexes.create({
+  label: 'Article',
+  propertyName: 'body',
+  sourceType: 'external',
+  dimensions: 768,
+  similarityFunction: 'cosine'
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/ai/indexes`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "Article",
+    "propertyName": "body",
+    "sourceType": "external",
+    "dimensions": 768,
+    "similarityFunction": "cosine"
+  }'
+```
+
+```json
+{
+  "data": {
+    "id": "idx_abc",
+    "label": "Article",
+    "propertyName": "body",
+    "sourceType": "external",
+    "status": "awaiting_vectors",
+    "dimensions": 768,
+    "similarityFunction": "cosine"
+  },
+  "success": true
+}
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Bulk-Upsert Vectors
+
+Use `upsertVectors` / `upsert_vectors` to seed an external index from an existing dataset or batch pipeline. The request is **idempotent** — calling it again with the same `recordId` replaces the stored vector.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.ai.indexes.upsert_vectors(index_id, params)`
+
+```python
+# Fetch records and embed with your own model
+records_response = db.records.find({"where": {"__label": "Article"}})
+
+items = []
+for record in records_response.data:
+    vector = my_embedder.embed(record["body"])
+    items.append({"recordId": record["__id"], "vector": vector})
+
+db.ai.indexes.upsert_vectors(ext_index_id, {"items": items})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.ai.indexes.upsertVectors(indexId, payload)`
+
+```typescript
+const { data: records } = await db.records.find({
+  where: { __label: 'Article' }
+})
+
+const myEmbedder = new MyEmbeddingModel()
+const items = await Promise.all(
+  records.map(async (record) => ({
+    recordId: record.__id,
+    vector: await myEmbedder.embed(record.body)
+  }))
+)
+
+await db.ai.indexes.upsertVectors(extIndex.id, { items })
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/ai/indexes/:id/vectors/upsert`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/indexes/$INDEX_ID/vectors/upsert \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      { "recordId": "rec_abc", "vector": [0.1, 0.2, 0.3] },
+      { "recordId": "rec_def", "vector": [0.4, 0.5, 0.6] }
+    ]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Inline Write (Preferred for New Records)
+
+Instead of a two-step create → upsert_vectors flow, write vectors inline with any record write operation. See [Write Records with Vectors](/build/ai-search/write-with-vectors) for the full reference.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+# One step: create record AND write its vector
+record = db.records.create(
+    label="Article",
+    data={"title": "Warp drives", "body": "Alcubierre metric..."},
+    vectors=[{"propertyName": "body", "vector": my_embedder.embed("Alcubierre metric...")}],
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// One step: create record AND write its vector
+const { data: record } = await db.records.create({
+  label: 'Article',
+  data: { title: 'Warp drives', body: 'Alcubierre metric...' },
+  vectors: [{ propertyName: 'body', vector: myVec }]
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Article",
+    "data": { "title": "Warp drives", "body": "Alcubierre metric..." },
+    "vectors": [{ "propertyName": "body", "vector": [0.1, 0.2, 0.3] }]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Disambiguation
+
+When the same `(label, propertyName)` pair has multiple external indexes (e.g. cosine and euclidean), specify `similarityFunction` to resolve which index to use.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+# Create two indexes on the same property
+db.ai.indexes.create({
+    "label": "Product", "propertyName": "embedding",
+    "sourceType": "external", "similarityFunction": "cosine", "dimensions": 768,
+})
+db.ai.indexes.create({
+    "label": "Product", "propertyName": "embedding",
+    "sourceType": "external", "similarityFunction": "euclidean", "dimensions": 768,
+})
+
+# ✅ Write to the cosine index only
+db.records.create(
+    label="Product",
+    data={"name": "Widget"},
+    vectors=[{
+        "propertyName": "embedding",
+        "vector": vec,
+        "similarityFunction": "cosine",   # required when ambiguous
+    }],
+)
+
+# ✅ Search the euclidean index only
+db.ai.search({
+    "labels": ["Product"],
+    "propertyName": "embedding",
+    "queryVector": vec,
+    "similarityFunction": "euclidean",
+})
+
+# ❌ Missing similarityFunction → 422 Unprocessable Entity
+db.records.create(
+    label="Product",
+    data={"name": "Gadget"},
+    vectors=[{"propertyName": "embedding", "vector": vec}],  # ambiguous!
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Create two indexes on the same property
+await db.ai.indexes.create({
+  label: 'Product',
+  propertyName: 'embedding',
+  external: true,
+  similarityFunction: 'cosine',
+  dimensions: 768
+})
+await db.ai.indexes.create({
+  label: 'Product',
+  propertyName: 'embedding',
+  external: true,
+  similarityFunction: 'euclidean',
+  dimensions: 768
+})
+
+// ✅ Write to cosine index only
+await db.records.create({
+  label: 'Product',
+  data: { name: 'Widget' },
+  vectors: [
+    {
+      propertyName: 'embedding',
+      vector: vec,
+      similarityFunction: 'cosine' // required when ambiguous
+    }
+  ]
+})
+
+// ✅ Search euclidean index only
+await db.ai.search({
+  labels: ['Product'],
+  propertyName: 'embedding',
+  queryVector: vec,
+  similarityFunction: 'euclidean' // required when ambiguous
+})
+
+// ❌ Omitting similarityFunction when two indexes exist → 422 Unprocessable Entity
+await db.records.create({
+  label: 'Product',
+  data: { name: 'Gadget' },
+  vectors: [{ propertyName: 'embedding', vector: vec }] // ambiguous!
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+# ✅ Write to cosine index only
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Product",
+    "data": { "name": "Widget" },
+    "vectors": [
+      { "propertyName": "embedding", "vector": [0.1, 0.9], "similarityFunction": "cosine" }
+    ]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+### Index signature uniqueness
+
+Two index policies are considered **identical** (and a second `create` returns `409 Conflict`) when all five fields match:
+
+| Field                | Effect on uniqueness |
+| -------------------- | -------------------- |
+| `label`              | ✅                   |
+| `propertyName`       | ✅                   |
+| `sourceType`         | ✅                   |
+| `similarityFunction` | ✅                   |
+| `dimensions`         | ✅                   |
+
+---
+
+## Complete BYOV Worked Example
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+from rushdb import RushDB
+
+db = RushDB("your-api-key")
+
+# 1. Create the external index
+idx_response = db.ai.indexes.create({
+    "label": "Doc",
+    "propertyName": "content",
+    "sourceType": "external",
+    "dimensions": 3,
+    "similarityFunction": "cosine",
+})
+ext_index_id = idx_response.data["id"]
+
+# 2. Create records with inline vectors (one round trip per record)
+articles = [
+    {"title": "Alpha", "content": "First article",  "vector": [1, 0, 0]},
+    {"title": "Beta",  "content": "Second article", "vector": [0, 1, 0]},
+    {"title": "Gamma", "content": "Third article",  "vector": [0, 0, 1]},
+]
+
+for article in articles:
+    db.records.create(
+        label="Doc",
+        data={"title": article["title"], "content": article["content"]},
+        vectors=[{"propertyName": "content", "vector": article["vector"]}],
+    )
+
+# 3. Search using a pre-computed query vector
+response = db.ai.search({
+    "labels": ["Doc"],
+    "propertyName": "content",
+    "queryVector": [1, 0, 0],   # closest to Alpha
+    "limit": 3,
+})
+
+print(response.data[0].get("title"))    # "Alpha"
+print(response.data[0].get("__score")) # ~1.0
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB('your-api-key')
+
+// 1. Create the external index
+const { data: idx } = await db.ai.indexes.create({
+  label: 'Doc',
+  propertyName: 'content',
+  external: true,
+  dimensions: 3,
+  similarityFunction: 'cosine'
+})
+
+// 2. Create records + write inline vectors (one round trip per record)
+const articles = [
+  { title: 'Alpha', content: 'First article', vector: [1, 0, 0] },
+  { title: 'Beta', content: 'Second article', vector: [0, 1, 0] },
+  { title: 'Gamma', content: 'Third article', vector: [0, 0, 1] }
+]
+
+for (const { title, content, vector } of articles) {
+  await db.records.create({
+    label: 'Doc',
+    data: { title, content },
+    vectors: [{ propertyName: 'content', vector }]
+  })
+}
+
+// 3. Search using a pre-computed query vector
+const { data: results } = await db.ai.search({
+  labels: ['Doc'],
+  propertyName: 'content',
+  queryVector: [1, 0, 0], // closest to Alpha
+  limit: 3
+})
+
+console.log(results[0].data.title) // "Alpha"
+console.log(results[0].data.__score) // ~1.0
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+# 1. Create the external index
+curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"Doc","propertyName":"content","sourceType":"external","dimensions":3,"similarityFunction":"cosine"}'
+
+# 2. Create a record with inline vectors
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{"label":"Doc","data":{"title":"Alpha","content":"First article"},"vectors":[{"propertyName":"content","vector":[1,0,0]}]}'
+
+# 3. Search using a pre-computed query vector
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"labels":["Doc"],"propertyName":"content","queryVector":[1,0,0],"limit":3}'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Batch Import with createMany
+
+For bulk seeding with flat rows, use `createMany` / `create_many` with the top-level indexed `vectors` parameter:
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+db.records.create_many(
+    label="Doc",
+    data=[
+        {"title": "Alpha", "content": "First article"},
+        {"title": "Beta",  "content": "Second article"},
+        {"title": "Gamma", "content": "Third article"},
+    ],
+    vectors=[
+        [{"propertyName": "content", "vector": [1, 0, 0]}],  # row 0
+        [{"propertyName": "content", "vector": [0, 1, 0]}],  # row 1
+        [{"propertyName": "content", "vector": [0, 0, 1]}],  # row 2
+    ],
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+await db.records.createMany({
+  label: 'Doc',
+  data: [
+    { title: 'Alpha', content: 'First article' },
+    { title: 'Beta', content: 'Second article' },
+    { title: 'Gamma', content: 'Third article' }
+  ],
+  vectors: [
+    [{ propertyName: 'content', vector: [1, 0, 0] }],
+    [{ propertyName: 'content', vector: [0, 1, 0] }],
+    [{ propertyName: 'content', vector: [0, 0, 1] }]
+  ]
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Doc",
+    "data": [
+      {"title":"Alpha","content":"First article"},
+      {"title":"Beta","content":"Second article"},
+      {"title":"Gamma","content":"Third article"}
+    ],
+    "vectors": [
+      [{"propertyName":"content","vector":[1,0,0]}],
+      [{"propertyName":"content","vector":[0,1,0]}],
+      [{"propertyName":"content","vector":[0,0,1]}]
+    ]
+  }'
+```
+
+For nested JSON payloads (`importJson`), create records first then call `upsertVectors` separately to seed the index.
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Mixing Managed and External Indexes
+
+You can have both a managed index and an external index on the same property simultaneously:
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+# Managed — server embeds for full-text semantic search
+db.ai.indexes.create({"label": "Product", "propertyName": "description"})
+
+# External — your custom multimodal model
+db.ai.indexes.create({
+    "label": "Product",
+    "propertyName": "description",
+    "sourceType": "external",
+    "dimensions": 512,
+    "similarityFunction": "cosine",
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Managed — server embeds for full-text semantic search
+await db.ai.indexes.create({ label: 'Product', propertyName: 'description' })
+
+// External — your custom multimodal model
+await db.ai.indexes.create({
+  label: 'Product',
+  propertyName: 'description',
+  external: true,
+  dimensions: 512,
+  similarityFunction: 'cosine'
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+# Managed index
+curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"Product","propertyName":"description"}'
+
+# External index
+curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"Product","propertyName":"description","sourceType":"external","dimensions":512,"similarityFunction":"cosine"}'
+```
+
+  </TabItem>
+</Tabs>
+
+When searching against a property with both types, specify `similarityFunction` (and optionally `sourceType`) to select the target index.
+
+---
+
+## See also
+
+- [Manage Embedding Indexes](/build/ai-search/manage-indexes) — list, stats, delete, lifecycle
+- [Write Records with Vectors](/build/ai-search/write-with-vectors) — inline vector writes at record creation
+- [Semantic Search](/build/ai-search/semantic-search) — search managed and external indexes

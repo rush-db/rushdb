@@ -1,0 +1,59 @@
+---
+slug: /deploy/infra-index
+title: Infrastructure
+description: Configure RushDB's data layer — the graph backend (Neo4j or Aura) and the relational database (PostgreSQL or SQLite).
+sidebar_position: 10
+displayed_sidebar: docs
+overview_page: true
+tags: [Infrastructure, Neo4j, PostgreSQL, SQLite]
+---
+
+import { DeployMethodRow, DeployMethodRowList, DeployCrossLinks } from '@site/src/components/DeployMethodCard'
+
+# Infrastructure
+
+RushDB is made up of three layers: the **NestJS platform** (the API + dashboard process), **Neo4j** for the graph layer, and a **relational database** for metadata. Configure all three before going to production.
+
+<DeployMethodRowList>
+  <DeployMethodRow
+    title="RushDB Platform"
+    description="The NestJS application that serves the REST API and the built-in dashboard. Runs as a single Node.js process on port 3000. Configured entirely through environment variables."
+    badge="self-hosted"
+    time="~5 min"
+    icon="Box"
+    prerequisites={['Node.js 18+', 'Running Neo4j', 'Running PostgreSQL or SQLite']}
+    commands={['RUSHDB_PORT=3000', 'RUSHDB_AES_256_ENCRYPTION_KEY=...']}
+    tags={['NestJS', 'Node.js', 'API']}
+    href="/deploy/infra-platform"
+  />
+  <DeployMethodRow
+    title="Neo4j & Aura"
+    description="Set up the graph backend — bundled via Docker Compose, an existing Neo4j instance, or Neo4j Aura (BYOC) to keep graph data in your own cloud account."
+    badge="self-hosted"
+    time="~10 min"
+    icon="Globe"
+    prerequisites={['Docker Compose or existing Neo4j 2026.x']}
+    commands={['NEO4J_URL=bolt://...', 'NEO4J_PASSWORD=...']}
+    tags={['Neo4j', 'Aura', 'BYOC']}
+    href="/deploy/infra-neo4j"
+  />
+  <DeployMethodRow
+    title="PostgreSQL / SQLite"
+    description="Configure the relational database for project metadata, users, and API keys. Use SQLite for single-node deployments; PostgreSQL for production."
+    badge="self-hosted"
+    time="~5 min"
+    icon="Server"
+    prerequisites={['Docker Compose or external PostgreSQL 14+']}
+    commands={['SQL_DB_TYPE=postgres', 'SQL_DB_URL=postgresql://...']}
+    tags={['PostgreSQL', 'SQLite']}
+    href="/deploy/infra-database"
+  />
+</DeployMethodRowList>
+
+<DeployCrossLinks
+  prefix="Looking for other configuration?"
+  links={[
+    { label: 'Environment Variables', href: '/deploy/config-env-variables' },
+    { label: 'Security', href: '/deploy/config-security' }
+  ]}
+/>

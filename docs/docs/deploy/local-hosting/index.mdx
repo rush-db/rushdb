@@ -1,0 +1,60 @@
+---
+slug: /deploy/local-index
+title: Local Installation
+description: Run RushDB on your machine. Choose between Docker, running from source, or a Kubernetes Helm chart.
+sidebar_position: 1
+displayed_sidebar: docs
+overview_page: true
+tags: [Getting Started, Deployment, Docker]
+---
+
+import { DeployMethodRow, DeployMethodRowList, DeployCrossLinks } from '@site/src/components/DeployMethodCard'
+
+# Local Installation
+
+Run RushDB on your machine. Pick the option that fits your workflow.
+
+<DeployMethodRowList>
+  <DeployMethodRow
+    title="Docker"
+    description="Spin up RushDB and Neo4j together with Docker Compose, or run a single container against an existing Neo4j instance."
+    badge="beginner"
+    time="~5 min"
+    icon="Box"
+    recommended
+    prerequisites={['Docker 24+', 'Docker Compose 2.20+']}
+    commands={['docker compose up -d']}
+    tags={['Docker', 'Docker Compose', 'Neo4j']}
+    href="/deploy/local-docker"
+  />
+  <DeployMethodRow
+    title="From Source"
+    description="Clone the repository and run the NestJS dev server. Ideal for contributors or those who need to run unreleased code."
+    badge="intermediate"
+    time="~10 min"
+    icon="Code2"
+    prerequisites={['Node.js 20+', 'pnpm 9+', 'Neo4j + APOC Core']}
+    commands={['git clone https://github.com/rush-db/rushdb.git', 'cd rushdb && pnpm install', 'pnpm dev']}
+    tags={['NestJS', 'Node.js', 'Development']}
+    href="/deploy/local-source"
+  />
+  <DeployMethodRow
+    title="Helm"
+    description="Deploy RushDB on Kubernetes with the Helm chart. Includes values reference, ingress configuration, and Neo4j wiring."
+    badge="advanced"
+    time="~15 min"
+    icon="Layers"
+    prerequisites={['Kubernetes 1.27+', 'Helm 3.12+']}
+    commands={['helm install rushdb oci://ghcr.io/rush-db/charts/rushdb']}
+    tags={['Kubernetes', 'Helm', 'Production']}
+    href="/deploy/local-helm"
+  />
+</DeployMethodRowList>
+
+<DeployCrossLinks
+  prefix="Not running locally?"
+  links={[
+    { label: 'Remote Hosting', href: '/deploy/remote-index' },
+    { label: 'Get API Key', href: '/deploy/get-api-key' }
+  ]}
+/>

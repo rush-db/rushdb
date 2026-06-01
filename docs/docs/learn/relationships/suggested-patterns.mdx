@@ -1,0 +1,164 @@
+---
+slug: /build/graph/suggested-patterns
+sidebar_position: 3
+title: Suggested Patterns
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Suggested Relationship Patterns
+
+RushDB can analyze the labels, properties, and existing edges in a project and suggest relationship patterns worth making explicit. Review suggestions before applying them: analysis proposes graph structure, but approval is the step that changes relationships.
+
+This is useful after imports and schema evolution, when matching keys or default import edges reveal a stable domain relationship such as `ORDER -[:PLACED_BY]-> CUSTOMER`.
+
+## Prerequisites
+
+Relationship analysis uses the LLM configured by your RushDB server:
+
+```bash
+RUSHDB_LLM_API_KEY=...
+RUSHDB_LLM_MODEL=gpt-4.1-mini
+```
+
+For self-hosted deployments, see [Environment Variables](/deploy/config-env-variables). Omit these variables to disable AI relationship suggestions.
+
+## Lifecycle
+
+1. RushDB analyzes the current project ontology and stores inferred patterns as `suggested`.
+2. Review the source, target, type, direction, mode, confidence, and rationale.
+3. Approve a suggestion to apply it, or ignore it without changing relationships.
+4. Delete a saved pattern when it is no longer useful. Deleting with `deleteExisting=true` also removes relationships materialized by that pattern.
+
+| Status      | Meaning                                  |
+| ----------- | ---------------------------------------- |
+| `suggested` | Awaiting review                          |
+| `approved`  | Accepted and applied                     |
+| `ignored`   | Dismissed without applying               |
+| `error`     | Applying or analyzing the pattern failed |
+
+## Modes
+
+| Mode                           | What approval does                                                       |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| `join_pattern`                 | Creates relationships by matching keys between source and target records |
+| `retype_existing_relationship` | Replaces default import edges with an explicit domain relationship type  |
+
+## SDK Workflow
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+# Queue analysis, then poll list() until analysis.status returns to "idle"
+client.relationships.patterns.analyze()
+result = client.relationships.patterns.list()
+
+for pattern in result.data["patterns"]:
+    print(pattern["id"], pattern["type"], pattern["confidence"])
+
+client.relationships.patterns.approve(pattern_id)
+client.relationships.patterns.ignore(pattern_id)
+
+# Destructive: also removes relationships materialized by this pattern
+client.relationships.patterns.delete(pattern_id, delete_existing=True)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Queue analysis, then poll list() until analysis.status returns to "idle"
+await db.relationships.patterns.analyze()
+const { data } = await db.relationships.patterns.list()
+
+for (const pattern of data.patterns) {
+  console.log(pattern.id, pattern.type, pattern.confidence)
+}
+
+await db.relationships.patterns.approve(patternId)
+await db.relationships.patterns.ignore(patternId)
+
+// Destructive: also removes relationships materialized by this pattern
+await db.relationships.patterns.delete(patternId, { deleteExisting: true })
+```
+
+  </TabItem>
+</Tabs>
+
+## REST API
+
+All endpoints require `Authorization: Bearer <token>` and `x-project-id`.
+
+### List patterns
+
+```bash
+curl https://api.rushdb.com/api/v1/relationships/patterns \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "x-project-id: $RUSHDB_PROJECT_ID"
+```
+
+The response includes `patterns`, current ontology `relationships`, and the latest `analysis` status.
+
+### Queue analysis
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/relationships/patterns/analyze \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "x-project-id: $RUSHDB_PROJECT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+The server returns `202 Accepted` with `{"queued": true}`. Poll the list endpoint for completion.
+
+### Approve a pattern
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/relationships/patterns/$PATTERN_ID/approve \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "x-project-id: $RUSHDB_PROJECT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+### Ignore a pattern
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/relationships/patterns/$PATTERN_ID/ignore \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "x-project-id: $RUSHDB_PROJECT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+### Delete a pattern
+
+```bash
+# Delete the saved pattern only
+curl -X DELETE https://api.rushdb.com/api/v1/relationships/patterns/$PATTERN_ID \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "x-project-id: $RUSHDB_PROJECT_ID"
+
+# Also remove relationships materialized by the pattern
+curl -X DELETE "https://api.rushdb.com/api/v1/relationships/patterns/$PATTERN_ID?deleteExisting=true" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "x-project-id: $RUSHDB_PROJECT_ID"
+```
+
+:::warning
+`deleteExisting=true` removes graph relationships as well as the stored pattern. Confirm this destructive action before using it.
+:::
+
+## MCP Tools
+
+| Tool                          | Purpose                                                    |
+| ----------------------------- | ---------------------------------------------------------- |
+| `listRelationshipPatterns`    | List patterns, ontology relationships, and analysis status |
+| `analyzeRelationshipPatterns` | Queue ontology analysis                                    |
+| `approveRelationshipPattern`  | Approve and apply a suggestion by ID                       |
+| `ignoreRelationshipPattern`   | Ignore a suggestion by ID                                  |
+| `deleteRelationshipPattern`   | Delete a pattern, optionally with `deleteExisting`         |
+
+Agents should call `listRelationshipPatterns` before mutating a pattern so the inferred graph change is visible for review.

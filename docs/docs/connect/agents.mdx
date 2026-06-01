@@ -1,0 +1,74 @@
+---
+sidebar_position: 3
+title: Agents
+displayed_sidebar: docs
+---
+
+# Use RushDB with AI Agents
+
+RushDB gives agents a structured data layer, a traversable graph, and persistent memory. Choose the shortest setup that matches your agent.
+
+## Fastest Setup: Give the Agent the Guide
+
+For an MCP-capable agent, send:
+
+```
+Fetch https://rushdb.com/agent-setup and follow the instructions exactly.
+```
+
+The machine-readable setup guide walks the agent through MCP connection, schema discovery, memory labels, nested record linking, recall patterns, and semantic search.
+
+## Coding Assistant: MCP + Skills + Memory
+
+For Claude Desktop, Cursor, VS Code Copilot, OpenClaw, or another local coding agent:
+
+1. [Connect the local MCP server](/connect/mcp#local-mcp-api-key).
+2. [Install RushDB Agent Skills](/connect/skills).
+3. Start a new agent session.
+4. Send:
+
+```
+Set up RushDB as my persistent memory layer.
+```
+
+The agent calls `getOntologyMarkdown`, creates a `SESSION`, and validates recall. For the full bootstrap prompt and recommended labels, follow the [Agent Memory Quickstart](/build/agent-memory/quickstart).
+
+## Custom Agent Harness
+
+For an application-controlled agent, choose the interface based on where orchestration lives:
+
+| Interface      | Use it when                                                              |
+| -------------- | ------------------------------------------------------------------------ |
+| MCP tools      | Your framework already supports MCP tool discovery and invocation        |
+| TypeScript SDK | Your harness runs in Node.js, the browser, or an edge-compatible runtime |
+| Python SDK     | Your harness runs in Python                                              |
+| REST API       | You need language-neutral HTTP integration                               |
+
+[Connect with an SDK or REST →](/connect/sdks)
+
+At the start of each agent session:
+
+1. Call `getOntologyMarkdown` to discover the live schema.
+2. Recall the latest `SESSION` and relevant `DECISION`, `TASK`, or `PREFERENCE` records.
+3. Create a new `SESSION`.
+
+Before the session ends:
+
+1. Store decisions, tasks, observations, and artifacts.
+2. Link them to the session through nested JSON or relationships.
+3. Confirm the stored summary.
+
+## Verify
+
+Ask your agent:
+
+> Search RushDB for `SESSION` records. Show the most recent one and summarize any linked decisions or tasks.
+
+If you have not bootstrapped memory yet, use the [Agent Memory Quickstart](/build/agent-memory/quickstart) first.
+
+## Next Steps
+
+- [Agent Memory Quickstart](/build/agent-memory/quickstart)
+- [Schema Self-Awareness](/build/agent-memory/schema-self-awareness)
+- [Agent-Safe Query Planning](/tutorials/agent-safe-query-planning)
+- [Using RushDB Agent Skills in OpenClaw](/tutorials/agent-skills-with-openclaw)

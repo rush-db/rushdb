@@ -1,0 +1,56 @@
+---
+sidebar_position: 1
+title: Agent Skills
+displayed_sidebar: docs
+---
+
+# Agent Skills
+
+Install RushDB Agent Skills to teach compatible AI assistants how to query RushDB correctly, model graph data, build faceted search, and use RushDB as persistent memory.
+
+Skills complement the [MCP server](./mcp): MCP gives an agent runtime tools; Skills teach the agent when and how to use them.
+
+## Install
+
+For Agent Skills-compatible clients:
+
+```bash
+npx skills add rush-db/rushdb --path packages/skills
+```
+
+Or install the npm package:
+
+```bash
+npm install @rushdb/skills
+```
+
+Start a new agent session after installation so the skills are discovered.
+
+## Included Skills
+
+| Skill                    | What it enables                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `rushdb-agent-memory`    | Store sessions, decisions, tasks, and preferences; recall prior context                                       |
+| `rushdb-query-builder`   | Build correct filters, traversals, aggregations, and semantic searches                                        |
+| `rushdb-data-modeling`   | Design labels, properties, relationships, and nested JSON imports                                             |
+| `rushdb-faceted-search`  | Build faceted filter interfaces from live property metadata                                                   |
+| `rushdb-domain-template` | Design a schema for any domain through guided conversation — entities, relationships, and a bootstrap payload |
+
+## Verify
+
+After connecting the MCP server and starting a new session, ask:
+
+> List the installed RushDB skills. Then call `getOntologyMarkdown` and summarize the labels in my RushDB project.
+
+An empty ontology is valid for a new project. The important result is that the agent recognizes the RushDB skills and can call the MCP tool.
+
+## OpenClaw
+
+OpenClaw uses workspace-level skill installation. Follow the [OpenClaw walkthrough](../tutorials/agent-skills-with-openclaw#part-2--install-the-rushdb-skills-pack) for native `openclaw` and ClawHub commands.
+
+## Next Steps
+
+- [Connect the MCP server](./mcp)
+- [Bootstrap persistent agent memory](../build/agent-memory/quickstart)
+- [Use RushDB with AI agents](./agents)
+- [Browse the skills source](https://github.com/rush-db/rushdb/tree/main/packages/skills)

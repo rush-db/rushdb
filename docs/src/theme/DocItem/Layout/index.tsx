@@ -7,11 +7,16 @@ import type { WrapperProps } from '@docusaurus/types'
 type Props = WrapperProps<typeof DocItemLayoutType>
 type PageFrontMatter = {
   force_container?: boolean
+  overview_page?: boolean
 }
 
 export default function DocItemLayoutWrapper(props: Props) {
   const { frontMatter } = useDoc()
   const pageFrontMatter = frontMatter as typeof frontMatter & PageFrontMatter
+
+  if (pageFrontMatter.overview_page) {
+    return <main className="doc-layout--overview margin-vert--lg container">{props.children}</main>
+  }
 
   if (pageFrontMatter.force_container) {
     return (

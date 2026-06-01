@@ -1,0 +1,785 @@
+---
+slug: /build/data/find-and-query
+sidebar_position: 3
+title: Find & Query
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Find & Query
+
+RushDB provides four read methods: look up by ID, find one, find unique, or run a full search query with filtering, aggregation, and relationship traversal — all through a unified `SearchQuery` object.
+
+---
+
+## Find by ID
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.find_by_id()`
+
+```python
+# Single record
+movie = db.records.find_by_id("movie-123")
+
+# Multiple records
+movies = db.records.find_by_id(["movie-123", "movie-456"])
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.findById()`
+
+```typescript
+const movie = await db.records.findById('movie-id-123')
+const movies = await db.records.findById(['id-1', 'id-2', 'id-3'])
+```
+
+Returns `DBRecordInstance` (single) or `DBRecordsArrayInstance` (array).
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`GET /api/v1/records/:entityId`
+
+```bash
+curl https://api.rushdb.com/api/v1/records/movie-123 \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Find One
+
+Returns the first matching record, or `null` / `None` if none found.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.find_one()`
+
+```python
+movie = db.records.find_one({
+    "labels": ["MOVIE"],
+    "where": {"title": "Inception"}
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.findOne()`
+
+```typescript
+const movie = await db.records.findOne({
+  labels: ['MOVIE'],
+  where: { title: 'Inception' }
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+Use `POST /api/v1/records/search` with `"limit": 1`.
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"labels": ["MOVIE"], "where": {"title": "Inception"}, "limit": 1}'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Find Unique
+
+Like `find_one` / `findOne`, but throws `NonUniqueResultError` if more than one record matches.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.find_uniq()`
+
+```python
+movie = db.records.find_uniq({
+    "labels": ["MOVIE"],
+    "where": {"title": "Inception"}
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.findUniq()`
+
+```typescript
+import { NonUniqueResultError } from '@rushdb/javascript-sdk'
+
+try {
+  const movie = await db.records.findUniq({
+    labels: ['MOVIE'],
+    where: { title: 'Inception' }
+  })
+} catch (e) {
+  if (e instanceof NonUniqueResultError) console.error(`found ${e.count} matches`)
+}
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+Not a dedicated endpoint — check `total` from a search response to verify uniqueness.
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Search Records
+
+Full search with filtering, sorting, and pagination.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.find()`
+
+```python
+result = db.records.find({
+    "labels": ["MOVIE"],
+    "where": {"rating": {"$gte": 8}, "genre": "sci-fi"},
+    "orderBy": {"rating": "desc"},
+    "limit": 20,
+    "skip": 0
+})
+
+for movie in result:
+    print(movie.get("title"), movie.get("rating"))
+
+print(f"{len(result)} shown, {result.total} total")
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.find()`
+
+```typescript
+const { data: movies, total } = await db.records.find({
+  labels: ['MOVIE'],
+  where: { rating: { $gte: 8 }, genre: 'sci-fi' },
+  orderBy: { rating: 'desc' },
+  limit: 20,
+  skip: 0
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/records/search`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["MOVIE"],
+    "where": {"rating": {"$gte": 8}, "genre": "sci-fi"},
+    "orderBy": {"rating": "desc"},
+    "limit": 20,
+    "skip": 0
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+### SearchQuery parameters
+
+| Field     | Type               | Description                                                                          |
+| --------- | ------------------ | ------------------------------------------------------------------------------------ |
+| `labels`  | `string[]`         | Filter by one or more labels                                                         |
+| `where`   | `object`           | Field conditions and operators (see [Where Operators](/reference/where-operators))   |
+| `orderBy` | `string \| object` | Sort criteria (see [Pagination & Order](/reference/pagination-order))                |
+| `limit`   | `number`           | Max records to return (default: 1000). **Omit when using `select`**                  |
+| `skip`    | `number`           | Records to skip for pagination                                                       |
+| `select`  | `object`           | Output-shaping expressions (see [Select Expressions](/reference/select-expressions)) |
+| `groupBy` | `string[]`         | Grouping keys, e.g. `['$record.genre']`                                              |
+
+---
+
+## Where Operators
+
+```python title="Python"
+# Numeric comparisons
+{"rating": {"$gt": 7, "$lt": 10}}
+{"rating": {"$gte": 8, "$lte": 9.5}}
+
+# Set membership
+{"genre": {"$in": ["sci-fi", "thriller"]}}
+{"genre": {"$nin": ["romance"]}}
+
+# Text matching
+{"title": {"$contains": "dark"}}
+{"title": {"$startsWith": "The"}}
+{"title": {"$endsWith": "Returns"}}
+
+# Existence and type checks
+{"poster": {"$exists": True}}
+{"rating": {"$type": "number"}}
+
+# Logical operators
+{"$and": [{"genre": "sci-fi"}, {"rating": {"$gte": 8}}]}
+{"$or":  [{"genre": "sci-fi"}, {"rating": {"$gte": 9}}]}
+{"$not": {"genre": "romance"}}
+```
+
+Full reference: [Where Operators](/reference/where-operators)
+
+---
+
+## Relationship Traversal
+
+Filter across graph edges inline with `where`:
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+# Movies that have an ACTOR from the USA
+result = db.records.find({
+    "labels": ["MOVIE"],
+    "where": {
+        "ACTOR": {"country": "USA"}
+    }
+})
+
+# With explicit relationship type and direction
+result = db.records.find({
+    "labels": ["MOVIE"],
+    "where": {
+        "ACTOR": {
+            "$relation": {"type": "STARS_IN", "direction": "in"},
+            "country": "USA"
+        }
+    }
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Movies that have an ACTOR from the USA
+const { data } = await db.records.find({
+  labels: ['MOVIE'],
+  where: {
+    ACTOR: { country: 'USA' }
+  }
+})
+
+// With explicit relationship type and direction
+const { data: films } = await db.records.find({
+  labels: ['MOVIE'],
+  where: {
+    DIRECTOR: {
+      $relation: { type: 'DIRECTED_BY', direction: 'out' },
+      name: { $contains: 'Nolan' }
+    }
+  }
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["MOVIE"],
+    "where": {
+      "ACTOR": {
+        "$relation": {"type": "STARS_IN", "direction": "in"},
+        "country": "USA"
+      }
+    }
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Select Expressions & Aggregations
+
+:::danger Do not set `limit` when using `select`
+It restricts the record scan and produces mathematically incorrect totals. Use `orderBy` on a `select` output key instead.
+:::
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+result = db.records.find({
+    "labels": ["MOVIE"],
+    "where": {"ACTOR": {"$alias": "$actor", "country": "USA"}},
+    "select": {
+        "title":      "$record.title",
+        "actorCount": {"$count": "$actor"},
+        "avgRating":  {"$avg": "$record.rating", "$precision": 1},
+        "actorNames": {"$collect": {
+            "from": "$actor",
+            "select": {"name": "$actor.name"}
+        }}
+    }
+})
+```
+
+Available expressions: `$count` · `$sum` · `$avg` · `$min` · `$max` · `$collect` · `$timeBucket` · `$ref` · `$add` · `$subtract` · `$multiply` · `$divide`
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const stats = await db.records.find({
+  labels: ['MOVIE'],
+  where: { ACTOR: { $alias: '$actor', country: 'USA' } },
+  select: {
+    title: '$record.title',
+    actorCount: { $count: '$actor' },
+    avgRating: { $avg: '$record.rating', $precision: 1 },
+    actorNames: { $collect: { from: '$actor', select: { name: '$actor.name' } } }
+  }
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["MOVIE"],
+    "select": {
+      "count":     {"$count": "*"},
+      "avgRating": {"$avg": "$record.rating"}
+    }
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+Full reference: [Select Expressions](/reference/select-expressions)
+
+---
+
+## Group By
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+result = db.records.find({
+    "labels": ["MOVIE"],
+    "select": {
+        "count":     {"$count": "*"},
+        "avgRating": {"$avg": "$record.rating"}
+    },
+    "groupBy": ["$record.genre"],
+    "orderBy": {"count": "desc"}
+})
+# [{"genre": "sci-fi", "count": 42, "avgRating": 7.9}, ...]
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const byGenre = await db.records.find({
+  labels: ['MOVIE'],
+  select: {
+    count: { $count: '*' },
+    avgRating: { $avg: '$record.rating', $precision: 1 }
+  },
+  groupBy: ['$record.genre'],
+  orderBy: { count: 'desc' }
+})
+// [{ genre: 'sci-fi', count: 42, avgRating: 7.9 }, ...]
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["MOVIE"],
+    "select": {
+      "count":     {"$count": "*"},
+      "avgRating": {"$avg": "$record.rating"}
+    },
+    "groupBy": ["$record.genre"],
+    "orderBy": {"count": "desc"}
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+Full reference: [Group By](/reference/group-by)
+
+---
+
+## TimeBucket (Time-Series)
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+result = db.records.find({
+    "labels": ["ORDER"],
+    "select": {
+        "day":   {"$timeBucket": {"field": "$record.createdAt", "unit": "day"}},
+        "count": {"$count": "*"}
+    },
+    "groupBy": ["day"],
+    "orderBy": {"day": "asc"}
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const daily = await db.records.find({
+  labels: ['ORDER'],
+  select: {
+    day: { $timeBucket: { field: '$record.createdAt', unit: 'day' } },
+    count: { $count: '*' }
+  },
+  groupBy: ['day'],
+  orderBy: { day: 'asc' }
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["ORDER"],
+    "select": {
+      "day":   {"$timeBucket": {"field": "$record.createdAt", "unit": "day"}},
+      "count": {"$count": "*"}
+    },
+    "groupBy": ["day"],
+    "orderBy": {"day": "asc"}
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+`unit` values: `day` · `week` · `month` · `quarter` · `year` · `hours` · `minutes` · `seconds` (use plural + `size` for custom window widths).
+
+---
+
+## Collect Related Records
+
+Pull related records inline with the query result.
+
+**Label-based** (preferred for nesting — no alias required):
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+result = db.records.find({
+    "labels": ["COMPANY"],
+    "select": {
+        "name": "$record.name",
+        "departments": {
+            "$collect": {
+                "label": "DEPARTMENT",
+                "select": {
+                    "name": "$self.name",
+                    "projects": {
+                        "$collect": {
+                            "label": "PROJECT",
+                            "select": {"name": "$self.name"}
+                        }
+                    }
+                }
+            }
+        }
+    }
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const companies = await db.records.find({
+  labels: ['COMPANY'],
+  select: {
+    name: '$record.name',
+    departments: {
+      $collect: {
+        label: 'DEPARTMENT',
+        select: {
+          name: '$self.name',
+          projects: {
+            $collect: {
+              label: 'PROJECT',
+              select: { name: '$self.name' }
+            }
+          }
+        }
+      }
+    }
+  }
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["COMPANY"],
+    "select": {
+      "name": "$record.name",
+      "departments": {
+        "$collect": {
+          "label": "DEPARTMENT",
+          "select": {"name": "$self.name"}
+        }
+      }
+    }
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+**Alias-based** (requires `$alias` in `where`):
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+result = db.records.find({
+    "labels": ["MOVIE"],
+    "where": {"ACTOR": {"$alias": "$actor"}},
+    "select": {
+        "title":  "$record.title",
+        "actors": {
+            "$collect": {
+                "from": "$actor",
+                "select": {"name": "$actor.name", "country": "$actor.country"}
+            }
+        }
+    }
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const movies = await db.records.find({
+  labels: ['MOVIE'],
+  where: { ACTOR: { $alias: '$actor' } },
+  select: {
+    title: '$record.title',
+    actors: {
+      $collect: {
+        from: '$actor',
+        select: { name: '$actor.name', country: '$actor.country' }
+      }
+    }
+  }
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["MOVIE"],
+    "where": {"ACTOR": {"$alias": "$actor"}},
+    "select": {
+      "title":  "$record.title",
+      "actors": {
+        "$collect": {
+          "from": "$actor",
+          "select": {"name": "$actor.name", "country": "$actor.country"}
+        }
+      }
+    }
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## SearchResult
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+result = db.records.find({"labels": ["MOVIE"], "limit": 10})
+
+len(result)       # records returned in this page (≤ limit)
+result.total      # total records matching in the database
+result.has_more   # True if more pages remain
+result[0]         # access by index
+for r in result:  # iterable
+    pass
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const { data, total } = await db.records.find({ labels: ['MOVIE'], limit: 10 })
+// data: DBRecordInstance[]
+// total: number — total records matching in the database
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```json
+{
+  "data": [...],
+  "total": 42
+}
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Contextual Search (REST)
+
+Search within a specific record's relationships:
+
+```bash
+POST /api/v1/records/:entityId/search
+```
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/movie-123/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"labels": ["ACTOR"], "where": {"country": "USA"}}'
+```
+
+---
+
+## In a Transaction
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+tx = db.tx.begin()
+try:
+    result = db.records.find({"labels": ["MOVIE"]}, transaction=tx)
+    tx.commit()
+except Exception:
+    tx.rollback()
+    raise
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const tx = await db.tx.begin()
+try {
+  const { data } = await db.records.find({ labels: ['MOVIE'] }, tx)
+  await tx.commit()
+} catch (e) {
+  await tx.rollback()
+  throw e
+}
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"labels": ["MOVIE"]}'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## TypeScript: Via Model
+
+```typescript
+const MovieModel = new Model('MOVIE', {
+  title: { type: 'string' },
+  rating: { type: 'number' }
+})
+
+const all = await MovieModel.find()
+const sciFi = await MovieModel.find({ where: { genre: 'sci-fi' } })
+const one = await MovieModel.findOne({ where: { title: 'Inception' } })
+const byId = await MovieModel.findById('movie-id-123')
+const unique = await MovieModel.findUniq({ where: { title: 'Inception' } })
+```
+
+Model search methods auto-fill `labels` from the model definition.
+
+---
+
+## See also
+
+- [Where Operators](/reference/where-operators) — full operator reference
+- [Select Expressions](/reference/select-expressions) — aggregation & output shaping
+- [Group By](/reference/group-by) — grouping reference
+- [Pagination & Order](/reference/pagination-order) — sorting and paging
+- [Connect Records](/build/graph/connect-records) — traverse and filter relationships
+- [Semantic Search](/build/ai-search/semantic-search) — vector + filter search

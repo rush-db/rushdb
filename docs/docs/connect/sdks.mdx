@@ -1,0 +1,179 @@
+---
+sidebar_position: 4
+title: SDK & REST
+displayed_sidebar: docs
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# SDK & REST
+
+Use the TypeScript SDK, Python SDK, or REST API when RushDB is part of your application, service, script, or data pipeline.
+
+The fastest useful test is a nested import followed by a search. Nested objects become linked records automatically.
+
+## Install, Connect, and Write
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+
+```bash
+npm install @rushdb/javascript-sdk
+```
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB('RUSHDB_API_KEY')
+
+await db.records.importJson({
+  label: 'PROJECT',
+  data: {
+    name: 'RushDB adoption',
+    TASK: [
+      { title: 'Connect RushDB', status: 'done' },
+      { title: 'Query linked records', status: 'pending' }
+    ]
+  }
+})
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```bash
+pip install rushdb
+```
+
+```python
+from rushdb import RushDB
+
+db = RushDB("RUSHDB_API_KEY")
+
+db.records.create_many(
+    label="PROJECT",
+    data={
+        "name": "RushDB adoption",
+        "TASK": [
+            {"title": "Connect RushDB", "status": "done"},
+            {"title": "Query linked records", "status": "pending"},
+        ],
+    },
+)
+```
+
+  </TabItem>
+  <TabItem value="shell" label="REST">
+
+```bash
+export RUSHDB_API_KEY=your-api-key
+
+curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "PROJECT",
+    "data": {
+      "name": "RushDB adoption",
+      "TASK": [
+        {"title": "Connect RushDB", "status": "done"},
+        {"title": "Query linked records", "status": "pending"}
+      ]
+    }
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+## Verify with a Read
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+
+```typescript
+const { data: projects, total } = await db.records.find({
+  labels: ['PROJECT'],
+  where: { name: 'RushDB adoption' }
+})
+
+console.log({ total, projects })
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python
+projects = db.records.find({
+    "labels": ["PROJECT"],
+    "where": {"name": "RushDB adoption"},
+})
+
+print(projects.total, projects.data)
+```
+
+  </TabItem>
+  <TabItem value="shell" label="REST">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["PROJECT"],
+    "where": {"name": "RushDB adoption"}
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+## Self-Hosted Instance
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+
+```typescript
+const db = new RushDB('RUSHDB_API_KEY', {
+  url: 'https://your-rushdb.example.com/api/v1'
+})
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python
+db = RushDB("RUSHDB_API_KEY", url="https://your-rushdb.example.com")
+```
+
+  </TabItem>
+  <TabItem value="shell" label="REST">
+
+```bash
+export RUSHDB_URL=https://your-rushdb.example.com
+
+curl -X POST "$RUSHDB_URL/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"labels": ["PROJECT"]}'
+```
+
+  </TabItem>
+</Tabs>
+
+## Add Semantic Search
+
+Semantic search requires a one-time embedding index for the label and text property you want to search. After the first write/read flow works:
+
+1. [Create an embedding index](/build/ai-search/manage-indexes).
+2. Wait until the index status is `ready`.
+3. [Run semantic search](/build/ai-search/semantic-search).
+
+## Full References
+
+- [TypeScript / JavaScript reference](/reference/typescript/)
+- [Python reference](/reference/python/)
+- [REST API reference](/rest-api/introduction)
+- [Store records](/build/data/store-records)
+- [Import nested data](/build/data/import-data)

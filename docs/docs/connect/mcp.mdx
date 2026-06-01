@@ -1,0 +1,191 @@
+---
+sidebar_position: 2
+title: MCP Server
+displayed_sidebar: docs
+---
+
+# MCP Server
+
+Give an AI assistant direct access to your RushDB project without writing integration code. RushDB supports hosted OAuth connections for web assistants and a local `npx` server for desktop and coding tools.
+
+| Mode                                          | Best for                        | Setup                   |
+| --------------------------------------------- | ------------------------------- | ----------------------- |
+| [Hosted OAuth](#hosted-oauth-no-installation) | ChatGPT, Claude.ai, web clients | Add one URL and sign in |
+| [Local MCP](#local-mcp-api-key)               | Claude Desktop, Cursor, VS Code | Add an MCP config block |
+
+Reference: [MCP Server Reference](/reference/mcp/) · [All MCP Tools](/reference/mcp/tools)
+
+---
+
+## Hosted OAuth: No Installation
+
+Use this endpoint:
+
+```
+https://mcp.rushdb.com/mcp
+```
+
+### ChatGPT
+
+1. Open **Settings → Connectors → Add connector**.
+2. Enter `https://mcp.rushdb.com/mcp`.
+3. Sign in with your RushDB account.
+4. Choose the project to expose.
+
+### Claude.ai
+
+1. Open **Settings → Integrations → Add integration**.
+2. Enter `https://mcp.rushdb.com/mcp`.
+3. Authorize with your RushDB account.
+4. Choose the project to expose.
+
+:::caution
+Always include `/mcp`. The root domain does not serve the MCP protocol.
+:::
+
+---
+
+## Local MCP: API Key
+
+Get a [project API key](/deploy/get-api-key), add the relevant configuration, then restart your client.
+
+### Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["-y", "@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+Add `.cursor/mcp.json` in your project:
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["-y", "@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+### VS Code: Copilot Agent Mode
+
+Add `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "rushdb": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+### Self-Hosted Instance
+
+Add `RUSHDB_API_URL` to the `env` block:
+
+```json
+{
+  "env": {
+    "RUSHDB_API_KEY": "your-api-key-here",
+    "RUSHDB_API_URL": "https://your-rushdb.example.com/api/v1"
+  }
+}
+```
+
+---
+
+## Verify the Connection
+
+Ask your assistant:
+
+> Call `getOntologyMarkdown` and show me what labels exist in my RushDB project.
+
+A new project returns an empty ontology. That still confirms the connection works.
+
+---
+
+## Mandatory Workflow
+
+RushDB MCP exposes a discovery-first workflow so agents query the schema that exists instead of guessing labels, fields, or operators:
+
+1. Call `getOntologyMarkdown` at the start of a session. It returns labels, property names and types, value ranges, and relationships.
+2. Classify the request as a listing, aggregation, traversal, semantic search, or mutation.
+3. Call `getSearchQuerySpec` before building queries with dates, metrics, `groupBy`, relationship traversal, or vector search.
+4. Use the discovered label and property names exactly as returned. Labels are case-sensitive.
+
+Clients with MCP Prompts support can fetch `rushdb.queryBuilder` at session start. Other clients can call `getQueryBuilderPrompt` for the same instructions.
+
+## Local Configuration Reference
+
+| Variable         | Required | Default                         | Description                                      |
+| ---------------- | -------- | ------------------------------- | ------------------------------------------------ |
+| `RUSHDB_API_KEY` | yes      | —                               | RushDB project API key                           |
+| `RUSHDB_API_URL` | no       | `https://api.rushdb.com/api/v1` | Override for self-hosted or staging environments |
+
+:::tip Security
+Treat `RUSHDB_API_KEY` like a password. Inject it through your MCP client or an OS keychain, and do not commit it to version control.
+:::
+
+## Essential Tools
+
+| Need                            | Start with                                                                              |
+| ------------------------------- | --------------------------------------------------------------------------------------- |
+| Discover a project schema       | `getOntologyMarkdown`, `getOntology`                                                    |
+| Build a precise query           | `getSearchQuerySpec`, `findRecords`                                                     |
+| Read or write records           | `getRecord`, `createRecord`, `updateRecord`, `setRecord`                                |
+| Connect records                 | `findRelationships`, `attachRelation`, `detachRelation`                                 |
+| Work in batches                 | `bulkCreateRecords`, `bulkDeleteRecords`, `exportRecords`                               |
+| Review inferred graph structure | `listRelationshipPatterns`, `analyzeRelationshipPatterns`, `approveRelationshipPattern` |
+| Add semantic search             | `findEmbeddingIndexes`, `createEmbeddingIndex`, `semanticSearch`                        |
+
+Each MCP tool publishes its input schema to the connected client. See [All MCP Tools](/reference/mcp/tools) for the complete catalog and use the client tool inspector when you need the full JSON schema.
+
+## Troubleshooting
+
+| Symptom                                  | Check                                                                                                      |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Hosted connector cannot discover actions | Confirm the URL is `https://mcp.rushdb.com/mcp`, including `/mcp`, then remove and recreate the connector. |
+| Local MCP reports a missing API key      | Set `RUSHDB_API_KEY` in the MCP client's `env` block and restart the client.                               |
+| Local MCP cannot reach RushDB            | Verify `RUSHDB_API_URL`, or remove it to restore the hosted default.                                       |
+| A query uses the wrong label or property | Call `getOntologyMarkdown` again and use the case-sensitive names it returns.                              |
+| A structured query fails validation      | Call `getSearchQuerySpec` and rebuild the query from the documented operators.                             |
+
+For OAuth diagnostics, verify that `/.well-known/openid-configuration` returns JSON, `/.well-known/jwks.json` returns keys, and `/mcp` responds as an MCP endpoint.
+
+---
+
+## Make the Agent More Effective
+
+Install [RushDB Agent Skills](/connect/skills) after MCP connection. Skills teach the agent discovery-first querying, graph modeling, faceted search, and persistent memory patterns.
+
+## Next Steps
+
+- [Browse the complete MCP tools reference](/reference/mcp/tools)
+- [Install Agent Skills](/connect/skills)
+- [Bootstrap persistent agent memory](/build/agent-memory/quickstart)
+- [Use RushDB with AI agents](/connect/agents)

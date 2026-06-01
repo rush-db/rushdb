@@ -1,0 +1,556 @@
+---
+slug: /tutorials/hybrid-retrieval
+sidebar_position: 19
+title: 'Hybrid Retrieval: Filters Plus Semantic Search'
+description: Combine structured where-clause filtering with vector semantic search to narrow candidates by business constraints, then rank by relevance.
+tags: [AI, Semantic Search, Retrieval, TypeScript, Python]
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Hybrid Retrieval: Filters Plus Semantic Search
+
+Pure semantic search ranks by similarity to a query embedding. Pure keyword or filter search matches exact values. Hybrid retrieval combines both: narrowing the candidate set by business constraints first, then ranking by semantic relevance within that set.
+
+RushDB supports hybrid retrieval natively — `db.ai.search` accepts a `where` clause that is applied before the similarity ranking step.
+
+---
+
+## How it works
+
+`db.ai.search` runs structured filtering and semantic ranking in one call:
+
+1. The `where` clause restricts which records are eligible (tenant, date range, category, status, etc.)
+2. The `query` string (or `queryVector`, see below) is compared against embeddings on the specified `propertyName`
+3. Results are returned ordered by `__score` — a 0–1 cosine similarity value
+
+This means you get tenant isolation and time-scoping for free, without a separate pre-filter step.
+
+---
+
+## Prerequisites
+
+Before calling `db.ai.search`, a managed embedding index must exist and be ready for the label and property you want to search. See [Semantic Search for Multi-Tenant Products](/tutorials/semantic-search-multitenant) for setup instructions.
+
+---
+
+## Step 1: Ingest records
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB(process.env.RUSHDB_API_KEY!)
+
+await db.records.importJson({
+  label: 'ARTICLE',
+  data: [
+    {
+      tenantId: 'acme',
+      title: 'Deploying Postgres on Kubernetes',
+      body: 'A practical guide to running stateful workloads on K8s using StatefulSets and persistent volumes.',
+      category: 'infrastructure',
+      publishedAt: '2025-01-15',
+      status: 'published'
+    },
+    {
+      tenantId: 'acme',
+      title: 'Backpressure Patterns in Event Queues',
+      body: 'How to handle consumer lag and apply backpressure in Kafka and RabbitMQ setups.',
+      category: 'messaging',
+      publishedAt: '2025-02-10',
+      status: 'published'
+    },
+    {
+      tenantId: 'acme',
+      title: 'Zero-Downtime Schema Migrations',
+      body: 'Techniques for running database migrations without taking down production traffic.',
+      category: 'infrastructure',
+      publishedAt: '2025-03-01',
+      status: 'draft'
+    }
+  ]
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+from rushdb import RushDB
+import os
+
+db = RushDB(os.environ["RUSHDB_API_KEY"], base_url="https://api.rushdb.com/api/v1")
+
+db.records.import_json({
+    "label": "ARTICLE",
+    "data": [
+        {
+            "tenantId": "acme",
+            "title": "Deploying Postgres on Kubernetes",
+            "body": "A practical guide to running stateful workloads on K8s using StatefulSets and persistent volumes.",
+            "category": "infrastructure",
+            "publishedAt": "2025-01-15",
+            "status": "published"
+        },
+        {
+            "tenantId": "acme",
+            "title": "Backpressure Patterns in Event Queues",
+            "body": "How to handle consumer lag and apply backpressure in Kafka and RabbitMQ setups.",
+            "category": "messaging",
+            "publishedAt": "2025-02-10",
+            "status": "published"
+        },
+        {
+            "tenantId": "acme",
+            "title": "Zero-Downtime Schema Migrations",
+            "body": "Techniques for running database migrations without taking down production traffic.",
+            "category": "infrastructure",
+            "publishedAt": "2025-03-01",
+            "status": "draft"
+        }
+    ]
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+BASE="https://api.rushdb.com/api/v1"
+TOKEN="RUSHDB_API_KEY"
+H='Content-Type: application/json'
+
+curl -s -X POST "$BASE/records/import/json" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "label": "ARTICLE",
+    "data": [
+      {
+        "tenantId": "acme",
+        "title": "Deploying Postgres on Kubernetes",
+        "body": "A practical guide to running stateful workloads on K8s using StatefulSets and persistent volumes.",
+        "category": "infrastructure",
+        "publishedAt": "2025-01-15",
+        "status": "published"
+      }
+    ]
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 2: Semantic search with no filters (baseline)
+
+Start with pure semantic search to verify the index is working.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const results = await db.ai.search({
+  query: 'stateful storage in container orchestration',
+  propertyName: 'body',
+  labels: ['ARTICLE']
+})
+
+for (const article of results.data) {
+  console.log(`${article.title} — score: ${article.__score.toFixed(3)}`)
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+results = db.ai.search({
+    "query": "stateful storage in container orchestration",
+    "propertyName": "body",
+    "labels": ["ARTICLE"]
+})
+
+for article in results.data:
+    print(f"{article.data.get('title')} — score: {article.__score:.3f}")
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -s -X POST "$BASE/ai/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "query": "stateful storage in container orchestration",
+    "propertyName": "body",
+    "labels": ["ARTICLE"]
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 3: Add structural filters (hybrid mode)
+
+Narrow to published articles within a given tenant. The `where` clause runs before the similarity step — only eligible records are ranked.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const hybridResults = await db.ai.search({
+  query: 'stateful storage in container orchestration',
+  propertyName: 'body',
+  labels: ['ARTICLE'],
+  where: {
+    tenantId: 'acme',
+    status: 'published'
+  }
+})
+
+for (const article of hybridResults.data) {
+  console.log(`[${article.category}] ${article.title} — score: ${article.__score.toFixed(3)}`)
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+hybrid_results = db.ai.search({
+    "query": "stateful storage in container orchestration",
+    "propertyName": "body",
+    "labels": ["ARTICLE"],
+    "where": {
+        "tenantId": "acme",
+        "status": "published"
+    }
+})
+
+for article in hybrid_results.data:
+    print(f"[{article.data.get('category')}] {article.data.get('title')} — score: {article.__score:.3f}")
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -s -X POST "$BASE/ai/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "query": "stateful storage in container orchestration",
+    "propertyName": "body",
+    "labels": ["ARTICLE"],
+    "where": {
+      "tenantId": "acme",
+      "status": "published"
+    }
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+The draft migration article is excluded even if it has a high semantic similarity score, because `status: 'published'` removes it from the candidate set before scoring.
+
+---
+
+## Step 4: Add date range and category filters
+
+Compound filters are plain `where` clauses. Combine them freely — the semantics are AND by default.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const filtered = await db.ai.search({
+  query: 'handling operational failures',
+  propertyName: 'body',
+  labels: ['ARTICLE'],
+  where: {
+    tenantId: 'acme',
+    status: 'published',
+    category: 'infrastructure',
+    publishedAt: { $gte: '2025-01-01' }
+  },
+  limit: 5
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+filtered = db.ai.search({
+    "query": "handling operational failures",
+    "propertyName": "body",
+    "labels": ["ARTICLE"],
+    "where": {
+        "tenantId": "acme",
+        "status": "published",
+        "category": "infrastructure",
+        "publishedAt": {"$gte": "2025-01-01"}
+    },
+    "limit": 5
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -s -X POST "$BASE/ai/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "query": "handling operational failures",
+    "propertyName": "body",
+    "labels": ["ARTICLE"],
+    "where": {
+      "tenantId": "acme",
+      "status": "published",
+      "category": "infrastructure",
+      "publishedAt": {"$gte": "2025-01-01"}
+    },
+    "limit": 5
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 5: Paginate semantic results
+
+Use `skip` and `limit` for result pagination. Consistent ordering is guaranteed as long as the same `query` and `where` are used.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+async function searchArticles(query: string, tenantId: string, page = 0, pageSize = 10) {
+  const results = await db.ai.search({
+    query,
+    propertyName: 'body',
+    labels: ['ARTICLE'],
+    where: { tenantId, status: 'published' },
+    skip: page * pageSize,
+    limit: pageSize
+  })
+
+  return {
+    results: results.data.map((r) => ({
+      id: r.__id,
+      title: r.title,
+      score: r.__score
+    })),
+    page,
+    pageSize
+  }
+}
+
+const page0 = await searchArticles('container storage performance', 'acme')
+const page1 = await searchArticles('container storage performance', 'acme', 1)
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+def search_articles(query: str, tenant_id: str, page: int = 0, page_size: int = 10):
+    results = db.ai.search({
+        "query": query,
+        "propertyName": "body",
+        "labels": ["ARTICLE"],
+        "where": {"tenantId": tenant_id, "status": "published"},
+        "skip": page * page_size,
+        "limit": page_size
+    })
+    return {
+        "results": [
+            {"id": r.id, "title": r.data.get("title"), "score": r.__score}
+            for r in results.data
+        ],
+        "page": page,
+        "pageSize": page_size
+    }
+
+page0 = search_articles("container storage performance", "acme")
+page1 = search_articles("container storage performance", "acme", page=1)
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# Page 0
+curl -s -X POST "$BASE/ai/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{"query":"container storage performance","propertyName":"body","labels":["ARTICLE"],"where":{"tenantId":"acme","status":"published"},"skip":0,"limit":10}'
+
+# Page 1
+curl -s -X POST "$BASE/ai/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{"query":"container storage performance","propertyName":"body","labels":["ARTICLE"],"where":{"tenantId":"acme","status":"published"},"skip":10,"limit":10}'
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 6: Filtering by relationship (graph-aware hybrid retrieval)
+
+Combine semantic search with a graph traversal filter. Here, only articles tagged with a specific TAG record are eligible for ranking.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Only search articles tagged "kubernetes"
+const taggedResults = await db.ai.search({
+  query: 'storage class and persistent volumes',
+  propertyName: 'body',
+  labels: ['ARTICLE'],
+  where: {
+    tenantId: 'acme',
+    status: 'published',
+    TAG: {
+      $relation: { type: 'TAGGED_WITH', direction: 'out' },
+      slug: 'kubernetes'
+    }
+  }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+tagged_results = db.ai.search({
+    "query": "storage class and persistent volumes",
+    "propertyName": "body",
+    "labels": ["ARTICLE"],
+    "where": {
+        "tenantId": "acme",
+        "status": "published",
+        "TAG": {
+            "$relation": {"type": "TAGGED_WITH", "direction": "out"},
+            "slug": "kubernetes"
+        }
+    }
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -s -X POST "$BASE/ai/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "query": "storage class and persistent volumes",
+    "propertyName": "body",
+    "labels": ["ARTICLE"],
+    "where": {
+      "tenantId": "acme",
+      "status": "published",
+      "TAG": {
+        "$relation": {"type": "TAGGED_WITH", "direction": "out"},
+        "slug": "kubernetes"
+      }
+    }
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 7: External vectors (BYOV)
+
+If you generate embeddings outside RushDB (e.g., with your own model), pass `queryVector` instead of `query`. RushDB skips embedding generation and uses your vector directly.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+// queryVector must match the dimensions and similarity function of the index
+const externalEmbedding: number[] = await myEmbeddingModel.embed('container storage performance')
+
+const externalResults = await db.ai.search({
+  queryVector: externalEmbedding,
+  propertyName: 'body',
+  labels: ['ARTICLE'],
+  where: { tenantId: 'acme', status: 'published' }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+external_embedding = my_embedding_model.embed("container storage performance")
+
+external_results = db.ai.search({
+    "queryVector": external_embedding,
+    "propertyName": "body",
+    "labels": ["ARTICLE"],
+    "where": {"tenantId": "acme", "status": "published"}
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# Pass queryVector instead of query — vector must match index dimensions
+curl -s -X POST "$BASE/ai/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "queryVector": [0.12, -0.45, 0.03, ...],
+    "propertyName": "body",
+    "labels": ["ARTICLE"],
+    "where": {"tenantId": "acme", "status": "published"}
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## When to use pure search vs. hybrid
+
+| Scenario                                              | Approach                              |
+| ----------------------------------------------------- | ------------------------------------- |
+| Open-ended exploration ("find anything about X")      | Pure semantic search, no `where`      |
+| Tenant-scoped retrieval                               | Always add `tenantId` to `where`      |
+| Time-bounded retrieval (last 30 days)                 | Add date filter to `where`            |
+| Category/status filtering before ranking              | Add structured fields to `where`      |
+| Graph-relationship scoping (tagged with, authored by) | Add relationship traversal to `where` |
+| Custom embedding model                                | Use `queryVector` instead of `query`  |
+
+---
+
+## Performance characteristics
+
+- The `where` clause runs as a graph filter before the vector similarity step. A highly selective filter (eliminating most records) makes semantic search faster because fewer records are ranked.
+- The `limit` parameter controls how many top-ranked records are returned. Use values between 5–50 for typical UX use cases.
+- `skip` is available for pagination but deep pagination over large result sets (skip > 500) may perform worse than re-querying with an updated `where` filter.
+
+---
+
+## Next steps
+
+- [Semantic Search for Multi-Tenant Products](/tutorials/semantic-search-multitenant) — index setup and polling
+- [Building a Graph-Backed API Layer](/tutorials/graph-backed-api) — integrate hybrid retrieval into a production handler
+- [Temporal Graphs](/tutorials/temporal-graphs) — retrieve current-state records before semantic ranking
