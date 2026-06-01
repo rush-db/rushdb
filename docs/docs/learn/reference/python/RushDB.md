@@ -95,12 +95,24 @@ Inspect property metadata.
 
 ### `db.relationships`
 
-Query and bulk-create relationships.
+Query relationships, bulk-create them, and review inferred relationship patterns.
 
 | Method                                                                       | Description                                                 |
 | ---------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `find(search_query, *, pagination, transaction)`                             | Search relationships; returns `List[Relationship]`          |
 | `create_many(*, source, target, type, direction, many_to_many, transaction)` | Bulk-create relationships by key-match or cartesian product |
+
+#### `db.relationships.patterns`
+
+Review and manage relationship patterns inferred from the project ontology. See [Relationship Patterns](/reference/python/relationship-patterns) for the full review flow.
+
+| Method                                         | Description                                                            |
+| ---------------------------------------------- | ---------------------------------------------------------------------- |
+| `list()`                                       | List saved patterns, ontology relationships, and analysis status       |
+| `analyze()`                                    | Queue ontology analysis to generate suggestions                        |
+| `approve(pattern_id)`                          | Approve a suggestion and apply its relationships                       |
+| `ignore(pattern_id)`                           | Ignore a suggestion without applying it                                |
+| `delete(pattern_id, *, delete_existing=False)` | Delete a saved pattern, optionally removing materialized relationships |
 
 ### `db.ai`
 

@@ -43,6 +43,123 @@ Creates a new `RushDB` instance.
 | `httpClient` | `HttpClient` | Custom HTTP client implementation |
 | `debug`      | `boolean`    | Enable debug mode                 |
 
+## Namespaces
+
+All database operations are accessed through sub-namespaces on the client instance.
+
+### `db.records`
+
+CRUD, import, export, and relationship operations on records.
+
+| Method                                                                             | Description                                  |
+| ---------------------------------------------------------------------------------- | -------------------------------------------- |
+| `create({ label, data, options, vectors }, transaction)`                           | Create a single record                       |
+| `createMany({ label, data, options, vectors }, transaction)`                       | Create multiple flat records                 |
+| `importJson({ label, data, options }, transaction)`                                | Import nested or complex JSON payloads       |
+| `importCsv({ label, data, options, parseConfig, parentId, vectors }, transaction)` | Import records from CSV text                 |
+| `upsert({ label, data, options, vectors }, transaction)`                           | Create or update a record                    |
+| `set({ target, label, data, options, vectors }, transaction)`                      | Replace all fields of a record               |
+| `update({ target, label, data, options }, transaction)`                            | Partially update a record                    |
+| `find(searchQuery, transaction)`                                                   | Search records                               |
+| `findOne(searchQuery, transaction)`                                                | Return the first match                       |
+| `findUniq(searchQuery, transaction)`                                               | Return the single match; raises if ambiguous |
+| `findById(idOrIds, transaction)`                                                   | Fetch record(s) by ID                        |
+| `delete(searchQuery, transaction)`                                                 | Delete all records matching a query          |
+| `deleteById(idOrIds, transaction)`                                                 | Delete record(s) by ID                       |
+| `attach({ source, target, options }, transaction)`                                 | Create relationships between records         |
+| `detach({ source, target, options }, transaction)`                                 | Remove relationships between records         |
+| `export(searchQuery, transaction)`                                                 | Export matching records as CSV text          |
+
+### `db.relationships`
+
+Query and bulk-manage relationships.
+
+| Method                           | Description                                                 |
+| -------------------------------- | ----------------------------------------------------------- |
+| `find(searchQuery, transaction)` | Search relationships                                        |
+| `createMany(data, transaction)`  | Bulk-create relationships by key-match or cartesian product |
+| `deleteMany(data, transaction)`  | Bulk-delete relationships                                   |
+
+#### `db.relationships.patterns`
+
+Review and manage relationship patterns inferred from the project ontology. See [Relationship Patterns](/reference/typescript/relationship-patterns) for the full review flow.
+
+| Method                | Description                                                            |
+| --------------------- | ---------------------------------------------------------------------- |
+| `list()`              | List saved patterns, ontology relationships, and analysis status       |
+| `analyze()`           | Queue ontology analysis to generate suggestions                        |
+| `approve(id)`         | Approve a suggestion and apply its relationships                       |
+| `ignore(id)`          | Ignore a suggestion without applying it                                |
+| `delete(id, options)` | Delete a saved pattern, optionally removing materialized relationships |
+
+### `db.labels`
+
+Discover record labels in the database.
+
+| Method                           | Description                                            |
+| -------------------------------- | ------------------------------------------------------ |
+| `find(searchQuery, transaction)` | Return a record of `{ label: count }` matching a query |
+
+### `db.properties`
+
+Inspect property metadata.
+
+| Method                                 | Description                         |
+| -------------------------------------- | ----------------------------------- |
+| `find(searchQuery, transaction)`       | List properties matching a query    |
+| `findById(id, transaction)`            | Retrieve a property by ID           |
+| `delete(id, transaction)`              | Delete a property by ID             |
+| `values(id, searchQuery, transaction)` | List distinct values for a property |
+
+### `db.tx`
+
+Transaction lifecycle management.
+
+| Method                  | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `begin(config)`         | Start a transaction; returns `Transaction` |
+| `get(transaction)`      | Retrieve a transaction by object or ID     |
+| `commit(transaction)`   | Commit a transaction by object or ID       |
+| `rollback(transaction)` | Roll back a transaction by object or ID    |
+
+See also: [Transaction](/reference/typescript/Transaction) for the `commit()` and `rollback()` instance methods.
+
+### `db.ai`
+
+Semantic search and ontology exploration. Embedding index management is available under `db.ai.indexes`.
+
+| Method                                     | Description                                     |
+| ------------------------------------------ | ----------------------------------------------- |
+| `search(params)`                           | Semantic search over indexed properties         |
+| `getOntology(params, transaction)`         | Return the graph ontology as structured JSON    |
+| `getOntologyMarkdown(params, transaction)` | Return the ontology as token-efficient Markdown |
+
+#### `db.ai.indexes`
+
+| Method                      | Description                                           |
+| --------------------------- | ----------------------------------------------------- |
+| `find()`                    | List all embedding index policies                     |
+| `create(params)`            | Create an embedding index for a property              |
+| `delete(id)`                | Delete an embedding index by ID                       |
+| `stats(id)`                 | Get Neo4j-level statistics for an index               |
+| `upsertVectors(id, params)` | Bulk-seed an external index with pre-computed vectors |
+
+### `db.query`
+
+Raw Cypher query execution. **Cloud-only** — not available on self-hosted instances without a managed database.
+
+| Method                                | Description                                                |
+| ------------------------------------- | ---------------------------------------------------------- |
+| `raw({ query, params }, transaction)` | Execute a raw Cypher query string with optional parameters |
+
+### `db.settings`
+
+Project configuration.
+
+| Method  | Description                           |
+| ------- | ------------------------------------- |
+| `get()` | Retrieve the current project settings |
+
 ## Properties
 
 ### state
@@ -66,8 +183,6 @@ Gets the singleton instance of the RushDB class.
 **Returns**: The RushDB instance
 
 ## Instance Methods
-
-### toInstance()
 
 ### toInstance()
 

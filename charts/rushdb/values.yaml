@@ -5,7 +5,7 @@
 rushdb:
   image:
     repository: rushdb/platform
-    tag: latest # pin to a specific release tag in production
+    tag: '2.2.0'
     pullPolicy: IfNotPresent
 
   ## Required — must be exactly 32 characters.

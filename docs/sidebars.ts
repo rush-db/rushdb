@@ -22,7 +22,11 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           customProps: { icon: 'Monitor' },
           link: { type: 'doc', id: 'deploy/local-hosting/index' },
-          items: ['deploy/local-hosting/docker', 'deploy/local-hosting/from-source', 'deploy/local-hosting/helm']
+          items: [
+            'deploy/local-hosting/docker',
+            'deploy/local-hosting/from-source',
+            'deploy/local-hosting/helm'
+          ]
         },
         {
           type: 'category',
@@ -45,7 +49,11 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           customProps: { icon: 'Settings2' },
           link: { type: 'doc', id: 'deploy/configuration/index' },
-          items: ['deploy/configuration/environment-variables', 'deploy/configuration/get-api-key', 'deploy/configuration/security']
+          items: [
+            'deploy/configuration/environment-variables',
+            'deploy/configuration/get-api-key',
+            'deploy/configuration/security'
+          ]
         },
         {
           type: 'category',
@@ -54,7 +62,11 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           customProps: { icon: 'Database' },
           link: { type: 'doc', id: 'deploy/infrastructure/index' },
-          items: ['deploy/infrastructure/rushdb-platform', 'deploy/infrastructure/neo4j-and-aura', 'deploy/infrastructure/postgresql-sqlite']
+          items: [
+            'deploy/infrastructure/rushdb-platform',
+            'deploy/infrastructure/neo4j-and-aura',
+            'deploy/infrastructure/postgresql-sqlite'
+          ]
         }
       ]
     },
@@ -297,6 +309,7 @@ const sidebars: SidebarsConfig = {
                 'learn/reference/typescript/DBRecordTarget',
                 'learn/reference/typescript/DBRecordsArrayInstance',
                 'learn/reference/typescript/Model',
+                'learn/reference/typescript/relationship-patterns',
                 'learn/reference/typescript/RelationTarget',
                 'learn/reference/typescript/RushDB',
                 'learn/reference/typescript/SearchQuery',
@@ -312,6 +325,7 @@ const sidebars: SidebarsConfig = {
               link: { type: 'doc', id: 'learn/reference/python/index' },
               items: [
                 'learn/reference/python/record',
+                'learn/reference/python/relationship-patterns',
                 'learn/reference/python/RushDB',
                 'learn/reference/python/search-result',
                 'learn/reference/python/SearchQuery',

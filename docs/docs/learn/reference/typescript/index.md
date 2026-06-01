@@ -52,6 +52,7 @@ const db = new RushDB('RUSHDB_API_KEY', {
 | [DBRecordInstance](/reference/typescript/DBRecordInstance)             | Active record with instance methods (`attach`, `detach`, `update`, `delete`) |
 | [DBRecordsArrayInstance](/reference/typescript/DBRecordsArrayInstance) | Collection of records with bulk-operation methods                            |
 | [Model](/reference/typescript/Model)                                   | Schema-bound model class for label-scoped operations                         |
+| [Relationship Patterns](/reference/typescript/relationship-patterns)   | Review and apply AI-suggested relationships                                  |
 | [Transaction](/reference/typescript/Transaction)                       | ACID transaction handle                                                      |
 | [SearchQuery](/reference/typescript/SearchQuery)                       | Query builder types and interfaces                                           |
 | [DBRecordTarget](/reference/typescript/DBRecordTarget)                 | Record reference type used in relationship calls                             |

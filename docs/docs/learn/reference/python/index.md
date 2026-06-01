@@ -46,10 +46,11 @@ db = RushDB(
 
 ## API Reference
 
-| Class                                           | Description                                                                       |
-| ----------------------------------------------- | --------------------------------------------------------------------------------- |
-| [RushDB](/reference/python/RushDB)              | Main client — entry point for all operations                                      |
-| [Record](/reference/python/record)              | Typed record class with instance methods (`attach`, `detach`, `update`, `delete`) |
-| [SearchQuery](/reference/python/SearchQuery)    | Query builder types and interfaces                                                |
-| [SearchResult](/reference/python/search-result) | Paginated result wrapper returned by `find` and `ai.search`                       |
-| [Transaction](/reference/python/transaction)    | ACID transaction handle                                                           |
+| Class                                                            | Description                                                                       |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| [RushDB](/reference/python/RushDB)                               | Main client — entry point for all operations                                      |
+| [Record](/reference/python/record)                               | Typed record class with instance methods (`attach`, `detach`, `update`, `delete`) |
+| [Relationship Patterns](/reference/python/relationship-patterns) | Review and apply AI-suggested relationships                                       |
+| [SearchQuery](/reference/python/SearchQuery)                     | Query builder types and interfaces                                                |
+| [SearchResult](/reference/python/search-result)                  | Paginated result wrapper returned by `find` and `ai.search`                       |
+| [Transaction](/reference/python/transaction)                     | ACID transaction handle                                                           |
