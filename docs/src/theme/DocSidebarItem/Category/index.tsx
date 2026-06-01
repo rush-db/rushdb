@@ -24,6 +24,7 @@ import Link from '@docusaurus/Link'
 import { translate } from '@docusaurus/Translate'
 import useIsBrowser from '@docusaurus/useIsBrowser'
 import DocSidebarItems from '@theme/DocSidebarItems'
+import type { Props } from '@theme/DocSidebarItem/Category'
 import * as LucideIcons from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 
@@ -53,7 +54,7 @@ function useAutoExpandActiveCategory({
   }, [isActive, wasActive, collapsed, updateCollapsed])
 }
 
-function useCategoryHrefWithSSRFallback(item: SidebarItemCategory): string | undefined {
+function useCategoryHrefWithSSRFallback(item: Props['item']): string | undefined {
   const isBrowser = useIsBrowser()
   return useMemo(() => {
     if (item.href && !item.linkUnlisted) {
@@ -102,27 +103,6 @@ function CollapseButton({
       onClick={onClick}
     />
   )
-}
-
-// Minimal local type — mirrors PropSidebarItemCategory from Docusaurus
-interface SidebarItemCategory {
-  type: 'category'
-  href?: string
-  label: string
-  items: unknown[]
-  collapsible: boolean
-  collapsed: boolean
-  className?: string
-  customProps?: Record<string, unknown>
-  linkUnlisted?: boolean
-}
-
-interface Props {
-  item: SidebarItemCategory
-  onItemClick?: (item: SidebarItemCategory) => void
-  activePath: string
-  level: number
-  index: number
 }
 
 export default function DocSidebarItemCategory({
@@ -224,9 +204,9 @@ export default function DocSidebarItemCategory({
 
       <Collapsible lazy as="ul" className="menu__list" collapsed={collapsed}>
         <DocSidebarItems
-          items={items as Parameters<typeof DocSidebarItems>[0]['items']}
+          items={items}
           tabIndex={collapsed ? -1 : 0}
-          onItemClick={onItemClick as Parameters<typeof DocSidebarItems>[0]['onItemClick']}
+          onItemClick={onItemClick}
           activePath={activePath}
           level={level + 1}
         />
