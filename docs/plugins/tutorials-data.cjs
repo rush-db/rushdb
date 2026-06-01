@@ -39,31 +39,37 @@ function estimateReadTime(content) {
   return `${Math.max(1, minutes)} min`
 }
 
+function getTutorialFiles(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const filePath = path.join(dir, entry.name)
+    if (entry.isDirectory()) return getTutorialFiles(filePath)
+    return /\.(md|mdx)$/.test(entry.name) ? [filePath] : []
+  })
+}
+
 /**
  * @param {string} siteDir
  * @returns {Array<{id: string, title: string, description: string, href: string, tags: string[], time: string}>}
  */
 function loadTutorials(siteDir) {
-  const tutorialsDir = path.join(siteDir, 'docs', 'tutorials')
-  const entries = fs.readdirSync(tutorialsDir)
+  const tutorialsDir = path.join(siteDir, 'docs', 'learn', 'tutorials')
+  const tutorialFiles = getTutorialFiles(tutorialsDir)
 
   const tutorials = []
 
-  for (const entry of entries) {
-    if (!/\.(md|mdx)$/.test(entry)) continue
-    if (entry === 'index.mdx') continue
+  for (const filePath of tutorialFiles) {
+    if (path.basename(filePath) === 'index.mdx') continue
 
-    const filePath = path.join(tutorialsDir, entry)
     const raw = fs.readFileSync(filePath, 'utf8')
     const { data: fm, content } = matter(raw)
 
-    const slug = entry.replace(/\.(md|mdx)$/, '')
+    const slug = path.basename(filePath).replace(/\.(md|mdx)$/, '')
 
     tutorials.push({
       id: slug,
       title: fm.title || slug,
       description: fm.description || '',
-      href: `/tutorials/${slug}`,
+      href: fm.slug || `/tutorials/${slug}`,
       tags: Array.isArray(fm.tags) ? fm.tags : [],
       time: estimateReadTime(content),
       sidebar_position: fm.sidebar_position ?? 999

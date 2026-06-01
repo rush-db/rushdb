@@ -1,0 +1,196 @@
+---
+slug: /deploy/local-helm
+title: Helm
+description: Deploy RushDB on Kubernetes using the official Helm chart — values reference, Neo4j wiring, ingress, and persistence.
+sidebar_position: 3
+displayed_sidebar: docs
+tags: [Getting Started, Deployment, Kubernetes, Helm]
+---
+
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
+# Helm
+
+Deploy RushDB on Kubernetes using the Helm chart. The chart bundles RushDB and optionally a Neo4j instance — or you can point it at an existing Neo4j deployment.
+
+## Prerequisites
+
+| Tool              |          Minimum version          |
+| ----------------- | :-------------------------------: |
+| Kubernetes        |               1.27                |
+| Helm              |               3.12                |
+| Neo4j + APOC Core | 2026.x (see [note below](#neo4j)) |
+
+---
+
+## Install
+
+<Tabs groupId="helm-neo4j">
+<TabItem value="bundled" label="With bundled Neo4j">
+
+```bash
+helm install rushdb oci://ghcr.io/rush-db/charts/rushdb \
+  --set rushdb.encryptionKey="32SymbolStringForTokenEncryption" \
+  --set rushdb.adminLogin=admin \
+  --set rushdb.adminPassword=changeme \
+  --set neo4j.enabled=true \
+  --set neo4j.password=neo4jpassword
+```
+
+</TabItem>
+<TabItem value="external" label="External Neo4j">
+
+```bash
+helm install rushdb oci://ghcr.io/rush-db/charts/rushdb \
+  --set rushdb.encryptionKey="32SymbolStringForTokenEncryption" \
+  --set rushdb.adminLogin=admin \
+  --set rushdb.adminPassword=changeme \
+  --set neo4j.enabled=false \
+  --set rushdb.neo4jUrl=bolt://your-neo4j-host:7687 \
+  --set rushdb.neo4jUsername=neo4j \
+  --set rushdb.neo4jPassword=your-password
+```
+
+</TabItem>
+</Tabs>
+
+:::warning Encryption key
+`rushdb.encryptionKey` must be **exactly 32 characters**. This value encrypts all API token values at rest — do not change it after the first install without a migration.
+:::
+
+---
+
+## values.yaml reference
+
+Create a `values.yaml` for repeatable installs:
+
+```yaml
+rushdb:
+  image:
+    repository: rushdb/platform
+    tag: latest # pin to a specific version in production
+    pullPolicy: IfNotPresent
+
+  # Required
+  encryptionKey: '32SymbolStringForTokenEncryption' # exactly 32 chars
+  adminLogin: admin
+  adminPassword: changeme
+
+  # Neo4j connection (when neo4j.enabled=false)
+  neo4jUrl: ''
+  neo4jUsername: neo4j
+  neo4jPassword: ''
+
+  # SQL metadata database
+  sqlDbType: sqlite # or "postgres"
+  sqlDbUrl: '' # postgresql://user:pass@host:5432/rushdb (when postgres)
+
+  service:
+    type: ClusterIP
+    port: 3000
+
+  ingress:
+    enabled: false
+    # className: nginx
+    # annotations: {}
+    # hosts:
+    #   - host: rushdb.example.com
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    # tls: []
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  persistence:
+    enabled: true
+    size: 1Gi
+    # storageClass: ""
+
+neo4j:
+  enabled: true
+  image: neo4j:2026.01.4
+  password: neo4jpassword
+  plugins:
+    - apoc
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+```
+
+Apply with:
+
+```bash
+helm install rushdb oci://ghcr.io/rush-db/charts/rushdb -f values.yaml
+```
+
+---
+
+## Upgrade
+
+```bash
+helm upgrade rushdb oci://ghcr.io/rush-db/charts/rushdb -f values.yaml
+```
+
+---
+
+## Expose via Ingress
+
+Enable the ingress in `values.yaml`:
+
+```yaml
+rushdb:
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: rushdb.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: rushdb-tls
+        hosts:
+          - rushdb.example.com
+```
+
+---
+
+## Neo4j
+
+The bundled Neo4j sub-chart uses `neo4j:2026.01.4` with APOC Core pre-installed. This is the same version used in the Docker Compose setup.
+
+For production workloads consider:
+
+- **Neo4j Aura** — managed Neo4j with automatic backups. Set `neo4j.enabled=false` and configure `rushdb.neo4jUrl` with a `neo4j+s://` URI.
+- **Neo4j Helm chart** — the [official Neo4j Helm chart](https://neo4j.com/docs/operations-manual/current/kubernetes/helm-charts-overview/) for fine-grained resource control.
+
+:::info APOC Core required
+RushDB will not start without APOC Core. If you bring your own Neo4j instance, ensure `apoc-2026.x.x-core.jar` is installed and the version matches your Neo4j release.
+:::
+
+---
+
+## Uninstall
+
+```bash
+helm uninstall rushdb
+```
+
+PersistentVolumeClaims are not deleted automatically. To remove them:
+
+```bash
+kubectl delete pvc -l app.kubernetes.io/instance=rushdb
+```

@@ -1,0 +1,603 @@
+---
+slug: /build/data/store-records
+sidebar_position: 1
+title: Store Records
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Store Records
+
+A **Record** is a typed key-value node with a label. Records are the fundamental unit of data in RushDB — like a document in a document store, but with seamless relationship traversal built in.
+
+Each record has system properties (`__id`, `__label`, `__proptypes`) plus your own fields.
+
+---
+
+## Create a Record
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.create()`
+
+```python
+movie = db.records.create(
+    label="MOVIE",
+    data={"title": "Inception", "rating": 8.8, "genre": "sci-fi"}
+)
+# → Record  { __id, __label, title, rating, genre }
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.create()`
+
+```typescript
+const movie = await db.records.create({
+  label: 'MOVIE',
+  data: { title: 'Inception', rating: 8.8, genre: 'sci-fi' }
+})
+// → DBRecordInstance  { __id, __label, title, rating, genre }
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/records`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "MOVIE",
+    "data": {"title": "Inception", "rating": 8.8, "genre": "sci-fi"}
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Create Multiple Records
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.create_many()`
+
+Flat rows only — no nested objects. For nested data use [`import_json`](/build/data/import-data).
+
+```python
+result = db.records.create_many(
+    label="ACTOR",
+    data=[
+        {"name": "Leonardo DiCaprio", "country": "USA"},
+        {"name": "Ken Watanabe",      "country": "Japan"}
+    ]
+)
+# → SearchResult  { data: [...], total: 2 }
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.createMany()`
+
+Flat rows only — no nested objects. For nested data use [`importJson`](/build/data/import-data).
+
+```typescript
+const result = await db.records.createMany({
+  label: 'ACTOR',
+  data: [
+    { name: 'Leonardo DiCaprio', country: 'USA' },
+    { name: 'Ken Watanabe', country: 'Japan' }
+  ]
+})
+// → DBRecordsArrayInstance  { data: [...], total: 2 }
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/records/import/json`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "ACTOR",
+    "data": [
+      {"name": "Leonardo DiCaprio", "country": "USA"},
+      {"name": "Ken Watanabe",      "country": "Japan"}
+    ]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Upsert (Create or Update)
+
+Creates a new record if no match is found, or updates the existing record if matched.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.upsert()`
+
+```python
+# Match on 'title'; update rating if found, create if not
+movie = db.records.upsert(
+    label="MOVIE",
+    data={"title": "Inception", "rating": 9.0, "genre": "sci-fi"},
+    options={"mergeBy": ["title"], "mergeStrategy": "append"}
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.upsert()`
+
+```typescript
+const movie = await db.records.upsert({
+  label: 'MOVIE',
+  data: { title: 'Inception', rating: 9.0, genre: 'sci-fi' },
+  options: { mergeBy: ['title'], mergeStrategy: 'append' }
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+Supply `mergeBy` and/or `mergeStrategy` in `options` on the create endpoint to trigger upsert behavior.
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "MOVIE",
+    "data": {"title": "Inception", "rating": 9.0},
+    "options": {"mergeBy": ["title"], "mergeStrategy": "append"}
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+### Merge strategies
+
+| Strategy           | Behaviour                                                             |
+| ------------------ | --------------------------------------------------------------------- |
+| `append` (default) | Add / update incoming fields; preserve all other existing fields      |
+| `rewrite`          | Replace all fields with incoming data; unmentioned fields are removed |
+
+### `mergeBy` behaviour
+
+| `mergeBy` value | Match behaviour                     |
+| --------------- | ----------------------------------- |
+| `['field']`     | Match only on listed fields         |
+| `[]` or omitted | Match on ALL incoming property keys |
+
+---
+
+## Partial Update
+
+Updates only the specified fields; all other fields are preserved.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.update()`
+
+```python
+# Update via record object (recommended)
+movie.update({"rating": 9.0})
+
+# Also works: pass the Record directly or any RecordTarget
+db.records.update(movie, {"rating": 9.0})
+
+# Or by ID string
+db.records.update("movie-123", {"rating": 9.0})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.update()`
+
+```typescript
+await db.records.update({
+  target: 'movie-id-123',
+  label: 'MOVIE',
+  data: { rating: 9.1 }
+})
+// → DBRecordInstance  (title, genre, etc. unchanged)
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`PATCH /api/v1/records/:entityId`
+
+```bash
+curl -X PATCH https://api.rushdb.com/api/v1/records/movie-123 \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"data": {"rating": 9.0}}'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Full Replacement
+
+Replaces all fields. Fields not in `data` are removed.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.set()`
+
+```python
+# Set via record object (recommended)
+movie.set({"title": "Inception", "rating": 9.0, "genre": "sci-fi"})
+
+# Also works: pass the Record directly or any RecordTarget
+db.records.set(movie, {"title": "Inception", "rating": 9.0, "genre": "sci-fi"})
+
+# Or by ID string
+db.records.set("movie-123", {"title": "Inception", "rating": 9.0, "genre": "sci-fi"})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.set()`
+
+```typescript
+await db.records.set({
+  target: 'movie-id-123',
+  label: 'MOVIE',
+  data: { title: 'Inception', rating: 9.1, genre: 'sci-fi' }
+})
+// → DBRecordInstance  (only these three fields remain)
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`PUT /api/v1/records/:entityId`
+
+```bash
+curl -X PUT https://api.rushdb.com/api/v1/records/movie-123 \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "MOVIE",
+    "data": {"title": "Inception", "rating": 9.0, "genre": "sci-fi"}
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+### update() vs set() parameters
+
+| Parameter     | Type            | Description                                               |
+| ------------- | --------------- | --------------------------------------------------------- |
+| `target`      | `RecordTarget`  | UUID string, `Record` instance, or dict with `__id`       |
+| `label`       | `str`           | Label for the record (TypeScript only, required)          |
+| `data`        | `dict / object` | Flat object or `PropertyDraft[]` for precise type control |
+| `options`     | `dict / object` | `suggestTypes`, `convertNumericValuesToNumbers`           |
+| `transaction` | `Transaction`   | Optional transaction                                      |
+
+---
+
+## Delete Records
+
+### Delete by ID
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.delete_by_id()`
+
+```python
+# Single record
+db.records.delete_by_id("movie-123")
+
+# Multiple records
+db.records.delete_by_id(["movie-123", "movie-456"])
+
+# From a record object
+movie.delete()
+```
+
+All relationships attached to deleted records are removed automatically.
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.deleteById()`
+
+```typescript
+// Single record
+await db.records.deleteById('movie-id-123')
+
+// Multiple records
+await db.records.deleteById(['id-1', 'id-2', 'id-3'])
+```
+
+All relationships attached to deleted records are removed automatically.
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`DELETE /api/v1/records/:entityId`
+
+```bash
+curl -X DELETE https://api.rushdb.com/api/v1/records/movie-123 \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
+```
+
+  </TabItem>
+</Tabs>
+
+### Bulk Delete
+
+Delete all records matching a query.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.delete()`
+
+```python
+db.records.delete({
+    "labels": ["MOVIE"],
+    "where": {"rating": {"$lt": 5}}
+})
+```
+
+:::warning
+Calling `delete()` without a `where` clause deletes **all** records with the given label.
+:::
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.delete()`
+
+```typescript
+await db.records.delete({
+  labels: ['MOVIE'],
+  where: { genre: 'sci-fi', rating: { $lt: 5 } }
+})
+```
+
+:::warning
+An empty `where` without `allowForceDelete: true` in the SDK config throws `EmptyTargetError`.
+:::
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/records/delete`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/delete \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"labels": ["MOVIE"], "where": {"rating": {"$lt": 5}}}'
+```
+
+:::warning
+Omitting `where` deletes **all** records with the given label.
+:::
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Options
+
+All write methods accept an `options` object:
+
+| Option                          | Default                         | Description                               |
+| ------------------------------- | ------------------------------- | ----------------------------------------- |
+| `suggestTypes`                  | `true`                          | Infer property types automatically        |
+| `convertNumericValuesToNumbers` | `false`                         | Convert string numbers to number type     |
+| `capitalizeLabels`              | `false`                         | Uppercase all inferred label names        |
+| `relationshipType`              | `__RUSHDB__RELATION__DEFAULT__` | Relationship type for nested links        |
+| `returnResult`                  | `false`                         | Return the created record in the response |
+| `mergeBy`                       | —                               | Fields to match on for upsert             |
+| `mergeStrategy`                 | `append`                        | `append` or `rewrite`                     |
+
+---
+
+## Precise Type Control
+
+By default, RushDB infers property types. Use `PropertyDraft` / `properties` array for explicit control.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+db.records.create(
+    label="MOVIE",
+    data=[
+        {"name": "title",      "type": "string",   "value": "Inception"},
+        {"name": "rating",     "type": "number",   "value": 8.8},
+        {"name": "genres",     "type": "string",   "value": "sci-fi,thriller", "valueSeparator": ","},
+        {"name": "releasedAt", "type": "datetime", "value": "2010-07-16T00:00:00Z"}
+    ]
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+await db.records.create({
+  label: 'MOVIE',
+  data: [
+    { name: 'title', type: 'string', value: 'Inception' },
+    { name: 'rating', type: 'number', value: 8.8 },
+    { name: 'genres', type: 'string', value: 'sci-fi,thriller', valueSeparator: ',' },
+    { name: 'releasedAt', type: 'datetime', value: '2010-07-16T00:00:00Z' }
+  ]
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "MOVIE",
+    "properties": [
+      {"name": "title",      "type": "string",   "value": "Inception"},
+      {"name": "rating",     "type": "number",   "value": 8.8},
+      {"name": "genres",     "type": "string",   "value": "sci-fi,thriller", "valueSeparator": ","},
+      {"name": "releasedAt", "type": "datetime", "value": "2010-07-16T00:00:00Z"}
+    ]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+### PropertyDraft fields
+
+| Field            | Type     | Description                                                      |
+| ---------------- | -------- | ---------------------------------------------------------------- |
+| `name`           | `string` | Property name                                                    |
+| `type`           | `string` | `string` · `number` · `boolean` · `datetime` · `null` · `vector` |
+| `value`          | any      | The value                                                        |
+| `valueSeparator` | `string` | Split `value` string into an array on this separator             |
+
+---
+
+## In a Transaction
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+tx = db.tx.begin()
+try:
+    movie = db.records.create(
+        label="MOVIE",
+        data={"title": "Inception"},
+        transaction=tx
+    )
+    actor = db.records.create(
+        label="ACTOR",
+        data={"name": "Leonardo DiCaprio"},
+        transaction=tx
+    )
+    db.relationships.attach(
+        source=movie,
+        target=actor,
+        options={"type": "STARS"},
+        transaction=tx
+    )
+    tx.commit()
+except Exception:
+    tx.rollback()
+    raise
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const tx = await db.tx.begin()
+try {
+  const movie = await db.records.create({ label: 'MOVIE', data: { title: 'Dune' } }, tx)
+  const actor = await db.records.create({ label: 'ACTOR', data: { name: 'Timothée Chalamet' } }, tx)
+  await db.records.attach({ source: movie, target: actor, options: { type: 'STARS' } }, tx)
+  await tx.commit()
+} catch (e) {
+  await tx.rollback()
+  throw e
+}
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+# 1. Begin a transaction
+TX_ID=$(curl -s -X POST https://api.rushdb.com/api/v1/tx \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": 10000}' | jq -r '.data.id')
+
+# 2. Create records using the transaction header
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Transaction-Id: $TX_ID" \
+  -d '{"label": "MOVIE", "data": {"title": "Dune"}}'
+
+# 3. Commit
+curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
+  -H "Authorization: Bearer $RUSHDB_API_KEY"
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## TypeScript: Via Model
+
+```typescript
+const MovieModel = new Model('MOVIE', {
+  title: { type: 'string' },
+  rating: { type: 'number' }
+})
+
+// Create
+const movie = await MovieModel.create({ title: 'Inception', rating: 8.8 })
+
+// Create many
+const movies = await MovieModel.createMany([{ title: 'Dune' }, { title: 'Arrival' }])
+
+// Partial update
+await MovieModel.update('movie-id-123', { rating: 9.1 })
+
+// Full replace
+await MovieModel.set('movie-id-123', { title: 'Inception', rating: 9.1, genre: 'sci-fi' })
+
+// Delete
+await MovieModel.deleteById(['id-1', 'id-2'])
+await MovieModel.delete({ where: { genre: 'temp' } })
+```
+
+---
+
+## See also
+
+- [Import Data](/build/data/import-data) — import nested JSON or CSV (auto-creates relationships)
+- [Find & Query](/build/data/find-and-query) — search and filter records
+- [Connect Records](/build/graph/connect-records) — attach and detach relationships
+- [Transactions](/build/reliability/transactions) — ACID guarantees for multi-step writes
+- [Write Records with Vectors](/build/ai-search/write-with-vectors) — attach embedding vectors

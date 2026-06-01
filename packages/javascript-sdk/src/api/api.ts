@@ -28,8 +28,11 @@ import type {
 import type { ApiResponse } from './types.js'
 import type {
   CreateEmbeddingIndexParams,
+  DeleteRelationshipPatternOptions,
   EmbeddingIndex,
   EmbeddingIndexStats,
+  RelationshipPattern,
+  RelationshipPatternListResponse,
   SemanticSearchParams,
   SemanticSearchResult,
   UpsertEmbeddingVectorsParams,
@@ -891,6 +894,88 @@ export class RestAPI {
    * API methods for managing relations between records
    */
   public relationships = {
+    /**
+     * Reviews and manages relationship patterns inferred from the current project ontology.
+     */
+    patterns: {
+      /**
+       * Lists inferred relationship patterns, ontology relationships, and analysis status.
+       */
+      list: async () => {
+        const path = `/relationships/patterns`
+        const payload = { method: 'GET', headers: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<RelationshipPatternListResponse>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Queues ontology analysis to generate relationship pattern suggestions.
+       */
+      analyze: async () => {
+        const path = `/relationships/patterns/analyze`
+        const payload = { method: 'POST', headers: {}, requestData: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<{ queued: true }>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Approves and applies a suggested relationship pattern.
+       */
+      approve: async (id: string) => {
+        const path = `/relationships/patterns/${encodeURIComponent(id)}/approve`
+        const payload = { method: 'POST', headers: {}, requestData: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<RelationshipPattern | undefined>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Ignores a suggested relationship pattern without applying it.
+       */
+      ignore: async (id: string) => {
+        const path = `/relationships/patterns/${encodeURIComponent(id)}/ignore`
+        const payload = { method: 'POST', headers: {}, requestData: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<RelationshipPattern | undefined>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      },
+
+      /**
+       * Deletes a saved relationship pattern.
+       * Pass deleteExisting to also remove relationships materialized by the pattern.
+       */
+      delete: async (id: string, options?: DeleteRelationshipPatternOptions) => {
+        const query = options?.deleteExisting ? '?deleteExisting=true' : ''
+        const path = `/relationships/patterns/${encodeURIComponent(id)}${query}`
+        const payload = { method: 'DELETE', headers: {} }
+        const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+        this.logger?.({ requestId, path, ...payload })
+
+        const response = await this.fetcher<ApiResponse<{ deleted: true }>>(path, payload)
+        this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+        return response
+      }
+    },
+
     /**
      * Creates many relationships by matching source and target records by keys
      * @param data - Configuration of source/target match and relation details

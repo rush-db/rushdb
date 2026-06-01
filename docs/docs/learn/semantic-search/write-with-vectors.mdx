@@ -1,0 +1,505 @@
+---
+slug: /build/ai-search/write-with-vectors
+sidebar_position: 3
+title: Write Records with Vectors
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Write Records with Vectors
+
+RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate bulk-upsert call. Any operation that creates or modifies records accepts a `vectors` parameter.
+
+This feature requires at least one [external index](/build/ai-search/bring-your-own-vectors) on the target `(label, propertyName)`.
+
+---
+
+## `vectors` parameter format
+
+| Field                | Type       | Required | Description                                               |
+| -------------------- | ---------- | -------- | --------------------------------------------------------- |
+| `propertyName`       | `string`   | **yes**  | Property name this vector is associated with              |
+| `vector`             | `number[]` | **yes**  | Pre-computed embedding vector                             |
+| `similarityFunction` | `string`   | no       | Required when multiple indexes exist on the same property |
+
+---
+
+## Create a Record with Vectors
+
+Record creation and vector storage happen atomically in one request.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.create()`
+
+```python
+record = db.records.create(
+    label="Article",
+    data={
+        "title": "How transformers work",
+        "body": "Attention is all you need ...",
+    },
+    vectors=[
+        {"propertyName": "body", "vector": my_embedder.embed("Attention is all you need ...")}
+    ],
+)
+print(record.id)  # record created AND vector written atomically
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.create()`
+
+```typescript
+const { data: record } = await db.records.create({
+  label: 'Article',
+  data: {
+    title: 'How transformers work',
+    body: 'Attention is all you need ...'
+  },
+  vectors: [{ propertyName: 'body', vector: myEmbed('Attention is all you need ...') }]
+})
+
+console.log(record.__id) // record created AND vector written atomically
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/records`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Article",
+    "data": {
+      "title": "How transformers work",
+      "body": "Attention is all you need ..."
+    },
+    "vectors": [
+      { "propertyName": "body", "vector": [0.1, 0.2, 0.3] }
+    ]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Upsert with Vectors
+
+`upsert` is idempotent on the record's natural key. Passing `vectors` writes or replaces the stored vector in the same call.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.upsert()`
+
+```python
+# First call — creates the record + writes vector
+r1 = db.records.upsert(
+    label="Article",
+    data={"slug": "transformers-101", "title": "Transformers 101", "body": "..."},
+    options={"mergeBy": ["slug"], "mergeStrategy": "append"},
+    vectors=[{"propertyName": "body", "vector": v1}],
+)
+
+# Second call — same slug → updates data + replaces the vector
+r2 = db.records.upsert(
+    label="Article",
+    data={"slug": "transformers-101", "title": "Transformers 101 (revised)", "body": "Updated ..."},
+    options={"mergeBy": ["slug"], "mergeStrategy": "append"},
+    vectors=[{"propertyName": "body", "vector": v2}],
+)
+# r1.__id == r2.__id
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.upsert()`
+
+```typescript
+// First call — creates the record + writes vector
+const { data: r1 } = await db.records.upsert({
+  label: 'Article',
+  data: { slug: 'transformers-101', title: 'Transformers 101', body: '...' },
+  vectors: [{ propertyName: 'body', vector: v1 }]
+})
+
+// Second call — same slug → updates data + replaces the vector
+const { data: r2 } = await db.records.upsert({
+  label: 'Article',
+  data: { slug: 'transformers-101', title: 'Transformers 101 (revised)', body: 'Updated ...' },
+  vectors: [{ propertyName: 'body', vector: v2 }]
+})
+
+console.log(r1.__id === r2.__id) // true — same record
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/records`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Article",
+    "data": { "slug": "transformers-101", "title": "Transformers 101", "body": "..." },
+    "options": { "mergeBy": ["slug"], "mergeStrategy": "append" },
+    "vectors": [{ "propertyName": "body", "vector": [0.1, 0.2, 0.3] }]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Set with Vectors
+
+`set` replaces all properties of a record. Including `vectors` writes those vectors at the same time.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.set()`
+
+```python
+db.records.set(
+    target=record,
+    label="Product",
+    data={"name": "Widget Pro", "price": 19.99},
+    vectors=[{"propertyName": "description", "vector": new_vec}],
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.set()`
+
+```typescript
+await db.records.set(rec.__id, {
+  data: { name: 'Widget Pro', price: 19.99 },
+  vectors: [{ propertyName: 'description', vector: newVec }]
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`PUT /api/v1/records/:id`
+
+```bash
+curl -X PUT https://api.rushdb.com/api/v1/records/rec_abc123 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Product",
+    "data": { "name": "Widget Pro", "price": 19.99 },
+    "vectors": [{ "propertyName": "description", "vector": [0.5, 0.6, 0.7] }]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Create Multiple Records with Vectors
+
+`createMany` / `create_many` accepts a top-level `vectors` array **indexed by row position** — each entry is a list of vector entries for that row.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.create_many()`
+
+```python
+db.records.create_many(
+    label="Product",
+    data=[
+        {"name": "Alpha", "description": "First product"},
+        {"name": "Beta",  "description": "Second product"},
+        {"name": "Gamma", "description": "Third product"},
+    ],
+    vectors=[
+        [{"propertyName": "description", "vector": [1, 0, 0]}],  # row 0
+        [{"propertyName": "description", "vector": [0, 1, 0]}],  # row 1
+        [{"propertyName": "description", "vector": [0, 0, 1]}],  # row 2
+    ],
+)
+```
+
+**Sparse vectors** — any rows beyond `vectors` length are skipped:
+
+```python
+db.records.create_many(
+    label="Product",
+    data=[{"name": "Alpha"}, {"name": "Beta"}, {"name": "Gamma"}],
+    vectors=[[{"propertyName": "description", "vector": my_vec}]],  # only row 0
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.createMany()`
+
+```typescript
+await db.records.createMany({
+  label: 'Product',
+  data: [
+    { name: 'Alpha', description: 'First product' },
+    { name: 'Beta', description: 'Second product' },
+    { name: 'Gamma', description: 'Third product' }
+  ],
+  vectors: [
+    [{ propertyName: 'description', vector: [1, 0, 0] }], // row 0
+    [{ propertyName: 'description', vector: [0, 1, 0] }], // row 1
+    [{ propertyName: 'description', vector: [0, 0, 1] }] // row 2
+  ],
+  options: { returnResult: true }
+})
+```
+
+**Sparse vectors** — any rows beyond `vectors.length` are skipped:
+
+```typescript
+await db.records.createMany({
+  label: 'Product',
+  data: [{ name: 'Alpha' }, { name: 'Beta' }, { name: 'Gamma' }],
+  // only row 0 gets a vector; rows 1 and 2 are skipped
+  vectors: [[{ propertyName: 'description', vector: myVec }]]
+})
+```
+
+The SDK throws synchronously if `vectors.length > data.length`:
+
+```
+Error: vectors length (3) exceeds the number of data rows (2)
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/records/import/json`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/import/json \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Product",
+    "data": [
+      { "name": "Alpha", "description": "First product" },
+      { "name": "Beta",  "description": "Second product" },
+      { "name": "Gamma", "description": "Third product" }
+    ],
+    "vectors": [
+      [{ "propertyName": "description", "vector": [1, 0, 0] }],
+      [{ "propertyName": "description", "vector": [0, 1, 0] }],
+      [{ "propertyName": "description", "vector": [0, 0, 1] }]
+    ]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Import CSV with Vectors
+
+CSV is a raw string, so per-row vectors are supplied separately. Row indices are 0-based after the header is consumed.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.import_csv()`
+
+```python
+csv_data = """name,description
+Alpha,First product
+Beta,Second product
+Gamma,Third product"""
+
+db.records.import_csv(
+    label="Product",
+    data=csv_data,
+    vectors=[
+        [{"propertyName": "description", "vector": [1, 0, 0]}],  # csv row 0
+        [{"propertyName": "description", "vector": [0, 1, 0]}],  # csv row 1
+        [{"propertyName": "description", "vector": [0, 0, 1]}],  # csv row 2
+    ],
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+`db.records.importCsv()`
+
+```typescript
+const csv = `name,description
+Alpha,First product
+Beta,Second product
+Gamma,Third product`
+
+await db.records.importCsv({
+  label: 'Product',
+  data: csv,
+  vectors: [
+    [{ propertyName: 'description', vector: [1, 0, 0] }], // csv row 0
+    [{ propertyName: 'description', vector: [0, 1, 0] }], // csv row 1
+    [{ propertyName: 'description', vector: [0, 0, 1] }] // csv row 2
+  ],
+  options: { returnResult: true }
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/records/import/csv`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/import/csv \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Product",
+    "data": "name,description\nAlpha,First product\nBeta,Second product\nGamma,Third product",
+    "vectors": [
+      [{ "propertyName": "description", "vector": [1, 0, 0] }],
+      [{ "propertyName": "description", "vector": [0, 1, 0] }],
+      [{ "propertyName": "description", "vector": [0, 0, 1] }]
+    ]
+  }'
+```
+
+The server returns `400 Bad Request` if `vectors.length` exceeds the number of CSV data rows.
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Multiple vectors in one call
+
+Write vectors for multiple properties or indexes in a single operation:
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+db.records.create(
+    label="Document",
+    data={"title": "Multi-modal doc", "abstract": "...", "fullText": "..."},
+    vectors=[
+        {"propertyName": "abstract",  "vector": abstract_vec},
+        {"propertyName": "fullText",  "vector": full_text_vec},
+    ],
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+await db.records.create({
+  label: 'Document',
+  data: { title: 'Multi-modal doc', abstract: '...', fullText: '...' },
+  vectors: [
+    { propertyName: 'abstract', vector: abstractVec },
+    { propertyName: 'fullText', vector: fullTextVec }
+  ]
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Document",
+    "data": { "title": "Multi-modal doc", "abstract": "...", "fullText": "..." },
+    "vectors": [
+      { "propertyName": "abstract",  "vector": [0.1, 0.2, 0.3] },
+      { "propertyName": "fullText",  "vector": [0.4, 0.5, 0.6] }
+    ]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Disambiguation
+
+When a `(label, propertyName)` has multiple external indexes (e.g. cosine and euclidean), specify `similarityFunction` in each vector entry to route to the correct index. Omitting it when multiple indexes match returns `422 Unprocessable Entity`.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+db.records.create(
+    label="Product",
+    data={"name": "Widget"},
+    vectors=[
+        {"propertyName": "embedding", "vector": vec, "similarityFunction": "cosine"}
+    ],
+)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+await db.records.create({
+  label: 'Product',
+  data: { name: 'Widget' },
+  vectors: [{ propertyName: 'embedding', vector: vec, similarityFunction: 'cosine' }]
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -d '{
+    "label": "Product",
+    "data": { "name": "Widget" },
+    "vectors": [
+      { "propertyName": "embedding", "vector": [0.1, 0.9], "similarityFunction": "cosine" }
+    ]
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## See also
+
+- [Bring Your Own Vectors](/build/ai-search/bring-your-own-vectors) — create external indexes and bulk-upsert
+- [Manage Embedding Indexes](/build/ai-search/manage-indexes) — list, stats, delete indexes
+- [Semantic Search](/build/ai-search/semantic-search) — search across indexed properties

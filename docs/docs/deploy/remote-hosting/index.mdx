@@ -1,0 +1,69 @@
+---
+slug: /deploy/remote-index
+title: Remote Hosting
+description: Deploy RushDB to a remote server. Choose your cloud provider or run Docker on any Linux machine.
+sidebar_position: 2
+displayed_sidebar: docs
+overview_page: true
+tags: [Deployment, Production, Self-Hosted]
+---
+
+import { DeployMethodRow, DeployMethodRowList, DeployCrossLinks } from '@site/src/components/DeployMethodCard'
+
+# Remote Hosting
+
+Deploy RushDB to any server. All methods use Docker Compose — pick the guide for your environment.
+
+<DeployMethodRowList>
+  <DeployMethodRow
+    title="Prerequisites"
+    description="System requirements, software versions, and firewall rules to verify before deploying to any remote environment."
+    badge="required"
+    time="~5 min"
+    icon="ClipboardList"
+    tags={['Checklist', 'Docker', 'Firewall']}
+    href="/deploy/remote-prerequisites"
+  />
+  <DeployMethodRow
+    title="DigitalOcean"
+    description="Deploy on a DigitalOcean Droplet — create a VM, install Docker, and launch the Compose stack in under 20 minutes."
+    badge="beginner"
+    time="~20 min"
+    icon="Cloud"
+    recommended
+    prerequisites={['DigitalOcean account', 'Docker + Docker Compose']}
+    commands={['curl -fsSL https://get.docker.com | sh', 'docker compose up -d']}
+    tags={['DigitalOcean', 'Ubuntu']}
+    href="/deploy/remote-digital-ocean"
+  />
+  <DeployMethodRow
+    title="AWS / GCP / Azure"
+    description="Deploy on any major cloud provider using a Linux VM and Docker Compose. Provider-specific notes for EC2, Compute Engine, and Azure VMs."
+    badge="intermediate"
+    time="~30 min"
+    icon="Globe"
+    prerequisites={['Cloud account', 'Linux VM (4 GB+ RAM)', 'Docker + Docker Compose']}
+    commands={['curl -fsSL https://get.docker.com | sh', 'docker compose up -d']}
+    tags={['AWS', 'GCP', 'Azure']}
+    href="/deploy/remote-cloud-providers"
+  />
+  <DeployMethodRow
+    title="Docker / Terraform / ECS"
+    description="Full self-hosted stack via Docker Compose with environment variable reference, Neo4j and PostgreSQL wiring, and production hardening checklist."
+    badge="self-hosted"
+    time="~30 min"
+    icon="Server"
+    prerequisites={['Linux server', 'Docker + Docker Compose']}
+    commands={['curl -O docker-compose.yml', 'cp .env.example .env', 'docker compose up -d']}
+    tags={['Docker Compose', 'Terraform', 'ECS']}
+    href="/deploy/docker-remote"
+  />
+</DeployMethodRowList>
+
+<DeployCrossLinks
+  prefix="Next steps after deployment:"
+  links={[
+    { label: 'Configuration', href: '/deploy/config-index' },
+    { label: 'Infrastructure', href: '/deploy/infra-index' }
+  ]}
+/>

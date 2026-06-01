@@ -74,20 +74,8 @@ describe('relationship-patterns suggestion validation (e2e)', () => {
   jest.setTimeout(120_000)
 
   // ------------------------------------------------------------------
-  // Raw HTTP helper (relationship-patterns API has no SDK wrapper)
+  // SDK helper
   // ------------------------------------------------------------------
-  async function patternsApi(urlPath: string, method = 'GET', body?: unknown): Promise<unknown> {
-    const res = await fetch(`${apiUrl}${urlPath}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
-      },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {})
-    })
-    return res.json()
-  }
-
   /**
    * Polls GET /relationships/patterns until analysis.status is 'idle' or 'error'.
    * Throws if the deadline is reached without completion.
@@ -95,8 +83,7 @@ describe('relationship-patterns suggestion validation (e2e)', () => {
   async function waitForAnalysis(maxMs = 90_000): Promise<AnalysisResult> {
     const deadline = Date.now() + maxMs
     while (Date.now() < deadline) {
-      const raw = (await patternsApi('/relationships/patterns')) as { data?: AnalysisResult }
-      const data = raw?.data
+      const { data } = await db.relationships.patterns.list()
       const status = data?.analysis?.status
       if (status === 'idle' || status === 'error') {
         return data as AnalysisResult
@@ -178,7 +165,8 @@ describe('relationship-patterns suggestion validation (e2e)', () => {
    */
   it('does NOT suggest join_pattern for label pairs that already have a semantic relationship', async () => {
     // Force a fresh analysis for this project
-    await patternsApi('/relationships/patterns/analyze', 'POST')
+    const { data } = await db.relationships.patterns.analyze()
+    expect(data.queued).toBe(true)
 
     const result = await waitForAnalysis()
 

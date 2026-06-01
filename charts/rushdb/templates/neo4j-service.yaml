@@ -1,0 +1,21 @@
+{{- if .Values.neo4j.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rushdb.neo4j.fullname" . }}
+  labels:
+    {{- include "rushdb.neo4j.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.neo4j.service.type }}
+  ports:
+    - port: {{ .Values.neo4j.service.boltPort }}
+      targetPort: bolt
+      protocol: TCP
+      name: bolt
+    - port: {{ .Values.neo4j.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "rushdb.neo4j.selectorLabels" . | nindent 4 }}
+{{- end }}

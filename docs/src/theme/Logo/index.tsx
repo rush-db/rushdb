@@ -8,7 +8,7 @@ export default function Logo(): React.ReactElement {
     navbar: { logo, title }
   } = useThemeConfig()
 
-  const logoLink = useBaseUrl((logo as any)?.href || '/')
+  const logoLink = useBaseUrl((logo as any)?.href || '/get-started/quick-tutorial')
 
   return (
     <Link to={logoLink} className="navbar__brand" aria-label={logo?.alt || 'RushDB Docs'}>

@@ -1,0 +1,37 @@
+{{- if .Values.rushdb.ingress.enabled -}}
+{{- $fullName := include "rushdb.fullname" . -}}
+{{- $svcPort := .Values.rushdb.service.port -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  labels:
+    {{- include "rushdb.labels" . | nindent 4 }}
+  {{- with .Values.rushdb.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.rushdb.ingress.className }}
+  ingressClassName: {{ .Values.rushdb.ingress.className }}
+  {{- end }}
+  {{- if .Values.rushdb.ingress.tls }}
+  tls:
+    {{- toYaml .Values.rushdb.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.rushdb.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ $fullName }}
+                port:
+                  number: {{ $svcPort }}
+          {{- end }}
+    {{- end }}
+{{- end }}

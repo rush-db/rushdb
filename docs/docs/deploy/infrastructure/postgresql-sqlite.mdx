@@ -1,0 +1,83 @@
+---
+slug: /deploy/infra-database
+title: PostgreSQL / SQLite
+description: Configure the relational database used by RushDB for project metadata, users, and API keys.
+sidebar_position: 2
+displayed_sidebar: docs
+tags: [Infrastructure, PostgreSQL, SQLite, Self-Hosted]
+---
+
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
+# PostgreSQL / SQLite
+
+RushDB uses a relational database (separate from Neo4j) to store project metadata, user accounts, and API keys.
+
+## Choosing a Backend
+
+|                 | SQLite                                | PostgreSQL                           |
+| --------------- | ------------------------------------- | ------------------------------------ |
+| **Setup**       | Zero config                           | Requires a running Postgres instance |
+| **Best for**    | Single-node, low traffic, dev/staging | Production, HA, multi-instance       |
+| **Persistence** | File on disk                          | External service                     |
+| **Scale**       | Single process                        | Horizontal scaling                   |
+
+Use **SQLite** to get started quickly. Migrate to **PostgreSQL** before going to production if you need concurrent writes or plan to run multiple RushDB instances.
+
+## SQLite Setup
+
+Set in `.env`:
+
+```env
+SQL_DB_TYPE=sqlite
+SQL_DB_PATH=./data/rushdb.db
+```
+
+Ensure the `data/` directory is persisted via a Docker volume:
+
+```yaml
+# docker-compose.yml (excerpt)
+volumes:
+  - ./data:/app/data
+```
+
+## PostgreSQL Setup
+
+<Tabs groupId="postgres-setup">
+<TabItem value="compose" label="Docker Compose">
+
+The full Compose stack ships with a PostgreSQL 16 service. Set credentials in `.env`:
+
+```env
+SQL_DB_TYPE=postgres
+SQL_DB_URL=postgresql://rushdb:your-strong-password@postgres:5432/rushdb
+```
+
+</TabItem>
+<TabItem value="external" label="External PostgreSQL">
+
+Point RushDB at an existing PostgreSQL 14+ instance:
+
+```env
+SQL_DB_TYPE=postgres
+SQL_DB_URL=postgresql://rushdb:your-strong-password@your-pg-host.example.com:5432/rushdb
+```
+
+Create the database and user before starting RushDB:
+
+```sql
+CREATE USER rushdb WITH PASSWORD 'your-strong-password';
+CREATE DATABASE rushdb OWNER rushdb;
+```
+
+</TabItem>
+</Tabs>
+
+## Backups
+
+Always back up the relational database alongside Neo4j. For SQLite, copy the `.db` file. For PostgreSQL, use `pg_dump`:
+
+```bash
+pg_dump -h localhost -U rushdb rushdb > rushdb_backup_$(date +%Y%m%d).sql
+```

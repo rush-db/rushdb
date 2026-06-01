@@ -1,10 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import BrowserOnly from '@docusaurus/BrowserOnly'
 import { useLocation } from '@docusaurus/router'
-import { Clipboard, Check, ChevronDown, FileText, Maximize2, Minimize2 } from 'lucide-react'
+import { Check, ChevronDown, Maximize2, Minimize2, FileTextIcon } from 'lucide-react'
 
 const GITHUB_RAW = 'https://raw.githubusercontent.com/rush-db/rushdb/main/docs/docs'
 const DOCS_BASE = 'https://docs.rushdb.com'
+
+async function fetchMarkdownSource(url: string): Promise<string | null> {
+  const response = await fetch(url)
+  if (!response.ok) return null
+
+  const text = await response.text()
+  const contentType = response.headers.get('content-type')?.toLowerCase() ?? ''
+  const isHtml = contentType.includes('text/html') || /^\s*<!doctype html/i.test(text) || /^\s*<html[\s>]/i.test(text)
+
+  return isHtml ? null : text
+}
 
 function ClaudeIcon() {
   return (
@@ -128,42 +139,79 @@ function CopyPageButtonInner() {
 
   const slug = location.pathname.replace(/\/+$/, '').replace(/^\//, '') || 'index'
   const pageUrl = slug === 'index' ? DOCS_BASE : `${DOCS_BASE}/${slug}`
-  const markdownUrl = `${GITHUB_RAW}/${slug}.md`
-  const markdownUrlMdx = `${GITHUB_RAW}/${slug}.mdx`
+  const localMarkdownUrl = `/raw-docs/${slug}.md`
+  const localMarkdownUrlMdx = `/raw-docs/${slug}.mdx`
+  const localIndexMarkdownUrl = `/raw-docs/${slug}/index.md`
+  const localIndexMarkdownUrlMdx = `/raw-docs/${slug}/index.mdx`
+  const githubMarkdownUrl = `${GITHUB_RAW}/${slug}.md`
+  const githubMarkdownUrlMdx = `${GITHUB_RAW}/${slug}.mdx`
+  const githubIndexMarkdownUrl = `${GITHUB_RAW}/${slug}/index.md`
+  const githubIndexMarkdownUrlMdx = `${GITHUB_RAW}/${slug}/index.mdx`
+  const markdownCandidates = [
+    localMarkdownUrl,
+    localMarkdownUrlMdx,
+    localIndexMarkdownUrl,
+    localIndexMarkdownUrlMdx,
+    githubMarkdownUrl,
+    githubMarkdownUrlMdx,
+    githubIndexMarkdownUrl,
+    githubIndexMarkdownUrlMdx
+  ]
 
   // Resolve which extension actually exists; cache per slug
   useEffect(() => {
     setResolvedMarkdownUrl(null)
-    fetch(markdownUrl, { method: 'HEAD' })
-      .then((r) => {
-        if (r.ok) {
-          setResolvedMarkdownUrl(markdownUrl)
-          return
+    let cancelled = false
+
+    const resolveMarkdownUrl = async () => {
+      for (const candidate of markdownCandidates) {
+        try {
+          const source = await fetchMarkdownSource(candidate)
+          if (source != null) {
+            if (!cancelled) setResolvedMarkdownUrl(candidate)
+            return
+          }
+        } catch {
+          // Try the next local or GitHub source candidate.
         }
-        fetch(markdownUrlMdx, { method: 'HEAD' })
-          .then((r2) => {
-            setResolvedMarkdownUrl(r2.ok ? markdownUrlMdx : markdownUrl)
-          })
-          .catch(() => setResolvedMarkdownUrl(markdownUrl))
-      })
-      .catch(() => setResolvedMarkdownUrl(markdownUrl))
+      }
+
+      if (!cancelled) setResolvedMarkdownUrl(localMarkdownUrlMdx)
+    }
+
+    void resolveMarkdownUrl()
+    return () => {
+      cancelled = true
+    }
   }, [slug])
 
-  const effectiveMarkdownUrl = resolvedMarkdownUrl ?? markdownUrl
+  const effectiveMarkdownUrl = resolvedMarkdownUrl ?? localMarkdownUrlMdx
 
   const handleCopy = useCallback(async () => {
+    let content: string | null = null
+
     try {
-      const res = await fetch(effectiveMarkdownUrl)
-      const text = res.ok ? await res.text() : null
-      const content = text ?? `# ${document.title}\n\n${window.location.href}`
+      for (const candidate of [effectiveMarkdownUrl, ...markdownCandidates]) {
+        try {
+          const source = await fetchMarkdownSource(candidate)
+          if (source != null) {
+            content = source
+            break
+          }
+        } catch {
+          // Try the next local or GitHub source candidate.
+        }
+      }
+
+      content ??= `# ${document.title}\n\n${window.location.href}`
       await navigator.clipboard.writeText(content)
     } catch {
-      // fallback: copy the URL when fetch/clipboard fails
+      content ??= `# ${document.title}\n\n${window.location.href}`
       try {
-        await navigator.clipboard.writeText(window.location.href)
+        await navigator.clipboard.writeText(content)
       } catch {
         const el = document.createElement('textarea')
-        el.value = window.location.href
+        el.value = content
         document.body.appendChild(el)
         el.select()
         document.execCommand('copy')
@@ -172,7 +220,7 @@ function CopyPageButtonInner() {
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }, [effectiveMarkdownUrl])
+  }, [effectiveMarkdownUrl, slug])
 
   useEffect(() => {
     if (!open) return
@@ -195,11 +243,11 @@ function CopyPageButtonInner() {
   return (
     <div ref={containerRef} className="copy-page-container">
       {/* Main copy button */}
-      <button className="copy-page-main-btn" onClick={handleCopy} title="Copy page URL to clipboard">
+      <button className="copy-page-main-btn" onClick={handleCopy} title="Copy page Markdown to clipboard">
         {copied ?
           <Check size={13} strokeWidth={2.5} />
-        : <Clipboard size={13} strokeWidth={2} />}
-        <span>{copied ? 'Copied!' : 'Copy page'}</span>
+        : <FileTextIcon size={13} strokeWidth={2} />}
+        <span>{copied ? 'Copied!' : 'Copy Markdown'}</span>
       </button>
 
       {/* Dropdown chevron */}

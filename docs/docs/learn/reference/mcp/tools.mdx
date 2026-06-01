@@ -1,0 +1,98 @@
+---
+slug: /reference/mcp/tools
+sidebar_position: 1
+title: All Tools
+---
+
+# MCP Tools
+
+RushDB MCP exposes 37 tools. Names below use the exact lower camel case identifiers published in the MCP manifest.
+
+The connected MCP client receives the full JSON schema for each tool. This page is the quick reference for choosing the correct tool and understanding its main inputs.
+
+## Safety Levels
+
+| Level       | Meaning                                                 |
+| ----------- | ------------------------------------------------------- |
+| Read        | Retrieves or computes data without changing the project |
+| Write       | Creates or updates project data                         |
+| Destructive | Deletes or replaces data; preview and confirm first     |
+
+An asterisk marks a required input.
+
+## Discovery and Properties
+
+| Tool                    | Level       | Main inputs                                            | Purpose                                                                             |
+| ----------------------- | ----------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `getOntologyMarkdown`   | Read        | `labels?`, `force?`                                    | Return the complete graph ontology as compact Markdown. Call once at session start. |
+| `getOntology`           | Read        | `labels?`, `force?`                                    | Return structured ontology JSON, including property IDs and vector indexes.         |
+| `findLabels`            | Read        | `where?`, `limit?`, `skip?`, `orderBy?`                | List or filter record labels and counts.                                            |
+| `findProperties`        | Read        | `where?`, `limit?`, `skip?`, `orderBy?`                | Discover property names, types, IDs, and record counts.                             |
+| `findPropertyById`      | Read        | `propertyId*`                                          | Fetch metadata for one property.                                                    |
+| `propertyValues`        | Read        | `propertyId*`, `query?`, `orderBy?`, `limit?`, `skip?` | Return numeric or date ranges, or distinct string and boolean values.               |
+| `deleteProperty`        | Destructive | `propertyId*`                                          | Permanently remove a property and its values from all records.                      |
+| `getSearchQuerySpec`    | Read        | none                                                   | Return the complete SearchQuery syntax reference.                                   |
+| `getQueryBuilderPrompt` | Read        | none                                                   | Return the built-in discovery-first query builder prompt.                           |
+
+## Records
+
+| Tool                | Level       | Main inputs                                                               | Purpose                                                                       |
+| ------------------- | ----------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `findRecords`       | Read        | `labels?`, `where?`, `limit?`, `skip?`, `orderBy?`, `select?`, `groupBy?` | Search records and run grouped metrics queries.                               |
+| `findOneRecord`     | Read        | `labels?`, `where?`                                                       | Return the first matching record for entity resolution probes.                |
+| `findUniqRecord`    | Read        | `labels?`, `where?`                                                       | Return exactly one matching record; fail when zero or multiple records match. |
+| `getRecord`         | Read        | `recordId*`                                                               | Fetch one record by ID.                                                       |
+| `getRecordsByIds`   | Read        | `recordIds*`                                                              | Fetch multiple records by ID.                                                 |
+| `createRecord`      | Write       | `label*`, `data*`, `options?`, `transactionId?`                           | Insert or upsert one record.                                                  |
+| `updateRecord`      | Write       | `recordId*`, `label*`, `data*`, `transactionId?`                          | Partially update one record while preserving unspecified fields.              |
+| `setRecord`         | Destructive | `recordId*`, `label*`, `data*`, `transactionId?`                          | Replace all fields on one record.                                             |
+| `deleteRecord`      | Destructive | `recordId*`, `transactionId?`                                             | Delete one record by ID after previewing it with `findRecords`.               |
+| `deleteRecordById`  | Destructive | `recordId*`, `transactionId?`                                             | Delete one record by ID after previewing it with `getRecord`.                 |
+| `bulkCreateRecords` | Write       | `label*`, `data*`, `options?`, `transactionId?`                           | Insert or upsert multiple records with the same label.                        |
+| `bulkDeleteRecords` | Destructive | `where*`, `labels?`, `transactionId?`                                     | Delete all records matching a query. Preview with `findRecords` first.        |
+| `exportRecords`     | Read        | `labels?`, `where?`, `limit?`, `orderBy?`                                 | Export matching records as CSV.                                               |
+
+## Relationships
+
+| Tool                | Level       | Main inputs                                                                             | Purpose                                                          |
+| ------------------- | ----------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `findRelationships` | Read        | `where?`, `limit?`, `skip?`, `orderBy?`                                                 | Inspect edges and discover graph paths before traversal queries. |
+| `attachRelation`    | Write       | `sourceId*`, `targetId?`, `targetIds?`, `relationType?`, `direction?`, `transactionId?` | Create relationships between existing records.                   |
+| `detachRelation`    | Destructive | `sourceId*`, `targetId?`, `targetIds?`, `relationType?`, `direction?`, `transactionId?` | Remove relationships between records.                            |
+
+## Suggested Relationship Patterns
+
+| Tool                          | Level       | Main inputs              | Purpose                                                                       |
+| ----------------------------- | ----------- | ------------------------ | ----------------------------------------------------------------------------- |
+| `listRelationshipPatterns`    | Read        | none                     | List inferred patterns, ontology relationship summaries, and analysis status. |
+| `analyzeRelationshipPatterns` | Write       | none                     | Queue ontology analysis. This may invoke the configured LLM.                  |
+| `approveRelationshipPattern`  | Write       | `id*`                    | Approve and apply a suggested pattern.                                        |
+| `ignoreRelationshipPattern`   | Write       | `id*`                    | Ignore a suggested pattern without applying it.                               |
+| `deleteRelationshipPattern`   | Destructive | `id*`, `deleteExisting?` | Delete a stored pattern and optionally its materialized relationships.        |
+
+See [Suggested Relationship Patterns](/build/graph/suggested-patterns) for lifecycle details and REST and SDK examples.
+
+## Semantic Search
+
+| Tool                     | Level       | Main inputs                                                                                                                      | Purpose                                                              |
+| ------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `findEmbeddingIndexes`   | Read        | none                                                                                                                             | List embedding index policies configured for the project.            |
+| `createEmbeddingIndex`   | Write       | `label*`, `propertyName*`, `sourceType?`, `similarityFunction?`, `dimensions?`                                                   | Create a managed or external embedding index policy.                 |
+| `getEmbeddingIndexStats` | Read        | `indexId*`                                                                                                                       | Check indexing progress for an embedding index.                      |
+| `upsertEmbeddingVectors` | Write       | `indexId*`, `items*`                                                                                                             | Write pre-computed vectors to an external index.                     |
+| `deleteEmbeddingIndex`   | Destructive | `indexId*`                                                                                                                       | Delete an embedding index and its stored vectors.                    |
+| `semanticSearch`         | Read        | `propertyName*`, `labels*`, `query?`, `queryVector?`, `sourceType?`, `similarityFunction?`, `where?`, `topK?`, `limit?`, `skip?` | Rank records by vector similarity, optionally after exact filtering. |
+
+## Utilities
+
+| Tool              | Level | Main inputs | Purpose                                                |
+| ----------------- | ----- | ----------- | ------------------------------------------------------ |
+| `helpAddToClient` | Read  | none        | Return instructions for adding RushDB MCP to a client. |
+
+## Query Rules
+
+- Never guess labels or property names. Start with `getOntologyMarkdown`.
+- Call `getSearchQuerySpec` before complex `findRecords` queries.
+- Do not pass `limit` with `select`; it restricts the record scan and produces incorrect metrics.
+- For a simple count, read `total` from `findRecords`.
+- Preview and explicitly confirm destructive operations.

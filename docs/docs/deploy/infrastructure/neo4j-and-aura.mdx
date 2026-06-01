@@ -1,0 +1,158 @@
+---
+slug: /deploy/infra-neo4j
+title: Neo4j & Aura
+description: Configure RushDB's graph backend — bundled Neo4j via Docker Compose, an existing Neo4j instance, or Neo4j Aura (BYOC).
+sidebar_position: 1
+displayed_sidebar: docs
+tags: [Infrastructure, Neo4j, Aura, BYOC, Self-Hosted]
+---
+
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
+# Neo4j & Aura
+
+RushDB uses Neo4j as its graph backend. There are three ways to provide a Neo4j instance:
+
+| Option                       | When to use                                                          |
+| ---------------------------- | -------------------------------------------------------------------- |
+| **Bundled** (Docker Compose) | Quickest path — Neo4j runs in the same Compose stack                 |
+| **Existing instance**        | You already run Neo4j on your infrastructure                         |
+| **Neo4j Aura (BYOC)**        | Keep graph data in your own cloud account; use RushDB API layer only |
+
+## Requirements
+
+| Requirement       | Details                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| **Neo4j version** | `2026.01.4` (tested and bundled). Any `2026.x` release is compatible.                         |
+| **APOC Core**     | **Required.** Version must match Neo4j — use `apoc-2026.01.4-core.jar` for the bundled image. |
+| **APOC Extended** | Not required.                                                                                 |
+
+:::danger APOC Core is not optional
+Every core RushDB operation — creating records, updating properties, relationship management, batch imports, and schema mutations — relies on APOC Core procedures (`apoc.create.*`, `apoc.periodic.iterate`, `apoc.map.*`, `apoc.convert.*`, `apoc.do.when`). A Neo4j instance without APOC Core will fail immediately on first use.
+:::
+
+### APOC Core procedures used
+
+| Module          | Procedures                                                      |
+| --------------- | --------------------------------------------------------------- |
+| `apoc.create`   | `addLabels`, `removeLabels`, `removeProperties`, `relationship` |
+| `apoc.periodic` | `iterate` (batch upserts and deletes)                           |
+| `apoc.do`       | `when` (conditional record creation in upserts)                 |
+| `apoc.map`      | `fromPairs`, `merge`, `removeKey`, `setEntry`                   |
+| `apoc.convert`  | `toJson`, `fromJsonMap`, `toList`                               |
+
+## Option A — Bundled via Docker Compose
+
+The standard `docker-compose.yml` ships with Neo4j `2026.01.4` and the matching `apoc-2026.01.4-core.jar` pre-installed. No extra steps required — just set the password in `.env`:
+
+```env
+NEO4J_PASSWORD=your-strong-password
+```
+
+The APOC Core jar is mounted from `./neo4j-plugins/` into `/var/lib/neo4j/plugins` inside the container. Alternatively, let Neo4j download it at startup by uncommenting the plugins line in `docker-compose.yml`:
+
+```yaml
+environment:
+  - NEO4J_PLUGINS=["apoc"] # fetches APOC from the internet on first start
+```
+
+## Option B — Existing Neo4j Instance
+
+Point RushDB at any running Neo4j `2026.x` instance:
+
+```env
+NEO4J_URL=bolt://your-neo4j-host:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your-password
+```
+
+**APOC Core installation on an existing instance:**
+
+<Tabs groupId="apoc-install">
+<TabItem value="jar" label="Manual JAR (recommended)">
+
+Download `apoc-2026.01.4-core.jar` from the [APOC releases](https://github.com/neo4j/apoc/releases) page. The filename must start with `apoc-` and the version must match your Neo4j version exactly.
+
+```bash
+# Copy into the Neo4j plugins directory
+cp apoc-2026.01.4-core.jar /var/lib/neo4j/plugins/
+
+# Restart Neo4j
+systemctl restart neo4j
+```
+
+Verify APOC is loaded:
+
+```bash
+cypher-shell -u neo4j -p yourpassword \
+  "CALL apoc.help('create') YIELD name RETURN name LIMIT 1"
+```
+
+</TabItem>
+<TabItem value="env" label="NEO4J_PLUGINS env var (Docker)">
+
+Neo4j's official Docker image can fetch APOC at startup:
+
+```yaml
+environment:
+  - NEO4J_PLUGINS=["apoc"]
+```
+
+This requires internet access from the Neo4j container on first start. The version downloaded matches the Neo4j image version automatically.
+
+</TabItem>
+</Tabs>
+
+:::warning Version matching
+The APOC jar version must match the Neo4j server version. Mismatched versions cause startup errors. If you upgrade Neo4j, replace the APOC jar with the matching release.
+:::
+
+## Option C — Neo4j Aura (BYOC)
+
+Bring Your Own Cloud: keep your graph data in a Neo4j Aura account while RushDB provides the API layer.
+
+**Why BYOC?**
+
+- Graph data never leaves your cloud account
+- Use Neo4j's managed backups, monitoring, and scaling
+- AuraDB Free tier (1 GB) is sufficient for development
+
+:::info APOC on Aura
+Neo4j AuraDB Professional and Enterprise tiers include APOC Core. APOC is **not available** on AuraDB Free. For production BYOC, use AuraDB Professional or higher.
+:::
+
+**Setup:**
+
+1. Create an instance at [console.neo4j.io](https://console.neo4j.io)
+2. Copy the connection URI, username, and password from the Aura console
+3. In your RushDB `.env`:
+
+```env
+NEO4J_URL=neo4j+s://xxxxxxxx.databases.neo4j.io
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your-aura-password
+```
+
+4. When creating a project in the RushDB dashboard, select **BYOC** and enter the same credentials
+
+:::info
+BYOC projects unlock raw Cypher access via `POST /api/v1/db/{projectId}/query/raw` — useful for advanced graph traversals outside the standard RushDB query model.
+:::
+
+## Verify Connection
+
+After starting RushDB, check that Neo4j and APOC are reachable:
+
+```bash
+curl http://localhost:3000/health
+# → {"status":"ok","neo4j":"connected"}
+```
+
+To confirm APOC is available from inside Neo4j:
+
+```bash
+cypher-shell -u neo4j -p yourpassword \
+  "RETURN apoc.version() AS apocVersion"
+# → apocVersion: "2026.01.4"
+```

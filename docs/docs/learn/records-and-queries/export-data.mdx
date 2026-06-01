@@ -1,0 +1,116 @@
+---
+slug: /build/data/export-data
+sidebar_position: 4
+title: Export Data
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Export Data
+
+Export records as CSV. Accepts the same `where`, `orderBy`, `skip`, `limit`, and `labels` parameters as a search query — filtering and sorting apply before export.
+
+---
+
+## Export to CSV
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+`db.records.export_csv()` _(if available in SDK version — otherwise use REST directly)_
+
+```python
+# Use the REST endpoint directly if SDK method is unavailable
+import requests
+
+response = requests.post(
+    "https://api.rushdb.com/api/v1/records/export/csv",
+    headers={"Authorization": f"Bearer {api_key}"},
+    json={
+        "labels": ["PERSON"],
+        "where": {"age": {"$gt": 25}},
+        "orderBy": {"name": "asc"},
+        "limit": 1000
+    }
+)
+
+csv_content = response.json()["data"]["fileContent"]
+with open("output.csv", "w") as f:
+    f.write(csv_content)
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Use the REST endpoint directly
+const response = await fetch('https://api.rushdb.com/api/v1/records/export/csv', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.RUSHDB_API_KEY}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    labels: ['PERSON'],
+    where: { age: { $gt: 25 } },
+    orderBy: { name: 'asc' },
+    limit: 1000
+  })
+})
+
+const { data } = await response.json()
+// data.fileContent — CSV string with headers on first row
+// data.dateTime — export timestamp
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/records/export/csv`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/records/export/csv \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["PERSON"],
+    "where": {"age": {"$gt": 25}},
+    "orderBy": {"name": "asc"},
+    "limit": 1000
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+### Request parameters
+
+| Field     | Type               | Description                         |
+| --------- | ------------------ | ----------------------------------- |
+| `labels`  | `string[]`         | Restrict to specific labels         |
+| `where`   | `object`           | Filter conditions (same as search)  |
+| `orderBy` | `string \| object` | Sort criteria                       |
+| `skip`    | `number`           | Pagination offset                   |
+| `limit`   | `number`           | Max records to return (up to 1 000) |
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "fileContent": "id,label,name,age,email\n018dfc84...,PERSON,John Doe,30,john@example.com",
+    "dateTime": "2025-04-23T10:15:32.123Z"
+  }
+}
+```
+
+`fileContent` is a CSV string with headers on the first row. System properties (`__proptypes` etc.) are stripped automatically. `__id` and `__label` are included as `id` and `label`.
+
+---
+
+## See also
+
+- [Find & Query](/build/data/find-and-query) — search and filter records before export
+- [Import Data](/build/data/import-data) — bring CSV or JSON data in

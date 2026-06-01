@@ -1,0 +1,427 @@
+---
+slug: /build/ai-search/semantic-search
+sidebar_position: 1
+title: Semantic Search
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Semantic Search
+
+`db.ai.search()` / `POST /api/v1/ai/search` performs semantic vector search across records that have an associated embedding index. Candidates are narrowed by label and `where` filters first, then ranked by cosine or euclidean similarity.
+
+The property referenced by `propertyName` must have a `ready` embedding index. See [Manage Embedding Indexes](/build/ai-search/manage-indexes).
+
+---
+
+## Managed Search (Query Text)
+
+For a **managed** index, pass a natural-language `query` string. The server embeds it using the same model that built the index.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+response = db.ai.search({
+    "propertyName": "description",
+    "query": "machine learning for beginners",
+    "labels": ["Article"],
+    "limit": 5,
+})
+
+for result in response.data:
+    print(f"[{result.get('__score'):.3f}] {result.get('title')}")
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const { data: results } = await db.ai.search({
+  labels: ['Book'],
+  propertyName: 'description',
+  query: 'space exploration and interstellar travel',
+  limit: 5
+})
+
+results.forEach((r) => {
+  console.log(`[${r.data.__score!.toFixed(4)}] ${r.data.title}`)
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+`POST /api/v1/ai/search`
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "propertyName": "description",
+    "query": "fast delivery and easy returns",
+    "labels": ["Product"],
+    "limit": 5
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## External Search (Query Vector)
+
+For an **external** index, pass `queryVector` — a pre-computed embedding from your own model. No text is sent to any embedding model.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+vec = my_embedder.embed("machine learning for beginners")
+
+response = db.ai.search({
+    "propertyName": "body",
+    "queryVector": vec,
+    "labels": ["Article"],
+    "limit": 10,
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const myEmbedder = new MyEmbeddingModel()
+const vec = await myEmbedder.embed('space exploration')
+
+const { data: results } = await db.ai.search({
+  labels: ['Article'],
+  propertyName: 'body',
+  queryVector: vec,
+  limit: 10
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "propertyName": "body",
+    "queryVector": [0.1, 0.2, 0.3],
+    "labels": ["Article"],
+    "limit": 10
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+- `query` is **not allowed** with external indexes — the server has no model to embed it.
+- `queryVector` is accepted for managed indexes (bypasses server embedding).
+- When `queryVector` is supplied, `dimensions` can be omitted — the server infers it from vector length.
+
+---
+
+## Filter + Semantic Search
+
+The `where` clause acts as a **prefilter** — only records satisfying the filter are candidates for similarity ranking. All operators from [Where Operators](/reference/where-operators) are available.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+response = db.ai.search({
+    "propertyName": "description",
+    "query": "wireless headphones",
+    "labels": ["Product"],
+    "where": {
+        "category": {"$eq": "electronics"},
+        "inStock":  {"$eq": True},
+        "price":    {"$lt": 100},
+    },
+    "limit": 20,
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const { data: results } = await db.ai.search({
+  labels: ['Product'],
+  propertyName: 'description',
+  query: 'wireless headphones',
+  where: {
+    category: { $eq: 'electronics' },
+    inStock: { $eq: true },
+    price: { $lt: 100 }
+  },
+  limit: 20
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "propertyName": "description",
+    "query": "wireless headphones",
+    "labels": ["Product"],
+    "where": {
+      "category": {"$eq": "electronics"},
+      "inStock":  {"$eq": true},
+      "price":    {"$lt": 100}
+    },
+    "limit": 20
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Multi-Label Search
+
+Search across multiple entity types simultaneously. All listed labels must have an embedding index on the same `propertyName`.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+response = db.ai.search({
+    "propertyName": "body",
+    "query": "machine learning trends",
+    "labels": ["Article", "Post", "Comment"],
+    "limit": 10,
+})
+
+for result in response.data:
+    print(result.get("__label"), f"{result.get('__score'):.3f}", result.get("title") or result.get("text"))
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const { data: results } = await db.ai.search({
+  labels: ['Article', 'Post', 'Comment'],
+  propertyName: 'body',
+  query: 'machine learning trends',
+  limit: 10
+})
+
+results.forEach((r) => console.log(r.data.__label, r.data.__score, r.data.title ?? r.data.text))
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "propertyName": "body",
+    "query": "machine learning trends",
+    "labels": ["Article", "Post", "Comment"],
+    "limit": 10
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Result Shape
+
+Results are ordered by `__score` descending — closest match first.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+for result in response.data:
+    result.id                  # RushDB record ID (str)
+    result.get("__label")      # Record label (str)
+    result.get("__score")      # Similarity score, 0–1 (float)
+    result.get("title")        # Your fields via .get()
+    result["description"]      # Or via [] — raises KeyError if missing
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Each result is a DBRecordInstance
+// r.data.__score — similarity score (0–1, higher = more similar)
+// r.data.__label — the record label
+// r.data[yourField] — your properties
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```json
+{
+  "data": [
+    {
+      "__id": "rec_abc123",
+      "__label": "Product",
+      "__score": 0.921,
+      "description": "Same-day shipping with hassle-free returns policy"
+    }
+  ],
+  "success": true
+}
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Parameters Reference
+
+| Parameter            | Type                      | Required      | Description                                                                                             |
+| -------------------- | ------------------------- | ------------- | ------------------------------------------------------------------------------------------------------- |
+| `propertyName`       | `string`                  | **yes**       | The indexed property to search against (e.g. `"description"`)                                           |
+| `labels`             | `string \| string[]`      | **yes**       | Label(s) to search within (min 1)                                                                       |
+| `query`              | `string`                  | conditionally | Free-text query. Required for managed indexes; **not allowed** for external indexes.                    |
+| `queryVector`        | `number[]`                | conditionally | Pre-computed query vector. Required for external indexes. Also accepted for managed indexes.            |
+| `similarityFunction` | `"cosine" \| "euclidean"` | no            | Required when multiple indexes target the same `(label, propertyName)`.                                 |
+| `dimensions`         | `number`                  | no            | Disambiguates when multiple indexes match. Inferred from `queryVector.length` when `queryVector` given. |
+| `where`              | `object`                  | no            | Prefilter — applied before similarity scoring.                                                          |
+| `skip`               | `number`                  | no            | Pagination offset (default `0`)                                                                         |
+| `limit`              | `number`                  | no            | Maximum results to return (default `20`)                                                                |
+
+---
+
+## Disambiguation
+
+When two indexes exist for the same `(label, propertyName)`, specify `similarityFunction` to select the target index:
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+response = db.ai.search({
+    "labels": ["Product"],
+    "propertyName": "embedding",
+    "queryVector": vec,
+    "similarityFunction": "cosine",   # required — otherwise 422
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+await db.ai.search({
+  labels: ['Product'],
+  propertyName: 'embedding',
+  queryVector: vec,
+  similarityFunction: 'cosine' // required — otherwise 422 Unprocessable Entity
+})
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["Product"],
+    "propertyName": "embedding",
+    "queryVector": [0.1, 0.2, 0.3],
+    "similarityFunction": "cosine"
+  }'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Pagination
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+PAGE = 20
+
+page1 = db.ai.search({
+    "propertyName": "description",
+    "query": "sustainable packaging",
+    "labels": ["Product"],
+    "limit": PAGE,
+    "skip": 0,
+})
+
+page2 = db.ai.search({
+    "propertyName": "description",
+    "query": "sustainable packaging",
+    "labels": ["Product"],
+    "limit": PAGE,
+    "skip": PAGE,
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+const PAGE = 20;
+
+const { data: page1 } = await db.ai.search({ ..., limit: PAGE, skip: 0 });
+const { data: page2 } = await db.ai.search({ ..., limit: PAGE, skip: PAGE });
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"propertyName": "description", "query": "...", "labels": ["Product"], "limit": 20, "skip": 20}'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Error Reference
+
+| HTTP                       | Cause                                                             |
+| -------------------------- | ----------------------------------------------------------------- |
+| `404 Not Found`            | No enabled embedding index found for `(label, propertyName)`      |
+| `422 Unprocessable Entity` | Multiple indexes match and `similarityFunction` was not specified |
+| `422 Unprocessable Entity` | `query` text supplied for an external index                       |
+| `422 Unprocessable Entity` | Vector length does not match index `dimensions`                   |
+| `503 Service Unavailable`  | Embedding model unavailable (managed indexes only)                |
+
+---
+
+## See also
+
+- [Manage Embedding Indexes](/build/ai-search/manage-indexes) — create, list, delete, and monitor indexes
+- [Write Records with Vectors](/build/ai-search/write-with-vectors) — attach vectors when storing records
+- [Bring Your Own Vectors](/build/ai-search/bring-your-own-vectors) — use external embedding models
+- [Find & Query](/build/data/find-and-query) — keyword / graph-only search without AI

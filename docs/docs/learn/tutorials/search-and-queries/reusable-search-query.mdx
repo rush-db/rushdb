@@ -1,0 +1,740 @@
+---
+slug: /tutorials/reusable-search-query
+sidebar_position: 4
+title: Reusable SearchQuery
+description: Learn the canonical SearchQuery shape reused across records, properties, labels, relationships, and values
+tags: [Search, Patterns, Querying]
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Reusable SearchQuery
+
+RushDB uses one core query object shape across multiple APIs.
+
+You can reuse the same query logic across five perspectives on data:
+
+- Records
+- Properties
+- Labels
+- Relationships
+- Values
+
+Once you learn SearchQuery once, you can apply it almost everywhere.
+
+## Canonical SearchQuery Shape
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+type SearchQuery = {
+  labels?: string[]
+  where?: Record<string, unknown>
+  select?: Record<string, unknown>
+  groupBy?: string[]
+  orderBy?: 'asc' | 'desc' | Record<string, 'asc' | 'desc'>
+  limit?: number
+  skip?: number
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# SearchQuery is a plain dict in Python
+search_query = {
+    "labels": ["..."],          # optional
+    "where": {},                # optional
+    "select": {},               # optional
+    "groupBy": ["..."],         # optional
+    "orderBy": "asc" | {"field": "asc"},  # optional
+    "limit": 100,               # optional
+    "skip": 0                   # optional
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+# SearchQuery is a JSON body passed to any search endpoint
+{
+  "labels": ["..."],
+  "where": {},
+  "select": {},
+  "groupBy": ["..."],
+  "orderBy": {"field": "asc"},
+  "limit": 100,
+  "skip": 0
+}
+```
+
+</TabItem>
+</Tabs>
+
+Supported by:
+
+- `records.find` / `/api/v1/records/search`
+- `records.delete` / `/api/v1/records/delete`
+- `relationships.find` / `/api/v1/relationships/search`
+- `labels.find` / `/api/v1/labels/search`
+- `properties.find` / `/api/v1/properties/search`
+
+And paired with values exploration via `/api/v1/properties/:id/values`.
+
+## Why It Matters
+
+- Reduced learning curve
+- Reusable filtering logic across endpoints
+- Predictable behavior for filtering, aggregation, and pagination
+- Easier AI-assisted query generation because the shape stays stable
+
+## One Intent, Five Perspectives
+
+SearchQuery's ultimate feature is intent reuse.
+
+You can express one business question and view it from different perspectives:
+
+- Records: return matching entities
+- Properties: discover which fields participate in that slice
+- Labels: discover which entity types match
+- Relationships: inspect graph links within the same slice
+- Values: enumerate canonical values for a chosen property in that slice
+
+This means your app can move from listing to discovery to analytics without changing mental model.
+
+## Where Clause Essentials
+
+### Primitive and operator filters
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+where: {
+  status: { $in: ['active', 'pending'] },
+  amount: { $gte: 1000, $lt: 5000 },
+  name: { $contains: 'acme' },
+  isArchived: { $ne: true }
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+"where": {
+    "status": {"$in": ["active", "pending"]},
+    "amount": {"$gte": 1000, "$lt": 5000},
+    "name": {"$contains": "acme"},
+    "isArchived": {"$ne": True}
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+"where": {
+  "status": {"$in": ["active", "pending"]},
+  "amount": {"$gte": 1000, "$lt": 5000},
+  "name": {"$contains": "acme"},
+  "isArchived": {"$ne": true}
+}
+```
+
+</TabItem>
+</Tabs>
+
+### Logical composition
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+where: {
+  $or: [
+    { status: 'active' },
+    {
+      $and: [{ status: 'pending' }, { priority: { $gte: 8 } }]
+    }
+  ]
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+"where": {
+    "$or": [
+        {"status": "active"},
+        {
+            "$and": [
+                {"status": "pending"},
+                {"priority": {"$gte": 8}}
+            ]
+        }
+    ]
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+"where": {
+  "$or": [
+    {"status": "active"},
+    {
+      "$and": [
+        {"status": "pending"},
+        {"priority": {"$gte": 8}}
+      ]
+    }
+  ]
+}
+```
+
+</TabItem>
+</Tabs>
+
+### Relationship traversal
+
+In SearchQuery, relationship traversal uses label keys directly.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+where: {
+  DEPARTMENT: {
+    $alias: '$department',
+    name: 'Engineering',
+    PROJECT: {
+      $alias: '$project',
+      EMPLOYEE: {
+        $alias: '$employee',
+        role: { $in: ['Developer', 'Lead'] }
+      }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+"where": {
+    "DEPARTMENT": {
+        "$alias": "$department",
+        "name": "Engineering",
+        "PROJECT": {
+            "$alias": "$project",
+            "EMPLOYEE": {
+                "$alias": "$employee",
+                "role": {"$in": ["Developer", "Lead"]}
+            }
+        }
+    }
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+"where": {
+  "DEPARTMENT": {
+    "$alias": "$department",
+    "name": "Engineering",
+    "PROJECT": {
+      "$alias": "$project",
+      "EMPLOYEE": {
+        "$alias": "$employee",
+        "role": {"$in": ["Developer", "Lead"]}
+      }
+    }
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
+Important:
+
+- Use the label key itself (`DEPARTMENT`, `PROJECT`, `EMPLOYEE`) to traverse
+- Use `$alias` to reference traversed nodes in `select` and `groupBy`
+- Do not use unsupported traversal fields such as `$label`, `$as`, `$through`, `$of`
+
+### Date range rule
+
+For range operators on datetimes, use component objects.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+where: {
+  createdAt: {
+    $gte: { $year: 2025, $month: 1, $day: 1 },
+    $lt: { $year: 2026, $month: 1, $day: 1 }
+  }
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+"where": {
+    "createdAt": {
+        "$gte": {"$year": 2025, "$month": 1, "$day": 1},
+        "$lt": {"$year": 2026, "$month": 1, "$day": 1}
+    }
+}
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+"where": {
+  "createdAt": {
+    "$gte": {"$year": 2025, "$month": 1, "$day": 1},
+    "$lt": {"$year": 2026, "$month": 1, "$day": 1}
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
+## GroupBy
+
+SearchQuery supports grouped analytics using the `select` and `groupBy` clauses.
+
+### Per-record flat metrics
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const rows = await db.records.find({
+  labels: ['PROJECT'],
+  where: {
+    EMPLOYEE: { $alias: '$employee' }
+  },
+  select: {
+    projectName: '$record.name',
+    headcount: { $count: '$employee' },
+    totalSalary: { $sum: '$employee.salary' }
+  },
+  limit: 100
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+rows = db.records.find({
+    "labels": ["PROJECT"],
+    "where": {
+        "EMPLOYEE": {"$alias": "$employee"}
+    },
+    "select": {
+        "projectName": "$record.name",
+        "headcount": {"$count": "$employee"},
+        "totalSalary": {"$sum": "$employee.salary"}
+    },
+    "limit": 100
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["PROJECT"],
+    "where": {"EMPLOYEE": {"$alias": "$employee"}},
+    "select": {
+      "projectName": "$record.name",
+      "headcount": {"$count": "$employee"},
+      "totalSalary": {"$sum": "$employee.salary"}
+    },
+    "limit": 100
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+### Dimensional groupBy
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const byStatus = await db.records.find({
+  labels: ['ORDER'],
+  select: {
+    count: { $count: '*' },
+    revenue: { $sum: '$record.total' }
+  },
+  groupBy: ['$record.status'],
+  orderBy: { revenue: 'desc' }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+by_status = db.records.find({
+    "labels": ["ORDER"],
+    "select": {
+        "count":   {"$count": "*"},
+        "revenue": {"$sum": "$record.total"}
+    },
+    "groupBy": ["$record.status"],
+    "orderBy": {"revenue": "desc"}
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["ORDER"],
+    "select": {
+      "count":   {"$count": "*"},
+      "revenue": {"$sum": "$record.total"}
+    },
+    "groupBy": ["$record.status"],
+    "orderBy": {"revenue": "desc"}
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+### Self-group (single-row KPI)
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const totals = await db.records.find({
+  labels: ['ORDER'],
+  select: {
+    totalRevenue: { $sum: '$record.total' }
+  },
+  groupBy: ['totalRevenue'],
+  orderBy: { totalRevenue: 'asc' }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+totals = db.records.find({
+    "labels": ["ORDER"],
+    "select": {
+        "totalRevenue": {"$sum": "$record.total"}
+    },
+    "groupBy": ["totalRevenue"],
+    "orderBy": {"totalRevenue": "asc"}
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["ORDER"],
+    "select": {
+      "totalRevenue": {"$sum": "$record.total"}
+    },
+    "groupBy": ["totalRevenue"],
+    "orderBy": {"totalRevenue": "asc"}
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+## Critical Limit Rules
+
+- Do not use `limit` in self-group KPI queries
+- Do not use `limit` in dimensional groupBy unless intentionally asking for top N groups
+- `limit` is valid for listing/browsing and per-record flat aggregation
+- For self-group KPI queries, include `orderBy` on the select key to force full-scan aggregation behavior
+
+## Reusable Patterns Across APIs
+
+### 1. Search records
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+```typescript
+const products = await db.records.find({
+  labels: ['PRODUCT'],
+  where: {
+    active: true,
+    price: { $gte: 10, $lte: 50 },
+    tags: { $in: ['featured'] }
+  },
+  orderBy: { price: 'asc' },
+  limit: 20,
+  skip: 0
+})
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python
+result = db.records.find({
+  "labels": ["PRODUCT"],
+  "where": {
+    "active": True,
+    "price": {"$gte": 10, "$lte": 50},
+    "tags": {"$in": ["featured"]}
+  },
+  "orderBy": {"price": "asc"},
+  "limit": 20,
+  "skip": 0
+})
+products = result.data
+```
+  </TabItem>
+  <TabItem value="shell" label="shell">
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/records/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["PRODUCT"],
+    "where": {
+      "active": true,
+      "price": {
+        "$gte": 10,
+        "$lte": 50
+      },
+      "tags": { "$in": ["featured"] }
+    },
+    "orderBy": {"price": "asc"},
+    "limit": 20,
+    "skip": 0
+  }'
+```
+  </TabItem>
+</Tabs>
+
+### 2. Delete records with the same where logic
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+```typescript
+await db.records.delete({
+  labels: ['PRODUCT'],
+  where: {
+    discontinued: true,
+    inventory: 0
+  }
+})
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python
+db.records.delete({
+  "labels": ["PRODUCT"],
+  "where": {
+    "discontinued": True,
+    "inventory": 0
+  }
+})
+```
+  </TabItem>
+  <TabItem value="shell" label="shell">
+```bash
+curl -X PUT "https://api.rushdb.com/api/v1/records/delete" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["PRODUCT"],
+    "where": {
+      "discontinued": true,
+      "inventory": 0
+    }
+  }'
+```
+  </TabItem>
+</Tabs>
+
+### 3. Search relationships
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+```typescript
+const createdRelationships = await db.relationships.find({
+  where: {
+    type: 'CREATED',
+    weight: { $gte: 0.5 }
+  },
+  limit: 50
+})
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python
+created_relationships = db.relationships.find({
+  "where": {
+    "type": "CREATED",
+    "weight": {"$gte": 0.5}
+  },
+  "limit": 50
+})
+```
+  </TabItem>
+  <TabItem value="shell" label="shell">
+```bash
+# Find all CREATED relationships by users in the admin group
+curl -X POST "https://api.rushdb.com/api/v1/relationships/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "where": {
+      "type": "CREATED",
+      "weight": { "$gte": 0.5 }
+    },
+    "limit": 50
+  }'
+```
+  </TabItem>
+</Tabs>
+
+### 4. Find labels by data constraints
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+```typescript
+const labels = await db.labels.find({
+  where: {
+    region: { $in: ['US', 'CA', 'MX'] }
+  }
+})
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python
+labels = db.labels.find({
+  "where": {
+    "region": {"$in": ["US", "CA", "MX"]}
+  }
+})
+```
+  </TabItem>
+  <TabItem value="shell" label="shell">
+```bash
+# Find all labels used on records in North America region
+curl -X POST "https://api.rushdb.com/api/v1/labels/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "where": {
+      "region": {"$in": ["US", "CA", "MX"]}
+    }
+  }'
+```
+  </TabItem>
+</Tabs>
+
+### 5. Discover properties for a label
+
+<Tabs groupId="programming-language">
+  <TabItem value="typescript" label="TypeScript" default>
+```typescript
+const productProps = await db.properties.find({
+  labels: ['PRODUCT'],
+  where: {
+    type: 'number'
+  }
+})
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python
+product_props = db.properties.find({
+  "labels": ["PRODUCT"],
+  "where": {
+    "type": "number"
+  }
+})
+```
+  </TabItem>
+  <TabItem value="shell" label="shell">
+```bash
+curl -X POST "https://api.rushdb.com/api/v1/properties/search" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "labels": ["PRODUCT"],
+    "where": {
+      "type": "number"
+    }
+  }'
+```
+  </TabItem>
+</Tabs>
+
+### 6. Explore values for a selected property
+
+Use values as the final perspective when you need canonical filter options for UI facets, prompts, and dynamic query builders.
+
+Typical flow:
+
+1. Use `properties.find` to locate a property and get its id
+2. Call `/api/v1/properties/:id/values` for value discovery in the same data context
+3. Feed returned canonical values back into your next SearchQuery (`$in`, `$nin`, exact match)
+
+## Common Pitfalls to Avoid
+
+- Using `limit` on KPI/self-group queries
+- Using traversal keys like `$label` instead of real label keys (`EMPLOYEE`, `PROJECT`)
+- Treating `groupBy` self-group keys as property paths instead of `select` key names
+- Using plain date strings with `$gt`/`$gte`/`$lt`/`$lte` instead of datetime component objects
+
+## API Reference Links
+
+| Endpoint                        | Docs                                               |
+| ------------------------------- | -------------------------------------------------- |
+| `/api/v1/records/search`        | [Records API](/rest-api/records/get-records)       |
+| `/api/v1/records/delete`        | [Delete Records](/rest-api/records/delete-records) |
+| `/api/v1/relationships/search`  | [Relationships API](/rest-api/relationships)       |
+| `/api/v1/labels/search`         | [Labels API](/rest-api/labels)                     |
+| `/api/v1/properties/search`     | [Properties API](/rest-api/properties)             |
+| `/api/v1/properties/:id/values` | [Properties API](/rest-api/properties)             |
+
+## Next Step
+
+If you want advanced examples (nested collect, multi-hop traversal, time buckets, KPI patterns), continue with the deep-dive tutorial:
+
+[SearchQuery Deep Dive: Advanced Patterns](/tutorials/searchquery-advanced-patterns)

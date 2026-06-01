@@ -1,0 +1,242 @@
+---
+slug: /build/agent-memory/schema-self-awareness
+sidebar_position: 2
+title: Schema Self-Awareness
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Schema Self-Awareness
+
+RushDB is **self-aware** — it continuously tracks its own structure and exposes it on demand. Agents use this to operate against an unknown or evolving knowledge graph without any hardcoded schema documentation.
+
+---
+
+## Why Schema Discovery Matters
+
+Without schema discovery, AI agents hallucinate field names, use wrong label casing, and construct invalid queries. With a single ontology call at session start, the agent knows:
+
+- Every label and how many records it has
+- Every property per label, its type, and sample/range values
+- The full relationship map (which labels connect to which)
+- Which properties are semantically searchable (have embedding indexes)
+
+---
+
+## Inject Schema into LLM Context
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+from rushdb import RushDB
+
+db = RushDB("RUSHDB_API_KEY")
+
+# Call once at session start
+response = db.ai.get_ontology_markdown()
+schema = response.data
+
+# Inject into LLM system prompt
+messages = [
+    {
+        "role": "system",
+        "content": f"""You are a database assistant for RushDB.
+
+Here is the current graph schema:
+
+{schema}
+
+When the user asks questions, construct SearchQuery filters using ONLY the labels and properties shown above. Never invent field names."""
+    },
+    {"role": "user", "content": "How many paid orders were placed this month?"}
+]
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB('RUSHDB_API_KEY')
+
+// Call once at session start
+const { data: schema } = await db.ai.getOntologyMarkdown()
+
+// Inject into LLM system prompt
+const messages = [
+  {
+    role: 'system',
+    content: `You are a database assistant for RushDB.
+
+Here is the current graph schema:
+
+${schema}
+
+When the user asks questions, construct SearchQuery filters using ONLY the labels and properties shown above. Never invent field names.`
+  },
+  {
+    role: 'user',
+    content: 'How many paid orders were placed this month?'
+  }
+]
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+# Get Markdown schema for LLM injection
+curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# Scope to specific labels (reduces token usage)
+curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"labels": ["Order", "User"]}'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Dynamic Query Construction
+
+Use structured ontology to build queries programmatically — no hardcoded field names:
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+# Get structured ontology
+ontology = db.ai.get_ontology().data
+
+# Find a label
+order_schema = next(item for item in ontology if item["label"] == "Order")
+
+# Enumerate all string properties
+string_props = [
+    p for p in order_schema["properties"] if p["type"] == "string"
+]
+
+# Find properties with semantic indexes ready
+searchable = [
+    p for p in order_schema["properties"]
+    if any(idx["status"] == "ready" for idx in p.get("vectorIndexes", []))
+]
+
+# Look up a property ID for value enumeration
+status_prop = next(p for p in order_schema["properties"] if p["name"] == "status")
+statuses = db.properties.values(status_prop["id"])
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Get structured ontology
+const { data: ontology } = await db.ai.getOntology()
+
+// Find a label
+const orderSchema = ontology.find((item) => item.label === 'Order')!
+
+// Enumerate all string properties
+const stringProps = orderSchema.properties.filter((p) => p.type === 'string')
+
+// Find properties with semantic indexes ready
+const searchable = orderSchema.properties.filter((p) =>
+  p.vectorIndexes?.some((idx) => idx.status === 'ready')
+)
+
+// Look up a property ID for value enumeration
+const statusProp = orderSchema.properties.find((p) => p.name === 'status')!
+const { data: statuses } = await db.properties.values({ id: statusProp.id })
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+# Get full structured JSON ontology
+curl -X POST https://api.rushdb.com/api/v1/ai/ontology \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Ontology Caching
+
+Both ontology endpoints share a **1-hour cache** per project. The first call after TTL expiry triggers a full graph scan; all subsequent calls within the hour are instant.
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+# Force fresh recalculation (bypass 1-hour cache)
+response = db.ai.get_ontology_markdown({"force": True})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Force fresh recalculation (bypass 1-hour cache)
+const { data } = await db.ai.getOntologyMarkdown({ force: true })
+```
+
+  </TabItem>
+  <TabItem value="shell" label="Shell">
+
+```bash
+curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"force": true}'
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Agent Skills
+
+`@rushdb/skills` is a collection of installable agent skills that teach any skills-compatible AI assistant (Claude, GitHub Copilot, Cursor, Windsurf, and others) to use RushDB efficiently — without manual system-prompt engineering.
+
+```bash
+npx skills add rush-db/rushdb --path packages/skills
+```
+
+| Skill                    | What it teaches                                                                                                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rushdb-query-builder`   | Discovery-first workflow, SearchQuery syntax, aggregation, relationship traversal, and semantic search                                                            |
+| `rushdb-agent-memory`    | Using RushDB as persistent structured memory — store, link, and semantically recall sessions, decisions, and entities                                             |
+| `rushdb-data-modeling`   | LMPG model design, label/property naming conventions, nested JSON import, and schema evolution                                                                    |
+| `rushdb-faceted-search`  | Build faceted filter UIs — discover properties and types, enumerate distinct values, map to widgets, assemble a live `where` clause                               |
+| `rushdb-domain-template` | Design a tailored schema for any domain through guided conversation — interview, entity/relationship mapping, bootstrap payload, and 10 built-in domain templates |
+
+Each skill bundles a `SKILL.md` with concise instructions and optional reference files that the agent loads on demand.
+
+:::note MCP server vs. Agent Skills
+The [MCP server](/deploy/mcp-operator-quickstart) gives agents direct tool access to RushDB at runtime. Agent Skills teach agents _how_ to use those tools correctly — they complement each other.
+:::
+
+---
+
+## See also
+
+- [Agent Memory Overview](/build/agent-memory/) — three-layer memory model
+- [Discover Your Schema](/build/schema/discover-your-schema) — full ontology API reference
+- [Semantic Search](/build/ai-search/semantic-search) — search by meaning
+- [Find & Query](/build/data/find-and-query) — search by structure

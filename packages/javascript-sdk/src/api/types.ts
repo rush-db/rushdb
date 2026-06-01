@@ -1,5 +1,5 @@
 import type { DBRecord } from '../sdk/record.js'
-import type { Schema } from '../types/index.js'
+import type { Schema, Where } from '../types/index.js'
 
 export type ApiResponse<T, E = Record<string, any>> = {
   data: T
@@ -114,4 +114,55 @@ export type SemanticSearchParams = {
  */
 export type SemanticSearchResult<S extends Schema = Schema> = DBRecord<S> & {
   readonly __score: number
+}
+
+export type RelationshipPatternStatus = 'suggested' | 'approved' | 'ignored' | 'error'
+export type RelationshipPatternOrigin = 'llm' | 'manual'
+export type RelationshipPatternDirection = 'in' | 'out'
+export type RelationshipPatternMode = 'join_pattern' | 'retype_existing_relationship'
+
+export type RelationshipPatternEndpoint = {
+  label: string
+  key?: string
+  where?: Where
+}
+
+export type RelationshipPatternDto = {
+  id: string
+  status: RelationshipPatternStatus
+  origin: RelationshipPatternOrigin
+  source: RelationshipPatternEndpoint
+  target: RelationshipPatternEndpoint
+  direction: RelationshipPatternDirection
+  type: string
+  mode: RelationshipPatternMode
+  confidence: number
+  rationale?: string
+  sampleMatchCount?: number
+  lastAppliedAt?: string
+  lastAnalyzedAt?: string
+  lastError?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type RelationshipPattern = RelationshipPatternDto
+
+export type RelationshipPatternListResponse = {
+  patterns: RelationshipPatternDto[]
+  relationships: Array<{
+    label: string
+    relationships: Array<{ label: string; type: string; direction: string }>
+  }>
+  analysis?: {
+    status: string
+    requestedAt?: string
+    notBefore?: string
+    lastRunAt?: string
+    lastError?: string
+  }
+}
+
+export type DeleteRelationshipPatternOptions = {
+  deleteExisting?: boolean
 }

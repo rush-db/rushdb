@@ -1,0 +1,130 @@
+---
+slug: /deploy/local-source
+title: From Source
+description: Clone the RushDB repository and run the platform locally with pnpm dev — Neo4j and PostgreSQL start in Docker while the NestJS API and dashboard run as local Node.js processes.
+sidebar_position: 2
+displayed_sidebar: docs
+tags: [Getting Started, Deployment, Development]
+---
+
+# From Source
+
+Clone the repo and run everything locally. `pnpm dev` from the repo root starts Neo4j and PostgreSQL in Docker and the NestJS API + Vite dashboard as local Node.js processes — no manual database setup required.
+
+```
+pnpm dev starts:
+  ● Neo4j 2026.01.4    — Docker container  (bolt :7687, browser :7474)
+  ● PostgreSQL 16      — Docker container  (port :5432)
+  ● NestJS API         — Node.js process   (port :3000, watch mode)
+  ● Vite dashboard     — Node.js process   (port :3005)
+```
+
+Useful for contributors, debugging, or running unreleased features before they ship in a Docker image.
+
+## Prerequisites
+
+| Tool    | Minimum version | Install                          |
+| ------- | :-------------: | -------------------------------- |
+| Node.js |       20        | [nodejs.org](https://nodejs.org) |
+| pnpm    |        9        | `npm i -g pnpm`                  |
+| Docker  |       24+       | [docker.com](https://docker.com) |
+
+Docker is required because `pnpm dev` spins up Neo4j and PostgreSQL via Docker Compose.
+
+---
+
+## 1. Clone the repository
+
+```bash
+git clone https://github.com/rush-db/rushdb.git
+cd rushdb
+```
+
+---
+
+## 2. Configure environment
+
+```bash
+cp platform/core/.env.example platform/core/.env
+```
+
+Open `platform/core/.env` and set at minimum:
+
+```env
+RUSHDB_SELF_HOSTED=true
+RUSHDB_LOGIN=admin
+RUSHDB_PASSWORD=password
+
+# Must be exactly 32 characters — generate: openssl rand -hex 32
+RUSHDB_AES_256_ENCRYPTION_KEY=32SymbolStringForTokenEncryption
+
+# These are auto-wired from Docker Compose — change only if using an external Neo4j
+NEO4J_URL=bolt://localhost:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=password
+
+# PostgreSQL credentials must match the Compose defaults (or override both)
+SQL_DB_TYPE=postgres
+SQL_DB_URL=postgresql://rushdb:password@localhost:5432/rushdb
+```
+
+---
+
+## 3. Install dependencies
+
+```bash
+pnpm install
+```
+
+---
+
+## 4. Start dev
+
+```bash
+pnpm dev
+```
+
+This is equivalent to running concurrently:
+
+| Process              | Command                            | What it does                                            |
+| -------------------- | ---------------------------------- | ------------------------------------------------------- |
+| `neo4j` + `postgres` | `docker compose up`                | Starts both databases in containers                     |
+| NestJS API           | `nest start --watch`               | Compiles and runs the backend; restarts on file changes |
+| Vite dashboard       | `pnpm dev` in `platform/dashboard` | Hot-reloads the frontend                                |
+
+Open [http://localhost:3000](http://localhost:3000) and sign in with the credentials from `.env`.
+
+:::info First run
+The first `pnpm dev` pulls Neo4j and PostgreSQL images — this takes a minute or two. Subsequent starts are fast because Docker caches the images.
+:::
+
+---
+
+## Running tests
+
+```bash
+# Unit tests (from platform/core)
+cd platform/core && pnpm run test
+
+# Watch mode
+pnpm run test:watch
+
+# With coverage
+pnpm run test:cov
+```
+
+E2E tests require a running Neo4j + RushDB instance — see the test README in `packages/javascript-sdk`.
+
+---
+
+## Production build
+
+```bash
+# From repo root
+pnpm build
+
+# Then from platform/core
+cd platform/core && pnpm run start:prod
+```
+
+The compiled output goes to `platform/core/dist/`. For production deployments prefer the Docker image — it includes the correct Node.js version and all runtime dependencies.

@@ -1,0 +1,44 @@
+---
+slug: /deploy/remote-prerequisites
+title: Prerequisites
+description: System requirements and software dependencies before deploying RushDB to a remote server.
+sidebar_position: 1
+displayed_sidebar: docs
+tags: [Deployment, Prerequisites]
+---
+
+# Prerequisites
+
+Before deploying RushDB to any remote environment, verify your server meets the following requirements.
+
+## System Requirements
+
+| Resource | Minimum                                | Recommended      |
+| -------- | -------------------------------------- | ---------------- |
+| CPU      | 2 vCPUs                                | 4 vCPUs          |
+| RAM      | 4 GB                                   | 8 GB             |
+| Disk     | 20 GB SSD                              | 50 GB SSD        |
+| OS       | Ubuntu 22.04+ / Debian 12+ / any Linux | Ubuntu 22.04 LTS |
+
+## Software Dependencies
+
+| Tool           | Minimum Version | Notes                                                 |
+| -------------- | --------------- | ----------------------------------------------------- |
+| Docker         | 24.0+           | `docker --version`                                    |
+| Docker Compose | 2.20+           | Bundled with Docker Desktop; `docker compose version` |
+
+## Network Requirements
+
+Open the following ports on your server firewall before starting:
+
+| Port         | Service                      | Required                               |
+| ------------ | ---------------------------- | -------------------------------------- |
+| `3000`       | RushDB API                   | Yes                                    |
+| `7474`       | Neo4j Browser (HTTP)         | Dev only — block in production         |
+| `7687`       | Neo4j Bolt                   | Internal only — do not expose publicly |
+| `5432`       | PostgreSQL                   | Internal only                          |
+| `80` / `443` | Reverse proxy (nginx, Caddy) | Recommended for production             |
+
+## Domain & TLS
+
+A custom domain with TLS is strongly recommended for any internet-facing deployment. See [Security](/deploy/config-security) for setup guidance.

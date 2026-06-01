@@ -3,3 +3,4 @@ pnpm-lock.yaml
 **/build
 **/node_modules
 **/coverage
+charts/**/templates/**

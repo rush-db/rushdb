@@ -1,0 +1,44 @@
+---
+slug: /build/data/
+sidebar_position: 0
+title: Records & Queries
+---
+
+# Records & Queries
+
+RushDB stores data as **Records**: labeled graph nodes with typed properties. You can write flat rows, import nested JSON, inspect the schema that emerges, and query records through one composable `SearchQuery` structure.
+
+There is no schema migration step before the first write. RushDB infers property types, keeps schema metadata in the graph, and exposes the live result through labels, properties, and ontology APIs.
+
+## Start Here
+
+| Goal                                                       | Guide                                      |
+| ---------------------------------------------------------- | ------------------------------------------ |
+| Create, update, or upsert records                          | [Store Records](/build/data/store-records) |
+| Import nested JSON and create linked records automatically | [Import Data](/build/data/import-data)     |
+| Filter, sort, paginate, and traverse records               | [Find & Query](/build/data/find-and-query) |
+| Export matching records as CSV                             | [Export Data](/build/data/export-data)     |
+
+## Understand the Adaptive Schema
+
+| Goal                                                    | Guide                                                                  |
+| ------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Inspect labels, property definitions, types, and values | [Labels & Properties](/build/schema/labels-and-properties)             |
+| Discover the full live schema in one call               | [Discover Your Schema](/build/schema/discover-your-schema)             |
+| Understand the internal graph architecture              | [Labeled Meta Property Graph](/build/data/labeled-meta-property-graph) |
+
+RushDB properties are more than field names. Internally, each `(name, type)` pair is represented as a metadata node connected to the records that carry it. That graph-backed property layer is what makes runtime discovery, flexible ingestion, and ontology generation possible without predefined tables.
+
+## Advanced Operations
+
+| Goal                                           | Guide                                            |
+| ---------------------------------------------- | ------------------------------------------------ |
+| Run raw Cypher against supported deployments   | [Raw Queries](/build/raw-queries)                |
+| Group multiple writes into an atomic operation | [Transactions](/build/reliability/transactions)  |
+| Read the full query language reference         | [SearchQuery Reference](/reference/search-query) |
+
+## Related Sections
+
+- [Relationships](/build/graph/) — connect records and traverse graph edges
+- [Semantic Search](/build/ai-search/semantic-search) — search indexed text properties by meaning
+- [Main Concepts](/build/data/labeled-meta-property-graph) — broader mental model for RushDB

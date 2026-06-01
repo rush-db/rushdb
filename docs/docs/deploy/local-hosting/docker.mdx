@@ -1,0 +1,186 @@
+---
+slug: /deploy/local-docker
+title: Docker
+description: Run RushDB locally with Docker Compose (full stack) or a single docker run command against an existing Neo4j instance.
+sidebar_position: 1
+displayed_sidebar: docs
+tags: [Getting Started, Deployment, Docker]
+---
+
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
+# Docker
+
+Run RushDB on your machine in minutes. Option A is self-contained — no external accounts required.
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) 24.0+
+- [Docker Compose](https://docs.docker.com/compose/install/) 2.20+ (included in Docker Desktop)
+- **4 GB RAM** available to Docker (Neo4j needs at least 2 GB)
+
+---
+
+<Tabs groupId="docker-option">
+<TabItem value="compose" label="Docker Compose (recommended)">
+
+## Full Stack with Docker Compose
+
+RushDB + Neo4j in one Compose file. Copy, adjust the passwords, run.
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  rushdb:
+    image: rushdb/platform
+    container_name: rushdb
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    ports:
+      - '3000:3000'
+    environment:
+      # ── Required ───────────────────────────────────────────────────────────
+      RUSHDB_SELF_HOSTED: 'true'
+      RUSHDB_LOGIN: admin
+      RUSHDB_PASSWORD: password # change before exposing to a network
+      RUSHDB_AES_256_ENCRYPTION_KEY: '32SymbolStringForTokenEncryption' # generate: openssl rand -hex 32
+      # ── Neo4j connection ───────────────────────────────────────────────────
+      NEO4J_URL: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: password # must match NEO4J_AUTH below
+      # ── Metadata DB (zero-config SQLite default) ───────────────────────────
+      SQL_DB_TYPE: sqlite
+
+  neo4j:
+    image: neo4j:2026.01.4
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider localhost:7474 || exit 1']
+      interval: 5s
+      retries: 30
+      start_period: 10s
+    ports:
+      - '7474:7474' # Neo4j Browser (dev only — block in production)
+      - '7687:7687' # Bolt (keep internal in production)
+    environment:
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: 'yes'
+      NEO4J_AUTH: neo4j/password # must match NEO4J_PASSWORD above
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes:
+      - neo4j-data:/data
+      - neo4j-plugins:/var/lib/neo4j/plugins
+      - neo4j-logs:/logs
+
+volumes:
+  neo4j-data:
+  neo4j-plugins:
+  neo4j-logs:
+```
+
+```bash
+docker compose up -d
+```
+
+Open [http://localhost:3000](http://localhost:3000) — sign in with `admin` / `password`.
+
+:::warning
+`RUSHDB_AES_256_ENCRYPTION_KEY` must be **exactly 32 characters**. Wrong length → container crashes on startup. Do not change this value after first boot without migrating encrypted data.
+
+Generate a secure value:
+
+```bash
+openssl rand -hex 32
+```
+
+:::
+
+</TabItem>
+<TabItem value="run" label="docker run (existing Neo4j)">
+
+## Connect to Existing Neo4j
+
+Already have Neo4j running locally or on Aura?
+
+```bash
+docker run -d \
+  --name rushdb \
+  -p 3000:3000 \
+  -e RUSHDB_SELF_HOSTED=true \
+  -e RUSHDB_LOGIN=admin \
+  -e RUSHDB_PASSWORD=password \
+  -e 'RUSHDB_AES_256_ENCRYPTION_KEY=32SymbolStringForTokenEncryption' \
+  -e NEO4J_URL='bolt://your-neo4j-host:7687' \
+  -e NEO4J_USERNAME=neo4j \
+  -e NEO4J_PASSWORD=your-neo4j-password \
+  -e SQL_DB_TYPE=sqlite \
+  rushdb/platform
+```
+
+For Neo4j Aura use `neo4j+s://` in `NEO4J_URL`.
+
+:::info Neo4j requirements
+The Neo4j instance must have **APOC Core** installed (version must match Neo4j). See [Neo4j & Aura](/deploy/infra-neo4j) for details.
+:::
+
+</TabItem>
+</Tabs>
+
+---
+
+## Environment Variables
+
+| Variable                        |    Required    | Default       | Description                                             |
+| ------------------------------- | :------------: | ------------- | ------------------------------------------------------- |
+| `RUSHDB_SELF_HOSTED`            |       ✅       | —             | Must be `true` for self-hosted mode                     |
+| `RUSHDB_LOGIN`                  |       ✅       | —             | Admin username                                          |
+| `RUSHDB_PASSWORD`               |       ✅       | —             | Admin password                                          |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` |       ✅       | —             | **Exactly 32 characters.** Encrypts API tokens at rest  |
+| `NEO4J_URL`                     |       ✅       | —             | `bolt://neo4j:7687` (Compose) or `neo4j+s://...` (Aura) |
+| `NEO4J_USERNAME`                |       ✅       | `neo4j`       | Neo4j username                                          |
+| `NEO4J_PASSWORD`                |       ✅       | —             | Must match `NEO4J_AUTH` in the Neo4j container          |
+| `SQL_DB_TYPE`                   |       —        | `sqlite`      | Metadata store: `sqlite` or `postgres`                  |
+| `SQL_DB_PATH`                   |       —        | `./rushdb.db` | SQLite file path                                        |
+| `SQL_DB_URL`                    | ✅ if postgres | —             | `postgresql://user:pass@host:5432/rushdb`               |
+| `RUSHDB_PORT`                   |       —        | `3000`        | Port RushDB listens on                                  |
+
+See [Environment Variables](/deploy/config-env-variables) for the full reference.
+
+---
+
+## Verify
+
+```bash
+docker compose ps
+# Both services should show "healthy" / "running"
+
+curl http://localhost:3000
+# Returns the RushDB dashboard HTML
+```
+
+---
+
+## CLI — Manage Users
+
+```bash
+# Create an additional user
+docker exec rushdb rushdb create-user user@example.com newpassword
+
+# Reset a password
+docker exec rushdb rushdb update-password user@example.com newpassword
+```
+
+---
+
+## Troubleshooting
+
+**Container exits immediately** — run `docker logs rushdb`. Common causes:
+
+- `RUSHDB_AES_256_ENCRYPTION_KEY` is not exactly 32 characters
+- `NEO4J_PASSWORD` doesn't match `NEO4J_AUTH` in the Neo4j container
+- Missing a required env var
+
+**`Connection refused` to Neo4j** — Neo4j takes ~30 s to initialize. The `depends_on: condition: service_healthy` in the Compose file waits automatically. Watch with `docker logs -f neo4j` until you see `Remote interface available`.
+
+**Container killed / OOM** — Neo4j needs ≥ 2 GB heap. In Docker Desktop go to Settings → Resources and raise memory to at least 4 GB.

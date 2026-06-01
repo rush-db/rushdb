@@ -1,0 +1,48 @@
+---
+slug: /cloud/project-isolation
+title: Multitenancy & Project Isolation
+description: How RushDB scopes graph data, metadata, API tokens, and BYOC connections with projectId.
+sidebar_position: 2
+---
+
+# Multitenancy & Project Isolation
+
+`{projectId}` is the data boundary for a RushDB project. RushDB resolves it from authenticated request context and applies it to graph operations, project metadata, usage events, and optional BYOC database connections.
+
+## Graph Data Is Scoped by `projectId`
+
+Every RushDB record carries an internal project identifier. Generated reads and writes include that identifier as a mandatory bound parameter:
+
+```cypher
+MATCH (record:__RUSHDB__LABEL__RECORD__ {
+  __RUSHDB__KEY__PROJECT__ID__: $projectId
+})
+```
+
+RushDB property-definition nodes are scoped too. Their uniqueness constraint includes `projectId`, so two projects can independently define a property named `email` without sharing the same metadata node.
+
+## Authentication Establishes the Boundary
+
+API tokens are project-scoped. RushDB validates the presented token, loads its project assignment from SQL metadata, and injects that project ID into the request context used by graph queries.
+
+The dashboard passes `x-project-id` while navigating project-level screens. MCP OAuth flows carry `project_id` context when selecting a project. These values are still checked against authenticated access; applications should never treat an arbitrary client-supplied project ID as authorization.
+
+## Logical and Physical Isolation
+
+The default shared-cloud connection uses **logical isolation**: projects can share a Neo4j database while mandatory `projectId` predicates prevent cross-project reads and writes.
+
+When you need a dedicated graph boundary, use **BYOC** to connect a project to your own Neo4j or Aura instance. For the strongest physical separation in self-hosted environments, run separate RushDB and Neo4j instances per tenant.
+
+| Requirement                         | Recommended model                |
+| ----------------------------------- | -------------------------------- |
+| Fastest managed setup               | RushDB Cloud                     |
+| Graph data in your cloud account    | Cloud with BYOC                  |
+| Dedicated infrastructure per tenant | Separate self-hosted deployments |
+
+## Operational Guidance
+
+- Use separate projects for development, staging, and production.
+- Issue project-scoped API keys with the minimum required access level.
+- Keep Neo4j Bolt ports private and route application access through RushDB.
+- Review the [Security](/deploy/config-security) guide before production deployment.
+- Read [Neo4j & Aura](/deploy/infra-neo4j) when configuring BYOC.

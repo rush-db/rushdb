@@ -1,0 +1,199 @@
+---
+slug: /tutorials/third-party-webhook-ingestion
+sidebar_position: 30
+title: 'Webhook Ingestion from Third-Party Tools (Clay, Supabase, Superglue)'
+description: 'A beginner-friendly guide to send JSON or CSV from no-code and data platforms into RushDB using custom HTTP requests.'
+tags: [Ingestion, Webhooks, Getting Started, No-Code]
+---
+
+# Webhook Ingestion from Third-Party Tools
+
+Many tools can send data to a custom HTTP endpoint. That means you can connect your existing workflow to RushDB without writing a full app.
+
+This guide is for non-technical teams and covers:
+
+- Clay
+- Supabase
+- Superglue
+- Any platform that supports custom HTTP requests or webhooks
+
+## What you need
+
+Before you start, prepare these values:
+
+- Your RushDB API key
+- Your RushDB API base URL: `https://api.rushdb.com`
+- A destination label (example: `LEAD`, `CUSTOMER`, `ORDER`)
+- A sample JSON or CSV payload
+
+You can get your API key from your dashboard project settings.
+
+## The universal webhook recipe
+
+Most platforms ask for the same settings. Use these defaults:
+
+- Method: `POST`
+- URL (JSON import): `https://api.rushdb.com/api/v1/records/import/json`
+- URL (CSV import): `https://api.rushdb.com/api/v1/records/import/csv`
+- Header: `Authorization: Bearer YOUR_RUSHDB_API_KEY`
+- Header: `Content-Type: application/json` (for JSON)
+- Body: include `label` and your data
+
+### JSON request body shape
+
+```json
+{
+  "label": "LEAD",
+  "data": [
+    {
+      "externalId": "lead_001",
+      "name": "Ava Collins",
+      "email": "ava@example.com",
+      "source": "Clay"
+    }
+  ]
+}
+```
+
+### CSV request body shape
+
+For CSV import, send your CSV text as request body and include a label parameter based on your platform's request builder. If your platform cannot send raw CSV, convert CSV rows to JSON and use the JSON endpoint.
+
+## Setup in Clay
+
+1. Open your table/workflow where rows are ready to export.
+2. Add an action step that can send an HTTP request (sometimes called Webhook or API request).
+3. Set method to `POST`.
+4. Set URL to `https://api.rushdb.com/api/v1/records/import/json`.
+5. Add headers:
+
+- `Authorization: Bearer YOUR_RUSHDB_API_KEY`
+- `Content-Type: application/json`
+
+6. Build the request body using Clay row fields and this structure:
+
+```json
+{
+  "label": "LEAD",
+  "data": [
+    {
+      "externalId": "{{row.id}}",
+      "name": "{{row.name}}",
+      "email": "{{row.email}}",
+      "company": "{{row.company}}"
+    }
+  ]
+}
+```
+
+7. Run a test send, then verify the new records in your RushDB project.
+
+## Setup in Supabase
+
+Supabase usually sends outbound HTTP from Edge Functions, triggers, or automation flows.
+
+1. Choose the event you want to sync (insert/update).
+2. Configure an outbound `POST` request to RushDB.
+3. Use URL: `https://api.rushdb.com/api/v1/records/import/json`.
+4. Add headers:
+
+- `Authorization: Bearer YOUR_RUSHDB_API_KEY`
+- `Content-Type: application/json`
+
+5. Map changed row fields into `data`.
+
+Optional payload example:
+
+```json
+{
+  "label": "CUSTOMER",
+  "data": [
+    {
+      "externalId": "{{new.id}}",
+      "email": "{{new.email}}",
+      "plan": "{{new.plan}}",
+      "updatedAt": "{{new.updated_at}}"
+    }
+  ]
+}
+```
+
+If your Supabase workflow exports CSV, route that payload to `https://api.rushdb.com/api/v1/records/import/csv` instead.
+
+## Setup in Superglue
+
+1. In your Superglue pipeline, add a destination step using custom HTTP.
+2. Select `POST` method.
+3. Choose JSON endpoint (`/api/v1/records/import/json`) for mapped objects or CSV endpoint (`/api/v1/records/import/csv`) for file/text streams.
+4. Add Authorization header with your RushDB API key.
+5. Map source fields to your target object shape.
+6. Send a test batch and confirm records appear in RushDB.
+
+Tip: start with a single small batch, validate fields, then scale.
+
+## JSON and CSV quick reference
+
+### Use JSON when
+
+- Your source already provides structured objects
+- You want field-level mapping control
+- You want easier debugging of each record
+
+### Use CSV when
+
+- Your source exports files or flat tables
+- You do not need nested object structures
+- You want fast bulk upload from tabular datasets
+
+## Troubleshooting
+
+### 401 or 403 errors
+
+- Check API key value and spacing in `Authorization` header
+- Ensure the key belongs to the correct project
+
+### 400 validation errors
+
+- Confirm `label` exists and is non-empty
+- Validate JSON syntax (trailing commas are common issues)
+- Check required fields and data types
+
+### Empty or malformed CSV imports
+
+- Ensure header row exists
+- Confirm consistent delimiter and quoting
+- Verify UTF-8 encoding
+
+### Duplicate records after retries
+
+Webhook systems may retry requests. Use an external stable ID (`externalId`) in each record so you can deduplicate and upsert safely.
+
+For stronger idempotency patterns, see [Event-Driven Ingestion from Webhooks and Queues](/tutorials/event-driven-ingestion).
+
+## Optional: test from terminal first
+
+If you want to verify credentials before configuring a platform:
+
+```bash
+export RUSHDB_API_KEY="YOUR_RUSHDB_API_KEY"
+
+curl -X POST "https://api.rushdb.com/api/v1/records/import/json" \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "LEAD",
+    "data": [
+      {
+        "externalId": "lead_001",
+        "name": "Ava Collins",
+        "email": "ava@example.com"
+      }
+    ]
+  }'
+```
+
+## Related docs
+
+- [Importing data from external sources](/tutorials/importing-data)
+- [Event-Driven Ingestion from Webhooks and Queues](/tutorials/event-driven-ingestion)
+- [REST API introduction](/rest-api/introduction)

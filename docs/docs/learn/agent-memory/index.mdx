@@ -1,0 +1,114 @@
+---
+slug: /build/agent-memory/
+sidebar_position: 1
+title: Agent Memory Overview
+---
+
+# Agent Memory Overview
+
+RushDB is designed from the ground up as a **structured memory store for AI agents**. Unlike flat vector databases or document stores, RushDB gives agents three distinct memory layers — each addressing a different dimension of knowledge — and a retrieval stack that composes them at query time.
+
+---
+
+## One Primitive, Any Architecture
+
+Most AI memory solutions ship with a predefined set of entity types — `User`, `Memory`, `Fact`, `Episode` — and a retrieval pipeline built around those types. If your use case fits the mold, you're productive quickly. If it doesn't, you spend time working around the framework rather than building your product.
+
+RushDB takes the opposite approach. It gives you exactly **one primitive**: Record. You decide what a Record represents, what properties it carries, and how Records relate to each other. The schema emerges from your problem — not from an opinion baked into the library.
+
+A **chat assistant** stores `Message`, `Session`, and `User` records wired by conversation threads. A **long-running medical research harness** with decentralized inference stores `Patient`, `ClinicalNote`, `Observation`, `InferenceRun`, and `ModelVersion` records with full provenance relationships. A **multi-agent coordination layer** tracks `Agent`, `Task`, `Artifact`, and `Delegation` records across independent inference nodes. Every architecture is different — and every architecture is built from the same two building blocks: **Records** and **Relationships**.
+
+Because there's no fixed schema to lock you in, you can change, extend, or completely rethink your data model at any time with no migrations and no downtime.
+
+---
+
+## The Three Memory Layers
+
+| Layer          | What it stores                                                          | RushDB primitive               |
+| -------------- | ----------------------------------------------------------------------- | ------------------------------ |
+| **Episodic**   | Individual facts, events, entities, and their connections               | Records + Relationships        |
+| **Semantic**   | Meaning encoded as dense vectors (embeddings)                           | Vector Properties + AI Indexes |
+| **Structural** | Schema: what labels exist, what properties they carry, how they connect | Ontology API                   |
+
+### Episodic Memory — Records and Relationships
+
+Every discrete piece of knowledge is a **Record**: a typed key-value object carrying a label, properties, and a system-generated ID. Records connect to one another via **Relationships**, forming a traversable knowledge graph. An agent can store anything from a conversation turn to a product entity as a record, then retrieve it by property values, label, or graph traversal.
+
+→ [Store Records](/build/data/store-records) · [Connect Records](/build/graph/connect-records)
+
+### Semantic Memory — Vector Properties
+
+A subset of record properties carry dense vector representations (embeddings). A vector-indexed property is simultaneously a semantic index over every record it connects to. Embeddings can be supplied by the application (Bring Your Own Vector) or generated automatically by RushDB.
+
+→ [Manage Embedding Indexes](/build/ai-search/manage-indexes) · [Semantic Search](/build/ai-search/semantic-search)
+
+### Structural Memory — Ontology
+
+The **Ontology API** returns a live snapshot of the graph's schema: all labels, all properties per label with types and value ranges, and the full relationship map. An agent calls this once per session to bootstrap awareness of what is in the database — no hardcoded schema, no external documentation required.
+
+→ [Discover Your Schema](/build/schema/discover-your-schema) · [Schema Self-Awareness](/build/agent-memory/schema-self-awareness)
+
+---
+
+## The Retrieval Stack
+
+A well-designed agent retrieval pipeline uses all three layers in sequence:
+
+```
+Agent
+  → 1. Ontology discovery (structural)
+  → 2. Faceted filter (structural — fast, deterministic)
+  → 3. Semantic re-rank (semantic — surfaces most relevant)
+  → 4. Structured results returned to agent
+```
+
+**Step 1 — Discover the schema.** Before constructing any query, the agent calls the ontology endpoint to learn what labels, properties, and relationships exist. This prevents hallucinated field names and enables dynamic query construction.
+
+**Step 2 — Filter structurally.** The `where` clause narrows the candidate set by exact or range conditions on scalar properties. Fast (index-backed) and deterministic.
+
+**Step 3 — Re-rank semantically.** After structural filtering, similarity scoring surfaces the most _relevant_ records from the structurally valid candidate set.
+
+**Step 4 — Return to agent.** The sorted, scored result set is returned. The agent reasons over structured records — not raw text chunks — because RushDB preserves full property context alongside the similarity score.
+
+---
+
+## Retrieval Approach Comparison
+
+| Approach                               | When to use                                                      | Mechanism                           |
+| -------------------------------------- | ---------------------------------------------------------------- | ----------------------------------- |
+| **Structural only**                    | Known labels and property values                                 | `where` filter                      |
+| **Semantic with pre-filter**           | Meaning-based lookup, optionally scoped by structural conditions | `db.ai.search()` with `where`       |
+| **Structural + semantic in one query** | Full SearchQuery features alongside similarity scoring           | `where` + `$similarity` aggregation |
+
+---
+
+## Self-Awareness Without External Documentation
+
+A central design goal of RushDB is that agents should be able to operate against an unknown or evolving knowledge graph **without any out-of-band schema documentation**. Two mechanisms make this possible:
+
+1. **`__proptypes`** — every Record carries a `__proptypes` field listing the name and type of each property it holds. This makes every record self-describing.
+
+2. **The Ontology API** — aggregates all `__proptypes` metadata across the project and returns it as a schema snapshot. An agent that calls the ontology endpoint at the start of a session receives the full graph schema in a single, token-efficient Markdown string.
+
+```
+Boot → call ontology → understand what exists in the graph
+     → construct query from real labels/properties
+     → retrieve relevant records
+     → act on structured, typed results
+```
+
+---
+
+## What's Next
+
+The rest of the Learn section covers the building blocks and query primitives that make this memory model work:
+
+| Section                                                            | What you'll learn                                                             |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| [Quickstart](/build/agent-memory/quickstart)                       | Connect the MCP server, run the bootstrap prompt, validate in 5 min           |
+| [Schema Self-Awareness](/build/agent-memory/schema-self-awareness) | Ontology API, `__proptypes`, dynamic query construction                       |
+| [Records & Queries](/build/data/store-records)                     | Store, import, update, delete, and search records                             |
+| [SearchQuery reference](/reference/search-query)                   | `where`, `select`, `groupBy`, `orderBy`, pagination — the full query language |
+| [Relationships](/build/graph/connect-records)                      | Attach edges between records, bulk-connect by key, traverse in queries        |
+| [Semantic Search](/build/ai-search/semantic-search)                | Meaning-based recall — embedding indexes, similarity scoring, pre-filter      |
+| [Transactions](/build/reliability/transactions)                    | ACID guarantees for multi-step memory writes                                  |

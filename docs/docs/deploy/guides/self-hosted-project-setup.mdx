@@ -1,0 +1,166 @@
+---
+slug: /deploy/self-hosted-project-setup
+sidebar_position: 37
+title: 'Project Setup After Deployment'
+description: Create projects, configure per-project embedding models, invite team members, and verify SDK connectivity on a self-hosted RushDB instance.
+tags: [Deployment, Self-Hosted, Configuration]
+---
+
+import Tabs from '@site/src/components/LanguageTabs'
+import TabItem from '@theme/TabItem'
+
+# Project Setup After Deployment
+
+Once RushDB is running (see [Self-Hosting RushDB](/deploy/docker-remote)), the next steps are:
+
+1. Create a project
+2. Generate an API key
+3. Optionally configure per-project embedding settings
+4. Test SDK connectivity
+5. Invite team members
+
+---
+
+## Step 1: Sign in to the dashboard
+
+Open `http://your-host:3000` (or whatever host and port you configured). Sign in with the `RUSHDB_LOGIN` / `RUSHDB_PASSWORD` you set in your environment.
+
+---
+
+## Step 2: Create a project
+
+1. Click **New Project** in the top-left panel.
+2. Give the project a name (e.g. `production`, `staging`, `my-app`).
+3. Choose the data store:
+   - **Managed (default)** — RushDB uses the Neo4j instance configured in server env vars
+   - **My own Neo4j / Aura** — Toggle on and enter your connection URI and credentials. See [Connecting an Aura Instance](/deploy/connect-aura) for the full walkthrough.
+4. Click **Create**.
+
+Each project is isolated: records, relationships, and embedding indexes in one project are never visible from another.
+
+---
+
+## Step 3: Generate an API key
+
+1. Open the project and navigate to the **API Keys** tab.
+2. Click **New API Key**, enter a label (e.g. `backend-service`), and save.
+3. Copy the key — it is only shown once.
+
+Store the key in an environment variable or secret manager. Never commit it to source control.
+
+---
+
+## Step 4: Test connectivity from each SDK surface
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+import RushDB from '@rushdb/javascript-sdk'
+
+const db = new RushDB(process.env.RUSHDB_API_KEY!, {
+  url: 'http://your-host:3000/api/v1'
+})
+
+const result = await db.records.find({ labels: ['_PING_TEST'] })
+console.log('Connected. Total records:', result.total)
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+from rushdb import RushDB
+import os
+
+db = RushDB(
+    os.environ['RUSHDB_API_KEY'],
+    base_url='http://your-host:3000/api/v1'
+)
+
+result = db.records.find({'labels': ['_PING_TEST']})
+print('Connected. Total records:', result.total)
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -s http://your-host:3000/api/v1/records/search \
+  -H "Authorization: Bearer $RUSHDB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"labels":["_PING_TEST"]}' | jq .
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 5: Switching between cloud and self-hosted without code changes
+
+Keep the API URL in an environment variable so you can toggle between RushDB Cloud and your self-hosted instance without changing application code.
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const db = new RushDB(process.env.RUSHDB_API_KEY!, {
+  url: process.env.RUSHDB_API_URL ?? 'https://api.rushdb.com/api/v1'
+})
+// Cloud:       RUSHDB_API_URL=https://api.rushdb.com/api/v1
+// Self-hosted: RUSHDB_API_URL=http://your-host:3000/api/v1
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+from rushdb import RushDB
+
+db = RushDB(
+    os.environ['RUSHDB_API_KEY'],
+    base_url=os.environ.get('RUSHDB_API_URL', 'https://api.rushdb.com/api/v1')
+)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Step 6: Configure an embedding model per project (optional)
+
+The server-level `RUSHDB_EMBEDDING_MODEL` env var sets the default embedding model for all projects. If you want to override it per project:
+
+1. Open the project → **Settings** → **Embedding**.
+2. Select or enter a model identifier (e.g. `text-embedding-3-large`).
+3. Enter the dimensions that match the model.
+4. Save.
+
+Records ingested into this project will use the per-project model for backfill. Other projects on the same server continue using their own settings.
+
+:::note
+Per-project embedding configuration is only relevant for **managed** embedding indexes (where RushDB calls the embedding provider). For BYOV (external) indexes, you supply the vectors yourself — no server-side model is involved.
+:::
+
+---
+
+## Step 7: Invite team members (cloud)
+
+On RushDB Cloud:
+
+1. Open **Workspace** → **Team**.
+2. Click **Invite Member** and enter the email address.
+3. Assign a role: **Admin** or **Member**.
+
+On self-hosted RushDB the team member feature is available depending on your plan configuration. Contact support if you need multi-user access on a self-hosted instance.
+
+---
+
+## Next steps
+
+- [Self-Hosting RushDB](/deploy/docker-remote) — deploy with Docker Compose
+- [Connecting an Aura Instance](/deploy/connect-aura) — use your own Neo4j as the data store
+- [BYOC vs Managed vs Self-Hosted](/tutorials/byoc-vs-managed) — compare deployment topologies

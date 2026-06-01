@@ -1,0 +1,303 @@
+---
+slug: /build/agent-memory/quickstart
+sidebar_position: 1
+title: Agent Memory Quickstart
+---
+
+import Tabs from '@theme/TabItem'
+
+# Agent Memory Quickstart
+
+Give any agent a persistent, graph-structured memory in under five minutes. Sessions, decisions, tasks, entities, and preferences — stored in RushDB, traversable by meaning.
+
+---
+
+## Prerequisites
+
+1. **API key** — sign up free at [app.rushdb.com](https://app.rushdb.com) and copy your project API key.
+2. **A running RushDB instance** — [cloud](https://app.rushdb.com) or [self-hosted](/deploy/local-docker).
+
+---
+
+## Distribution URL
+
+Any agent or automation can fetch the full setup guide programmatically:
+
+```
+https://rushdb.com/agent-setup
+```
+
+This URL always serves the canonical setup prompt. Point your agent at it instead of copy-pasting:
+
+```
+Fetch https://rushdb.com/agent-setup and follow the instructions exactly.
+```
+
+---
+
+## Step 1 — Connect the MCP Server
+
+Add the `@rushdb/mcp-server` to your agent's MCP config, then restart.
+
+import Tabs2 from '@theme/TabItem'
+
+import TabsHost from '@theme/Tabs'
+
+<TabsHost groupId="agent-platform">
+  <Tabs2 value="claude" label="Claude Desktop">
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "<your-api-key>"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop. The RushDB tools appear in the tool list automatically.
+
+  </Tabs2>
+  <Tabs2 value="vscode" label="VS Code / Copilot / OpenClaw">
+
+Add to your MCP settings (`.vscode/mcp.json` or user-level MCP config):
+
+```json
+{
+  "servers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "<your-api-key>"
+      }
+    }
+  }
+}
+```
+
+For **GitHub Copilot agent mode**: add the block above and reload the window. RushDB tools are available to the agent in `@workspace` sessions.
+
+For **OpenClaw**: add the same config to your OpenClaw workspace settings, or install via the OpenClaw skill registry (search `rushdb`).
+
+  </Tabs2>
+  <Tabs2 value="codex" label="Codex CLI">
+
+```bash
+# Set the key once
+export RUSHDB_API_KEY=<your-api-key>
+
+# Add to your Codex MCP config (~/.codex/mcp.json or project-level)
+```
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "<your-api-key>"
+      }
+    }
+  }
+}
+```
+
+Then run Codex normally — it will discover the RushDB tools at startup.
+
+  </Tabs2>
+  <Tabs2 value="hermes" label="Hermes / NousResearch">
+
+Hermes-based agents that support MCP can use the same npx transport:
+
+```json
+{
+  "mcp_servers": {
+    "rushdb": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["@rushdb/mcp-server"],
+      "env": {
+        "RUSHDB_API_KEY": "<your-api-key>"
+      }
+    }
+  }
+}
+```
+
+If your Hermes host uses a different MCP config key, replace `mcp_servers` with the correct key — the inner object is the same.
+
+  </Tabs2>
+  <Tabs2 value="docker" label="Docker / self-hosted MCP">
+
+Run the server as a sidecar and expose it via SSE:
+
+```bash
+docker run -d \
+  -e RUSHDB_API_KEY=<your-api-key> \
+  -p 3001:3001 \
+  rushdb/mcp-server
+```
+
+Point your agent at `http://localhost:3001/sse` as the MCP SSE transport.
+
+  </Tabs2>
+</TabsHost>
+
+---
+
+## Step 2 — Install the Agent Skills
+
+Install the RushDB skills pack so your agent knows how to use the MCP tools for memory, querying, and data modeling:
+
+```bash
+npx skills add rush-db/rushdb --path packages/skills
+```
+
+Or install the package with npm:
+
+```bash
+npm install @rushdb/skills
+```
+
+The pack includes:
+
+| Skill                  | What it enables                                                         |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `rushdb-agent-memory`  | Store sessions, decisions, tasks, and preferences; recall prior context |
+| `rushdb-query-builder` | Build correct filters, traversals, aggregations, and semantic searches  |
+| `rushdb-data-modeling` | Design labels, properties, relationships, and nested memory schemas     |
+
+:::note MCP server vs. Agent Skills
+The MCP server gives your agent RushDB tools at runtime. Agent Skills teach it how to use those tools correctly. Install both, then start a new agent session so the skills are discovered.
+:::
+
+For OpenClaw workspace-level installation, see [Using RushDB Agent Skills in OpenClaw](/tutorials/agent-skills-with-openclaw#part-2--install-the-rushdb-skills-pack).
+
+---
+
+## Step 3 — Bootstrap the Agent
+
+After the MCP server is connected, send this prompt once per new agent / project:
+
+```
+Set up RushDB as my persistent memory layer. Follow these steps in order.
+
+INITIALIZE
+1. Call getOntologyMarkdown to check existing memory labels and record counts.
+2. If SESSION labels already exist, call findRecords with labels:["SESSION"],
+   orderBy:{startedAt:"desc"}, limit:1 and summarize the most recent session.
+3. Create a SESSION record for this conversation:
+   {
+     "label": "SESSION",
+     "data": {
+       "startedAt": "<ISO timestamp now>",
+       "topic": "<current topic>",
+       "agentId": "<your agent name>"
+     }
+   }
+
+IMPORT EXISTING IDENTITY (if applicable)
+4. Check if any of these files exist and read them:
+   - SOUL.md, IDENTITY.md, USER.md, MEMORY.md
+   - ~/.openclaw/workspace/memory/ (most recent 30 days of YYYY-MM-DD.md)
+   - Any preference or identity files the user points you to.
+5. Extract facts and create records:
+   - User preferences → label "PREFERENCE"
+   - Identity facts → label "ENTITY" with type:"identity"
+   - Past decisions → label "DECISION"
+   - Ongoing tasks → label "TASK"
+
+CONFIRM
+6. Call getOntologyMarkdown again and report what labels exist with record counts.
+7. Run a test recall: findRecords with labels:["PREFERENCE"] limit:5
+```
+
+---
+
+## Step 4 — Validate
+
+Ask the agent:
+
+```
+Search RushDB for any SESSION records. Show me the most recent one.
+```
+
+If it returns a session record, memory is live. From here the agent will:
+
+- Create a new `SESSION` at the start of each conversation
+- Write `DECISION`, `TASK`, `PREFERENCE`, and `OBSERVATION` records as it works
+- Recall past context with structured queries or semantic search
+
+---
+
+## Recommended Memory Labels
+
+| Label         | What it stores                                          |
+| ------------- | ------------------------------------------------------- |
+| `SESSION`     | A conversation or work session with timestamp and topic |
+| `DECISION`    | A decision made, with rationale                         |
+| `ENTITY`      | A named thing — person, service, project, concept       |
+| `TASK`        | Work item with status and assignee                      |
+| `PREFERENCE`  | Persistent user preference or constraint                |
+| `OBSERVATION` | Raw note or finding                                     |
+| `PLAN`        | Proposed sequence of steps                              |
+| `ARTIFACT`    | A produced output — code snippet, doc, design           |
+
+Nested JSON auto-links records — no manual edge wiring:
+
+```json
+{
+  "label": "SESSION",
+  "data": {
+    "topic": "auth refactor",
+    "startedAt": "2026-05-31T09:00:00Z",
+    "DECISION": [{ "decision": "Switch to Clerk", "rationale": "Better Next.js integration" }],
+    "TASK": [{ "title": "Remove Auth0 dependency", "status": "pending" }]
+  }
+}
+```
+
+One `createRecord` call creates `SESSION → DECISION + TASK`, all linked automatically.
+
+---
+
+## Recall Patterns
+
+Copy these into your agent's system prompt or run them on demand:
+
+**Last session summary:**
+
+```json
+{ "labels": ["SESSION"], "orderBy": { "startedAt": "desc" }, "limit": 1 }
+```
+
+**What did we decide about X?**
+
+```json
+{ "labels": ["DECISION"], "where": { "topic": { "$contains": "X" } }, "orderBy": { "decidedAt": "desc" } }
+```
+
+**Semantic recall (meaning-based):**
+
+```
+semanticSearch: query="how did we handle auth", labels=["DECISION"], limit=5
+```
+
+→ Requires a one-time embedding index. See [Schema Self-Awareness](/build/agent-memory/schema-self-awareness) for setup.
+
+---
+
+## Next Steps
+
+- [Agent Memory Overview](/build/agent-memory/) — the three memory layers (episodic, semantic, structural) and the full retrieval stack
+- [Schema Self-Awareness](/build/agent-memory/schema-self-awareness) — let agents discover and reason about the graph schema dynamically
+- [Semantic Search](/build/ai-search/semantic-search) — add meaning-based recall to any memory label

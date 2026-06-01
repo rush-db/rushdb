@@ -1,0 +1,80 @@
+---
+slug: /deploy/remote-cloud-providers
+title: AWS / GCP / Azure
+description: Deploy RushDB on major cloud providers — AWS EC2, Google Cloud Compute Engine, or Azure Virtual Machines.
+sidebar_position: 3
+displayed_sidebar: docs
+tags: [Deployment, AWS, GCP, Azure, Self-Hosted]
+---
+
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
+# AWS / GCP / Azure
+
+RushDB runs on any Linux VM with Docker. The workflow is the same across providers — provision a VM, install Docker, deploy the Compose stack.
+
+Verify the [Prerequisites](/deploy/remote-prerequisites) first.
+
+## Provision a VM
+
+<Tabs groupId="cloud-provider">
+<TabItem value="aws" label="AWS EC2">
+
+1. Launch an **EC2 instance** — `t3.medium` (4 GB RAM) or larger
+2. Use **Ubuntu 22.04 LTS** AMI
+3. Security Group inbound rules:
+   - `22` (SSH) — your IP only
+   - `3000` (RushDB API) — your IP or 0.0.0.0/0
+   - `80` / `443` (reverse proxy) — 0.0.0.0/0
+
+</TabItem>
+<TabItem value="gcp" label="Google Cloud">
+
+1. Create a **Compute Engine** VM — `e2-medium` (4 GB RAM) or larger
+2. Use **Ubuntu 22.04 LTS** boot disk
+3. Firewall rules (VPC Network → Firewall):
+   - Allow ingress on `tcp:3000` for the VM's tag
+   - Allow ingress on `tcp:80,443` for public traffic
+
+</TabItem>
+<TabItem value="azure" label="Azure">
+
+1. Create a **Virtual Machine** — `B2s` (2 vCPUs, 4 GB) or larger
+2. Use **Ubuntu 22.04 LTS** image
+3. Network Security Group inbound rules:
+   - Port `22` — SSH
+   - Port `3000` — RushDB API
+   - Port `80` / `443` — reverse proxy
+
+</TabItem>
+</Tabs>
+
+## Install Docker & Deploy
+
+After SSHing into your VM, the deployment steps are identical across all providers:
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+
+# Download and configure RushDB
+mkdir rushdb && cd rushdb
+curl -O https://raw.githubusercontent.com/rush-db/rushdb/main/platform/docker-compose.yml
+curl -O https://raw.githubusercontent.com/rush-db/rushdb/main/.env.example
+cp .env.example .env
+
+# Edit .env with your settings, then start
+docker compose up -d
+```
+
+See [Environment Variables](/deploy/config-env-variables) for the full `.env` reference.
+
+## Verify
+
+```bash
+curl http://VM_PUBLIC_IP:3000/health
+# → {"status":"ok"}
+```
+
+Next: [Get your API Key](/deploy/get-api-key) to start using the instance.

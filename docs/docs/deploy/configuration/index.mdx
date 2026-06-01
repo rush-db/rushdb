@@ -1,0 +1,56 @@
+---
+slug: /deploy/config-index
+title: Configuration
+description: Configure environment variables, authorization, and security for your RushDB instance.
+sidebar_position: 3
+displayed_sidebar: docs
+overview_page: true
+tags: [Configuration, Environment Variables, Security, Self-Hosted]
+---
+
+import { DeployMethodRow, DeployMethodRowList, DeployCrossLinks } from '@site/src/components/DeployMethodCard'
+
+# Configuration
+
+Configure RushDB after deployment — environment variables, API key management, and production security.
+
+<DeployMethodRowList>
+  <DeployMethodRow
+    title="Environment Variables"
+    description="Complete reference for all .env settings — core, database, Neo4j, embeddings, and authentication variables with defaults and descriptions."
+    badge="required"
+    time="~5 min"
+    icon="ClipboardList"
+    recommended
+    tags={['Environment', '.env', 'Reference']}
+    href="/deploy/config-env-variables"
+  />
+  <DeployMethodRow
+    title="Authorization"
+    description="Create a project and generate API keys from the dashboard. Required before any SDK or REST API call. Works for both managed cloud and self-hosted instances."
+    badge="required"
+    time="~2 min"
+    icon="Server"
+    prerequisites={['RushDB dashboard access (cloud or self-hosted)']}
+    tags={['API Key', 'JWT', 'Authentication']}
+    href="/deploy/get-api-key"
+  />
+  <DeployMethodRow
+    title="Security"
+    description="Harden your instance for production — TLS setup, secrets generation, network isolation, and encryption key rotation."
+    badge="advanced"
+    time="~15 min"
+    icon="Layers"
+    prerequisites={['Self-hosted RushDB running', 'Domain + DNS access']}
+    tags={['TLS', 'HTTPS', 'Firewall', 'Secrets']}
+    href="/deploy/config-security"
+  />
+</DeployMethodRowList>
+
+<DeployCrossLinks
+  prefix="Also see:"
+  links={[
+    { label: 'Infrastructure', href: '/deploy/infra-index' },
+    { label: 'Remote Hosting', href: '/deploy/remote-index' }
+  ]}
+/>

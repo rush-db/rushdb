@@ -28,8 +28,11 @@ const buildRelationPart = (relation?: Relation) => {
   if ('direction' in relation) {
     if (relation.direction === 'in') {
       relationClause = relationClause ? `<-${relationClause}-` : '<--'
-    } else {
+    } else if (relation.direction === 'out') {
       relationClause = relationClause ? `-${relationClause}->` : '-->'
+    } else {
+      // unrecognised direction — fall back to direction-agnostic traversal
+      relationClause = `-${relationClause}-`
     }
   } else {
     relationClause = `-${relationClause}-`

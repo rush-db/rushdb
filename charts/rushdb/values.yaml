@@ -1,0 +1,146 @@
+## RushDB Helm chart default values.
+## Override these in a values.yaml file or with --set flags.
+
+# ── RushDB platform ───────────────────────────────────────────────────────────
+rushdb:
+  image:
+    repository: rushdb/platform
+    tag: latest # pin to a specific release tag in production
+    pullPolicy: IfNotPresent
+
+  ## Required — must be exactly 32 characters.
+  ## Used for AES-256-CBC encryption of API tokens.
+  ## Do NOT change after first install without a migration.
+  encryptionKey: ''
+
+  ## Default admin credentials
+  adminLogin: admin
+  adminPassword: changeme
+
+  ## Serving
+  selfHosted: true
+  serveStatic: true
+  dashboardUrl: '' # public URL of the RushDB dashboard (used in emails etc.)
+  publicUrl: '' # public URL of the API, e.g. https://rushdb.example.com
+
+  ## Neo4j connection — only used when neo4j.enabled=false
+  neo4jUrl: ''
+  neo4jUsername: neo4j
+  neo4jPassword: ''
+
+  ## SQL metadata store (users, projects, tokens, OAuth)
+  ## "sqlite" uses a PVC for the db file; "postgres" requires sqlDbUrl.
+  sqlDbType: sqlite
+  sqlDbUrl: '' # postgresql://user:pass@host:5432/rushdb
+
+  ## Optional RS256 JWT keys for MCP OAuth (base64-encoded PEM)
+  jwtPrivateKeyBase64: ''
+  jwtPublicKeyBase64: ''
+  jwtKid: ''
+
+  ## Optional embedding / LLM integration
+  embeddingBaseUrl: ''
+  embeddingApiKey: ''
+  embeddingModel: ''
+  embeddingDimensions: ''
+  llmBaseUrl: ''
+  llmApiKey: ''
+  llmModel: ''
+
+  ## Number of replicas (stateless when using postgres; keep 1 for sqlite)
+  replicaCount: 1
+
+  service:
+    type: ClusterIP
+    port: 3000
+
+  ingress:
+    enabled: false
+    className: ''
+    annotations: {}
+    #   kubernetes.io/ingress.class: nginx
+    #   cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts: []
+    #   - host: rushdb.example.com
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    tls: []
+    #   - secretName: rushdb-tls
+    #     hosts:
+    #       - rushdb.example.com
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  ## SQLite data persistence (ignored when sqlDbType=postgres)
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: '' # leave empty to use the cluster default
+    accessMode: ReadWriteOnce
+
+  ## Extra environment variables injected verbatim into the RushDB container
+  extraEnv: {}
+  #   RATE_LIMITER_REQUESTS_LIMIT: "100"
+  #   RATE_LIMITER_TTL: "1000"
+
+  ## Pod-level settings
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── Bundled Neo4j ─────────────────────────────────────────────────────────────
+# Set enabled=false and configure rushdb.neo4jUrl to use an existing Neo4j.
+neo4j:
+  enabled: true
+
+  image:
+    repository: neo4j
+    tag: '2026.01.4'
+    pullPolicy: IfNotPresent
+
+  ## Neo4j auth password
+  password: neo4jpassword
+
+  ## APOC Core is required by RushDB. Do not remove it.
+  plugins: '["apoc"]'
+
+  ## Additional Neo4j environment variables (NEO4J_* format)
+  extraEnv: {}
+  #   NEO4J_dbms_memory_heap_initial__size: 512m
+  #   NEO4J_dbms_memory_heap_max__size: 1G
+
+  service:
+    type: ClusterIP
+    boltPort: 7687
+    httpPort: 7474
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ''
+    accessMode: ReadWriteOnce
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
