@@ -6,6 +6,7 @@ import type { ProjectToken } from '~/features/tokens/types'
 
 import { api } from '~/lib/api'
 import { queryKeys } from '~/lib/queryKeys'
+import { trackProjectCreated, trackApiKeyGenerated } from '~/lib/analytics'
 import { $currentWorkspaceId } from '~/features/workspaces/stores/current'
 import { $currentProjectId } from '~/features/projects/stores/id'
 import { $router, isProjectPage, redirectRoute } from '~/lib/router'
@@ -31,6 +32,11 @@ export const useCreateProjectMutation = () => {
       return project
     },
     onSuccess(project) {
+      const projects = queryClient.getQueryData<{ id: string }[]>(
+        workspaceId ? queryKeys.workspaces.projects(workspaceId) : []
+      )
+      trackProjectCreated({ isFirstProject: (projects?.length ?? 0) === 0 })
+      trackApiKeyGenerated({ isInitialKey: true })
       if (workspaceId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.projects(workspaceId) })
       }

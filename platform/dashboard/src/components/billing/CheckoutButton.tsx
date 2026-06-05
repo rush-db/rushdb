@@ -6,6 +6,7 @@ import { Button } from '~/elements/Button'
 import { useCheckoutMutation } from '~/features/billing/hooks/useBillingHooks'
 import { $router, isProjectPage } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
+import { trackUpgradeClicked } from '~/lib/analytics'
 
 export const CheckoutButton = ({
   children = 'Checkout',
@@ -28,7 +29,10 @@ export const CheckoutButton = ({
     <Button
       {...props}
       loading={loading}
-      onClick={() => checkout({ priceId, returnUrl: window.location.href, projectId })}
+      onClick={() => {
+        trackUpgradeClicked()
+        checkout({ priceId, returnUrl: window.location.href, projectId })
+      }}
       role="link"
     >
       {children}

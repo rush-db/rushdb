@@ -29,6 +29,36 @@ import { OnboardingTour } from '~/features/tour/components/OnboardingTour.tsx'
 import { OnboardingInit } from '~/features/tour/components/OnboardingInit.tsx'
 import { ErrorBoundary } from '~/features/tour/components/ErrorBoundary.tsx'
 
+const PAGE_TITLES: Record<string, string> = {
+  home: 'Projects',
+  projects: 'Projects',
+  newProject: 'New Project',
+  newWorkspace: 'New Workspace',
+  workspaceSettings: 'Workspace Settings',
+  workspaceUsers: 'Workspace Members',
+  workspaceBilling: 'Billing',
+  workspaceApiUsage: 'API Usage',
+  joinWorkspace: 'Join Workspace',
+  profile: 'Profile',
+  signin: 'Sign In',
+  signup: 'Sign Up',
+  passwordRecovery: 'Recover Account',
+  confirmEmail: 'Confirm Email',
+  oauthConsent: 'Authorization'
+}
+
+function useDocumentTitle() {
+  const page = useStore($router)
+
+  useEffect(() => {
+    if (!page) return
+    const label = PAGE_TITLES[page.route]
+    if (label) {
+      document.title = `${label} – RushDB`
+    }
+  }, [page?.route])
+}
+
 function PublicRoutes() {
   const page = useStore($router)
 
@@ -97,6 +127,8 @@ function ProtectedRoutes() {
 function Routes() {
   const page = useStore($router)
 
+  useDocumentTitle()
+
   if (!page) {
     return <NotFoundPage />
   }
@@ -114,24 +146,30 @@ function Routes() {
 
 function Gtm() {
   useEffect(() => {
-    const id = 'G-Y678D4CC1J'
+    const id = import.meta.env.VITE_GTM_ID || 'GTM-XXXXX'
 
-    const gtagScript = document.createElement('script')
-    gtagScript.src = `https://www.googletagmanager.com/gtag/js?id=${id}`
-    gtagScript.async = true
-    gtagScript.setAttribute('data-domain', 'app.rushdb.com')
-    document.head.appendChild(gtagScript)
-
-    // @ts-ignore
+    // Initialise dataLayer before the GTM snippet so consent defaults
+    // set via window.dataLayer.push are already present when GTM fires.
     window.dataLayer = window.dataLayer || []
-    function gtag() {
-      // @ts-ignore
-      dataLayer.push(arguments)
-    }
-    // @ts-ignore
-    gtag('js', new Date())
-    // @ts-ignore
-    gtag('config', id)
+
+    // GTM head snippet (imperative version — no <script> tags available here)
+    const script = document.createElement('script')
+    script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer',${JSON.stringify(id)});`
+    document.head.appendChild(script)
+
+    // GTM noscript fallback
+    const noscript = document.createElement('noscript')
+    const iframe = document.createElement('iframe')
+    iframe.src = `https://www.googletagmanager.com/ns.html?id=${id}`
+    iframe.style.cssText = 'display:none;visibility:hidden'
+    iframe.height = '0'
+    iframe.width = '0'
+    noscript.appendChild(iframe)
+    document.body.insertBefore(noscript, document.body.firstChild)
   }, [])
 
   return null

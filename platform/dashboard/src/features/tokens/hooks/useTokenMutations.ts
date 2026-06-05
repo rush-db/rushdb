@@ -5,6 +5,7 @@ import type { ProjectToken } from '~/features/tokens/types'
 
 import { api } from '~/lib/api'
 import { queryKeys } from '~/lib/queryKeys'
+import { trackApiKeyGenerated } from '~/lib/analytics'
 import { $currentProjectId } from '~/features/projects/stores/id'
 
 export const useAddTokenMutation = () => {
@@ -13,6 +14,7 @@ export const useAddTokenMutation = () => {
   return useMutation({
     mutationFn: (args: Parameters<typeof api.tokens.create>[0]) => api.tokens.create(args),
     onSuccess() {
+      trackApiKeyGenerated()
       if (projectId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.projects.tokens(projectId) })
       }

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useStore } from '@nanostores/react'
 
 import type { Project } from '~/features/projects/types'
@@ -40,12 +41,30 @@ function ProjectRoutes({ project }: { project: Project }) {
   }
 }
 
+const PROJECT_TAB_TITLES: Record<string, string> = {
+  project: 'Records',
+  projectSettings: 'Settings',
+  projectTokens: 'API Tokens',
+  projectIndexes: 'Indexes',
+  projectRelationships: 'Relationships',
+  projectImportData: 'Import',
+  projectUsers: 'Users',
+  projectHelp: 'Help',
+  projectBilling: 'Billing'
+}
+
 export function ProjectLayout() {
   const page = useStore($router)
 
   const projectId = isProjectPage(page) ? page?.params.id : undefined
 
   const { data, isPending } = useCurrentProjectQuery()
+
+  useEffect(() => {
+    if (!data) return
+    const tab = (page?.route && PROJECT_TAB_TITLES[page.route]) ?? 'Records'
+    document.title = `${data.name} / ${tab} – RushDB`
+  }, [data, page?.route])
 
   if (!projectId) {
     redirectRoute('projects')
