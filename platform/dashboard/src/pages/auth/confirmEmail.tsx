@@ -8,6 +8,7 @@ import { ConfirmEmailErrorCodes } from '~/features/auth/constants.ts'
 import { Dialog, DialogFooter, DialogTitle } from '~/elements/Dialog.tsx'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '~/elements/Button.tsx'
+import { trackSignupComplete } from '~/lib/analytics'
 
 export function ConfirmEmail() {
   const [isOpen, setOpen] = useState(false)
@@ -30,10 +31,11 @@ export function ConfirmEmail() {
     }
 
     confirmEmailData()
+      .then(() => {
+        trackSignupComplete('email')
+      })
       .catch((error) => {
-        if (
-          error.response.status === ConfirmEmailErrorCodes.EmailTokenExpired
-        ) {
+        if (error.response.status === ConfirmEmailErrorCodes.EmailTokenExpired) {
           setIsError(true)
         }
       })
@@ -49,34 +51,23 @@ export function ConfirmEmail() {
 
   return (
     <>
-      <Dialog
-        className="gap-5"
-        onOpenChange={handleCloseConfirmationModal}
-        open={isOpen}
-      >
+      <Dialog className="gap-5" onOpenChange={handleCloseConfirmationModal} open={isOpen}>
         <DialogTitle>
-          {isError ? (
+          {isError ?
             <>
               <AlertTriangle /> Email Confirmation Failed
             </>
-          ) : (
-            'Email Confirmed Successfully'
-          )}
+          : 'Email Confirmed Successfully'}
         </DialogTitle>
 
         <p className="min-h-sm">
-          {isError
-            ? 'Your email is already confirmed, or the confirmation link has expired.'
-            : 'Your email has been successfully confirmed. You can now proceed.'}
+          {isError ?
+            'Your email is already confirmed, or the confirmation link has expired.'
+          : 'Your email has been successfully confirmed. You can now proceed.'}
         </p>
 
         <DialogFooter>
-          <Button
-            as="a"
-            href={getRoutePath(route)}
-            onClick={handleCloseConfirmationModal}
-            variant="accent"
-          >
+          <Button as="a" href={getRoutePath(route)} onClick={handleCloseConfirmationModal} variant="accent">
             {isError ? 'Got it' : 'Continue'}
           </Button>
         </DialogFooter>

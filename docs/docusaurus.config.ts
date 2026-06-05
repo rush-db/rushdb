@@ -275,14 +275,32 @@ const config: Config = {
           { from: '/typescript-sdk/ai/search', to: '/build/ai-search/semantic-search' },
           { from: '/typescript-sdk/ai/write-with-vectors', to: '/build/ai-search/write-with-vectors' },
           { from: '/typescript-sdk/typescript-reference/DBRecord', to: '/reference/typescript/DBRecord' },
-          { from: '/typescript-sdk/typescript-reference/DBRecordInstance', to: '/reference/typescript/DBRecordInstance' },
-          { from: '/typescript-sdk/typescript-reference/DBRecordTarget', to: '/reference/typescript/DBRecordTarget' },
-          { from: '/typescript-sdk/typescript-reference/DBRecordsArrayInstance', to: '/reference/typescript/DBRecordsArrayInstance' },
+          {
+            from: '/typescript-sdk/typescript-reference/DBRecordInstance',
+            to: '/reference/typescript/DBRecordInstance'
+          },
+          {
+            from: '/typescript-sdk/typescript-reference/DBRecordTarget',
+            to: '/reference/typescript/DBRecordTarget'
+          },
+          {
+            from: '/typescript-sdk/typescript-reference/DBRecordsArrayInstance',
+            to: '/reference/typescript/DBRecordsArrayInstance'
+          },
           { from: '/typescript-sdk/typescript-reference/Model', to: '/reference/typescript/Model' },
-          { from: '/typescript-sdk/typescript-reference/RelationTarget', to: '/reference/typescript/RelationTarget' },
+          {
+            from: '/typescript-sdk/typescript-reference/RelationTarget',
+            to: '/reference/typescript/RelationTarget'
+          },
           { from: '/typescript-sdk/typescript-reference/RushDB', to: '/reference/typescript/RushDB' },
-          { from: '/typescript-sdk/typescript-reference/SearchQuery', to: '/reference/typescript/SearchQuery' },
-          { from: '/typescript-sdk/typescript-reference/Transaction', to: '/reference/typescript/Transaction' },
+          {
+            from: '/typescript-sdk/typescript-reference/SearchQuery',
+            to: '/reference/typescript/SearchQuery'
+          },
+          {
+            from: '/typescript-sdk/typescript-reference/Transaction',
+            to: '/reference/typescript/Transaction'
+          },
           { from: '/python-sdk/introduction', to: '/reference/python/' },
           { from: '/python-sdk/labels', to: '/build/schema/labels-and-properties' },
           { from: '/python-sdk/properties', to: '/build/schema/labels-and-properties' },
@@ -308,6 +326,7 @@ const config: Config = {
         ]
       }
     ],
+    ['@docusaurus/plugin-google-gtag', { trackingID: process.env.GTM_ID || 'GTM-XXXXX', anonymizeIP: true }],
     async function pluginLlmsTxt(context) {
       return {
         name: 'llms-txt-plugin',
@@ -445,12 +464,12 @@ const config: Config = {
           for (const [categoryName, categoryDocs] of Object.entries(categories)) {
             if (categoryDocs.length > 0) {
               const categoryTitle =
-                categoryName === 'rushdb-cloud'
-                  ? 'RushDB Cloud'
-                  : `RushDB ${categoryName
-                      .split('-')
-                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                      .join(' ')}`
+                categoryName === 'rushdb-cloud' ? 'RushDB Cloud' : (
+                  `RushDB ${categoryName
+                    .split('-')
+                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ')}`
+                )
 
               const categoryTxt = `# ${categoryTitle}\n\n${categoryDocs.join('\n')}`
               const categoryPath = path.join(llmsDir, `llms-${categoryName}.txt`)
