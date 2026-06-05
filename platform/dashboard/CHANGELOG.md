@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 2.2.1
+
+### Patch Changes
+
+- ec32832: Fix titles of dashboard pages shown on browser tabs
+- Updated dependencies [ec32832]
+  - @rushdb/javascript-sdk@2.2.1
+
 ## 2.2.0
 
 ### Minor Changes
