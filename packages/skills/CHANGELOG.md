@@ -1,5 +1,11 @@
 # @rushdb/skills
 
+## 2.2.1
+
+### Patch Changes
+
+- ec32832: Fix titles of dashboard pages shown on browser tabs
+
 ## 2.2.0
 
 ### Minor Changes
