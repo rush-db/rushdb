@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 2.3.0
+
+### Minor Changes
+
+- 7a519f2: Add edge properties support, indexes suggestions, and minor fixes
+
 ## 2.2.1
 
 ### Patch Changes
