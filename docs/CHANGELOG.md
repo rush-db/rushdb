@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 2.3.1
+
+### Patch Changes
+
+- 1db6db1: Docs update
+
 ## 2.3.0
 
 ### Minor Changes
