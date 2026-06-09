@@ -145,7 +145,18 @@ const config: Config = {
   markdown: {
     mermaid: true
   },
-  themes: ['@docusaurus/theme-mermaid'],
+  themes: [
+    '@docusaurus/theme-mermaid',
+    [
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      /** @type {import('@easyops-cn/docusaurus-search-local').PluginOptions} */
+      {
+        hashed: true,
+        docsRouteBasePath: '/',
+        searchBarShortcutHint: false
+      }
+    ]
+  ],
   title: 'RushDB Docs',
   organizationName: 'Collect Software Inc',
   projectName: 'RushDB Docs',

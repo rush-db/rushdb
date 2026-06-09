@@ -253,22 +253,47 @@ Results are ordered by `__score` descending — closest match first.
   <TabItem value="python" label="Python" default>
 
 ```python
+# Sample result object (response.data[0]):
+# {
+#   "__id":          "rec_abc123",
+#   "__label":       "Product",
+#   "__score":       0.9214,
+#   "name":          "ANC Wireless Headphones",
+#   "description":   "Same-day shipping with hassle-free returns policy",
+#   "price":         89.99
+# }
+
 for result in response.data:
-    result.id                  # RushDB record ID (str)
-    result.get("__label")      # Record label (str)
-    result.get("__score")      # Similarity score, 0–1 (float)
-    result.get("title")        # Your fields via .get()
-    result["description"]      # Or via [] — raises KeyError if missing
+    result.id                  # "rec_abc123"  — RushDB record ID
+    result.get("__label")      # "Product"     — record label
+    result.get("__score")      # 0.9214        — similarity score 0–1 (higher = more similar)
+    result.get("name")         # your fields via .get()
+    result["price"]            # or via [] — raises KeyError if missing
 ```
 
   </TabItem>
   <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-// Each result is a DBRecordInstance
-// r.data.__score — similarity score (0–1, higher = more similar)
-// r.data.__label — the record label
-// r.data[yourField] — your properties
+// Sample result (DBRecordInstance):
+// {
+//   data: {
+//     __id:        "rec_abc123",
+//     __label:     "Product",
+//     __score:     0.9214,
+//     name:        "ANC Wireless Headphones",
+//     description: "Same-day shipping with hassle-free returns policy",
+//     price:       89.99
+//   }
+// }
+
+results.forEach((r) => {
+  r.data.__id // "rec_abc123"  — RushDB record ID
+  r.data.__label // "Product"     — record label
+  r.data.__score // 0.9214        — similarity score 0–1 (higher = more similar)
+  r.data.name // your properties directly on r.data
+  r.data.price
+})
 ```
 
   </TabItem>
@@ -280,8 +305,10 @@ for result in response.data:
     {
       "__id": "rec_abc123",
       "__label": "Product",
-      "__score": 0.921,
-      "description": "Same-day shipping with hassle-free returns policy"
+      "__score": 0.9214,
+      "name": "ANC Wireless Headphones",
+      "description": "Same-day shipping with hassle-free returns policy",
+      "price": 89.99
     }
   ],
   "success": true

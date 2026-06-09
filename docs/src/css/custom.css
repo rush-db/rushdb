@@ -329,6 +329,272 @@ html[data-theme='dark'] .navbar__logo img {
   min-width: fit-content;
 }
 
+/* Search trigger inside mobile sidebar header */
+.rushdb-mobile-search-trigger {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-background-surface-color);
+  color: var(--ifm-color-emphasis-500);
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.rushdb-mobile-search-trigger kbd {
+  margin-left: auto;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-color-emphasis-100);
+  color: var(--ifm-color-emphasis-500);
+}
+
+/* Search trigger in mobile navbar */
+.navbar__search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.64rem;
+  border-radius: 6px;
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-background-surface-color);
+  color: var(--ifm-color-emphasis-500);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.navbar__search-trigger:hover {
+  border-color: var(--ifm-color-primary);
+  color: var(--ifm-font-color-base);
+}
+
+.navbar__search-trigger__kbd {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-color-emphasis-100);
+  color: var(--ifm-color-emphasis-500);
+}
+
+@media (max-width: 996px) {
+  /* On mobile: hide label and ⌘K, show icon-only trigger */
+  .navbar__search-trigger__label,
+  .navbar__search-trigger__kbd {
+    display: none;
+  }
+
+  /* Hide Esc button and ⌘K kbd inside modal on mobile */
+  .rushdb-search-modal__close,
+  .rushdb-docs-sidebar-search-trigger__kbd {
+    display: none !important;
+  }
+
+  /* Hide theme toggle from the top navbar bar only (not sidebar) — .navbar__inner excludes .navbar-sidebar */
+  .navbar__inner .rushdb-theme-switch {
+    display: none !important;
+  }
+
+  /* Hide GitHub and Website links from mobile navbar — too cramped */
+  .navbar__items--right .header-github-link,
+  .navbar__items--right .navbar__link:not(.cta-button) {
+    display: none !important;
+  }
+
+  /* Docusaurus wraps SearchBar in a div with a hashed CSS-module class that gets
+     position:absolute on mobile. Target it structurally — the div inside the right
+     navbar items that contains our search trigger button. */
+  .navbar__items--right > div:has(.navbar__search-trigger) {
+    position: static !important;
+  }
+}
+
+/* Search trigger button (fake search bar in sidebar) */
+.rushdb-docs-sidebar-search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0.75rem 0;
+  padding: 0.45rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-background-surface-color);
+  color: var(--ifm-color-emphasis-500);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+  width: calc(100% - 1.5rem);
+  text-align: left;
+  flex: 0 0 auto;
+}
+
+.rushdb-docs-sidebar-search-trigger:hover {
+  border-color: var(--ifm-color-primary);
+  color: var(--ifm-font-color-base);
+}
+
+.rushdb-docs-sidebar-search-trigger__icon {
+  flex-shrink: 0;
+}
+
+.rushdb-docs-sidebar-search-trigger__label {
+  flex: 1;
+}
+
+.rushdb-docs-sidebar-search-trigger__kbd {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-color-emphasis-100);
+  color: var(--ifm-color-emphasis-500);
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+/* Search modal overlay */
+.rushdb-search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 15vh 1rem 1rem;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+/* Search modal panel */
+.rushdb-search-modal {
+  position: relative;
+  width: 100%;
+  max-width: 580px;
+  border-radius: 10px;
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-background-surface-color);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.35),
+    0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.rushdb-search-modal__header {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Stretch the plugin's search bar to fill the modal header */
+.rushdb-search-modal .navbar__search {
+  flex: 1;
+  position: static !important;
+}
+
+/* Reset the plugin's searchBarContainer margin */
+.rushdb-search-modal [class*='searchBarContainer'] {
+  margin-left: 0 !important;
+  width: 100%;
+}
+
+/* Kill the plugin's searchBar relative container so dropdown doesn't anchor to it */
+.rushdb-search-modal [class*='searchBar'] {
+  position: static !important;
+  width: 100%;
+}
+
+/* Ensure the autocomplete root also fills width */
+.rushdb-search-modal [class*='searchBar'] > * {
+  width: 100% !important;
+}
+
+.rushdb-search-modal .navbar__search-input {
+  width: 100% !important;
+  border-radius: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  padding: 0.875rem 4rem 0.875rem 1.25rem !important;
+  font-size: 1rem !important;
+  box-shadow: none !important;
+  outline: none !important;
+  height: auto !important;
+  color: var(--ifm-font-color-base) !important;
+}
+
+.rushdb-search-modal .navbar__search-input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Esc close button — anchored to the modal panel top-right, not inside the growing header */
+.rushdb-search-modal__close {
+  position: absolute;
+  right: 0.75rem;
+  top: 8px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  z-index: 1;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-color-emphasis-100);
+  color: var(--ifm-color-emphasis-500);
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.rushdb-search-modal__close:hover {
+  color: var(--ifm-font-color-base);
+}
+
+/* Dark mode: tone down the blinding green highlight in search results */
+html[data-theme='dark'] .rushdb-search-modal {
+  --search-local-highlight-color: rgba(0, 255, 133, 0.85);
+  --search-local-hit-active-color: #0a0a0b;
+  --search-local-hit-background: #1e1e22;
+  --search-local-hit-shadow: none;
+  --search-local-modal-background: #111113;
+  --search-local-muted-color: #7b7b84;
+}
+
+/* Hide plugin's clear (×) button inside modal — Esc already handles closing */
+.rushdb-search-modal [class*='searchClearButton'] {
+  display: none !important;
+}
+
+/* Plugin dropdown — flow inside the modal, full width, no external shadow */
+.rushdb-search-modal [class*='dropdownMenu'] {
+  position: static !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  left: auto !important;
+  right: auto !important;
+  margin-top: 0 !important;
+  border-radius: 0 0 10px 10px !important;
+  box-shadow: none !important;
+  border-top: 1px solid var(--ifm-toc-border-color) !important;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 8px !important;
+  box-sizing: border-box !important;
+}
+
 .rushdb-theme-switch {
   position: relative;
   display: inline-flex;
@@ -495,6 +761,10 @@ html[data-theme='dark'] .rushdb-theme-switch {
 
 .rushdb-docs-sidebar-shell--collapsed .rushdb-sidebar-cta {
   visibility: hidden;
+}
+
+.rushdb-docs-sidebar-shell--collapsed .rushdb-docs-sidebar-search-trigger {
+  display: none;
 }
 
 .rushdb-docs-sidebar-shell--collapsed .rushdb-sidebar-expand-rail {
@@ -1334,9 +1604,9 @@ html[data-theme='dark'] .cta-button:hover {
     display: none !important;
   }
 
-  .navbar__items--right [class*='colorModeToggle'] {
+  /* .navbar__items--right [class*='colorModeToggle'] {
     display: block !important;
-  }
+  } */
 
   .navbar-sidebar__back {
     display: none;

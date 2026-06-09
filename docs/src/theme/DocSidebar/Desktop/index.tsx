@@ -6,7 +6,7 @@ import DocSidebarDesktop from '@theme-original/DocSidebar/Desktop'
 import Logo from '@theme/Logo'
 import SidebarCommunity from '@site/src/components/SidebarCommunity'
 import ThemeSwitch from '@site/src/components/ThemeSwitch'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import type DocSidebarDesktopType from '@theme/DocSidebar/Desktop'
 
 type Props = WrapperProps<typeof DocSidebarDesktopType>
@@ -54,7 +54,11 @@ function SidebarThemeToggle() {
   const isDark = currentColorMode === 'dark'
 
   return (
-    <ThemeSwitch disabled={!mounted} isDark={isDark} onToggle={() => setColorMode(isDark ? 'light' : 'dark')} />
+    <ThemeSwitch
+      disabled={!mounted}
+      isDark={isDark}
+      onToggle={() => setColorMode(isDark ? 'light' : 'dark')}
+    />
   )
 }
 
@@ -100,6 +104,17 @@ export default function DocSidebarDesktopWrapper(props: Props) {
           GET API KEY
         </Link>
       </div>
+
+      <button
+        type="button"
+        className="clean-btn rushdb-docs-sidebar-search-trigger"
+        onClick={() => document.dispatchEvent(new CustomEvent('rushdb:open-search'))}
+        aria-label="Open search"
+      >
+        <Search aria-hidden="true" className="rushdb-docs-sidebar-search-trigger__icon" size={14} />
+        <span className="rushdb-docs-sidebar-search-trigger__label">Search</span>
+        <kbd className="rushdb-docs-sidebar-search-trigger__kbd">⌘K</kbd>
+      </button>
 
       <DocSidebarDesktop {...props} />
 

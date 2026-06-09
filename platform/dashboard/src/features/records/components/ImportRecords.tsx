@@ -709,7 +709,7 @@ export function ImportRecords() {
                 }}
                 description="We'll upload a sample dataset for you to explore."
                 icon={<TestTube2 />}
-                title="Use sammple dataset"
+                title="Use sample dataset"
               />
               <RadioButton
                 description="Create a new JSON payload from scratch."
