@@ -1,9 +1,9 @@
 import { Button } from '~/elements/Button'
-import { PageContent, PageHeader } from '~/elements/PageHeader'
+import { PageContent } from '~/elements/PageHeader'
 import { TextField } from '~/elements/Input'
 import { FormField } from '~/elements/FormField'
 import { useCreateProjectMutation } from '~/features/projects/hooks/useProjectMutations'
-import { ArrowRight, SparklesIcon, Database, Cloud, Globe } from 'lucide-react'
+import { ArrowRight, SparklesIcon, Database, Globe } from 'lucide-react'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
@@ -12,9 +12,17 @@ import { useWorkspaceProjectsQuery } from '~/features/workspaces/hooks/useWorksp
 
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { setTourStep } from '~/features/tour/stores/tour.ts'
-import { useEffect, useState, useMemo } from 'react'
-import { useWatch } from 'react-hook-form'
-import { Label } from '~/elements/Label'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useStore } from '@nanostores/react'
+import { $tourAllowed, $tourStep } from '~/features/tour/stores/tour.ts'
+
+const DEFAULT_ONBOARDING_PROJECT_NAME = 'My First RushDB Project'
+const onboardingProjectSteps = new Set([
+  'homeNewProject',
+  'newProjectName',
+  'newProjectCustomDb',
+  'newProjectCreate'
+])
 
 // Type for form values
 type ProjectFormValues = {
@@ -48,10 +56,13 @@ const customSchema = object({
 }).required()
 
 function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'form'>) {
-  const { mutateAsync: mutate, error } = useCreateProjectMutation()
+  const { mutateAsync: mutate } = useCreateProjectMutation()
   const { data: workspace } = useCurrentWorkspaceQuery()
-  const { data: platformSettings, isPending: loading } = usePlatformSettings()
+  const { data: platformSettings } = usePlatformSettings()
   const { data: projects, isFetching: isProjectsFetching } = useWorkspaceProjectsQuery()
+  const tourAllowed = useStore($tourAllowed)
+  const tourStep = useStore($tourStep)
+  const isOnboardingProjectCreation = tourAllowed && onboardingProjectSteps.has(tourStep)
   const maxProjects = workspace?.projectLimit ?? null
   const showUpgradeButton = useMemo(() => {
     if (isProjectsFetching) {
@@ -81,10 +92,10 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
     }
   }
 
-  const getDefaultValues = (): Partial<ProjectFormValues> => {
+  const getDefaultValues = useCallback((): Partial<ProjectFormValues> => {
     const base = {
       description: '',
-      name: '',
+      name: isOnboardingProjectCreation ? DEFAULT_ONBOARDING_PROJECT_NAME : '',
       dataSource: selectedTab as ProjectFormValues['dataSource']
     }
 
@@ -94,15 +105,13 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
       default:
         return base
     }
-  }
+  }, [isOnboardingProjectCreation, selectedTab])
 
   const {
-    formState: { errors, isSubmitted, isSubmitting },
+    formState: { errors, isSubmitting },
     handleSubmit,
     register,
-    watch,
     reset,
-    control,
     setValue
   } = useForm<ProjectFormValues>({
     defaultValues: getDefaultValues(),
@@ -114,7 +123,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
     reset(getDefaultValues())
     // keep form dataSource in sync for schema
     setValue('dataSource', selectedTab)
-  }, [selectedTab, reset, setValue])
+  }, [getDefaultValues, selectedTab, reset, setValue])
 
   const handleFormSubmit = (data: ProjectFormValues) => {
     // Transform data to match the expected Project type
@@ -126,8 +135,6 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
     // @ts-expect-error customDb and stats are strings on the backend
     return mutate(projectData)
   }
-
-  const success = !error && isSubmitted
 
   return (
     <>

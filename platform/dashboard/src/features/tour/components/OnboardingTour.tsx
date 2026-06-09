@@ -16,6 +16,44 @@ import {
 import { CustomTooltip } from './CustomTooltip'
 import { $currentProjectId } from '~/features/projects/stores/id'
 import { useWaitForSelectorStable } from '~/features/tour/hooks/useWaitForSelector'
+import type { TourStepKey } from '~/features/tour/types'
+
+type TourStepData = {
+  key: TourStepKey
+  route: keyof typeof routes
+  redirectTo?: keyof typeof routes
+  nextShouldBeManuallySet?: boolean
+  noBack?: boolean
+  waitForManualAction?: boolean
+}
+
+function getStepData(step?: (typeof steps)[number]) {
+  return step?.data as TourStepData | undefined
+}
+
+function isProjectRouteName(route: keyof typeof routes): route is keyof typeof projectRoutes {
+  return route in projectRoutes
+}
+
+function fireOnboardingConfetti() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+  void import('@tsparticles/confetti')
+    .then(({ confetti }) =>
+      confetti({
+        count: 120,
+        spread: 80,
+        startVelocity: 45,
+        decay: 0.9,
+        gravity: 0.9,
+        scalar: 1,
+        ticks: 220,
+        zIndex: 10001,
+        colors: ['#C7F943', '#6366F1', '#FFFFFF', '#7DD3FC']
+      })
+    )
+    .catch(() => undefined)
+}
 
 export function OnboardingTour() {
   const page = useStore($router) as { route: keyof typeof routes }
@@ -25,18 +63,19 @@ export function OnboardingTour() {
   const { mutateAsync: updateSettings } = useUpdateUserMutation()
   const isAllowed = useStore($tourAllowed)
 
-  const currentStep = steps.find((s) => (s.data as any).key === currentKey)
-  const targetSelector = (currentStep?.target as string) || ''
+  const currentStep = steps.find((step) => getStepData(step)?.key === currentKey)
+  const targetSelector = typeof currentStep?.target === 'string' ? currentStep.target : ''
   const stepReady = useWaitForSelectorStable(targetSelector)
 
   useEffect(() => {
-    const def = steps.find((s) => (s.data as any).key === currentKey)
+    const def = steps.find((step) => getStepData(step)?.key === currentKey)
     if (!def) {
+      setTourStep('welcome', true)
       $tourRunning.set(false)
       return
     }
 
-    const { route: stepRoute } = def.data as any
+    const stepRoute = getStepData(def)?.route
     if (page.route === stepRoute && isAllowed && stepReady) {
       $tourRunning.set(true)
     } else {
@@ -53,34 +92,37 @@ export function OnboardingTour() {
 
     if (action === 'next' && index === steps.length - 1) {
       updateSettings({ settings: JSON.stringify({ onboardingStatus: 'finished' }) })
+      fireOnboardingConfetti()
       $tourRunning.set(false)
       return
     }
 
     if (type === EVENTS.STEP_AFTER) {
-      const data = (steps[index].data as any) || {}
+      const data = getStepData(steps[index])
 
-      if (action === 'next' && !data.nextShouldBeManuallySet) {
+      if (action === 'next' && data && !data.nextShouldBeManuallySet) {
         const nextKey = keys[index + 1]
         if (data.redirectTo) {
-          const route = data.redirectTo as keyof typeof projectRoutes
-          if (projectRoutes[route] && projectId) {
+          const route = data.redirectTo
+          if (isProjectRouteName(route) && projectId) {
             openRoute(route, { id: projectId })
           } else {
-            openRoute(route as keyof typeof routes)
+            openRoute(route)
           }
         }
         setTourStep(nextKey)
       }
 
-      if (action === 'prev' && !data.noBack) {
+      if (action === 'prev' && !data?.noBack) {
         const prevKey = keys[index - 1]
-        const prevData = (steps[index - 1]?.data as any) || {}
-        const backRoute = prevData.route as keyof typeof routes
-        if (projectRoutes[backRoute as keyof typeof projectRoutes] && projectId) {
-          openRoute(backRoute as keyof typeof projectRoutes, { id: projectId })
-        } else {
+        const prevData = getStepData(steps[index - 1])
+        const backRoute = prevData?.route
+        if (backRoute && isProjectRouteName(backRoute) && projectId) {
+          openRoute(backRoute, { id: projectId })
+        } else if (backRoute) {
           openRoute(backRoute)
+        } else {
+          openRoute('home')
         }
         setTourStep(prevKey, true)
       }

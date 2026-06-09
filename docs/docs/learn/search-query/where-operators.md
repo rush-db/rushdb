@@ -7,6 +7,8 @@ sidebar_position: 1
 
 The `where` clause in SearchQuery is a powerful mechanism to filter records based on property values and relationships. It's one of the key elements that make RushDB queries flexible and expressive.
 
+`where` is scoped by the resource you query. In `records.find`, exports, deletes, `labels.find`, and `properties.find`, it filters Records. In `relationships.find`, it filters relationship edges; use `source` and `target` to filter endpoint Records.
+
 #### Where Placement in SearchQuery DTO
 
 The `where` clause is defined in the `where` key of the SearchQuery DTO:
@@ -34,9 +36,27 @@ The simplest form of filtering is direct equality matching:
 {
   where: {
     name: "John Doe",          // Exact string match
+    status: { $eq: "active" }, // Exact match using MongoDB-style operator syntax
     isActive: true,            // Boolean match
     age: 30,                   // Number match
     created: "2023-01-01T00:00:00Z"  // ISO 8601 datetime match
+  }
+}
+```
+
+`$eq` is an alias for direct equality. These two forms are equivalent:
+
+```typescript
+{
+  where: {
+    status: 'active'
+  }
+}
+{
+  where: {
+    status: {
+      $eq: 'active'
+    }
   }
 }
 ```

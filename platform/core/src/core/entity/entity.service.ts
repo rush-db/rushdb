@@ -19,6 +19,11 @@ import { PropertyService } from '@/core/property/property.service'
 import { TPropertyProperties } from '@/core/property/property.types'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
+import { RelationshipSearchDto } from '@/core/relationships/dto/relationship-search.dto'
+import {
+  normalizeRelationshipProperties,
+  RelationshipProperties
+} from '@/core/relationships/relationship-properties'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
 
@@ -327,7 +332,7 @@ export class EntityService {
     transaction
   }: {
     id?: string
-    searchQuery?: SearchDto
+    searchQuery?: RelationshipSearchDto
     pagination?: Pick<SearchDto, 'skip' | 'limit'>
     projectId: string
     transaction: Transaction
@@ -345,7 +350,7 @@ export class EntityService {
     transaction
   }: {
     id?: string
-    searchQuery?: SearchDto
+    searchQuery?: RelationshipSearchDto
     projectId: string
     transaction: Transaction
   }): Promise<TRecordRelationsResponse['total']> {
@@ -362,10 +367,12 @@ export class EntityService {
     transaction: Transaction
   ): Promise<{ message: string }> {
     const { targetIds, type, direction } = attachDto
+    const properties = normalizeRelationshipProperties(attachDto.properties)
     const query = this.entityQueryService.createRelation(type, direction)
     await transaction.run(query, {
       id: entityId,
       targetIds: isArray(targetIds) ? targetIds : [targetIds],
+      properties,
       projectId
     })
 
@@ -400,7 +407,8 @@ export class EntityService {
     direction,
     projectId,
     transaction,
-    manyToMany
+    manyToMany,
+    properties
   }: {
     source: { label: string; key?: string; where?: Where }
     target: { label: string; key?: string; where?: Where }
@@ -409,7 +417,9 @@ export class EntityService {
     projectId: string
     transaction: Transaction
     manyToMany?: boolean
+    properties?: RelationshipProperties
   }): Promise<number> {
+    const relationshipProperties = normalizeRelationshipProperties(properties)
     const query = this.entityQueryService.createRelationsByKeys({
       sourceLabel: source.label,
       sourceKey: source.key,
@@ -422,7 +432,7 @@ export class EntityService {
       manyToMany
     })
 
-    const result = await transaction.run(query, { projectId })
+    const result = await transaction.run(query, { projectId, relationshipProperties })
     const row = result.records[0]
     const failedOperations = row?.get('failedOperations')
     const failedCount =

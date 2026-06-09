@@ -256,6 +256,7 @@ function createMcpServer(): Server {
               targetIds: args.targetIds as string[] | undefined,
               relationType: args.relationType as string | undefined,
               direction: args.direction as 'outgoing' | 'incoming' | 'bidirectional' | undefined,
+              properties: args.properties as Record<string, unknown> | undefined,
               transactionId: args.transactionId as string | undefined
             })
             return toolResult(attachResult, attachResult.message)
@@ -274,6 +275,8 @@ function createMcpServer(): Server {
           case 'findRelationships':
             const relations = await findRelationships({
               where: args.where as Record<string, any> | undefined,
+              source: args.source as { labels?: string[]; where?: Record<string, any> } | undefined,
+              target: args.target as { labels?: string[]; where?: Record<string, any> } | undefined,
               limit: args.limit as number | undefined,
               skip: args.skip as number | undefined,
               orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
@@ -348,7 +351,8 @@ function createMcpServer(): Server {
             const exportResult = await exportRecords({
               labels: args.labels as string[] | undefined,
               where: args.where as Record<string, any> | undefined,
-              limit: args.limit as number | undefined
+              limit: args.limit as number | undefined,
+              orderBy: args.orderBy as Record<string, 'asc' | 'desc'> | undefined
             })
             return toolResult(
               exportResult,

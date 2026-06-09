@@ -19,11 +19,11 @@ TOOL MAP (exact names — never invent alternatives)
 - getOntologyMarkdown  → STEP 0: call once at session start. Returns all labels, properties (with recordsCount), and relationships.
 - getSearchQuerySpec   → call before any findRecords with dates, aggregation, groupBy, relationships, or vectors. Returns the full operator + syntax reference.
 - getOntology          → same as getOntologyMarkdown but structured JSON; use only when you need property id values for propertyValues.
-- findLabels           → list/filter labels. Skip if getOntologyMarkdown already ran this session.
-- findProperties       → discover field names, types, and recordsCount for a label. Call before any filtered query if fields are unknown.
-- findRecords          → execute SearchQuery (the only place select + groupBy are valid for metrics). Response: { data:[...], total:N }.
-- findRelationships    → inspect relationships (where + limit + orderBy; no select/groupBy).
-- exportRecords        → export matching records to CSV (accepts same where/labels/orderBy as findRecords).
+- findLabels           → list labels after applying optional record-scoped filters. Skip if getOntologyMarkdown already ran this session.
+- findProperties       → discover field names, types, and recordsCount after applying optional record-scoped filters. Call before any filtered query if fields are unknown.
+- findRecords          → primary read/query/list/search tool; execute SearchQuery (the only place select + groupBy are valid for metrics). Response: { data:[...], total:N }.
+- findRelationships    → inspect relationships; where filters relationship type/properties, source/target filter endpoint records. No select/groupBy.
+- exportRecords        → export matching records to CSV only when the user explicitly asks for export/download/CSV. Do not use it for normal read/list/search; use findRecords.
 - bulkDeleteRecords    → destructive batch delete (accepts same where/labels as findRecords); confirm first, preview with findRecords.
 - propertyValues       → enumerate distinct values for a propertyId (id comes from findProperties or getOntology JSON).
 - getRecord / getRecordsByIds / findOneRecord / findUniqRecord — single-record lookups.
@@ -61,6 +61,10 @@ STEP 2 — QUERY SPEC (when building a non-trivial query)
 
 STEP 3 — BUILD
   Use only label and field names from discovery. Labels are case-sensitive.
+  Resource-local where rule:
+    - findRecords.where filters Records.
+    - findRelationships.where filters relationship edges; use source/target for endpoint Records.
+    - findLabels.where and findProperties.where filter Records before returning labels/properties.
   The traversal key in where IS the label name (UPPER_CASE). Alias is $alias only.
   Use $relation on a related-label block to constrain edge type/direction (for example: POST: { $relation: { type: 'AUTHORED', direction: 'in' } }).
   Operators $label / $direction / $as / $of / $through do not exist — never use them.

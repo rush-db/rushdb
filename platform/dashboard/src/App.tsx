@@ -11,6 +11,7 @@ import { SignInPage } from '~/pages/signin'
 import { SignUpPage } from '~/pages/signup'
 import { WorkspaceBillingPage } from '~/pages/workspace/billing'
 import { WorkspaceApiUsagePage } from '~/pages/workspace/api-usage'
+import { WorkspaceGettingStartedPage } from '~/pages/workspace/getting-started'
 import { WorkspaceProjectsPage } from '~/pages/workspace/projects'
 import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
 import { WorkspaceUsersPage } from '~/pages/workspace/users'
@@ -35,6 +36,7 @@ const PAGE_TITLES: Record<string, string> = {
   newProject: 'New Project',
   newWorkspace: 'New Workspace',
   workspaceSettings: 'Workspace Settings',
+  workspaceGettingStarted: 'Getting Started',
   workspaceUsers: 'Workspace Members',
   workspaceBilling: 'Billing',
   workspaceApiUsage: 'API Usage',
@@ -98,6 +100,8 @@ function ProtectedRoutes() {
       return <ProfilePage />
     case 'workspaceSettings':
       return isOwner ? <WorkspaceSettingsPage /> : null
+    case 'workspaceGettingStarted':
+      return <WorkspaceGettingStartedPage />
     case 'workspaceUsers':
       return isOwner ? <WorkspaceUsersPage /> : null
     case 'joinWorkspace':

@@ -194,6 +194,8 @@ Returns the same ontology as a structured JSON array. Each element describes one
 - `properties[].min` / `.max` — range info (number/datetime only)
 - `properties[].vectorIndexes` — non-empty when one or more embedding indexes exist for this property; each entry has `id`, `sourceType`, `similarityFunction`, `dimensions`, `status`, and `modelKey`. Use `POST /api/v1/ai/search` to query semantically.
 - `relationships[].direction` — `out` = this label is source; `in` = this label is target
+- `relationships[].count` — number of observed edges for that relationship pattern
+- `relationships[].properties` — optional summaries of user-defined edge properties discovered on that pattern
 
 ---
 

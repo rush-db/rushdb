@@ -902,7 +902,7 @@ export const GraphView: FC = () => {
   )
 
   return (
-    <div className="graph-view relative">
+    <div className="graph-view relative" data-tour="records-graph-view">
       <style>{`
         .graph-view .graph-tooltip,
         .graph-tooltip {

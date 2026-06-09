@@ -14,6 +14,12 @@
 
 import { db } from '../util/db.js'
 
+const normalizeDirection = (direction: 'outgoing' | 'incoming' | 'bidirectional') => {
+  if (direction === 'incoming') return 'in'
+  if (direction === 'outgoing') return 'out'
+  return undefined
+}
+
 export async function detachRelation(params: {
   sourceId: string
   targetId?: string
@@ -28,8 +34,9 @@ export async function detachRelation(params: {
   if (relationType) {
     options.typeOrTypes = relationType
   }
-  if (direction) {
-    options.direction = direction
+  const normalizedDirection = normalizeDirection(direction)
+  if (normalizedDirection) {
+    options.direction = normalizedDirection
   }
 
   const targets: string[] =

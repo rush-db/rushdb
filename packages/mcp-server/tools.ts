@@ -308,7 +308,9 @@ const outputSchemas = {
             sourceLabel: { type: 'string' },
             targetId: { type: 'string' },
             targetLabel: { type: 'string' },
-            type: { type: 'string' }
+            type: { type: 'string' },
+            direction: { type: 'string' },
+            properties: { type: 'object', additionalProperties: true }
           },
           additionalProperties: true
         }
@@ -500,7 +502,7 @@ export const tools: Tool[] = (
         'STEP 0 — call this ONCE at the start of every conversation before constructing any query. ' +
         'Returns the complete graph ontology as compact Markdown: all labels with record counts, ' +
         'all properties per label with their type and value ranges (min/max for numbers/datetimes, ' +
-        'sample values for strings/booleans), and all cross-label relationships with direction. ' +
+        'sample values for strings/booleans), and all cross-label relationships with direction and edge property summaries. ' +
         'The Properties table includes a "Semantic Search" column: properties with an embedding index show ' +
         '`sourceType similarityFunction dimensionsd [status]` (e.g. `managed cosine 1536d [ready]`); ' +
         'others show `—`. A non-`—` value means the property is queryable with aiSemanticSearch. ' +
@@ -534,7 +536,7 @@ export const tools: Tool[] = (
         'Each item has: label (string), count (number), properties (array with id, name, type, ' +
         'recordsCount (number of records that carry this property), ' +
         'min/max for numbers/datetimes, values[] for strings/booleans, and an optional vectorIndexes array), ' +
-        'and relationships (array with label, type, direction: in|out). ' +
+        'and relationships (array with label, type, direction: in|out, count, and optional edge properties). ' +
         'vectorIndexes is non-empty when one or more embedding indexes exist for that property; ' +
         'each entry has: id, sourceType (managed|external), similarityFunction (cosine|euclidean), ' +
         'dimensions (number), status (pending|indexing|ready|error), modelKey. ' +
@@ -565,10 +567,10 @@ export const tools: Tool[] = (
       description:
         'List or filter available record types (labels) and their counts. ' +
         'IMPORTANT: getOntologyMarkdown already returns ALL label names in STEP 0 — do NOT call findLabels as a substitute for it. ' +
-        'Only call findLabels when: (a) you need to search/filter labels by name, or (b) getOntologyMarkdown was not called yet. ' +
+        'Only call findLabels when you need label counts after applying record-scoped predicates, or getOntologyMarkdown was not called yet. ' +
         'Call with no arguments to list all labels. ' +
-        'To search by name: where: { name: { $contains: "candidate" } }. ' +
-        'Returns objects with name (case-sensitive — use exact casing in all subsequent calls) and count (number of records). ' +
+        '`where` is applied to Records, not label metadata; use getOntologyMarkdown to search label names. ' +
+        'Returns objects with name (case-sensitive — use exact casing in all subsequent calls) and count (number of matching records). ' +
         'Pick the best matching label by: exact match > starts-with > substring > semantic similarity, preferring higher count on ties. ' +
         'State your label assumption briefly ("using DEAL for \'deals\'") and proceed without asking.',
       inputSchema: {
@@ -576,7 +578,7 @@ export const tools: Tool[] = (
         properties: {
           where: {
             type: 'object',
-            description: 'Filter conditions. Use { name: { $contains: "..." } } to search by label name.'
+            description: 'Record-scoped filter conditions applied before label counts are returned.'
           },
           limit: { type: 'number', description: 'Maximum number of labels to return' },
           skip: { type: 'number', description: 'Number of labels to skip' },
@@ -669,6 +671,8 @@ export const tools: Tool[] = (
       annotations: READ_ONLY,
       securitySchemes: READ_SCHEMES,
       description:
+        'Primary read/query/list/search tool for records. Use findRecords to find records, search records, list records, retrieve matching records, filter records, or answer questions from data. ' +
+        'Use this instead of exportRecords unless the user explicitly asks for CSV/export/download. ' +
         'Search records with a structured SearchQuery. ' +
         'BEFORE building any query with dates, metrics, groupBy, relationship traversal, or vector search — call getSearchQuerySpec to load the complete syntax reference. ' +
         'INTENT: metrics/analytics request (count/total/sum/avg/breakdown/top N by metric) → MUST include select + groupBy. NEVER fetch raw records to count/sum manually. ' +
@@ -684,7 +688,8 @@ export const tools: Tool[] = (
             type: 'object',
             description:
               'Filter conditions. Field names must match exactly what findProperties/getOntologyMarkdown returns. ' +
-              'For the complete operator reference (string/number/boolean/datetime/vector/$exists/$type/logical/$alias/$relation/$id) call getSearchQuerySpec.'
+              'Exact match can be field: value or field: { $eq: value }. ' +
+              'For the complete operator reference (string/number/boolean/datetime/vector/$eq/$exists/$type/logical/$alias/$relation/$id) call getSearchQuerySpec.'
           },
           limit: {
             type: 'number',
@@ -776,6 +781,12 @@ export const tools: Tool[] = (
             description: 'Direction of the relationship',
             default: 'outgoing'
           },
+          properties: {
+            type: 'object',
+            description:
+              'Optional user-defined properties to store on the relationship edge. Reserved RushDB/internal keys are rejected.',
+            additionalProperties: true
+          },
           transactionId: {
             type: 'string',
             description: 'Optional transaction ID for atomic relation creation'
@@ -826,14 +837,36 @@ export const tools: Tool[] = (
       securitySchemes: READ_SCHEMES,
       description:
         'Discover and traverse relationships between records. Use this tool in two scenarios: ' +
-        '(1) Multi-hop path discovery — fetch a sample record ID, then call findRelationships filtered by that ID to reveal which labels are adjacent; repeat to trace the full path before building a nested findRecords where clause. ' +
-        '(2) Direction/type filtering — when the user specifies a relationship type or direction that cannot be expressed in a findRecords where block. ' +
+        '(1) Multi-hop path discovery — fetch a sample record ID, then call findRelationships with source.where or target.where containing that ID to reveal adjacent labels; repeat to trace the full path before building a nested findRecords where clause. ' +
+        '(2) Edge filtering — where applies to relationship type/properties; use source/target for endpoint record predicates. ' +
         'Does NOT support select or groupBy — use findRecords for metrics/analytics across related labels.',
 
       inputSchema: {
         type: 'object',
         properties: {
-          where: { type: 'object', description: 'Search conditions for finding relationships' },
+          where: {
+            type: 'object',
+            description:
+              'Relationship-edge predicates. `type` filters the relationship type; other fields filter relationship properties.'
+          },
+          source: {
+            type: 'object',
+            description: 'Optional source endpoint filter: labels and/or record-scoped where predicates.',
+            properties: {
+              labels: { type: 'array', items: { type: 'string' } },
+              where: { type: 'object', additionalProperties: true }
+            },
+            additionalProperties: false
+          },
+          target: {
+            type: 'object',
+            description: 'Optional target endpoint filter: labels and/or record-scoped where predicates.',
+            properties: {
+              labels: { type: 'array', items: { type: 'string' } },
+              where: { type: 'object', additionalProperties: true }
+            },
+            additionalProperties: false
+          },
           limit: { type: 'number', description: 'Maximum number of relationships to return', default: 10 },
           skip: { type: 'number', description: 'Number of relationships to skip', default: 0 },
           orderBy: {
@@ -978,7 +1011,8 @@ export const tools: Tool[] = (
       annotations: READ_ONLY,
       securitySchemes: READ_SCHEMES,
       description:
-        'Export matching records as a CSV file. ' +
+        'Export matching records as a CSV file only when the user explicitly asks to export/download CSV. ' +
+        'For normal reading, answering, listing, searching, or inspecting records, use findRecords instead. ' +
         'Accepts the same labels/where/orderBy filters as findRecords. ' +
         'Call findProperties first to know available field names if constructing a where filter.',
 
@@ -1135,7 +1169,7 @@ export const tools: Tool[] = (
       description:
         'Discover the field names, types, and IDs available on a record label. ' +
         'Always call this before using field names in any query — never guess or invent field names. ' +
-        'Filter by label using: where: { label: { $in: ["LABEL_NAME"] } }. ' +
+        'Filter by label using labels: ["LABEL_NAME"]. `where` is applied to Records, not property metadata. ' +
         'Each returned property object has: id (string), name (string), type (string | number | boolean | datetime | vector | null), recordsCount (number of records that carry this property). ' +
         'Use the `name` field as the field name in where/orderBy/groupBy clauses. ' +
         'Use the `id` field as the `propertyId` argument to propertyValues. ' +
@@ -1145,7 +1179,10 @@ export const tools: Tool[] = (
       inputSchema: {
         type: 'object',
         properties: {
-          where: { type: 'object', description: 'Search conditions for finding properties' },
+          where: {
+            type: 'object',
+            description: 'Record-scoped filter conditions applied before properties are returned.'
+          },
           limit: { type: 'number', description: 'Maximum number of properties to return', default: 10 },
           skip: { type: 'number', description: 'Number of properties to skip', default: 0 },
           orderBy: {

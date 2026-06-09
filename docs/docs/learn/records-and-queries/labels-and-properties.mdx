@@ -96,9 +96,10 @@ A **property** is a field definition created automatically when you write a reco
 # All properties
 props = db.properties.find()
 
-# Filtered by type
+# Properties used by records matching a Record filter
 props = db.properties.find({
-    "where": {"type": "string"},
+    "labels": ["MOVIE"],
+    "where": {"rating": {"$gte": 8}},
     "limit": 20
 })
 ```
@@ -110,7 +111,8 @@ props = db.properties.find({
 
 ```typescript
 const { data } = await db.properties.find({
-  where: { type: 'number' }
+  labels: ['MOVIE'],
+  where: { rating: { $gte: 8 } }
 })
 // [{ id, name: 'rating', type: 'number', ... }, ...]
 ```
@@ -124,7 +126,7 @@ const { data } = await db.properties.find({
 curl -X POST https://api.rushdb.com/api/v1/properties/search \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"where": {"type": "string"}}'
+  -d '{"labels": ["MOVIE"], "where": {"rating": {"$gte": 8}}}'
 ```
 
   </TabItem>

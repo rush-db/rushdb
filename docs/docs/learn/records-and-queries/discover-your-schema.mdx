@@ -275,6 +275,15 @@ type OntologyRelationship = {
   label: string
   type: string
   direction: 'in' | 'out'
+  count?: number
+  properties?: Array<{
+    name: string
+    type: string
+    values?: Array<string | number | boolean>
+    min?: number | string
+    max?: number | string
+    relationshipsCount: number
+  }>
 }
 ```
 

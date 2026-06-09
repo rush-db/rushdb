@@ -1225,6 +1225,54 @@ describe('select expression API', () => {
   })
 })
 
+describe('relationship search query API', () => {
+  let queryService: EntityQueryService
+
+  beforeEach(() => {
+    queryService = new EntityQueryService()
+  })
+
+  it('filters relationship edges in top-level where and endpoint records in source/target', () => {
+    const query = queryService.getRecordRelations({
+      searchQuery: {
+        source: { labels: ['USER'], where: { status: 'active' } },
+        target: { labels: ['ORDER'] },
+        where: { type: 'ORDERED', confidence: { $gte: 0.8 } },
+        limit: 25
+      }
+    })
+
+    expect(query).toContain('MATCH (source:__RUSHDB__LABEL__RECORD__')
+    expect(query).toContain('-[rel]->')
+    expect(query).toContain('any(label IN labels(source) WHERE label IN ["USER"])')
+    expect(query).toContain('any(value IN source.`status` WHERE value = "active")')
+    expect(query).toContain('any(label IN labels(target) WHERE label IN ["ORDER"])')
+    expect(query).toContain('type(rel) = "ORDERED"')
+    expect(query).toContain('rel.`confidence`')
+    expect(query).toContain('SKIP 0 LIMIT 25')
+  })
+
+  it('keeps record-local relationship listing bidirectional unless direction is explicit', () => {
+    const query = queryService.getRecordRelations({ id: 'record-id' })
+
+    expect(query).toContain('(source:__RUSHDB__LABEL__RECORD__')
+    expect(query).toContain('-[rel]-(target:__RUSHDB__LABEL__RECORD__')
+    expect(query).toContain('any(value IN source.`__RUSHDB__KEY__ID__` WHERE value = "record-id")')
+  })
+
+  it('supports incoming direction filters for relationship search', () => {
+    const query = queryService.getRecordRelations({
+      searchQuery: {
+        source: { where: { $id: 'record-id' } },
+        where: { direction: 'in', type: 'MENTIONS' }
+      }
+    })
+
+    expect(query).toContain('<-[rel]-')
+    expect(query).toContain('type(rel) = "MENTIONS"')
+  })
+})
+
 // ─────────────────────────────────────────────────────────────────────────────
 // label-based $collect — inline traversal without pre-declared $alias
 // Tests 43–46 cover the new unified select path: $collect.label + $self + $collect.where

@@ -16,9 +16,14 @@ export const useCreateWorkspaceMutation = () => {
   return useMutation({
     mutationFn: ({ name }: Pick<Workspace, 'name'>) => api.workspaces.create({ name }),
     onSuccess(data) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all() })
+      queryClient.setQueryData<Workspace[]>(queryKeys.workspaces.all(), (workspaces = []) => [
+        data,
+        ...workspaces.filter((workspace) => workspace.id !== data.id)
+      ])
+      queryClient.setQueryData(queryKeys.workspaces.detail(data.id), data)
       setCurrentWorkspace(data.id)
       redirectRoute('home')
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all() })
     }
   })
 }
@@ -61,7 +66,7 @@ export const useLeaveWorkspaceMutation = () => {
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all() })
       toast({ title: 'You left the workspace', duration: 3000 })
-      setCurrentWorkspace(undefined as any)
+      setCurrentWorkspace(undefined)
       redirectRoute('home')
     },
     onError(err) {

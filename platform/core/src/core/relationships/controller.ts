@@ -29,12 +29,13 @@ import { TRecordRelationsResponse, TRelationDirection } from '@/core/entity/enti
 import { TrackHeavySearchKu } from '@/core/ku-events/track-heavy-search-ku.interceptor'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
+import { RelationshipSearchDto } from '@/core/relationships/dto/relationship-search.dto'
+import { RelationshipProperties } from '@/core/relationships/relationship-properties'
 import {
   createRelationSchema,
   deleteRelationsSchema,
   createRelationsByKeysSchema
 } from '@/core/relationships/validation/schemas/relations.schema'
-import { SearchDto } from '@/core/search/dto/search.dto'
 import { pagination } from '@/core/search/parser/pagination'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
@@ -130,6 +131,7 @@ export class RelationshipsController {
       target: { label: string; key?: string; where?: Where }
       type?: string
       direction?: TRelationDirection
+      properties?: RelationshipProperties
       manyToMany?: boolean
     },
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -155,7 +157,7 @@ export class RelationshipsController {
   @HttpCode(HttpStatus.OK)
   async findRelations(
     @PreferredTransactionDecorator() transaction: Transaction,
-    @Body() searchQuery: SearchDto = {},
+    @Body() searchQuery: RelationshipSearchDto = {},
     @Request() request: PlatformRequest,
     @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
     @Query('limit', new DefaultValuePipe(1000), ParseIntPipe) limit?: number

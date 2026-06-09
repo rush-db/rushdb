@@ -14,7 +14,7 @@ sidebar_position: 3
 curl -X POST https://api.rushdb.com/api/v1/records/$MOVIE_ID/relationships \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"targetIds": "$ACTOR_ID", "type": "STARS_IN", "direction": "out"}'
+  -d '{"targetIds": "$ACTOR_ID", "type": "STARS_IN", "direction": "out", "properties": {"role": "lead"}}'
 
 # Multiple targets
 curl -X POST https://api.rushdb.com/api/v1/records/$MOVIE_ID/relationships \
@@ -23,11 +23,12 @@ curl -X POST https://api.rushdb.com/api/v1/records/$MOVIE_ID/relationships \
   -d '{"targetIds": ["$ACTOR1_ID", "$ACTOR2_ID"], "type": "STARS_IN"}'
 ```
 
-| Field       | Type                 | Description                                       |
-| ----------- | -------------------- | ------------------------------------------------- |
-| `targetIds` | `string \| string[]` | Target record ID(s)                               |
-| `type`      | `string`             | Relationship type                                 |
-| `direction` | `"in" \| "out"`      | Direction from source to target (`out` = default) |
+| Field        | Type                 | Description                                       |
+| ------------ | -------------------- | ------------------------------------------------- |
+| `targetIds`  | `string \| string[]` | Target record ID(s)                               |
+| `type`       | `string`             | Relationship type                                 |
+| `direction`  | `"in" \| "out"`      | Direction from source to target (`out` = default) |
+| `properties` | `object`             | Optional user-defined edge properties             |
 
 ## Detach
 
@@ -61,7 +62,8 @@ curl -X POST https://api.rushdb.com/api/v1/relationships/create-many \
     "source": {"label": "MOVIE",  "key": "id"},
     "target": {"label": "ACTOR",  "key": "movieId"},
     "type": "STARS_IN",
-    "direction": "out"
+    "direction": "out",
+    "properties": {"source": "imdb", "confidence": 0.98}
   }'
 ```
 
@@ -71,6 +73,7 @@ curl -X POST https://api.rushdb.com/api/v1/relationships/create-many \
 | `target`     | `{label, key?, where?}` | Target selector                                                   |
 | `type`       | `string`                | Relationship type                                                 |
 | `direction`  | `string`                | `in` or `out`                                                     |
+| `properties` | `object`                | Shared user-defined properties to write on each created edge      |
 | `manyToMany` | `boolean`               | Cartesian product mode — requires non-empty `where` on both sides |
 
 ## Bulk Delete
@@ -102,8 +105,15 @@ Setting `manyToMany: true` without `where` filters on both sides creates an unbo
 curl -X POST https://api.rushdb.com/api/v1/relationships/search \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"where": {"sourceRecord": {"title": "Inception"}}}'
+  -d '{
+    "source": { "labels": ["MOVIE"], "where": { "title": "Inception" } },
+    "target": { "labels": ["ACTOR"], "where": { "country": "USA" } },
+    "where": { "type": "STARS_IN", "role": "lead" },
+    "limit": 50
+  }'
 ```
+
+`where` filters relationship edges: `type` maps to the relationship type and every other field maps to a user-defined edge property. Use `source` and `target` for endpoint record predicates.
 
 ## Suggested Patterns
 

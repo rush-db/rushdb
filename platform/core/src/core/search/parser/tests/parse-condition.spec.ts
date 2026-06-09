@@ -60,6 +60,29 @@ describe('parseComparison', () => {
     )
   })
 
+  it('parses $eq as an exact-match alias', () => {
+    const result0 = parseComparison('name', { $eq: 'Jack' }, queryBuilderOptions)
+    expect(result0).toEqual([`any(value IN ${queryBuilderOptions.nodeAlias}.\`name\` WHERE value = "Jack")`])
+
+    const result1 = parseComparison('age', { $eq: 21 }, queryBuilderOptions)
+    expect(result1).toEqual([`any(value IN ${queryBuilderOptions.nodeAlias}.\`age\` WHERE value = 21)`])
+
+    const result2 = parseComparison('confirmed', { $eq: true }, queryBuilderOptions)
+    expect(result2).toEqual([
+      `any(value IN ${queryBuilderOptions.nodeAlias}.\`confirmed\` WHERE value = true)`
+    ])
+
+    const result3 = parseComparison('field', { $eq: null }, queryBuilderOptions)
+    expect(result3).toEqual([
+      `any(value IN ${queryBuilderOptions.nodeAlias}.\`field\` WHERE value = \"${RUSHDB_VALUE_NULL}\")`
+    ])
+
+    const result4 = parseComparison('dob', { $eq: { $year: 1922, $month: 1, $day: 31 } }, queryBuilderOptions)
+    expect(result4).toEqual([
+      `any(value IN ${queryBuilderOptions.nodeAlias}.\`dob\` WHERE apoc.convert.fromJsonMap(${queryBuilderOptions.nodeAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`dob\` = "datetime" AND datetime(value) = datetime({year: 1922, month: 1, day: 31}))`
+    ])
+  })
+
   it('parses $in and $nin operators correctly', () => {
     const result0 = parseComparison('status', { $in: ['active', 'inactive'] }, queryBuilderOptions)
     expect(result0).toEqual([

@@ -4,6 +4,7 @@ export type EmbeddingIndex = {
   label: string
   propertyName: string
   modelKey: string
+  sourceType?: 'managed' | 'external'
   dimensions: number
   enabled: boolean
   /** 'pending' | 'indexing' | 'ready' | 'error' */

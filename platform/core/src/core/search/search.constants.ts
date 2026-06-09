@@ -3,6 +3,7 @@ export const SORT_ASC = 'asc' as const
 export const SORT_DESC = 'desc' as const
 
 export const COMPARISON_OPERATORS_MAP = {
+  $eq: '=',
   $gt: '>',
   $gte: '>=',
   $lt: '<',
@@ -11,6 +12,7 @@ export const COMPARISON_OPERATORS_MAP = {
 } as const
 
 export const comparisonOperators = [
+  '$eq',
   '$in',
   '$ne',
   '$nin',

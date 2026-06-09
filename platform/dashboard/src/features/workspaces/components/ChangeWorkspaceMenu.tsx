@@ -35,6 +35,7 @@ export function ChangeWorkspaceMenu() {
         </MenuButton>
       }
       align="start"
+      onCloseAutoFocus={(event: Event) => event.preventDefault()}
     >
       <MenuTitle>Workspaces</MenuTitle>
 

@@ -113,6 +113,8 @@ export function PlanCard({
             className="w-full min-w-48 justify-center font-semibold"
             disabled={active || free}
             priceId={priceId ?? ''}
+            planName={plan.name}
+            billingPeriod={currentPeriod === 'annual' ? 'annual' : 'monthly'}
             variant={free ? 'secondary' : 'accent'}
           >
             {active ?

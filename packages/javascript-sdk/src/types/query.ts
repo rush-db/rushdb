@@ -272,6 +272,19 @@ export type SearchQuery<S extends Schema = any> = SearchQueryLabelsClause &
   AggregateClause &
   GroupByClause
 
+export type RelationshipEndpointQuery<S extends Schema = any> = SearchQueryLabelsClause & WhereClause<S>
+
+export type RelationshipSearchQuery<S extends Schema = any> = PaginationClause &
+  OrderClause<any> & {
+    /**
+     * Relationship-edge predicates. `type` maps to the relationship type and every other
+     * field maps to a user-defined property stored on the relationship.
+     */
+    where?: Where<S> & { type?: any; direction?: 'in' | 'out' }
+    source?: RelationshipEndpointQuery
+    target?: RelationshipEndpointQuery
+  }
+
 /** Redeclare Models type in order to have suggestions over related records fields **/
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface Models {}

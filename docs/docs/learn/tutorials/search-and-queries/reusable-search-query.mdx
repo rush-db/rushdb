@@ -85,6 +85,8 @@ Supported by:
 
 And paired with values exploration via `/api/v1/properties/:id/values`.
 
+`where` is resource-local. For records, labels, properties, exports, and deletes it filters Records. For `relationships.find`, `where` filters relationship edges (`type` plus user-defined edge properties); use `source` and `target` for endpoint Record filters.
+
 ## Why It Matters
 
 - Reduced learning curve
@@ -595,6 +597,7 @@ curl -X PUT "https://api.rushdb.com/api/v1/records/delete" \
   <TabItem value="typescript" label="TypeScript" default>
 ```typescript
 const createdRelationships = await db.relationships.find({
+  source: { labels: ['USER'], where: { group: 'admin' } },
   where: {
     type: 'CREATED',
     weight: { $gte: 0.5 }
@@ -606,6 +609,7 @@ const createdRelationships = await db.relationships.find({
   <TabItem value="python" label="Python">
 ```python
 created_relationships = db.relationships.find({
+  "source": {"labels": ["USER"], "where": {"group": "admin"}},
   "where": {
     "type": "CREATED",
     "weight": {"$gte": 0.5}
@@ -621,6 +625,7 @@ curl -X POST "https://api.rushdb.com/api/v1/relationships/search" \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
+    "source": { "labels": ["USER"], "where": { "group": "admin" } },
     "where": {
       "type": "CREATED",
       "weight": { "$gte": 0.5 }

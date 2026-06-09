@@ -22,6 +22,46 @@ export type EmbedBatchWithUsageResult = {
   tokensUsed?: number
 }
 
+function stringifyProviderErrorBody(body: unknown): string | undefined {
+  if (!body) {
+    return undefined
+  }
+
+  if (typeof body === 'string') {
+    return body
+  }
+
+  try {
+    return JSON.stringify(body)
+  } catch {
+    return String(body)
+  }
+}
+
+function extractProviderErrorMessage(err: unknown): { body?: string; message: string; status?: number } {
+  if (axios.isAxiosError(err)) {
+    const status = err.response?.status
+    const body = stringifyProviderErrorBody(err.response?.data)
+    const responseMessage =
+      typeof err.response?.data?.error === 'string' ? err.response.data.error
+      : typeof err.response?.data?.error?.message === 'string' ? err.response.data.error.message
+      : typeof err.response?.data?.message === 'string' ? err.response.data.message
+      : body
+
+    return {
+      body,
+      message: responseMessage || err.message || err.code || 'unknown provider error',
+      status
+    }
+  }
+
+  if (err instanceof Error) {
+    return { message: err.message }
+  }
+
+  return { message: String(err) }
+}
+
 /**
  * Thin wrapper around any OpenAI-compatible embeddings endpoint.
  *
@@ -113,10 +153,12 @@ export class EmbeddingProviderService {
       )
 
       return { embedding, tokensUsed }
-    } catch (err: any) {
-      const status = err?.response?.status
-      const message = err?.response?.data?.error?.message ?? err?.message ?? 'unknown error'
-      this.logger.error(`Embedding API call failed (HTTP ${status ?? '?'}): ${message}`)
+    } catch (err: unknown) {
+      const { body, message, status } = extractProviderErrorMessage(err)
+      this.logger.error(
+        `Embedding API call failed (HTTP ${status ?? '?'}): ${message}` +
+          (body ? `\nResponse body: ${body}` : '')
+      )
       throw new UnprocessableEntityException(`Embedding provider error: ${message}`)
     }
   }
@@ -159,13 +201,11 @@ export class EmbeddingProviderService {
           (tokensUsed ? ` tokensUsed=${tokensUsed}` : ' tokensUsed=n/a')
       )
       return { embeddings, tokensUsed }
-    } catch (err: any) {
-      const status = err?.response?.status
-      const body = err?.response?.data
-      const message = body?.error?.message ?? err?.message ?? 'unknown error'
+    } catch (err: unknown) {
+      const { body, message, status } = extractProviderErrorMessage(err)
       this.logger.error(
         `Batch embedding API call failed (HTTP ${status ?? '?'}): ${message}` +
-          (body ? `\nResponse body: ${JSON.stringify(body)}` : '')
+          (body ? `\nResponse body: ${body}` : '')
       )
       throw new UnprocessableEntityException(`Embedding provider error: ${message}`)
     }

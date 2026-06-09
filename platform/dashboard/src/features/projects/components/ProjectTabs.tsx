@@ -85,7 +85,7 @@ export function ProjectTabs({ project }: { project: Project }) {
       projectsTabs.push({
         href: getRoutePath('projectHelp', { id: project.id }),
         icon: <Book />,
-        label: 'Help'
+        label: 'Getting Started'
       })
     }
 

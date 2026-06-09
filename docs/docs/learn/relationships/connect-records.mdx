@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem'
 
 # Connect Records
 
-Relationships are the connections that link records together, creating a graph structure. They have a **type** (a string label you define) and a **direction**.
+Relationships are the connections that link records together, creating a graph structure. They have a **type** (a string label you define), a **direction**, and optional user-defined edge properties.
 
 RushDB supports three categories of relationships:
 
@@ -42,7 +42,7 @@ graph LR
 db.records.attach(
     source=movie,
     target=actor,
-    options={"type": "STARS_IN", "direction": "out"}
+    options={"type": "STARS_IN", "direction": "out", "properties": {"role": "lead"}}
 )
 
 # One-to-many (target list)
@@ -63,7 +63,7 @@ db.records.attach(
 await db.records.attach({
   source: 'movie-id-123',
   target: 'actor-id-456',
-  options: { type: 'STARS_IN', direction: 'out' }
+  options: { type: 'STARS_IN', direction: 'out', properties: { role: 'lead' } }
   // (MOVIE) -[:STARS_IN]-> (ACTOR)
 })
 
@@ -87,7 +87,7 @@ await db.records.attach({
 curl -X POST https://api.rushdb.com/api/v1/records/$MOVIE_ID/relationships \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"targetIds": "$ACTOR_ID", "type": "STARS_IN", "direction": "out"}'
+  -d '{"targetIds": "$ACTOR_ID", "type": "STARS_IN", "direction": "out", "properties": {"role": "lead"}}'
 
 # Multiple targets
 curl -X POST https://api.rushdb.com/api/v1/records/$MOVIE_ID/relationships \
@@ -96,11 +96,12 @@ curl -X POST https://api.rushdb.com/api/v1/records/$MOVIE_ID/relationships \
   -d '{"targetIds": ["$ACTOR1_ID", "$ACTOR2_ID"], "type": "STARS_IN"}'
 ```
 
-| Field       | Type                 | Description                                       |
-| ----------- | -------------------- | ------------------------------------------------- |
-| `targetIds` | `string \| string[]` | Target record ID(s)                               |
-| `type`      | `string`             | Relationship type                                 |
-| `direction` | `"in" \| "out"`      | Direction from source to target (`out` = default) |
+| Field        | Type                 | Description                                       |
+| ------------ | -------------------- | ------------------------------------------------- |
+| `targetIds`  | `string \| string[]` | Target record ID(s)                               |
+| `type`       | `string`             | Relationship type                                 |
+| `direction`  | `"in" \| "out"`      | Direction from source to target (`out` = default) |
+| `properties` | `object`             | Optional user-defined edge properties             |
 
   </TabItem>
 </Tabs>
@@ -179,19 +180,18 @@ graph LR
 `db.relationships.find()`
 
 ```python
-# All relationships for records matching a search
+# Relationship search: where filters edge type/properties
 relationships = db.relationships.find(
     search_query={
-        "labels": ["MOVIE"],
-        "where": {
-            "ACTOR": {"$relation": "STARS_IN", "country": "USA"}
-        }
+        "source": {"labels": ["MOVIE"], "where": {"title": "Inception"}},
+        "target": {"labels": ["ACTOR"], "where": {"country": "USA"}},
+        "where": {"type": "STARS_IN", "role": "lead"}
     }
 )
 
 # With pagination
 page = db.relationships.find(
-    search_query={"labels": ["MOVIE"]},
+    search_query={"source": {"labels": ["MOVIE"]}},
     pagination={"limit": 50, "skip": 0}
 )
 ```
@@ -203,10 +203,9 @@ page = db.relationships.find(
 
 ```typescript
 const { data, total } = await db.relationships.find({
-  labels: ['MOVIE'],
-  where: {
-    ACTOR: { $relation: 'STARS_IN', country: 'USA' }
-  }
+  source: { labels: ['MOVIE'], where: { title: 'Inception' } },
+  target: { labels: ['ACTOR'], where: { country: 'USA' } },
+  where: { type: 'STARS_IN', role: 'lead' }
 })
 ```
 
@@ -228,11 +227,19 @@ Search relationships across all records:
 curl -X POST https://api.rushdb.com/api/v1/relationships/search \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"where": {"sourceRecord": {"title": "Inception"}}}'
+  -d '{
+    "source": { "labels": ["MOVIE"], "where": { "title": "Inception" } },
+    "target": { "labels": ["ACTOR"], "where": { "country": "USA" } },
+    "where": { "type": "STARS_IN", "role": "lead" }
+  }'
 ```
 
   </TabItem>
 </Tabs>
+
+`db.relationships.find().where` is edge-scoped. Use `source` and `target` for record predicates. To filter records by traversing relationships, use `db.records.find()` with `$relation` as shown below.
+
+Edge properties are stored directly on relationship edges. They are filterable through `relationships.find()` and summarized in ontology relationship sections, but they are not promoted to Record Property nodes and are not semantically indexed.
 
 ---
 

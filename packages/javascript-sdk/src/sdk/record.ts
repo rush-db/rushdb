@@ -85,6 +85,8 @@ export type Relation = {
   targetId: string
   targetLabel: string
   type: string
+  direction: RelationDirection
+  properties: Record<string, unknown>
 }
 
 /**
@@ -96,7 +98,11 @@ export type RelationDirection = 'in' | 'out'
 /**
  * Options for creating or modifying relationships.
  */
-export type RelationOptions = { direction?: RelationDirection; type?: string }
+export type RelationOptions = {
+  direction?: RelationDirection
+  type?: string
+  properties?: Record<string, unknown>
+}
 
 /**
  * Options for detaching (removing) relationships.

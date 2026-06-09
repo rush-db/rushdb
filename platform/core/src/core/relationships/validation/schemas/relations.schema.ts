@@ -9,7 +9,8 @@ export const targetIdsSchema = Joi.alternatives()
 export const createRelationSchema = Joi.object({
   targetIds: targetIdsSchema,
   type: Joi.string().optional().not(''),
-  direction: Joi.string().valid('in', 'out', 'IN', 'OUT').optional()
+  direction: Joi.string().valid('in', 'out', 'IN', 'OUT').optional(),
+  properties: Joi.object().optional().unknown(true)
 })
 
 export const deleteRelationsSchema = Joi.object({
@@ -51,5 +52,6 @@ export const createRelationsByKeysSchema = Joi.object({
   ),
   type: Joi.string().optional().not(''),
   direction: Joi.string().valid('in', 'out', 'IN', 'OUT').optional(),
+  properties: Joi.object().optional().unknown(true),
   manyToMany: Joi.boolean().optional()
 })

@@ -115,16 +115,16 @@ For vector/embedding-based recall, use the `aggregate` `vector.similarity.cosine
 
 Use these as starting points — adapt to your agent's domain:
 
-| Label | Stores |
-|---|---|
-| `SESSION` | A conversation or work session |
-| `DECISION` | A decision made, with rationale and timestamp |
-| `ENTITY` | A named thing (person, service, file, concept) |
-| `TASK` | A work item or action, with status |
-| `OBSERVATION` | A raw note or finding (less structured) |
-| `PREFERENCE` | A user preference or constraint |
-| `PLAN` | A proposed sequence of steps |
-| `ARTIFACT` | A produced output (code file, document, etc.) |
+| Label         | Stores                                         |
+| ------------- | ---------------------------------------------- |
+| `SESSION`     | A conversation or work session                 |
+| `DECISION`    | A decision made, with rationale and timestamp  |
+| `ENTITY`      | A named thing (person, service, file, concept) |
+| `TASK`        | A work item or action, with status             |
+| `OBSERVATION` | A raw note or finding (less structured)        |
+| `PREFERENCE`  | A user preference or constraint                |
+| `PLAN`        | A proposed sequence of steps                   |
+| `ARTIFACT`    | A produced output (code file, document, etc.)  |
 
 ---
 
@@ -132,33 +132,33 @@ Use these as starting points — adapt to your agent's domain:
 
 ### Write memory
 
-| Goal | Tool | Notes |
-|---|---|---|
-| Store one memory | `createRecord` | `{ label, data }` |
-| Store many + auto-link | `bulkCreateRecords` | Nested JSON = auto relationships |
-| Update a memory | `updateRecord` | Patch fields; preserves unmentioned fields |
-| Replace a memory | `setRecord` | Overwrites all fields |
-| Delete a memory | `deleteRecordById` | Irreversible — confirm first |
-| Delete many | `bulkDeleteRecords` | **Destructive** — preview with `findRecords` first |
+| Goal                   | Tool                | Notes                                              |
+| ---------------------- | ------------------- | -------------------------------------------------- |
+| Store one memory       | `createRecord`      | `{ label, data }`                                  |
+| Store many + auto-link | `bulkCreateRecords` | Nested JSON = auto relationships                   |
+| Update a memory        | `updateRecord`      | Patch fields; preserves unmentioned fields         |
+| Replace a memory       | `setRecord`         | Overwrites all fields                              |
+| Delete a memory        | `deleteRecordById`  | Irreversible — confirm first                       |
+| Delete many            | `bulkDeleteRecords` | **Destructive** — preview with `findRecords` first |
 
 ### Read memory
 
-| Goal | Tool | Notes |
-|---|---|---|
-| Search by topic/content | `findRecords` | Use `where` with `$contains` for fuzzy match |
-| Get by ID | `getRecord` | When you have the record ID |
-| Get all of type | `findRecords` with `labels` | e.g. all `DECISION` records |
-| Semantic recall | `findRecords` with `aggregate.similarity` | Needs embedding index set up |
-| Recall related memories | `findRecords` with traversal | Traverse by label in `where` |
-| List memory types | `getOntologyMarkdown` | Returns all labels + counts |
+| Goal                    | Tool                                      | Notes                                        |
+| ----------------------- | ----------------------------------------- | -------------------------------------------- |
+| Search by topic/content | `findRecords`                             | Use `where` with `$contains` for fuzzy match |
+| Get by ID               | `getRecord`                               | When you have the record ID                  |
+| Get all of type         | `findRecords` with `labels`               | e.g. all `DECISION` records                  |
+| Semantic recall         | `findRecords` with `aggregate.similarity` | Needs embedding index set up                 |
+| Recall related memories | `findRecords` with traversal              | Traverse by label in `where`                 |
+| List memory types       | `getOntologyMarkdown`                     | Returns all labels + counts                  |
 
 ### Link memories
 
-| Goal | Tool | Notes |
-|---|---|---|
-| Connect two records | `attachRelation` | `{ sourceId, targetId, type }` |
-| Disconnect two records | `detachRelation` | |
-| Explore connections | `findRelationships` | Filter by record `id` to see what's linked |
+| Goal                   | Tool                | Notes                                                                            |
+| ---------------------- | ------------------- | -------------------------------------------------------------------------------- |
+| Connect two records    | `attachRelation`    | `{ sourceId, targetId, type }`                                                   |
+| Disconnect two records | `detachRelation`    |                                                                                  |
+| Explore connections    | `findRelationships` | Use `source.where.$id` and `target.where.$id` to see outgoing and incoming links |
 
 ---
 
@@ -177,11 +177,13 @@ The MCP tools accept an optional `transactionId` parameter. Passing the same ID 
 ## Session Memory Pattern
 
 At the start of a session:
+
 1. Call `getOntologyMarkdown` — get existing memory types and counts
 2. Call `findRecords` with `labels:["SESSION"]`, `orderBy:{ startedAt:'desc' }`, `limit:1` — recall the most recent session
 3. Store a new `SESSION` record for this conversation
 
 At the end of a session (or when directed):
+
 1. Store key `DECISION`, `ENTITY`, and `TASK` records from the conversation
 2. Link them to the `SESSION` with `attachRelation` (or via nested JSON on the SESSION write)
 
@@ -219,7 +221,7 @@ At the end of a session (or when directed):
 }
 ```
 
-Then traverse: `findRelationships` filtered by the returned record's `id` to see connected decisions, sessions, and tasks.
+Then traverse: `findRelationships` with `source.where.$id` and `target.where.$id` for the returned record to see connected decisions, sessions, and tasks.
 
 ### "What happened in the last 7 days?"
 

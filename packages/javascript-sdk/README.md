@@ -66,8 +66,8 @@ await db.records.create({
     session_id: 'sess-001',
     action: 'summarized',
     topic: 'Q4 results',
-    output: summaryText,
-  },
+    output: summaryText
+  }
 })
 
 // 3. Recall by meaning, scoped by graph
@@ -76,7 +76,7 @@ const memories = await db.ai.search({
   propertyName: 'output',
   query: 'what did we decide about Q4?',
   where: { agent_id: 'agent-42' },
-  limit: 10,
+  limit: 10
 })
 ```
 
@@ -90,13 +90,17 @@ await db.records.importJson({
   label: 'COMPANY',
   payload: {
     name: 'Acme Corp',
-    DEPARTMENT: [{
-      name: 'Engineering',
-      EMPLOYEE: [{
-        name: 'Alice',
-        role: 'Staff Engineer',
-      }]
-    }]
+    DEPARTMENT: [
+      {
+        name: 'Engineering',
+        EMPLOYEE: [
+          {
+            name: 'Alice',
+            role: 'Staff Engineer'
+          }
+        ]
+      }
+    ]
   }
 })
 
@@ -105,8 +109,8 @@ const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
   where: {
     role: { $contains: 'Engineer' },
-    DEPARTMENT: { COMPANY: { name: 'Acme Corp' } },
-  },
+    DEPARTMENT: { COMPANY: { name: 'Acme Corp' } }
+  }
 })
 
 // Constrain by relationship type and direction
@@ -115,44 +119,56 @@ const authoredPosts = await db.records.find({
   where: {
     POST: {
       $relation: { type: 'AUTHORED', direction: 'out' },
-      title: { $contains: 'graph' },
-    },
+      title: { $contains: 'graph' }
+    }
   },
-  limit: 10,
+  limit: 10
 })
 
 // Manage relationships explicitly
 const company = await db.records.findUniq({
   labels: ['COMPANY'],
-  where: { name: 'Acme Corp' },
+  where: { name: 'Acme Corp' }
 })
 await company.attach(engineers, { type: 'EMPLOYS' })
 ```
 
 ---
 
-## Unified query API
+## Query API
 
-One JSON structure works for records, labels, properties, relationships, aggregations, and vector search:
+One JSON structure works for record queries, aggregations, and vector search:
 
 ```typescript
 const result = await db.records.find({
   labels: ['TRANSACTION'],
   where: {
     status: 'posted',
-    amount: { $gte: 100 },
+    amount: { $gte: 100 }
   },
   select: {
-    total: { $sum: '$record.amount' },
+    total: { $sum: '$record.amount' }
   },
   groupBy: ['$record.category'],
   // Legacy: The aggregate clause is deprecated and should only be used for vector similarity until select supports it.
   orderBy: { amount: 'desc' },
-  limit: 50,
+  limit: 50
 })
 ```
 
-The same shape works with `db.labels.find()`, `db.properties.find()`, and `db.relationships.find()` — learn once, works everywhere.
+`where` is resource-local:
+
+- `db.records.find().where` filters Records.
+- `db.labels.find().where` and `db.properties.find().where` filter Records before returning matching labels/properties.
+- `db.relationships.find().where` filters relationship edges. Use `source` and `target` for endpoint Record predicates.
+
+```typescript
+const relationships = await db.relationships.find({
+  source: { labels: ['USER'], where: { status: 'active' } },
+  target: { labels: ['ORDER'] },
+  where: { type: 'ORDERED', confidence: { $gte: 0.8 } }
+})
+```
 
 ---
 
@@ -164,11 +180,12 @@ import RushDB from '@rushdb/javascript-sdk'
 const db = new RushDB('RUSHDB_API_KEY', {
   // Override for self-hosted or staging
   url: 'http://your-rushdb-server.com/api/v1',
-  timeout: 30000,
+  timeout: 30000
 })
 ```
 
 Key options:
+
 - `url` — full API URL (default: `https://api.rushdb.com/api/v1`)
 - `host`, `port`, `protocol` — alternative to `url`
 - `timeout` — request timeout in ms (default: 10000)

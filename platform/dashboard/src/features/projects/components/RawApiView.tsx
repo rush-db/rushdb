@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 import { useStore } from '@nanostores/react'
 
@@ -9,7 +9,11 @@ import { atom } from 'nanostores'
 import { SelectEntityApi } from '~/features/projects/components/SelectEntityApi.tsx'
 import { useSearchQuery } from '~/features/projects/utils.ts'
 import { Editor } from '~/elements/Editor.tsx'
-import { $editorData, $selectedOperation } from '~/features/projects/stores/raw-api.ts'
+import {
+  $editorData,
+  $selectedOperation,
+  onboardingAgentRunSelectQuery
+} from '~/features/projects/stores/raw-api.ts'
 import { $recordRawApiEntity } from '~/features/projects/stores/current-project.ts'
 import { ApiRecordsModal } from '~/features/records/components/ApiRecordsModal.tsx'
 import { IconButton } from '~/elements/IconButton'
@@ -18,19 +22,20 @@ import { Menu, MenuItem, MenuTitle } from '~/elements/Menu.tsx'
 import { Divider } from '~/elements/Divider.tsx'
 import { api } from '~/lib/api'
 import { CheckboxField } from '~/elements/Checkbox.tsx'
-import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
-import { useCurrentWorkspacePlan } from '~/features/billing/hooks/useBillingHooks'
 import {
   useRawLabelsMutation,
   useRawPropertiesMutation,
   useRawRecordsMutation
 } from '~/features/projects/hooks/useRawApiMutations'
+import { $tourStep, setTourStep } from '~/features/tour/stores/tour'
 
 const $recordsData = atom<string>('')
 const $labelsData = atom<string>('')
 const $propertiesData = atom<string>('')
 const $showCypherQuery = atom<boolean>(true)
 const $cypherQuery = atom<string>('')
+
+const rawApiOnboardingSteps = new Set(['rawApiSelectQuery', 'rawApiRunQuery', 'rawApiResults'])
 
 const aggregateExample0 = `{
     "labels": [
@@ -339,9 +344,8 @@ const ExampleSelector = () => {
 export function RawApiView() {
   const query = useStore($editorData)
   const entity = useStore($recordRawApiEntity)
-  const { data: platformSettings } = usePlatformSettings()
-  const { currentPlan } = useCurrentWorkspacePlan()
-  const paidUser = currentPlan && currentPlan.id !== 'free' && currentPlan.id !== 'start'
+  const tourStep = useStore($tourStep)
+  const hasSeededOnboardingQuery = useRef(false)
 
   const { mutateAsync: findRecords, isPending: recordsSubmitting } = useRawRecordsMutation()
   const { mutateAsync: findLabels, isPending: labelsSubmitting } = useRawLabelsMutation()
@@ -358,6 +362,8 @@ export function RawApiView() {
   const cypherQuery = useStore($cypherQuery)
 
   useEffect(() => {
+    // Don't reset editor during onboarding — seeding effect takes precedence
+    if (rawApiOnboardingSteps.has($tourStep.get())) return
     if (operation === 'records.find') {
       $editorData.set(
         JSON.stringify({
@@ -374,9 +380,34 @@ export function RawApiView() {
   }, [operation])
 
   useEffect(() => {
+    if (rawApiOnboardingSteps.has($tourStep.get())) {
+      $editorData.set(onboardingAgentRunSelectQuery)
+      hasSeededOnboardingQuery.current = true
+      return
+    }
+
     // Inherit current searchQuery to local query on mount (once)
     $editorData.set(JSON.stringify(q))
   }, [])
+
+  useEffect(() => {
+    if (!rawApiOnboardingSteps.has(tourStep)) {
+      hasSeededOnboardingQuery.current = false
+      return
+    }
+
+    $recordRawApiEntity.set('records')
+
+    if (operation !== 'records.find') {
+      $selectedOperation.set('records.find')
+      return
+    }
+
+    if (!hasSeededOnboardingQuery.current) {
+      $editorData.set(onboardingAgentRunSelectQuery)
+      hasSeededOnboardingQuery.current = true
+    }
+  }, [operation, tourStep])
 
   const handleSearch = () => {
     $recordsData.set('')
@@ -413,6 +444,10 @@ export function RawApiView() {
           total
         })
       )
+
+      if (tourStep === 'rawApiRunQuery') {
+        setTourStep('rawApiResults', true)
+      }
     })
 
     findLabels({
@@ -472,11 +507,12 @@ export function RawApiView() {
                   )}
 
                   <Button
+                    data-tour="raw-api-run-query"
                     onClick={handleSearch}
                     loading={recordsSubmitting || labelsSubmitting || propertiesSubmitting}
                     size="small"
                     className="min-w-0 px-3"
-                    variant="secondary"
+                    variant={tourStep === 'rawApiRunQuery' ? 'accent' : 'secondary'}
                   >
                     <PlayIcon className="h-2 w-2" />
                   </Button>
@@ -484,14 +520,16 @@ export function RawApiView() {
               </div>
             </div>
 
-            <Editor
-              defaultLanguage="json"
-              value={query}
-              onChange={$editorData.set}
-              height={operation === 'records.find' && showCypherQuery && cypherQuery ? '50vh' : '80vh'}
-              format={false}
-              theme="vs-dark"
-            />
+            <div data-tour="raw-api-payload">
+              <Editor
+                defaultLanguage="json"
+                value={query}
+                onChange={$editorData.set}
+                height={operation === 'records.find' && showCypherQuery && cypherQuery ? '50vh' : '80vh'}
+                format={false}
+                theme="vs-dark"
+              />
+            </div>
 
             {operation === 'records.find' && showCypherQuery && cypherQuery && (
               <div className="mt-4">
@@ -508,7 +546,9 @@ export function RawApiView() {
               <p className="text-content2 text-lg">Result</p>
               <SelectEntityApi />
             </div>
-            <Editor defaultLanguage="json" value={result} height="100%" readOnly lineNumbers="off" />
+            <div className="min-h-0 flex-1" data-tour="raw-api-result">
+              <Editor defaultLanguage="json" value={result} height="100%" readOnly lineNumbers="off" />
+            </div>
           </>
         </div>
       </div>

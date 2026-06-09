@@ -24,6 +24,7 @@ import {
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
 import { estimateEmbeddingBatchKu, estimateTokens } from '@/core/ai/embedding.utils'
 import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
+import { ISO_8601_REGEX } from '@/core/common/constants'
 import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { parseWhereClause } from '@/core/search/parser/buildQuery'
@@ -60,6 +61,62 @@ export class AiService {
     private readonly embeddingProviderService: EmbeddingProviderService,
     private readonly neogmaService: NeogmaService
   ) {}
+
+  private inferOntologyValueType(values: unknown[]): string {
+    const nonNullValues = values.filter((value) => value !== null && value !== undefined)
+    if (nonNullValues.length === 0) {
+      return 'null'
+    }
+    if (nonNullValues.every((value) => typeof value === 'number')) {
+      return 'number'
+    }
+    if (nonNullValues.every((value) => typeof value === 'boolean')) {
+      return 'boolean'
+    }
+    if (
+      nonNullValues.every((value) => typeof value === 'string') &&
+      nonNullValues.every((value) => ISO_8601_REGEX.test(String(value)))
+    ) {
+      return 'datetime'
+    }
+    return 'string'
+  }
+
+  private buildRelationshipPropertySummary({
+    name,
+    values,
+    relationshipsCount
+  }: {
+    name: string
+    values: unknown[]
+    relationshipsCount: number
+  }): NonNullable<OntologyRelationship['properties']>[number] {
+    const type = this.inferOntologyValueType(values)
+    const prop: NonNullable<OntologyRelationship['properties']>[number] = {
+      name,
+      type,
+      relationshipsCount
+    }
+    const normalizedValues = values.filter((value) => value !== undefined && value !== null)
+
+    if (type === 'number') {
+      const numericValues = normalizedValues.map(Number).filter((value) => Number.isFinite(value))
+      if (numericValues.length > 0) {
+        prop.min = Math.min(...numericValues)
+        prop.max = Math.max(...numericValues)
+      }
+    } else if (type === 'datetime') {
+      const sortedValues = normalizedValues.map(String).sort()
+      if (sortedValues.length > 0) {
+        prop.min = sortedValues[0]
+        prop.max = sortedValues[sortedValues.length - 1]
+      }
+    } else if (type === 'string' || type === 'boolean') {
+      prop.values = normalizedValues.slice(0, 10).map((value) => value as string | number | boolean)
+    }
+
+    return prop
+  }
 
   async getOntology({
     projectId,
@@ -107,13 +164,15 @@ export class AiService {
 
     const t0 = Date.now()
 
-    // Run Q1, Q2, Q3 in parallel with embedding-index fetch (all read-only)
-    const [labelsResult, propertiesResult, relationshipsResult, allIndexes] = await Promise.all([
-      transaction.run(this.aiQueryService.getLabelsQuery(), params),
-      transaction.run(this.aiQueryService.getPropertiesWithValuesQuery(), params),
-      transaction.run(this.aiQueryService.getRelationshipsQuery(), params),
-      this.embeddingIndexRepository.findByProjectId(projectId)
-    ])
+    // Run ontology discovery queries in parallel with embedding-index fetch (all read-only)
+    const [labelsResult, propertiesResult, relationshipsResult, relationshipPropertiesResult, allIndexes] =
+      await Promise.all([
+        transaction.run(this.aiQueryService.getLabelsQuery(), params),
+        transaction.run(this.aiQueryService.getPropertiesWithValuesQuery(), params),
+        transaction.run(this.aiQueryService.getRelationshipsQuery(), params),
+        transaction.run(this.aiQueryService.getRelationshipPropertiesQuery(), params),
+        this.embeddingIndexRepository.findByProjectId(projectId)
+      ])
 
     // ---------- Build label → count map (Q1) ----------
     const labelCountMap = new Map<string, number>()
@@ -157,6 +216,28 @@ export class AiService {
       labelPropsMap.get(label)!.push(prop)
     }
 
+    // ---------- Build relationship property map ----------
+    const relationshipPropertiesMap = new Map<string, NonNullable<OntologyRelationship['properties']>>()
+    for (const r of relationshipPropertiesResult.records) {
+      const fromLabel = r.get('fromLabel') as string
+      const relType = r.get('relType') as string
+      const toLabel = r.get('toLabel') as string
+      const propName = r.get('propName') as string
+      const values = (r.get('values') ?? []) as unknown[]
+      const rawCount = r.get('relationshipsCount')
+      const relationshipsCount = rawCount?.toNumber?.() ?? Number(rawCount ?? 0)
+      const key = `${fromLabel}|${relType}|${toLabel}`
+      const current = relationshipPropertiesMap.get(key) ?? []
+      current.push(
+        this.buildRelationshipPropertySummary({
+          name: propName,
+          values,
+          relationshipsCount
+        })
+      )
+      relationshipPropertiesMap.set(key, current)
+    }
+
     // ---------- Build label → relationships map (Q3) ----------
     // Relationships are stored bidirectionally: fromLabel gets 'out', toLabel gets 'in'.
     const labelRelsMap = new Map<string, OntologyRelationship[]>()
@@ -176,13 +257,16 @@ export class AiService {
       const fromLabel = r.get('fromLabel') as string
       const relType = r.get('relType') as string
       const toLabel = r.get('toLabel') as string
+      const relCountRaw = r.get('relCount')
+      const relCount = relCountRaw?.toNumber?.() ?? Number(relCountRaw ?? 0)
+      const properties = relationshipPropertiesMap.get(`${fromLabel}|${relType}|${toLabel}`)
 
       if (fromLabel === toLabel) {
         continue
       } // skip self-loops
 
-      addRel(fromLabel, { label: toLabel, type: relType, direction: 'out' })
-      addRel(toLabel, { label: fromLabel, type: relType, direction: 'in' })
+      addRel(fromLabel, { label: toLabel, type: relType, direction: 'out', count: relCount, properties })
+      addRel(toLabel, { label: fromLabel, type: relType, direction: 'in', count: relCount, properties })
     }
 
     // ---------- Merge into OntologyItem[] ----------
@@ -344,9 +428,13 @@ export class AiService {
 
       if (item.relationships.length > 0) {
         md += `### Relationships\n\n`
-        md += `| Type | Direction | Other Label |\n|------|-----------|-------------|\n`
+        md += `| Type | Direction | Other Label | Edge Properties |\n|------|-----------|-------------|-----------------|\n`
         for (const r of item.relationships) {
-          md += `| \`${esc(r.type)}\` | ${r.direction} | \`${esc(r.label)}\` |\n`
+          const edgeProperties =
+            r.properties?.length ?
+              r.properties.map((p) => `\`${esc(p.name)}:${esc(p.type)}\``).join(', ')
+            : '—'
+          md += `| \`${esc(r.type)}\` | ${r.direction} | \`${esc(r.label)}\` | ${edgeProperties} |\n`
         }
         md += `\n`
       }

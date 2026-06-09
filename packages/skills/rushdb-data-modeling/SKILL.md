@@ -14,12 +14,12 @@ RushDB uses the **LMPG** (Labels, Multi-Properties, Graph) model — a property-
 
 ## The LMPG Model
 
-| Concept | RushDB term | Description |
-|---|---|---|
-| Node | **Record** | A single data entity — like a row, but with flexible properties |
-| Node type | **Label** | The record's category/type (`USER`, `ORDER`, `PROJECT`) |
-| Attributes | **Properties** | Key-value pairs with typed values attached to a record |
-| Edge | **Relationship** | A named, directed connection between two records |
+| Concept    | RushDB term      | Description                                                     |
+| ---------- | ---------------- | --------------------------------------------------------------- |
+| Node       | **Record**       | A single data entity — like a row, but with flexible properties |
+| Node type  | **Label**        | The record's category/type (`USER`, `ORDER`, `PROJECT`)         |
+| Attributes | **Properties**   | Key-value pairs with typed values attached to a record          |
+| Edge       | **Relationship** | A named, directed connection between two records                |
 
 Records are schema-free: two `USER` records can have different property sets. Properties carry types: `string`, `number`, `boolean`, `datetime`, `vector`, `null`.
 
@@ -37,10 +37,10 @@ Records are schema-free: two `USER` records can have different property sets. Pr
 
 Labels should reflect the **entity type**, not the action or state:
 
-| Good | Avoid |
-|---|---|
-| `USER` | `REGISTERED_USER`, `ACTIVE_USER` |
-| `ORDER` | `PLACED_ORDER`, `ORDER_ENTITY` |
+| Good        | Avoid                            |
+| ----------- | -------------------------------- |
+| `USER`      | `REGISTERED_USER`, `ACTIVE_USER` |
+| `ORDER`     | `PLACED_ORDER`, `ORDER_ENTITY`   |
 | `BLOG_POST` | `PUBLISHED_CONTENT`, `POST_NODE` |
 
 Use a single label per record type. Model state with a `status` property, not separate labels.
@@ -55,14 +55,14 @@ Use a single label per record type. Model state with a `status` property, not se
 
 ### Supported Types
 
-| Type | Example values | Notes |
-|---|---|---|
-| `string` | `"hello"`, `"active"` | Case-sensitive equality; case-insensitive for `$contains` etc. |
-| `number` | `42`, `3.14`, `-100` | Supports full range operators |
-| `boolean` | `true`, `false` | |
-| `datetime` | `"2026-04-10T09:00:00Z"` | ISO 8601 UTC format. Use component objects for range queries. |
-| `vector` | `[0.1, 0.2, ..., 0.9]` | Float array; used for semantic/similarity search |
-| `null` | `null` | Explicit absence; queryable via `$type: "null"` |
+| Type       | Example values           | Notes                                                          |
+| ---------- | ------------------------ | -------------------------------------------------------------- |
+| `string`   | `"hello"`, `"active"`    | Case-sensitive equality; case-insensitive for `$contains` etc. |
+| `number`   | `42`, `3.14`, `-100`     | Supports full range operators                                  |
+| `boolean`  | `true`, `false`          |                                                                |
+| `datetime` | `"2026-04-10T09:00:00Z"` | ISO 8601 UTC format. Use component objects for range queries.  |
+| `vector`   | `[0.1, 0.2, ..., 0.9]`   | Float array; used for semantic/similarity search               |
+| `null`     | `null`                   | Explicit absence; queryable via `$type: "null"`                |
 
 ### Naming Conventions
 
@@ -88,6 +88,7 @@ propertyValues(propertyId)    → distinct values / min-max for a property
 ### How Auto-Linking Works
 
 When you pass nested objects to `bulkCreateRecords`, RushDB creates:
+
 - One record per nested label key
 - One relationship per parent→child nesting level
 - Relationship type defaults to the uppercase label name
@@ -113,6 +114,7 @@ Example — this single import:
 ```
 
 Produces:
+
 - 1 `COMPANY` record
 - 1 `DEPARTMENT` record → linked to COMPANY
 - 2 `EMPLOYEE` records → each linked to DEPARTMENT
@@ -125,7 +127,8 @@ No schema declaration. No migration. Just push the JSON.
 ```
 attachRelation({ sourceId, targetId, type: "AUTHORED" })
 detachRelation({ sourceId, targetId, type: "AUTHORED" })
-findRelationships({ where: { id: "record-id" } })
+findRelationships({ source: { where: { $id: "record-id" } } })
+findRelationships({ target: { where: { $id: "record-id" } } })
 ```
 
 ### Relationship Naming Conventions
@@ -195,7 +198,7 @@ When working with an existing database:
 1. **`getOntologyMarkdown()`** — see all labels, their property names/types, and relationships
 2. **`findProperties({ labels: ["LABEL"] })`** — deep-dive a specific label
 3. **`propertyValues(propertyId)`** — enumerate distinct string/boolean values or get number/date ranges
-4. **`findRelationships({ where: { id: "sample-id" } })`** — explore connections from a sample record
+4. **`findRelationships({ source: { where: { $id: "sample-id" } } })`** and **`findRelationships({ target: { where: { $id: "sample-id" } } })`** — explore outgoing and incoming connections from a sample record
 
 Never guess label names or property names — always discover them first.
 
@@ -235,12 +238,12 @@ Start creating records with the new label — it appears in `getOntologyMarkdown
 
 ## Common Modeling Mistakes
 
-| Mistake | Correct approach |
-|---|---|
-| Label as lowercase: `user`, `order` | Always UPPER_CASE: `USER`, `ORDER` |
-| Storing state in the label: `ACTIVE_USER` | Store state as `status: "active"` on `USER` |
-| One giant label with all fields | Split into focused labels linked by relationships |
-| Guessing property names | Call `getOntologyMarkdown` or `findProperties` first |
-| Hardcoding enum values | Probe with `propertyValues` before filtering |
-| Plain date strings in range queries | Use component objects: `{ $gte: { $year: 2024 } }` |
+| Mistake                                   | Correct approach                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------ |
+| Label as lowercase: `user`, `order`       | Always UPPER_CASE: `USER`, `ORDER`                                       |
+| Storing state in the label: `ACTIVE_USER` | Store state as `status: "active"` on `USER`                              |
+| One giant label with all fields           | Split into focused labels linked by relationships                        |
+| Guessing property names                   | Call `getOntologyMarkdown` or `findProperties` first                     |
+| Hardcoding enum values                    | Probe with `propertyValues` before filtering                             |
+| Plain date strings in range queries       | Use component objects: `{ $gte: { $year: 2024 } }`                       |
 | Inventing `$label`/`$direction` operators | Use the label as the key, `$alias` for naming, `$relation` for edge type |

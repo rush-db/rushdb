@@ -63,14 +63,15 @@ describe('relationships.deleteMany (e2e)', () => {
     let matchedCount = 0
     while (attempts < 8) {
       const findRes = await db.relationships.find({
-        labels: ['USER_DEL'],
-        where: { tenantId },
+        source: { labels: ['USER_DEL'], where: { tenantId } },
+        target: { labels: ['ORDER_DEL'], where: { tenantId } },
+        where: { type: 'ORDERED' },
         limit: 1000,
         skip: 0
       })
       expect(findRes.success).toBe(true)
       const data = (findRes.data || []) as Array<{ type: string }>
-      matchedCount = data.filter((r) => r.type === 'ORDERED').length
+      matchedCount = data.length
       if (matchedCount === 0) break
       attempts += 1
       await sleep(1000)

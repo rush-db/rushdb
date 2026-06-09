@@ -35,6 +35,7 @@ const protectedRoutes = {
   home: '/',
   newWorkspace: '/new-workspace',
   newProject: '/projects/new',
+  workspaceGettingStarted: '/getting-started',
   workspaceSettings: '/workspace-settings',
   workspaceUsers: '/workspace-users',
   joinWorkspace: '/join-workspace',

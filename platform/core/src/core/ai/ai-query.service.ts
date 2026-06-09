@@ -6,6 +6,7 @@ import {
   RUSHDB_LABEL_RECORD,
   RUSHDB_RELATION_VALUE
 } from '@/core/common/constants'
+import { RESERVED_RELATIONSHIP_PROPERTY_KEYS } from '@/core/relationships/relationship-properties'
 import { projectIdInline } from '@/core/search/parser/projectIdInline'
 import { QueryBuilder } from '@/database/QueryBuilder'
 
@@ -108,6 +109,35 @@ export class AiQueryService {
     }
 
     qb.append(`RETURN DISTINCT fromLabel, relType, toLabel, relCount`)
+
+    return qb.getQuery()
+  }
+
+  getRelationshipPropertiesQuery(filterLabels?: string[]) {
+    const qb = new QueryBuilder()
+    const reservedKeys = `[${RESERVED_RELATIONSHIP_PROPERTY_KEYS.map((key) => `'${key.replace(/'/g, '')}'`).join(', ')}]`
+
+    qb.append(
+      `MATCH (a:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })-[r]->(b:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`
+    )
+    qb.append(`WHERE type(r) <> '${RUSHDB_RELATION_VALUE}'`)
+    qb.append(`WITH [l IN labels(a) WHERE l <> "${RUSHDB_LABEL_RECORD}"][0] AS fromLabel,`)
+    qb.append(`     type(r) AS relType,`)
+    qb.append(`     [l IN labels(b) WHERE l <> "${RUSHDB_LABEL_RECORD}"][0] AS toLabel,`)
+    qb.append(`     r`)
+    qb.append(`WHERE fromLabel IS NOT NULL AND toLabel IS NOT NULL`)
+
+    if (filterLabels && filterLabels.length > 0) {
+      qb.append(`AND (fromLabel IN $filterLabels OR toLabel IN $filterLabels)`)
+    }
+
+    qb.append(`UNWIND keys(r) AS propName`)
+    qb.append(`WITH fromLabel, relType, toLabel, propName, r[propName] AS rawValue`)
+    qb.append(`WHERE NOT propName IN ${reservedKeys} AND NOT propName STARTS WITH '__RUSHDB__'`)
+    qb.append(`WITH fromLabel, relType, toLabel, propName,`)
+    qb.append(`     count(rawValue) AS relationshipsCount,`)
+    qb.append(`     apoc.coll.toSet(apoc.coll.flatten(collect(DISTINCT rawValue))) AS values`)
+    qb.append(`RETURN fromLabel, relType, toLabel, propName, relationshipsCount, values`)
 
     return qb.getQuery()
   }

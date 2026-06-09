@@ -16,14 +16,18 @@ import { db } from '../util/db.js'
 
 export async function findRelationships(params: {
   where?: Record<string, any>
+  source?: { labels?: string[]; where?: Record<string, any> }
+  target?: { labels?: string[]; where?: Record<string, any> }
   limit?: number
   skip?: number
   orderBy?: Record<string, 'asc' | 'desc'>
 }) {
-  const { where, limit = 10, skip = 0, orderBy } = params
+  const { where, source, target, limit = 10, skip = 0, orderBy } = params
 
   const searchQuery: any = { limit, skip }
   if (where) searchQuery.where = where
+  if (source) searchQuery.source = source
+  if (target) searchQuery.target = target
   if (orderBy && Object.keys(orderBy).length > 0) searchQuery.orderBy = orderBy
 
   const result = await db.relationships.find(searchQuery)

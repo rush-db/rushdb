@@ -11,10 +11,14 @@ import { trackUpgradeClicked } from '~/lib/analytics'
 export const CheckoutButton = ({
   children = 'Checkout',
   priceId,
+  planName,
+  billingPeriod,
   loading: loadingProp,
   ...props
 }: ComponentPropsWithoutRef<typeof Button> & {
   priceId: string
+  planName?: string
+  billingPeriod?: 'monthly' | 'annual'
 }) => {
   const { mutate: checkout, isPending: checkoutInProgress } = useCheckoutMutation()
 
@@ -30,7 +34,7 @@ export const CheckoutButton = ({
       {...props}
       loading={loading}
       onClick={() => {
-        trackUpgradeClicked()
+        trackUpgradeClicked({ targetPlan: planName, billingPeriod })
         checkout({ priceId, returnUrl: window.location.href, projectId })
       }}
       role="link"

@@ -14,22 +14,41 @@
 
 import { db } from '../util/db.js'
 
+const normalizeDirection = (direction: 'outgoing' | 'incoming' | 'bidirectional') => {
+  if (direction === 'incoming') return 'in'
+  if (direction === 'outgoing') return 'out'
+  return undefined
+}
+
 export async function attachRelation(params: {
   sourceId: string
   targetId?: string
   targetIds?: string[]
   relationType?: string
   direction?: 'outgoing' | 'incoming' | 'bidirectional'
+  properties?: Record<string, unknown>
   transactionId?: string
 }) {
-  const { sourceId, targetId, targetIds, relationType, direction = 'outgoing', transactionId } = params
+  const {
+    sourceId,
+    targetId,
+    targetIds,
+    relationType,
+    direction = 'outgoing',
+    properties,
+    transactionId
+  } = params
 
   const options: any = {}
   if (relationType) {
     options.type = relationType
   }
-  if (direction) {
-    options.direction = direction
+  const normalizedDirection = normalizeDirection(direction)
+  if (normalizedDirection) {
+    options.direction = normalizedDirection
+  }
+  if (properties && Object.keys(properties).length > 0) {
+    options.properties = properties
   }
 
   const targets: string[] =

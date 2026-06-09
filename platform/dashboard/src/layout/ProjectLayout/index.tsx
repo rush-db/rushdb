@@ -49,7 +49,7 @@ const PROJECT_TAB_TITLES: Record<string, string> = {
   projectRelationships: 'Relationships',
   projectImportData: 'Import',
   projectUsers: 'Users',
-  projectHelp: 'Help',
+  projectHelp: 'Getting Started',
   projectBilling: 'Billing'
 }
 

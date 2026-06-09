@@ -19,12 +19,9 @@ import { GraphView } from '~/features/projects/components/GraphView.tsx'
 import { PropertySheet } from '~/features/projects/components/PropertySheet.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
 import { RawApiView } from '~/features/projects/components/RawApiView.tsx'
-import { setTourStep } from '~/features/tour/stores/tour.ts'
-import { $router } from '~/lib/router.ts'
 import { useFilteredRecordsQuery, useProjectFieldsQuery } from '~/features/projects/hooks/useProjectQueries'
 
 function View() {
-  const page = useStore($router)
   const { data: recordsResult, isPending: loadingRecords } = useFilteredRecordsQuery()
   const records = recordsResult?.data
   const total = recordsResult?.total ?? 0
@@ -47,12 +44,6 @@ function View() {
   const loading = loadingRecords || loadingFields
 
   const view = useStore($recordView)
-
-  useEffect(() => {
-    if (page?.route === 'project' && !loading && records?.length) {
-      setTourStep('recordTableOverview', false)
-    }
-  }, [page?.route, loading])
 
   switch (view) {
     case 'table':

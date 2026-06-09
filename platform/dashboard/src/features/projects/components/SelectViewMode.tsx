@@ -9,6 +9,8 @@ import { Tooltip } from '~/elements/Tooltip'
 import { $recordView } from '../stores/current-project'
 import type { RecordViewType } from '~/features/projects/types.ts'
 import { GraphIcon } from '~/elements/GraphIcon.tsx'
+import { $tourStep, setTourStep } from '~/features/tour/stores/tour.ts'
+import { $editorData, onboardingAgentRunSelectQuery } from '~/features/projects/stores/raw-api.ts'
 
 const options = [
   {
@@ -51,12 +53,21 @@ export function SelectViewMode({
   ...props
 }: Partial<ComponentPropsWithoutRef<typeof RadioGroup>>) {
   const view = useStore($recordView)
+  const tourStep = useStore($tourStep)
+
+  const handleChange = (nextView: RecordViewType) => {
+    $recordView.set(nextView)
+    if (tourStep === 'recordRawApiMode' && nextView === 'raw-api') {
+      $editorData.set(onboardingAgentRunSelectQuery)
+      setTourStep('rawApiSelectQuery', true)
+    }
+  }
 
   return (
     <RadioGroup
       data-tour="records-table-view-mode"
       {...props}
-      onChange={$recordView.set}
+      onChange={handleChange}
       options={options}
       size={size}
       value={view}

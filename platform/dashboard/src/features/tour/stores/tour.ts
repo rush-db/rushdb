@@ -15,9 +15,16 @@ export const keys: TourStepKey[] = [
   'projectImportOverview',
   'projectImportRadio',
   'projectImportIngest',
-  'recordTableOverview',
-  'recordTableSearchInput',
-  'recordTableViewMode'
+  'projectIndexSuggestions',
+  'projectIndexCreate',
+  'projectRelationshipAnalyze',
+  'projectRelationshipApprove',
+  'recordGraphView',
+  'recordRawApiMode',
+  'rawApiSelectQuery',
+  'rawApiRunQuery',
+  'rawApiResults',
+  'projectGettingStartedFinish'
 ]
 
 export const $tourStep = persistentAtom<TourStepKey>('tour:step', 'welcome')

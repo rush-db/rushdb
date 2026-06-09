@@ -102,6 +102,17 @@ export const parseComparison = (
     else if (containsAllowedKeys(input, comparisonOperators)) {
       return Object.entries(input).map(([operator, value]) => {
         switch (operator) {
+          case '$eq': {
+            if (isPrimitive(value)) {
+              return `any(value IN ${field} WHERE value = ${formatCriteriaValue(value)})`
+            } else if (toBoolean(value) && containsAllowedKeys(value, datetimeOperators)) {
+              const datetimeCriteria = formatDateTimeForQuery(value as DatetimeObject)
+
+              return `any(value IN ${field} WHERE ${datetimeQueryPrefix} AND datetime(value) = ${datetimeCriteria})`
+            } else {
+              throw new QueryCriteriaParsingError(operator, value)
+            }
+          }
           case '$gt':
           case '$gte':
           case '$lt':

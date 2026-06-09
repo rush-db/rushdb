@@ -30,6 +30,8 @@ export type TRecordRelationsResponse = {
     targetId: string
     targetLabel: string
     type: string
+    direction: TRelationDirection
+    properties: Record<string, unknown>
   }>
 }
 

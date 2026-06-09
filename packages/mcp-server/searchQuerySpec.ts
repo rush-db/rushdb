@@ -35,14 +35,18 @@ record to traverse.
 ── PRIMITIVE VALUE MATCHING ──────────────────────────────────────────
 Direct equality, all types:
   name: "John Doe"                       // exact string (case-sensitive equality)
+  name: { $eq: "John Doe" }              // exact string alias, useful for MongoDB-style queries
   isActive: true                         // boolean
+  isActive: { $eq: true }                // exact boolean alias
   age: 30                                // number
+  age: { $eq: 30 }                       // exact number alias
   created: "2023-01-01T00:00:00Z"        // ISO 8601 datetime
 
 ── STRING OPERATORS ─────────────────────────────────────────────────
   name: { $contains: "John" }            // substring match (case-insensitive)
   name: { $startsWith: "J" }             // prefix match (case-insensitive)
   name: { $endsWith: "son" }             // suffix match (case-insensitive)
+  name: { $eq: "John" }                  // exact equality alias (case-sensitive)
   name: { $ne: "deleted" }               // not equal
   status: { $in: ["active","pending"] }  // matches any value in array
   status: { $nin: ["deleted","archived"] } // matches none of these values
@@ -52,12 +56,14 @@ Direct equality, all types:
   age: { $gte: 21 }       // greater than or equal
   age: { $lt: 65 }        // less than
   age: { $lte: 64 }       // less than or equal
+  age: { $eq: 18 }        // exact equality alias
   age: { $ne: 18 }        // not equal
   age: { $in: [20,30,40] }   // matches any of these numbers
   age: { $nin: [20,30,40] }  // matches none of these numbers
 
 ── BOOLEAN OPERATORS ────────────────────────────────────────────────
   isActive: true                  // direct match
+  isActive: { $eq: true }         // exact equality alias
   isActive: { $ne: false }        // not equal (matches true or unset)
 
 ── DATETIME OPERATORS ───────────────────────────────────────────────
@@ -387,7 +393,7 @@ Collect options (inside $collect):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 If the metric field is NOT on the target label, search related labels before giving up:
   1) Confirm target label. findProperties(labels:[<target>]) — look for the metric field.
-  2) If absent, walk adjacent labels via getOntologyMarkdown or findRelationships probe.
+  2) If absent, walk adjacent labels via getOntologyMarkdown or findRelationships with source/target endpoint probes.
   3) For each candidate related label R: findProperties(labels:[R]) and attempt the same match.
   4) When found on CHILD: where:{ CHILD:{ ...filters..., $alias:'$child' } }, select referencing '$child.*'.
      Root-level filters (status, dates) stay at the top-level where.
@@ -428,13 +434,13 @@ Entity resolution by name: probe with findRecords(limit:1, where:{ <nameField>:{
 MULTI-HOP RELATIONSHIP DISCOVERY
 Pre-check before multi-hop:
   1) findProperties(labels:[parent]) for direct scalar fields.
-  2) Fetch 1 sample parent record. findRelationships filtered by its id → discover adjacent labels.
+  2) Fetch 1 sample parent record. findRelationships with source.where.$id or target.where.$id → discover adjacent labels.
   3) If direct path to child exists: where:{ CHILD:{ $alias:'$child' } } — STOP. No intermediate wrappers.
   4) Only if no direct path: BFS (depth ≤ 4).
 
 BFS algorithm:
   1) Resolve parent + child labels via findLabels.
-  2) Fetch 1 sample record of current hop; findRelationships filtered by its id → adjacent labels.
+  2) Fetch 1 sample record of current hop; findRelationships with source.where.$id or target.where.$id → adjacent labels.
   3) On finding path PARENT→A→B→CHILD:
      where:{ A:{ B:{ CHILD:{ $alias:'$child' } } } }
      select:{ metric:{ $count:'*' } }
@@ -455,6 +461,7 @@ Avoid over-nesting:
 • Numerics: 1k=1000, 1m=1000000, 1b=1000000000. Strip currency symbols ($100k→100000).
 • Equality / sets:
     field: value
+    field: { $eq: value }     // exact equality alias for MongoDB-style syntax
     field: { $ne: value }
     field: { $in: [v1,v2] }
     field: { $nin: [v1,v2] }
@@ -574,9 +581,14 @@ XOR / exclusive range:
   where:{ budget:{ $xor:{ $lte:10000000, $gte:15000000 } } }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The same SearchQuery shape is reused across findRecords, findRelationships (minus
-select/groupBy), findLabels (minus select/groupBy), findProperties (minus
-select/groupBy), exportRecords, and bulkDeleteRecords.
+Resource-local where rule:
+  - findRecords.where, exportRecords.where, and bulkDeleteRecords.where apply to Records.
+  - findRelationships.where applies to relationship edges: type maps to type(rel), all
+    other fields map to user-defined relationship properties. Use source/target for
+    endpoint Record predicates.
+  - findLabels.where and findProperties.where apply to Records before returning
+    matching label/property metadata.
+findRelationships does not support select/groupBy.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` as const
 

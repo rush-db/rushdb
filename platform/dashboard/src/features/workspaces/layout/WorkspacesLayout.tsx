@@ -1,4 +1,4 @@
-import { Activity, LayoutDashboard, SettingsIcon, Wallet2, Users } from 'lucide-react'
+import { Activity, BookOpen, LayoutDashboard, SettingsIcon, Wallet2, Users } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -7,12 +7,15 @@ import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { useStore } from '@nanostores/react'
 import { useMemo } from 'react'
 import { $user } from '~/features/auth/stores/user.ts'
+import { useWorkspaceProjectsQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
 
 export function WorkspacesLayout({ children, className }: TPolymorphicComponentProps<'div'>) {
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
 
   const { data: platformSettings } = usePlatformSettings()
+  const { data: projects } = useWorkspaceProjectsQuery()
+  const hasProjects = (projects?.length ?? 0) > 0
 
   const tabsToRender = useMemo(() => {
     const workspaceTabs = [
@@ -53,8 +56,16 @@ export function WorkspacesLayout({ children, className }: TPolymorphicComponentP
       )
     }
 
+    if (hasProjects) {
+      workspaceTabs.push({
+        href: getRoutePath('workspaceGettingStarted'),
+        icon: <BookOpen />,
+        label: 'Getting Started'
+      })
+    }
+
     return workspaceTabs
-  }, [isOwner, platformSettings?.selfHosted])
+  }, [isOwner, platformSettings?.selfHosted, hasProjects])
 
   return (
     <>
