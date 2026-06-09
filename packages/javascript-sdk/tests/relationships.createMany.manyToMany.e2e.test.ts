@@ -55,15 +55,16 @@ describe('relationships.createMany manyToMany (e2e)', () => {
 
     while (attempts < 8) {
       const findRes = await db.relationships.find({
-        labels: ['USER_MTM'],
-        where: { tenantId },
+        source: { labels: ['USER_MTM'], where: { tenantId } },
+        target: { labels: ['TAG_MTM'], where: { tenantId } },
+        where: { type: 'HAS_TAG' },
         limit: 1000,
         skip: 0
       })
       expect(findRes.success).toBe(true)
 
       const data = (findRes.data || []) as Array<{ type: string }>
-      matchedCount = data.filter((r) => r.type === 'HAS_TAG').length
+      matchedCount = data.length
       if (matchedCount >= 6) break
       attempts += 1
       await sleep(1000)

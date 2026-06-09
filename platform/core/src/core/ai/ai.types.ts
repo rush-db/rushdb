@@ -23,6 +23,15 @@ export type OntologyRelationship = {
   label: string
   type: string
   direction: 'in' | 'out'
+  count?: number
+  properties?: Array<{
+    name: string
+    type: string
+    min?: number | string
+    max?: number | string
+    values?: Array<string | number | boolean>
+    relationshipsCount?: number
+  }>
 }
 
 export type OntologyItem = {

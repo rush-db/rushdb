@@ -22,6 +22,7 @@ import type {
   PropertyDraft,
   PropertyValuesData,
   Schema,
+  RelationshipSearchQuery,
   SearchQuery,
   Where
 } from '../types/index.js'
@@ -165,7 +166,8 @@ export class RestAPI {
         requestData: {
           targetIds: this._extractTargetIds(target, 'Attach'),
           ...(options?.type && { type: options.type }),
-          ...(options?.direction && { direction: options.direction })
+          ...(options?.direction && { direction: options.direction }),
+          ...(options?.properties && { properties: options.properties })
         }
       }
       const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
@@ -988,6 +990,7 @@ export class RestAPI {
         target: { label: string; key?: string; where?: Where }
         type?: string
         direction?: RelationDirection
+        properties?: Record<string, unknown>
         manyToMany?: boolean
       },
       transaction?: Transaction | string
@@ -1041,7 +1044,10 @@ export class RestAPI {
      * @param transaction - Optional transaction for atomic operations
      * @returns Promise with the API response containing matched relations
      */
-    find: async <S extends Schema = any>(searchQuery: SearchQuery<S>, transaction?: Transaction | string) => {
+    find: async <S extends Schema = any>(
+      searchQuery: RelationshipSearchQuery<S> = {},
+      transaction?: Transaction | string
+    ) => {
       const txId = pickTransactionId(transaction)
       const queryParams = new URLSearchParams()
 

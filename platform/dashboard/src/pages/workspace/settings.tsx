@@ -85,11 +85,11 @@ export function WorkspaceSettingsPage() {
       <PageContent contained>
         <SettingsList>
           <WorkspaceNameSetting />
+        </SettingsList>
+        <ConnectionsList />
+        <SettingsList>
           <DeleteWorkspaceSetting />
         </SettingsList>
-        <div className="mt-8">
-          <ConnectionsList />
-        </div>
       </PageContent>
     </WorkspacesLayout>
   )

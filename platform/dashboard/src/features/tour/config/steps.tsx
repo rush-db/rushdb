@@ -100,7 +100,8 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       route: 'newProject',
       key: 'newProjectCreate',
       noNext: true,
-      nextShouldBeManuallySet: true
+      nextShouldBeManuallySet: true,
+      waitForManualAction: true
     }
   },
   projectSdkTokenOverview: {
@@ -165,9 +166,10 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'bottom',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Choose Your Method</h3>
+        <h3 className="text-content text-lg font-bold">Push Any JSON</h3>
         <p className="text-content2">
-          Pick “Use test dataset” for a quick start or upload your own JSON/NDJSON.
+          RushDB turns raw JSON into queryable graph records and relationships without requiring a schema
+          upfront.
         </p>
       </div>
     ),
@@ -180,11 +182,14 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
   },
   projectImportOverview: {
     target: '[data-tour="project-import-data-overview"]',
-    placement: 'top',
+    placement: 'bottom',
     content: (
       <div className="space-y-4">
         <h3 className="text-content text-lg font-bold">Preview Your Data</h3>
-        <p className="text-content2">Here’s the JSON you selected. Click “Import data” when you’re ready.</p>
+        <p className="text-content2">
+          In this example, the JSON contains agents, evaluation runs, conversations, and tool calls. Import it
+          to see how nested data becomes a graph.
+        </p>
       </div>
     ),
     data: {
@@ -201,7 +206,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
         <h3 className="text-content text-lg font-bold">Import Your Data</h3>
         <p className="text-content2">
           Upload your JSON — RushDB automatically transforms it into graph records and relationships. Once
-          complete, your data appears instantly, ready to query.
+          complete, your data appears instantly, ready to query. Press Import JSON to continue.
         </p>
       </div>
     ),
@@ -209,78 +214,190 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       route: 'projectImportData',
       key: 'projectImportIngest',
       nextShouldBeManuallySet: true,
+      noNext: true,
+      waitForManualAction: true
+    }
+  },
+  projectIndexSuggestions: {
+    target: '[data-tour="project-index-suggestions"]',
+    placement: 'top',
+    content: (
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Suggested Semantic Indexes</h3>
+        <p className="text-content2">
+          RushDB inspected your imported ontology and found text fields that are useful for semantic search.
+        </p>
+      </div>
+    ),
+    data: {
+      route: 'projectIndexes',
+      key: 'projectIndexSuggestions',
+      noBack: true
+    }
+  },
+  projectIndexCreate: {
+    target: '[data-tour="project-index-suggested-create"]',
+    placement: 'left',
+    content: (
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Create an Index</h3>
+        <p className="text-content2">
+          Index one long-text field so agents can later retrieve similar responses, decisions, and rationales.
+        </p>
+      </div>
+    ),
+    data: {
+      route: 'projectIndexes',
+      key: 'projectIndexCreate',
+      nextShouldBeManuallySet: true,
+      noNext: true,
+      waitForManualAction: true
+    }
+  },
+  projectRelationshipAnalyze: {
+    target: '[data-tour="project-relationships-analyze"]',
+    placement: 'left',
+    content: (
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Find Relationship Patterns</h3>
+        <p className="text-content2">
+          Analyze the ontology to find implicit joins, including runs that share an agentId with agents.
+        </p>
+      </div>
+    ),
+    data: {
+      route: 'projectRelationships',
+      key: 'projectRelationshipAnalyze',
+      nextShouldBeManuallySet: true,
       noNext: true
     }
   },
-  recordTableOverview: {
-    target: '[data-tour="records-table-overview"]',
-    placementBeacon: 'top',
+  projectRelationshipApprove: {
+    target: '[data-tour="project-relationships-approve"]',
+    placement: 'left',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">View Your Records</h3>
+        <h3 className="text-content text-lg font-bold">Approve the Agent Run Pattern</h3>
         <p className="text-content2">
-          Browse your imported data as records in the graph. Click any row to explore its full properties and
-          relationships.
+          Approving this materializes the inferred relationship now and keeps applying it to future writes.
+        </p>
+      </div>
+    ),
+    data: {
+      route: 'projectRelationships',
+      key: 'projectRelationshipApprove',
+      nextShouldBeManuallySet: true,
+      noNext: true,
+      waitForManualAction: true
+    }
+  },
+  recordGraphView: {
+    target: 'body',
+    placement: 'center',
+    content: (
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">See the Graph</h3>
+        <p className="text-content2">
+          The imported structure and approved pattern are now visible together as a graph of agents, runs,
+          conversations, decisions, and tools.
         </p>
       </div>
     ),
     data: {
       route: 'project',
-      key: 'recordTableOverview'
+      key: 'recordGraphView',
+      noBack: true
     }
   },
-  recordTableSearchInput: {
-    target: '[data-tour="records-table-search-input"]',
-    placement: 'right',
-    content: (
-      <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Search & Filter</h3>
-        <p className="text-content2">
-          Use powerful filters to query by properties, relationships, and labels — no schema required. Learn
-          more in our
-          <a
-            className="text-accent ml-1 underline"
-            href="https://docs.rushdb.com/concepts/search/introduction"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Search Guide
-          </a>
-          .
-        </p>
-      </div>
-    ),
-    data: {
-      route: 'project',
-      key: 'recordTableSearchInput'
-    }
-  },
-  recordTableViewMode: {
+  recordRawApiMode: {
     target: '[data-tour="records-table-view-mode"]',
     placement: 'left',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Switch View Modes</h3>
+        <h3 className="text-content text-lg font-bold">Switch to Raw API</h3>
         <p className="text-content2">
-          Toggle between Table, Graph, and Raw API views — pick the one that fits your workflow best.
-        </p>
-        <p className="text-content2">
-          To explore queries directly, check out our
-          <a
-            className="text-accent ml-1 underline"
-            href="https://docs.rushdb.com/concepts/search/introduction"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Search Guide
-          </a>
-          .
+          Open Raw API mode to run a ready-made select query over the imported agent evaluation runs.
         </p>
       </div>
     ),
     data: {
       route: 'project',
-      key: 'recordTableViewMode'
+      key: 'recordRawApiMode',
+      nextShouldBeManuallySet: true,
+      noNext: true,
+      clickTarget: '[data-tour="records-table-view-mode"] [aria-label="raw-api"]'
+    }
+  },
+  rawApiSelectQuery: {
+    target: '[data-tour="raw-api-payload"]',
+    placement: 'right',
+    content: (
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Select Metrics Query</h3>
+        <p className="text-content2">
+          This query uses select aggregations to compute run counts, token usage, latency, and evaluation
+          scores per agent.
+        </p>
+      </div>
+    ),
+    data: {
+      route: 'project',
+      key: 'rawApiSelectQuery',
+      noBack: true
+    }
+  },
+  rawApiRunQuery: {
+    target: '[data-tour="raw-api-run-query"]',
+    placement: 'left',
+    content: (
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Run the Query</h3>
+        <p className="text-content2">
+          Execute it to see how RushDB turns graph records into aggregate agent-run metrics.
+        </p>
+      </div>
+    ),
+    data: {
+      route: 'project',
+      key: 'rawApiRunQuery',
+      nextShouldBeManuallySet: true,
+      noNext: true,
+      waitForManualAction: true
+    }
+  },
+  rawApiResults: {
+    target: '[data-tour="raw-api-result"]',
+    placement: 'left',
+    content: (
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Agent Run Stats</h3>
+        <p className="text-content2">
+          The result gives you immediate operational stats without defining a schema or building a pipeline.
+        </p>
+      </div>
+    ),
+    data: {
+      route: 'project',
+      key: 'rawApiResults',
+      redirectTo: 'projectHelp'
+    }
+  },
+  projectGettingStartedFinish: {
+    target: '[data-tour="project-getting-started-finish"]',
+    placement: 'top',
+    content: (
+      <div className="space-y-4">
+        <h3 className="text-content text-lg font-bold">Connect Your Apps</h3>
+        <p className="text-content2">
+          You have imported data, indexed text, approved a relationship, visualized the graph, and queried
+          metrics. Use Getting Started when you are ready to connect your tools, apps, and workflows.
+        </p>
+      </div>
+    ),
+    data: {
+      route: 'projectHelp',
+      key: 'projectGettingStartedFinish',
+      noBack: true
     }
   }
 }

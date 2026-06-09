@@ -4,6 +4,13 @@ import { Button } from '~/elements/Button'
 import { IconButton } from '~/elements/IconButton'
 import { X } from 'lucide-react'
 
+type TooltipStepData = {
+  clickTarget?: string
+  noBack?: boolean
+  noNext?: boolean
+  waitForManualAction?: boolean
+}
+
 export function CustomTooltip({
   step,
   backProps,
@@ -14,24 +21,28 @@ export function CustomTooltip({
   index,
   tooltipProps
 }: TooltipRenderProps) {
-  const { noBack, noNext } = (step.data as any) || {}
+  const { noBack, noNext, waitForManualAction } = (step.data as TooltipStepData | undefined) || {}
+  const isLastStep = primaryProps?.title === 'Last'
+  const primaryTitle = primaryProps?.title === 'Last' ? 'Finish' : primaryProps?.title
 
   return (
     <div {...tooltipProps} className="bg-fill3 text-content relative max-w-sm rounded-lg p-6 shadow-lg">
-      <IconButton
-        {...closeProps}
-        aria-label="Close tour"
-        variant="ghost"
-        className="text-content2 absolute right-2 top-2"
-        size="small"
-      >
-        <X />
-      </IconButton>
+      {!waitForManualAction && (
+        <IconButton
+          {...closeProps}
+          aria-label="Close tour"
+          variant="ghost"
+          className="text-content2 absolute right-2 top-2"
+          size="small"
+        >
+          <X />
+        </IconButton>
+      )}
 
       <div>{step.content}</div>
 
       <div className="mt-4 flex items-center justify-between">
-        {skipProps && (
+        {skipProps && !isLastStep && (
           <Button size="small" variant="ghost" {...skipProps}>
             {skipProps.title}
           </Button>
@@ -44,10 +55,28 @@ export function CustomTooltip({
           )}
           {!noNext && continuous && primaryProps && (
             <Button size="small" variant="accent" {...primaryProps}>
-              {primaryProps.title}
+              {primaryTitle}
             </Button>
           )}
-          {noNext && (
+          {noNext && !waitForManualAction && (
+            <Button
+              size="small"
+              variant="accent"
+              {...closeProps}
+              onClick={(e: React.MouseEvent) => {
+                const data = step.data as TooltipStepData | undefined
+                const selector = data?.clickTarget ?? (typeof step.target === 'string' ? step.target : null)
+                if (selector) {
+                  const el = document.querySelector(selector)
+                  if (el instanceof HTMLElement) el.click()
+                }
+                closeProps.onClick(e as React.MouseEvent<HTMLElement, MouseEvent>)
+              }}
+            >
+              Got it
+            </Button>
+          )}
+          {noNext && waitForManualAction && (
             <Button size="small" variant="accent" {...closeProps}>
               Got it
             </Button>

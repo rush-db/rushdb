@@ -36,6 +36,7 @@ skip?      number        — pagination offset
 ```
 
 **Critical limits:**
+
 - NEVER include `limit` when `select` is present (`$sum`/`$avg`/`$min`/`$max`/`$count`/`$collect`/`$timeBucket`). `limit` restricts the record scan → results are mathematically wrong. e.g. "total budget of all 33 projects" with `limit:10` returns only the sum of the first 10.
 - Self-group and dimensional groupBy queries: omit `limit` entirely (or scope to root records only).
 - `limit` is valid only for listing/browsing queries or per-record flat aggregation (one row per root record).
@@ -49,40 +50,86 @@ The where clause mechanism: when a nested object key is NOT a criteria operator 
 ### Primitive Value Matching
 
 ```js
-name: "John Doe"                       // exact string (case-sensitive equality)
-isActive: true                         // boolean
-age: 30                                // number
-created: "2023-01-01T00:00:00Z"        // ISO 8601 datetime
+name: 'John Doe' // exact string (case-sensitive equality)
+name: {
+  $eq: 'John Doe'
+} // exact string alias, useful for MongoDB-style queries
+isActive: true // boolean
+isActive: {
+  $eq: true
+} // exact boolean alias
+age: 30 // number
+age: {
+  $eq: 30
+} // exact number alias
+created: '2023-01-01T00:00:00Z' // ISO 8601 datetime
 ```
 
 ### String Operators
 
 ```js
-name: { $contains: "John" }            // substring match (case-insensitive)
-name: { $startsWith: "J" }             // prefix match (case-insensitive)
-name: { $endsWith: "son" }             // suffix match (case-insensitive)
-name: { $ne: "deleted" }               // not equal
-status: { $in: ["active","pending"] }  // matches any value in array
-status: { $nin: ["deleted","archived"] } // matches none of these values
+name: {
+  $contains: 'John'
+} // substring match (case-insensitive)
+name: {
+  $startsWith: 'J'
+} // prefix match (case-insensitive)
+name: {
+  $endsWith: 'son'
+} // suffix match (case-insensitive)
+name: {
+  $eq: 'John'
+} // exact equality alias (case-sensitive)
+name: {
+  $ne: 'deleted'
+} // not equal
+status: {
+  $in: ['active', 'pending']
+} // matches any value in array
+status: {
+  $nin: ['deleted', 'archived']
+} // matches none of these values
 ```
 
 ### Number Operators
 
 ```js
-age: { $gt: 18 }        // greater than
-age: { $gte: 21 }       // greater than or equal
-age: { $lt: 65 }        // less than
-age: { $lte: 64 }       // less than or equal
-age: { $ne: 18 }        // not equal
-age: { $in: [20,30,40] }   // matches any of these numbers
-age: { $nin: [20,30,40] }  // matches none of these numbers
+age: {
+  $gt: 18
+} // greater than
+age: {
+  $gte: 21
+} // greater than or equal
+age: {
+  $lt: 65
+} // less than
+age: {
+  $lte: 64
+} // less than or equal
+age: {
+  $eq: 18
+} // exact equality alias
+age: {
+  $ne: 18
+} // not equal
+age: {
+  $in: [20, 30, 40]
+} // matches any of these numbers
+age: {
+  $nin: [20, 30, 40]
+} // matches none of these numbers
 ```
 
 ### Boolean Operators
 
 ```js
-isActive: true                  // direct match
-isActive: { $ne: false }        // not equal (matches true or unset)
+isActive: true // direct match
+isActive: {
+  $eq: true
+} // exact equality alias
+isActive: {
+  $ne: false
+} // not equal (matches true or unset)
 ```
 
 ### Datetime Operators
@@ -129,9 +176,15 @@ aggregate: {
 ### Field Existence & Type
 
 ```js
-phoneNumber: { $exists: true }    // only records that have this field
-phoneNumber: { $exists: false }   // only records that do NOT have this field
-age: { $type: "number" }          // "string"|"number"|"boolean"|"datetime"|"null"|"vector"
+phoneNumber: {
+  $exists: true
+} // only records that have this field
+phoneNumber: {
+  $exists: false
+} // only records that do NOT have this field
+age: {
+  $type: 'number'
+} // "string"|"number"|"boolean"|"datetime"|"null"|"vector"
 ```
 
 ### Logical Grouping
@@ -221,8 +274,16 @@ where: {
 **`$id`** — filter by record ID:
 
 ```js
-where: { $id: { $in: ["id1","id2"] } }
-where: { EMPLOYEE: { $id: "specific-id" } }
+where: {
+  $id: {
+    $in: ['id1', 'id2']
+  }
+}
+where: {
+  EMPLOYEE: {
+    $id: 'specific-id'
+  }
+}
 ```
 
 ### Logical Grouping With Relationships
@@ -315,7 +376,11 @@ select: {
 
 ```js
 select: {
-  total: { $sum: { $multiply: ["$record.price", "$record.quantity"] } }
+  total: {
+    $sum: {
+      $multiply: ['$record.price', '$record.quantity']
+    }
+  }
 }
 ```
 
@@ -449,27 +514,27 @@ select: {
 
 **Collect options (inside `$collect`):**
 
-| Option | Notes |
-|---|---|
-| `label` | related label to collect from (label-based form) |
-| `from` | `$alias` string (alias-based form; requires `$alias` in where) |
-| `where?` | flat filter on this traversal level |
-| `select?` | shape the collected records (omit to collect entire records) |
-| `orderBy?` | sort collected items: `{ salary: "desc" }` |
-| `limit?` | max items in the array |
-| `skip?` | skip N items in the collected array |
+| Option     | Notes                                                          |
+| ---------- | -------------------------------------------------------------- |
+| `label`    | related label to collect from (label-based form)               |
+| `from`     | `$alias` string (alias-based form; requires `$alias` in where) |
+| `where?`   | flat filter on this traversal level                            |
+| `select?`  | shape the collected records (omit to collect entire records)   |
+| `orderBy?` | sort collected items: `{ salary: "desc" }`                     |
+| `limit?`   | max items in the array                                         |
+| `skip?`    | skip N items in the collected array                            |
 
 ---
 
 ## §5) LIMIT Rules by Query Mode
 
-| Query mode | Limit |
-|---|---|
-| Self-group (single KPI row) | NO `limit` — but MUST add `orderBy` on select key for late ordering |
-| Dimensional groupBy | NO `limit` to get all groups; add `limit` + `orderBy` on select key for "top N" |
-| Per-record flat aggregation (one row per root record) | `limit` IS valid (caps root records) |
-| Pure listing (no select) | `limit` always valid |
-| "how many" simple count | Read `total` from the `findRecords` response — do NOT use `$count` for this |
+| Query mode                                            | Limit                                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Self-group (single KPI row)                           | NO `limit` — but MUST add `orderBy` on select key for late ordering             |
+| Dimensional groupBy                                   | NO `limit` to get all groups; add `limit` + `orderBy` on select key for "top N" |
+| Per-record flat aggregation (one row per root record) | `limit` IS valid (caps root records)                                            |
+| Pure listing (no select)                              | `limit` always valid                                                            |
+| "how many" simple count                               | Read `total` from the `findRecords` response — do NOT use `$count` for this     |
 
 ---
 
@@ -478,7 +543,7 @@ select: {
 If the metric field is NOT on the target label, search related labels before giving up:
 
 1. Confirm target label. `findProperties(labels:[<target>])` — look for the metric field.
-2. If absent, walk adjacent labels via `getOntologyMarkdown` or `findRelationships` probe.
+2. If absent, walk adjacent labels via `getOntologyMarkdown` or `findRelationships` with `source`/`target` endpoint probes.
 3. For each candidate related label R: `findProperties(labels:[R])` and attempt the same match.
 4. When found on CHILD: `where:{ CHILD:{ ...filters..., $alias:'$child' } }`, select referencing `'$child.*'`. Root-level filters stay at the top-level `where`.
 5. Never abandon after one miss — always attempt at least one related-label discovery pass.
@@ -521,18 +586,32 @@ Probe with `findRecords(limit:1, where:{ <nameField>:{ $contains:'...' } })`.
 ### Multi-Hop Relationship Discovery
 
 Pre-check before multi-hop:
+
 1. `findProperties(labels:[parent])` for direct scalar fields.
-2. Fetch 1 sample parent record. `findRelationships` filtered by its `id` → discover adjacent labels.
+2. Fetch 1 sample parent record. `findRelationships` with `source.where.$id` or `target.where.$id` → discover adjacent labels.
 3. If direct path to child exists: `where:{ CHILD:{ $alias:'$child' } }` — STOP. No intermediate wrappers.
 4. Only if no direct path: BFS (depth ≤ 4).
 
 **BFS algorithm:**
+
 1. Resolve parent + child labels via `findLabels`.
-2. Fetch 1 sample record of current hop; `findRelationships` filtered by its `id` → adjacent labels.
+2. Fetch 1 sample record of current hop; `findRelationships` with `source.where.$id` or `target.where.$id` → adjacent labels.
 3. On finding path `PARENT→A→B→CHILD`:
    ```js
-   where:{ A:{ B:{ CHILD:{ $alias:'$child' } } } }
-   select:{ metric:{ $count:'*' } }
+   where: {
+     A: {
+       B: {
+         CHILD: {
+           $alias: '$child'
+         }
+       }
+     }
+   }
+   select: {
+     metric: {
+       $count: '*'
+     }
+   }
    ```
 4. No top-level `limit` for pure grouped aggregations.
 5. Only the root parent label appears in `labels:[]`. Intermediates appear only inside `where`.
@@ -541,35 +620,46 @@ Pre-check before multi-hop:
 8. If BFS exhausts without match: synonym remap using `findProperties` output; if still unavailable, ask.
 
 **Avoid over-nesting:**
+
 ```js
 // WRONG:
-where:{ A:{ B:{ $alias:'$b' } } }   // when B is directly linked to root
+where: {
+  A: {
+    B: {
+      $alias: '$b'
+    }
+  }
+} // when B is directly linked to root
 // CORRECT:
-where:{ B:{ $alias:'$b' } }
+where: {
+  B: {
+    $alias: '$b'
+  }
+}
 ```
 
 ---
 
 ## §11) NL → WHERE Translation Quick Reference
 
-| Natural language | Where syntax |
-|---|---|
-| equals | `field: value` |
-| not equals | `field: { $ne: value }` |
-| in set | `field: { $in: [v1,v2] }` |
-| not in set | `field: { $nin: [v1,v2] }` |
-| greater than | `field: { $gt: N }` |
-| between X and Y | `field: { $gte: X, $lte: Y }` |
-| contains "text" | `field: { $contains: "text" }` |
-| starts with | `field: { $startsWith: "..." }` |
-| ends with | `field: { $endsWith: "..." }` |
-| has field | `field: { $exists: true }` |
-| AND conditions | implicit (multiple keys) or `$and:[...]` |
-| OR conditions | `$or: [...]` |
-| NOT condition | `$not: { ... }` |
-| related to X | `LABEL_NAME: { ...filters... }` |
-| last 7 days | compute ISO boundary → `createdAt: { $gte: "ISO-UTC" }` |
-| in year 1994 | `date: { $gte: { $year:1994 }, $lt: { $year:1995 } }` |
+| Natural language | Where syntax                                            |
+| ---------------- | ------------------------------------------------------- |
+| equals           | `field: value` or `field: { $eq: value }`               |
+| not equals       | `field: { $ne: value }`                                 |
+| in set           | `field: { $in: [v1,v2] }`                               |
+| not in set       | `field: { $nin: [v1,v2] }`                              |
+| greater than     | `field: { $gt: N }`                                     |
+| between X and Y  | `field: { $gte: X, $lte: Y }`                           |
+| contains "text"  | `field: { $contains: "text" }`                          |
+| starts with      | `field: { $startsWith: "..." }`                         |
+| ends with        | `field: { $endsWith: "..." }`                           |
+| has field        | `field: { $exists: true }`                              |
+| AND conditions   | implicit (multiple keys) or `$and:[...]`                |
+| OR conditions    | `$or: [...]`                                            |
+| NOT condition    | `$not: { ... }`                                         |
+| related to X     | `LABEL_NAME: { ...filters... }`                         |
+| last 7 days      | compute ISO boundary → `createdAt: { $gte: "ISO-UTC" }` |
+| in year 1994     | `date: { $gte: { $year:1994 }, $lt: { $year:1995 } }`   |
 
 **Numerics:** 1k=1000, 1m=1000000, 1b=1000000000. Strip currency symbols ($100k→100000).
 
@@ -586,7 +676,7 @@ Before submitting any `findRecords` call, verify:
   - Dimensional: entries are `"$alias.propertyName"` strings
   - Self-group: entries are select key names (no dot, no alias prefix)
 - [ ] Traversal: key = label name (ALL_CAPS). NEVER `$label`/`$direction`/`$as`/`$of`/`$through`
-  - WRONG: `{ employee: { $label:'EMPLOYEE' } }`   CORRECT: `{ EMPLOYEE: { $alias:'$emp' } }`
+  - WRONG: `{ employee: { $label:'EMPLOYEE' } }` CORRECT: `{ EMPLOYEE: { $alias:'$emp' } }`
 - [ ] Vector similarity: still uses legacy `aggregate` (not `select`)
 - [ ] Vector threshold semantics: euclidean → `$lte`; others → `$gte`
 - [ ] Month+day without year → ask for year
@@ -596,46 +686,51 @@ Before submitting any `findRecords` call, verify:
 
 ## §13) Example Patterns
 
-*(Actual label/field names always come from `getOntologyMarkdown` — never from these examples.)*
+_(Actual label/field names always come from `getOntologyMarkdown` — never from these examples.)_
 
 **List with numeric filter:**
+
 ```js
 findRecords({ labels:['<LABEL>'], where:{ <field>:{ $gt:100000 } }, limit:10 })
 ```
 
 **Date range:**
+
 ```js
 findRecords({ labels:['<LABEL>'], where:{ <dateField>:{ $gte:{ $year:1994 }, $lt:{ $year:1995 } } }, limit:10 })
 ```
 
 **Dimensional groupBy (count + avg per category):**
+
 ```js
 findRecords({
   labels: ['<LABEL>'],
-  select:  { count: { $count: '*' }, avg: { $avg: '$record.<field>', $precision: 2 } },
+  select: { count: { $count: '*' }, avg: { $avg: '$record.<field>', $precision: 2 } },
   groupBy: ['$record.<categoryField>'],
   orderBy: { count: 'desc' }
 })
 ```
 
 **Self-group single KPI:**
+
 ```js
 findRecords({
-  labels:  ['<LABEL>'],
-  select:  { total: { $sum: '$record.<field>' } },
+  labels: ['<LABEL>'],
+  select: { total: { $sum: '$record.<field>' } },
   groupBy: ['total'],
-  orderBy: { total: 'asc' }    // required for correct full-scan total
+  orderBy: { total: 'asc' } // required for correct full-scan total
 })
 ```
 
 **Self-group multiple KPIs:**
+
 ```js
 findRecords({
   labels: ['<LABEL>'],
   select: {
     totalRevenue: { $sum: '$record.<revenueField>' },
-    orderCount:   { $count: '*' },
-    avgOrder:     { $avg: '$record.<revenueField>', $precision: 2 }
+    orderCount: { $count: '*' },
+    avgOrder: { $avg: '$record.<revenueField>', $precision: 2 }
   },
   groupBy: ['totalRevenue', 'orderCount', 'avgOrder'],
   orderBy: { totalRevenue: 'asc' }
@@ -643,6 +738,7 @@ findRecords({
 ```
 
 **Per-record from related label (one row per root record):**
+
 ```js
 labels: ['PROJECT'],
 where:  { budget: { $lte: 10000000 }, EMPLOYEE: { $alias: '$employee' } },
@@ -656,6 +752,7 @@ limit: 100   // valid: caps root PROJECT records
 ```
 
 **Nested hierarchy (COMPANY → DEPT → PROJECT → EMPLOYEE):**
+
 ```js
 labels: ['COMPANY'],
 where:  { foundedAt: { $lte: { $year: 1980 } } },
@@ -683,31 +780,49 @@ select: {
 ```
 
 **Time series monthly count:**
+
 ```js
 findRecords({
-  labels:  ['<LABEL>'],
-  select:  { month: { $timeBucket: { field: '$record.<dateField>', unit: 'month' } }, count: { $count: '*' } },
+  labels: ['<LABEL>'],
+  select: { month: { $timeBucket: { field: '$record.<dateField>', unit: 'month' } }, count: { $count: '*' } },
   groupBy: ['month'],
   orderBy: { month: 'asc' }
 })
 ```
 
 **Relationship with specific type/direction:**
+
 ```js
 where: { POST: { $relation: { type: 'AUTHORED', direction: 'in' }, title: { $contains: 'Graph' } } }
 ```
 
 **Filter by ID:**
+
 ```js
-where: { $id: { $in: ['id1','id2'] } }
-where: { EMPLOYEE: { $id: 'specific-id' } }
+where: {
+  $id: {
+    $in: ['id1', 'id2']
+  }
+}
+where: {
+  EMPLOYEE: {
+    $id: 'specific-id'
+  }
+}
 ```
 
 **XOR / exclusive range:**
+
 ```js
 where: { budget: { $xor: { $lte: 10000000, $gte: 15000000 } } }
 ```
 
 ---
 
-The same `SearchQuery` shape is reused across `findRecords`, `findRelationships` (minus `select`/`groupBy`), `findLabels` (minus `select`/`groupBy`), `findProperties` (minus `select`/`groupBy`), `exportRecords`, and `bulkDeleteRecords`.
+Resource-local `where` rule:
+
+- `findRecords.where`, `exportRecords.where`, and `bulkDeleteRecords.where` apply to Records.
+- `findRelationships.where` applies to relationship edges: `type` maps to the relationship type, and all other fields map to user-defined edge properties. Use `source` and `target` for endpoint Record predicates.
+- `findLabels.where` and `findProperties.where` apply to Records before returning label/property metadata.
+
+`findRelationships` does not support `select` or `groupBy`.

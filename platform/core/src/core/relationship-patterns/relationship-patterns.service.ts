@@ -140,11 +140,10 @@ export class RelationshipPatternsService {
       return undefined
     }
 
-    this.applyPatternInFreshTransaction(pattern).catch((error) => {
-      this.logger.error(`[RelationshipPattern] backfill failed for pattern ${id}`, error)
-    })
+    await this.applyPatternInFreshTransaction(pattern)
 
-    return this.toDto(pattern)
+    const appliedPattern = await this.repository.findById(id, projectId)
+    return this.toDto(appliedPattern ?? pattern)
   }
 
   async ignore(projectId: string, id: string): Promise<RelationshipPatternDto | undefined> {
@@ -221,8 +220,9 @@ export class RelationshipPatternsService {
         ontology,
         existingPatterns
       )
+      const deterministicCandidates = this.suggestDeterministicCandidates(ontology)
       const validCandidates = this.dedupeInverseCandidates(
-        candidates
+        [...deterministicCandidates, ...candidates]
           .map((candidate) => this.validateCandidate(candidate, ontology))
           .filter((candidate): candidate is RelationshipPatternCandidate => Boolean(candidate))
       )
@@ -273,6 +273,43 @@ export class RelationshipPatternsService {
     } finally {
       this.runningAnalysis.delete(projectId)
     }
+  }
+
+  private suggestDeterministicCandidates(ontology: OntologyItem[]): RelationshipPatternCandidate[] {
+    const agent = this.findOntologyItemWithProperty(ontology, ['AGENT'], 'agentId')
+    const run = this.findOntologyItemWithProperty(ontology, ['RUN'], 'agentId')
+
+    if (!agent || !run || agent.label === run.label) {
+      return []
+    }
+
+    return [
+      {
+        source: { label: agent.label, key: 'agentId' },
+        target: { label: run.label, key: 'agentId' },
+        direction: 'out',
+        type: 'HAS_RUN',
+        mode: 'join_pattern',
+        confidence: 0.92,
+        rationale: `${run.label}.agentId references ${agent.label}.agentId, linking evaluation runs to the agent that produced them.`
+      }
+    ]
+  }
+
+  private findOntologyItemWithProperty(
+    ontology: OntologyItem[],
+    preferredLabels: string[],
+    propertyName: string
+  ): OntologyItem | undefined {
+    const normalizedPreferred = preferredLabels.map((label) => label.toUpperCase())
+    const candidates = ontology.filter((item) =>
+      item.properties.some((property) => property.name.toLowerCase() === propertyName.toLowerCase())
+    )
+
+    return (
+      candidates.find((item) => normalizedPreferred.includes(item.label.toUpperCase())) ??
+      candidates.find((item) => normalizedPreferred.some((label) => item.label.toUpperCase().includes(label)))
+    )
   }
 
   private async suggestCandidates(

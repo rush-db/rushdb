@@ -14,11 +14,7 @@ import { CheckboxField } from '~/elements/Checkbox.tsx'
 import { $router, getRoutePath } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
 import { PageHeader, PageTitle } from '~/elements/PageHeader.tsx'
-import { setTourStep } from '~/features/tour/stores/tour.ts'
-
-function RadioGroup({ className, ...props }: TInheritableElementProps<'div', {}>) {
-  return <div className={cn(className, 'flex flex-col gap-5')} {...props} />
-}
+import { $tourAllowed, $tourStep, setTourStep } from '~/features/tour/stores/tour.ts'
 
 function RadioButton({
   title,
@@ -81,12 +77,21 @@ function formatEstimatedSize(content: string): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
+type MonacoEditorLike = {
+  getAction: (id: string) => { run: () => Promise<unknown> } | null
+  onDidBlurEditorWidget: (handler: () => void) => unknown
+  onDidFocusEditorWidget: (handler: () => void) => unknown
+}
+
 function EditorStep() {
   const [loading, setLoading] = useState(true)
   const defaultValue = useStore($editorData)
   const { mutateAsync: mutate, isPending: submitting } = useImportJsonMutation()
   const { mutateAsync: mutateCsv, isPending: csvSubmitting } = useImportCsvMutation()
   const projectId = useStore($currentProjectId)
+  const tourAllowed = useStore($tourAllowed)
+  const tourStep = useStore($tourStep)
+  const onboardingImportActive = tourAllowed && tourStep === 'projectImportIngest'
   const mode = useStore($mode)
   const csvData = useStore($csvData)
   const editorData = useStore($editorData)
@@ -102,12 +107,16 @@ function EditorStep() {
 
   const [error, setError] = useState<string | undefined>()
 
-  const handleEditorMount = (editor: any) => {
+  const handleEditorMount = (editor: MonacoEditorLike) => {
     setTimeout(function () {
-      editor
-        .getAction('editor.action.formatDocument')
-        ?.run()
-        .then(() => setLoading(false))
+      const formatAction = editor.getAction('editor.action.formatDocument')
+
+      if (!formatAction) {
+        setLoading(false)
+        return
+      }
+
+      formatAction.run().finally(() => setLoading(false))
     }, 50)
     editor.getAction('editor.action.formatDocument')?.run()
     editor.onDidBlurEditorWidget(() => {
@@ -127,23 +136,25 @@ function EditorStep() {
   const [newline, setNewline] = useState<string | undefined>(undefined)
   const [dynamicTyping, setDynamicTyping] = useState<boolean | undefined>(undefined)
 
-  // When switching to CSV mode, ensure loading overlay is cleared (since Monaco editor isn't mounted)
+  // When switching to CSV mode, ensure loading overlay is cleared since Monaco editor isn't mounted.
   useEffect(() => {
-    if (mode === 'csv' && loading) {
+    if (mode === 'csv') {
       setLoading(false)
     }
+
     if (mode === 'json') {
-      // Reset loading so JSON editor can show skeleton until mounted
       setLoading(true)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
   return (
     <div className="h-[calc(100dvh-262px+57px)] overflow-hidden">
       <div className="grid h-full grid-cols-1 gap-4 xl:grid-cols-[3fr_1fr]">
         <section className="bg-fill2 relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border">
-          <div className="border-border bg-surface-secondary flex items-center justify-between border-b px-4 py-2">
+          <div
+            className="border-border bg-surface-secondary flex items-center justify-between border-b px-4 py-2"
+            data-tour="project-import-data-overview"
+          >
             <p className="text-sm font-semibold">Source Data</p>
             <p className="text-content2 text-sm uppercase tracking-wide">
               {mode === 'json' ? 'JSON' : 'CSV'} | ~{sourceSizeEstimate}
@@ -152,7 +163,6 @@ function EditorStep() {
 
           {mode === 'json' && (
             <div
-              data-tour="project-import-data-overview"
               className={cn('flex min-h-0 flex-1 flex-col overflow-hidden p-3', {
                 'opacity-0': loading
               })}
@@ -284,21 +294,21 @@ function EditorStep() {
                     caption="Column separator, usually comma, semicolon, or tab."
                     size="small"
                     value={delimiter}
-                    onChange={(e: any) => setDelimiter(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setDelimiter(e.target.value)}
                   />
                   <TextField
                     label="Quote Char"
                     caption="Character wrapping values that contain delimiters."
                     size="small"
                     value={quoteChar}
-                    onChange={(e: any) => setQuoteChar(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setQuoteChar(e.target.value)}
                   />
                   <TextField
                     label="Escape Char"
                     caption="Character used to escape quote characters in values."
                     size="small"
                     value={escapeChar}
-                    onChange={(e: any) => setEscapeChar(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEscapeChar(e.target.value)}
                   />
                   <TextField
                     label="Newline"
@@ -306,7 +316,7 @@ function EditorStep() {
                     size="small"
                     placeholder="auto"
                     value={newline ?? ''}
-                    onChange={(e: any) => setNewline(e.target.value || undefined)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNewline(e.target.value || undefined)}
                   />
 
                   <div className="space-y-1">
@@ -349,7 +359,7 @@ function EditorStep() {
             </Button>
             {mode === 'json' && (
               <Button
-                data-tour="project-import-data-ingest"
+                data-tour={!loading && !submitting ? 'project-import-data-ingest' : undefined}
                 onClick={() => {
                   if (!label) {
                     setError('Label is required')
@@ -366,7 +376,12 @@ function EditorStep() {
                       mergeBy: mergeMode ? [] : undefined
                     }
                   }).then(() => {
-                    $router.open(getRoutePath('project', { id: projectId! }))
+                    if (onboardingImportActive) {
+                      $router.open(getRoutePath('projectIndexes', { id: projectId! }))
+                      setTourStep('projectIndexSuggestions', true)
+                    } else {
+                      $router.open(getRoutePath('project', { id: projectId! }))
+                    }
                     $step.set('method')
                   })
                 }}
@@ -403,7 +418,12 @@ function EditorStep() {
                       dynamicTyping: dynamicTyping
                     }
                   }).then(() => {
-                    $router.open(getRoutePath('project', { id: projectId! }))
+                    if (onboardingImportActive) {
+                      $router.open(getRoutePath('projectIndexes', { id: projectId! }))
+                      setTourStep('projectIndexSuggestions', true)
+                    } else {
+                      $router.open(getRoutePath('project', { id: projectId! }))
+                    }
                     $step.set('method')
                   })
                 }}
@@ -429,14 +449,14 @@ function isNDJSONorJSON(input: string): 'NDJSON' | 'JSON' | 'Unknown' {
     // Try parsing as JSON first
     JSON.parse(input)
     return 'JSON'
-  } catch (jsonError) {
+  } catch {
     // If JSON parsing fails, check if it's NDJSON
     const lines = input.split('\n').filter((line) => line.trim() !== '')
 
     for (const line of lines) {
       try {
         JSON.parse(line)
-      } catch (ndjsonError) {
+      } catch {
         return 'Unknown'
       }
     }
@@ -517,16 +537,29 @@ function detectImportFileType(fileName: string, input: string): SupportedImportF
 export function ImportRecords() {
   const page = useStore($router)
   const step = useStore($step)
+  const tourAllowed = useStore($tourAllowed)
+  const tourStep = useStore($tourStep)
   const [isDraggingFile, setIsDraggingFile] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [lastDetectedType, setLastDetectedType] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (page?.route === 'projectImportData') {
+    if (page?.route === 'projectImportData' && tourStep === 'projectImportDataTab') {
       setTourStep('projectImportRadio', false)
     }
   }, [page?.route])
+
+  useEffect(() => {
+    if (!tourAllowed || tourStep !== 'projectImportOverview' || step !== 'method') return
+    import('../onboardingAgentEvalData.json')
+      .then((mod) => {
+        $editorData.set(JSON.stringify(mod.default, null, 2))
+        $label.set('AGENT_EVAL')
+        $mode.set('json')
+      })
+      .catch(() => undefined)
+  }, [tourAllowed, tourStep, step])
 
   useEffect(() => {
     if (step === 'method') {
@@ -575,9 +608,9 @@ export function ImportRecords() {
         $editorData.set(JSON.stringify(parsed, null, 2))
         $mode.set('json')
         $step.set('editor')
-      } catch (error: any) {
+      } catch (error: unknown) {
         setLastDetectedType(null)
-        setUploadError(error?.message || 'Could not parse uploaded file.')
+        setUploadError(error instanceof Error ? error.message : 'Could not parse uploaded file.')
       }
     }
 
@@ -669,23 +702,33 @@ export function ImportRecords() {
                     $editorData.set(JSON.stringify(data, null, 2))
                     $label.set('COMPANY')
                     $mode.set('json')
-                    setTourStep('projectImportOverview', true)
-                  } catch (error) {}
+                    if (tourAllowed && tourStep === 'projectImportRadio') {
+                      setTourStep('projectImportOverview', true)
+                    }
+                  } catch {}
                 }}
-                description="We'll upload a test dataset for you to explore."
+                description="We'll upload a sample dataset for you to explore."
                 icon={<TestTube2 />}
-                title="Use test dataset"
-                data-tour="project-import-data-radio"
+                title="Use sammple dataset"
               />
               <RadioButton
                 description="Create a new JSON payload from scratch."
                 icon={<Edit />}
-                onClick={() => {
-                  $editorData.set(`{}`)
-                  $label.set('')
+                onClick={async () => {
+                  const isOnboardingFixture = tourAllowed && tourStep === 'projectImportRadio'
+                  if (isOnboardingFixture) {
+                    const data = await import('../onboardingAgentEvalData.json').then((mod) => mod.default)
+                    $editorData.set(JSON.stringify(data, null, 2))
+                    $label.set('AGENT_EVAL')
+                    setTourStep('projectImportOverview', true)
+                  } else {
+                    $editorData.set(`{}`)
+                    $label.set('')
+                  }
                   $mode.set('json')
                 }}
                 title="Write from scratch"
+                data-tour="project-import-data-radio"
               />
               <RadioButton
                 description="Open the file picker and import a data file with automatic format detection."

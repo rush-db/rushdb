@@ -9,7 +9,7 @@ import { $currentWorkspaceId } from './current'
 export const setCurrentWorkspace = action(
   $currentWorkspaceId,
   'setCurrentWorkspace',
-  (store, id: Workspace['id']) => {
+  (store, id: Workspace['id'] | undefined) => {
     store.set(id)
 
     if (isProjectPage($router.get())) {

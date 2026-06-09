@@ -28,7 +28,8 @@ db.relationships.create_many(
     source={"label": "MOVIE",    "key": "directorId"},
     target={"label": "DIRECTOR", "key": "id"},
     type="DIRECTED_BY",
-    direction="out"
+    direction="out",
+    properties={"source": "import", "confidence": 0.98}
 )
 # Creates: (MOVIE) -[:DIRECTED_BY]-> (DIRECTOR) where MOVIE.directorId = DIRECTOR.id
 ```
@@ -43,7 +44,8 @@ await db.relationships.createMany({
   source: { label: 'MOVIE', key: 'directorId' },
   target: { label: 'DIRECTOR', key: 'id' },
   type: 'DIRECTED_BY',
-  direction: 'out'
+  direction: 'out',
+  properties: { source: 'import', confidence: 0.98 }
 })
 // Creates: MOVIE -[:DIRECTED_BY]-> DIRECTOR where MOVIE.directorId = DIRECTOR.id
 ```
@@ -61,7 +63,8 @@ curl -X POST https://api.rushdb.com/api/v1/relationships/create-many \
     "source": {"label": "MOVIE",    "key": "directorId"},
     "target": {"label": "DIRECTOR", "key": "id"},
     "type": "DIRECTED_BY",
-    "direction": "out"
+    "direction": "out",
+    "properties": {"source": "import", "confidence": 0.98}
   }'
 ```
 
@@ -76,6 +79,7 @@ curl -X POST https://api.rushdb.com/api/v1/relationships/create-many \
 | `target`     | `{label, key?, where?}` | Target selector — same                                                             |
 | `type`       | `string`                | Relationship type to create                                                        |
 | `direction`  | `"in" \| "out"`         | Direction from source to target                                                    |
+| `properties` | `object`                | Shared user-defined properties to write on each created edge                       |
 | `manyToMany` | `boolean`               | Cartesian product mode (see below)                                                 |
 
 ---

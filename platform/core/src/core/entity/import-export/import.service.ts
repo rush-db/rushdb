@@ -363,7 +363,8 @@ export class ImportService {
     const remappedRelations = relations.map((rel) => ({
       source: draftToPersistedId.get(rel.source) ?? rel.source,
       target: draftToPersistedId.get(rel.target) ?? rel.target,
-      type: rel.type
+      type: rel.type,
+      properties: rel.properties
     }))
 
     // Write inline vectors now that all record IDs are known

@@ -51,6 +51,49 @@ type WithInit = {
   init?: RequestInit
 }
 
+type RelationshipEndpointQuery = {
+  labels?: string[]
+  where?: AnyObject
+}
+
+type RelationshipSearchQuery = Pick<SearchQuery, 'limit' | 'skip' | 'orderBy'> & {
+  where?: AnyObject
+  source?: RelationshipEndpointQuery
+  target?: RelationshipEndpointQuery
+}
+
+type OntologyVectorIndex = {
+  id: string
+  sourceType: string
+  similarityFunction: string
+  dimensions: number
+  status: string
+  modelKey: string
+}
+
+export type OntologyProperty = {
+  id: string
+  name: string
+  type: string
+  min?: number | string
+  max?: number | string
+  values?: Array<string | number>
+  recordsCount?: number
+  vectorIndexes?: OntologyVectorIndex[]
+}
+
+export type OntologyItem = {
+  label: string
+  count: number
+  properties: OntologyProperty[]
+  relationships: Array<{
+    label: string
+    type: string
+    direction: 'in' | 'out'
+    count?: number
+  }>
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyFunction = (args: any) => void
 
@@ -59,6 +102,23 @@ export type ApiParams<Method extends AnyFunction> = Parameters<Method>[0]
 export type ApiResult<Method extends AnyFunction> = Awaited<ReturnType<Method>>
 
 export const api = {
+  ai: {
+    async getOntology({
+      force,
+      init,
+      labels,
+      projectId
+    }: WithInit & WithProjectID & { labels?: string[]; force?: boolean }) {
+      return fetcher<OntologyItem[]>(`/api/v1/ai/ontology`, {
+        ...init,
+        body: JSON.stringify({ force, labels }),
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'POST'
+      })
+    }
+  },
   records: {
     async importJson({
       init,
@@ -212,7 +272,7 @@ export const api = {
       pagination,
       searchQuery
     }: {
-      searchQuery: SearchQuery
+      searchQuery: RelationshipSearchQuery
       pagination?: Pick<SearchQuery, 'limit' | 'skip'>
     } & WithInit) {
       return rushDBInstance.relationships.find({ ...searchQuery, ...pagination })

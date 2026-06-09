@@ -73,6 +73,8 @@ export function ClientLibrariesStep() {
                       as="a"
                       href={docsUrls.sdk[language].installation}
                       size="xsmall"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       variant="outline"
                       disabled={!available}
                     >
@@ -83,6 +85,8 @@ export function ClientLibrariesStep() {
                       as="a"
                       href={docsUrls.sdk[language].github}
                       size="xsmall"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       variant="outline"
                       disabled={!available}
                     >

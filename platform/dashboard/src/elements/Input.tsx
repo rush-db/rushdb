@@ -1,5 +1,5 @@
 import type { VariantProps } from 'class-variance-authority'
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 
 import { cva } from 'class-variance-authority'
 import { Copy, CopyCheck, Search } from 'lucide-react'
@@ -97,13 +97,14 @@ export const SearchInput = forwardRef<HTMLInputElement, InputProps>((props, ref)
   return <Input ref={ref} type="search" {...props} prefix={<Search size={16} />} />
 })
 
-// @ts-ignore
+// @ts-expect-error TPolymorphicComponent cannot infer the input ref through the field wrapper.
 export const TextField: TPolymorphicComponent<InputProps & FormFieldProps, 'label'> = forwardRef(
   ({ caption, className, error, label, as, ...inputProps }, ref) => {
     return (
-      <FormField as={as} caption={caption} className={className} error={error} label={label} ref={ref}>
+      <FormField as={as} caption={caption} className={className} error={error} label={label}>
         <Input
           aria-invalid={Boolean(error)}
+          ref={ref as Ref<HTMLInputElement>}
           as="div"
           variant={error ? 'error' : inputProps.variant}
           {...inputProps}

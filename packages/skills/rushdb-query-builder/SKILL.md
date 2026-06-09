@@ -22,6 +22,7 @@ A discovery-first workflow for safely and correctly querying RushDB.
 ### Step 0 — Ontology (every session, first call)
 
 Call `getOntologyMarkdown` before any other tool. It returns:
+
 - All label names (case-sensitive — use them exactly)
 - All property names and types per label
 - Value ranges for numeric/datetime fields
@@ -40,19 +41,20 @@ If the schema looks stale (e.g. new labels or properties were added recently), p
 
 Before building a query, identify what is being asked:
 
-| Intent | Pattern | Tool |
-|---|---|---|
-| **Aggregation** | count / total / sum / avg / breakdown / per X / top N by metric / distribution / grouped | `findRecords` with `select` + `groupBy` |
-| **Listing** | show / list / find / search / get | `findRecords` with `where` + `limit` + `orderBy` |
-| **Single record** | get by ID, find one unique | `getRecord` / `findOneRecord` / `findUniqRecord` |
-| **Relationships** | connected to / linked / related | `findRelationships` |
-| **Mutation** | create / update / delete | confirm + preview first |
+| Intent            | Pattern                                                                                  | Tool                                             |
+| ----------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| **Aggregation**   | count / total / sum / avg / breakdown / per X / top N by metric / distribution / grouped | `findRecords` with `select` + `groupBy`          |
+| **Listing**       | show / list / find / search / get                                                        | `findRecords` with `where` + `limit` + `orderBy` |
+| **Single record** | get by ID, find one unique                                                               | `getRecord` / `findOneRecord` / `findUniqRecord` |
+| **Relationships** | connected to / linked / related                                                          | `findRelationships`                              |
+| **Mutation**      | create / update / delete                                                                 | confirm + preview first                          |
 
 ⚠ **Aggregation intent**: NEVER fetch raw records and count them manually. ALWAYS use `select` + `groupBy` on `findRecords`.
 
 ### Step 2 — Load Query Spec (for complex queries)
 
 Before calling `findRecords` with any of these, call `getSearchQuerySpec`:
+
 - Date/time filters or date ranges
 - `select` + `groupBy` (metrics, aggregations)
 - Relationship traversal (`where` keys that are label names)
@@ -69,55 +71,58 @@ Use only label and property names from the ontology. Labels are **case-sensitive
 ## Tool Reference
 
 ### Discovery
-| Tool | When to use                                                                                              |
-|---|----------------------------------------------------------------------------------------------------------|
-| `getOntologyMarkdown` | Step 0 — always first, once per session                                                                  |
-| `getOntology` | Same as above but structured JSON; use when you need `propertyId` values or `vectorIndexes` per property |
-| `findLabels` | Skip if `getOntologyMarkdown` already ran                                                                |
-| `findProperties` | Discover field names + types for a specific label when not in ontology                                   |
-| `findRelationships` | Inspect relationships; supports `where` + `limit` + `orderBy`; no aggregate/groupBy                      |
-| `propertyValues` | List distinct values for a property (needs `propertyId` from `getOntology` or `findProperties`)                          |
+
+| Tool                  | When to use                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `getOntologyMarkdown` | Step 0 — always first, once per session                                                                                      |
+| `getOntology`         | Same as above but structured JSON; use when you need `propertyId` values or `vectorIndexes` per property                     |
+| `findLabels`          | Skip if `getOntologyMarkdown` already ran                                                                                    |
+| `findProperties`      | Discover field names + types for a specific label when not in ontology                                                       |
+| `findRelationships`   | Inspect relationships; `where` filters edge type/properties, `source`/`target` filter endpoint records; no aggregate/groupBy |
+| `propertyValues`      | List distinct values for a property (needs `propertyId` from `getOntology` or `findProperties`)                              |
 
 > **Semantic search:** Properties listed as `getOntology` results with a non-empty `vectorIndexes` array are eligible for semantic search. Use `aiSemanticSearch` with the matching `propertyName` and `labels`.
 
 ### Querying
-| Tool | When to use |
-|---|---|
-| `findRecords` | Primary query tool — listing, filtering, aggregation, groupBy, semantic search |
-| `findOneRecord` | Return the first matching record |
-| `findUniqRecord` | Return exactly one record (errors if multiple match) |
-| `getRecord` | Fetch a single record by ID |
-| `getRecordsByIds` | Fetch multiple records by IDs |
+
+| Tool              | When to use                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `findRecords`     | Primary query/read/list/search tool — listing, filtering, aggregation, groupBy, semantic search        |
+| `findOneRecord`   | Return the first matching record                                                                       |
+| `findUniqRecord`  | Return exactly one record (errors if multiple match)                                                   |
+| `getRecord`       | Fetch a single record by ID                                                                            |
+| `getRecordsByIds` | Fetch multiple records by IDs                                                                          |
+| `exportRecords`   | Use only when the user explicitly asks for CSV export/download; do not substitute it for `findRecords` |
 
 ### Mutations (confirm before use)
-| Tool | Notes |
-|---|---|
-| `createRecord` | Store a new record |
-| `updateRecord` | Patch fields on an existing record |
-| `setRecord` | Replace all fields on an existing record |
-| `deleteRecord` / `deleteRecordById` | Destructive — preview first |
-| `bulkCreateRecords` | Batch insert via nested JSON |
-| `bulkDeleteRecords` | **Destructive batch** — always preview with `findRecords` first |
-| `attachRelation` | Create a relationship between two records |
-| `detachRelation` | Remove a relationship |
-| `exportRecords` | Export matching records to CSV |
+
+| Tool                                | Notes                                                           |
+| ----------------------------------- | --------------------------------------------------------------- |
+| `createRecord`                      | Store a new record                                              |
+| `updateRecord`                      | Patch fields on an existing record                              |
+| `setRecord`                         | Replace all fields on an existing record                        |
+| `deleteRecord` / `deleteRecordById` | Destructive — preview first                                     |
+| `bulkCreateRecords`                 | Batch insert via nested JSON                                    |
+| `bulkDeleteRecords`                 | **Destructive batch** — always preview with `findRecords` first |
+| `attachRelation`                    | Create a relationship between two records                       |
+| `detachRelation`                    | Remove a relationship                                           |
 
 ---
 
-## SearchQuery is the Universal Interface
+## Resource-Local `where` Rule
 
-`SearchQuery` (`where`, `labels`, `orderBy`, `limit`, `skip`) is accepted by every read and bulk-write method — not just `findRecords`:
+Do not reuse `where` blindly across resource types:
 
-| Method | Notes |
-|---|---|
-| `findRecords` | Full query: `where` + `select` + `groupBy` + pagination |
-| `findRelationships` | `where` + pagination; no `select`/`groupBy` |
-| `findLabels` | `where` + pagination; no `select`/`groupBy` |
-| `findProperties` | `where` + pagination; no `select`/`groupBy` |
-| `exportRecords` | `where` + `labels` + `orderBy`; streams CSV |
-| `bulkDeleteRecords` | `where` + `labels`; **destructive** — always preview first |
+| Method              | Notes                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `findRecords`       | `where` applies to Records. Full query: `where` + `select` + `groupBy` + pagination                                                              |
+| `findRelationships` | `where` applies to relationship edges (`type` + user-defined edge properties). Use `source`/`target` for endpoint Records; no `select`/`groupBy` |
+| `findLabels`        | `where` applies to Records before label counts are returned                                                                                      |
+| `findProperties`    | `where` applies to Records before property metadata is returned                                                                                  |
+| `exportRecords`     | `where` + `labels` apply to Records; streams CSV only when explicitly requested                                                                  |
+| `bulkDeleteRecords` | `where` + `labels` apply to Records; **destructive** — always preview first                                                                      |
 
-Build the `where` clause once and reuse it across methods. For example, the same filter used in `findRecords` to preview results can be passed directly to `bulkDeleteRecords` or `exportRecords`.
+The same Record filter used in `findRecords` can be passed directly to `bulkDeleteRecords`, `exportRecords`, `findLabels`, or `findProperties`. For relationship lookup, move Record predicates into `source.where` or `target.where`.
 
 ---
 
@@ -186,6 +191,7 @@ where: { POST: { $relation: { type: "AUTHORED", direction: "in" } } }
 ```
 
 **Common mistakes to avoid:**
+
 - `$label`, `$direction`, `$as`, `$of`, `$through` — **these do not exist**
 - `{ employee: { $label: "EMPLOYEE" } }` — **WRONG**: key must be the label name
 - `{ EMPLOYEE: { $alias: "$emp" } }` — **CORRECT**

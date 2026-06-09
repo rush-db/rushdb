@@ -29,6 +29,13 @@
       "when": 1779580800000,
       "tag": "0003_relationship_pattern_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1780984337441,
+      "tag": "0004_project_scoped_embedding_index",
+      "breakpoints": true
     }
   ]
 }

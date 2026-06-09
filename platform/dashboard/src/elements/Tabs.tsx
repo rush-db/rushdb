@@ -1,14 +1,28 @@
 // @ts-nocheck
 import type { ComponentPropsWithoutRef, ElementRef } from 'react'
 
-import { Content, List, Trigger } from '@radix-ui/react-tabs'
-import { forwardRef } from 'react'
+import { Content, List, Root, Trigger } from '@radix-ui/react-tabs'
+import { createContext, forwardRef, useContext, useId } from 'react'
 
 import { cn } from '~/lib/utils'
 
-export { Root as Tabs } from '@radix-ui/react-tabs'
-
 import { motion } from 'framer-motion'
+
+const TabsLayoutContext = createContext<string | undefined>(undefined)
+
+export const Tabs = forwardRef<
+  ElementRef<typeof Root>,
+  ComponentPropsWithoutRef<typeof Root> & { layoutId?: string }
+>(({ layoutId, ...props }, ref) => {
+  const generatedLayoutId = useId()
+
+  return (
+    <TabsLayoutContext.Provider value={layoutId ?? `tabs-${generatedLayoutId}`}>
+      <Root ref={ref} {...props} />
+    </TabsLayoutContext.Provider>
+  )
+})
+Tabs.displayName = Root.displayName
 
 export const TabsList = forwardRef<ElementRef<typeof List>, ComponentPropsWithoutRef<typeof List>>(
   ({ className, ...props }, ref) => (
@@ -25,8 +39,9 @@ export const TabsList = forwardRef<ElementRef<typeof List>, ComponentPropsWithou
 TabsList.displayName = List.displayName
 
 const TabInner: TPolymorphicComponent<{ layoutId?: string }, 'button'> = forwardRef(
-  ({ children, className, layoutId = 'tabs', as = 'button', ...props }, ref) => {
+  ({ children, className, layoutId, as = 'button', ...props }, ref) => {
     const active = 'data-state' in props && props['data-state'] === 'active'
+    const contextLayoutId = useContext(TabsLayoutContext)
 
     const Component = as
 
@@ -45,7 +60,7 @@ const TabInner: TPolymorphicComponent<{ layoutId?: string }, 'button'> = forward
         {active ?
           <motion.div
             className="bg-secondary absolute start-0 top-0 h-full w-full rounded"
-            layoutId={layoutId}
+            layoutId={layoutId ?? contextLayoutId}
           />
         : null}
         {children}
@@ -58,10 +73,12 @@ TabInner.displayName = 'TabInner'
 export const Tab: TPolymorphicComponent<
   ComponentPropsWithoutRef<typeof Trigger> & { layoutId?: string },
   'button'
-> = forwardRef(({ children, as, ...props }, ref) => {
+> = forwardRef(({ children, as, layoutId, ...props }, ref) => {
   return (
     <Trigger asChild ref={ref} {...props}>
-      <TabInner as={as}>{children}</TabInner>
+      <TabInner as={as} layoutId={layoutId}>
+        {children}
+      </TabInner>
     </Trigger>
   )
 })

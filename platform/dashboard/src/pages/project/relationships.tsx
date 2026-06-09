@@ -1,5 +1,6 @@
 import { Ban, Check, Info, RefreshCw, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useStore } from '@nanostores/react'
 
 import type { Project } from '~/features/projects/types'
 import type { ExistingRelationshipSummary, RelationshipPattern } from '~/features/relationship-patterns/types'
@@ -24,7 +25,10 @@ import {
   useIgnoreRelationshipPatternMutation,
   useRelationshipPatternsQuery
 } from '~/features/relationship-patterns/hooks'
+import { $currentProjectId } from '~/features/projects/stores/id'
+import { $tourStep, setTourStep } from '~/features/tour/stores/tour'
 import { formatIsoToLocalDateTime } from '~/lib/formatters'
+import { changeSearchParam, openRoute } from '~/lib/router'
 import { cn } from '~/lib/utils'
 
 function RelationshipPath({
@@ -136,10 +140,39 @@ function DeletePatternDialog({
   )
 }
 
-function PatternCard({ pattern }: { pattern: RelationshipPattern }) {
+function isAgentRunJoinPattern(pattern: RelationshipPattern) {
+  const labels = [pattern.source.label, pattern.target.label].map((label) => label.toUpperCase())
+  const keys = [pattern.source.key, pattern.target.key].map((key) => key?.toLowerCase())
+
+  return (
+    pattern.mode === 'join_pattern' &&
+    labels.some((label) => label.includes('AGENT')) &&
+    labels.some((label) => label.includes('RUN')) &&
+    keys.includes('agentid')
+  )
+}
+
+function sortSuggestedPatterns(patterns: RelationshipPattern[]) {
+  return [...patterns].sort((a, b) => {
+    const aScore = isAgentRunJoinPattern(a) ? 1 : 0
+    const bScore = isAgentRunJoinPattern(b) ? 1 : 0
+    if (bScore !== aScore) return bScore - aScore
+    return b.confidence - a.confidence
+  })
+}
+
+function PatternCard({
+  pattern,
+  tourApproveTarget = false
+}: {
+  pattern: RelationshipPattern
+  tourApproveTarget?: boolean
+}) {
   const approve = useApproveRelationshipPatternMutation()
   const ignore = useIgnoreRelationshipPatternMutation()
   const remove = useDeleteRelationshipPatternMutation()
+  const projectId = useStore($currentProjectId)
+  const tourStep = useStore($tourStep)
 
   return (
     <li className="px-4 py-3">
@@ -178,8 +211,19 @@ function PatternCard({ pattern }: { pattern: RelationshipPattern }) {
                 Ignore
               </Button>
               <Button
+                data-tour={tourApproveTarget ? 'project-relationships-approve' : undefined}
                 loading={approve.isPending}
-                onClick={() => approve.mutate(pattern.id)}
+                onClick={() =>
+                  approve.mutate(pattern.id, {
+                    onSuccess: () => {
+                      if (tourStep === 'projectRelationshipApprove' && projectId) {
+                        openRoute('project', { id: projectId })
+                        window.setTimeout(() => changeSearchParam('view', 'graph'), 0)
+                        setTourStep('recordGraphView', true)
+                      }
+                    }
+                  })
+                }
                 size="small"
                 variant="accent"
               >
@@ -267,7 +311,15 @@ function ExistingRelationshipsSection({
   )
 }
 
-function PatternsSection({ patterns, loading }: { patterns: RelationshipPattern[]; loading: boolean }) {
+function PatternsSection({
+  loading,
+  patterns,
+  tourPatternId
+}: {
+  loading: boolean
+  patterns: RelationshipPattern[]
+  tourPatternId?: string
+}) {
   return (
     <>
       {loading ?
@@ -282,12 +334,16 @@ function PatternsSection({ patterns, loading }: { patterns: RelationshipPattern[
       : patterns.length ?
         <Card>
           <ul className="divide-y">
-            {patterns.map((pattern) => (
-              <PatternCard key={pattern.id} pattern={pattern} />
+            {patterns.map((pattern, index) => (
+              <PatternCard
+                key={pattern.id}
+                pattern={pattern}
+                tourApproveTarget={pattern.id === tourPatternId || (!tourPatternId && index === 0)}
+              />
             ))}
           </ul>
         </Card>
-      : <NothingFound title="No patterns found" />}
+      : <NothingFound className="min-h-0 py-8" title="No patterns found" />}
     </>
   )
 }
@@ -308,12 +364,20 @@ export function ProjectRelationships({ projectId }: { projectId: Project['id'] }
   const { data, isPending } = useRelationshipPatternsQuery()
   const analyze = useAnalyzeRelationshipPatternsMutation()
   const patterns = data?.patterns ?? []
-  const suggested = patterns.filter((pattern) => pattern.status === 'suggested')
+  const suggested = sortSuggestedPatterns(patterns.filter((pattern) => pattern.status === 'suggested'))
   const approved = patterns.filter((pattern) => pattern.status === 'approved')
   const ignored = patterns.filter((pattern) => pattern.status === 'ignored' || pattern.status === 'error')
   const lastAnalyzedAt = data?.analysis?.lastRunAt
   const isAnalyzing =
     analyze.isPending || data?.analysis?.status === 'pending' || data?.analysis?.status === 'running'
+  const tourStep = useStore($tourStep)
+  const tourPatternId = suggested.find(isAgentRunJoinPattern)?.id ?? suggested[0]?.id
+
+  useEffect(() => {
+    if (tourStep === 'projectRelationshipAnalyze' && !isAnalyzing && suggested.length > 0) {
+      setTourStep('projectRelationshipApprove', true)
+    }
+  }, [isAnalyzing, suggested.length, tourStep])
 
   return (
     <>
@@ -358,6 +422,7 @@ export function ProjectRelationships({ projectId }: { projectId: Project['id'] }
                   </span>
                 : null}
                 <Button
+                  data-tour="project-relationships-analyze"
                   disabled={isAnalyzing}
                   onClick={() => analyze.mutate()}
                   size="small"
@@ -369,7 +434,7 @@ export function ProjectRelationships({ projectId }: { projectId: Project['id'] }
               </div>
             </div>
             <TabsContent value="suggested">
-              <PatternsSection loading={isPending} patterns={suggested} />
+              <PatternsSection loading={isPending} patterns={suggested} tourPatternId={tourPatternId} />
             </TabsContent>
             <TabsContent value="approved">
               <PatternsSection loading={isPending} patterns={approved} />

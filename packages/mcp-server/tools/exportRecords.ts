@@ -18,8 +18,9 @@ export async function exportRecords(params: {
   labels?: string[]
   where?: Record<string, any>
   limit?: number
+  orderBy?: Record<string, 'asc' | 'desc'>
 }) {
-  const { labels, where, limit } = params
+  const { labels, where, limit, orderBy } = params
 
   const searchQuery: any = {}
   if (labels && labels.length > 0) {
@@ -30,6 +31,9 @@ export async function exportRecords(params: {
   }
   if (limit) {
     searchQuery.limit = limit
+  }
+  if (orderBy && Object.keys(orderBy).length > 0) {
+    searchQuery.orderBy = orderBy
   }
 
   const result = await db.records.export(searchQuery)

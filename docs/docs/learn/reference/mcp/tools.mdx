@@ -54,11 +54,11 @@ An asterisk marks a required input.
 
 ## Relationships
 
-| Tool                | Level       | Main inputs                                                                             | Purpose                                                          |
-| ------------------- | ----------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `findRelationships` | Read        | `where?`, `limit?`, `skip?`, `orderBy?`                                                 | Inspect edges and discover graph paths before traversal queries. |
-| `attachRelation`    | Write       | `sourceId*`, `targetId?`, `targetIds?`, `relationType?`, `direction?`, `transactionId?` | Create relationships between existing records.                   |
-| `detachRelation`    | Destructive | `sourceId*`, `targetId?`, `targetIds?`, `relationType?`, `direction?`, `transactionId?` | Remove relationships between records.                            |
+| Tool                | Level       | Main inputs                                                                                            | Purpose                                                                                         |
+| ------------------- | ----------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `findRelationships` | Read        | `where?`, `source?`, `target?`, `limit?`, `skip?`, `orderBy?`                                          | Inspect edges. `where` filters edge type/properties; `source`/`target` filter endpoint records. |
+| `attachRelation`    | Write       | `sourceId*`, `targetId?`, `targetIds?`, `relationType?`, `direction?`, `properties?`, `transactionId?` | Create relationships between existing records.                                                  |
+| `detachRelation`    | Destructive | `sourceId*`, `targetId?`, `targetIds?`, `relationType?`, `direction?`, `transactionId?`                | Remove relationships between records.                                                           |
 
 ## Suggested Relationship Patterns
 

@@ -4,12 +4,11 @@ import { FolderPlus, Link, SearchX } from 'lucide-react'
 import type { Project, ProjectStats } from '~/features/projects/types'
 
 import { Button } from '~/elements/Button'
-import { SearchInput } from '~/elements/Input'
 import { NothingFound } from '~/elements/NothingFound'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { Metric } from '~/features/projects/components'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
-import { $projectsQuery, filterProjects } from '~/features/workspaces/stores/projects'
+import { $projectsQuery } from '~/features/workspaces/stores/projects'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { isProjectEmpty } from '~/features/projects/utils'
@@ -21,6 +20,7 @@ import {
   useCurrentWorkspaceQuery,
   useWorkspaceProjectsQuery
 } from '~/features/workspaces/hooks/useWorkspaceQueries'
+import { ConnectGuide } from '~/features/connect-guide'
 
 const statsMap: Record<keyof ProjectStats, string> = {
   properties: 'Properties',
@@ -79,17 +79,8 @@ function ProjectCard({ description, id, stats, name, customDb, status }: Project
   )
 }
 
-function ProjectsSearchInput(props: TInheritableElementProps<'input'>) {
-  const query = useStore($projectsQuery)
-
-  return <SearchInput placeholder="Search..." {...props} onChange={filterProjects} value={query} />
-}
-
 function Header() {
   const { data: projects } = useWorkspaceProjectsQuery()
-
-  const currentUser = useStore($user)
-  const isOwner = currentUser.currentScope?.role === 'owner'
 
   return (
     <PageHeader className="justify-between gap-5" contained>
@@ -112,21 +103,28 @@ function EmptyProjects() {
   const isOwner = currentUser.currentScope?.role === 'owner'
 
   return (
-    <div className="mx-auto grid h-full w-full max-w-lg flex-1 place-content-center place-items-center gap-3 p-5">
-      <SearchX size={64} />
-      <h4 className="text-2xl font-bold">You haven&apos;t created any projects yet!</h4>
-      <p className="text-content/90">Project is a place to organize related records</p>
-      {isOwner ?
-        <Button
-          data-tour="new-project-btn"
-          as="a"
-          className="mt-5 w-full"
-          href={getRoutePath('newProject')}
-          variant="accent"
-        >
-          New Project
-        </Button>
-      : null}
+    <div className="flex flex-1 overflow-auto">
+      <div className="flex w-1/4 shrink-0 flex-col items-center justify-center gap-3 border-r p-8">
+        <SearchX size={48} className="text-content2" />
+        <h4 className="text-center text-xl font-bold">No projects yet</h4>
+        <p className="text-content2 text-center text-sm">A project organizes related data</p>
+        {isOwner && (
+          <Button
+            data-tour="new-project-btn"
+            as="a"
+            className="mt-3 w-full justify-center"
+            href={getRoutePath('newProject')}
+            variant="accent"
+            size="small"
+          >
+            <FolderPlus />
+            New Project
+          </Button>
+        )}
+      </div>
+      <div className="min-w-0 flex-1 overflow-auto p-8">
+        <ConnectGuide />
+      </div>
     </div>
   )
 }

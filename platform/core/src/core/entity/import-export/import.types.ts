@@ -4,6 +4,7 @@ export type TImportRecordsRelation = {
   source: string
   target: string
   type?: string
+  properties?: Record<string, unknown>
 }
 export type TImportJsonPayload = Record<string, any> | Array<Record<string, any>>
 export type TImportJsonInputFormat = 'json' | 'jsonl' | 'ndjson'

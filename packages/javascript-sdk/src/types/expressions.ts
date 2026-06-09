@@ -19,19 +19,23 @@ import type {
 export type DatetimeExpression =
   | DatetimeValue
   | RequireAtLeastOne<
-      Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', DatetimeObject | DatetimeValue> &
+      Record<'$eq' | '$gt' | '$gte' | '$lt' | '$lte' | '$ne', DatetimeObject | DatetimeValue> &
         Record<'$in' | '$nin', Array<DatetimeObject | DatetimeValue>> &
         Record<'$exists', BooleanValue>
     >
 
-export type BooleanExpression = BooleanValue | Record<'$ne' | '$exists', BooleanValue>
+export type BooleanExpression =
+  | BooleanValue
+  | RequireAtLeastOne<Record<'$eq' | '$ne', BooleanValue> & Record<'$exists', BooleanValue>>
 
-export type NullExpression = NullValue | Record<'$ne' | '$exists', NullValue | BooleanValue>
+export type NullExpression =
+  | NullValue
+  | RequireAtLeastOne<Record<'$eq' | '$ne', NullValue> & Record<'$exists', BooleanValue>>
 
 export type NumberExpression =
   | NumberValue
   | RequireAtLeastOne<
-      Record<'$gt' | '$gte' | '$lt' | '$lte' | '$ne', NumberValue> &
+      Record<'$eq' | '$gt' | '$gte' | '$lt' | '$lte' | '$ne', NumberValue> &
         Record<'$in' | '$nin', Array<NumberValue>> &
         Record<'$exists', BooleanValue>
     >
@@ -39,7 +43,7 @@ export type NumberExpression =
 export type StringExpression =
   | StringValue
   | RequireAtLeastOne<
-      Record<'$contains' | '$endsWith' | '$ne' | '$startsWith', StringValue> &
+      Record<'$contains' | '$endsWith' | '$eq' | '$ne' | '$startsWith', StringValue> &
         Record<'$in' | '$nin', Array<StringValue>> &
         Record<'$exists', BooleanValue>
     >

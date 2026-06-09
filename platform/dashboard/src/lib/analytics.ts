@@ -46,15 +46,16 @@ export function trackApiKeyGenerated(options: { isInitialKey?: boolean } = {}) {
 }
 
 /** Fired when the user clicks a paid-plan checkout button. */
-export function trackUpgradeClicked(options: { currentPlan?: string; targetPlan?: string } = {}) {
+export function trackUpgradeClicked(
+  options: {
+    currentPlan?: string
+    targetPlan?: string
+    billingPeriod?: 'monthly' | 'annual'
+  } = {}
+) {
   push('upgrade_clicked', {
     current_plan: options.currentPlan ?? 'free',
-    target_plan: options.targetPlan ?? ''
+    target_plan: options.targetPlan ?? '',
+    billing_period: options.billingPeriod ?? ''
   })
-}
-
-/** Fired when a plan-selection redirect completes successfully (Stripe session
- *  created and user redirected). */
-export function trackPlanSelected(planName: string, billingPeriod: 'monthly' | 'annual') {
-  push('plan_selected', { plan_name: planName, billing_period: billingPeriod })
 }

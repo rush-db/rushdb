@@ -6,6 +6,7 @@ import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
+import { useCallback, useEffect, useRef } from 'react'
 
 const schema = object({
   name: string().required().min(1).max(256)
@@ -13,17 +14,40 @@ const schema = object({
 
 function CreateWorkspaceForm({ ...props }: TPolymorphicComponentProps<'form'>) {
   const { data: newWorkspace, mutateAsync: mutate } = useCreateWorkspaceMutation()
+  const nameInputRef = useRef<HTMLInputElement | null>(null)
 
   const {
     formState: { errors, isDirty, isSubmitted, isSubmitting },
     handleSubmit,
-    register
+    register,
+    setFocus,
+    watch
   } = useForm({
     defaultValues: { name: '' },
     schema
   })
 
+  const workspaceName = watch('name')
+  const hasWorkspaceName = workspaceName.trim().length > 0
   const showSuccess = isDirty && newWorkspace !== undefined && isSubmitted
+  const nameField = register('name')
+
+  const focusNameInput = useCallback(() => {
+    setFocus('name')
+    nameInputRef.current?.focus({ preventScroll: true })
+  }, [setFocus])
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(focusNameInput)
+    const immediateId = window.setTimeout(focusNameInput, 0)
+    const delayedId = window.setTimeout(focusNameInput, 100)
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      window.clearTimeout(immediateId)
+      window.clearTimeout(delayedId)
+    }
+  }, [focusNameInput])
 
   return (
     <Card
@@ -44,7 +68,11 @@ function CreateWorkspaceForm({ ...props }: TPolymorphicComponentProps<'form'>) {
         <CardBody>
           <TextField
             label="Name"
-            {...register('name')}
+            {...nameField}
+            ref={(node) => {
+              nameField.ref(node as unknown as HTMLInputElement | null)
+              nameInputRef.current = node as unknown as HTMLInputElement | null
+            }}
             autoFocus
             error={errors?.name?.message}
             readOnly={!!showSuccess}
@@ -52,7 +80,12 @@ function CreateWorkspaceForm({ ...props }: TPolymorphicComponentProps<'form'>) {
         </CardBody>
 
         <CardFooter>
-          <Button disabled={showSuccess} loading={isSubmitting} type="submit">
+          <Button
+            disabled={showSuccess}
+            loading={isSubmitting}
+            type="submit"
+            variant={hasWorkspaceName ? 'accent' : 'ghost'}
+          >
             Create
           </Button>
         </CardFooter>

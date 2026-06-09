@@ -127,14 +127,16 @@ export const filteredRecordRelationsQueryOptions = (params: RecordQueryParams) =
       const order = buildOrderObject(params.orderBy)
       return api.relationships.find({
         searchQuery: {
-          where:
-            params.combineMode === 'or' ?
-              { $or: convertToSearchQuery(properties) }
-            : convertToSearchQuery(properties),
+          source: {
+            labels: params.labels,
+            where:
+              params.combineMode === 'or' ?
+                { $or: convertToSearchQuery(properties) }
+              : convertToSearchQuery(properties)
+          },
           orderBy: order,
           skip: params.skip,
-          limit: params.limit,
-          labels: params.labels
+          limit: params.limit
         },
         init: { signal } as RequestInit
       })
@@ -187,11 +189,33 @@ export const recordDetailQueryOptions = (recordId: string | undefined) =>
 export const recordRelatedQueryOptions = (recordId: string | undefined) =>
   queryOptions({
     queryKey: queryKeys.projects.recordRelated(recordId!),
-    queryFn: () =>
-      api.relationships.find({
-        searchQuery: { where: { $id: recordId! } },
-        init: {} as RequestInit
-      }),
+    queryFn: async () => {
+      const [outgoing, incoming] = await Promise.all([
+        api.relationships.find({
+          searchQuery: { source: { where: { $id: recordId! } } },
+          init: {} as RequestInit
+        }),
+        api.relationships.find({
+          searchQuery: { target: { where: { $id: recordId! } } },
+          init: {} as RequestInit
+        })
+      ])
+      const data = [...(outgoing.data ?? []), ...(incoming.data ?? [])]
+      const deduped = Array.from(
+        new Map(
+          data.map((relationship) => [
+            `${relationship.sourceId}:${relationship.type}:${relationship.targetId}`,
+            relationship
+          ])
+        ).values()
+      )
+
+      return {
+        ...outgoing,
+        data: deduped,
+        total: deduped.length
+      }
+    },
     enabled: !!recordId
   })
 

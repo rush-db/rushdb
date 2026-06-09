@@ -1,10 +1,6 @@
 import { PageContent, PageHeader } from '~/elements/PageHeader'
-import {
-  ClientLibrariesStep,
-  ExploreDocsStep,
-  UseSdkStep,
-  WelcomeStep
-} from '~/features/onboarding/components/steps'
+import { ConnectGuide } from '~/features/connect-guide'
+import { ClientLibrariesStep, ExploreDocsStep, WelcomeStep } from '~/features/onboarding/components/steps'
 import { useCurrentProjectQuery } from '~/features/projects/hooks/useProjectQueries'
 
 export function ProjectHelpPage() {
@@ -17,10 +13,10 @@ export function ProjectHelpPage() {
       </PageHeader>
 
       <PageContent contained>
-        <UseSdkStep projectId={data?.id} />
-
+        <div data-tour="project-getting-started-finish">
+          <ConnectGuide projectId={data?.id} />
+        </div>
         <ExploreDocsStep />
-
         <ClientLibrariesStep />
       </PageContent>
     </>

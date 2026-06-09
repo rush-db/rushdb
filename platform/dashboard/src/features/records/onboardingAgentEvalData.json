@@ -1,0 +1,178 @@
+{
+  "scenario": "Agent evaluation harness",
+  "environment": "production-shadow",
+  "agent": [
+    {
+      "agentId": "agent-support-triage",
+      "name": "Support Triage Agent",
+      "model": "gpt-4.1-mini",
+      "owner": "growth-support",
+      "description": "Classifies inbound tickets, chooses the next action, and drafts concise customer replies."
+    },
+    {
+      "agentId": "agent-refund-review",
+      "name": "Refund Review Agent",
+      "model": "gpt-4.1",
+      "owner": "trust-ops",
+      "description": "Reviews refund requests, checks policy constraints, and explains approval decisions."
+    }
+  ],
+  "run": [
+    {
+      "runId": "run-001",
+      "agentId": "agent-support-triage",
+      "status": "passed",
+      "startedAt": "2026-06-01T09:12:00.000Z",
+      "latencyMs": 1320,
+      "inputTokens": 690,
+      "outputTokens": 284,
+      "totalTokens": 974,
+      "toolCalls": 2,
+      "score": 0.94,
+      "prompt": "Classify the customer request, decide the next action, and draft a reply.",
+      "response": "The customer is blocked by account verification. The agent should request a refreshed identity check and provide a direct support handoff.",
+      "rationale": "The message contains account access symptoms and a failed verification attempt, so the lowest-friction resolution is a guided identity check instead of a billing escalation.",
+      "decision": "Escalate to identity verification with a prepared customer reply.",
+      "conversation": [
+        {
+          "messageId": "msg-001",
+          "runId": "run-001",
+          "agentId": "agent-support-triage",
+          "role": "user",
+          "content": "I cannot access my account after the verification screen keeps looping."
+        },
+        {
+          "messageId": "msg-002",
+          "runId": "run-001",
+          "agentId": "agent-support-triage",
+          "role": "assistant",
+          "content": "I found a verification loop. I can help you restart the identity check and route this to the account safety team."
+        }
+      ],
+      "tool_call": [
+        {
+          "toolCallId": "tool-001",
+          "runId": "run-001",
+          "agentId": "agent-support-triage",
+          "name": "lookupAccountStatus",
+          "latencyMs": 210,
+          "status": "ok",
+          "summary": "Account is active but verification is stale."
+        },
+        {
+          "toolCallId": "tool-002",
+          "runId": "run-001",
+          "agentId": "agent-support-triage",
+          "name": "createSupportTicket",
+          "latencyMs": 330,
+          "status": "ok",
+          "summary": "Created identity verification support ticket."
+        }
+      ]
+    },
+    {
+      "runId": "run-002",
+      "agentId": "agent-support-triage",
+      "status": "needs_review",
+      "startedAt": "2026-06-01T10:24:00.000Z",
+      "latencyMs": 2180,
+      "inputTokens": 840,
+      "outputTokens": 412,
+      "totalTokens": 1252,
+      "toolCalls": 3,
+      "score": 0.78,
+      "prompt": "Classify the customer request and determine whether a refund, bug, or account workflow applies.",
+      "response": "The agent classified the request as billing, but the conversation also includes a product bug signal that should be sent to engineering.",
+      "rationale": "The user asks for a refund after a failed export. Billing intent is present, but the failed export should be captured as a product defect before a final refund decision.",
+      "decision": "Send to human review because billing and product-defect signals conflict.",
+      "conversation": [
+        {
+          "messageId": "msg-003",
+          "runId": "run-002",
+          "agentId": "agent-support-triage",
+          "role": "user",
+          "content": "The export failed three times and I want my monthly charge refunded."
+        },
+        {
+          "messageId": "msg-004",
+          "runId": "run-002",
+          "agentId": "agent-support-triage",
+          "role": "assistant",
+          "content": "I can document the failed export and route the refund request for review."
+        }
+      ],
+      "tool_call": [
+        {
+          "toolCallId": "tool-003",
+          "runId": "run-002",
+          "agentId": "agent-support-triage",
+          "name": "searchIncidentLog",
+          "latencyMs": 460,
+          "status": "ok",
+          "summary": "Found multiple export failures for the same tenant."
+        },
+        {
+          "toolCallId": "tool-004",
+          "runId": "run-002",
+          "agentId": "agent-support-triage",
+          "name": "draftRefundCase",
+          "latencyMs": 520,
+          "status": "ok",
+          "summary": "Prepared refund review notes."
+        }
+      ]
+    },
+    {
+      "runId": "run-003",
+      "agentId": "agent-refund-review",
+      "status": "passed",
+      "startedAt": "2026-06-01T11:08:00.000Z",
+      "latencyMs": 1640,
+      "inputTokens": 760,
+      "outputTokens": 336,
+      "totalTokens": 1096,
+      "toolCalls": 2,
+      "score": 0.89,
+      "prompt": "Evaluate whether the customer refund request satisfies policy and explain the decision.",
+      "response": "The refund should be approved because the customer experienced repeated export failures within the current billing window.",
+      "rationale": "The policy allows refunds when a core workflow fails repeatedly and support logs confirm the incident.",
+      "decision": "Approve refund and attach incident evidence to the case.",
+      "conversation": [
+        {
+          "messageId": "msg-005",
+          "runId": "run-003",
+          "agentId": "agent-refund-review",
+          "role": "user",
+          "content": "Please review this refund request for repeated export failures."
+        },
+        {
+          "messageId": "msg-006",
+          "runId": "run-003",
+          "agentId": "agent-refund-review",
+          "role": "assistant",
+          "content": "The request meets policy because the failed export is confirmed and unresolved."
+        }
+      ],
+      "tool_call": [
+        {
+          "toolCallId": "tool-005",
+          "runId": "run-003",
+          "agentId": "agent-refund-review",
+          "name": "lookupRefundPolicy",
+          "latencyMs": 250,
+          "status": "ok",
+          "summary": "Policy allows refund for confirmed workflow outage."
+        },
+        {
+          "toolCallId": "tool-006",
+          "runId": "run-003",
+          "agentId": "agent-refund-review",
+          "name": "attachIncidentEvidence",
+          "latencyMs": 390,
+          "status": "ok",
+          "summary": "Attached incident IDs to refund case."
+        }
+      ]
+    }
+  ]
+}

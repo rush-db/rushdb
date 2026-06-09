@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common'
 
+import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import { EntityModule } from '@/core/entity/entity.module'
 import { PropertyModule } from '@/core/property/property.module'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
@@ -20,7 +21,7 @@ import { NeogmaDynamicModule } from '@/database/neogma-dynamic/neogma-dynamic.mo
     //db modules
     forwardRef(() => NeogmaDynamicModule)
   ],
-  providers: [ProjectRepository, ProjectService, ProjectQueryService],
+  providers: [ProjectRepository, ProjectService, ProjectQueryService, EmbeddingIndexRepository],
   exports: [ProjectRepository, ProjectService, ProjectQueryService],
   controllers: [ProjectController]
 })

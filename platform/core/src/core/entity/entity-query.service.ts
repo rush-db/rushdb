@@ -15,6 +15,8 @@ import {
 import { MaybeArray, Where } from '@/core/common/types'
 import { RELATION_DIRECTION_IN, RELATION_DIRECTION_OUT } from '@/core/entity/entity.constants'
 import { TRelationDirection } from '@/core/entity/entity.types'
+import { RelationshipSearchDto } from '@/core/relationships/dto/relationship-search.dto'
+import { RESERVED_RELATIONSHIP_PROPERTY_KEYS } from '@/core/relationships/relationship-properties'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { buildAggregation } from '@/core/search/parser'
 import { compileSelectMap, normalizeSelectExpr } from '@/core/search/parser'
@@ -398,11 +400,355 @@ export class EntityQueryService {
         `MATCH (source:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: relation.source, ${projectIdInline()} }), (target:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: relation.target, ${projectIdInline()} })`
       )
       .append(
-        `CALL apoc.create.relationship(source, coalesce(relation.type, '${RUSHDB_RELATION_DEFAULT}'), {}, target) YIELD rel`
+        `CALL apoc.create.relationship(source, coalesce(relation.type, '${RUSHDB_RELATION_DEFAULT}'), coalesce(relation.properties, {}), target) YIELD rel`
       )
       .append(`RETURN rel`)
 
     return queryBuilder.getQuery()
+  }
+
+  private quoteIdentifier(value: string) {
+    return `\`${String(value).replace(/`/g, '')}\``
+  }
+
+  private quoteString(value: string) {
+    return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  }
+
+  private relationshipLiteral(value: unknown): string {
+    if (typeof value === 'string') {
+      return this.quoteString(value)
+    }
+    if (value === null) {
+      return 'null'
+    }
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => this.relationshipLiteral(item)).join(', ')}]`
+    }
+    return String(value)
+  }
+
+  private relationshipValues(field: string) {
+    return `coalesce(apoc.convert.toList(rel.${this.quoteIdentifier(field)}), [])`
+  }
+
+  private relationshipDatetimeValue(value: unknown) {
+    if (typeof value === 'string') {
+      return `datetime(${this.quoteString(value)})`
+    }
+    return undefined
+  }
+
+  private relationshipTypePredicate(input: any): string {
+    const relType = 'type(rel)'
+    if (typeof input === 'string') {
+      return `${relType} = ${this.quoteString(input)}`
+    }
+    if (input && typeof input === 'object' && !Array.isArray(input)) {
+      return Object.entries(input)
+        .map(([operator, value]) => {
+          switch (operator) {
+            case '$eq':
+              return `${relType} = ${this.relationshipLiteral(value)}`
+            case '$ne':
+              return `${relType} <> ${this.relationshipLiteral(value)}`
+            case '$in':
+              return Array.isArray(value) ? `${relType} IN ${this.relationshipLiteral(value)}` : ''
+            case '$nin':
+              return Array.isArray(value) ? `NOT (${relType} IN ${this.relationshipLiteral(value)})` : ''
+            case '$contains':
+              return typeof value === 'string' ? `${relType} =~ ${this.quoteString(`(?i).*${value}.*`)}` : ''
+            case '$startsWith':
+              return typeof value === 'string' ? `${relType} STARTS WITH ${this.quoteString(value)}` : ''
+            case '$endsWith':
+              return typeof value === 'string' ? `${relType} ENDS WITH ${this.quoteString(value)}` : ''
+            case '$exists':
+              return (
+                typeof value === 'boolean' ?
+                  value ? `${relType} IS NOT NULL`
+                  : `${relType} IS NULL`
+                : ''
+              )
+            default:
+              return ''
+          }
+        })
+        .filter(toBoolean)
+        .join(' AND ')
+    }
+    return ''
+  }
+
+  private relationshipTypeCheck(field: string, value: unknown) {
+    const values = this.relationshipValues(field)
+    if (typeof value !== 'string') {
+      return ''
+    }
+    const typeMap: Record<string, string[]> = {
+      string: ['STRING'],
+      number: ['INTEGER', 'FLOAT'],
+      boolean: ['BOOLEAN'],
+      datetime: ['STRING'],
+      null: ['NULL'],
+      vector: ['LIST OF FLOAT', 'LIST OF INTEGER']
+    }
+    const expectedTypes = typeMap[value] ?? [value.toUpperCase()]
+    const typeList = `[${expectedTypes.map((type) => this.quoteString(type)).join(', ')}]`
+    const base = `any(value IN ${values} WHERE apoc.meta.cypher.type(value) IN ${typeList})`
+
+    if (value === 'datetime') {
+      return `any(value IN ${values} WHERE apoc.meta.cypher.type(value) = "STRING" AND value =~ ${this.quoteString(
+        '^\\\\d{4}-\\\\d{2}-\\\\d{2}T.*'
+      )})`
+    }
+
+    return base
+  }
+
+  private relationshipPropertyPredicate(field: string, input: any): string {
+    const valueExpr = `rel.${this.quoteIdentifier(field)}`
+    const values = this.relationshipValues(field)
+
+    if (input === null) {
+      return `${valueExpr} IS NULL`
+    }
+
+    if (Array.isArray(input)) {
+      return `${valueExpr} = ${this.relationshipLiteral(input)}`
+    }
+
+    if (input === undefined) {
+      return ''
+    }
+
+    if (typeof input !== 'object') {
+      return `any(value IN ${values} WHERE value = ${this.relationshipLiteral(input)})`
+    }
+
+    return Object.entries(input)
+      .map(([operator, value]) => {
+        switch (operator) {
+          case '$type':
+            return this.relationshipTypeCheck(field, value)
+          case '$eq':
+            return value === null ?
+                `${valueExpr} IS NULL`
+              : `any(value IN ${values} WHERE value = ${this.relationshipLiteral(value)})`
+          case '$ne':
+            return value === null ?
+                `${valueExpr} IS NOT NULL`
+              : `any(value IN ${values} WHERE value <> ${this.relationshipLiteral(value)})`
+          case '$gt':
+          case '$gte':
+          case '$lt':
+          case '$lte': {
+            const opMap = { $gt: '>', $gte: '>=', $lt: '<', $lte: '<=' } as Record<string, string>
+            if (typeof value === 'number') {
+              return `any(value IN ${values} WHERE value ${opMap[operator]} ${value})`
+            }
+            const datetimeValue = this.relationshipDatetimeValue(value)
+            return datetimeValue ?
+                `any(value IN ${values} WHERE datetime(value) ${opMap[operator]} ${datetimeValue})`
+              : ''
+          }
+          case '$contains':
+            return typeof value === 'string' ?
+                `any(value IN ${values} WHERE toString(value) =~ ${this.quoteString(`(?i).*${value}.*`)})`
+              : ''
+          case '$startsWith':
+            return typeof value === 'string' ?
+                `any(value IN ${values} WHERE toString(value) STARTS WITH ${this.quoteString(value)})`
+              : ''
+          case '$endsWith':
+            return typeof value === 'string' ?
+                `any(value IN ${values} WHERE toString(value) ENDS WITH ${this.quoteString(value)})`
+              : ''
+          case '$in':
+            return Array.isArray(value) ?
+                `any(value IN ${values} WHERE value IN ${this.relationshipLiteral(value)})`
+              : ''
+          case '$nin':
+            return Array.isArray(value) ?
+                `none(value IN ${values} WHERE value IN ${this.relationshipLiteral(value)})`
+              : ''
+          case '$exists':
+            return (
+              typeof value === 'boolean' ?
+                value ? `${valueExpr} IS NOT NULL`
+                : `${valueExpr} IS NULL`
+              : ''
+            )
+          default:
+            return ''
+        }
+      })
+      .filter(toBoolean)
+      .join(' AND ')
+  }
+
+  private relationshipWherePredicate(where: Where | undefined): {
+    predicate: string
+    direction?: TRelationDirection
+  } {
+    if (!where || Object.keys(where).length === 0) {
+      return { predicate: '' }
+    }
+
+    const build = (input: any): string => {
+      if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        return ''
+      }
+
+      return Object.entries(input)
+        .map(([key, value]) => {
+          switch (key) {
+            case 'direction':
+              return ''
+            case 'type':
+              return this.relationshipTypePredicate(value)
+            case '$and':
+            case '$or':
+            case '$xor': {
+              const operator = key.slice(1).toUpperCase()
+              const items = Array.isArray(value) ? value : [value]
+              return items
+                .map((item) => build(item))
+                .filter(toBoolean)
+                .map((item) => `(${item})`)
+                .join(` ${operator} `)
+            }
+            case '$nor': {
+              const items = Array.isArray(value) ? value : [value]
+              const condition = items
+                .map((item) => build(item))
+                .filter(toBoolean)
+                .map((item) => `(${item})`)
+                .join(' OR ')
+              return condition ? `NOT (${condition})` : ''
+            }
+            case '$not': {
+              const condition = build(value)
+              return condition ? `NOT (${condition})` : ''
+            }
+            default:
+              return this.relationshipPropertyPredicate(key, value)
+          }
+        })
+        .filter(toBoolean)
+        .map((part) => `(${part})`)
+        .join(' AND ')
+    }
+
+    const direction = (where as any).direction
+    return {
+      predicate: build(where),
+      direction:
+        direction === RELATION_DIRECTION_IN || direction === RELATION_DIRECTION_OUT ? direction : undefined
+    }
+  }
+
+  private relationshipSourceEndpoint({
+    id,
+    source
+  }: {
+    id?: string
+    source?: RelationshipSearchDto['source']
+  }): RelationshipSearchDto['source'] {
+    if (!id) {
+      return source
+    }
+
+    const idWhere = { $id: id }
+    const where =
+      source?.where && Object.keys(source.where).length > 0 ? { $and: [source.where, idWhere] } : idWhere
+
+    return { ...(source ?? {}), where }
+  }
+
+  private relationshipPattern({
+    direction,
+    includeBothDirections
+  }: {
+    direction?: TRelationDirection
+    includeBothDirections?: boolean
+  }) {
+    if (direction === RELATION_DIRECTION_IN) {
+      return '<-[rel]-'
+    }
+    if (includeBothDirections) {
+      return '-[rel]-'
+    }
+    return '-[rel]->'
+  }
+
+  private endpointPredicates(
+    endpoint: RelationshipSearchDto['source'],
+    alias: string
+  ): { matches: string[]; predicates: string[] } {
+    const predicates: string[] = []
+    const matches: string[] = []
+
+    if (endpoint?.labels?.length) {
+      const labels = endpoint.labels.filter(toBoolean).map((item) => this.quoteString(item))
+      if (labels.length) {
+        predicates.push(`any(label IN labels(${alias}) WHERE label IN [${labels.join(', ')}])`)
+      }
+    }
+
+    if (endpoint?.where && Object.keys(endpoint.where).length > 0) {
+      const parsed = parseWhereClause(endpoint.where, { nodeAlias: alias })
+      const sorted = Object.keys(parsed.queryParts)
+        .sort((a, b) => a.localeCompare(b))
+        .map((key) => parsed.queryParts[key])
+
+      for (const clause of sorted) {
+        if (!clause) {
+          continue
+        }
+        if (/^\s*OPTIONAL MATCH\b/i.test(clause)) {
+          matches.push(clause)
+        } else {
+          predicates.push(clause.replace(/^\s*WHERE\s+/i, ''))
+        }
+      }
+    }
+
+    return { matches, predicates }
+  }
+
+  private relationshipOrderBy(orderBy: RelationshipSearchDto['orderBy']) {
+    if (!orderBy || typeof orderBy !== 'object') {
+      return ''
+    }
+
+    const clauses = Object.entries(orderBy)
+      .filter(([, direction]) => direction === 'asc' || direction === 'desc')
+      .map(([field, direction]) =>
+        field === 'type' ? `type(rel) ${direction}` : `rel.${this.quoteIdentifier(field)} ${direction}`
+      )
+
+    return clauses.length ? `ORDER BY ${clauses.join(', ')}` : ''
+  }
+
+  private relationshipProjection() {
+    const reservedKeys = `[${RESERVED_RELATIONSHIP_PROPERTY_KEYS.map((key) => this.quoteString(key)).join(', ')}]`
+    return `
+CASE
+  WHEN startNode(rel) = source THEN {
+    sourceId: source.${RUSHDB_KEY_ID}, ${label('source', 'sourceLabel')},
+    targetId: target.${RUSHDB_KEY_ID}, ${label('target', 'targetLabel')},
+    type: type(rel),
+    direction: '${RELATION_DIRECTION_OUT}',
+    properties: apoc.map.removeKeys(properties(rel), ${reservedKeys})
+  }
+  ELSE {
+    sourceId: target.${RUSHDB_KEY_ID}, ${label('target', 'sourceLabel')},
+    targetId: source.${RUSHDB_KEY_ID}, ${label('source', 'targetLabel')},
+    type: type(rel),
+    direction: '${RELATION_DIRECTION_IN}',
+    properties: apoc.map.removeKeys(properties(rel), ${reservedKeys})
+  }
+END`
   }
 
   getRecordRelations({
@@ -411,82 +757,55 @@ export class EntityQueryService {
     pagination
   }: {
     id?: string
-    searchQuery?: SearchDto
+    searchQuery?: RelationshipSearchDto
     pagination?: Pick<SearchDto, 'skip' | 'limit'>
   }) {
-    const relatedQueryPart = buildRelatedQueryPart(id)
-    const labelPart = singleLabelPart(searchQuery?.labels)
-
-    const { sortedQueryParts, parsedWhere, queryClauses: rawQueryClauses } = buildQuery(searchQuery)
-
-    const queryClauses = buildQueryClause({
-      queryParts: sortedQueryParts,
-      labelClause: buildLabelsClause(searchQuery?.labels)
+    const sourceEndpoint = this.relationshipSourceEndpoint({ id, source: searchQuery?.source })
+    const source = this.endpointPredicates(sourceEndpoint, 'source')
+    const target = this.endpointPredicates(searchQuery?.target, 'target')
+    const relationshipWhere = this.relationshipWherePredicate(searchQuery?.where)
+    const relationPart = this.relationshipPattern({
+      direction: relationshipWhere.direction,
+      includeBothDirections: Boolean(id && !relationshipWhere.direction)
     })
-
+    const predicates = [...source.predicates, ...target.predicates, relationshipWhere.predicate].filter(
+      toBoolean
+    )
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
-      .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
-      .append(toBoolean(id) ? queryClauses.join(`\n`) : rawQueryClauses.join(`\n`))
-
-    if (parsedWhere.nodeAliases.filter(toBoolean).length > 1) {
-      const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
-
-      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
-    }
-
-    if (!toBoolean(id)) {
-      queryBuilder.append(`MATCH (record)-[rel]-(neighbor:${RUSHDB_LABEL_RECORD})`)
-      queryBuilder.append(buildPagination(pagination))
-    } else {
-      queryBuilder.append(`MATCH (neighbor:${RUSHDB_LABEL_RECORD})-[rel]-(record:${RUSHDB_LABEL_RECORD})`)
-    }
-
-    queryBuilder.append(`RETURN DISTINCT `)
-    queryBuilder.append(`CASE`)
-    queryBuilder.append(`  WHEN startNode(rel) = record THEN {`)
-    queryBuilder.append(`    sourceId: record.${RUSHDB_KEY_ID}, ${label('record', 'sourceLabel')},`)
-    queryBuilder.append(`    targetId: neighbor.${RUSHDB_KEY_ID}, ${label('neighbor', 'targetLabel')},`)
-    queryBuilder.append(`    type: type(rel)`)
-    queryBuilder.append(`  }`)
-    queryBuilder.append(`  ELSE {`)
-    queryBuilder.append(`    sourceId: neighbor.${RUSHDB_KEY_ID}, ${label('neighbor', 'sourceLabel')},`)
-    queryBuilder.append(`    targetId: record.${RUSHDB_KEY_ID}, ${label('record', 'targetLabel')},`)
-    queryBuilder.append(`    type: type(rel)`)
-    queryBuilder.append(`  }`)
-    queryBuilder.append(`END AS relation`)
+      .append(
+        `MATCH (source:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })${relationPart}(target:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`
+      )
+      .append([...source.matches, ...target.matches].join('\n'))
+      .append(predicates.length ? `WHERE ${predicates.join(' AND ')}` : '')
+      .append(this.relationshipOrderBy(searchQuery?.orderBy))
+      .append(buildPagination(pagination ?? searchQuery ?? {}))
+      .append(`RETURN DISTINCT ${this.relationshipProjection()} AS relation`)
 
     return queryBuilder.getQuery()
   }
 
-  getRecordRelationsCount({ id, searchQuery }: { id?: string; searchQuery?: SearchDto }) {
-    const relatedQueryPart = buildRelatedQueryPart(id)
-    const labelPart = singleLabelPart(searchQuery?.labels)
-
-    const { sortedQueryParts, parsedWhere, queryClauses: rawQueryClauses } = buildQuery(searchQuery)
-
-    const queryClauses = buildQueryClause({
-      queryParts: sortedQueryParts,
-      labelClause: buildLabelsClause(searchQuery?.labels)
+  getRecordRelationsCount({ id, searchQuery }: { id?: string; searchQuery?: RelationshipSearchDto }) {
+    const sourceEndpoint = this.relationshipSourceEndpoint({ id, source: searchQuery?.source })
+    const source = this.endpointPredicates(sourceEndpoint, 'source')
+    const target = this.endpointPredicates(searchQuery?.target, 'target')
+    const relationshipWhere = this.relationshipWherePredicate(searchQuery?.where)
+    const relationPart = this.relationshipPattern({
+      direction: relationshipWhere.direction,
+      includeBothDirections: Boolean(id && !relationshipWhere.direction)
     })
-
+    const predicates = [...source.predicates, ...target.predicates, relationshipWhere.predicate].filter(
+      toBoolean
+    )
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
-      .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
-      .append(toBoolean(id) ? queryClauses.join(`\n`) : rawQueryClauses.join(`\n`))
-
-    if (parsedWhere.nodeAliases.filter(toBoolean).length > 1) {
-      const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
-
-      queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
-    }
-
-    if (!toBoolean(id)) {
-      queryBuilder.append(`MATCH (record)-[rel]-(target:${RUSHDB_LABEL_RECORD})`)
-    }
-
+      .append(
+        `MATCH (source:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })${relationPart}(target:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`
+      )
+      .append([...source.matches, ...target.matches].join('\n'))
+      .append(predicates.length ? `WHERE ${predicates.join(' AND ')}` : '')
     queryBuilder.append(`RETURN count(DISTINCT rel) as total`)
 
     return queryBuilder.getQuery()
@@ -609,6 +928,7 @@ export class EntityQueryService {
       .append(`OPTIONAL MATCH (record)-[existingRel:${relationType}]-(targetRecord)`)
       .append(`DELETE existingRel`)
       .append(`MERGE (record)${relationPart}(targetRecord)`)
+      .append(`SET rel += $properties`)
 
     return queryBuilder.getQuery()
   }
@@ -763,9 +1083,11 @@ export class EntityQueryService {
         `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })${sFirst}${sRest} RETURN s',`
       )
       .append(
-        `'WITH s MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest} ${combinedWhere} MERGE (s)${relPattern}(t) RETURN count(*)',`
+        `'WITH s MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest} ${combinedWhere} MERGE (s)${relPattern}(t) SET rel += $relationshipProperties RETURN count(*)',`
       )
-      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
+      .append(
+        `{ batchSize: 5000, params: { projectId: $projectId, relationshipProperties: $relationshipProperties }, batchMode: "SINGLE", retries: 5 }`
+      )
       .append(')')
       .append('YIELD total, committedOperations, failedOperations, errorMessages')
       .append('RETURN total, committedOperations, failedOperations, errorMessages')

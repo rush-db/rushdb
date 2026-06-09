@@ -5,6 +5,7 @@ import { uuidv7 } from 'uuidv7'
 
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
+import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import { PropertyService } from '@/core/property/property.service'
 import { removeUndefinedKeys } from '@/core/property/property.utils'
 import { MailService } from '@/dashboard/mail/mail.service'
@@ -31,6 +32,7 @@ export class ProjectService {
     private readonly configService: ConfigService,
     private readonly neogmaService: NeogmaService,
     private readonly neogmaDynamicService: NeogmaDynamicService,
+    private readonly embeddingIndexRepository: EmbeddingIndexRepository,
     private readonly projectRepository: ProjectRepository,
     private readonly projectQueryService: ProjectQueryService,
     @Inject(forwardRef(() => PropertyService))
@@ -134,6 +136,7 @@ export class ProjectService {
       this.cleanUpProject(id)
     }
 
+    await this.embeddingIndexRepository.deleteByProjectId(id)
     await this.projectRepository.delete(id)
     return true
   }

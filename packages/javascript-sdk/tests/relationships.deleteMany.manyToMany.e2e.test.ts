@@ -63,14 +63,15 @@ describe('relationships.deleteMany manyToMany (e2e)', () => {
     let matchedCount = 0
     while (attempts < 8) {
       const findRes = await db.relationships.find({
-        labels: ['USER_DEL_MTM'],
-        where: { tenantId },
+        source: { labels: ['USER_DEL_MTM'], where: { tenantId } },
+        target: { labels: ['TAG_DEL_MTM'], where: { tenantId } },
+        where: { type: 'HAS_TAG' },
         limit: 1000,
         skip: 0
       })
       expect(findRes.success).toBe(true)
       const data = (findRes.data || []) as Array<{ type: string }>
-      matchedCount = data.filter((r) => r.type === 'HAS_TAG').length
+      matchedCount = data.length
       if (matchedCount === 0) break
       attempts += 1
       await sleep(1000)

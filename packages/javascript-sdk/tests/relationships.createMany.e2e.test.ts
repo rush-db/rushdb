@@ -48,7 +48,8 @@ describe('relationships.createMany (e2e)', () => {
       source: { label: 'USER', key: 'id', where: { tenantId } },
       target: { label: 'ORDER', key: 'userId', where: { tenantId } },
       type: 'ORDERED',
-      direction: 'out'
+      direction: 'out',
+      properties: { tenantId, confidence: 0.9, source: 'e2e' }
     })
 
     expect(createRes.success).toBe(true)
@@ -61,8 +62,9 @@ describe('relationships.createMany (e2e)', () => {
 
     while (attempts < 8) {
       const findRes = await db.relationships.find({
-        labels: ['USER'],
-        where: { tenantId },
+        source: { labels: ['USER'], where: { tenantId } },
+        target: { labels: ['ORDER'], where: { tenantId } },
+        where: { type: 'ORDERED', confidence: { $gte: 0.5 }, source: 'e2e' },
         limit: 1000,
         skip: 0
       })
@@ -73,13 +75,12 @@ describe('relationships.createMany (e2e)', () => {
         type: string
         sourceLabel: string
         targetLabel: string
+        properties: Record<string, unknown>
       }>
 
       lastData = data
 
-      const orderedFromUser = data.filter(
-        (r) => r.type === 'ORDERED' && r.sourceLabel === 'USER' && r.targetLabel === 'ORDER'
-      )
+      const orderedFromUser = data.filter((r) => r.sourceLabel === 'USER' && r.targetLabel === 'ORDER')
 
       matchedCount = orderedFromUser.length
       if (matchedCount >= 2) break
@@ -90,6 +91,7 @@ describe('relationships.createMany (e2e)', () => {
 
     // Expect exactly two ORDERED relations from USER -> ORDER (for u1 and u2)
     expect(matchedCount).toBeGreaterThanOrEqual(2)
+    expect(lastData.every((r) => r.properties?.confidence === 0.9)).toBe(true)
 
     // Sanity: there should be no relation created for unmatched userId u3
     // We can’t directly check by id here without extra queries; ensure we at least got two expected links.

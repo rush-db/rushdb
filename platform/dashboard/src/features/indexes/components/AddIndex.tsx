@@ -3,6 +3,7 @@ import { ChevronsUpDown } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import type { Property } from '@rushdb/javascript-sdk'
+import type { EmbeddingIndex } from '~/features/indexes/types'
 import type { Project } from '~/features/projects/types'
 
 import { Button } from '~/elements/Button'
@@ -34,7 +35,22 @@ function useLabelPropertiesQuery(label: string) {
   })
 }
 
-export function AddIndexCard({ projectId }: { projectId: Project['id'] }) {
+function isIndexed(existingIndexes: EmbeddingIndex[] | undefined, label: string, propertyName: string) {
+  return (
+    existingIndexes?.some(
+      (index) =>
+        index.sourceType === 'managed' && index.label === label && index.propertyName === propertyName
+    ) ?? false
+  )
+}
+
+export function AddIndexCard({
+  existingIndexes,
+  projectId
+}: {
+  existingIndexes?: EmbeddingIndex[]
+  projectId: Project['id']
+}) {
   const { mutateAsync: mutate, error } = useAddIndexMutation()
 
   const { data: labels, isPending: loadingLabels } = useProjectLabelsQuery()
@@ -48,6 +64,10 @@ export function AddIndexCard({ projectId }: { projectId: Project['id'] }) {
     isFetching: propsFetching
   } = useLabelPropertiesQuery(label)
   const propsLoading = label.length > 0 && (propsPending || propsFetching)
+  const availableProperties = useMemo(
+    () => properties.filter((property) => !isIndexed(existingIndexes, label, property.name)),
+    [existingIndexes, label, properties]
+  )
   const labelEntries = useMemo(() => Object.entries(labels ?? {}), [labels])
   const selectedLabelIdx = useMemo(
     () => labelEntries.findIndex(([labelName]) => labelName === label),
@@ -57,6 +77,12 @@ export function AddIndexCard({ projectId }: { projectId: Project['id'] }) {
   useEffect(() => {
     setPropertyName('')
   }, [label])
+
+  useEffect(() => {
+    if (propertyName && !availableProperties.some((property) => property.name === propertyName)) {
+      setPropertyName('')
+    }
+  }, [availableProperties, propertyName])
 
   const isValid = label.length > 0 && propertyName.length > 0
 
@@ -146,11 +172,11 @@ export function AddIndexCard({ projectId }: { projectId: Project['id'] }) {
                   </Button>
                 }
               >
-                {properties.length === 0 && label && !propsLoading ?
+                {availableProperties.length === 0 && label && !propsLoading ?
                   <SelectItem disabled value="">
                     No text properties found
                   </SelectItem>
-                : properties.map((property: Property) => (
+                : availableProperties.map((property: Property) => (
                     <SelectItem
                       key={property.id}
                       onSelect={() => setPropertyName(property.name)}
