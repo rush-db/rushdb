@@ -1,5 +1,16 @@
 # @rushdb/mcp-server
 
+## 2.3.0
+
+### Minor Changes
+
+- 7a519f2: Add edge properties support, indexes suggestions, and minor fixes
+
+### Patch Changes
+
+- Updated dependencies [7a519f2]
+  - @rushdb/javascript-sdk@2.3.0
+
 ## 2.2.1
 
 ### Patch Changes
