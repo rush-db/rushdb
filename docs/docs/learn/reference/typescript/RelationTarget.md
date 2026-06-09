@@ -122,7 +122,7 @@ await userInstance.attach([firstPost, secondPost], { type: 'AUTHORED' })
 // Using a DBRecordsArrayInstance from a find operation
 const posts = await PostModel.find({
   where: {
-    title: { $regex: '^My' }
+    title: { $startsWith: 'My' }
   }
 })
 await userInstance.attach(posts, { type: 'AUTHORED' })

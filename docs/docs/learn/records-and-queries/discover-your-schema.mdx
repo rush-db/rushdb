@@ -121,7 +121,23 @@ curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
   </TabItem>
 </Tabs>
 
+### Graph structure (Mermaid)
+
+The same data as a graph — labels are nodes, relationships are edges:
+
+```mermaid
+graph LR
+    O["Order (1840)"]
+    U["User (312)"]
+    P["Product (95)"]
+
+    O -->|PLACED_BY| U
+    O -->|CONTAINS| P
+```
+
 ### Example Markdown output
+
+The ontology method serialises this graph into a compact Markdown document ready for LLM injection:
 
 ```text
 # Graph Ontology
@@ -153,6 +169,43 @@ curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
 |-------------|-----------|-------------|
 | `PLACED_BY` | out       | `User`      |
 | `CONTAINS`  | out       | `Product`   |
+
+---
+
+## `User` (312 records)
+
+### Properties
+
+| Property    | Type   | Values / Range                | Semantic Search |
+|-------------|--------|-------------------------------|-----------------|
+| `email`     | string | `alice@example.com` (+8 more) | —               |
+| `name`      | string | `Alice`, `Bob` (+8 more)      | —               |
+| `plan`      | string | `free`, `pro`, `enterprise`   | —               |
+
+### Relationships
+
+| Type        | Direction | Other Label |
+|-------------|-----------|-------------|
+| `PLACED_BY` | in        | `Order`     |
+
+---
+
+## `Product` (95 records)
+
+### Properties
+
+| Property    | Type   | Values / Range                   | Semantic Search                |
+|-------------|--------|----------------------------------|--------------------------------|
+| `name`      | string | `Widget A`, `Widget B` (+8 more) | `managed` cosine 1536d [ready] |
+| `price`     | number | `4.99`..`2499.00`                | —                              |
+| `category`  | string | `electronics`, `home` (+3 more)  | —                              |
+| `inStock`   | boolean| `true`, `false`                  | —                              |
+
+### Relationships
+
+| Type       | Direction | Other Label |
+|------------|-----------|-------------|
+| `CONTAINS` | in        | `Order`     |
 ```
 
 :::tip Agent quickstart
