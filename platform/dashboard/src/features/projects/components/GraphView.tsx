@@ -316,7 +316,7 @@ export const GraphView: FC = () => {
   const records = recordsResult?.data
 
   const [graphMode, setGraphMode] = useState<GraphMode>('2d')
-  const [showProperties, setShowProperties] = useState(true)
+  const [showProperties, setShowProperties] = useState(false)
   const [showPropertyLinks, setShowPropertyLinks] = useState(true)
   const [showRecordLinks, setShowRecordLinks] = useState(true)
   const [showRecordLabels, setShowRecordLabels] = useState(true)

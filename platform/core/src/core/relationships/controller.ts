@@ -1,14 +1,11 @@
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   Post,
   Put,
-  Query,
   Request,
   UseGuards,
   UseInterceptors,
@@ -158,11 +155,13 @@ export class RelationshipsController {
   async findRelations(
     @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchQuery: RelationshipSearchDto = {},
-    @Request() request: PlatformRequest,
-    @Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip?: number,
-    @Query('limit', new DefaultValuePipe(1000), ParseIntPipe) limit?: number
+    @Request() request: PlatformRequest
   ): Promise<TRecordRelationsResponse> {
     const projectId = request.projectId
+
+    const skip = searchQuery.skip ?? 0
+    const limit = searchQuery.limit ?? 1000
+
     const [data, total] = await Promise.all([
       this.entityService.findRelations({
         searchQuery,
