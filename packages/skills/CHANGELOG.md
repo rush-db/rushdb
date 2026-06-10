@@ -1,5 +1,11 @@
 # @rushdb/skills
 
+## 2.3.2
+
+### Patch Changes
+
+- d8f63d7: Add docs search and indexing flow speed up
+
 ## 2.3.1
 
 ### Patch Changes

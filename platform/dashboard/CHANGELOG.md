@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 2.3.2
+
+### Patch Changes
+
+- d8f63d7: Add docs search and indexing flow speed up
+- Updated dependencies [d8f63d7]
+  - @rushdb/javascript-sdk@2.3.2
+
 ## 2.3.1
 
 ### Patch Changes
