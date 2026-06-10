@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/episodic-memory
 sidebar_position: 23
 title: 'Episodic Memory for Multi-Step Agents'
 description: Store goals, intermediate observations, tool outputs, and decisions as linked records so long-running agents can resume with context instead of stateless prompts.
@@ -481,11 +480,11 @@ curl -s -X PATCH "$BASE/records/$GOAL_ID" \
 
 ## When to use episodic memory vs. team memory
 
-| Pattern                                                               | Use case                                              |
-| --------------------------------------------------------------------- | ----------------------------------------------------- |
-| Episodic memory (this tutorial)                                       | Per-session agent context: goals, steps, tool outputs |
-| Team memory ([Building Team Memory](/tutorials/building-team-memory)) | Shared persistent knowledge: tickets, docs, decisions |
-| Fact memory ([RushDB as a Memory Layer](/tutorials/memory-layer))     | Long-lived facts about entities across all sessions   |
+| Pattern                                                                                  | Use case                                              |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Episodic memory (this tutorial)                                                          | Per-session agent context: goals, steps, tool outputs |
+| Team memory ([Building Team Memory](/learn/tutorials/agent-memory/building-team-memory)) | Shared persistent knowledge: tickets, docs, decisions |
+| Fact memory ([RushDB as a Memory Layer](/learn/tutorials/agent-memory/memory-layer))     | Long-lived facts about entities across all sessions   |
 
 These patterns compose: an agent can write episodic steps to its own GOAL graph while also reading from shared team memory for background knowledge.
 
@@ -499,6 +498,6 @@ Episodic records accumulate quickly during active agent use. Define a cleanup po
 
 ## Next steps
 
-- [RushDB as a Memory Layer](/tutorials/memory-layer) — long-lived facts and entity profiles
-- [Building Team Memory](/tutorials/building-team-memory) — shared knowledge graph for agents
-- [Agent-Safe Query Planning](/tutorials/agent-safe-query-planning) — grounded query execution guard
+- [RushDB as a Memory Layer](/learn/tutorials/agent-memory/memory-layer) — long-lived facts and entity profiles
+- [Building Team Memory](/learn/tutorials/agent-memory/building-team-memory) — shared knowledge graph for agents
+- [Agent-Safe Query Planning](/learn/tutorials/agent-memory/agent-safe-query-planning) — grounded query execution guard

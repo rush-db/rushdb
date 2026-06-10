@@ -36,6 +36,8 @@ export class RelationshipPatternsService {
   private readonly logger = new Logger(RelationshipPatternsService.name)
   private readonly runningAnalysis = new Set<string>()
   private readonly runningApply = new Set<string>()
+  /** Hash of (ontology + stored patterns) per project at the last completed run, to skip redundant LLM calls. */
+  private readonly lastAnalysisSignature = new Map<string, string>()
 
   constructor(
     private readonly repository: RelationshipPatternsRepository,
@@ -49,9 +51,12 @@ export class RelationshipPatternsService {
   ) {}
 
   async list(projectId: string, transaction: Transaction): Promise<RelationshipPatternListResponse> {
+    // allowStale: the dashboard polls this endpoint every few seconds while an analysis
+    // runs — a synchronous ontology recompute here would pile concurrent full-graph scans
+    // on top of the analysis's own forced recompute, which refreshes the cache anyway.
     const [patterns, ontology, analysis] = await Promise.all([
       this.repository.findByProjectId(projectId),
-      this.aiService.getOntology({ projectId, transaction }),
+      this.aiService.getOntology({ projectId, transaction, allowStale: true }),
       this.repository.getQueue(projectId)
     ])
 
@@ -114,10 +119,18 @@ export class RelationshipPatternsService {
     const nextAllowedAt =
       lastRunAt && now - lastRunAt < ANALYSIS_DEBOUNCE_MS ? lastRunAt + ANALYSIS_DEBOUNCE_MS : now
     const existingNotBefore = queue?.status === 'pending' ? new Date(queue.notBefore).getTime() : undefined
-    const notBefore = new Date(
+    const notBeforeMs =
       existingNotBefore && existingNotBefore < nextAllowedAt ? existingNotBefore : nextAllowedAt
-    ).toISOString()
-    await this.repository.enqueueAnalysis(projectId, notBefore)
+    await this.repository.enqueueAnalysis(projectId, new Date(notBeforeMs).toISOString())
+
+    // When not debounced, run right away instead of waiting for the once-a-minute cron
+    // sweep — otherwise a first import sits up to 60s with "No patterns found".
+    // The queue row stays as the cron's fallback; runningAnalysis guards double-starts.
+    if (notBeforeMs <= now) {
+      this.runAnalysisForProject(projectId).catch((error) => {
+        this.logger.error(`[RelationshipAnalysis] project ${projectId} failed`, error)
+      })
+    }
   }
 
   async forceAnalysis(projectId: string, workspaceId?: string): Promise<void> {
@@ -206,19 +219,54 @@ export class RelationshipPatternsService {
     const transaction = session.beginTransaction({ timeout: 60_000 })
 
     try {
-      const ontology = await this.aiService.getOntology({ projectId, force: true, transaction })
+      // No force: every write endpoint that triggers this analysis also runs the
+      // RECALCULATE_ONTOLOGY_CACHE side effect first, so the cache is already fresh for
+      // the data that queued us — forcing here recomputed the same ontology twice in a row.
+      // A stale/missing cache (TTL expired, old project) still recomputes.
+      const tOntology = Date.now()
+      const ontology = await this.aiService.getOntology({ projectId, transaction })
       await transaction.commit()
       await this.neogmaService.closeSession(session, 'relationship-analysis')
+      this.logger.log(
+        `[RelationshipAnalysis] project ${projectId} ontology loaded in ${Date.now() - tOntology}ms`
+      )
 
       // Resolve workspaceId for KU billing — supplied by the controller for manual
       // refreshes; looked up from the project record for scheduler-triggered runs.
       const resolvedWorkspaceId =
         workspaceId ?? (await this.projectRepository.findById(projectId))?.workspaceId
 
-      const existingPatterns = await this.repository.findByProjectId(projectId)
+      const existingPatterns = await this.pruneIncoherentJoinSuggestions(
+        projectId,
+        await this.repository.findByProjectId(projectId)
+      )
+
+      // Neither the ontology nor the stored patterns changed since the last completed
+      // run in this process — the LLM would see the identical prompt, so skip it.
+      // Makes repeated Refresh clicks near-instant instead of re-billing a full analysis.
+      const analysisSignature = this.signatureHash({
+        ontology: this.compactOntologyForRelationshipAnalysis(ontology),
+        patterns: this.compactExistingPatternsForRelationshipAnalysis(existingPatterns)
+      })
+      if (this.lastAnalysisSignature.get(projectId) === analysisSignature) {
+        this.logger.log(
+          `[RelationshipAnalysis] project ${projectId} unchanged since last run — skipping LLM call`
+        )
+        await this.repository.updateQueue(projectId, {
+          status: 'idle',
+          lastRunAt: new Date().toISOString(),
+          lastError: null
+        })
+        return
+      }
+
+      const tLlm = Date.now()
       const { candidates, promptTokens, completionTokens, totalTokens } = await this.suggestCandidates(
         ontology,
         existingPatterns
+      )
+      this.logger.log(
+        `[RelationshipAnalysis] project ${projectId} LLM returned ${candidates.length} candidates in ${Date.now() - tLlm}ms`
       )
       const deterministicCandidates = this.suggestDeterministicCandidates(ontology)
       const validCandidates = this.dedupeInverseCandidates(
@@ -245,6 +293,7 @@ export class RelationshipPatternsService {
         })
       }
 
+      this.lastAnalysisSignature.set(projectId, analysisSignature)
       await this.repository.updateQueue(projectId, {
         status: 'idle',
         lastRunAt: new Date().toISOString(),
@@ -273,6 +322,40 @@ export class RelationshipPatternsService {
     } finally {
       this.runningAnalysis.delete(projectId)
     }
+  }
+
+  /**
+   * Deletes previously stored auto-suggestions that no longer pass the join-coherence
+   * gate in isSafeJoinCandidate — e.g. AGENT.agentId -> RUN.runId, two unrelated identity
+   * fields suggested before the gate existed, which showed up as near-duplicates of the
+   * legitimate AGENT.agentId -> RUN.agentId pattern. Only 'suggested' rows are touched;
+   * approved/ignored rows reflect an explicit user decision and are kept.
+   */
+  private async pruneIncoherentJoinSuggestions(
+    projectId: string,
+    patterns: RelationshipPatternRow[]
+  ): Promise<RelationshipPatternRow[]> {
+    const kept: RelationshipPatternRow[] = []
+    for (const pattern of patterns) {
+      const incoherent =
+        pattern.status === 'suggested' &&
+        this.normalizePatternMode(pattern.mode) === 'join_pattern' &&
+        !this.isSafeJoinCandidate({
+          source: { label: pattern.sourceLabel, key: pattern.sourceKey ?? undefined },
+          target: { label: pattern.targetLabel, key: pattern.targetKey ?? undefined }
+        })
+
+      if (incoherent) {
+        await this.repository.deletePattern(pattern.id, projectId)
+        this.logger.log(
+          `[RelationshipAnalysis] pruned incoherent join suggestion ${pattern.id}: ` +
+            `${pattern.sourceLabel}.${pattern.sourceKey} -> ${pattern.targetLabel}.${pattern.targetKey} (${pattern.type})`
+        )
+      } else {
+        kept.push(pattern)
+      }
+    }
+    return kept
   }
 
   private suggestDeterministicCandidates(ontology: OntologyItem[]): RelationshipPatternCandidate[] {
@@ -343,6 +426,8 @@ export class RelationshipPatternsService {
               'You infer graph relationship patterns for RushDB. Return only JSON: {"candidates":[...]}. ' +
               'Every candidate must include mode: "join_pattern" or "retype_existing_relationship". ' +
               'Use "join_pattern" only for high-confidence foreign-key-like joins where one label has a reference field matching another label key. ' +
+              'A join_pattern must reference the same identifier on both sides: either source.key equals target.key (e.g. AGENT.agentId to RUN.agentId) or one key names the other label (e.g. Order.customerId to Customer.id). Never join two unrelated identity fields such as AGENT.agentId to RUN.runId — each identifies its own label, not the other. ' +
+              'Return at most ONE join_pattern per label pair; if several key pairs could join the same two labels, pick the single most semantically correct one. ' +
               'Use "retype_existing_relationship" when ontology already shows a RUSHDB_DEFAULT_RELATION between labels; in that case source.key and target.key are optional and the task is to rename existing structure semantically. ' +
               'For retype_existing_relationship, infer the semantic relationship from the existing graph structure and label meanings, not from same-named descriptive properties. ' +
               'Do not suggest joins based only on common descriptive fields such as name, title, label, description, status, country, or type. ' +
@@ -641,16 +726,13 @@ export class RelationshipPatternsService {
       return false
     }
 
-    const sourceLabel = this.normalizeReferenceToken(candidate.source.label)
-    const targetLabel = this.normalizeReferenceToken(candidate.target.label)
-    const sourceKeyToken = this.normalizeReferenceToken(sourceKey)
-    const targetKeyToken = this.normalizeReferenceToken(targetKey)
-    const identityLike = /(id|ref|key|token|email)$/i
-    return (
-      this.hasLabelSpecificReference(candidate) ||
-      identityLike.test(sourceKey) ||
-      identityLike.test(targetKey)
-    )
+    // A coherent FK-like join either matches the same identifier on both sides
+    // (AGENT.agentId = RUN.agentId) or uses a key that references the other label
+    // (Order.customerId -> Customer.id). Two unrelated identity fields
+    // (AGENT.agentId vs RUN.runId) are never a join, however id-like both keys look —
+    // that was the source of duplicate near-miss suggestions between the same labels.
+    const keysMatch = sourceKey.length > 0 && sourceKey.toLowerCase() === targetKey.toLowerCase()
+    return keysMatch || this.hasLabelSpecificReference(candidate)
   }
 
   private calibrateConfidence(

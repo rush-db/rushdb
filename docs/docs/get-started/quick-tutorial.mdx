@@ -16,7 +16,7 @@ RushDB is a graph database built for agents and structured data. Pick the path t
 | [Skills](#copilot-skills)   | Any MCP-capable agent in VS Code | ~2 min |
 | [SDK / REST](#sdk)          | Custom apps and pipelines        | ~5 min |
 
-Need an API key first? → [Get API Key](/deploy/get-api-key)
+Need an API key first? → [Get API Key](/deploy/configuration/get-api-key)
 
 ---
 
@@ -197,20 +197,20 @@ curl -X POST "https://api.rushdb.com/api/v1/records/import/json" \
   </TabItem>
 </Tabs>
 
-→ [TypeScript SDK](/reference/typescript) · [Python SDK](/reference/python) · [REST API](../rest-api/introduction)
+→ [TypeScript SDK](/learn/reference/typescript) · [Python SDK](/learn/reference/python) · [REST API](../learn/reference/rest-api/introduction)
 
 ---
 
 ## What to build
 
-| Use case                                    | Guide                                                                 |
-| ------------------------------------------- | --------------------------------------------------------------------- |
-| Agent memory — sessions, decisions, context | [Episodic Memory for Multi-Step Agents](../tutorials/episodic-memory) |
-| GraphRAG — graph + vector search            | [GraphRAG Tutorial](../tutorials/graphrag)                            |
-| Semantic search over your data              | [Semantic Search in 5 Minutes](../tutorials/ai-semantic-search)       |
-| Hybrid filter + semantic search             | [Hybrid Retrieval](../tutorials/hybrid-retrieval)                     |
-| Explore an unknown dataset                  | [Discovery Queries](../tutorials/discovery-queries)                   |
-| Safe agent query planning                   | [Agent-Safe Query Planning](../tutorials/agent-safe-query-planning)   |
+| Use case                                    | Guide                                                                                    |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Agent memory — sessions, decisions, context | [Episodic Memory for Multi-Step Agents](../learn/tutorials/agent-memory/episodic-memory) |
+| GraphRAG — graph + vector search            | [GraphRAG Tutorial](../learn/tutorials/ai-and-rag/graphrag)                              |
+| Semantic search over your data              | [Semantic Search in 5 Minutes](../learn/tutorials/ai-and-rag/ai-semantic-search)         |
+| Hybrid filter + semantic search             | [Hybrid Retrieval](../learn/tutorials/ai-and-rag/hybrid-retrieval)                       |
+| Explore an unknown dataset                  | [Discovery Queries](../learn/tutorials/search-and-queries/discovery-queries)             |
+| Safe agent query planning                   | [Agent-Safe Query Planning](../learn/tutorials/agent-memory/agent-safe-query-planning)   |
 
 ---
 
@@ -222,4 +222,4 @@ Three ideas explain how RushDB works:
 - **Labels** — the record's type (`SESSION`, `DECISION`, `ARTICLE`). You define them by pushing data.
 - **Relationships** — named, directed edges between records. Auto-created from nested JSON.
 
-→ [Data model overview](/build/data/import-data) · [Relationships](/build/graph) · [Search](/reference/search-query)
+→ [Data model overview](/learn/records-and-queries/import-data) · [Relationships](/learn/relationships) · [Search](/learn/search-query)

@@ -1,5 +1,4 @@
 ---
-slug: /deploy/connect-aura
 sidebar_position: 34
 title: 'Connecting a Neo4j Aura Instance (BYOC)'
 description: Use your own Neo4j or Aura database as the RushDB data store — keep data in your cloud account while using the full RushDB API.
@@ -176,7 +175,7 @@ environment:
   NEO4J_PASSWORD: your-aura-password
 ```
 
-See [Self-Hosting RushDB](/deploy/docker-remote) for the complete Docker Compose setup.
+See [Self-Hosting RushDB](/deploy/remote-hosting/self-hosting-rushdb) for the complete Docker Compose setup.
 
 ---
 
@@ -190,12 +189,12 @@ See [Self-Hosting RushDB](/deploy/docker-remote) for the complete Docker Compose
 | Wipe / restore    | Via RushDB dashboard | Full Neo4j backup tools available |
 | SLA for the graph | RushDB SLA           | Your Neo4j Aura SLA               |
 
-See [BYOC vs Managed vs Self-Hosted](/tutorials/byoc-vs-managed) for a full comparison.
+See [BYOC vs Managed vs Self-Hosted](/learn/tutorials/use-cases/byoc-vs-managed) for a full comparison.
 
 ---
 
 ## Next steps
 
-- [BYOC vs Managed vs Self-Hosted](/tutorials/byoc-vs-managed) — choose the right topology
-- [Self-Hosting RushDB](/deploy/docker-remote) — run both RushDB and the graph on your own infra
-- [Project Setup After Deployment](/deploy/self-hosted-project-setup) — configure embedding models and team access per project
+- [BYOC vs Managed vs Self-Hosted](/learn/tutorials/use-cases/byoc-vs-managed) — choose the right topology
+- [Self-Hosting RushDB](/deploy/remote-hosting/self-hosting-rushdb) — run both RushDB and the graph on your own infra
+- [Project Setup After Deployment](/deploy/guides/self-hosted-project-setup) — configure embedding models and team access per project

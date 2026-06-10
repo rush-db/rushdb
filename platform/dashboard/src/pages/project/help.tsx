@@ -13,9 +13,7 @@ export function ProjectHelpPage() {
       </PageHeader>
 
       <PageContent contained>
-        <div data-tour="project-getting-started-finish">
-          <ConnectGuide projectId={data?.id} />
-        </div>
+        <ConnectGuide projectId={data?.id} />
         <ExploreDocsStep />
         <ClientLibrariesStep />
       </PageContent>

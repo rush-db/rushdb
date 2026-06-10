@@ -1,5 +1,4 @@
 ---
-slug: /deploy/config-env-variables
 title: Environment Variables
 description: Complete reference for all RushDB environment variables.
 sidebar_position: 1
@@ -34,7 +33,7 @@ These four variables must be set or RushDB will not start correctly.
 | `NEO4J_USERNAME` | `neo4j`                 | Neo4j username                                  |
 | `NEO4J_PASSWORD` | —                       | **Required.** Neo4j password                    |
 
-See [Neo4j & Aura](/deploy/infra-neo4j) for setup details.
+See [Neo4j & Aura](/deploy/infrastructure/neo4j-and-aura) for setup details.
 
 ---
 
@@ -49,7 +48,7 @@ Stores dashboard entities — users, workspaces, projects, tokens, OAuth session
 | `SQL_DB_URL`  | —             | PostgreSQL connection URL, e.g. `postgresql://user:pass@host:5432/rushdb`. Required when `SQL_DB_TYPE=postgres` |
 | `SQL_DB_SSL`  | —             | Set to `true` to enable SSL/TLS for the PostgreSQL connection                                                   |
 
-See [PostgreSQL / SQLite](/deploy/infra-database) for setup details.
+See [PostgreSQL / SQLite](/deploy/infrastructure/postgresql-sqlite) for setup details.
 
 ---
 
@@ -188,7 +187,7 @@ RushDB uses a relational database for project metadata and user data.
 | `POSTGRES_PASSWORD` | —                  | PostgreSQL password                             |
 | `POSTGRES_DB`       | `rushdb`           | Database name                                   |
 
-See [PostgreSQL / SQLite](/deploy/infra-database) for setup details.
+See [PostgreSQL / SQLite](/deploy/infrastructure/postgresql-sqlite) for setup details.
 
 ## Neo4j (Graph)
 
@@ -198,7 +197,7 @@ See [PostgreSQL / SQLite](/deploy/infra-database) for setup details.
 | `NEO4J_USERNAME` | `neo4j`                 | Neo4j username               |
 | `NEO4J_PASSWORD` | —                       | **Required.** Neo4j password |
 
-See [Neo4j & Aura](/deploy/infra-neo4j) for setup details.
+See [Neo4j & Aura](/deploy/infrastructure/neo4j-and-aura) for setup details.
 
 ## Embeddings (AI Search)
 
@@ -216,4 +215,4 @@ See [Neo4j & Aura](/deploy/infra-neo4j) for setup details.
 | `JWT_SECRET` | —       | **Required.** Secret for signing JWT tokens. Use `openssl rand -hex 64` |
 | `JWT_EXPIRY` | `7d`    | Token expiry duration (e.g. `1d`, `7d`, `30d`)                          |
 
-See [Authorization](/deploy/get-api-key) for API key management.
+See [Authorization](/deploy/configuration/get-api-key) for API key management.

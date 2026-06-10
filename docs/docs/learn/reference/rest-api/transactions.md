@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/transactions
 sidebar_position: 6
 ---
 

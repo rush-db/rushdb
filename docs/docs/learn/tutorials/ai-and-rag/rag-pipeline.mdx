@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/rag-pipeline
 sidebar_position: 6
 title: RAG Pipeline in Minutes
 description: Chunk Markdown files, store them in RushDB, and build a retrieval-augmented generation pipeline in TypeScript, Python, or REST.
@@ -419,5 +418,5 @@ The `where` prefilter runs on the graph layer before semantic scoring — so you
 
 - Add more metadata fields (author, date, section heading) — they're queryable without any schema changes
 - Use `$startsWith` or `$in` on `source` to search across a subset of files
-- Combine with [transactions](/build/reliability/transactions) to atomically re-ingest a file when it changes
+- Combine with [transactions](/learn/records-and-queries/transactions) to atomically re-ingest a file when it changes
 - Replace the fixed-size chunker with a semantic splitter (split on headings, paragraphs, or sentences)

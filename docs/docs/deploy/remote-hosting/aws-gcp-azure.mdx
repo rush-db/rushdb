@@ -1,5 +1,4 @@
 ---
-slug: /deploy/remote-cloud-providers
 title: AWS / GCP / Azure
 description: Deploy RushDB on major cloud providers — AWS EC2, Google Cloud Compute Engine, or Azure Virtual Machines.
 sidebar_position: 3
@@ -14,7 +13,7 @@ import TabItem from '@theme/TabItem'
 
 RushDB runs on any Linux VM with Docker. The workflow is the same across providers — provision a VM, install Docker, deploy the Compose stack.
 
-Verify the [Prerequisites](/deploy/remote-prerequisites) first.
+Verify the [Prerequisites](/deploy/remote-hosting/prerequisites) first.
 
 ## Provision a VM
 
@@ -68,7 +67,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-See [Environment Variables](/deploy/config-env-variables) for the full `.env` reference.
+See [Environment Variables](/deploy/configuration/environment-variables) for the full `.env` reference.
 
 ## Verify
 
@@ -77,4 +76,4 @@ curl http://VM_PUBLIC_IP:3000/health
 # → {"status":"ok"}
 ```
 
-Next: [Get your API Key](/deploy/get-api-key) to start using the instance.
+Next: [Get your API Key](/deploy/configuration/get-api-key) to start using the instance.

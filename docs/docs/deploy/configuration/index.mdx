@@ -1,5 +1,4 @@
 ---
-slug: /deploy/config-index
 title: Configuration
 description: Configure environment variables, authorization, and security for your RushDB instance.
 sidebar_position: 3
@@ -23,7 +22,7 @@ Configure RushDB after deployment — environment variables, API key management,
     icon="ClipboardList"
     recommended
     tags={['Environment', '.env', 'Reference']}
-    href="/deploy/config-env-variables"
+    href="/deploy/configuration/environment-variables"
   />
   <DeployMethodRow
     title="Authorization"
@@ -33,7 +32,7 @@ Configure RushDB after deployment — environment variables, API key management,
     icon="Server"
     prerequisites={['RushDB dashboard access (cloud or self-hosted)']}
     tags={['API Key', 'JWT', 'Authentication']}
-    href="/deploy/get-api-key"
+    href="/deploy/configuration/get-api-key"
   />
   <DeployMethodRow
     title="Security"
@@ -43,14 +42,14 @@ Configure RushDB after deployment — environment variables, API key management,
     icon="Layers"
     prerequisites={['Self-hosted RushDB running', 'Domain + DNS access']}
     tags={['TLS', 'HTTPS', 'Firewall', 'Secrets']}
-    href="/deploy/config-security"
+    href="/deploy/configuration/security"
   />
 </DeployMethodRowList>
 
 <DeployCrossLinks
   prefix="Also see:"
   links={[
-    { label: 'Infrastructure', href: '/deploy/infra-index' },
-    { label: 'Remote Hosting', href: '/deploy/remote-index' }
+    { label: 'Infrastructure', href: '/deploy/infrastructure' },
+    { label: 'Remote Hosting', href: '/deploy/remote-hosting' }
   ]}
 />

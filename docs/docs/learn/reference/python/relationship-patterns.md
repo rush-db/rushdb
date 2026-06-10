@@ -1,5 +1,4 @@
 ---
-slug: /reference/python/relationship-patterns
 sidebar_position: 2
 title: Relationship Patterns
 ---
@@ -49,4 +48,4 @@ Deleting a saved pattern does not delete relationships that it already created u
 db.relationships.patterns.delete("pattern-id", delete_existing=True)
 ```
 
-For lifecycle details, matching modes, REST endpoints, and MCP tools, see [Suggested Relationship Patterns](/build/graph/suggested-patterns).
+For lifecycle details, matching modes, REST endpoints, and MCP tools, see [Suggested Relationship Patterns](/learn/relationships/suggested-patterns).

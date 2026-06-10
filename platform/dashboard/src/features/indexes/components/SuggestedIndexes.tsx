@@ -87,12 +87,16 @@ function SuggestedIndexItem({
             projectId,
             label: suggestion.label,
             propertyName: suggestion.propertyName
-          }).then(() => {
-            if (tourStep === 'projectIndexCreate') {
-              openRoute('projectRelationships', { id: projectId })
-              setTourStep('projectRelationshipAnalyze', true)
-            }
           })
+            .then(() => {
+              if (tourStep === 'projectIndexCreate') {
+                openRoute('projectRelationships', { id: projectId })
+                setTourStep('projectRelationshipAnalyze', true)
+              }
+            })
+            .catch(() => {
+              // surfaced via the mutation's onError toast
+            })
         }
         loading={isPending}
         size="small"

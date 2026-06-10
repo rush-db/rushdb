@@ -1,5 +1,4 @@
 ---
-slug: /reference/python/search-result
 sidebar_position: 3
 ---
 

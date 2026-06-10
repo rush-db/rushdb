@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/records/get-records
 sidebar_position: 5
 ---
 

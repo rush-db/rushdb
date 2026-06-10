@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/records/import-data
 sidebar_position: 1
 ---
 
@@ -87,4 +86,4 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 
 ## See also
 
-- [Writing Records with Vectors](/rest-api/ai/write-with-vectors) — attach pre-computed embedding vectors to records at write time
+- [Writing Records with Vectors](/learn/reference/rest-api/ai-and-vectors/write-with-vectors) — attach pre-computed embedding vectors to records at write time

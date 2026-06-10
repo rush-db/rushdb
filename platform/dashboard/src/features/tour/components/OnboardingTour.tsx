@@ -17,6 +17,7 @@ import { CustomTooltip } from './CustomTooltip'
 import { $currentProjectId } from '~/features/projects/stores/id'
 import { useWaitForSelectorStable } from '~/features/tour/hooks/useWaitForSelector'
 import type { TourStepKey } from '~/features/tour/types'
+import type * as ConfettiModule from '@tsparticles/confetti'
 
 type TourStepData = {
   key: TourStepKey
@@ -35,23 +36,41 @@ function isProjectRouteName(route: keyof typeof routes): route is keyof typeof p
   return route in projectRoutes
 }
 
+let confettiModule: Promise<typeof ConfettiModule> | null = null
+
+// Kicked off when the final tour step appears, so the chunk is already downloaded by the
+// time the user presses Finish — on slow connections the lazy import alone made the
+// confetti show up seconds late.
+function preloadConfetti() {
+  confettiModule ??= import('@tsparticles/confetti')
+  confettiModule.catch(() => {
+    confettiModule = null
+  })
+  return confettiModule
+}
+
 function fireOnboardingConfetti() {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
-  void import('@tsparticles/confetti')
-    .then(({ confetti }) =>
-      confetti({
-        count: 120,
-        spread: 80,
-        startVelocity: 45,
-        decay: 0.9,
-        gravity: 0.9,
-        scalar: 1,
-        ticks: 220,
-        zIndex: 10001,
-        colors: ['#C7F943', '#6366F1', '#FFFFFF', '#7DD3FC']
-      })
-    )
+  void preloadConfetti()
+    .then(({ confetti }) => {
+      // Full-width rain: downward bursts spaced along the top edge of the viewport.
+      for (const x of [10, 30, 50, 70, 90]) {
+        void confetti({
+          count: 40,
+          angle: 270,
+          spread: 70,
+          startVelocity: 25,
+          decay: 0.92,
+          gravity: 1,
+          scalar: 1,
+          ticks: 300,
+          position: { x, y: 0 },
+          zIndex: 10001,
+          colors: ['#C7F943', '#6366F1', '#FFFFFF', '#7DD3FC']
+        })
+      }
+    })
     .catch(() => undefined)
 }
 
@@ -66,6 +85,12 @@ export function OnboardingTour() {
   const currentStep = steps.find((step) => getStepData(step)?.key === currentKey)
   const targetSelector = typeof currentStep?.target === 'string' ? currentStep.target : ''
   const stepReady = useWaitForSelectorStable(targetSelector)
+
+  useEffect(() => {
+    if (currentKey === keys[keys.length - 1]) {
+      void preloadConfetti()
+    }
+  }, [currentKey])
 
   useEffect(() => {
     const def = steps.find((step) => getStepData(step)?.key === currentKey)

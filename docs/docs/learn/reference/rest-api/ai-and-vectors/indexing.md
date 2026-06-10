@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/ai/indexing
 sidebar_position: 1
 title: Embedding Indexes
 ---
@@ -73,13 +72,13 @@ Creates a new managed embedding index policy scoped to a label. The property mus
 
 ### Request Body
 
-| Field                | Type   | Required | Description                                                                                                 |
-| -------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------- |
-| `label`              | string | **yes**  | Label to scope this index to (e.g. `"Article"`, `"Product"`)                                                |
-| `propertyName`       | string | **yes**  | Name of the property to embed (e.g. `"description"`)                                                        |
-| `sourceType`         | string | no       | `"managed"` (default) or `"external"`. See [Advanced Indexing](/rest-api/ai/advanced-indexing).             |
-| `similarityFunction` | string | no       | `"cosine"` (default) or `"euclidean"`                                                                       |
-| `dimensions`         | number | no       | Vector dimensionality. Defaults to server `RUSHDB_EMBEDDING_DIMENSIONS`. **Required** for external indexes. |
+| Field                | Type   | Required | Description                                                                                                                 |
+| -------------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `label`              | string | **yes**  | Label to scope this index to (e.g. `"Article"`, `"Product"`)                                                                |
+| `propertyName`       | string | **yes**  | Name of the property to embed (e.g. `"description"`)                                                                        |
+| `sourceType`         | string | no       | `"managed"` (default) or `"external"`. See [Advanced Indexing](/learn/reference/rest-api/ai-and-vectors/advanced-indexing). |
+| `similarityFunction` | string | no       | `"cosine"` (default) or `"euclidean"`                                                                                       |
+| `dimensions`         | number | no       | Vector dimensionality. Defaults to server `RUSHDB_EMBEDDING_DIMENSIONS`. **Required** for external indexes.                 |
 
 > **Model config is server-side.** The embedding model is set via `RUSHDB_EMBEDDING_MODEL` / `RUSHDB_EMBEDDING_DIMENSIONS` env vars.
 
@@ -241,7 +240,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
   -d '{"label": "Product", "propertyName": "description", "similarityFunction": "euclidean", "dimensions": 768}'
 ```
 
-When searching or writing vectors against a property with multiple indexes, specify `similarityFunction` to disambiguate. See [Advanced Indexing](/rest-api/ai/advanced-indexing#disambiguation) for details.
+When searching or writing vectors against a property with multiple indexes, specify `similarityFunction` to disambiguate. See [Advanced Indexing](/learn/reference/rest-api/ai-and-vectors/advanced-indexing#disambiguation) for details.
 
 ---
 

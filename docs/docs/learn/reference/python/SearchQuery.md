@@ -1,11 +1,10 @@
 ---
-slug: /reference/python/SearchQuery
 sidebar_position: 4
 ---
 
 # SearchQuery
 
-`SearchQuery` is a dictionary type that defines the structure for querying [records](/build/data/store-records) in RushDB. It provides a flexible way to filter, sort, paginate, and shape results. For more information on search concepts, see the [search documentation](/reference/search-query).
+`SearchQuery` is a dictionary type that defines the structure for querying [records](/learn/records-and-queries/store-records) in RushDB. It provides a flexible way to filter, sort, paginate, and shape results. For more information on search concepts, see the [search documentation](/learn/search-query).
 
 ## Query Shape
 

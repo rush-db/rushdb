@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/is-rushdb-right-for-me
 sidebar_position: 5
 title: 'Is RushDB Right for My Problem? A Practical Decision Guide'
 description: A scenario-driven catalog showing seven problems RushDB is designed for, where it outperforms fragmented stacks, and where it isn't the right fit.
@@ -101,7 +100,7 @@ Assistant: [adds where: { prepTime: { $lte: 30 } } to the existing search call]
 
 No docs lookup. No trial and error on the query shape. Just describe and iterate.
 
-**Go deeper:** [Thinking in Graphs](/tutorials/thinking-in-graphs) · [Customer 360](/tutorials/customer-360) · [`@rushdb/skills` on npm](https://www.npmjs.com/package/@rushdb/skills)
+**Go deeper:** [Thinking in Graphs](/learn/tutorials/graph-modeling/thinking-in-graphs) · [Customer 360](/learn/tutorials/graph-modeling/customer-360) · [`@rushdb/skills` on npm](https://www.npmjs.com/package/@rushdb/skills)
 
 ---
 
@@ -133,7 +132,7 @@ const priceRange = await db.properties.values({
 
 Wire these directly to your filter UI — every facet is always in sync with the actual data, zero maintenance.
 
-**Go deeper:** [Properties API reference](/rest-api/properties) · [Labels API reference](/rest-api/labels)
+**Go deeper:** [Properties API reference](/learn/reference/rest-api/properties) · [Labels API reference](/learn/reference/rest-api/labels)
 
 ---
 
@@ -179,7 +178,7 @@ const answer = await llm.complete({
 
 No Pinecone, no LangChain retriever, no sync pipeline. When documents change, update the record — the embedding updates automatically.
 
-**Go deeper:** [RAG Pipeline in Minutes](/tutorials/rag-pipeline) · [Hybrid Retrieval](/tutorials/hybrid-retrieval)
+**Go deeper:** [RAG Pipeline in Minutes](/learn/tutorials/ai-and-rag/rag-pipeline) · [Hybrid Retrieval](/learn/tutorials/ai-and-rag/hybrid-retrieval)
 
 ---
 
@@ -218,7 +217,7 @@ const exposed = await db.records.find({
 
 Different sources, different shapes, unified graph — without a single migration.
 
-**Go deeper:** [Data Ingestion concepts](/build/data/import-data) · [Research Knowledge Graph](/tutorials/research-knowledge-graph) · [Supply Chain Traceability](/tutorials/supply-chain-traceability)
+**Go deeper:** [Data Ingestion concepts](/learn/records-and-queries/import-data) · [Research Knowledge Graph](/learn/tutorials/agent-memory/research-knowledge-graph) · [Supply Chain Traceability](/learn/tutorials/use-cases/supply-chain-traceability)
 
 ---
 
@@ -258,7 +257,7 @@ const avgOrderBySegment = await db.records.find({
 })
 ```
 
-**Go deeper:** [Select Expressions](/reference/select-expressions) · [SearchQuery Advanced Patterns](/tutorials/searchquery-advanced-patterns)
+**Go deeper:** [Select Expressions](/learn/search-query/select-expressions) · [SearchQuery Advanced Patterns](/learn/tutorials/search-and-queries/searchquery-advanced-patterns)
 
 ---
 
@@ -304,7 +303,7 @@ const recentContext = await db.records.find({
 
 Memory is a graph node. It can be linked to other facts, episodes, and documents. Any service with the API key can read it. No restart clears it.
 
-**Go deeper:** [RushDB as a Memory Layer](/tutorials/memory-layer) · [Building Team Memory](/tutorials/building-team-memory) · [Episodic Memory](/tutorials/episodic-memory)
+**Go deeper:** [RushDB as a Memory Layer](/learn/tutorials/agent-memory/memory-layer) · [Building Team Memory](/learn/tutorials/agent-memory/building-team-memory) · [Episodic Memory](/learn/tutorials/agent-memory/episodic-memory)
 
 ---
 
@@ -344,7 +343,7 @@ servers:
       Authorization: Bearer ${RUSHDB_API_KEY}
 ```
 
-**Go deeper:** [MCP Server introduction](/connect/mcp) · [Agent Safe Query Planning](/tutorials/agent-safe-query-planning) · [Agent Skills with OpenClaw](/tutorials/agent-skills-with-openclaw)
+**Go deeper:** [MCP Server introduction](/connect/mcp) · [Agent Safe Query Planning](/learn/tutorials/agent-memory/agent-safe-query-planning) · [Agent Skills with OpenClaw](/learn/tutorials/agent-memory/agent-skills-with-openclaw)
 
 ---
 
@@ -377,5 +376,5 @@ Score one point for each row that describes your problem:
 ```
 
 **3 or more:** RushDB is a strong fit. Start with the [quick tutorial](/get-started/quick-tutorial).
-**1–2:** RushDB may help, but a simpler tool might too. Read [Thinking in Graphs](/tutorials/thinking-in-graphs) to calibrate.
+**1–2:** RushDB may help, but a simpler tool might too. Read [Thinking in Graphs](/learn/tutorials/graph-modeling/thinking-in-graphs) to calibrate.
 **0:** You probably don't need RushDB right now.

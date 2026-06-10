@@ -1,11 +1,10 @@
 ---
-slug: /reference/typescript/DBRecordTarget
 sidebar_position: 4
 ---
 
 # DBRecordTarget
 
-`DBRecordTarget` is a type that represents a target [record](/build/data/store-records) for operations like set, update, attach, detach, and delete. It is commonly used when working with [relationships](/build/graph) and [property](/build/schema/labels-and-properties) updates.
+`DBRecordTarget` is a type that represents a target [record](/learn/records-and-queries/store-records) for operations like set, update, attach, detach, and delete. It is commonly used when working with [relationships](/learn/relationships) and [property](/learn/records-and-queries/labels-and-properties) updates.
 
 ## Type Definition
 

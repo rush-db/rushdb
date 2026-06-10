@@ -4,6 +4,7 @@ import { AiQueryService } from '@/core/ai/ai-query.service'
 import { AiController } from '@/core/ai/ai.controller'
 import { AiService } from '@/core/ai/ai.service'
 import { EmbeddingBackfillScheduler } from '@/core/ai/embedding-backfill.scheduler'
+import { EmbeddingIndexDdlService } from '@/core/ai/embedding-index-ddl.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
 import { BillingPolicyModule } from '@/core/billing-policy/billing-policy.module'
@@ -23,6 +24,7 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
   providers: [
     AiService,
     AiQueryService,
+    EmbeddingIndexDdlService,
     EmbeddingIndexRepository,
     EmbeddingProviderService,
     EmbeddingBackfillScheduler

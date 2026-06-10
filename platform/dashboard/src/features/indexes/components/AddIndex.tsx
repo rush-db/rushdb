@@ -94,6 +94,8 @@ export function AddIndexCard({
       await mutate({ projectId, label, propertyName })
       setLabel('')
       setPropertyName('')
+    } catch {
+      // surfaced via the mutation's onError toast and the inline error below
     } finally {
       setIsSubmitting(false)
     }

@@ -1,11 +1,10 @@
 ---
-slug: /reference/typescript/DBRecordInstance
 sidebar_position: 3
 ---
 
 # DBRecordInstance
 
-`DBRecordInstance` is a class that wraps a DBRecord and provides methods for manipulating it. This class serves as an interface for working with individual [records](/build/data/store-records) in the database. It allows for updating [properties](/build/schema/labels-and-properties) and managing [relationships](/build/graph).
+`DBRecordInstance` is a class that wraps a DBRecord and provides methods for manipulating it. This class serves as an interface for working with individual [records](/learn/records-and-queries/store-records) in the database. It allows for updating [properties](/learn/records-and-queries/labels-and-properties) and managing [relationships](/learn/relationships).
 
 ## Class Definition
 

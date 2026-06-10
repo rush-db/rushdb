@@ -17,6 +17,13 @@ export const useAddIndexMutation = () => {
       if (projectId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.projects.indexes(projectId) })
       }
+    },
+    onError(error) {
+      toast({
+        title: 'Failed to create index',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred',
+        variant: 'danger'
+      })
     }
   })
 }

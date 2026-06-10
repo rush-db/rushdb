@@ -1,5 +1,4 @@
 ---
-slug: /reference/search-labels
 sidebar_position: 2
 ---
 

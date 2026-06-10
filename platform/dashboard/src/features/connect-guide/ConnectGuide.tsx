@@ -754,7 +754,7 @@ export function ConnectGuide({ className, defaultPath = 'hosted-mcp', projectId 
       </div>
 
       <Tabs defaultValue={defaultPath} className="grid gap-4">
-        <TabsList className="max-w-full">
+        <TabsList className="max-w-full" data-tour="project-getting-started-finish">
           {connectPaths.map((path) => (
             <Tab key={path.value} value={path.value} className="h-auto min-h-11 py-2">
               {path.icon}

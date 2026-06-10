@@ -1,5 +1,4 @@
 ---
-slug: /build/schema/discover-your-schema
 sidebar_position: 2
 title: Discover Your Schema
 ---
@@ -13,17 +12,9 @@ RushDB is **self-aware** — it continuously understands its own structure: labe
 
 ---
 
-## Why Agents Need This
+## What the Ontology Contains
 
-Traditional databases assume the application knows the schema at build time. AI agents face a different reality:
-
-- The knowledge graph may have been populated by other agents, batch imports, or live event streams.
-- The schema drifts over time as new label types and properties appear.
-- Agents cannot be pre-programmed with field names they have never seen.
-
-RushDB's answer is **schema-on-read for agents**: call `getOntologyMarkdown()` once per session and receive the full, current schema as a single response. The agent can then construct valid queries referencing only labels and properties that actually exist — no hallucinated field names.
-
-### What the Ontology Contains
+The ontology is RushDB's always-current answer to "what does this project's data look like?" — computed from the graph itself, never declared upfront.
 
 | Component                       | Description                                                                                             |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -31,6 +22,8 @@ RushDB's answer is **schema-on-read for agents**: call `getOntologyMarkdown()` o
 | **Property manifest per label** | Property name, type, and either sample values (strings/booleans) or a min–max range (numbers/datetimes) |
 | **Relationship map**            | Which labels connect to which, via which relationship type, and in which direction                      |
 | **Semantic index status**       | Which properties have embedding indexes and whether they are ready for `db.ai.search()`                 |
+
+Building an AI agent? [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness) shows what the rendered output looks like and how to inject it into LLM context.
 
 ---
 
@@ -48,14 +41,9 @@ from rushdb import RushDB
 
 db = RushDB("RUSHDB_API_KEY")
 
-# Inject into LLM at session start
+# Full schema as a Markdown document
 response = db.ai.get_ontology_markdown()
 schema = response.data
-
-messages = [
-    {"role": "system", "content": f"You are a data assistant.\n\n{schema}"},
-    {"role": "user",   "content": "How many paid orders are there?"}
-]
 
 # Scope to specific labels
 order_response = db.ai.get_ontology_markdown({"labels": ["Order"]})
@@ -70,12 +58,8 @@ fresh_response = db.ai.get_ontology_markdown({"force": True})
 `db.ai.getOntologyMarkdown()`
 
 ```typescript
-// Inject into LLM at session start
+// Full schema as a Markdown document
 const { data: schema } = await db.ai.getOntologyMarkdown()
-const messages = [
-  { role: 'system', content: `You are a data assistant.\n\n${schema}` },
-  { role: 'user', content: 'How many paid orders are there?' }
-]
 
 // Scope to specific labels
 const { data: orderSchema } = await db.ai.getOntologyMarkdown({
@@ -121,96 +105,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
   </TabItem>
 </Tabs>
 
-### Graph structure (Mermaid)
-
-The same data as a graph — labels are nodes, relationships are edges:
-
-```mermaid
-graph LR
-    O["Order (1840)"]
-    U["User (312)"]
-    P["Product (95)"]
-
-    O -->|PLACED_BY| U
-    O -->|CONTAINS| P
-```
-
-### Example Markdown output
-
-The ontology method serialises this graph into a compact Markdown document ready for LLM injection:
-
-```text
-# Graph Ontology
-
-## Labels
-
-| Label     | Count |
-|-----------|------:|
-| `Order`   |  1840 |
-| `User`    |   312 |
-| `Product` |    95 |
-
----
-
-## `Order` (1840 records)
-
-### Properties
-
-| Property    | Type     | Values / Range                         | Semantic Search                |
-|-------------|----------|----------------------------------------|--------------------------------|
-| `status`    | string   | `pending`, `paid`, `shipped` (+2 more) | —                              |
-| `total`     | number   | `4.99`..`2499.00`                      | —                              |
-| `name`      | string   | `Widget A`, `Widget B` (+8 more)       | `managed` cosine 1536d [ready] |
-| `createdAt` | datetime | `2024-01-03`..`2026-02-27`             | —                              |
-
-### Relationships
-
-| Type        | Direction | Other Label |
-|-------------|-----------|-------------|
-| `PLACED_BY` | out       | `User`      |
-| `CONTAINS`  | out       | `Product`   |
-
----
-
-## `User` (312 records)
-
-### Properties
-
-| Property    | Type   | Values / Range                | Semantic Search |
-|-------------|--------|-------------------------------|-----------------|
-| `email`     | string | `alice@example.com` (+8 more) | —               |
-| `name`      | string | `Alice`, `Bob` (+8 more)      | —               |
-| `plan`      | string | `free`, `pro`, `enterprise`   | —               |
-
-### Relationships
-
-| Type        | Direction | Other Label |
-|-------------|-----------|-------------|
-| `PLACED_BY` | in        | `Order`     |
-
----
-
-## `Product` (95 records)
-
-### Properties
-
-| Property    | Type   | Values / Range                   | Semantic Search                |
-|-------------|--------|----------------------------------|--------------------------------|
-| `name`      | string | `Widget A`, `Widget B` (+8 more) | `managed` cosine 1536d [ready] |
-| `price`     | number | `4.99`..`2499.00`                | —                              |
-| `category`  | string | `electronics`, `home` (+3 more)  | —                              |
-| `inStock`   | boolean| `true`, `false`                  | —                              |
-
-### Relationships
-
-| Type       | Direction | Other Label |
-|------------|-----------|-------------|
-| `CONTAINS` | in        | `Order`     |
-```
-
-:::tip Agent quickstart
-Call `get_ontology_markdown()` / `getOntologyMarkdown()` first in every AI session. Without it, models will hallucinate field and label names.
-:::
+See a complete rendered example — graph, Markdown, and JSON side by side — in [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness#what-the-agent-receives).
 
 ---
 
@@ -350,32 +245,9 @@ Both methods share a **1-hour cache** per project. The first call after TTL expi
 
 ---
 
-## Agent Skills
-
-`@rushdb/skills` is a collection of [Agent Skills](https://agentskills.io) — installable instructions that teach any skills-compatible AI agent (Claude, GitHub Copilot, Cursor, Windsurf, and others) to use RushDB efficiently, without manual system-prompt engineering.
-
-```bash
-npx skills add rush-db/rushdb --path packages/skills
-```
-
-| Skill                    | What it teaches                                                                                                                                                   |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rushdb-query-builder`   | Discovery-first workflow, SearchQuery syntax, aggregation, relationship traversal, and semantic search                                                            |
-| `rushdb-agent-memory`    | Using RushDB as persistent structured memory — store, link, and semantically recall sessions, decisions, and entities                                             |
-| `rushdb-data-modeling`   | LMPG model design, label/property naming conventions, nested JSON import, and schema evolution                                                                    |
-| `rushdb-faceted-search`  | Build faceted filter UIs — discover properties and types, enumerate distinct values, map to widgets, assemble a live `where` clause                               |
-| `rushdb-domain-template` | Design a tailored schema for any domain through guided conversation — interview, entity/relationship mapping, bootstrap payload, and 10 built-in domain templates |
-
-Each skill bundles a `SKILL.md` with concise instructions and optional reference files (like the full SearchQuery spec) that the agent loads on demand.
-
-:::note MCP server vs. Agent Skills
-The [MCP server](/deploy/mcp-operator-quickstart) gives agents direct tool access to RushDB at runtime. Agent Skills teach agents _how_ to use those tools correctly — they complement each other.
-:::
-
----
-
 ## See also
 
-- [Labels & Properties](/build/schema/labels-and-properties) — enumerate schema at a low level
-- [Semantic Search](/build/ai-search/semantic-search) — use indexed properties for similarity search
-- [Manage Embedding Indexes](/build/ai-search/manage-indexes) — view index status in ontology output
+- [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness) — inject the ontology into LLM context, dynamic query construction, and Agent Skills
+- [Labels & Properties](/learn/records-and-queries/labels-and-properties) — enumerate schema at a low level
+- [Semantic Search](/learn/semantic-search) — use indexed properties for similarity search
+- [Manage Embedding Indexes](/learn/semantic-search/manage-indexes) — view index status in ontology output

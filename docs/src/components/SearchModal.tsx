@@ -20,13 +20,28 @@ export default function SearchModal({ isOpen, onClose }: Props) {
   // Focus the search input when modal opens
   useEffect(() => {
     if (!isOpen) return
-    const t = setTimeout(() => {
+    let attempts = 0
+    let timeout: ReturnType<typeof setTimeout> | undefined
+
+    const focusInput = () => {
       const input = modalRef.current?.querySelector<HTMLInputElement>(
-        'input[type="search"], input.aa-Input, input[class*="input"]'
+        '.navbar__search-input, input[type="search"], input.aa-Input, input[class*="Input"], input[class*="input"]'
       )
-      input?.focus()
-    }, 50)
-    return () => clearTimeout(t)
+      if (input) {
+        input.focus()
+        return
+      }
+
+      attempts += 1
+      if (attempts < 10) {
+        timeout = setTimeout(focusInput, 50)
+      }
+    }
+
+    timeout = setTimeout(focusInput, 0)
+    return () => {
+      if (timeout) clearTimeout(timeout)
+    }
   }, [isOpen])
 
   // Escape to close

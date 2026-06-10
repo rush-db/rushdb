@@ -21,6 +21,7 @@ import { Tab, Tabs, TabsList } from '~/elements/Tabs'
 import { IconButton } from '~/elements/IconButton'
 import { Menu, MenuTitle } from '~/elements/Menu'
 import { $sheetProperty, $sheetRecordId, type PropertySheetData } from '~/features/projects/stores/id.ts'
+import { $tourAllowed, $tourStep } from '~/features/tour/stores/tour'
 import { getLabelColor } from '~/features/labels'
 import type { DBRecord, DBRecordInstance } from '@rushdb/javascript-sdk'
 import { type Relation } from '@rushdb/javascript-sdk'
@@ -664,6 +665,36 @@ export const GraphView: FC = () => {
     )
   }, [graphMode, visibleGraphData.nodes])
 
+  // During the onboarding tour's graph step, fit the view automatically once the force
+  // layout settles — the default camera leaves the freshly imported graph tiny and
+  // off-center, which undersells the moment.
+  const tourAllowed = useStore($tourAllowed)
+  const tourStep = useStore($tourStep)
+  const pendingTourFitRef = useRef(false)
+
+  useEffect(() => {
+    if (!tourAllowed || tourStep !== 'recordGraphView') {
+      return
+    }
+    pendingTourFitRef.current = true
+    // Fallback in case the simulation settled before this step became active
+    // (onEngineStop only fires when the engine transitions to stopped).
+    const fallback = window.setTimeout(() => {
+      if (pendingTourFitRef.current) {
+        pendingTourFitRef.current = false
+        fitGraph()
+      }
+    }, 2500)
+    return () => window.clearTimeout(fallback)
+  }, [tourAllowed, tourStep, fitGraph])
+
+  const handleEngineStop = useCallback(() => {
+    if (pendingTourFitRef.current) {
+      pendingTourFitRef.current = false
+      fitGraph()
+    }
+  }, [fitGraph])
+
   const reheatSimulation = useCallback(() => {
     // Relayout should start from a clean simulation state with no pinned nodes.
     pinned2DPositionsRef.current = {}
@@ -1014,11 +1045,13 @@ export const GraphView: FC = () => {
           }}
           nodeLabel={getNodeHoverLabel as any}
           onNodeClick={handleClick as any}
+          onEngineStop={handleEngineStop}
         />
       : <ForceGraph2D
           ref={fgRef}
           backgroundColor={'#222'}
           graphData={visibleGraphData}
+          onEngineStop={handleEngineStop}
           nodeId={'id'}
           linkSource={'source'}
           linkTarget={'target'}

@@ -1,11 +1,10 @@
 ---
-slug: /reference/typescript/DBRecordsArrayInstance
 sidebar_position: 5
 ---
 
 # DBRecordsArrayInstance
 
-`DBRecordsArrayInstance` is a class that manages an array of `DBRecordInstance` objects. It typically represents the result of a [search query](/reference/search-query) that returns multiple [records](/build/data/store-records).
+`DBRecordsArrayInstance` is a class that manages an array of `DBRecordInstance` objects. It typically represents the result of a [search query](/learn/search-query) that returns multiple [records](/learn/records-and-queries/store-records).
 
 ## Class Definition
 

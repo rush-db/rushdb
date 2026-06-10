@@ -1,5 +1,4 @@
 ---
-slug: /cloud/knowledge-units
 title: Knowledge Units (KU)
 description: Understand the RushDB Cloud usage metric for ingestion, graph structure, compute-intensive operations, and storage footprint.
 sidebar_position: 4
@@ -69,6 +68,7 @@ When you ingest nested JSON, RushDB **automatically decomposes it** into separat
 // → Record: profile  (2 properties: name, age)  → ~2 KU
 // → Relationship: user → profile                → ~0.5 KU
 
+
 // Total: ~2.5 KU
 ```
 
@@ -115,6 +115,6 @@ When running RushDB in self-hosted mode (`RUSHDB_SELF_HOSTED=true`), RushDB Clou
 
 ## Related Pages
 
-- [Billing Model](/cloud/billing-model)
-- [Multitenancy & Project Isolation](/cloud/project-isolation)
-- [Licensing & Third-Party Services](/cloud/licensing-and-services)
+- [Billing Model](/rushdb-cloud/billing-model)
+- [Multitenancy & Project Isolation](/rushdb-cloud/project-isolation)
+- [Licensing & Third-Party Services](/rushdb-cloud/licensing-and-services)

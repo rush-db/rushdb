@@ -1,5 +1,4 @@
 ---
-slug: /build/ai-search/write-with-vectors
 sidebar_position: 3
 title: Write Records with Vectors
 ---
@@ -11,7 +10,7 @@ import TabItem from '@theme/TabItem'
 
 RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate bulk-upsert call. Any operation that creates or modifies records accepts a `vectors` parameter.
 
-This feature requires at least one [external index](/build/ai-search/bring-your-own-vectors) on the target `(label, propertyName)`.
+This feature requires at least one [external index](/learn/semantic-search/bring-your-own-vectors) on the target `(label, propertyName)`.
 
 ---
 
@@ -500,6 +499,6 @@ curl -X POST https://api.rushdb.com/api/v1/records \
 
 ## See also
 
-- [Bring Your Own Vectors](/build/ai-search/bring-your-own-vectors) — create external indexes and bulk-upsert
-- [Manage Embedding Indexes](/build/ai-search/manage-indexes) — list, stats, delete indexes
-- [Semantic Search](/build/ai-search/semantic-search) — search across indexed properties
+- [Bring Your Own Vectors](/learn/semantic-search/bring-your-own-vectors) — create external indexes and bulk-upsert
+- [Manage Embedding Indexes](/learn/semantic-search/manage-indexes) — list, stats, delete indexes
+- [Semantic Search](/learn/semantic-search) — search across indexed properties

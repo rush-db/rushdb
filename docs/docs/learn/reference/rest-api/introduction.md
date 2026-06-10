@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/introduction
 title: Introduction
 sidebar_position: 0
 ---
@@ -20,12 +19,12 @@ Interactive docs: [Swagger UI](https://api.rushdb.com/api) · [OpenAPI JSON](htt
 
 ## Endpoints
 
-| Group                                         | Description                                          |
-| --------------------------------------------- | ---------------------------------------------------- |
-| [Records](/rest-api/records/create-records)   | Create, read, update, delete, search, import, export |
-| [Relationships](/rest-api/relationships)      | Attach and detach edges between records              |
-| [Labels](/rest-api/labels)                    | Query which types exist and their counts             |
-| [Properties](/rest-api/properties)            | Inspect field names, types, and value ranges         |
-| [Transactions](/rest-api/transactions)        | Atomic multi-step operations                         |
-| [AI & Semantic Search](/rest-api/ai/overview) | Schema export + vector similarity search             |
-| [Raw Queries](/rest-api/raw-queries)          | Cypher pass-through (cloud only)                     |
+| Group                                                                     | Description                                          |
+| ------------------------------------------------------------------------- | ---------------------------------------------------- |
+| [Records](/learn/reference/rest-api/records/create-records)               | Create, read, update, delete, search, import, export |
+| [Relationships](/learn/reference/rest-api/relationships)                  | Attach and detach edges between records              |
+| [Labels](/learn/reference/rest-api/labels)                                | Query which types exist and their counts             |
+| [Properties](/learn/reference/rest-api/properties)                        | Inspect field names, types, and value ranges         |
+| [Transactions](/learn/reference/rest-api/transactions)                    | Atomic multi-step operations                         |
+| [AI & Semantic Search](/learn/reference/rest-api/ai-and-vectors/overview) | Schema export + vector similarity search             |
+| [Raw Queries](/learn/reference/rest-api/raw-queries)                      | Cypher pass-through (cloud only)                     |

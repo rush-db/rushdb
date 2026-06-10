@@ -1,11 +1,10 @@
 ---
-slug: /reference/typescript/RelationTarget
 sidebar_position: 6
 ---
 
 # RelationTarget
 
-`RelationTarget` is a type that represents the target(s) for [relationship](/build/graph) operations like attach and detach.
+`RelationTarget` is a type that represents the target(s) for [relationship](/learn/relationships) operations like attach and detach.
 
 ## Type Definition
 

@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/byoc-vs-managed
 sidebar_position: 38
 title: 'BYOC vs Managed vs Self-Hosted'
 description: Compare RushDB's three deployment models — Managed, BYOC (Bring Your Own Cloud), and Self-Hosted — with a feature matrix, decision guide, and step-by-step migration path.
@@ -87,7 +86,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 - You want your graph data to stay within your cloud account or region.
 - You want RushDB's API layer managed for you but want control over the graph store.
 
-BYOC gives you a RushDB project that connects to your Neo4j credentials. See [Connect an Aura Instance](/deploy/connect-aura) for the full setup guide.
+BYOC gives you a RushDB project that connects to your Neo4j credentials. See [Connect an Aura Instance](/deploy/guides/connect-aura) for the full setup guide.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -152,7 +151,7 @@ curl -X POST https://api.rushdb.com/api/v1/query/raw \
 - You want to customize deployment topology (multi-region, air-gapped, private VPC).
 - Regulatory requirements mandate on-premises hosting.
 
-See the [Deployment guide](/deploy/docker-remote) for the complete Docker Compose walkthrough.
+See the [Deployment guide](/deploy/remote-hosting/self-hosting-rushdb) for the complete Docker Compose walkthrough.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -318,7 +317,7 @@ done
 
 **3. Create a BYOC project**
 
-In the [RushDB Dashboard](https://app.rushdb.com), create a new project using "Use my own Neo4j instance" and follow the [BYOC setup guide](/deploy/connect-aura).
+In the [RushDB Dashboard](https://app.rushdb.com), create a new project using "Use my own Neo4j instance" and follow the [BYOC setup guide](/deploy/guides/connect-aura).
 
 **4. Re-import into the BYOC project**
 
@@ -368,7 +367,7 @@ curl -s -X POST "$BASE/records/import" \
 
 Self-hosted uses the same REST API surface as the cloud. The migration steps are:
 
-1. [Deploy your self-hosted instance](/deploy/docker-remote) with `RUSHDB_SELF_HOSTED=true`.
+1. [Deploy your self-hosted instance](/deploy/remote-hosting/self-hosting-rushdb) with `RUSHDB_SELF_HOSTED=true`.
 2. Create a project and API key via the self-hosted dashboard at `http://your-host:3000`.
 3. Export records from the cloud using the pagination pattern above.
 4. Point the SDK at your self-hosted URL and re-import.
@@ -437,6 +436,6 @@ Starting fresh with no ops requirements?
 ## Next steps
 
 - **Get started with Managed** — [Quickstart](/get-started/quick-tutorial)
-- **Set up BYOC** — [Connect an Aura Instance](/deploy/connect-aura)
-- **Deploy self-hosted** — [Deployment](/deploy/docker-remote)
-- **Manage projects post-deploy** — [Self-Hosted Project Setup](/deploy/self-hosted-project-setup)
+- **Set up BYOC** — [Connect an Aura Instance](/deploy/guides/connect-aura)
+- **Deploy self-hosted** — [Deployment](/deploy/remote-hosting/self-hosting-rushdb)
+- **Manage projects post-deploy** — [Self-Hosted Project Setup](/deploy/guides/self-hosted-project-setup)

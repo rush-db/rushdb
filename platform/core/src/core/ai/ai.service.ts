@@ -13,6 +13,7 @@ import { int as neo4jInt, Transaction } from 'neo4j-driver'
 
 import { isDevMode } from '@/common/utils/isDevMode'
 import { AiQueryService } from '@/core/ai/ai-query.service'
+import { EmbeddingIndexDdlService } from '@/core/ai/embedding-index-ddl.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
 import {
   buildVectorIndexName,
@@ -48,6 +49,22 @@ import type { EmbeddingIndexRow } from '@/database/sql/schema/types'
 /** How long (ms) a cached ontology is considered fresh before a recalculation is triggered. */
 const ONTOLOGY_CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 
+/**
+ * Max VALUE relationships scanned by the pre-creation billing estimate. The request
+ * transaction has a 30s timeout; an unbounded count over a large label blows it.
+ * Anything beyond the cap is enforced per batch by the backfill scheduler.
+ */
+const EMBEDDING_BILLING_SCAN_CAP = 10_000
+
+/** How long (ms) a successful embedding-provider healthcheck is trusted before re-probing. */
+const EMBEDDING_PROBE_TTL_MS = 10 * 60 * 1000
+
+/** Records scanned per (label, property) when sampling string values for the ontology. */
+const ONTOLOGY_SAMPLE_SCAN_RECORDS = 100
+
+/** Max distinct sample values kept per string property in the ontology. */
+const ONTOLOGY_SAMPLE_VALUES = 10
+
 @Injectable()
 export class AiService {
   constructor(
@@ -59,8 +76,12 @@ export class AiService {
     private readonly projectRepository: ProjectRepository,
     private readonly embeddingIndexRepository: EmbeddingIndexRepository,
     private readonly embeddingProviderService: EmbeddingProviderService,
+    private readonly embeddingIndexDdlService: EmbeddingIndexDdlService,
     private readonly neogmaService: NeogmaService
   ) {}
+
+  /** Timestamps of last successful embedding-provider probe, keyed by `${modelKey}:${dimensions}`. */
+  private readonly embeddingProbeCache = new Map<string, number>()
 
   private inferOntologyValueType(values: unknown[]): string {
     const nonNullValues = values.filter((value) => value !== null && value !== undefined)
@@ -82,14 +103,28 @@ export class AiService {
     return 'string'
   }
 
+  /**
+   * `values` is a bounded sample (up to 10 distinct values) used for type inference and
+   * display; min/max come from exact streaming aggregations over ALL values computed in
+   * Cypher — numeric for number props, lexicographic for datetimes (ISO strings sort
+   * chronologically, matching the previous String-sort behavior).
+   */
   private buildRelationshipPropertySummary({
     name,
     values,
-    relationshipsCount
+    relationshipsCount,
+    minNumeric,
+    maxNumeric,
+    minString,
+    maxString
   }: {
     name: string
     values: unknown[]
     relationshipsCount: number
+    minNumeric: number | null
+    maxNumeric: number | null
+    minString: string | null
+    maxString: string | null
   }): NonNullable<OntologyRelationship['properties']>[number] {
     const type = this.inferOntologyValueType(values)
     const prop: NonNullable<OntologyRelationship['properties']>[number] = {
@@ -100,16 +135,14 @@ export class AiService {
     const normalizedValues = values.filter((value) => value !== undefined && value !== null)
 
     if (type === 'number') {
-      const numericValues = normalizedValues.map(Number).filter((value) => Number.isFinite(value))
-      if (numericValues.length > 0) {
-        prop.min = Math.min(...numericValues)
-        prop.max = Math.max(...numericValues)
+      if (minNumeric != null && maxNumeric != null) {
+        prop.min = minNumeric
+        prop.max = maxNumeric
       }
     } else if (type === 'datetime') {
-      const sortedValues = normalizedValues.map(String).sort()
-      if (sortedValues.length > 0) {
-        prop.min = sortedValues[0]
-        prop.max = sortedValues[sortedValues.length - 1]
+      if (minString != null && maxString != null) {
+        prop.min = minString
+        prop.max = maxString
       }
     } else if (type === 'string' || type === 'boolean') {
       prop.values = normalizedValues.slice(0, 10).map((value) => value as string | number | boolean)
@@ -123,6 +156,7 @@ export class AiService {
     workspaceId,
     labels,
     force,
+    allowStale,
     transaction
   }: {
     projectId: string
@@ -131,6 +165,13 @@ export class AiService {
     labels?: string[]
     /** When true, bypasses the cache and forces a full recalculation. */
     force?: boolean
+    /**
+     * When true, any persisted cache is served regardless of age and a recalculation is
+     * never triggered (unless no cache exists at all). For hot read paths — e.g. the
+     * relationship-patterns list that the dashboard polls every few seconds — where a
+     * synchronous full-graph recompute inside the request transaction is unacceptable.
+     */
+    allowStale?: boolean
     transaction: Transaction
   }): Promise<OntologyItem[]> {
     const tTotal = Date.now()
@@ -142,7 +183,7 @@ export class AiService {
 
     if (!force && cachedAt && cacheJson) {
       const ageMs = Date.now() - new Date(cachedAt).getTime()
-      if (ageMs < ONTOLOGY_CACHE_TTL_MS) {
+      if (ageMs < ONTOLOGY_CACHE_TTL_MS || allowStale) {
         // Cache is fresh — deserialise, optionally filter, return immediately
         const fullOntology: OntologyItem[] = JSON.parse(cacheJson)
         const result =
@@ -164,15 +205,14 @@ export class AiService {
 
     const t0 = Date.now()
 
-    // Run ontology discovery queries in parallel with embedding-index fetch (all read-only)
-    const [labelsResult, propertiesResult, relationshipsResult, relationshipPropertiesResult, allIndexes] =
-      await Promise.all([
-        transaction.run(this.aiQueryService.getLabelsQuery(), params),
-        transaction.run(this.aiQueryService.getPropertiesWithValuesQuery(), params),
-        transaction.run(this.aiQueryService.getRelationshipsQuery(), params),
-        transaction.run(this.aiQueryService.getRelationshipPropertiesQuery(), params),
-        this.embeddingIndexRepository.findByProjectId(projectId)
-      ])
+    // Note: statements issued on one transaction run sequentially on the server; the
+    // Promise.all only overlaps them with the SQL embedding-index fetch.
+    const [labelsResult, propertiesResult, relationshipsResult, allIndexes] = await Promise.all([
+      transaction.run(this.aiQueryService.getLabelsQuery(), params),
+      transaction.run(this.aiQueryService.getPropertiesWithValuesQuery(), params),
+      transaction.run(this.aiQueryService.getRelationshipsWithPropertiesQuery(), params),
+      this.embeddingIndexRepository.findByProjectId(projectId)
+    ])
 
     // ---------- Build label → count map (Q1) ----------
     const labelCountMap = new Map<string, number>()
@@ -216,29 +256,83 @@ export class AiService {
       labelPropsMap.get(label)!.push(prop)
     }
 
-    // ---------- Build relationship property map ----------
+    // ---------- Bounded sample values for string properties ----------
+    // Strings are sampled in a separate capped pass (see getPropertySampleValuesQuery)
+    // so the main aggregation never materializes full columns.
+    const samplePairs: Array<{ label: string; propId: string }> = []
+    for (const [label, props] of labelPropsMap) {
+      for (const prop of props) {
+        if (prop.type === 'string') {
+          samplePairs.push({ label, propId: prop.id })
+        }
+      }
+    }
+
+    if (samplePairs.length > 0) {
+      const samplesResult = await transaction.run(this.aiQueryService.getPropertySampleValuesQuery(), {
+        projectId,
+        pairs: samplePairs,
+        sampleScanLimit: neo4jInt(ONTOLOGY_SAMPLE_SCAN_RECORDS),
+        sampleValuesLimit: neo4jInt(ONTOLOGY_SAMPLE_VALUES)
+      })
+      const samplesByKey = new Map<string, unknown[]>()
+      for (const r of samplesResult.records) {
+        samplesByKey.set(`${r.get('label')}|${r.get('propId')}`, (r.get('samples') ?? []) as unknown[])
+      }
+      for (const [label, props] of labelPropsMap) {
+        for (const prop of props) {
+          if (prop.type !== 'string') {
+            continue
+          }
+          const samples = samplesByKey.get(`${label}|${prop.id}`)
+          if (samples?.length) {
+            prop.values = samples as OntologyProperty['values']
+          }
+        }
+      }
+    }
+
+    // ---------- Build relationship topology + property maps (single scan, Q3) ----------
+    // Rows with propName === null carry the exact per-triple relationship count;
+    // rows with a propName summarize one relationship property.
     const relationshipPropertiesMap = new Map<string, NonNullable<OntologyRelationship['properties']>>()
-    for (const r of relationshipPropertiesResult.records) {
+    const relCountRows: Array<{ fromLabel: string; relType: string; toLabel: string; relCount: number }> = []
+    const toNullableNumber = (v: any): number | null =>
+      v == null ? null
+      : typeof v?.toNumber === 'function' ? v.toNumber()
+      : Number(v)
+
+    for (const r of relationshipsResult.records) {
       const fromLabel = r.get('fromLabel') as string
       const relType = r.get('relType') as string
       const toLabel = r.get('toLabel') as string
-      const propName = r.get('propName') as string
-      const values = (r.get('values') ?? []) as unknown[]
+      const propName = r.get('propName') as string | null
       const rawCount = r.get('relationshipsCount')
       const relationshipsCount = rawCount?.toNumber?.() ?? Number(rawCount ?? 0)
+
+      if (propName == null) {
+        relCountRows.push({ fromLabel, relType, toLabel, relCount: relationshipsCount })
+        continue
+      }
+
+      const values = (r.get('values') ?? []) as unknown[]
       const key = `${fromLabel}|${relType}|${toLabel}`
       const current = relationshipPropertiesMap.get(key) ?? []
       current.push(
         this.buildRelationshipPropertySummary({
           name: propName,
           values,
-          relationshipsCount
+          relationshipsCount,
+          minNumeric: toNullableNumber(r.get('minNumeric')),
+          maxNumeric: toNullableNumber(r.get('maxNumeric')),
+          minString: (r.get('minString') as string | null) ?? null,
+          maxString: (r.get('maxString') as string | null) ?? null
         })
       )
       relationshipPropertiesMap.set(key, current)
     }
 
-    // ---------- Build label → relationships map (Q3) ----------
+    // ---------- Build label → relationships map ----------
     // Relationships are stored bidirectionally: fromLabel gets 'out', toLabel gets 'in'.
     const labelRelsMap = new Map<string, OntologyRelationship[]>()
 
@@ -253,12 +347,7 @@ export class AiService {
       }
     }
 
-    for (const r of relationshipsResult.records) {
-      const fromLabel = r.get('fromLabel') as string
-      const relType = r.get('relType') as string
-      const toLabel = r.get('toLabel') as string
-      const relCountRaw = r.get('relCount')
-      const relCount = relCountRaw?.toNumber?.() ?? Number(relCountRaw ?? 0)
+    for (const { fromLabel, relType, toLabel, relCount } of relCountRows) {
       const properties = relationshipPropertiesMap.get(`${fromLabel}|${relType}|${toLabel}`)
 
       if (fromLabel === toLabel) {
@@ -470,11 +559,12 @@ export class AiService {
     const propKey = this.computePropKey(propertyName, label)
     const labelSuffix = label ? `:${label}` : ''
     const result = await transaction.run(
-      this.aiQueryService.getEmbeddingIndexStatsQuery(labelSuffix, vectorPropertyName),
+      this.aiQueryService.getEmbeddingBackfillEstimateQuery(labelSuffix, vectorPropertyName),
       {
         projectId,
         propertyName,
-        propKey
+        propKey,
+        scanCap: neo4jInt(EMBEDDING_BILLING_SCAN_CAP)
       }
     )
 
@@ -593,20 +683,25 @@ export class AiService {
     }
 
     if (sourceType === 'managed') {
-      try {
-        const probe = await this.embeddingProviderService.embed('rushdb-embedding-healthcheck')
-        if (!Array.isArray(probe) || probe.length !== dimensions) {
+      const probeKey = `${modelKey}:${dimensions}`
+      const lastProbe = this.embeddingProbeCache.get(probeKey)
+      if (!lastProbe || Date.now() - lastProbe > EMBEDDING_PROBE_TTL_MS) {
+        try {
+          const probe = await this.embeddingProviderService.embed('rushdb-embedding-healthcheck')
+          if (!Array.isArray(probe) || probe.length !== dimensions) {
+            throw new UnprocessableEntityException(
+              `Embedding provider returned vector length ${probe?.length ?? 0}, expected ${dimensions}.`
+            )
+          }
+          this.embeddingProbeCache.set(probeKey, Date.now())
+        } catch (err) {
+          if (err instanceof UnprocessableEntityException) {
+            throw err
+          }
           throw new UnprocessableEntityException(
-            `Embedding provider returned vector length ${probe?.length ?? 0}, expected ${dimensions}.`
+            `Embedding provider validation failed for model "${modelKey}". ${err instanceof Error ? err.message : ''}`
           )
         }
-      } catch (err) {
-        if (err instanceof UnprocessableEntityException) {
-          throw err
-        }
-        throw new UnprocessableEntityException(
-          `Embedding provider validation failed for model "${modelKey}". ${err instanceof Error ? err.message : ''}`
-        )
       }
     }
 
@@ -627,26 +722,15 @@ export class AiService {
       updatedAt: now
     })
 
-    // 4. Create per-slot Neo4j vector index (DDL must run outside explicit transaction; idempotent)
-    try {
-      const session = this.neogmaService.createSession('embedding-index-ddl')
-      try {
-        await session.run(
-          this.aiQueryService.getCreateVectorIndexQuery({
-            indexName: vectorIndexName,
-            vectorPropertyName,
-            similarityFunction
-          }),
-          {
-            dimensions
-          }
-        )
-      } finally {
-        await session.close()
-      }
-    } catch (err) {
-      Logger.warn(`[AiService] vector index DDL failed (will be retried by backfill): ${err}`)
-    }
+    // 4. Create per-slot Neo4j vector index. DDL needs the exclusive schema lock and can
+    // block for tens of seconds behind concurrent write transactions (backfill batches,
+    // imports), so it must not hold up the HTTP response. The backfill scheduler retries
+    // it for managed indexes; upsertIndexVectors retries it for external ones.
+    void this.embeddingIndexDdlService
+      .ensureVectorIndexExists({ sourceType, similarityFunction, dimensions })
+      .catch((err) => {
+        Logger.warn(`[AiService] vector index DDL failed for ${vectorIndexName} (will be retried): ${err}`)
+      })
 
     // 5. Emit KU metering event only for managed sourceType.
     if (sourceType === 'managed') {
@@ -720,13 +804,7 @@ export class AiService {
         row.vectorPropertyName
       )
       if (remainingPolicies === 0) {
-        const checkSession = this.neogmaService.createSession('embedding-index-ddl')
-        try {
-          await checkSession.run(this.aiQueryService.getDropVectorIndexQuery(vectorIndexName))
-          Logger.log(`[AiService] vector index dropped for property ${row.vectorPropertyName}`)
-        } finally {
-          await checkSession.close()
-        }
+        await this.embeddingIndexDdlService.dropVectorIndex(vectorIndexName)
       }
     } catch (err) {
       Logger.warn(`[AiService] vector index cleanup failed for property ${row.vectorPropertyName}: ${err}`)
@@ -783,6 +861,18 @@ export class AiService {
     if (row.sourceType !== 'external') {
       throw new UnprocessableEntityException('Vector upsert is supported only for external indexes')
     }
+
+    // External indexes have no backfill, so this is their DDL retry path in case the
+    // fire-and-forget creation at createIndex time failed. Cached, so usually a no-op.
+    void this.embeddingIndexDdlService
+      .ensureVectorIndexExists({
+        sourceType: 'external',
+        similarityFunction: row.similarityFunction as EmbeddingIndexSimilarityFunction,
+        dimensions: row.dimensions
+      })
+      .catch((err) => {
+        Logger.warn(`[AiService] vector index DDL failed for ${row.vectorPropertyName}: ${err}`)
+      })
 
     const invalid = dto.items.find(
       (item) =>

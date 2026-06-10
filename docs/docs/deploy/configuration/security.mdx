@@ -1,5 +1,4 @@
 ---
-slug: /deploy/config-security
 title: Security
 description: How RushDB stores data, enforces project isolation, and what to harden in production.
 sidebar_position: 3
@@ -208,7 +207,7 @@ When `RUSHDB_ALLOWED_LOGINS` is non-empty, attempts to create accounts or accept
 
 ### Sessions (dashboard / human users)
 
-Sessions are JWT-signed using `RUSHDB_AES_256_ENCRYPTION_KEY` (HS256 by default; RS256 when `RUSHDB_JWT_PRIVATE_KEY` is configured). See [Environment Variables — MCP OAuth](/deploy/config-env-variables#mcp-oauth--rs256-jwt-signing) for the RS256 key setup.
+Sessions are JWT-signed using `RUSHDB_AES_256_ENCRYPTION_KEY` (HS256 by default; RS256 when `RUSHDB_JWT_PRIVATE_KEY` is configured). See [Environment Variables — MCP OAuth](/deploy/configuration/environment-variables#mcp-oauth--rs256-jwt-signing) for the RS256 key setup.
 
 Access is checked at two layers on every dashboard request:
 
@@ -393,4 +392,4 @@ Changing `RUSHDB_ENCRYPTION_KEY` without running the migration will render exist
 
 ## Authentication
 
-All API calls require a valid API key passed as the `Authorization: Bearer <token>` header. See [Authorization](/deploy/get-api-key) for key management.
+All API calls require a valid API key passed as the `Authorization: Bearer <token>` header. See [Authorization](/deploy/configuration/get-api-key) for key management.

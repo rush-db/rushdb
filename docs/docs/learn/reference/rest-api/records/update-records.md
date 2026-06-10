@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/records/update-records
 sidebar_position: 6
 ---
 
@@ -40,4 +39,4 @@ curl -X PUT https://api.rushdb.com/api/v1/records/movie-123 \
 
 ## See also
 
-- [Writing Records with Vectors](/rest-api/ai/write-with-vectors) — attach embedding vectors when creating or upserting records
+- [Writing Records with Vectors](/learn/reference/rest-api/ai-and-vectors/write-with-vectors) — attach embedding vectors when creating or upserting records

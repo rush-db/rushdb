@@ -1,5 +1,4 @@
 ---
-slug: /reference/group-by
 sidebar_position: 8
 ---
 
@@ -222,5 +221,5 @@ orderBy: {
 
 ## See Also
 
-- [Select Expressions](/reference/select-expressions)
+- [Select Expressions](/learn/search-query/select-expressions)
 - SDK references: TypeScript / Python / REST _get records_ pages

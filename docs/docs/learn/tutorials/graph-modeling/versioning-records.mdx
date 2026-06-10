@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/versioning-records
 sidebar_position: 25
 title: 'Versioning Records Without Losing Queryability'
 description: Compare in-place mutation, append-only versions, and hybrid versioning approaches — and how to query latest state while preserving historical analysis.
@@ -346,7 +345,7 @@ curl -s -X POST "$BASE/records/search" \
 
 ## Approach 3: Hybrid (mutable state + immutable events)
 
-Keep the entity's current state queryable in one record while logging all changes as immutable EVENT records. This is the pattern from [Audit Trails](/tutorials/audit-trails) and [Temporal Graphs](/tutorials/temporal-graphs). Choose this when:
+Keep the entity's current state queryable in one record while logging all changes as immutable EVENT records. This is the pattern from [Audit Trails](/learn/tutorials/use-cases/audit-trails) and [Temporal Graphs](/learn/tutorials/graph-modeling/temporal-graphs). Choose this when:
 
 - You need efficient current-state queries (no traversal to find latest version)
 - You need a history log (who changed what, when)
@@ -374,6 +373,6 @@ Append-only VERSION chains grow linearly with edit frequency. If documents are e
 
 ## Next steps
 
-- [Audit Trails](/tutorials/audit-trails) — immutable event log alongside mutable state
-- [Temporal Graphs](/tutorials/temporal-graphs) — point-in-time reconstruction
-- [Compliance and Retention Patterns](/tutorials/compliance-retention) — archival and deletion
+- [Audit Trails](/learn/tutorials/use-cases/audit-trails) — immutable event log alongside mutable state
+- [Temporal Graphs](/learn/tutorials/graph-modeling/temporal-graphs) — point-in-time reconstruction
+- [Compliance and Retention Patterns](/learn/tutorials/use-cases/compliance-retention) — archival and deletion

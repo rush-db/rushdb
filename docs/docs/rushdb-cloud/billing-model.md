@@ -1,5 +1,4 @@
 ---
-slug: /cloud/billing-model
 title: Billing Model
 description: How RushDB Cloud bills for Knowledge Units, applies plan limits, and treats self-hosted deployments.
 sidebar_position: 1
@@ -68,6 +67,6 @@ Your KU consumption is visible in real-time on the **KU Usage** page in your wor
 
 ## Related Pages
 
-- [Knowledge Units (KU)](/cloud/knowledge-units)
-- [Multitenancy & Project Isolation](/cloud/project-isolation)
-- [Licensing & Third-Party Services](/cloud/licensing-and-services)
+- [Knowledge Units (KU)](/rushdb-cloud/knowledge-units)
+- [Multitenancy & Project Isolation](/rushdb-cloud/project-isolation)
+- [Licensing & Third-Party Services](/rushdb-cloud/licensing-and-services)

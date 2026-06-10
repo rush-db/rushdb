@@ -1,10 +1,10 @@
 ---
-slug: /build/agent-memory/schema-self-awareness
 sidebar_position: 2
 title: Schema Self-Awareness
 ---
 
 import Tabs from '@site/src/components/LanguageTabs'
+import ThemeTabs from '@theme/Tabs'
 import TabItem from '@theme/TabItem'
 
 # Schema Self-Awareness
@@ -21,6 +21,161 @@ Without schema discovery, AI agents hallucinate field names, use wrong label cas
 - Every property per label, its type, and sample/range values
 - The full relationship map (which labels connect to which)
 - Which properties are semantically searchable (have embedding indexes)
+
+---
+
+## What the Agent Receives
+
+Consider a small commerce graph — labels are nodes, relationships are edges:
+
+```mermaid
+graph LR
+    O["Order (1840)"]
+    U["User (312)"]
+    P["Product (95)"]
+
+    O -->|PLACED_BY| U
+    O -->|CONTAINS| P
+```
+
+The ontology comes in two formats: a compact Markdown document built for LLM context injection, and structured JSON for programmatic use.
+
+<ThemeTabs groupId="ontology-format">
+  <TabItem value="markdown" label="Markdown" default>
+
+`getOntologyMarkdown()` serialises the graph into a token-efficient document ready to paste into a system prompt:
+
+```text
+# Graph Ontology
+
+## Labels
+
+| Label     | Count |
+|-----------|------:|
+| `Order`   |  1840 |
+| `User`    |   312 |
+| `Product` |    95 |
+
+---
+
+## `Order` (1840 records)
+
+### Properties
+
+| Property    | Type     | Values / Range                         | Semantic Search                |
+|-------------|----------|----------------------------------------|--------------------------------|
+| `status`    | string   | `pending`, `paid`, `shipped` (+2 more) | —                              |
+| `total`     | number   | `4.99`..`2499.00`                      | —                              |
+| `name`      | string   | `Widget A`, `Widget B` (+8 more)       | `managed` cosine 1536d [ready] |
+| `createdAt` | datetime | `2024-01-03`..`2026-02-27`             | —                              |
+
+### Relationships
+
+| Type        | Direction | Other Label |
+|-------------|-----------|-------------|
+| `PLACED_BY` | out       | `User`      |
+| `CONTAINS`  | out       | `Product`   |
+
+---
+
+## `User` (312 records)
+
+### Properties
+
+| Property    | Type   | Values / Range                | Semantic Search |
+|-------------|--------|-------------------------------|-----------------|
+| `email`     | string | `alice@example.com` (+8 more) | —               |
+| `name`      | string | `Alice`, `Bob` (+8 more)      | —               |
+| `plan`      | string | `free`, `pro`, `enterprise`   | —               |
+
+### Relationships
+
+| Type        | Direction | Other Label |
+|-------------|-----------|-------------|
+| `PLACED_BY` | in        | `Order`     |
+
+---
+
+## `Product` (95 records)
+
+### Properties
+
+| Property    | Type   | Values / Range                   | Semantic Search                |
+|-------------|--------|----------------------------------|--------------------------------|
+| `name`      | string | `Widget A`, `Widget B` (+8 more) | `managed` cosine 1536d [ready] |
+| `price`     | number | `4.99`..`2499.00`                | —                              |
+| `category`  | string | `electronics`, `home` (+3 more)  | —                              |
+| `inStock`   | boolean| `true`, `false`                  | —                              |
+
+### Relationships
+
+| Type       | Direction | Other Label |
+|------------|-----------|-------------|
+| `CONTAINS` | in        | `Order`     |
+```
+
+  </TabItem>
+  <TabItem value="json" label="JSON">
+
+`getOntology()` returns the same schema as an `OntologyItem[]` array — one item per label:
+
+```json
+[
+  {
+    "label": "Order",
+    "count": 1840,
+    "properties": [
+      {
+        "id": "0195b3a1-92dd-7000-8000-3f2b6cdd91a4",
+        "name": "status",
+        "type": "string",
+        "values": ["pending", "paid", "shipped", "cancelled", "refunded"]
+      },
+      {
+        "id": "0195b3a1-92dd-7000-8000-58dfb2c901ee",
+        "name": "total",
+        "type": "number",
+        "min": 4.99,
+        "max": 2499.0
+      },
+      {
+        "id": "0195b3a1-92dd-7000-8000-77ac01e4f2b3",
+        "name": "name",
+        "type": "string",
+        "values": ["Widget A", "Widget B"],
+        "vectorIndexes": [
+          {
+            "id": "0195b3a1-92dd-7000-8000-9c11de70a512",
+            "sourceType": "managed",
+            "similarityFunction": "cosine",
+            "dimensions": 1536,
+            "status": "ready",
+            "modelKey": "text-embedding-3-small"
+          }
+        ]
+      },
+      {
+        "id": "0195b3a1-92dd-7000-8000-b04f7d3361c8",
+        "name": "createdAt",
+        "type": "datetime",
+        "min": "2024-01-03T08:12:00Z",
+        "max": "2026-02-27T17:45:00Z"
+      }
+    ],
+    "relationships": [
+      { "label": "User", "type": "PLACED_BY", "direction": "out", "count": 1840 },
+      { "label": "Product", "type": "CONTAINS", "direction": "out", "count": 5210 }
+    ]
+  },
+  { "label": "User", "count": 312, "properties": ["..."], "relationships": ["..."] },
+  { "label": "Product", "count": 95, "properties": ["..."], "relationships": ["..."] }
+]
+```
+
+See the full type definitions in [Discover Your Schema](/learn/records-and-queries/discover-your-schema#typescript-types).
+
+  </TabItem>
+</ThemeTabs>
 
 ---
 
@@ -229,14 +384,14 @@ npx skills add rush-db/rushdb --path packages/skills
 Each skill bundles a `SKILL.md` with concise instructions and optional reference files that the agent loads on demand.
 
 :::note MCP server vs. Agent Skills
-The [MCP server](/deploy/mcp-operator-quickstart) gives agents direct tool access to RushDB at runtime. Agent Skills teach agents _how_ to use those tools correctly — they complement each other.
+The [MCP server](/deploy/guides/mcp-operator-quickstart) gives agents direct tool access to RushDB at runtime. Agent Skills teach agents _how_ to use those tools correctly — they complement each other.
 :::
 
 ---
 
 ## See also
 
-- [Agent Memory Overview](/build/agent-memory/) — three-layer memory model
-- [Discover Your Schema](/build/schema/discover-your-schema) — full ontology API reference
-- [Semantic Search](/build/ai-search/semantic-search) — search by meaning
-- [Find & Query](/build/data/find-and-query) — search by structure
+- [Agent Memory Overview](/learn/agent-memory) — three-layer memory model
+- [Discover Your Schema](/learn/records-and-queries/discover-your-schema) — full ontology API reference
+- [Semantic Search](/learn/semantic-search) — search by meaning
+- [Find & Query](/learn/records-and-queries/find-and-query) — search by structure

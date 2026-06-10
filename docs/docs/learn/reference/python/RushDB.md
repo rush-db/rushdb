@@ -1,5 +1,4 @@
 ---
-slug: /reference/python/RushDB
 sidebar_position: 0
 ---
 
@@ -72,7 +71,7 @@ Transaction lifecycle management.
 | `commit(transaction)`   | Commit a transaction by object or ID           |
 | `rollback(transaction)` | Roll back a transaction by object or ID        |
 
-See also: [Transaction](/reference/python/transaction) for the `commit()` / `rollback()` instance methods and context manager usage.
+See also: [Transaction](/learn/reference/python/transaction) for the `commit()` / `rollback()` instance methods and context manager usage.
 
 ### `db.labels`
 
@@ -104,7 +103,7 @@ Query relationships, bulk-create them, and review inferred relationship patterns
 
 #### `db.relationships.patterns`
 
-Review and manage relationship patterns inferred from the project ontology. See [Relationship Patterns](/reference/python/relationship-patterns) for the full review flow.
+Review and manage relationship patterns inferred from the project ontology. See [Relationship Patterns](/learn/reference/python/relationship-patterns) for the full review flow.
 
 | Method                                         | Description                                                            |
 | ---------------------------------------------- | ---------------------------------------------------------------------- |

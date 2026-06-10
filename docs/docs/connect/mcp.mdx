@@ -13,7 +13,7 @@ Give an AI assistant direct access to your RushDB project without writing integr
 | [Hosted OAuth](#hosted-oauth-no-installation) | ChatGPT, Claude.ai, web clients | Add one URL and sign in |
 | [Local MCP](#local-mcp-api-key)               | Claude Desktop, Cursor, VS Code | Add an MCP config block |
 
-Reference: [MCP Server Reference](/reference/mcp/) · [All MCP Tools](/reference/mcp/tools)
+Reference: [MCP Server Reference](/learn/reference/mcp) · [All MCP Tools](/learn/reference/mcp/tools)
 
 ---
 
@@ -47,7 +47,7 @@ Always include `/mcp`. The root domain does not serve the MCP protocol.
 
 ## Local MCP: API Key
 
-Get a [project API key](/deploy/get-api-key), add the relevant configuration, then restart your client.
+Get a [project API key](/deploy/configuration/get-api-key), add the relevant configuration, then restart your client.
 
 ### Claude Desktop
 
@@ -163,7 +163,7 @@ Treat `RUSHDB_API_KEY` like a password. Inject it through your MCP client or an 
 | Review inferred graph structure | `listRelationshipPatterns`, `analyzeRelationshipPatterns`, `approveRelationshipPattern` |
 | Add semantic search             | `findEmbeddingIndexes`, `createEmbeddingIndex`, `semanticSearch`                        |
 
-Each MCP tool publishes its input schema to the connected client. See [All MCP Tools](/reference/mcp/tools) for the complete catalog and use the client tool inspector when you need the full JSON schema.
+Each MCP tool publishes its input schema to the connected client. See [All MCP Tools](/learn/reference/mcp/tools) for the complete catalog and use the client tool inspector when you need the full JSON schema.
 
 ## Troubleshooting
 
@@ -185,7 +185,7 @@ Install [RushDB Agent Skills](/connect/skills) after MCP connection. Skills teac
 
 ## Next Steps
 
-- [Browse the complete MCP tools reference](/reference/mcp/tools)
+- [Browse the complete MCP tools reference](/learn/reference/mcp/tools)
 - [Install Agent Skills](/connect/skills)
-- [Bootstrap persistent agent memory](/build/agent-memory/quickstart)
+- [Bootstrap persistent agent memory](/learn/agent-memory/quickstart)
 - [Use RushDB with AI agents](/connect/agents)

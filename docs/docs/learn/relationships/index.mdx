@@ -1,24 +1,24 @@
 ---
-slug: /build/graph/
 sidebar_position: 0
 title: Relationships
 ---
 
 # Relationships
 
-Relationships connect RushDB records into a traversable graph. They are named, directed edges between records, not foreign-key columns or application-side joins.
+Relationships connect RushDB records into a traversable graph. They are named, directed edges between records — optionally carrying their own [properties](/learn/relationships/relationship-properties) — not foreign-key columns or application-side joins.
 
 You can create relationships explicitly, generate them automatically from nested JSON imports, connect large datasets by matching keys, and filter records by traversing one or more hops inside a `where` clause.
 
 ## Choose a Workflow
 
-| Goal                                                  | Guide                                                                       |
-| ----------------------------------------------------- | --------------------------------------------------------------------------- |
-| Attach or detach individual record pairs              | [Connect Records](/build/graph/connect-records)                             |
-| Connect many records by matching keys                 | [Bulk Relationships](/build/graph/bulk-relationships)                       |
-| Review and approve inferred graph structure           | [Suggested Patterns](/build/graph/suggested-patterns)                       |
-| Create parent-child edges while importing nested JSON | [Import Data](/build/data/import-data)                                      |
-| Filter through related records                        | [Relationship Traversal](/build/data/find-and-query#relationship-traversal) |
+| Goal                                                  | Guide                                                                                      |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Attach or detach individual record pairs              | [Connect Records](/learn/relationships/connect-records)                                    |
+| Connect many records by matching keys                 | [Bulk Relationships](/learn/relationships/bulk-relationships)                              |
+| Store and query data on the edges themselves          | [Relationship Properties](/learn/relationships/relationship-properties)                    |
+| Review and approve inferred graph structure           | [Suggested Patterns](/learn/relationships/suggested-patterns)                              |
+| Create parent-child edges while importing nested JSON | [Import Data](/learn/records-and-queries/import-data)                                      |
+| Filter through related records                        | [Relationship Traversal](/learn/records-and-queries/find-and-query#relationship-traversal) |
 
 ## Relationship Sources
 
@@ -33,6 +33,6 @@ Relationship types and direction are optional when traversing broadly and explic
 
 ## Related Sections
 
-- [Records & Queries](/build/data/) — store and retrieve the records relationships connect
-- [Labeled Meta Property Graph](/build/data/labeled-meta-property-graph) — understand record, property, and relationship layers together
-- [SearchQuery Reference](/reference/search-query) — full traversal syntax
+- [Records & Queries](/learn/records-and-queries) — store and retrieve the records relationships connect
+- [Labeled Meta Property Graph](/learn/records-and-queries/labeled-meta-property-graph) — understand record, property, and relationship layers together
+- [SearchQuery Reference](/learn/search-query) — full traversal syntax

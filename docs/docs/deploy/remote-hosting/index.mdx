@@ -1,5 +1,4 @@
 ---
-slug: /deploy/remote-index
 title: Remote Hosting
 description: Deploy RushDB to a remote server. Choose your cloud provider or run Docker on any Linux machine.
 sidebar_position: 2
@@ -22,7 +21,7 @@ Deploy RushDB to any server. All methods use Docker Compose — pick the guide f
     time="~5 min"
     icon="ClipboardList"
     tags={['Checklist', 'Docker', 'Firewall']}
-    href="/deploy/remote-prerequisites"
+    href="/deploy/remote-hosting/prerequisites"
   />
   <DeployMethodRow
     title="DigitalOcean"
@@ -34,7 +33,7 @@ Deploy RushDB to any server. All methods use Docker Compose — pick the guide f
     prerequisites={['DigitalOcean account', 'Docker + Docker Compose']}
     commands={['curl -fsSL https://get.docker.com | sh', 'docker compose up -d']}
     tags={['DigitalOcean', 'Ubuntu']}
-    href="/deploy/remote-digital-ocean"
+    href="/deploy/remote-hosting/digital-ocean"
   />
   <DeployMethodRow
     title="AWS / GCP / Azure"
@@ -45,7 +44,7 @@ Deploy RushDB to any server. All methods use Docker Compose — pick the guide f
     prerequisites={['Cloud account', 'Linux VM (4 GB+ RAM)', 'Docker + Docker Compose']}
     commands={['curl -fsSL https://get.docker.com | sh', 'docker compose up -d']}
     tags={['AWS', 'GCP', 'Azure']}
-    href="/deploy/remote-cloud-providers"
+    href="/deploy/remote-hosting/aws-gcp-azure"
   />
   <DeployMethodRow
     title="Docker / Terraform / ECS"
@@ -56,14 +55,14 @@ Deploy RushDB to any server. All methods use Docker Compose — pick the guide f
     prerequisites={['Linux server', 'Docker + Docker Compose']}
     commands={['curl -O docker-compose.yml', 'cp .env.example .env', 'docker compose up -d']}
     tags={['Docker Compose', 'Terraform', 'ECS']}
-    href="/deploy/docker-remote"
+    href="/deploy/remote-hosting/self-hosting-rushdb"
   />
 </DeployMethodRowList>
 
 <DeployCrossLinks
   prefix="Next steps after deployment:"
   links={[
-    { label: 'Configuration', href: '/deploy/config-index' },
-    { label: 'Infrastructure', href: '/deploy/infra-index' }
+    { label: 'Configuration', href: '/deploy/configuration' },
+    { label: 'Infrastructure', href: '/deploy/infrastructure' }
   ]}
 />

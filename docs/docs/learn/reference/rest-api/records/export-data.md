@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/records/export-data
 sidebar_position: 8
 ---
 

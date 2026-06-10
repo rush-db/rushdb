@@ -1,5 +1,4 @@
 ---
-slug: /deploy/infra-platform
 title: RushDB Platform
 description: How the RushDB NestJS application process works — ports, startup dependencies, static serving, health check, CLI, and resource requirements.
 sidebar_position: 1
@@ -42,7 +41,7 @@ RushDB is a single **NestJS** application built on the **Fastify** adapter. It s
 | `RUSHDB_DASHBOARD_URL`          |          | —          | Public URL of the dashboard. Used in OAuth redirects and email links.                                     |
 | `RUSHDB_PUBLIC_URL`             |          | —          | Public URL of the API. Used as the OAuth issuer (`RUSHDB_OAUTH_ISSUER`).                                  |
 
-See [Environment Variables](/deploy/config-env-variables) for the full reference.
+See [Environment Variables](/deploy/configuration/environment-variables) for the full reference.
 
 ---
 
@@ -159,4 +158,4 @@ These are baseline figures for a lightly loaded self-hosted instance:
 | Memory   | 256 MB    | 512 MB – 1 GB              |
 | Disk     | —         | Depends on SQLite PVC size |
 
-Neo4j typically dominates resource consumption. See [Neo4j & Aura](/deploy/infra-neo4j) for its requirements.
+Neo4j typically dominates resource consumption. See [Neo4j & Aura](/deploy/infrastructure/neo4j-and-aura) for its requirements.

@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/hybrid-retrieval
 sidebar_position: 19
 title: 'Hybrid Retrieval: Filters Plus Semantic Search'
 description: Combine structured where-clause filtering with vector semantic search to narrow candidates by business constraints, then rank by relevance.
@@ -31,7 +30,7 @@ This means you get tenant isolation and time-scoping for free, without a separat
 
 ## Prerequisites
 
-Before calling `db.ai.search`, a managed embedding index must exist and be ready for the label and property you want to search. See [Semantic Search for Multi-Tenant Products](/tutorials/semantic-search-multitenant) for setup instructions.
+Before calling `db.ai.search`, a managed embedding index must exist and be ready for the label and property you want to search. See [Semantic Search for Multi-Tenant Products](/learn/tutorials/ai-and-rag/semantic-search-multitenant) for setup instructions.
 
 ---
 
@@ -551,6 +550,6 @@ curl -s -X POST "$BASE/ai/search" \
 
 ## Next steps
 
-- [Semantic Search for Multi-Tenant Products](/tutorials/semantic-search-multitenant) — index setup and polling
-- [Building a Graph-Backed API Layer](/tutorials/graph-backed-api) — integrate hybrid retrieval into a production handler
-- [Temporal Graphs](/tutorials/temporal-graphs) — retrieve current-state records before semantic ranking
+- [Semantic Search for Multi-Tenant Products](/learn/tutorials/ai-and-rag/semantic-search-multitenant) — index setup and polling
+- [Building a Graph-Backed API Layer](/learn/tutorials/working-with-data/graph-backed-api) — integrate hybrid retrieval into a production handler
+- [Temporal Graphs](/learn/tutorials/graph-modeling/temporal-graphs) — retrieve current-state records before semantic ranking

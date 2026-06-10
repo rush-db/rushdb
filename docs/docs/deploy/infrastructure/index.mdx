@@ -1,5 +1,4 @@
 ---
-slug: /deploy/infra-index
 title: Infrastructure
 description: Configure RushDB's data layer — the graph backend (Neo4j or Aura) and the relational database (PostgreSQL or SQLite).
 sidebar_position: 10
@@ -24,7 +23,7 @@ RushDB is made up of three layers: the **NestJS platform** (the API + dashboard 
     prerequisites={['Node.js 18+', 'Running Neo4j', 'Running PostgreSQL or SQLite']}
     commands={['RUSHDB_PORT=3000', 'RUSHDB_AES_256_ENCRYPTION_KEY=...']}
     tags={['NestJS', 'Node.js', 'API']}
-    href="/deploy/infra-platform"
+    href="/deploy/infrastructure/rushdb-platform"
   />
   <DeployMethodRow
     title="Neo4j & Aura"
@@ -35,7 +34,7 @@ RushDB is made up of three layers: the **NestJS platform** (the API + dashboard 
     prerequisites={['Docker Compose or existing Neo4j 2026.x']}
     commands={['NEO4J_URL=bolt://...', 'NEO4J_PASSWORD=...']}
     tags={['Neo4j', 'Aura', 'BYOC']}
-    href="/deploy/infra-neo4j"
+    href="/deploy/infrastructure/neo4j-and-aura"
   />
   <DeployMethodRow
     title="PostgreSQL / SQLite"
@@ -46,14 +45,14 @@ RushDB is made up of three layers: the **NestJS platform** (the API + dashboard 
     prerequisites={['Docker Compose or external PostgreSQL 14+']}
     commands={['SQL_DB_TYPE=postgres', 'SQL_DB_URL=postgresql://...']}
     tags={['PostgreSQL', 'SQLite']}
-    href="/deploy/infra-database"
+    href="/deploy/infrastructure/postgresql-sqlite"
   />
 </DeployMethodRowList>
 
 <DeployCrossLinks
   prefix="Looking for other configuration?"
   links={[
-    { label: 'Environment Variables', href: '/deploy/config-env-variables' },
-    { label: 'Security', href: '/deploy/config-security' }
+    { label: 'Environment Variables', href: '/deploy/configuration/environment-variables' },
+    { label: 'Security', href: '/deploy/configuration/security' }
   ]}
 />

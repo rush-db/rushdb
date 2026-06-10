@@ -188,6 +188,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                 {/* Extended / Custom */}
                 <button
                   type="button"
+                  data-tour="custom-neo4j-container"
                   onClick={() => setSelectedTab('custom')}
                   className={cn(
                     'group relative flex h-full flex-col items-start rounded-lg border p-4 text-left transition-all',
