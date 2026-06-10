@@ -1,5 +1,4 @@
 ---
-slug: /reference/typescript/relationship-patterns
 sidebar_position: 7
 title: Relationship Patterns
 ---
@@ -50,4 +49,4 @@ Deleting a saved pattern does not delete relationships that it already created u
 await db.relationships.patterns.delete('pattern-id', { deleteExisting: true })
 ```
 
-For lifecycle details, matching modes, REST endpoints, and MCP tools, see [Suggested Relationship Patterns](/build/graph/suggested-patterns).
+For lifecycle details, matching modes, REST endpoints, and MCP tools, see [Suggested Relationship Patterns](/learn/relationships/suggested-patterns).

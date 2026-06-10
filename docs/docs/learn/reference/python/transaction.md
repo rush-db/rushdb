@@ -1,5 +1,4 @@
 ---
-slug: /reference/python/transaction
 sidebar_position: 1
 ---
 

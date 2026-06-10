@@ -1,5 +1,4 @@
 ---
-slug: /deploy/self-hosted-project-setup
 sidebar_position: 37
 title: 'Project Setup After Deployment'
 description: Create projects, configure per-project embedding models, invite team members, and verify SDK connectivity on a self-hosted RushDB instance.
@@ -11,7 +10,7 @@ import TabItem from '@theme/TabItem'
 
 # Project Setup After Deployment
 
-Once RushDB is running (see [Self-Hosting RushDB](/deploy/docker-remote)), the next steps are:
+Once RushDB is running (see [Self-Hosting RushDB](/deploy/remote-hosting/self-hosting-rushdb)), the next steps are:
 
 1. Create a project
 2. Generate an API key
@@ -33,7 +32,7 @@ Open `http://your-host:3000` (or whatever host and port you configured). Sign in
 2. Give the project a name (e.g. `production`, `staging`, `my-app`).
 3. Choose the data store:
    - **Managed (default)** — RushDB uses the Neo4j instance configured in server env vars
-   - **My own Neo4j / Aura** — Toggle on and enter your connection URI and credentials. See [Connecting an Aura Instance](/deploy/connect-aura) for the full walkthrough.
+   - **My own Neo4j / Aura** — Toggle on and enter your connection URI and credentials. See [Connecting an Aura Instance](/deploy/guides/connect-aura) for the full walkthrough.
 4. Click **Create**.
 
 Each project is isolated: records, relationships, and embedding indexes in one project are never visible from another.
@@ -161,6 +160,6 @@ On self-hosted RushDB the team member feature is available depending on your pla
 
 ## Next steps
 
-- [Self-Hosting RushDB](/deploy/docker-remote) — deploy with Docker Compose
-- [Connecting an Aura Instance](/deploy/connect-aura) — use your own Neo4j as the data store
-- [BYOC vs Managed vs Self-Hosted](/tutorials/byoc-vs-managed) — compare deployment topologies
+- [Self-Hosting RushDB](/deploy/remote-hosting/self-hosting-rushdb) — deploy with Docker Compose
+- [Connecting an Aura Instance](/deploy/guides/connect-aura) — use your own Neo4j as the data store
+- [BYOC vs Managed vs Self-Hosted](/learn/tutorials/use-cases/byoc-vs-managed) — compare deployment topologies

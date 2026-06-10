@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/compliance-retention
 sidebar_position: 26
 title: 'Compliance and Retention Patterns'
 description: Implement expiration, archival, and field-level redaction for GDPR, CCPA, and other data lifecycle requirements in RushDB without breaking graph structure.
@@ -517,13 +516,13 @@ curl -s -X POST "$BASE/records/search" \
 2. **Archive before deleting** — a two-phase expiry (archive → grace period → delete) satisfies audit requirements and gives you a rollback window if a record is flagged in error
 3. **Redact, do not delete, when relationships matter** — deleting a USER record breaks every edge pointing to it; nulling PII fields preserves graph integrity
 4. **Run expiry jobs idempotently** — use `archived: false` and date filters so re-runs are safe
-5. **Keep a separate immutable EVENT record for each redaction action** — the redaction itself is an auditable fact; see [Audit Trails](/tutorials/audit-trails)
+5. **Keep a separate immutable EVENT record for each redaction action** — the redaction itself is an auditable fact; see [Audit Trails](/learn/tutorials/use-cases/audit-trails)
 6. **Never expose `redacted: false` records in user-facing APIs without authorization checks** — filter by `redacted: false` in all end-user queries
 
 ---
 
 ## Next steps
 
-- [Audit Trails with Immutable Events](/tutorials/audit-trails) — append-only event log for every state change
-- [Versioning Records Without Losing Queryability](/tutorials/versioning-records) — keeping historical state alongside current state
-- [Temporal Graphs](/tutorials/temporal-graphs) — point-in-time graph reconstruction
+- [Audit Trails with Immutable Events](/learn/tutorials/use-cases/audit-trails) — append-only event log for every state change
+- [Versioning Records Without Losing Queryability](/learn/tutorials/graph-modeling/versioning-records) — keeping historical state alongside current state
+- [Temporal Graphs](/learn/tutorials/graph-modeling/temporal-graphs) — point-in-time graph reconstruction

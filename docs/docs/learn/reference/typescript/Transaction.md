@@ -1,5 +1,4 @@
 ---
-slug: /reference/typescript/Transaction
 ---
 
 # Transaction
@@ -108,5 +107,5 @@ try {
 
 ## See Also
 
-- [Transactions API Documentation](/build/reliability/transactions)
-- [RushDB Class Reference](/reference/typescript/RushDB)
+- [Transactions API Documentation](/learn/records-and-queries/transactions)
+- [RushDB Class Reference](/learn/reference/typescript/RushDB)

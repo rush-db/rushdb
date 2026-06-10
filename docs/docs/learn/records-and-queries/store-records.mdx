@@ -1,5 +1,4 @@
 ---
-slug: /build/data/store-records
 sidebar_position: 1
 title: Store Records
 ---
@@ -70,7 +69,7 @@ curl -X POST https://api.rushdb.com/api/v1/records \
 
 `db.records.create_many()`
 
-Flat rows only — no nested objects. For nested data use [`import_json`](/build/data/import-data).
+Flat rows only — no nested objects. For nested data use [`import_json`](/learn/records-and-queries/import-data).
 
 ```python
 result = db.records.create_many(
@@ -88,7 +87,7 @@ result = db.records.create_many(
 
 `db.records.createMany()`
 
-Flat rows only — no nested objects. For nested data use [`importJson`](/build/data/import-data).
+Flat rows only — no nested objects. For nested data use [`importJson`](/learn/records-and-queries/import-data).
 
 ```typescript
 const result = await db.records.createMany({
@@ -596,8 +595,8 @@ await MovieModel.delete({ where: { genre: 'temp' } })
 
 ## See also
 
-- [Import Data](/build/data/import-data) — import nested JSON or CSV (auto-creates relationships)
-- [Find & Query](/build/data/find-and-query) — search and filter records
-- [Connect Records](/build/graph/connect-records) — attach and detach relationships
-- [Transactions](/build/reliability/transactions) — ACID guarantees for multi-step writes
-- [Write Records with Vectors](/build/ai-search/write-with-vectors) — attach embedding vectors
+- [Import Data](/learn/records-and-queries/import-data) — import nested JSON or CSV (auto-creates relationships)
+- [Find & Query](/learn/records-and-queries/find-and-query) — search and filter records
+- [Connect Records](/learn/relationships/connect-records) — attach and detach relationships
+- [Transactions](/learn/records-and-queries/transactions) — ACID guarantees for multi-step writes
+- [Write Records with Vectors](/learn/semantic-search/write-with-vectors) — attach embedding vectors

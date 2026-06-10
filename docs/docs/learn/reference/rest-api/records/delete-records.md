@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/records/delete-records
 sidebar_position: 7
 ---
 

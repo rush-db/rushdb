@@ -1,5 +1,4 @@
 ---
-slug: /reference/python/record
 sidebar_position: 2
 ---
 

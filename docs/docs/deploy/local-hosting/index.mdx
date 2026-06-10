@@ -1,5 +1,4 @@
 ---
-slug: /deploy/local-index
 title: Local Installation
 description: Run RushDB on your machine. Choose between Docker, running from source, or a Kubernetes Helm chart.
 sidebar_position: 1
@@ -25,7 +24,7 @@ Run RushDB on your machine. Pick the option that fits your workflow.
     prerequisites={['Docker 24+', 'Docker Compose 2.20+']}
     commands={['docker compose up -d']}
     tags={['Docker', 'Docker Compose', 'Neo4j']}
-    href="/deploy/local-docker"
+    href="/deploy/local-hosting/docker"
   />
   <DeployMethodRow
     title="From Source"
@@ -36,7 +35,7 @@ Run RushDB on your machine. Pick the option that fits your workflow.
     prerequisites={['Node.js 20+', 'pnpm 9+', 'Neo4j + APOC Core']}
     commands={['git clone https://github.com/rush-db/rushdb.git', 'cd rushdb && pnpm install', 'pnpm dev']}
     tags={['NestJS', 'Node.js', 'Development']}
-    href="/deploy/local-source"
+    href="/deploy/local-hosting/from-source"
   />
   <DeployMethodRow
     title="Helm"
@@ -47,14 +46,14 @@ Run RushDB on your machine. Pick the option that fits your workflow.
     prerequisites={['Kubernetes 1.27+', 'Helm 3.12+']}
     commands={['helm install rushdb oci://ghcr.io/rush-db/charts/rushdb']}
     tags={['Kubernetes', 'Helm', 'Production']}
-    href="/deploy/local-helm"
+    href="/deploy/local-hosting/helm"
   />
 </DeployMethodRowList>
 
 <DeployCrossLinks
   prefix="Not running locally?"
   links={[
-    { label: 'Remote Hosting', href: '/deploy/remote-index' },
-    { label: 'Get API Key', href: '/deploy/get-api-key' }
+    { label: 'Remote Hosting', href: '/deploy/remote-hosting' },
+    { label: 'Get API Key', href: '/deploy/configuration/get-api-key' }
   ]}
 />

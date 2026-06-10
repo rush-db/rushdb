@@ -1,5 +1,4 @@
 ---
-slug: /deploy/docker-remote
 sidebar_position: 3
 title: 'Self-Hosting RushDB'
 description: Deploy RushDB on your own infrastructure with Docker Compose, connect your own Neo4j instance, and configure embedding support.
@@ -135,7 +134,7 @@ rushdb:
     SQL_DB_URL: postgresql://rushdb:rushdb-pg-password@postgres:5432/rushdb
 ```
 
-See [Connecting an Aura Instance](/deploy/connect-aura) for the full BYOC walkthrough.
+See [Connecting an Aura Instance](/deploy/guides/connect-aura) for the full BYOC walkthrough.
 
 ---
 
@@ -318,6 +317,6 @@ docker exec rushdb rushdb update-password admin@example.com newsecurepassword456
 
 ## Next steps
 
-- [Project Setup After Deployment](/deploy/self-hosted-project-setup) — create projects, invite team members, configure per-project embedding models
-- [Connecting an Aura Instance](/deploy/connect-aura) — use an existing Neo4j Aura database as the RushDB data store
-- [BYOC vs Managed vs Self-hosted](/tutorials/byoc-vs-managed) — choose the right deployment topology for your use case
+- [Project Setup After Deployment](/deploy/guides/self-hosted-project-setup) — create projects, invite team members, configure per-project embedding models
+- [Connecting an Aura Instance](/deploy/guides/connect-aura) — use an existing Neo4j Aura database as the RushDB data store
+- [BYOC vs Managed vs Self-hosted](/learn/tutorials/use-cases/byoc-vs-managed) — choose the right deployment topology for your use case

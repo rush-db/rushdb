@@ -376,6 +376,10 @@ html[data-theme='dark'] .navbar__logo img {
   color: var(--ifm-font-color-base);
 }
 
+.navbar__search-trigger__icon {
+  color: var(--ifm-font-color-base);
+}
+
 .navbar__search-trigger__kbd {
   font-family: var(--ifm-font-family-monospace);
   font-size: 0.7rem;
@@ -387,6 +391,10 @@ html[data-theme='dark'] .navbar__logo img {
 }
 
 @media (max-width: 996px) {
+  .rushdb-search-overlay {
+    padding-top: calc(var(--ifm-navbar-height) + 0.75rem);
+  }
+
   /* On mobile: hide label and ⌘K, show icon-only trigger */
   .navbar__search-trigger__label,
   .navbar__search-trigger__kbd {
@@ -415,6 +423,21 @@ html[data-theme='dark'] .navbar__logo img {
      navbar items that contains our search trigger button. */
   .navbar__items--right > div:has(.navbar__search-trigger) {
     position: static !important;
+    order: 1;
+  }
+
+  .navbar__items--right .cta-button {
+    order: 2;
+    display: inline-flex !important;
+    white-space: nowrap;
+  }
+
+  .navbar-sidebar .cta-button {
+    display: none !important;
+  }
+
+  .navbar__items--right {
+    gap: 0.5rem;
   }
 }
 

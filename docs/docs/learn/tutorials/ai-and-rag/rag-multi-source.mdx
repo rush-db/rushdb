@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/rag-multi-source
 sidebar_position: 39
 title: 'Multi-Source RAG'
 description: Ingest PDFs, web pages, and database records as distinct labels, then search across all sources in a single vector query with source-aware citations.
@@ -167,7 +166,7 @@ async function ingestWebPage(url) {
 }
 
 await ingestWebPage('https://docs.rushdb.com/get-started/quickstart')
-await ingestWebPage('https://docs.rushdb.com/tutorials/graphrag')
+await ingestWebPage('https://docs.rushdb.com/learn/tutorials/ai-and-rag/graphrag')
 ```
 
 </TabItem>
@@ -198,7 +197,7 @@ def ingest_web_page(url: str):
     print(f'Ingested {len(chunks)} chunks from {url}')
 
 ingest_web_page('https://docs.rushdb.com/get-started/quickstart')
-ingest_web_page('https://docs.rushdb.com/tutorials/graphrag')
+ingest_web_page('https://docs.rushdb.com/learn/tutorials/ai-and-rag/graphrag')
 ```
 
 </TabItem>
@@ -676,6 +675,6 @@ ingestDbSummaries()→  DB_SUMMARY records
 
 ## Next steps
 
-- [RAG Evaluation](/tutorials/rag-evaluation) — measure precision@k and recall@k across your pipeline
-- [RAG Reranking](/tutorials/rag-reranking) — two-stage retrieval with cross-encoder scoring
-- [GraphRAG](/tutorials/graphrag) — enrich chunks with graph context before synthesis
+- [RAG Evaluation](/learn/tutorials/ai-and-rag/rag-evaluation) — measure precision@k and recall@k across your pipeline
+- [RAG Reranking](/learn/tutorials/ai-and-rag/rag-reranking) — two-stage retrieval with cross-encoder scoring
+- [GraphRAG](/learn/tutorials/ai-and-rag/graphrag) — enrich chunks with graph context before synthesis

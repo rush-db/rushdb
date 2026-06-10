@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/building-team-memory
 sidebar_position: 21
 title: 'Building Team Memory for Product and Support Workflows'
 description: Ingest tickets, docs, decisions, incidents, and feature requests into a connected graph so your team can retrieve context instead of isolated documents.
@@ -545,7 +544,7 @@ curl -s -X POST "$BASE/ai/search" \
 
 Once the base graph is established, enrich it incrementally:
 
-- **Webhooks from Linear/GitHub/PagerDuty** — auto-create TICKET and INCIDENT records on event (see [Event-Driven Ingestion](/tutorials/event-driven-ingestion))
+- **Webhooks from Linear/GitHub/PagerDuty** — auto-create TICKET and INCIDENT records on event (see [Event-Driven Ingestion](/learn/tutorials/working-with-data/event-driven-ingestion))
 - **Decisions as first-class nodes** — when a team makes a decision, create a DECISION record and link it to the TICKET or INCIDENT it resolved
 - **FEATURE_REQUEST linked to TICKET** — when a customer request drives a bug fix or feature, link the FEATURE_REQUEST to the TICKET so the team can see customer impact upstream of every change
 
@@ -559,6 +558,6 @@ Team memory graphs grow unboundedly unless pruned. Define a retention policy for
 
 ## Next steps
 
-- [Agent-Safe Query Planning with Ontology First](/tutorials/agent-safe-query-planning) — run agents over this memory graph safely
-- [Episodic Memory for Multi-Step Agents](/tutorials/episodic-memory) — session-scoped context alongside persistent team memory
-- [Data Lineage](/tutorials/data-lineage) — trace decisions back to source data
+- [Agent-Safe Query Planning with Ontology First](/learn/tutorials/agent-memory/agent-safe-query-planning) — run agents over this memory graph safely
+- [Episodic Memory for Multi-Step Agents](/learn/tutorials/agent-memory/episodic-memory) — session-scoped context alongside persistent team memory
+- [Data Lineage](/learn/tutorials/graph-modeling/data-lineage) — trace decisions back to source data

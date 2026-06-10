@@ -1,5 +1,4 @@
 ---
-slug: /build/data/find-and-query
 sidebar_position: 3
 title: Find & Query
 ---
@@ -206,15 +205,15 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 
 ### SearchQuery parameters
 
-| Field     | Type               | Description                                                                          |
-| --------- | ------------------ | ------------------------------------------------------------------------------------ |
-| `labels`  | `string[]`         | Filter by one or more labels                                                         |
-| `where`   | `object`           | Field conditions and operators (see [Where Operators](/reference/where-operators))   |
-| `orderBy` | `string \| object` | Sort criteria (see [Pagination & Order](/reference/pagination-order))                |
-| `limit`   | `number`           | Max records to return (default: 1000). **Omit when using `select`**                  |
-| `skip`    | `number`           | Records to skip for pagination                                                       |
-| `select`  | `object`           | Output-shaping expressions (see [Select Expressions](/reference/select-expressions)) |
-| `groupBy` | `string[]`         | Grouping keys, e.g. `['$record.genre']`                                              |
+| Field     | Type               | Description                                                                                   |
+| --------- | ------------------ | --------------------------------------------------------------------------------------------- |
+| `labels`  | `string[]`         | Filter by one or more labels                                                                  |
+| `where`   | `object`           | Field conditions and operators (see [Where Operators](/learn/search-query/where-operators))   |
+| `orderBy` | `string \| object` | Sort criteria (see [Pagination & Order](/learn/search-query/pagination-order))                |
+| `limit`   | `number`           | Max records to return (default: 1000). **Omit when using `select`**                           |
+| `skip`    | `number`           | Records to skip for pagination                                                                |
+| `select`  | `object`           | Output-shaping expressions (see [Select Expressions](/learn/search-query/select-expressions)) |
+| `groupBy` | `string[]`         | Grouping keys, e.g. `['$record.genre']`                                                       |
 
 ---
 
@@ -244,7 +243,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 {"$not": {"genre": "romance"}}
 ```
 
-Full reference: [Where Operators](/reference/where-operators)
+Full reference: [Where Operators](/learn/search-query/where-operators)
 
 ---
 
@@ -385,7 +384,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
   </TabItem>
 </Tabs>
 
-Full reference: [Select Expressions](/reference/select-expressions)
+Full reference: [Select Expressions](/learn/search-query/select-expressions)
 
 ---
 
@@ -444,7 +443,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
   </TabItem>
 </Tabs>
 
-Full reference: [Group By](/reference/group-by)
+Full reference: [Group By](/learn/search-query/group-by)
 
 ---
 
@@ -777,9 +776,9 @@ Model search methods auto-fill `labels` from the model definition.
 
 ## See also
 
-- [Where Operators](/reference/where-operators) — full operator reference
-- [Select Expressions](/reference/select-expressions) — aggregation & output shaping
-- [Group By](/reference/group-by) — grouping reference
-- [Pagination & Order](/reference/pagination-order) — sorting and paging
-- [Connect Records](/build/graph/connect-records) — traverse and filter relationships
-- [Semantic Search](/build/ai-search/semantic-search) — vector + filter search
+- [Where Operators](/learn/search-query/where-operators) — full operator reference
+- [Select Expressions](/learn/search-query/select-expressions) — aggregation & output shaping
+- [Group By](/learn/search-query/group-by) — grouping reference
+- [Pagination & Order](/learn/search-query/pagination-order) — sorting and paging
+- [Connect Records](/learn/relationships/connect-records) — traverse and filter relationships
+- [Semantic Search](/learn/semantic-search) — vector + filter search

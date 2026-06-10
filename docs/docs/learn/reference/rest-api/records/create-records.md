@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/records/create-records
 sidebar_position: 1
 ---
 
@@ -106,4 +105,4 @@ curl -X POST https://api.rushdb.com/api/v1/tx/$TX_ID/commit \
 
 ## See also
 
-- [Writing Records with Vectors](/rest-api/ai/write-with-vectors) — attach embedding vectors when creating or upserting records
+- [Writing Records with Vectors](/learn/reference/rest-api/ai-and-vectors/write-with-vectors) — attach embedding vectors when creating or upserting records

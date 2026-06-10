@@ -1,5 +1,4 @@
 ---
-slug: /build/graph/connect-records
 sidebar_position: 1
 title: Connect Records
 ---
@@ -239,7 +238,7 @@ curl -X POST https://api.rushdb.com/api/v1/relationships/search \
 
 `db.relationships.find().where` is edge-scoped. Use `source` and `target` for record predicates. To filter records by traversing relationships, use `db.records.find()` with `$relation` as shown below.
 
-Edge properties are stored directly on relationship edges. They are filterable through `relationships.find()` and summarized in ontology relationship sections, but they are not promoted to Record Property nodes and are not semantically indexed.
+Edge properties are stored directly on relationship edges. They are filterable through `relationships.find()` and summarized in ontology relationship sections, but they are not promoted to Record Property nodes and are not semantically indexed. See [Relationship Properties](/learn/relationships/relationship-properties) for storage semantics, the full operator set, and modeling guidance.
 
 ---
 
@@ -510,7 +509,7 @@ graph LR
   DEPARTMENT -->|"HAS_PROJECT"| PROJECT
 ```
 
-→ For the full operator reference including `$alias`, `$id`, and logical grouping, see [Where Operators — Relationship Queries](/reference/where-operators#relationship-queries).
+→ For the full operator reference including `$alias`, `$id`, and logical grouping, see [Where Operators — Relationship Queries](/learn/search-query/where-operators#relationship-queries).
 
 ---
 
@@ -623,6 +622,6 @@ await MovieModel.detach({
 
 ## See also
 
-- [Bulk Relationships](/build/graph/bulk-relationships) — connect/disconnect many records at once by key match or many-to-many
-- [Import Data](/build/data/import-data) — nested JSON auto-creates relationships
-- [Transactions](/build/reliability/transactions) — ACID guarantees for multi-step operations
+- [Bulk Relationships](/learn/relationships/bulk-relationships) — connect/disconnect many records at once by key match or many-to-many
+- [Import Data](/learn/records-and-queries/import-data) — nested JSON auto-creates relationships
+- [Transactions](/learn/records-and-queries/transactions) — ACID guarantees for multi-step operations

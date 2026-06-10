@@ -1,5 +1,4 @@
 ---
-slug: /build/schema/labels-and-properties
 sidebar_position: 1
 title: Labels & Properties
 ---
@@ -34,7 +33,7 @@ result = db.labels.find({"where": {"rating": {"$gte": 8}}})
 # → [LabelResult(name='MOVIE', count=1)]
 ```
 
-`db.labels.find()` accepts a standard [`where`](/reference/where-operators) clause. It returns all labels that have at least one record matching the condition.
+`db.labels.find()` accepts a standard [`where`](/learn/search-query/where-operators) clause. It returns all labels that have at least one record matching the condition.
 
   </TabItem>
   <TabItem value="typescript" label="TypeScript">
@@ -269,6 +268,6 @@ curl -X DELETE https://api.rushdb.com/api/v1/properties/prop-123 \
 
 ## See also
 
-- [Discover Your Schema](/build/schema/discover-your-schema) — live ontology via `db.ai.getOntology()`
-- [Find & Query](/build/data/find-and-query) — query records by property value
-- [Where Operators](/reference/where-operators) — filter syntax reference
+- [Discover Your Schema](/learn/records-and-queries/discover-your-schema) — live ontology via `db.ai.getOntology()`
+- [Find & Query](/learn/records-and-queries/find-and-query) — query records by property value
+- [Where Operators](/learn/search-query/where-operators) — filter syntax reference

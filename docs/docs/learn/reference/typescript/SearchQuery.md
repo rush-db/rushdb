@@ -1,11 +1,10 @@
 ---
-slug: /reference/typescript/SearchQuery
 sidebar_position: 8
 ---
 
 # SearchQuery
 
-`SearchQuery` is a type that defines the structure for querying [records](/build/data/store-records) in RushDB. It provides a flexible way to filter, sort, paginate, and compute metrics using `select` and `groupBy`. The legacy `aggregate` clause is deprecated and should only be used for vector similarity until `select` supports it. For more information on search concepts, see the [search documentation](/reference/search-query).
+`SearchQuery` is a type that defines the structure for querying [records](/learn/records-and-queries/store-records) in RushDB. It provides a flexible way to filter, sort, paginate, and compute metrics using `select` and `groupBy`. The legacy `aggregate` clause is deprecated and should only be used for vector similarity until `select` supports it. For more information on search concepts, see the [search documentation](/learn/search-query).
 
 ## Type Definition
 
@@ -141,7 +140,7 @@ export type SelectClause = {
 }
 ```
 
-The canonical output-shaping clause. See the [Select Expressions guide](/reference/select-expressions) for full documentation.
+The canonical output-shaping clause. See the [Select Expressions guide](/learn/search-query/select-expressions) for full documentation.
 
 ### GroupBy Clause
 
@@ -412,7 +411,7 @@ Defines conditions on related records. The key of the nested object **is** the l
 }
 ```
 
-Learn more about [relationships in RushDB](/build/graph).
+Learn more about [relationships in RushDB](/learn/relationships).
 
 #### $xor and $nor operators
 
@@ -434,7 +433,7 @@ Learn more about [relationships in RushDB](/build/graph).
 
 ### Aggregation
 
-`select` expressions support all aggregation operations. See the [Select Expressions guide](/reference/select-expressions) for full documentation.
+`select` expressions support all aggregation operations. See the [Select Expressions guide](/learn/search-query/select-expressions) for full documentation.
 
 ```typescript
 // Count and sum via select expressions

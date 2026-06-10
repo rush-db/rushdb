@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/raw-queries
 sidebar_position: 8
 ---
 

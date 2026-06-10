@@ -1,11 +1,10 @@
 ---
-slug: /reference/typescript/Model
 sidebar_position: 1
 ---
 
 # Model
 
-The `Model` class represents a schema-defined entity in RushDB. It provides methods to perform CRUD operations and manage [relationships](/build/graph) between [records](/build/data/store-records). Models are identified by [labels](/build/schema/labels-and-properties) in the database.
+The `Model` class represents a schema-defined entity in RushDB. It provides methods to perform CRUD operations and manage [relationships](/learn/relationships) between [records](/learn/records-and-queries/store-records). Models are identified by [labels](/learn/records-and-queries/labels-and-properties) in the database.
 
 ## Usage
 
@@ -170,7 +169,7 @@ const firstRow = deals.data[0] as DealAggRow
 
 Notes:
 
-- Use this pattern whenever [`select`](/reference/select-expressions) and/or [`groupBy`](/reference/group-by) change the returned columns.
+- Use this pattern whenever [`select`](/learn/search-query/select-expressions) and/or [`groupBy`](/learn/search-query/group-by) change the returned columns.
 - For regular record fetches (no aggregation/grouping), prefer the plain `typeof Model.recordInstance` without augmenting `data`.
 
 ## Methods

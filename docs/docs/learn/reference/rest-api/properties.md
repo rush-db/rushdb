@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/properties
 sidebar_position: 4
 ---
 

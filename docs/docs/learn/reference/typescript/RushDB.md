@@ -1,11 +1,10 @@
 ---
-slug: /reference/typescript/RushDB
 sidebar_position: 7
 ---
 
 # RushDB
 
-The `RushDB` class is the main entry point for interacting with the RushDB database. It manages API connections and model registration. It provides access to [records](/build/data/store-records), [labels](/build/schema/labels-and-properties), and [transactions](/build/reliability/transactions).
+The `RushDB` class is the main entry point for interacting with the RushDB database. It manages API connections and model registration. It provides access to [records](/learn/records-and-queries/store-records), [labels](/learn/records-and-queries/labels-and-properties), and [transactions](/learn/records-and-queries/transactions).
 
 ## Initialization
 
@@ -82,7 +81,7 @@ Query and bulk-manage relationships.
 
 #### `db.relationships.patterns`
 
-Review and manage relationship patterns inferred from the project ontology. See [Relationship Patterns](/reference/typescript/relationship-patterns) for the full review flow.
+Review and manage relationship patterns inferred from the project ontology. See [Relationship Patterns](/learn/reference/typescript/relationship-patterns) for the full review flow.
 
 | Method                | Description                                                            |
 | --------------------- | ---------------------------------------------------------------------- |
@@ -122,7 +121,7 @@ Transaction lifecycle management.
 | `commit(transaction)`   | Commit a transaction by object or ID       |
 | `rollback(transaction)` | Roll back a transaction by object or ID    |
 
-See also: [Transaction](/reference/typescript/Transaction) for the `commit()` and `rollback()` instance methods.
+See also: [Transaction](/learn/reference/typescript/Transaction) for the `commit()` and `rollback()` instance methods.
 
 ### `db.ai`
 

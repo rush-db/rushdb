@@ -1,5 +1,4 @@
 ---
-slug: /build/ai-search/semantic-search
 sidebar_position: 1
 title: Semantic Search
 ---
@@ -11,7 +10,7 @@ import TabItem from '@theme/TabItem'
 
 `db.ai.search()` / `POST /api/v1/ai/search` performs semantic vector search across records that have an associated embedding index. Candidates are narrowed by label and `where` filters first, then ranked by cosine or euclidean similarity.
 
-The property referenced by `propertyName` must have a `ready` embedding index. See [Manage Embedding Indexes](/build/ai-search/manage-indexes).
+The property referenced by `propertyName` must have a `ready` embedding index. See [Manage Embedding Indexes](/learn/semantic-search/manage-indexes).
 
 ---
 
@@ -131,7 +130,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/search \
 
 ## Filter + Semantic Search
 
-The `where` clause acts as a **prefilter** — only records satisfying the filter are candidates for similarity ranking. All operators from [Where Operators](/reference/where-operators) are available.
+The `where` clause acts as a **prefilter** — only records satisfying the filter are candidates for similarity ranking. All operators from [Where Operators](/learn/search-query/where-operators) are available.
 
 <Tabs groupId="programming-language">
   <TabItem value="python" label="Python" default>
@@ -448,7 +447,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/search \
 
 ## See also
 
-- [Manage Embedding Indexes](/build/ai-search/manage-indexes) — create, list, delete, and monitor indexes
-- [Write Records with Vectors](/build/ai-search/write-with-vectors) — attach vectors when storing records
-- [Bring Your Own Vectors](/build/ai-search/bring-your-own-vectors) — use external embedding models
-- [Find & Query](/build/data/find-and-query) — keyword / graph-only search without AI
+- [Manage Embedding Indexes](/learn/semantic-search/manage-indexes) — create, list, delete, and monitor indexes
+- [Write Records with Vectors](/learn/semantic-search/write-with-vectors) — attach vectors when storing records
+- [Bring Your Own Vectors](/learn/semantic-search/bring-your-own-vectors) — use external embedding models
+- [Find & Query](/learn/records-and-queries/find-and-query) — keyword / graph-only search without AI

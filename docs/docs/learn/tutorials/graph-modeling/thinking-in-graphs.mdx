@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/thinking-in-graphs
 sidebar_position: 10
 title: 'Thinking in Graphs: From Tables to Traversals'
 description: Map the same product, customer, and order dataset from relational and document mental models into RushDB's graph model, then translate common business questions into multi-hop queries.
@@ -609,12 +608,12 @@ curl -s -X POST "$BASE/records/search" \
 
 ## Production caveat
 
-Relationship traversal queries become expensive when each hop fans out to thousands of related records. Before deploying traversal-heavy queries in production, scope them aggressively with `limit` on the leaf label and property filters that eliminate most candidates early. The [`SearchQuery Deep Dive`](/tutorials/searchquery-advanced-patterns) tutorial covers aggregation and traversal optimization in more detail.
+Relationship traversal queries become expensive when each hop fans out to thousands of related records. Before deploying traversal-heavy queries in production, scope them aggressively with `limit` on the leaf label and property filters that eliminate most candidates early. The [`SearchQuery Deep Dive`](/learn/tutorials/search-and-queries/searchquery-advanced-patterns) tutorial covers aggregation and traversal optimization in more detail.
 
 ---
 
 ## Next steps
 
-- [Choosing Relationship Types That Age Well](/tutorials/choosing-relationship-types) — when to use generic edges versus typed relationships
-- [SearchQuery Deep Dive](/tutorials/searchquery-advanced-patterns) — aggregation, collect, and groupBy patterns
-- [RushDB as a Memory Layer](/tutorials/memory-layer) — using the same graph primitives for agent memory
+- [Choosing Relationship Types That Age Well](/learn/tutorials/graph-modeling/choosing-relationship-types) — when to use generic edges versus typed relationships
+- [SearchQuery Deep Dive](/learn/tutorials/search-and-queries/searchquery-advanced-patterns) — aggregation, collect, and groupBy patterns
+- [RushDB as a Memory Layer](/learn/tutorials/agent-memory/memory-layer) — using the same graph primitives for agent memory

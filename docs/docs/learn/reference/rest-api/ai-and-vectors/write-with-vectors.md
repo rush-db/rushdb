@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/ai/write-with-vectors
 sidebar_position: 4
 title: Writing Records with Vectors
 ---
@@ -8,7 +7,7 @@ title: Writing Records with Vectors
 
 RushDB lets you attach pre-computed embedding vectors to records **at write time**, eliminating the need for a separate `POST /api/v1/ai/indexes/:id/vectors/upsert` call. Any endpoint that creates or modifies records accepts a `vectors` field.
 
-This feature requires at least one [external index](/rest-api/ai/advanced-indexing) to exist for the target `(label, propertyName)`.
+This feature requires at least one [external index](/learn/reference/rest-api/ai-and-vectors/advanced-indexing) to exist for the target `(label, propertyName)`.
 
 ---
 

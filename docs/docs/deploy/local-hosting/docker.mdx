@@ -1,5 +1,4 @@
 ---
-slug: /deploy/local-docker
 title: Docker
 description: Run RushDB locally with Docker Compose (full stack) or a single docker run command against an existing Neo4j instance.
 sidebar_position: 1
@@ -121,7 +120,7 @@ docker run -d \
 For Neo4j Aura use `neo4j+s://` in `NEO4J_URL`.
 
 :::info Neo4j requirements
-The Neo4j instance must have **APOC Core** installed (version must match Neo4j). See [Neo4j & Aura](/deploy/infra-neo4j) for details.
+The Neo4j instance must have **APOC Core** installed (version must match Neo4j). See [Neo4j & Aura](/deploy/infrastructure/neo4j-and-aura) for details.
 :::
 
 </TabItem>
@@ -145,7 +144,7 @@ The Neo4j instance must have **APOC Core** installed (version must match Neo4j).
 | `SQL_DB_URL`                    | ✅ if postgres | —             | `postgresql://user:pass@host:5432/rushdb`               |
 | `RUSHDB_PORT`                   |       —        | `3000`        | Port RushDB listens on                                  |
 
-See [Environment Variables](/deploy/config-env-variables) for the full reference.
+See [Environment Variables](/deploy/configuration/environment-variables) for the full reference.
 
 ---
 

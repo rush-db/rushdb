@@ -1,5 +1,4 @@
 ---
-slug: /tutorials/agent-skills-with-openclaw
 sidebar_position: 14
 title: 'Using RushDB Agent Skills in OpenClaw'
 description: End-to-end guide — connect RushDB to OpenClaw, install the RushDB skills pack, and let your AI assistant query, store, and model structured data without writing a single line of code.
@@ -32,11 +31,11 @@ Together they produce grounded, reliable RushDB sessions.
 
 ## Prerequisites
 
-| Requirement                                            | Notes                                                        |
-| ------------------------------------------------------ | ------------------------------------------------------------ |
-| [OpenClaw](https://openclaw.ai/) installed and running | `openclaw gateway status` should show the gateway listening  |
-| RushDB account and API key                             | [Get API Key](/deploy/get-api-key) — free tier is enough     |
-| Node.js 22.14+                                         | OpenClaw and `npx` both need it; check with `node --version` |
+| Requirement                                            | Notes                                                                  |
+| ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| [OpenClaw](https://openclaw.ai/) installed and running | `openclaw gateway status` should show the gateway listening            |
+| RushDB account and API key                             | [Get API Key](/deploy/configuration/get-api-key) — free tier is enough |
+| Node.js 22.14+                                         | OpenClaw and `npx` both need it; check with `node --version`           |
 
 If you do not have OpenClaw yet, run:
 
@@ -241,7 +240,7 @@ This skill uses RushDB as a persistent, structured memory layer. Use it when you
 
 ### Skill 3: `rushdb-data-modeling`
 
-This skill teaches RushDB's [LMPG model](/build/data/store-records) — Labels, Metadata, Properties, and Graph relationships. Use it when designing a new data schema or evolving an existing one.
+This skill teaches RushDB's [LMPG model](/learn/records-and-queries/store-records) — Labels, Metadata, Properties, and Graph relationships. Use it when designing a new data schema or evolving an existing one.
 
 **Example session:**
 
@@ -291,9 +290,9 @@ This skill teaches RushDB's [LMPG model](/build/data/store-records) — Labels, 
 ## What to do next
 
 - [MCP Quickstart](/connect/mcp) — full client setup reference for Claude Desktop, Cursor, and VS Code
-- [MCP Operator Quickstart](/deploy/mcp-operator-quickstart) — deep-dive on the mandatory workflow for grounded, hallucination-resistant queries
-- [Building Team Memory](/tutorials/building-team-memory) — using records as a shared memory layer across agents
-- [Episodic Memory](/tutorials/episodic-memory) — designing session and long-term memory schemas
-- [Agent Memory](/build/agent-memory/) — RushDB's structured memory model for AI agents
+- [MCP Operator Quickstart](/deploy/guides/mcp-operator-quickstart) — deep-dive on the mandatory workflow for grounded, hallucination-resistant queries
+- [Building Team Memory](/learn/tutorials/agent-memory/building-team-memory) — using records as a shared memory layer across agents
+- [Episodic Memory](/learn/tutorials/agent-memory/episodic-memory) — designing session and long-term memory schemas
+- [Agent Memory](/learn/agent-memory) — RushDB's structured memory model for AI agents
 - [ClawHub](https://clawhub.ai/) — browse community skills for OpenClaw
 - [packages/skills README](https://github.com/rush-db/rushdb/blob/main/packages/skills/README.md) — all three RushDB skills in one place

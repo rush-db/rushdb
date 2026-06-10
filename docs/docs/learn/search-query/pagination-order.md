@@ -1,5 +1,4 @@
 ---
-slug: /reference/pagination-order
 sidebar_position: 3
 ---
 
@@ -232,4 +231,4 @@ In the early order case, only the first 100 deals (by default ID ordering) contr
 - Use early ordering intentionally only when you want to compute metrics over a _windowed_ subset (e.g., rolling sample of newest records).
 - The behavior applies to any grouped aggregation, not just the self-group pattern.
 
-See also: [Select Expressions guide](/reference/select-expressions#ordering-by-select-keys-late-order--pagination) for more context.
+See also: [Select Expressions guide](/learn/search-query/select-expressions#ordering-by-select-keys-late-order--pagination) for more context.

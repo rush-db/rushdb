@@ -1,5 +1,4 @@
 ---
-slug: /cloud/project-isolation
 title: Multitenancy & Project Isolation
 description: How RushDB scopes graph data, metadata, API tokens, and BYOC connections with projectId.
 sidebar_position: 2
@@ -44,5 +43,5 @@ When you need a dedicated graph boundary, use **BYOC** to connect a project to y
 - Use separate projects for development, staging, and production.
 - Issue project-scoped API keys with the minimum required access level.
 - Keep Neo4j Bolt ports private and route application access through RushDB.
-- Review the [Security](/deploy/config-security) guide before production deployment.
-- Read [Neo4j & Aura](/deploy/infra-neo4j) when configuring BYOC.
+- Review the [Security](/deploy/configuration/security) guide before production deployment.
+- Read [Neo4j & Aura](/deploy/infrastructure/neo4j-and-aura) when configuring BYOC.

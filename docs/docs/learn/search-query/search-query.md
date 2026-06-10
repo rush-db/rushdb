@@ -1,5 +1,4 @@
 ---
-slug: /reference/search-query
 title: Introduction
 sidebar_position: 0
 ---
@@ -12,12 +11,12 @@ RushDB provides a powerful and flexible search system that allows you to efficie
 
 RushDB's Search API offers a comprehensive set of features:
 
-- **Powerful Filtering**: Use the [`where` clause](/reference/where-operators) with a wide range of operators to precisely filter records
+- **Powerful Filtering**: Use the [`where` clause](/learn/search-query/where-operators) with a wide range of operators to precisely filter records
 - **Graph Traversal**: Navigate through connected records with relationship queries
-- **Select Expressions**: Compute aggregates, derive metrics, and shape output using the [`select` clause](/reference/select-expressions)
-- **Pagination and Sorting**: Control result volume and order with [pagination and sorting options](/reference/pagination-order)
-- **Label-Based Filtering**: Target specific types of records using [label filtering](/reference/search-labels)
-- **Semantic Search**: Find records by meaning using AI embedding indexes — see [AI Search](/rest-api/ai/overview)
+- **Select Expressions**: Compute aggregates, derive metrics, and shape output using the [`select` clause](/learn/search-query/select-expressions)
+- **Pagination and Sorting**: Control result volume and order with [pagination and sorting options](/learn/search-query/pagination-order)
+- **Label-Based Filtering**: Target specific types of records using [label filtering](/learn/search-query/search-labels)
+- **Semantic Search**: Find records by meaning using AI embedding indexes — see [AI Search](/learn/reference/rest-api/ai-and-vectors/overview)
 
 ## SearchQuery Structure
 
@@ -65,7 +64,7 @@ This query:
 
 ### Filtering with Where Clauses
 
-The [`where` clause](/reference/where-operators) is the primary mechanism for filtering records. It supports:
+The [`where` clause](/learn/search-query/where-operators) is the primary mechanism for filtering records. It supports:
 
 - **Property Matching**: Filter by exact values, string patterns, numeric ranges, etc.
 - **Logical Operators**: Combine conditions with AND, OR, NOT, etc.
@@ -86,7 +85,7 @@ The [`where` clause](/reference/where-operators) is the primary mechanism for fi
 
 ### Aggregating Results
 
-[Select Expressions](/reference/select-expressions) allow you to perform calculations and transform the structure of your results:
+[Select Expressions](/learn/search-query/select-expressions) allow you to perform calculations and transform the structure of your results:
 
 ```typescript
 {
@@ -106,7 +105,7 @@ The [`where` clause](/reference/where-operators) is the primary mechanism for fi
 
 ### Pagination and Sorting
 
-Control the volume and order of results using [pagination and sorting options](/reference/pagination-order):
+Control the volume and order of results using [pagination and sorting options](/learn/search-query/pagination-order):
 
 ```typescript
 {
@@ -132,7 +131,7 @@ For optimal performance when using the Search API:
 
 ## Next Steps
 
-- Learn more about [filtering with where clauses](/reference/where-operators)
-- Explore [select expressions and aggregation capabilities](/reference/select-expressions)
-- Understand [pagination and sorting options](/reference/pagination-order)
-- Discover how to filter by [record labels](/reference/search-labels)
+- Learn more about [filtering with where clauses](/learn/search-query/where-operators)
+- Explore [select expressions and aggregation capabilities](/learn/search-query/select-expressions)
+- Understand [pagination and sorting options](/learn/search-query/pagination-order)
+- Discover how to filter by [record labels](/learn/search-query/search-labels)

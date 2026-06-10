@@ -5,7 +5,12 @@ import { int as neo4jInt } from 'neo4j-driver'
 
 import { isDevMode } from '@/common/utils/isDevMode'
 import { AiQueryService } from '@/core/ai/ai-query.service'
+import { EmbeddingIndexDdlService } from '@/core/ai/embedding-index-ddl.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
+import {
+  type EmbeddingIndexSimilarityFunction,
+  type EmbeddingIndexSourceType
+} from '@/core/ai/embedding-index.utils'
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
 import { estimateBatchTokens, estimateEmbeddingBatchKu } from '@/core/ai/embedding.utils'
 import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
@@ -22,6 +27,7 @@ export class EmbeddingBackfillScheduler {
   constructor(
     private readonly neogmaService: NeogmaService,
     private readonly aiQueryService: AiQueryService,
+    private readonly embeddingIndexDdlService: EmbeddingIndexDdlService,
     private readonly embeddingIndexRepository: EmbeddingIndexRepository,
     private readonly embeddingProviderService: EmbeddingProviderService,
     private readonly configService: ConfigService,
@@ -76,6 +82,8 @@ export class EmbeddingBackfillScheduler {
       label: string
       vectorPropertyName: string
       sourceType: string
+      similarityFunction: string
+      dimensions: number
     },
     batchSize: number,
     maxRuntimeMs: number
@@ -85,6 +93,18 @@ export class EmbeddingBackfillScheduler {
     }
 
     await this.embeddingIndexRepository.updateStatus(index.id, 'indexing')
+
+    // Durable retry for the vector index DDL deferred off the createIndex request path.
+    // Embeddings are still written if this fails — the index just picks them up once created.
+    try {
+      await this.embeddingIndexDdlService.ensureVectorIndexExists({
+        sourceType: index.sourceType as EmbeddingIndexSourceType,
+        similarityFunction: index.similarityFunction as EmbeddingIndexSimilarityFunction,
+        dimensions: index.dimensions
+      })
+    } catch (err) {
+      this.logger.warn(`[backfillIndex] id=${index.id} vector index DDL failed (will retry next run): ${err}`)
+    }
 
     const project = await this.projectRepository.findById(index.projectId)
     const workspaceId = project?.workspaceId

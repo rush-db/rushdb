@@ -1,5 +1,4 @@
 ---
-slug: /build/agent-memory/
 sidebar_position: 1
 title: Agent Memory Overview
 ---
@@ -34,19 +33,19 @@ Because there's no fixed schema to lock you in, you can change, extend, or compl
 
 Every discrete piece of knowledge is a **Record**: a typed key-value object carrying a label, properties, and a system-generated ID. Records connect to one another via **Relationships**, forming a traversable knowledge graph. An agent can store anything from a conversation turn to a product entity as a record, then retrieve it by property values, label, or graph traversal.
 
-→ [Store Records](/build/data/store-records) · [Connect Records](/build/graph/connect-records)
+→ [Store Records](/learn/records-and-queries/store-records) · [Connect Records](/learn/relationships/connect-records)
 
 ### Semantic Memory — Vector Properties
 
 A subset of record properties carry dense vector representations (embeddings). A vector-indexed property is simultaneously a semantic index over every record it connects to. Embeddings can be supplied by the application (Bring Your Own Vector) or generated automatically by RushDB.
 
-→ [Manage Embedding Indexes](/build/ai-search/manage-indexes) · [Semantic Search](/build/ai-search/semantic-search)
+→ [Manage Embedding Indexes](/learn/semantic-search/manage-indexes) · [Semantic Search](/learn/semantic-search)
 
 ### Structural Memory — Ontology
 
 The **Ontology API** returns a live snapshot of the graph's schema: all labels, all properties per label with types and value ranges, and the full relationship map. An agent calls this once per session to bootstrap awareness of what is in the database — no hardcoded schema, no external documentation required.
 
-→ [Discover Your Schema](/build/schema/discover-your-schema) · [Schema Self-Awareness](/build/agent-memory/schema-self-awareness)
+→ [Discover Your Schema](/learn/records-and-queries/discover-your-schema) · [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness)
 
 ---
 
@@ -105,10 +104,10 @@ The rest of the Learn section covers the building blocks and query primitives th
 
 | Section                                                            | What you'll learn                                                             |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| [Quickstart](/build/agent-memory/quickstart)                       | Connect the MCP server, run the bootstrap prompt, validate in 5 min           |
-| [Schema Self-Awareness](/build/agent-memory/schema-self-awareness) | Ontology API, `__proptypes`, dynamic query construction                       |
-| [Records & Queries](/build/data/store-records)                     | Store, import, update, delete, and search records                             |
-| [SearchQuery reference](/reference/search-query)                   | `where`, `select`, `groupBy`, `orderBy`, pagination — the full query language |
-| [Relationships](/build/graph/connect-records)                      | Attach edges between records, bulk-connect by key, traverse in queries        |
-| [Semantic Search](/build/ai-search/semantic-search)                | Meaning-based recall — embedding indexes, similarity scoring, pre-filter      |
-| [Transactions](/build/reliability/transactions)                    | ACID guarantees for multi-step memory writes                                  |
+| [Quickstart](/learn/agent-memory/quickstart)                       | Connect the MCP server, run the bootstrap prompt, validate in 5 min           |
+| [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness) | Ontology API, `__proptypes`, dynamic query construction                       |
+| [Records & Queries](/learn/records-and-queries/store-records)      | Store, import, update, delete, and search records                             |
+| [SearchQuery reference](/learn/search-query)                       | `where`, `select`, `groupBy`, `orderBy`, pagination — the full query language |
+| [Relationships](/learn/relationships/connect-records)              | Attach edges between records, bulk-connect by key, traverse in queries        |
+| [Semantic Search](/learn/semantic-search)                          | Meaning-based recall — embedding indexes, similarity scoring, pre-filter      |
+| [Transactions](/learn/records-and-queries/transactions)            | ACID guarantees for multi-step memory writes                                  |

@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/ai/search
 sidebar_position: 3
 title: Semantic Search
 ---

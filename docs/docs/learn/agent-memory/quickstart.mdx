@@ -1,5 +1,4 @@
 ---
-slug: /build/agent-memory/quickstart
 sidebar_position: 1
 title: Agent Memory Quickstart
 ---
@@ -15,7 +14,7 @@ Give any agent a persistent, graph-structured memory in under five minutes. Sess
 ## Prerequisites
 
 1. **API key** — sign up free at [app.rushdb.com](https://app.rushdb.com) and copy your project API key.
-2. **A running RushDB instance** — [cloud](https://app.rushdb.com) or [self-hosted](/deploy/local-docker).
+2. **A running RushDB instance** — [cloud](https://app.rushdb.com) or [self-hosted](/deploy/local-hosting/docker).
 
 ---
 
@@ -180,7 +179,7 @@ The pack includes:
 The MCP server gives your agent RushDB tools at runtime. Agent Skills teach it how to use those tools correctly. Install both, then start a new agent session so the skills are discovered.
 :::
 
-For OpenClaw workspace-level installation, see [Using RushDB Agent Skills in OpenClaw](/tutorials/agent-skills-with-openclaw#part-2--install-the-rushdb-skills-pack).
+For OpenClaw workspace-level installation, see [Using RushDB Agent Skills in OpenClaw](/learn/tutorials/agent-memory/agent-skills-with-openclaw#part-2--install-the-rushdb-skills-pack).
 
 ---
 
@@ -292,12 +291,12 @@ Copy these into your agent's system prompt or run them on demand:
 semanticSearch: query="how did we handle auth", labels=["DECISION"], limit=5
 ```
 
-→ Requires a one-time embedding index. See [Schema Self-Awareness](/build/agent-memory/schema-self-awareness) for setup.
+→ Requires a one-time embedding index. See [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness) for setup.
 
 ---
 
 ## Next Steps
 
-- [Agent Memory Overview](/build/agent-memory/) — the three memory layers (episodic, semantic, structural) and the full retrieval stack
-- [Schema Self-Awareness](/build/agent-memory/schema-self-awareness) — let agents discover and reason about the graph schema dynamically
-- [Semantic Search](/build/ai-search/semantic-search) — add meaning-based recall to any memory label
+- [Agent Memory Overview](/learn/agent-memory) — the three memory layers (episodic, semantic, structural) and the full retrieval stack
+- [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness) — let agents discover and reason about the graph schema dynamically
+- [Semantic Search](/learn/semantic-search) — add meaning-based recall to any memory label

@@ -2,6 +2,11 @@ import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common
 import { ConfigService } from '@nestjs/config'
 import axios from 'axios'
 
+/** Hard cap on a single-text embedding call; without it axios waits forever on a stalled provider. */
+const EMBED_TIMEOUT_MS = 15_000
+/** Batch calls carry up to RUSHDB_EMBEDDING_BATCH_SIZE texts, so they get a wider window. */
+const EMBED_BATCH_TIMEOUT_MS = 60_000
+
 type EmbeddingApiUsage = {
   prompt_tokens?: number
   total_tokens?: number
@@ -136,7 +141,8 @@ export class EmbeddingProviderService {
           headers: {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: EMBED_TIMEOUT_MS
         }
       )
 
@@ -188,7 +194,8 @@ export class EmbeddingProviderService {
           headers: {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: EMBED_BATCH_TIMEOUT_MS
         }
       )
 

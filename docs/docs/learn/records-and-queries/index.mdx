@@ -1,5 +1,4 @@
 ---
-slug: /build/data/
 sidebar_position: 0
 title: Records & Queries
 ---
@@ -12,33 +11,33 @@ There is no schema migration step before the first write. RushDB infers property
 
 ## Start Here
 
-| Goal                                                       | Guide                                      |
-| ---------------------------------------------------------- | ------------------------------------------ |
-| Create, update, or upsert records                          | [Store Records](/build/data/store-records) |
-| Import nested JSON and create linked records automatically | [Import Data](/build/data/import-data)     |
-| Filter, sort, paginate, and traverse records               | [Find & Query](/build/data/find-and-query) |
-| Export matching records as CSV                             | [Export Data](/build/data/export-data)     |
+| Goal                                                       | Guide                                                     |
+| ---------------------------------------------------------- | --------------------------------------------------------- |
+| Create, update, or upsert records                          | [Store Records](/learn/records-and-queries/store-records) |
+| Import nested JSON and create linked records automatically | [Import Data](/learn/records-and-queries/import-data)     |
+| Filter, sort, paginate, and traverse records               | [Find & Query](/learn/records-and-queries/find-and-query) |
+| Export matching records as CSV                             | [Export Data](/learn/records-and-queries/export-data)     |
 
 ## Understand the Adaptive Schema
 
-| Goal                                                    | Guide                                                                  |
-| ------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Inspect labels, property definitions, types, and values | [Labels & Properties](/build/schema/labels-and-properties)             |
-| Discover the full live schema in one call               | [Discover Your Schema](/build/schema/discover-your-schema)             |
-| Understand the internal graph architecture              | [Labeled Meta Property Graph](/build/data/labeled-meta-property-graph) |
+| Goal                                                    | Guide                                                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Inspect labels, property definitions, types, and values | [Labels & Properties](/learn/records-and-queries/labels-and-properties)               |
+| Discover the full live schema in one call               | [Discover Your Schema](/learn/records-and-queries/discover-your-schema)               |
+| Understand the internal graph architecture              | [Labeled Meta Property Graph](/learn/records-and-queries/labeled-meta-property-graph) |
 
 RushDB properties are more than field names. Internally, each `(name, type)` pair is represented as a metadata node connected to the records that carry it. That graph-backed property layer is what makes runtime discovery, flexible ingestion, and ontology generation possible without predefined tables.
 
 ## Advanced Operations
 
-| Goal                                           | Guide                                            |
-| ---------------------------------------------- | ------------------------------------------------ |
-| Run raw Cypher against supported deployments   | [Raw Queries](/build/raw-queries)                |
-| Group multiple writes into an atomic operation | [Transactions](/build/reliability/transactions)  |
-| Read the full query language reference         | [SearchQuery Reference](/reference/search-query) |
+| Goal                                           | Guide                                                   |
+| ---------------------------------------------- | ------------------------------------------------------- |
+| Run raw Cypher against supported deployments   | [Raw Queries](/learn/records-and-queries/raw-queries)   |
+| Group multiple writes into an atomic operation | [Transactions](/learn/records-and-queries/transactions) |
+| Read the full query language reference         | [SearchQuery Reference](/learn/search-query)            |
 
 ## Related Sections
 
-- [Relationships](/build/graph/) — connect records and traverse graph edges
-- [Semantic Search](/build/ai-search/semantic-search) — search indexed text properties by meaning
-- [Main Concepts](/build/data/labeled-meta-property-graph) — broader mental model for RushDB
+- [Relationships](/learn/relationships) — connect records and traverse graph edges
+- [Semantic Search](/learn/semantic-search) — search indexed text properties by meaning
+- [Main Concepts](/learn/records-and-queries/labeled-meta-property-graph) — broader mental model for RushDB

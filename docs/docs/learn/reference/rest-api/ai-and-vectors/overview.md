@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/ai/overview
 sidebar_position: 0
 title: Overview
 ---
@@ -57,14 +56,14 @@ The AI API covers three capabilities:
 
 ## Quick links
 
-| Topic                                                      | Description                                                                        |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [Ontology](#graph-ontology)                                | Schema discovery with `POST /api/v1/ai/ontology/md` and `POST /api/v1/ai/ontology` |
-| [Indexing](/rest-api/ai/indexing)                          | Create and manage managed embedding indexes                                        |
-| [Advanced Indexing — BYOV](/rest-api/ai/advanced-indexing) | Bring Your Own Vectors: external indexes, inline writes                            |
-| [Semantic Search](/rest-api/ai/search)                     | Query by meaning with `POST /api/v1/ai/search`                                     |
-| [Writing with Vectors](/rest-api/ai/write-with-vectors)    | Attach vectors at create / upsert / importJson time                                |
-| [Agent Skills](#agent-skills)                              | Installable skills that teach any compatible agent to use RushDB                   |
+| Topic                                                                                  | Description                                                                        |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [Ontology](#graph-ontology)                                                            | Schema discovery with `POST /api/v1/ai/ontology/md` and `POST /api/v1/ai/ontology` |
+| [Indexing](/learn/reference/rest-api/ai-and-vectors/indexing)                          | Create and manage managed embedding indexes                                        |
+| [Advanced Indexing — BYOV](/learn/reference/rest-api/ai-and-vectors/advanced-indexing) | Bring Your Own Vectors: external indexes, inline writes                            |
+| [Semantic Search](/learn/reference/rest-api/ai-and-vectors/search)                     | Query by meaning with `POST /api/v1/ai/search`                                     |
+| [Writing with Vectors](/learn/reference/rest-api/ai-and-vectors/write-with-vectors)    | Attach vectors at create / upsert / importJson time                                |
+| [Agent Skills](#agent-skills)                                                          | Installable skills that teach any compatible agent to use RushDB                   |
 
 ---
 

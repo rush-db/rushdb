@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/labels
 sidebar_position: 5
 ---
 

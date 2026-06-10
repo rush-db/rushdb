@@ -1,5 +1,4 @@
 ---
-slug: /build/ai-search/bring-your-own-vectors
 sidebar_position: 4
 title: Bring Your Own Vectors
 ---
@@ -183,7 +182,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/indexes/$INDEX_ID/vectors/upsert \
 
 ## Inline Write (Preferred for New Records)
 
-Instead of a two-step create → upsert_vectors flow, write vectors inline with any record write operation. See [Write Records with Vectors](/build/ai-search/write-with-vectors) for the full reference.
+Instead of a two-step create → upsert_vectors flow, write vectors inline with any record write operation. See [Write Records with Vectors](/learn/semantic-search/write-with-vectors) for the full reference.
 
 <Tabs groupId="programming-language">
   <TabItem value="python" label="Python" default>
@@ -609,6 +608,6 @@ When searching against a property with both types, specify `similarityFunction` 
 
 ## See also
 
-- [Manage Embedding Indexes](/build/ai-search/manage-indexes) — list, stats, delete, lifecycle
-- [Write Records with Vectors](/build/ai-search/write-with-vectors) — inline vector writes at record creation
-- [Semantic Search](/build/ai-search/semantic-search) — search managed and external indexes
+- [Manage Embedding Indexes](/learn/semantic-search/manage-indexes) — list, stats, delete, lifecycle
+- [Write Records with Vectors](/learn/semantic-search/write-with-vectors) — inline vector writes at record creation
+- [Semantic Search](/learn/semantic-search) — search managed and external indexes

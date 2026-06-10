@@ -1,5 +1,4 @@
 ---
-slug: /reference/select-expressions
 sidebar_position: 7
 ---
 
@@ -437,7 +436,7 @@ If a record's field is not typed as `datetime` in RushDB metadata, its bucket va
 
 ## Grouping Results (`groupBy`)
 
-For full grouping semantics see the [Grouping guide](/reference/group-by). Quick reference:
+For full grouping semantics see the [Grouping guide](/learn/search-query/group-by). Quick reference:
 
 ```typescript
 {
@@ -464,7 +463,7 @@ For full grouping semantics see the [Grouping guide](/reference/group-by). Quick
 }
 ```
 
-This produces a single-row result array with both metrics. See the [Grouping guide](/reference/group-by#grouping-only-by-an-aggregated-value-self-group) for details.
+This produces a single-row result array with both metrics. See the [Grouping guide](/learn/search-query/group-by#grouping-only-by-an-aggregated-value-self-group) for details.
 
 ## Ordering by `select` Keys (Late Order & Pagination)
 
@@ -499,7 +498,7 @@ Guidelines:
 - Always specify `orderBy` on a `select` key when using `groupBy` to get accurate totals across the entire match set.
 - Omit it only if you intentionally want to aggregate over a pre-sliced subset of records.
 
-See also: [Pagination & Order guide](/reference/pagination-order#ordering-with-aggregations).
+See also: [Pagination & Order guide](/learn/search-query/pagination-order#ordering-with-aggregations).
 
 ## Complete Example
 

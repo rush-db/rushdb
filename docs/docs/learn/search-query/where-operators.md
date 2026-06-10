@@ -1,5 +1,4 @@
 ---
-slug: /reference/where-operators
 sidebar_position: 1
 ---
 
@@ -694,7 +693,7 @@ When you need to reference related records in aggregations, use the `$alias` ope
 }
 ```
 
-> For more detailed information about aggregations, including available functions and advanced usage, see [Select Expressions](/reference/select-expressions).
+> For more detailed information about aggregations, including available functions and advanced usage, see [Select Expressions](/learn/search-query/select-expressions).
 
 ### ID Filtering
 
@@ -949,7 +948,7 @@ This query finds active users who have provided an email address but no phone nu
 }
 ```
 
-This query finds records related to documents about neural networks that have chunks mentioning "embedding". For semantic (embedding-based) search, use the dedicated [AI search endpoint](/rest-api/ai/search).
+This query finds records related to documents about neural networks that have chunks mentioning "embedding". For semantic (embedding-based) search, use the dedicated [AI search endpoint](/learn/reference/rest-api/ai-and-vectors/search).
 
 </details>
 

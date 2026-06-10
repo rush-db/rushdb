@@ -6,7 +6,7 @@ import DocSidebarDesktop from '@theme-original/DocSidebar/Desktop'
 import Logo from '@theme/Logo'
 import SidebarCommunity from '@site/src/components/SidebarCommunity'
 import ThemeSwitch from '@site/src/components/ThemeSwitch'
-import { PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
+import { PanelLeftClose, PanelLeft, Search } from 'lucide-react'
 import type DocSidebarDesktopType from '@theme/DocSidebar/Desktop'
 
 type Props = WrapperProps<typeof DocSidebarDesktopType>
@@ -72,7 +72,7 @@ function SidebarCollapseToggle({ collapsed, onToggle }: { collapsed: boolean; on
       onClick={onToggle}
     >
       {collapsed ?
-        <PanelLeftOpen aria-hidden="true" className="rushdb-sidebar-control__icon" />
+        <PanelLeft aria-hidden="true" className="rushdb-sidebar-control__icon" />
       : <PanelLeftClose aria-hidden="true" className="rushdb-sidebar-control__icon" />}
     </button>
   )
@@ -133,7 +133,7 @@ export default function DocSidebarDesktopWrapper(props: Props) {
         title="Expand sidebar"
         onClick={() => setCollapsed(false)}
       >
-        <PanelLeftOpen aria-hidden="true" className="rushdb-sidebar-expand-rail__icon" />
+        <PanelLeft aria-hidden="true" className="rushdb-sidebar-expand-rail__icon" />
       </button>
     </div>
   )

@@ -16,7 +16,7 @@ Start with the path that matches how you work. Each option gets you to a working
 | Add persistent memory to an agent                    | [Bootstrap agent memory](#bootstrap-agent-memory) | ~5 min |
 | Build an application or data pipeline                | [Use an SDK or REST](#use-an-sdk-or-rest)         | ~5 min |
 
-Need an API key for a local or application connection? [Create one in the dashboard](/deploy/get-api-key).
+Need an API key for a local or application connection? [Create one in the dashboard](/deploy/configuration/get-api-key).
 
 ---
 
@@ -86,7 +86,7 @@ Fetch https://rushdb.com/agent-setup and follow the instructions exactly.
 
 The agent discovers the live schema, creates a `SESSION`, imports existing preferences when available, and validates recall.
 
-[Bootstrap persistent memory →](/build/agent-memory/quickstart)
+[Bootstrap persistent memory →](/learn/agent-memory/quickstart)
 
 ---
 
@@ -116,10 +116,10 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 
 ## Choose What to Build
 
-| Use case                          | Guide                                                     |
-| --------------------------------- | --------------------------------------------------------- |
-| Persistent agent memory           | [Agent Memory Quickstart](/build/agent-memory/quickstart) |
-| Semantic search over your data    | [Semantic Search](/build/ai-search/semantic-search)       |
-| Graph-enriched retrieval          | [GraphRAG Tutorial](/tutorials/graphrag)                  |
-| Explore an unknown dataset safely | [Discovery Queries](/tutorials/discovery-queries)         |
-| Design labels and relationships   | [Data Modeling](/build/data/import-data)                  |
+| Use case                          | Guide                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| Persistent agent memory           | [Agent Memory Quickstart](/learn/agent-memory/quickstart)                  |
+| Semantic search over your data    | [Semantic Search](/learn/semantic-search)                                  |
+| Graph-enriched retrieval          | [GraphRAG Tutorial](/learn/tutorials/ai-and-rag/graphrag)                  |
+| Explore an unknown dataset safely | [Discovery Queries](/learn/tutorials/search-and-queries/discovery-queries) |
+| Design labels and relationships   | [Data Modeling](/learn/records-and-queries/import-data)                    |

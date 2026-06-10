@@ -1,5 +1,4 @@
 ---
-slug: /rest-api/ai/advanced-indexing
 sidebar_position: 2
 title: Advanced Indexing — BYOV
 ---
@@ -95,7 +94,7 @@ The request is **idempotent** — calling it again with the same `recordId` repl
 
 ## Writing vectors at record creation time
 
-Instead of a two-step create → upsertVectors flow, you can write vectors inline using the `vectors` field on any write endpoint. See [Write Records with Vectors](/rest-api/ai/write-with-vectors) for the full reference.
+Instead of a two-step create → upsertVectors flow, you can write vectors inline using the `vectors` field on any write endpoint. See [Write Records with Vectors](/learn/reference/rest-api/ai-and-vectors/write-with-vectors) for the full reference.
 
 ```bash
 # One step: create record AND write its vector

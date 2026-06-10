@@ -1,5 +1,4 @@
 ---
-slug: /deploy/get-api-key
 title: Get API Key
 description: Register for RushDB, create a project, and generate your first API token to start building.
 sidebar_position: 1
