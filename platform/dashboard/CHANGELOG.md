@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 2.3.3
+
+### Patch Changes
+
+- 913c5cb: Minor fixes
+- Updated dependencies [913c5cb]
+  - @rushdb/javascript-sdk@2.3.3
+
 ## 2.3.2
 
 ### Patch Changes

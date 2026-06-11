@@ -16,7 +16,7 @@
     "cursor"
   ],
   "license": "Apache-2.0",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "files": [
     "rushdb-query-builder",
     "rushdb-agent-memory",

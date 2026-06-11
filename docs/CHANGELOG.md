@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 2.3.3
+
+### Patch Changes
+
+- 913c5cb: Minor fixes
+
 ## 2.3.2
 
 ### Patch Changes
