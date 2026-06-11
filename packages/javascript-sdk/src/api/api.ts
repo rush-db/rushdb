@@ -1039,7 +1039,8 @@ export class RestAPI {
       return response
     },
     /**
-     * Searches for relations matching the query criteria
+     * Searches for relations matching the query criteria.
+     * Pagination (`limit`/`skip`) is part of the search query body, same as records search.
      * @param searchQuery - Query to identify relations
      * @param transaction - Optional transaction for atomic operations
      * @returns Promise with the API response containing matched relations
@@ -1049,17 +1050,7 @@ export class RestAPI {
       transaction?: Transaction | string
     ) => {
       const txId = pickTransactionId(transaction)
-      const queryParams = new URLSearchParams()
-
-      if (searchQuery?.limit !== undefined) {
-        queryParams.append('limit', searchQuery.limit.toString())
-      }
-      if (searchQuery?.skip !== undefined) {
-        queryParams.append('skip', searchQuery.skip.toString())
-      }
-
-      const queryString = queryParams.toString() ? '?' + queryParams.toString() : ''
-      const path = `/relationships/search${queryString}`
+      const path = `/relationships/search`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
