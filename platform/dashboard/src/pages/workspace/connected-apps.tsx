@@ -4,6 +4,9 @@ import { useStore } from '@nanostores/react'
 
 import { Button } from '~/elements/Button'
 import { ConfirmDialog } from '~/elements/ConfirmDialog'
+import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
+import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
+import { WorkspaceSettingsLayout } from '~/features/workspaces/layout/WorkspaceSettingsLayout'
 import { api } from '~/lib/api'
 import { $currentWorkspaceId } from '~/features/workspaces/stores/current'
 
@@ -30,7 +33,15 @@ function ScopePill({ scope }: { scope: string }) {
   )
 }
 
-function ConsentRow({ consent, onRevoke }: { consent: Consent; onRevoke: () => Promise<void> }) {
+function ConsentRow({
+  consent,
+  onRevoke,
+  showProject = true
+}: {
+  consent: Consent
+  onRevoke: () => Promise<void>
+  showProject?: boolean
+}) {
   const scopes = consent.scope.split(' ').filter(Boolean)
   return (
     <li className="flex items-center justify-between gap-4 border-b px-4 py-3 last:border-b-0">
@@ -38,7 +49,7 @@ function ConsentRow({ consent, onRevoke }: { consent: Consent; onRevoke: () => P
         <Cable className="text-content-2 h-5 w-5 shrink-0" />
         <div className="min-w-0">
           <p className="text-content truncate text-sm font-medium">{consent.client_name}</p>
-          <p className="text-content-2 truncate text-xs">Project: {consent.project_name}</p>
+          {showProject && <p className="text-content-2 truncate text-xs">Project: {consent.project_name}</p>}
           <div className="mt-1 flex flex-wrap gap-1">
             {scopes.map((s) => (
               <ScopePill key={s} scope={s} />
@@ -61,7 +72,17 @@ function ConsentRow({ consent, onRevoke }: { consent: Consent; onRevoke: () => P
   )
 }
 
-export function ConnectionsList() {
+export function ConnectionsList({
+  emptyMessage = 'No connected applications yet.',
+  projectId,
+  showHeading = true,
+  showProject = true
+}: {
+  emptyMessage?: string
+  projectId?: string
+  showHeading?: boolean
+  showProject?: boolean
+}) {
   const workspaceId = useStore($currentWorkspaceId)
   const [consents, setConsents] = useState<Consent[]>([])
   const [loading, setLoading] = useState(true)
@@ -72,10 +93,17 @@ export function ConnectionsList() {
     setError(null)
     api.oauth
       .listConsents()
-      .then((data) => setConsents(Array.isArray(data) ? data : []))
+      .then((data) =>
+        setConsents(
+          Array.isArray(data) ?
+            projectId ? data.filter((consent) => consent.project_id === projectId)
+            : data
+          : []
+        )
+      )
       .catch(() => setError('Failed to load connected applications.'))
       .finally(() => setLoading(false))
-  }, [workspaceId])
+  }, [projectId, workspaceId])
 
   const handleRevoke = async (id: string) => {
     try {
@@ -88,11 +116,7 @@ export function ConnectionsList() {
 
   return (
     <div>
-      <h2 className="text-content mb-1 text-sm font-semibold">Connected Applications</h2>
-      <p className="text-content-2 mb-4 text-xs">
-        Third-party applications connected to projects in this workspace via OAuth. Revoking a connection
-        immediately invalidates its token.
-      </p>
+      {showHeading && <h2 className="text-content mb-4 text-base font-semibold">Connected Applications</h2>}
 
       {loading && <p className="text-content-2 text-sm">Loading…</p>}
       {error && <p className="text-danger text-sm">{error}</p>}
@@ -100,7 +124,7 @@ export function ConnectionsList() {
       {!loading && !error && consents.length === 0 && (
         <div className="rounded-md border border-dashed p-6 text-center">
           <Cable className="text-content-2 mx-auto mb-2 h-6 w-6" />
-          <p className="text-content-2 text-sm">No connected applications yet.</p>
+          <p className="text-content-2 text-sm">{emptyMessage}</p>
         </div>
       )}
 
@@ -108,11 +132,37 @@ export function ConnectionsList() {
         <div className="overflow-hidden rounded-md border">
           <ul>
             {consents.map((consent) => (
-              <ConsentRow key={consent.id} consent={consent} onRevoke={() => handleRevoke(consent.id)} />
+              <ConsentRow
+                key={consent.id}
+                consent={consent}
+                onRevoke={() => handleRevoke(consent.id)}
+                showProject={showProject}
+              />
             ))}
           </ul>
         </div>
       )}
     </div>
+  )
+}
+
+export function WorkspaceConnectedAppsPage() {
+  return (
+    <WorkspacesLayout>
+      <WorkspaceSettingsLayout>
+        <PageHeader contained>
+          <div className="flex max-w-3xl flex-col gap-2">
+            <PageTitle>Connected Apps</PageTitle>
+            <p className="text-content2 text-sm leading-6">
+              Review third-party applications authorized against projects in this workspace. Revoking an app
+              immediately invalidates its issued token.
+            </p>
+          </div>
+        </PageHeader>
+        <PageContent contained>
+          <ConnectionsList />
+        </PageContent>
+      </WorkspaceSettingsLayout>
+    </WorkspacesLayout>
   )
 }

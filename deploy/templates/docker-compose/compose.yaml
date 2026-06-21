@@ -1,0 +1,48 @@
+services:
+  rushdb:
+    image: rushdb/platform:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '${RUSHDB_PORT:-3000}:3000'
+    environment:
+      RUSHDB_PORT: 3000
+      RUSHDB_SELF_HOSTED: 'true'
+      RUSHDB_SERVE_STATIC: 'true'
+      RUSHDB_LOGIN: ${RUSHDB_LOGIN:-admin}
+      RUSHDB_PASSWORD: ${RUSHDB_PASSWORD:?set RUSHDB_PASSWORD in .env}
+      RUSHDB_AES_256_ENCRYPTION_KEY: ${RUSHDB_AES_256_ENCRYPTION_KEY:?set a 32-character key in .env}
+      RUSHDB_DASHBOARD_URL: ${RUSHDB_DASHBOARD_URL:-http://localhost:3000}
+      RUSHDB_BASE_URL: ${RUSHDB_BASE_URL:-http://localhost:3000}
+      NEO4J_URL: ${NEO4J_URL:?set external NEO4J_URL in .env}
+      NEO4J_USERNAME: ${NEO4J_USERNAME:?set NEO4J_USERNAME in .env}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      SQL_DB_TYPE: postgres
+      SQL_DB_URL: postgresql://${POSTGRES_USER:-rushdb}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-rushdb}
+      RUSHDB_EMBEDDING_BASE_URL: ${RUSHDB_EMBEDDING_BASE_URL:-}
+      RUSHDB_EMBEDDING_API_KEY: ${RUSHDB_EMBEDDING_API_KEY:-}
+      RUSHDB_EMBEDDING_MODEL: ${RUSHDB_EMBEDDING_MODEL:-}
+      RUSHDB_EMBEDDING_DIMENSIONS: ${RUSHDB_EMBEDDING_DIMENSIONS:-}
+      RUSHDB_LLM_BASE_URL: ${RUSHDB_LLM_BASE_URL:-}
+      RUSHDB_LLM_API_KEY: ${RUSHDB_LLM_API_KEY:-}
+      RUSHDB_LLM_MODEL: ${RUSHDB_LLM_MODEL:-}
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rushdb}
+      POSTGRES_USER: ${POSTGRES_USER:-rushdb}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-rushdb}']
+      interval: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

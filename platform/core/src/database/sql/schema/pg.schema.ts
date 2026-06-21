@@ -241,6 +241,74 @@ export const relationshipAnalysisQueue = pgTable('relationship_analysis_queue', 
   updatedAt: text('updated_at').notNull()
 })
 
+export const connectors = pgTable('connectors', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  type: text('type').notNull(),
+  config: text('config').notNull(),
+  transform: text('transform').notNull(),
+  status: text('status').notNull().default('paused'),
+  lastError: text('last_error'),
+  lagMs: integer('lag_ms'),
+  stats: text('stats'),
+  createdBy: text('created_by'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+})
+
+export const connectorSecrets = pgTable('connector_secrets', {
+  connectorId: text('connector_id')
+    .primaryKey()
+    .references(() => connectors.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull().default('local'),
+  secretRef: text('secret_ref'),
+  ciphertext: text('ciphertext'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+})
+
+export const connectorOffsets = pgTable(
+  'connector_offsets',
+  {
+    connectorId: text('connector_id')
+      .notNull()
+      .references(() => connectors.id, { onDelete: 'cascade' }),
+    partition: text('partition').notNull(),
+    position: text('position').notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (t) => [primaryKey({ columns: [t.connectorId, t.partition] })]
+)
+
+export const connectorEvents = pgTable('connector_events', {
+  id: text('id').primaryKey(),
+  connectorId: text('connector_id')
+    .notNull()
+    .references(() => connectors.id, { onDelete: 'cascade' }),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  level: text('level').notNull().default('info'),
+  type: text('type').notNull(),
+  message: text('message').notNull(),
+  metadata: text('metadata'),
+  createdAt: text('created_at').notNull()
+})
+
+export const connectorLeases = pgTable('connector_leases', {
+  connectorId: text('connector_id')
+    .primaryKey()
+    .references(() => connectors.id, { onDelete: 'cascade' }),
+  workerId: text('worker_id').notNull(),
+  leaseUntil: text('lease_until').notNull(),
+  heartbeatAt: text('heartbeat_at').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+})
+
 export const pgSchema = {
   users,
   workspaces,
@@ -256,7 +324,12 @@ export const pgSchema = {
   oauthRefreshTokens,
   embeddingIndexes,
   relationshipPatterns,
-  relationshipAnalysisQueue
+  relationshipAnalysisQueue,
+  connectors,
+  connectorSecrets,
+  connectorOffsets,
+  connectorEvents,
+  connectorLeases
 }
 
 export type PgSchema = typeof pgSchema

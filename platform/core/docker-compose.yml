@@ -1,44 +1,75 @@
-version: "3.8"
+version: '3.8'
 services:
-    neo4j:
-        image: neo4j:2026.01.4
-        healthcheck:
-            test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
-            interval: 5s
-            retries: 30
-            start_period: 10s
-        ports:
-            - "7474:7474"
-            - "7687:7687"
-        environment:
-            - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
-            - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
-#            Uncomment line below to fetch plugins from the internet instead of local volume
-#            - NEO4J_PLUGINS=["apoc"]
-        volumes:
-            - ./neo4j-plugins:/var/lib/neo4j/plugins
-            - neo4j-data:/data
-            - neo4j-logs:/logs
-            - neo4j-conf:/var/lib/neo4j/conf
+  neo4j:
+    image: neo4j:2026.01.4
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider localhost:7474 || exit 1']
+      interval: 5s
+      retries: 30
+      start_period: 10s
+    ports:
+      - '7474:7474'
+      - '7687:7687'
+    environment:
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
+      # Enable the Java Vector API for optimal vector index performance.
+      # The image appends this to the default jvm.additional args, so GC/JVM defaults are kept.
+      - NEO4J_server_jvm_additional=--add-modules jdk.incubator.vector
+    #            Uncomment line below to fetch plugins from the internet instead of local volume
+    #            - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - ./neo4j-plugins:/var/lib/neo4j/plugins
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - neo4j-conf:/var/lib/neo4j/conf
 
-    postgres:
-        image: postgres:16-alpine
-        healthcheck:
-            test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rushdb}" ]
-            interval: 5s
-            retries: 30
-            start_period: 10s
-        ports:
-            - "5432:5432"
-        environment:
-            - POSTGRES_USER=${POSTGRES_USER:-rushdb}
-            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
-            - POSTGRES_DB=${POSTGRES_DB:-rushdb}
-        volumes:
-            - postgres-data:/var/lib/postgresql/data
+  postgres:
+    image: postgres:16-alpine
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-rushdb}']
+      interval: 5s
+      retries: 30
+      start_period: 10s
+    ports:
+      - '5432:5432'
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-rushdb}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-rushdb}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  synx:
+    image: ${SYNX_IMAGE:-rushdb/synx:latest}
+    profiles:
+      - synx
+    command:
+      - managed
+      - --control-url
+      - ${RUSHDB_CORE_INTERNAL_URL:-http://host.docker.internal:3000}
+      - --token-env
+      - RUSHDB_SYNX_CONTROL_TOKEN
+      - --worker-id
+      - local-synx
+      - --claim-interval-ms
+      - ${SYNX_CLAIM_INTERVAL_MS:-5000}
+      - --heartbeat-interval-ms
+      - ${SYNX_HEARTBEAT_INTERVAL_MS:-20000}
+      - --lease-ttl-ms
+      - ${SYNX_LEASE_TTL_MS:-60000}
+    environment:
+      - RUSHDB_SYNX_CONTROL_TOKEN=${RUSHDB_SYNX_CONTROL_TOKEN:-}
+      - RUSHDB_CORE_INTERNAL_URL=${RUSHDB_CORE_INTERNAL_URL:-http://host.docker.internal:3000}
+      - SYNX_CLAIM_INTERVAL_MS=${SYNX_CLAIM_INTERVAL_MS:-5000}
+      - SYNX_HEARTBEAT_INTERVAL_MS=${SYNX_HEARTBEAT_INTERVAL_MS:-20000}
+      - SYNX_LEASE_TTL_MS=${SYNX_LEASE_TTL_MS:-60000}
+      - RUST_LOG=${RUST_LOG:-info}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
 
 volumes:
-    neo4j-data:
-    neo4j-logs:
-    neo4j-conf:
-    postgres-data:
+  neo4j-data:
+  neo4j-logs:
+  neo4j-conf:
+  postgres-data:

@@ -93,7 +93,7 @@ export function TokensList({
   ...props
 }: TPolymorphicComponentProps<'ul', { data?: ProjectToken[]; loading: boolean }>) {
   if (data && data.length < 1) {
-    return <NothingFound title={'No tokens exist yet'} />
+    return <NothingFound title="No API keys created yet" />
   }
 
   return (

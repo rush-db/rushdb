@@ -34,6 +34,7 @@ type RadioGroupProps<
     onChange: (newValue: Value) => void
     options: Array<Option>
     value: Value
+    itemWidth?: number
     useDefaultButton?: boolean
   } & VariantProps<typeof group>
 >
@@ -45,15 +46,18 @@ export function RadioGroup<Value>({
   options,
   size,
   divide,
+  itemWidth,
   useDefaultButton,
   ...props
 }: RadioGroupProps<Value>) {
   const activeIdx = options?.findIndex((o) => o.value === value)
 
   const buttonSize =
-    useDefaultButton ? 106
+    itemWidth ??
+    (useDefaultButton ? 106
     : size === 'small' ? 28
-    : 36
+    : 36)
+  const gap = 4
 
   return (
     <ul className={group({ className, size })} role="radiogroup" {...props}>
@@ -61,7 +65,7 @@ export function RadioGroup<Value>({
         style={{
           height: useDefaultButton ? 28 : buttonSize,
           width: buttonSize,
-          transform: `translate3d(calc((${activeIdx} * ${buttonSize}px) + (4px * ${activeIdx})),-50%,0)`
+          transform: `translate3d(${Math.max(activeIdx, 0) * (buttonSize + gap)}px,-50%,0)`
         }}
         aria-hidden
         className="bg-secondary absolute start-1 top-1/2 h-[28px] w-[28px] shrink-0 rounded-sm transition-transform"
@@ -89,6 +93,7 @@ export function RadioGroup<Value>({
                   onClick={() => onChange(o.value)}
                   role="radio"
                   size={size === 'small' ? 'xsmall' : 'small'}
+                  style={{ width: buttonSize }}
                   variant="link"
                 >
                   {o.icon}

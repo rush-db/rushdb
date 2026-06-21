@@ -12,20 +12,31 @@ import { CheckoutButton } from '~/components/billing/CheckoutButton.tsx'
 import { Message } from '~/elements/Message.tsx'
 import type { DisplayPlan } from '~/features/billing/types.ts'
 
+export type PlanRelation = 'current' | 'upgrade' | 'downgrade'
+
 export function PlanCard({
   plan,
-  active,
-  highlighted,
+  relation,
+  recommended,
   className,
   perProject,
+  onManage,
   onAction,
   ...props
 }: TPolymorphicComponentProps<
   'div',
-  { active: boolean; highlighted?: boolean; plan: DisplayPlan; perProject?: boolean; onAction?: () => void }
+  {
+    relation: PlanRelation
+    recommended?: boolean
+    plan: DisplayPlan
+    perProject?: boolean
+    onManage?: () => void
+    onAction?: () => void
+  }
 >) {
   const free = isFreePlan(plan)
   const inquiryOnly = Boolean(plan.inquiryOnly)
+  const isCurrent = relation === 'current'
 
   const currentPeriod = useStore($currentPeriod)
 
@@ -48,23 +59,35 @@ export function PlanCard({
   return (
     <div
       className={cn(
-        'rounded-2xl border shadow-lg',
-        highlighted ? 'border-accent' : 'border-secondary',
-        'flex h-full flex-col items-start gap-5 p-5',
+        'relative flex h-full flex-col items-start gap-5 rounded-2xl border p-5 shadow-lg',
+        recommended ? 'border-accent ring-accent/30 ring-1'
+        : isCurrent ? 'border-content/40'
+        : 'border-secondary',
         free ? 'bg-secondary' : 'bg-fill',
-        // free ? 'bg-secondary p-0.5' : 'from-accent-hover to-badge-yellow bg-gradient-to-br p-0.5',
         className
       )}
       {...props}
     >
-      <div className="flex w-full justify-between gap-3">
-        <h2 className="text-bold text-lg font-bold">{plan.name}</h2>
+      <div className="flex w-full items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-bold text-lg font-bold">{plan.name}</h2>
+          {recommended ?
+            <span className="bg-accent text-accent-contrast rounded-full px-2.5 py-0.5 text-xs font-semibold">
+              Recommended
+            </span>
+          : isCurrent ?
+            <span className="text-content2 rounded-full border px-2.5 py-0.5 text-xs font-semibold">
+              Current
+            </span>
+          : null}
+        </div>
         {hasDiscount && (
           <span className="from-badge-blue/10 to-badge-blue/30 text-badge-blue flex items-center rounded-full bg-gradient-to-bl px-3 font-mono text-base">
             Save {discount}%
           </span>
         )}
       </div>
+
       <div className="flex w-full justify-between">
         {inquiryOnly ?
           <div className="block">
@@ -109,27 +132,34 @@ export function PlanCard({
             {plan.ctaLabel}
             <SparklesIcon />
           </Button>
-        : <CheckoutButton
+        : isCurrent ?
+          <Button className="w-full min-w-48 justify-center font-semibold" disabled variant="secondary">
+            Current plan
+          </Button>
+        : relation === 'downgrade' ?
+          <Button
             className="w-full min-w-48 justify-center font-semibold"
-            disabled={active || free}
-            priceId={priceId ?? ''}
-            planName={plan.name}
-            billingPeriod={currentPeriod === 'annual' ? 'annual' : 'monthly'}
-            variant={free ? 'secondary' : 'accent'}
+            onClick={onManage}
+            variant="secondary"
           >
-            {active ?
-              'Current Plan'
-            : free ?
-              'Free'
-            : 'Upgrade Plan'}
-            {!free && <SparklesIcon />}
+            {free ? 'Switch to Free' : `Switch to ${plan.name}`}
+          </Button>
+        : <CheckoutButton
+            billingPeriod={currentPeriod === 'annual' ? 'annual' : 'monthly'}
+            className="w-full min-w-48 justify-center font-semibold"
+            planName={plan.name}
+            priceId={priceId ?? ''}
+            variant="accent"
+          >
+            Upgrade to {plan.name}
+            <SparklesIcon />
           </CheckoutButton>
         }
       </div>
 
       <Divider className="-mx-5 w-[stretch]" />
 
-      <PlanBenefits id={plan.id} />
+      <PlanBenefits benefits={plan.benefits} id={plan.id} />
     </div>
   )
 }

@@ -1,40 +1,47 @@
 import { Check } from 'lucide-react'
 import React from 'react'
 
-const benefitsMap: Record<string, Array<{ description?: string; title: string }>> = {
+import type { PlanBenefit } from '~/features/billing/types'
+
+// Fallback used only when the billing service hasn't supplied benefits (offline /
+// pre-fetch). Keep in sync with the canonical source in the billing service
+// (internal app/api/prices/route.ts → PLAN_BENEFITS).
+const benefitsMap: Record<string, PlanBenefit[]> = {
   free: [
-    { title: '100K KU / month', description: '~3,000 records with 10 fields each' },
-    { title: '2 projects', description: 'No time limits, no feature restrictions' },
-    { title: 'Full REST API and SDKs', description: 'Complete access to all query capabilities' },
-    { title: 'Vector & AI search', description: 'Native support for embeddings and similarity' },
-    { title: 'Community support', description: 'Get help from our developer community' }
+    { title: '100K KU / month', description: 'For evaluation and early prototypes' },
+    { title: '2 projects' },
+    { title: 'Full REST API and SDKs' },
+    { title: 'Self-hosted & BYOC' },
+    { title: 'Vector & AI search' },
+    { title: 'Community support' }
   ],
   start: [
-    { title: '100K KU / month', description: '~3,000 records with 10 fields each' },
-    { title: '2 projects', description: 'No time limits, no feature restrictions' },
-    { title: 'Full REST API and SDKs', description: 'Complete access to all query capabilities' },
-    { title: 'Vector & AI search', description: 'Native support for embeddings and similarity' },
-    { title: 'Community support', description: 'Get help from our developer community' }
+    { title: '250K KU / month', description: 'Paid entry tier' },
+    { title: '2 projects' },
+    { title: '1 team member' },
+    { title: 'Self-hosted & BYOC' },
+    { title: 'Community support' }
   ],
   pro: [
-    { title: '10M KU / month', description: '~300,000 records with 10 fields each' },
-    { title: 'Overage billing', description: 'Continue beyond 10M KU at a per-KU rate' },
-    { title: 'Unlimited projects', description: 'No per-project limits' },
-    { title: '3 team members', description: 'then $10 per member' },
-    { title: 'Self-hosted support', description: 'Deploy on your own infrastructure' }
+    { title: '1M KU / month', description: 'Included before overage' },
+    { title: 'Overage billing', description: 'Beyond 1M KU at $3 / M KU' },
+    { title: '10 projects' },
+    { title: '3 team members' },
+    { title: 'Self-hosted & BYOC' }
   ],
   scale: [
-    { title: 'Unlimited KU', description: 'Usage-based billing — pay only for what you consume' },
-    { title: 'Unlimited team members', description: 'No per-seat limit' },
-    { title: 'SLA guarantee', description: 'Uptime and performance guarantees' },
-    { title: 'Daily backups stored for 14 days', description: 'Coming soon' },
-    { title: 'Priority support', description: 'Fast-track access to expert help' }
+    { title: 'Unlimited KU', description: 'Usage-based billing' },
+    { title: '100 projects' },
+    { title: '10 team members' },
+    { title: 'Self-hosted & BYOC' },
+    { title: 'SLA guarantee' },
+    { title: 'Priority support' }
   ],
   enterprise: [
     { title: 'Platform license', description: 'Unlimited KU, flat-fee pricing' },
-    { title: 'Bring Your Own Cloud (BYOC)', description: 'Deploy in your private cloud or on-premise' },
-    { title: 'Embedded / OEM use', description: 'Build RushDB into your own product' },
-    { title: 'Dedicated support', description: 'Phone, chat, and dedicated account manager' }
+    { title: 'Dedicated BYOC deployment' },
+    { title: 'Embedded / OEM use' },
+    { title: 'Dedicated support' }
   ],
   custom: [
     {
@@ -50,18 +57,21 @@ const benefitsMap: Record<string, Array<{ description?: string; title: string }>
   ]
 }
 
-export function PlanBenefits({ id }: { id: string }) {
-  const benefits = benefitsMap[id] ?? []
+export function PlanBenefits({ id, benefits }: { id: string; benefits?: PlanBenefit[] }) {
+  // Prefer benefits served by the billing service; fall back to the canonical copy.
+  const items = benefits?.length ? benefits : (benefitsMap[id] ?? [])
 
   return (
     <ul className="flex flex-col gap-1">
-      {benefits.map((benefit) => (
+      {items.map((benefit) => (
         <li className="flex flex-col" key={benefit.title}>
           <div className="mb-2 flex items-center gap-2">
             <Check className="h-4 w-4" />{' '}
             <div>
               <p>{benefit.title}</p>
-              <p className="text-content3">{benefit.description}</p>
+              {benefit.description ?
+                <p className="text-content3">{benefit.description}</p>
+              : null}
             </div>
           </div>
         </li>

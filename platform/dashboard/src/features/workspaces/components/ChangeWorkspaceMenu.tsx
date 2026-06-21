@@ -21,7 +21,7 @@ export function ChangeWorkspaceMenu() {
   return (
     <Menu
       trigger={
-        <MenuButton>
+        <MenuButton className="mr-0 pr-0">
           <Skeleton enabled={loading && !currentWorkspace}>
             <div className="flex items-center justify-between gap-5">
               <div className="flex flex-col text-left">

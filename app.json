@@ -1,0 +1,76 @@
+{
+  "name": "RushDB",
+  "description": "Self-hosted RushDB platform service. Requires an external Neo4j or Aura instance.",
+  "repository": "https://github.com/rush-db/rushdb",
+  "logo": "https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg",
+  "stack": "container",
+  "keywords": ["rushdb", "database", "graph", "neo4j"],
+  "addons": ["heroku-postgresql:essential-0"],
+  "env": {
+    "RUSHDB_SELF_HOSTED": {
+      "value": "true"
+    },
+    "RUSHDB_SERVE_STATIC": {
+      "value": "true"
+    },
+    "RUSHDB_LOGIN": {
+      "value": "admin"
+    },
+    "RUSHDB_PASSWORD": {
+      "description": "Admin password for the RushDB dashboard.",
+      "generator": "secret"
+    },
+    "RUSHDB_AES_256_ENCRYPTION_KEY": {
+      "description": "Exactly 32 characters. Do not change after first boot without migrating encrypted data.",
+      "value": "32SymbolStringForTokenEncryption"
+    },
+    "RUSHDB_DASHBOARD_URL": {
+      "description": "Public Heroku app URL, for example https://your-app.herokuapp.com."
+    },
+    "RUSHDB_BASE_URL": {
+      "description": "Public Heroku app URL, for example https://your-app.herokuapp.com."
+    },
+    "SQL_DB_TYPE": {
+      "value": "postgres"
+    },
+    "NEO4J_URL": {
+      "description": "External Neo4j Bolt URL. Use neo4j+s:// for Aura.",
+      "required": true
+    },
+    "NEO4J_USERNAME": {
+      "value": "neo4j"
+    },
+    "NEO4J_PASSWORD": {
+      "description": "External Neo4j or Aura password.",
+      "required": true
+    },
+    "RUSHDB_LLM_BASE_URL": {
+      "value": "https://openrouter.ai/api/v1",
+      "required": false
+    },
+    "RUSHDB_LLM_API_KEY": {
+      "description": "OpenAI-compatible API key for relationship suggestions.",
+      "required": false
+    },
+    "RUSHDB_LLM_MODEL": {
+      "value": "google/gemini-2.5-flash-lite",
+      "required": false
+    },
+    "RUSHDB_EMBEDDING_BASE_URL": {
+      "value": "https://openrouter.ai/api/v1",
+      "required": false
+    },
+    "RUSHDB_EMBEDDING_API_KEY": {
+      "description": "OpenAI-compatible API key for embedding indexes.",
+      "required": false
+    },
+    "RUSHDB_EMBEDDING_MODEL": {
+      "value": "qwen/qwen3-embedding-8b",
+      "required": false
+    },
+    "RUSHDB_EMBEDDING_DIMENSIONS": {
+      "value": "1024",
+      "required": false
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { Folder, FolderPlus } from 'lucide-react'
+import { Folder, FolderPlus, LayoutDashboard } from 'lucide-react'
 import { Fragment } from 'react'
 
 import { Divider } from '~/elements/Divider'
@@ -13,17 +13,26 @@ import { useCurrentProjectQuery } from '../hooks/useProjectQueries'
 export function ChangeProjectMenu() {
   const { isPending: loading, data: currentProject } = useCurrentProjectQuery()
   const { data: projectsList } = useWorkspaceProjectsQuery()
+  const triggerLabel = currentProject?.name ?? (loading ? 'Loading...' : 'Projects')
 
   return (
     <Menu
       trigger={
-        <MenuButton>
-          <Skeleton enabled={loading}>{currentProject?.name ?? 'Loading...'}</Skeleton>
+        <MenuButton className="m-0 grid w-full !grid-cols-[minmax(0,1fr)_auto] justify-items-start px-0 leading-3">
+          <Skeleton className="block min-w-0" enabled={loading}>
+            <span className="block w-full truncate text-left">{triggerLabel}</span>
+          </Skeleton>
         </MenuButton>
       }
       align="start"
     >
       <MenuTitle>Change Project</MenuTitle>
+
+      <MenuItem as="a" href={getRoutePath('projects')} icon={<LayoutDashboard />}>
+        All Projects
+      </MenuItem>
+
+      <Divider />
 
       {projectsList?.map((project: (typeof projectsList)[number], idx: number) => (
         <Fragment key={project.id}>

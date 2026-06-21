@@ -1,5 +1,11 @@
 # @rushdb/skills
 
+## Unreleased
+
+### Patch Changes
+
+- Sync `rushdb-query-builder` guidance with production AI SearchQuery tuning: root-label selection, related-label traversal, alias-backed related counts, comparative related-count ordering, alias-safe `groupBy`, ontology array metadata, and fuzzy named-reference matching.
+
 ## 2.3.3
 
 ### Patch Changes

@@ -41,24 +41,24 @@ All database operations are accessed through sub-namespaces on the client instan
 
 CRUD and bulk operations on records.
 
-| Method                                                                    | Description                                                |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `create(label, data, *, options, vectors, transaction)`                   | Create a single record                                     |
-| `create_many(label, data, *, options, vectors, transaction)`              | Create multiple flat records                               |
-| `import_json(data, label, *, options, transaction)`                       | Import nested/complex JSON payloads                        |
-| `import_csv(label, data, *, options, parse_config, vectors, transaction)` | Import records from CSV text                               |
-| `upsert(data, label, *, options, vectors, transaction)`                   | Create or update a record                                  |
-| `set(target, data, *, label, vectors, transaction)`                       | Replace all fields of a record                             |
-| `update(target, data, *, transaction)`                                    | Partially update a record                                  |
-| `find(search_query, *, record_id, transaction)`                           | Search records; returns `SearchResult`                     |
-| `find_one(search_query, *, transaction)`                                  | Return the first match or `None`                           |
-| `find_uniq(search_query, *, transaction)`                                 | Return the single match or `None`; raises if more than one |
-| `find_by_id(target, *, transaction)`                                      | Fetch record(s) by ID                                      |
-| `delete(search_query, *, transaction)`                                    | Delete all records matching a query                        |
-| `delete_by_id(target, *, transaction)`                                    | Delete record(s) by ID                                     |
-| `attach(source, target, *, options, transaction)`                         | Create relationships between records                       |
-| `detach(source, target, *, options, transaction)`                         | Remove relationships between records                       |
-| `export(search_query, *, transaction)`                                    | Export matching records as CSV text                        |
+| Method                                                                    | Description                                                                                                                                      |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `create(label, data, *, options, vectors, transaction)`                   | Create a single record                                                                                                                           |
+| `create_many(label, data, *, options, vectors, transaction)`              | Create multiple flat records                                                                                                                     |
+| `import_json(data, label, *, options, transaction)`                       | Import nested/complex JSON payloads; `label` may be omitted for container objects whose top-level values are objects or arrays of nested records |
+| `import_csv(label, data, *, options, parse_config, vectors, transaction)` | Import records from CSV text                                                                                                                     |
+| `upsert(data, label, *, options, vectors, transaction)`                   | Create or update a record                                                                                                                        |
+| `set(target, data, *, label, vectors, transaction)`                       | Replace all fields of a record                                                                                                                   |
+| `update(target, data, *, transaction)`                                    | Partially update a record                                                                                                                        |
+| `find(search_query, *, record_id, transaction)`                           | Search records; returns `SearchResult`                                                                                                           |
+| `find_one(search_query, *, transaction)`                                  | Return the first match or `None`                                                                                                                 |
+| `find_uniq(search_query, *, transaction)`                                 | Return the single match or `None`; raises if more than one                                                                                       |
+| `find_by_id(target, *, transaction)`                                      | Fetch record(s) by ID                                                                                                                            |
+| `delete(search_query, *, transaction)`                                    | Delete all records matching a query                                                                                                              |
+| `delete_by_id(target, *, transaction)`                                    | Delete record(s) by ID                                                                                                                           |
+| `attach(source, target, *, options, transaction)`                         | Create relationships between records                                                                                                             |
+| `detach(source, target, *, options, transaction)`                         | Remove relationships between records                                                                                                             |
+| `export(search_query, *, transaction)`                                    | Export matching records as CSV text                                                                                                              |
 
 ### `db.tx`
 

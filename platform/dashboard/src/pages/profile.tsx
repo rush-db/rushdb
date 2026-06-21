@@ -1,10 +1,8 @@
 import { useStore } from '@nanostores/react'
-
 import { TextField } from '~/elements/Input'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
-import { Setting } from '~/elements/Setting'
 import { $user, useUser } from '~/features/auth/stores/user'
-import { useDeleteUserMutation } from '~/features/auth/hooks/useAuthMutations'
+import { useDeleteUserMutation, useSendRecoveryLinkMutation } from '~/features/auth/hooks/useAuthMutations'
 
 import { Button } from '~/elements/Button.tsx'
 
@@ -16,8 +14,83 @@ import { api } from '~/lib/api.ts'
 import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
 import { useLeaveWorkspaceMutation } from '~/features/workspaces/hooks/useWorkspaceMutations'
 
-import { Divider } from '~/elements/Divider.tsx'
-import { openRoute } from '~/lib/router'
+import { ProfileSettingsLayout } from '~/features/auth/layout/ProfileSettingsLayout'
+import { toast } from '~/elements/Toast'
+
+function SettingsSection({
+  children,
+  description,
+  title
+}: {
+  children?: React.ReactNode
+  description?: React.ReactNode
+  title: React.ReactNode
+}) {
+  return (
+    <section className="rounded-md border">
+      <div className="border-b p-5">
+        <h2 className="text-content text-base font-semibold">{title}</h2>
+        {description && <p className="text-content2 mt-1 text-sm leading-6">{description}</p>}
+      </div>
+      {children && <div className="p-5">{children}</div>}
+    </section>
+  )
+}
+
+function ChangePassword() {
+  const user = useUser()
+  const { mutateAsync, isPending } = useSendRecoveryLinkMutation()
+
+  const sendRecoveryLink = async () => {
+    try {
+      await mutateAsync({ email: user.login })
+      toast({
+        description: 'Check your inbox for the password reset link.',
+        title: 'Recovery email sent'
+      })
+    } catch {
+      toast({
+        description: "Couldn't send a recovery link to this account.",
+        title: 'Password reset failed',
+        variant: 'danger'
+      })
+    }
+  }
+
+  return (
+    <SettingsSection
+      title="Change Password"
+      description="RushDB sends a secure recovery link to your login email. Follow that link to set a new password."
+    >
+      <Button loading={isPending} onClick={sendRecoveryLink} variant="secondary">
+        Send recovery link
+      </Button>
+    </SettingsSection>
+  )
+}
+
+function ConnectedAccounts() {
+  const user = useUser()
+
+  if (user.isEmail !== false) {
+    return null
+  }
+
+  return (
+    <SettingsSection
+      title="Connected Accounts"
+      description="This account signs in through an external identity provider. Password changes are managed by that provider."
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-content text-sm font-medium">{user.login}</div>
+          <div className="text-content2 text-sm leading-6">External sign-in account</div>
+        </div>
+        <span className="bg-success/10 text-success rounded px-2 py-1 text-xs font-medium">Connected</span>
+      </div>
+    </SettingsSection>
+  )
+}
 
 function DeleteAccount() {
   const { mutateAsync: deleteAccount } = useDeleteUserMutation()
@@ -41,11 +114,20 @@ function DeleteAccount() {
         <form
           onSubmit={async (event) => {
             event.preventDefault()
-            const { redirectUrl } = await api.billing.createPortalSession({
-              returnUrl: window.location.href
-            })
-            if (redirectUrl) {
-              window.location.replace(redirectUrl)
+            try {
+              const { redirectUrl } = await api.billing.createPortalSession({
+                returnUrl: window.location.href
+              })
+              if (redirectUrl) {
+                window.location.replace(redirectUrl)
+              }
+            } catch {
+              toast({
+                title: "Couldn't open the billing portal",
+                description:
+                  'We couldn’t find an active subscription to manage. Please refresh, or contact support if this keeps happening.',
+                variant: 'danger'
+              })
             }
           }}
           className="mb-4"
@@ -86,26 +168,30 @@ function DangerZone() {
   const isOwner = currentUser.currentScope?.role === 'owner'
 
   return (
-    <div className="mx-auto">
-      <div className="mt-6 rounded">
-        <h2 className="text-danger mb-6 text-2xl font-semibold">Danger Zone</h2>
-
-        <Divider />
-
-        <div className="mt-6">
+    <section className="border-danger rounded-md border">
+      <div className="border-danger/40 border-b p-5">
+        <h2 className="text-danger text-base font-semibold">Danger Zone</h2>
+        <p className="text-content2 mt-1 text-sm leading-6">
+          {isOwner ?
+            'Deleting your account permanently removes your account and all data owned by it.'
+          : 'Leaving this workspace revokes your access while keeping workspace data intact.'}
+        </p>
+      </div>
+      <div className="p-5">
+        <div>
           <DeleteAccount />
         </div>
 
         {isOwner && (
           <>
-            <p className="text-content mt-4">
+            <p className="text-content2 mt-4 text-sm leading-6">
               This action is irreversible. Once you delete your account, all your data will be permanently
               wiped and cannot be restored.
             </p>
 
             <div className="border-danger mt-4 rounded border p-4">
-              <p className="font-semibold">Warning:</p>
-              <ul className="text-content list-disc pl-5">
+              <p className="text-content text-sm font-semibold">Warning:</p>
+              <ul className="text-content2 list-disc pl-5 text-sm leading-6">
                 <li>All your data will be permanently deleted.</li>
                 <li>This action cannot be undone.</li>
                 <li>You will lose access to all your information and services.</li>
@@ -116,14 +202,14 @@ function DangerZone() {
 
         {!isOwner && (
           <>
-            <p className="text-content mt-4">
+            <p className="text-content2 mt-4 text-sm leading-6">
               Your projects, data, and workspace settings will remain intact, but you will lose your access
               rights to view, edit, or add anything in this workspace.
             </p>
 
             <div className="border-warning mt-4 rounded border p-4">
-              <p className="font-semibold">Note:</p>
-              <ul className="text-content list-disc pl-5">
+              <p className="text-content text-sm font-semibold">Note:</p>
+              <ul className="text-content2 list-disc pl-5 text-sm leading-6">
                 <li>You will be returned to your personal workspace.</li>
                 <li>You cannot rejoin this workspace unless an owner invites you again.</li>
               </ul>
@@ -131,38 +217,56 @@ function DangerZone() {
           </>
         )}
       </div>
-    </div>
+    </section>
   )
 }
 
 export function ProfilePage() {
   const user = useUser()
   return (
-    <>
+    <ProfileSettingsLayout>
       <PageHeader contained>
-        <PageTitle>Profile</PageTitle>
+        <div className="flex max-w-3xl flex-col gap-2">
+          <PageTitle>Profile</PageTitle>
+          <p className="text-content2 text-sm leading-6">
+            Manage your account identity and account-level settings.
+          </p>
+        </div>
       </PageHeader>
       <PageContent contained>
-        <ul>
-          <Setting title="Login" readOnly={true}>
+        <div className="flex max-w-5xl flex-col gap-6">
+          <SettingsSection
+            title="Login"
+            description="This email is used to identify your RushDB account and receive account messages."
+          >
             <TextField readOnly disabled value={user.login} />
-          </Setting>
-        </ul>
-        <ul>
-          <Setting
-            title="Connected Apps"
-            description="Manage third-party applications that have access to your RushDB data via OAuth."
-            button={
-              <Button onClick={() => openRoute('workspaceSettings')} variant="secondary" size="small">
-                Manage Apps
-              </Button>
-            }
-          />
-        </ul>
-        <ul>
+          </SettingsSection>
           <DangerZone />
-        </ul>
+        </div>
       </PageContent>
-    </>
+    </ProfileSettingsLayout>
+  )
+}
+
+export function ProfileSecurityPage() {
+  const user = useUser()
+
+  return (
+    <ProfileSettingsLayout>
+      <PageHeader contained>
+        <div className="flex max-w-3xl flex-col gap-2">
+          <PageTitle>Security</PageTitle>
+          <p className="text-content2 text-sm leading-6">
+            Manage sign-in, connected accounts, and authorized application access.
+          </p>
+        </div>
+      </PageHeader>
+      <PageContent contained>
+        <div className="flex max-w-5xl flex-col gap-6">
+          {user.isEmail !== false && <ChangePassword />}
+          <ConnectedAccounts />
+        </div>
+      </PageContent>
+    </ProfileSettingsLayout>
   )
 }

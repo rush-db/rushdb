@@ -1,5 +1,6 @@
 import type { Filter } from '~/features/search/types'
 import type { FiltersCombineMode, Sort } from '~/types'
+import type { SearchQuery } from '@rushdb/javascript-sdk'
 
 export const queryKeys = {
   settings: () => ['settings'] as const,
@@ -30,6 +31,7 @@ export const queryKeys = {
     suggestedFields: (projectId: string, params: { labels: string[]; filters: Filter[] }) =>
       ['projects', projectId, 'suggested-fields', params] as const,
     indexes: (projectId: string) => ['projects', projectId, 'indexes'] as const,
+    connectors: (projectId: string) => ['projects', projectId, 'connectors'] as const,
     relationshipPatterns: (projectId: string) => ['projects', projectId, 'relationship-patterns'] as const,
     stats: (projectId: string) => ['projects', projectId, 'stats'] as const,
     records: (
@@ -41,6 +43,9 @@ export const queryKeys = {
         limit: number
         labels: string[]
         combineMode: FiltersCombineMode
+        searchMode?: string
+        searchQuery?: SearchQuery
+        semanticSearch?: unknown
       }
     ) => ['projects', projectId, 'records', params] as const,
     recordRelations: (
@@ -54,6 +59,8 @@ export const queryKeys = {
         combineMode: FiltersCombineMode
       }
     ) => ['projects', projectId, 'record-relations', params] as const,
+    graphRecordRelations: (projectId: string, recordIds: string[]) =>
+      ['projects', projectId, 'graph-record-relations', recordIds] as const,
     record: (recordId: string) => ['records', recordId] as const,
     recordFields: (recordId: string) => ['records', recordId, 'fields'] as const,
     recordRelated: (recordId: string) => ['records', recordId, 'related'] as const

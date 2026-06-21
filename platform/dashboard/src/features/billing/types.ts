@@ -1,5 +1,5 @@
-export type FreePlanId = 'free' | 'start'
-export type PaidPlanId = 'pro' | 'scale'
+export type FreePlanId = 'free'
+export type PaidPlanId = 'start' | 'pro' | 'scale'
 export type EnterprisePlanId = 'enterprise'
 export type InquiryPlanId = 'custom'
 export type PlanId = FreePlanId | PaidPlanId | EnterprisePlanId | InquiryPlanId
@@ -23,9 +23,15 @@ type KuPlanData = {
   perKuRate?: number
 }
 
+/** A single checkmark benefit shown on a pricing card (source of truth: billing service). */
+export type PlanBenefit = { title: string; description?: string }
+
 export type BillingData = {
+  start: KuPlanData
   pro: KuPlanData
   scale?: KuPlanData
+  /** Canonical per-plan card benefit lists, served by the billing service. */
+  benefits?: Partial<Record<PlanId, PlanBenefit[]>>
 }
 
 export type DisplayPlan = {
@@ -39,6 +45,7 @@ export type DisplayPlan = {
   perProject?: boolean
   inquiryOnly?: boolean
   ctaLabel?: string
+  benefits?: PlanBenefit[]
 }
 
 export type BillingInquiryPayload = {

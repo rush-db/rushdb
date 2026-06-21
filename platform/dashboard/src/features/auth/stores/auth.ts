@@ -6,13 +6,7 @@ import type { SearchParams } from '~/lib/router'
 
 import { api } from '~/lib/api'
 import { fetcher } from '~/lib/fetcher'
-import {
-  $router,
-  isProtectedRoute,
-  isPublicRoute,
-  isUserLeaveConfirmationRoute,
-  redirectRoute
-} from '~/lib/router'
+import { $router, isAuthExemptRoute, isProtectedRoute, isPublicRoute, redirectRoute } from '~/lib/router'
 
 import { $token } from './token'
 import { $user } from './user'
@@ -30,7 +24,7 @@ $user.subscribe(({ isLoggedIn, token }, changedKey) => {
       $token.set(undefined)
     }
 
-    if (isUserLeaveConfirmationRoute(page?.route)) {
+    if (isAuthExemptRoute(page?.route)) {
       return null
     }
 
@@ -66,7 +60,7 @@ $router.subscribe((page) => {
     const invite = $inviteToken.get()
     const { isLoggedIn } = $user.get()
 
-    if (isUserLeaveConfirmationRoute(page?.route)) {
+    if (isAuthExemptRoute(page?.route)) {
       return null
     }
 

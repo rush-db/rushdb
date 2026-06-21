@@ -45,6 +45,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1', {
     exclude: [
       { path: '/', method: RequestMethod.GET },
+      { path: 'health', method: RequestMethod.GET },
       { path: '.well-known/(.*)', method: RequestMethod.GET },
       { path: 'oauth/(.*)', method: RequestMethod.GET },
       { path: 'oauth/(.*)', method: RequestMethod.POST },
@@ -68,7 +69,7 @@ async function bootstrap() {
 
   app.useGlobalFilters(new GlobalExceptionFilter(transactionService))
 
-  await app.listen(process.env['RUSHDB_PORT'] || 3000, '0.0.0.0')
+  await app.listen(process.env['RUSHDB_PORT'] || process.env['PORT'] || 3000, '0.0.0.0')
 }
 
 void bootstrap()

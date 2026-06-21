@@ -502,7 +502,7 @@ export const tools: Tool[] = (
         'STEP 0 — call this ONCE at the start of every conversation before constructing any query. ' +
         'Returns the complete graph ontology as compact Markdown: all labels with record counts, ' +
         'all properties per label with their type and value ranges (min/max for numbers/datetimes, ' +
-        'sample values for strings/booleans), and all cross-label relationships with direction and edge property summaries. ' +
+        'sample values for strings/booleans; array properties render as type[]), and all cross-label relationships with direction and edge property summaries. ' +
         'The Properties table includes a "Semantic Search" column: properties with an embedding index show ' +
         '`sourceType similarityFunction dimensionsd [status]` (e.g. `managed cosine 1536d [ready]`); ' +
         'others show `—`. A non-`—` value means the property is queryable with aiSemanticSearch. ' +
@@ -533,7 +533,7 @@ export const tools: Tool[] = (
       securitySchemes: READ_SCHEMES,
       description:
         'Returns the same graph ontology as getOntologyMarkdown but as structured JSON. ' +
-        'Each item has: label (string), count (number), properties (array with id, name, type, ' +
+        'Each item has: label (string), count (number), properties (array with id, name, type, optional isArray, ' +
         'recordsCount (number of records that carry this property), ' +
         'min/max for numbers/datetimes, values[] for strings/booleans, and an optional vectorIndexes array), ' +
         'and relationships (array with label, type, direction: in|out, count, and optional edge properties). ' +
@@ -678,7 +678,11 @@ export const tools: Tool[] = (
         'INTENT: metrics/analytics request (count/total/sum/avg/breakdown/top N by metric) → MUST include select + groupBy. NEVER fetch raw records to count/sum manually. ' +
         'RESPONSE: { data:[...records], total:N } — for simple "how many" read total directly; no count select needed. ' +
         'HARD RULES: ' +
-        '(1) NEVER set limit when select is present — restricts the record scan and produces mathematically wrong results. Omit limit for all metrics queries.',
+        '(1) NEVER set limit when select is present — restricts the record scan and produces mathematically wrong results. Omit limit for all metrics queries. ' +
+        '(2) labels contains root records only; put related labels inside where traversal blocks with $alias when referenced. ' +
+        '(3) groupBy never accepts alias-only values like "$record"; use "$record.name" or a select key. ' +
+        '(4) Ambiguous/incomplete named references should use $contains on likely display fields, not exact equality. ' +
+        '(5) Related-count rankings keep the requested parent/entity as root; count the related alias and order desc for most/more or asc for least/less/fewer.',
 
       inputSchema: {
         type: 'object',
@@ -689,6 +693,7 @@ export const tools: Tool[] = (
             description:
               'Filter conditions. Field names must match exactly what findProperties/getOntologyMarkdown returns. ' +
               'Exact match can be field: value or field: { $eq: value }. ' +
+              'For incomplete named references, prefer $contains on display fields instead of exact equality. ' +
               'For the complete operator reference (string/number/boolean/datetime/vector/$eq/$exists/$type/logical/$alias/$relation/$id) call getSearchQuerySpec.'
           },
           limit: {
@@ -715,7 +720,8 @@ export const tools: Tool[] = (
             items: { type: 'string' },
             description:
               'Two modes: (A) Dimensional — "$alias.propertyName" strings, one row per distinct value; ' +
-              '(B) Self-group — select key names, collapses to one row. Call getSearchQuerySpec for full reference.'
+              '(B) Self-group — select key names, collapses to one row. ' +
+              'Do not use alias-only values such as "$record" or "$related". Call getSearchQuerySpec for full reference.'
           }
         },
         required: []
@@ -1055,7 +1061,7 @@ export const tools: Tool[] = (
         'Covers: all WHERE operators (string/number/boolean/datetime component objects/vector/$exists/$type), ' +
         'relationship traversal syntax ($alias/$relation/$id), logical grouping ($and/$or/$not/$nor/$xor), ' +
         'all select functions ($sum/$avg/$min/$max/$count/$collect/$timeBucket), both groupBy modes (dimensional + self-group), ' +
-        'late-ordering rules, COLLECT nesting, limit rules by query mode, multi-hop path discovery, ' +
+        'late-ordering rules, root-label vs related-label traversal rules, COLLECT nesting, limit rules by query mode, multi-hop path discovery, ' +
         'enum normalization, validation checklist, and annotated query examples. ' +
         'CALL THIS before building any findRecords query that involves dates, metrics, groupBy, relationship traversal, or vector search. ' +
         'Do not guess operator syntax — use this spec as the source of truth.',

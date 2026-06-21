@@ -46,6 +46,7 @@ import {
   isArray,
   isEmptyObject,
   isFlatObject,
+  jsonImportRequiresLabel,
   isObject,
   isString,
   removeUndefinedDeep,
@@ -358,16 +359,15 @@ export class RestAPI {
      * Import nested or complex JSON payloads.
      * Works in two modes:
      *  - With `label` provided
-     *  - Without `label`: expects an object with a single top-level key used as the label, e.g. { ITEM: [...] }
+     *  - Without `label`: expects a container object whose top-level values are objects or arrays.
      *
-     * Throws if `label` is missing and the input does not conform to the single-key rule
-     * (e.g. { some: 'key', data: 1, nested: { level: 2 } }).
+     * Throws if `label` is missing and the input is a top-level array or object record.
      *
      * @example
      * // with label
      * await db.records.importJson({ label: 'ITEM', data: [{...}, {...}] })
      * // without label
-     * await db.records.importJson({ data: { ITEM: [{...}, {...}] } })
+     * await db.records.importJson({ data: { ITEM: [{...}, {...}], USER: [{...}] } })
      */
     importJson: async <S extends Schema = any>(
       params: {
@@ -380,24 +380,13 @@ export class RestAPI {
       const { data: rawData, options } = params
       let { label } = params
 
-      let payloadData: any = rawData
+      const payloadData: any = rawData
 
       if (!label) {
-        // Derive label from single top-level key: { LABEL: [...] | {...} }
-        if (isObject(rawData) && !isArray(rawData)) {
-          const own = getOwnProperties(rawData as AnyObject)
-          const keys = Object.keys(own)
-          if (keys.length === 1) {
-            label = keys[0]
-            payloadData = (own as any)[label]
-          } else {
-            throw new Error(
-              'records.importJson: Missing `label`. Provide `label` or pass an object with a single top-level key that determines the label, e.g. { ITEM: [...] }'
-            )
-          }
-        } else {
+        const own = isObject(rawData) && !isArray(rawData) ? getOwnProperties(rawData as AnyObject) : rawData
+        if (jsonImportRequiresLabel(own)) {
           throw new Error(
-            'records.importJson: Missing `label`. Provide `label` or pass an object with a single top-level key that determines the label, e.g. { ITEM: [...] }'
+            'records.importJson: Missing `label`. Provide `label` for top-level arrays or objects with primitive top-level properties, or pass a container object whose top-level values are objects or arrays, e.g. { ITEM: [...], USER: [...] }.'
           )
         }
       }

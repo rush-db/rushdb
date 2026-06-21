@@ -7,6 +7,7 @@ import { toast } from '~/elements/Toast'
 import { api } from '~/lib/api'
 import { queryKeys } from '~/lib/queryKeys'
 import { $currentProjectId, $sheetRecordId } from '~/features/projects/stores/id'
+import { $currentWorkspaceId } from '~/features/workspaces/stores/current'
 import {
   $currentProjectFilters,
   $recordsOrderBy,
@@ -31,6 +32,37 @@ function useCurrentRecordParams() {
   const labels = useStore($activeLabels)
   const combineMode = useStore($combineFilters)
   return { projectId, filters, orderBy, skip, limit, labels, combineMode }
+}
+
+function invalidateProjectDataAfterRecordStructureChange(
+  queryClient: ReturnType<typeof useQueryClient>,
+  projectId: string,
+  workspaceId?: string
+) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.projects.labels(projectId) })
+  queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'fields'] })
+  queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'suggested-fields'] })
+  queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'records'] })
+  queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'record-relations'] })
+  queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'graph-record-relations'] })
+  queryClient.invalidateQueries({ queryKey: queryKeys.projects.relationshipPatterns(projectId) })
+
+  invalidateProjectStats(queryClient, projectId, workspaceId)
+}
+
+function invalidateProjectStats(
+  queryClient: ReturnType<typeof useQueryClient>,
+  projectId: string,
+  workspaceId?: string
+) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(projectId) })
+  queryClient.invalidateQueries({ queryKey: queryKeys.projects.stats(projectId) })
+  queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all() })
+
+  if (workspaceId) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.detail(workspaceId) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.projects(workspaceId) })
+  }
 }
 
 export const useDeleteRecordMutation = () => {
@@ -105,20 +137,16 @@ export const useExportRecordsMutation = () => {
 export const useImportJsonMutation = () => {
   const queryClient = useQueryClient()
   const projectId = useStore($currentProjectId)
-  const workspaceId = useStore($currentProjectId)
+  const workspaceId = useStore($currentWorkspaceId)
   return useMutation({
     mutationFn: (params: {
-      label: string
+      label?: string
       data: Parameters<typeof api.records.importJson>[0]['data']
       options?: DBRecordCreationOptions
     }) => api.records.importJson(params),
     onSuccess() {
       if (!projectId) return
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.labels(projectId) })
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'fields'] })
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'records'] })
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] })
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
+      invalidateProjectDataAfterRecordStructureChange(queryClient, projectId, workspaceId)
     }
   })
 }
@@ -126,6 +154,7 @@ export const useImportJsonMutation = () => {
 export const useImportCsvMutation = () => {
   const queryClient = useQueryClient()
   const projectId = useStore($currentProjectId)
+  const workspaceId = useStore($currentWorkspaceId)
   return useMutation({
     mutationFn: (params: {
       label: string
@@ -143,11 +172,7 @@ export const useImportCsvMutation = () => {
     }) => api.records.importCsv(params),
     onSuccess() {
       if (!projectId) return
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.labels(projectId) })
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'fields'] })
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'records'] })
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] })
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
+      invalidateProjectDataAfterRecordStructureChange(queryClient, projectId, workspaceId)
     }
   })
 }

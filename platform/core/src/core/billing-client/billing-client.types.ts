@@ -46,7 +46,7 @@ export interface UsageResponse {
 export interface Customer {
   workspaceId: string
   stripeCustomerId?: string
-  plan: 'free' | 'pro' | 'scale' | 'enterprise'
+  plan: 'free' | 'start' | 'pro' | 'scale' | 'enterprise'
   kuLimit: number | null
   kuConsumed: number
   projectLimit: number | null

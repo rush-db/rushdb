@@ -49,7 +49,8 @@ Each plan includes a monthly KU allowance:
 | Plan       | Included KU / month       |
 | ---------- | ------------------------- |
 | Free       | 100,000 KU                |
-| Pro        | 10,000,000 KU             |
+| Start      | 250,000 KU                |
+| Pro        | 1,000,000 KU              |
 | Scale      | Usage-based               |
 | Enterprise | Custom / platform license |
 

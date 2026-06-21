@@ -1048,17 +1048,35 @@ END`
       }
     }
 
+    const selfExclusion = safeSourceLabel === safeTargetLabel ? 'id(s) <> id(t)' : ''
+
+    const joinKeyPredicate = hasJoinKeys ? this.joinKeyPredicate('s', safeSourceKey, 't', safeTargetKey) : ''
+
     // Build combined WHERE depending on whether join keys exist.
     let combinedWhere = ''
     if (hasJoinKeys) {
-      const eqClause = `s.\`${safeSourceKey}\` = t.\`${safeTargetKey}\``
+      const eqClause = [joinKeyPredicate, selfExclusion].filter(Boolean).join(' AND ')
       combinedWhere = tFirstNoWhere ? `WHERE ${eqClause} AND ${tFirstNoWhere}` : `WHERE ${eqClause}`
     } else {
       // manyToMany path: rely solely on target's where (already required to be non-empty)
-      combinedWhere = tFirstNoWhere ? `WHERE ${tFirstNoWhere}` : ''
+      const clauses = [selfExclusion, tFirstNoWhere].filter(Boolean).join(' AND ')
+      combinedWhere = clauses ? `WHERE ${clauses}` : ''
     }
 
     return { combinedWhere, safeSourceLabel, safeTargetLabel, sFirst, sRest, tRest, relPattern }
+  }
+
+  private joinKeyPredicate(sourceAlias: string, sourceKey: string, targetAlias: string, targetKey: string) {
+    const sourceValue = `${sourceAlias}.\`${sourceKey}\``
+    const targetValue = `${targetAlias}.\`${targetKey}\``
+    const sourceValues = this.asCypherList(sourceValue)
+    const targetValues = this.asCypherList(targetValue)
+
+    return `any(sourceValue IN ${sourceValues} WHERE sourceValue IN ${targetValues})`
+  }
+
+  private asCypherList(value: string) {
+    return `CASE WHEN ${value} IS NULL THEN [] WHEN apoc.meta.cypher.type(${value}) STARTS WITH "LIST" THEN ${value} ELSE [${value}] END`
   }
 
   createRelationsByKeys(payload: {

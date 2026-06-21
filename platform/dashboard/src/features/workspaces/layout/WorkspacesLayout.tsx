@@ -1,4 +1,4 @@
-import { Activity, BookOpen, LayoutDashboard, SettingsIcon, Wallet2, Users } from 'lucide-react'
+import { Activity, LayoutDashboard, SettingsIcon, Wallet2 } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -7,15 +7,18 @@ import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { useStore } from '@nanostores/react'
 import { useMemo } from 'react'
 import { $user } from '~/features/auth/stores/user.ts'
-import { useWorkspaceProjectsQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
 
-export function WorkspacesLayout({ children, className }: TPolymorphicComponentProps<'div'>) {
+export function WorkspaceTabs({
+  collapsed = false,
+  variant = 'top'
+}: {
+  collapsed?: boolean
+  variant?: 'top' | 'sidebar'
+}) {
   const currentUser = useStore($user)
   const isOwner = currentUser.currentScope?.role === 'owner'
 
   const { data: platformSettings } = usePlatformSettings()
-  const { data: projects } = useWorkspaceProjectsQuery()
-  const hasProjects = (projects?.length ?? 0) > 0
 
   const tabsToRender = useMemo(() => {
     const workspaceTabs = [
@@ -27,18 +30,11 @@ export function WorkspacesLayout({ children, className }: TPolymorphicComponentP
     ]
 
     if (isOwner) {
-      workspaceTabs.push(
-        {
-          href: getRoutePath('workspaceUsers'),
-          icon: <Users />,
-          label: 'Users'
-        },
-        {
-          href: getRoutePath('workspaceSettings'),
-          icon: <SettingsIcon />,
-          label: 'Settings'
-        }
-      )
+      workspaceTabs.push({
+        href: getRoutePath('workspaceSettings'),
+        icon: <SettingsIcon />,
+        label: 'Settings'
+      })
     }
 
     if (!platformSettings?.selfHosted && isOwner) {
@@ -56,25 +52,18 @@ export function WorkspacesLayout({ children, className }: TPolymorphicComponentP
       )
     }
 
-    if (hasProjects) {
-      workspaceTabs.push({
-        href: getRoutePath('workspaceGettingStarted'),
-        icon: <BookOpen />,
-        label: 'Getting Started'
-      })
-    }
-
     return workspaceTabs
-  }, [isOwner, platformSettings?.selfHosted, hasProjects])
+  }, [isOwner, platformSettings?.selfHosted])
 
   return (
-    <>
-      <PageTabs>
-        {tabsToRender.map(
-          (tab) => tab && <PageTab href={tab.href} icon={tab.icon} label={tab.label} key={tab.href} />
-        )}
-      </PageTabs>
-      <div className={cn('flex flex-1 flex-col', className)}>{children}</div>
-    </>
+    <PageTabs collapsed={collapsed} variant={variant}>
+      {tabsToRender.map(
+        (tab) => tab && <PageTab href={tab.href} icon={tab.icon} label={tab.label} key={tab.href} />
+      )}
+    </PageTabs>
   )
+}
+
+export function WorkspacesLayout({ children, className }: TPolymorphicComponentProps<'div'>) {
+  return <div className={cn('flex flex-1 flex-col', className)}>{children}</div>
 }

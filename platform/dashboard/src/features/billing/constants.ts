@@ -14,8 +14,8 @@ export const CUSTOM_PLAN = {
 
 export const KU_PLAN_LABELS: Record<string, string> = {
   free: '100K KU / month',
-  start: '100K KU / month',
-  pro: '10M KU / month',
+  start: '250K KU / month',
+  pro: '1M KU / month',
   scale: 'Usage-based',
   enterprise: 'Unlimited'
 }

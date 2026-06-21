@@ -1,4 +1,4 @@
-import { Book, Github } from 'lucide-react'
+import { Book } from 'lucide-react'
 import { Badge } from '~/elements/Badge'
 import { Button } from '~/elements/Button'
 import { ButtonGroup } from '~/elements/ButtonGroup'
@@ -11,6 +11,7 @@ import { SDK_LANGUAGES, docsUrls } from '~/features/onboarding/constants'
 import type { SdkLanguage } from '~/features/onboarding/types'
 import { isSdkLanguageAvailable } from '~/features/onboarding/types'
 import { capitalize } from '~/lib/utils'
+import { GithubIcon } from '~/elements/GithubIcon.tsx'
 
 function ShellLogo({ className }: { className?: string }) {
   return (
@@ -38,7 +39,7 @@ function LanguageLogo({ language, className }: { language: SdkLanguage; classNam
   if (language === 'shell') {
     return <ShellLogo className={className} />
   }
-  return <img src={docsUrls.sdk[language].logo} className={className} />
+  return <img src={docsUrls.sdk[language].logo} className={className} alt="programming-language-logo" />
 }
 
 export function ClientLibrariesStep() {
@@ -91,7 +92,7 @@ export function ClientLibrariesStep() {
                       disabled={!available}
                     >
                       View on GitHub
-                      <Github />
+                      <GithubIcon />
                     </Button>
                   </ButtonGroup>
                 </div>

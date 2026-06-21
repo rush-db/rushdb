@@ -1,12 +1,12 @@
-import { UsersIcon, X } from 'lucide-react'
+import { Sparkles, UserPlus, UsersIcon, X } from 'lucide-react'
 import type { FormEvent, HTMLAttributes, ThHTMLAttributes, TdHTMLAttributes } from 'react'
 import { useEffect, useState, useMemo } from 'react'
 import type { SubmitHandler } from 'react-hook-form'
 
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
+import { WorkspaceSettingsLayout } from '~/features/workspaces/layout/WorkspaceSettingsLayout'
 import { Banner } from '~/elements/Banner'
-import { Setting, SettingsList } from '~/elements/Setting'
 import { TextField } from '~/elements/Input'
 import { Skeleton } from '~/elements/Skeleton'
 import { Button } from '~/elements/Button'
@@ -14,6 +14,7 @@ import { Checkbox } from '~/elements/Checkbox'
 import { ConfirmDialog } from '~/elements/ConfirmDialog'
 import { TableRow } from '~/elements/Table'
 import { cn } from '~/lib/utils'
+import { Dialog, DialogFooter, DialogTitle } from '~/elements/Dialog'
 
 import {
   useCurrentWorkspaceQuery,
@@ -85,7 +86,8 @@ interface InviteFormValues {
   email: string
 }
 
-function InviteUserSetting() {
+function InviteUserDialog({ disabled }: { disabled?: boolean }) {
+  const [open, setOpen] = useState(false)
   const [projectSelections, setProjectSelections] = useState<Record<string, boolean>>({})
   const { data: projects, isPending: projectsLoading } = useWorkspaceProjectsQuery()
   const { data: workspace } = useCurrentWorkspaceQuery()
@@ -125,23 +127,43 @@ function InviteUserSetting() {
     // Reset form after successful submission
     reset()
     setProjectSelections(Object.fromEntries(Object.keys(projectSelections).map((id) => [id, false])))
+    setOpen(false)
   }
 
   return (
-    <Setting
-      onReset={(event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault()
-        reset()
-        setProjectSelections(Object.fromEntries(Object.keys(projectSelections).map((id) => [id, false])))
+    <Dialog
+      className="sm:max-w-xl"
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+
+        if (!nextOpen) {
+          reset()
+          setProjectSelections(Object.fromEntries(Object.keys(projectSelections).map((id) => [id, false])))
+        }
       }}
-      title="Invite a user"
-      description="Invite a user to your workspace by email. You can select which projects they will have access to."
-      isDirty={isDirty}
-      isSubmitting={isSubmitting}
-      isValid={isValid}
-      onSubmit={handleSubmit(handleInvite)}
+      trigger={
+        <Button disabled={disabled} variant="accent">
+          <UserPlus />
+          Add member
+        </Button>
+      }
     >
-      <div className="flex flex-col gap-4">
+      <form
+        className="flex flex-col gap-5"
+        onReset={(event: FormEvent<HTMLFormElement>) => {
+          event.preventDefault()
+          setOpen(false)
+        }}
+        onSubmit={handleSubmit(handleInvite)}
+      >
+        <div className="flex flex-col gap-2 pr-8">
+          <DialogTitle>Invite a member</DialogTitle>
+          <p className="text-content2 text-sm leading-6">
+            Add someone to this workspace, then choose which projects they can open.
+          </p>
+        </div>
+
         <TextField
           {...register('email')}
           error={errors.email?.message as string}
@@ -156,7 +178,7 @@ function InviteUserSetting() {
           </div>
         : projects && projects.length > 0 ?
           <div className="mt-2">
-            <div className="text-content mb-2 text-sm font-medium">Grant access to projects:</div>
+            <div className="text-content mb-2 text-sm font-medium">Grant project access:</div>
             <div className="space-y-2">
               {projects.map((project) => (
                 <div key={project.id} className="flex items-center gap-2">
@@ -178,19 +200,29 @@ function InviteUserSetting() {
             </div>
           </div>
         : null}
-      </div>
-    </Setting>
+        <DialogFooter className="mt-1">
+          <Button type="reset" variant="outline">
+            Cancel
+          </Button>
+          <Button disabled={!isDirty || !isValid} loading={isSubmitting} type="submit" variant="accent">
+            Send invite
+          </Button>
+        </DialogFooter>
+      </form>
+    </Dialog>
   )
 }
 
-function UserTable() {
+function MembersTable() {
   const { data: users, isPending: loading } = useWorkspaceUsersQuery()
+  const { data: invites, isPending: invitesLoading } = useWorkspacePendingInvitesQuery()
   const { data: accessList } = useWorkspaceAccessListQuery()
   const { data: projects } = useWorkspaceProjectsQuery()
   const { data: workspace } = useCurrentWorkspaceQuery()
   const { mutateAsync: revokeUserAccess } = useRevokeAccessMutation()
+  const { mutateAsync: removeInvite } = useRemovePendingInviteMutation()
 
-  if (loading) {
+  if (loading || invitesLoading) {
     return (
       <div className="mt-6 flex flex-1 items-center justify-center">
         <Skeleton className="h-60 w-full rounded-md" />
@@ -198,13 +230,12 @@ function UserTable() {
     )
   }
 
-  if (!users || users.length === 0) {
-    return (
-      <Banner className="mt-6">
-        No users have been invited to this workspace yet. Invite users using the form above.
-      </Banner>
-    )
+  if ((!users || users.length === 0) && (!invites || invites.length === 0)) {
+    return <Banner className="mt-6">No members have been added to this workspace yet.</Banner>
   }
+
+  const activeUsers = users ?? []
+  const pendingInvites = invites ?? []
 
   const handleRevoke = (userId: string): Promise<unknown> => {
     if (!workspace) return Promise.resolve(undefined)
@@ -214,42 +245,60 @@ function UserTable() {
     })
   }
 
+  const handleRemoveInvite = (email: string): Promise<unknown> => {
+    if (!workspace) return Promise.resolve(undefined)
+
+    return removeInvite({ email })
+  }
+
   return (
     <div className="mt-6">
-      <div className="text-content mb-4 text-lg font-medium">Workspace Users</div>
-
       <Table className="border-b">
         <TableHeader>
           <TableRow>
-            <TableHead>Email</TableHead>
+            <TableHead>Member</TableHead>
+            <TableHead>Status</TableHead>
             <TableHead>Workspace Role</TableHead>
             <TableHead>Project Access</TableHead>
+            <TableHead>Invited</TableHead>
             <TableHead className="w-[100px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {users.map((user) => (
+          {activeUsers.map((user) => (
             <TableRow key={user.id}>
               <TableCell className="font-medium">{user.login}</TableCell>
+              <TableCell>
+                <span className="bg-success/10 text-success rounded px-2 py-1 text-xs font-medium">
+                  Active
+                </span>
+              </TableCell>
               <TableCell className="font-medium">{user.role}</TableCell>
               <TableCell>
-                {projects && user.role !== 'owner' && accessList && (
-                  <div className="flex flex-wrap gap-1">
-                    {projects
-                      .filter((project) => {
-                        // Check if user has access to this project
-                        return accessList[project.id]?.includes(user.id)
-                      })
-                      .map((project) => (
-                        <div key={project.id} className="bg-fill2 rounded px-2 py-1 text-xs">
-                          {project.name}
-                        </div>
-                      ))}
-                    {!projects.some((project) => accessList[project.id]?.includes(user.id)) && (
-                      <span className="text-content2 text-xs italic">No project access</span>
-                    )}
-                  </div>
-                )}
+                {user.role === 'owner' ?
+                  <span className="text-content2 text-xs">All projects</span>
+                : projects &&
+                  accessList && (
+                    <div className="flex flex-wrap gap-1">
+                      {projects
+                        .filter((project) => {
+                          // Check if user has access to this project
+                          return accessList[project.id]?.includes(user.id)
+                        })
+                        .map((project) => (
+                          <div key={project.id} className="bg-fill2 rounded px-2 py-1 text-xs">
+                            {project.name}
+                          </div>
+                        ))}
+                      {!projects.some((project) => accessList[project.id]?.includes(user.id)) && (
+                        <span className="text-content2 text-xs italic">No project access</span>
+                      )}
+                    </div>
+                  )
+                }
+              </TableCell>
+              <TableCell>
+                <span className="text-content2 text-xs">-</span>
               </TableCell>
               <TableCell>
                 <ConfirmDialog
@@ -267,58 +316,30 @@ function UserTable() {
               </TableCell>
             </TableRow>
           ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-export function PendingInvitesTable() {
-  const { data: invites, isPending: loading } = useWorkspacePendingInvitesQuery()
-  const { data: workspace } = useCurrentWorkspaceQuery()
-  const { mutateAsync: removeInvite } = useRemovePendingInviteMutation()
-
-  const handleRemoveInvite = (email: string): Promise<unknown> => {
-    if (!workspace) return Promise.resolve(undefined)
-
-    return removeInvite({ email })
-  }
-
-  if (loading) {
-    return <div className="mt-6">Loading pending invites…</div>
-  }
-  if (!invites || invites.length === 0) {
-    return (
-      <div className="mt-8">
-        <div className="text-content mb-4 text-lg font-medium">Pending Invites</div>
-        <div className="text-content2 mt-4 italic">No pending invites.</div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="mt-8">
-      <div className="text-content mb-4 text-lg font-medium">Pending Invites</div>
-      <Table className="border-b">
-        <TableHeader>
-          <TableRow>
-            <TableHead>Email</TableHead>
-            <TableHead>Date Sent</TableHead>
-            <TableHead className="w-[100px]">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {invites.map((invite: PendingInvite) => (
+          {pendingInvites.map((invite: PendingInvite) => (
             <TableRow key={invite.email}>
               <TableCell className="font-medium">{invite.email}</TableCell>
               <TableCell>
-                {new Date(invite.createdAt).toLocaleString(undefined, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
+                <span className="bg-warning/10 text-warning rounded px-2 py-1 text-xs font-medium">
+                  Pending
+                </span>
+              </TableCell>
+              <TableCell>
+                <span className="text-content2 text-xs">Invited</span>
+              </TableCell>
+              <TableCell>
+                <span className="text-content2 text-xs">Pending acceptance</span>
+              </TableCell>
+              <TableCell>
+                <span className="text-content2 text-xs">
+                  {new Date(invite.createdAt).toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </span>
               </TableCell>
               <TableCell>
                 <ConfirmDialog
@@ -326,7 +347,7 @@ export function PendingInvitesTable() {
                   description={`Remove invitation for ${invite.email}?`}
                   handler={() => handleRemoveInvite(invite.email)}
                   trigger={
-                    <IconButton size="small" variant="ghost" aria-label={'Revoke User Access'}>
+                    <IconButton size="small" variant="ghost" aria-label={'Remove pending invite'}>
                       <X />
                     </IconButton>
                   }
@@ -353,48 +374,66 @@ export function WorkspaceUsersPage() {
 
   return (
     <WorkspacesLayout>
-      <PageHeader contained>
-        <PageTitle>Workspace Users</PageTitle>
-        <div className="text-content2 flex items-center gap-1">
-          <UsersIcon className="h-4 w-4" />
-          {platformSettings?.selfHosted ?
-            <span>
-              {usersCount} user{usersCount > 1 ? 's' : ''}
-            </span>
-          : <span>
-              {usersCount} / {userLimit} users
-            </span>
-          }
-        </div>
-      </PageHeader>
-      <PageContent contained>
-        <div className="flex flex-1 flex-col">
-          {!loading && userLimit && usersCount >= userLimit ?
-            !platformSettings?.selfHosted ?
-              <Banner
-                className="mb-6 min-h-[150px]"
-                title={`You've reached your ${userLimit} active user limit. Additional users will be billed according to your plan.`}
-                action={
-                  <Button as="a" href={getRoutePath('workspaceBilling')} variant="accent">
-                    Go to Billing
-                  </Button>
-                }
+      <WorkspaceSettingsLayout>
+        <PageHeader className="items-start justify-between gap-5" contained>
+          <div className="flex max-w-3xl flex-col gap-2">
+            <PageTitle>Team Members</PageTitle>
+            <p className="text-content2 text-sm leading-6">
+              Manage who can work inside this workspace and which isolated projects they can access. Workspace
+              owners manage membership; project permissions decide which project data a user can view or
+              change.
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-content2 flex items-center gap-1">
+              <UsersIcon className="h-4 w-4" />
+              {platformSettings?.selfHosted ?
+                <span>
+                  {usersCount} user{usersCount > 1 ? 's' : ''}
+                </span>
+              : <span>
+                  {usersCount} / {userLimit} users
+                </span>
+              }
+            </div>
+            {usersCount === userLimit && !workspace?.planId ? null : (
+              <InviteUserDialog
+                disabled={!platformSettings?.selfHosted && Boolean(userLimit && usersCount >= userLimit)}
               />
-            : null
-          : null}
+            )}
+          </div>
+        </PageHeader>
+        <PageContent contained>
+          <div className="flex flex-1 flex-col">
+            {!loading && userLimit && usersCount >= userLimit ?
+              !platformSettings?.selfHosted ?
+                <div className="border-accent/30 bg-accent/5 mb-6 flex flex-col gap-4 rounded-lg border p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-accent/15 text-accent flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <p className="font-semibold">Bring your whole team on board</p>
+                      <p className="text-content2 max-w-xl text-sm leading-6">
+                        You're using all {userLimit} seat{userLimit > 1 ? 's' : ''} on your current plan. Add
+                        teammates to collaborate on projects together — extra seats are billed at your plan's
+                        per-user rate, and you can scale up or down anytime.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3 sm:pl-4">
+                    <Button as="a" href={getRoutePath('workspaceBilling')} variant="accent">
+                      Add seats
+                    </Button>
+                  </div>
+                </div>
+              : null
+            : null}
 
-          {usersCount === userLimit && !workspace?.planId ? null : (
-            <>
-              <SettingsList>
-                <InviteUserSetting />
-              </SettingsList>
-
-              <UserTable />
-              <PendingInvitesTable />
-            </>
-          )}
-        </div>
-      </PageContent>
+            <MembersTable />
+          </div>
+        </PageContent>
+      </WorkspaceSettingsLayout>
     </WorkspacesLayout>
   )
 }

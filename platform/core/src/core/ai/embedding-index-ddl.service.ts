@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { int as neo4jInt } from 'neo4j-driver'
 
 import { AiQueryService } from '@/core/ai/ai-query.service'
 import {
@@ -50,7 +51,7 @@ export class EmbeddingIndexDdlService {
           vectorPropertyName: buildVectorPropertyName(slot),
           similarityFunction: slot.similarityFunction
         }),
-        { dimensions: slot.dimensions }
+        { dimensions: neo4jInt(slot.dimensions) }
       )
       this.ensuredIndexNames.add(indexName)
       this.logger.log(`vector index ensured: ${indexName}`)

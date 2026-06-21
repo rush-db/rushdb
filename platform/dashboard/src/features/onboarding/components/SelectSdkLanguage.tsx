@@ -77,7 +77,7 @@ function ShellIcon() {
   )
 }
 
-const LANG_CONFIG: Record<SdkLanguage, { label: string; Icon: () => React.ReactElement }> = {
+export const SDK_LANGUAGE_CONFIG: Record<SdkLanguage, { label: string; Icon: () => React.ReactElement }> = {
   python: { label: 'Python', Icon: PythonIcon },
   typescript: { label: 'TypeScript', Icon: TypeScriptIcon },
   shell: { label: 'Shell', Icon: ShellIcon }
@@ -103,7 +103,7 @@ export function SelectSdkLanguage({
       <TabsList>
         {languages.map((language) => {
           const available = isSdkLanguageAvailable(language)
-          const { label, Icon } = LANG_CONFIG[language]
+          const { label, Icon } = SDK_LANGUAGE_CONFIG[language]
 
           return (
             <Tab value={language} disabled={!available} key={language}>

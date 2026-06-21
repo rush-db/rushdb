@@ -49,3 +49,18 @@ export type InsertRelationshipPatternRow = typeof sqliteSchema.relationshipPatte
 
 export type RelationshipAnalysisQueueRow = typeof sqliteSchema.relationshipAnalysisQueue.$inferSelect
 export type InsertRelationshipAnalysisQueueRow = typeof sqliteSchema.relationshipAnalysisQueue.$inferInsert
+
+export type ConnectorRow = typeof sqliteSchema.connectors.$inferSelect
+export type InsertConnectorRow = typeof sqliteSchema.connectors.$inferInsert
+
+export type ConnectorSecretRow = typeof sqliteSchema.connectorSecrets.$inferSelect
+export type InsertConnectorSecretRow = typeof sqliteSchema.connectorSecrets.$inferInsert
+
+export type ConnectorOffsetRow = typeof sqliteSchema.connectorOffsets.$inferSelect
+export type InsertConnectorOffsetRow = typeof sqliteSchema.connectorOffsets.$inferInsert
+
+export type ConnectorEventRow = typeof sqliteSchema.connectorEvents.$inferSelect
+export type InsertConnectorEventRow = typeof sqliteSchema.connectorEvents.$inferInsert
+
+export type ConnectorLeaseRow = typeof sqliteSchema.connectorLeases.$inferSelect
+export type InsertConnectorLeaseRow = typeof sqliteSchema.connectorLeases.$inferInsert

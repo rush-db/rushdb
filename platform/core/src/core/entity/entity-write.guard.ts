@@ -26,6 +26,7 @@ const publiclyDisallowedKeys = [
   ...comparisonOperators,
   ...datetimeOperators,
   ...typeOperators,
+  '__score',
   RUSHDB_KEY_ID_ALIAS,
   RUSHDB_KEY_PROJECT_ID_ALIAS,
   RUSHDB_KEY_PROPERTIES_META_ALIAS,
@@ -71,6 +72,9 @@ export class EntityWriteGuard implements CanActivate {
           if (disallowedKeys.includes(key)) {
             return true
           }
+          if (key === 'properties' && this.containsDisallowedPropertyName(obj[key])) {
+            return true
+          }
           if (this.containsDisallowedKeys(obj[key])) {
             return true
           }
@@ -78,5 +82,15 @@ export class EntityWriteGuard implements CanActivate {
       }
     }
     return false
+  }
+
+  private containsDisallowedPropertyName(value: any): boolean {
+    if (!isArray(value)) {
+      return false
+    }
+
+    return value.some(
+      (property) => property && typeof property === 'object' && disallowedKeys.includes(property.name)
+    )
   }
 }

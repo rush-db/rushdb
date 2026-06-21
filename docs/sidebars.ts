@@ -37,7 +37,7 @@ const sidebars: SidebarsConfig = {
           link: { type: 'doc', id: 'deploy/remote-hosting/index' },
           items: [
             'deploy/remote-hosting/prerequisites',
-            'deploy/remote-hosting/digital-ocean',
+            'deploy/remote-hosting/templates',
             'deploy/remote-hosting/aws-gcp-azure',
             'deploy/remote-hosting/self-hosting-rushdb'
           ]

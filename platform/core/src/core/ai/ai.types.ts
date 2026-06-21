@@ -11,6 +11,7 @@ export type OntologyProperty = {
   id: string
   name: string
   type: string
+  isArray?: boolean
   min?: number | string
   max?: number | string
   values?: Array<string | number>

@@ -37,6 +37,7 @@ export class EmailConfirmationService {
   public async decodeConfirmationToken(token: string) {
     try {
       const payload = await this.jwtService.verify(token, {
+        algorithms: ['HS256'],
         secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
       })
 
@@ -56,6 +57,7 @@ export class EmailConfirmationService {
   public async decodePasswordResetToken(token: string): Promise<IDecodedResetToken> {
     try {
       const payload = await this.jwtService.verify(token, {
+        algorithms: ['HS256'],
         secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY')
       })
 
@@ -76,6 +78,10 @@ export class EmailConfirmationService {
     const token = this.jwtService.sign(
       { login },
       {
+        // Email tokens use the symmetric secret, so pin HS256 explicitly — otherwise
+        // they inherit the module's RS256 default (set when JWT_PRIVATE_KEY exists),
+        // which rejects a symmetric key.
+        algorithm: 'HS256',
         secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY'),
         expiresIn: TOKEN_EXPIRES_IN
       }
@@ -97,6 +103,8 @@ export class EmailConfirmationService {
     const token = this.jwtService.sign(
       { login: user.login, id: user.id },
       {
+        // Symmetric secret → pin HS256 so it doesn't inherit the module's RS256 default.
+        algorithm: 'HS256',
         secret: this.configService.get('RUSHDB_AES_256_ENCRYPTION_KEY'),
         expiresIn: TOKEN_EXPIRES_IN
       }

@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { BASE_URL } from '~/config'
 import { Button } from '~/elements/Button'
 import { DialogLoadingOverlay } from '~/elements/Dialog'
-import { getRoutePath } from '~/lib/router'
-import { Github } from 'lucide-react'
+import { GithubIcon } from '~/elements/GithubIcon.tsx'
 
 const GITHUB_URL = `${BASE_URL}/api/v1/auth/github`
 
@@ -20,7 +19,7 @@ export function GithubButton() {
         onClick={() => setLoading(true)}
         className="flex grow items-center justify-center"
       >
-        <Github /> GitHub
+        <GithubIcon /> GitHub
       </Button>
 
       {loading && <DialogLoadingOverlay />}

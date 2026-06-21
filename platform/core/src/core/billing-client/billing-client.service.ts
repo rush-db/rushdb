@@ -257,8 +257,12 @@ export class BillingClientService {
 
       return response.data
     } catch (error: any) {
-      this.logger.error(`Failed to create checkout session for workspace ${workspaceId}: ${error.message}`)
-      throw error
+      // Surface the billing service's actual error body (e.g. the Stripe message)
+      // instead of axios's generic "Request failed with status code 500".
+      const downstream = error.response?.data?.error ?? error.response?.data?.message
+      const message = downstream ?? error.message
+      this.logger.error(`Failed to create checkout session for workspace ${workspaceId}: ${message}`)
+      throw new Error(message)
     }
   }
 
@@ -289,8 +293,10 @@ export class BillingClientService {
 
       return response.data
     } catch (error: any) {
-      this.logger.error(`Failed to create portal session for workspace ${workspaceId}: ${error.message}`)
-      throw error
+      const downstream = error.response?.data?.error ?? error.response?.data?.message
+      const message = downstream ?? error.message
+      this.logger.error(`Failed to create portal session for workspace ${workspaceId}: ${message}`)
+      throw new Error(message)
     }
   }
 

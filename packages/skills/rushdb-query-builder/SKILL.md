@@ -25,6 +25,7 @@ Call `getOntologyMarkdown` before any other tool. It returns:
 
 - All label names (case-sensitive — use them exactly)
 - All property names and types per label
+- Array fields shown as `type[]`; in structured `getOntology`, `isArray: true` marks primitive-array properties
 - Value ranges for numeric/datetime fields
 - The full relationship map between labels
 - A **Semantic Search** column per property: non-`—` value means the property is indexed and queryable via `aiSemanticSearch`
@@ -41,13 +42,14 @@ If the schema looks stale (e.g. new labels or properties were added recently), p
 
 Before building a query, identify what is being asked:
 
-| Intent            | Pattern                                                                                  | Tool                                             |
-| ----------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| **Aggregation**   | count / total / sum / avg / breakdown / per X / top N by metric / distribution / grouped | `findRecords` with `select` + `groupBy`          |
-| **Listing**       | show / list / find / search / get                                                        | `findRecords` with `where` + `limit` + `orderBy` |
-| **Single record** | get by ID, find one unique                                                               | `getRecord` / `findOneRecord` / `findUniqRecord` |
-| **Relationships** | connected to / linked / related                                                          | `findRelationships`                              |
-| **Mutation**      | create / update / delete                                                                 | confirm + preview first                          |
+| Intent                    | Pattern                                                                                  | Tool                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Aggregation**           | count / total / sum / avg / breakdown / per X / top N by metric / distribution / grouped | `findRecords` with `select` + `groupBy`                                                                      |
+| **Related count ranking** | which/what parent has most/more/least/less/fewer/fewest related child records            | `findRecords` with parent `labels`, child traversal in `where`, `select` count alias, `groupBy` parent field |
+| **Listing**               | show / list / find / search / get                                                        | `findRecords` with `where` + `limit` + `orderBy`                                                             |
+| **Single record**         | get by ID, find one unique                                                               | `getRecord` / `findOneRecord` / `findUniqRecord`                                                             |
+| **Relationships**         | connected to / linked / related                                                          | `findRelationships`                                                                                          |
+| **Mutation**              | create / update / delete                                                                 | confirm + preview first                                                                                      |
 
 ⚠ **Aggregation intent**: NEVER fetch raw records and count them manually. ALWAYS use `select` + `groupBy` on `findRecords`.
 
@@ -65,6 +67,40 @@ Before calling `findRecords` with any of these, call `getSearchQuerySpec`:
 ### Step 3 — Build and Execute
 
 Use only label and property names from the ontology. Labels are **case-sensitive**.
+
+Root-label rule:
+
+- `labels` contains only the root record type(s) you want returned as rows.
+- Related record types belong inside `where` traversal blocks, not beside the root in `labels`.
+- If a related record is needed in `select` or `groupBy`, declare `$alias` on that related label in `where`.
+
+Top-N rule:
+
+- "Top N records by a scalar field on the same label" is a listing: use `orderBy` + `limit`, no `select`.
+- "Which parent has most/more/least/less/fewer/fewest related children" is an aggregation: root the parent label, traverse the child label with `$alias`, count the child alias, group by a parent display field.
+- Related-count direction: most/more/highest/largest/greatest => `desc`; least/less/fewer/fewest/lowest/smallest => `asc`.
+- Do not let the related/filter label become the root just because it owns the filtered field. If the requested parent-to-related traversal path is absent, do not silently switch roots; state the path is unavailable or use a closest valid fallback with an explicit assumption.
+
+Named-reference rule:
+
+- Treat short or incomplete named-entity mentions as partial references, not exact values.
+- When filtering a likely display field such as `name`, `title`, or another ontology-backed label/name field, prefer `{ $contains: "<user text>" }`.
+- Use exact equality only for exact IDs, canonical full values, or explicit exact-match requests.
+
+Example:
+
+```js
+findRecords({
+  labels: ['DEPARTMENT'],
+  where: { PROJECT: { $alias: '$project' } },
+  select: {
+    department: '$record.name',
+    projects: { $count: '$project' }
+  },
+  groupBy: ['$record.name'],
+  orderBy: { projects: 'desc' }
+})
+```
 
 ---
 
@@ -195,6 +231,10 @@ where: { POST: { $relation: { type: "AUTHORED", direction: "in" } } }
 - `$label`, `$direction`, `$as`, `$of`, `$through` — **these do not exist**
 - `{ employee: { $label: "EMPLOYEE" } }` — **WRONG**: key must be the label name
 - `{ EMPLOYEE: { $alias: "$emp" } }` — **CORRECT**
+- `labels: ["PARENT", "CHILD"]` for a parent-child metric — **WRONG**: keep `labels: ["PARENT"]`, put `CHILD` in `where`
+- `labels: ["CHILD"]` for "which parent has most/fewest children" — **WRONG** when a parent-child path exists: keep the requested parent as root and count the child alias
+- `groupBy: ["$record"]` or `["$child"]` — **WRONG**: dimensional `groupBy` must include a property, e.g. `"$record.name"`; self-group uses select key names only
+- `name: "partial user text"` for an incomplete named reference — **RISKY**: prefer `name: { $contains: "partial user text" }`
 - For calendar-semantic ranges (year / month / day boundaries) use component objects, not ISO strings
 - Do NOT include `limit` when using `select` (produces mathematically wrong results)
 

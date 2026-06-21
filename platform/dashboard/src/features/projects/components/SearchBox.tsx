@@ -1,7 +1,8 @@
 import type { Property, PropertyType, PropertyValue } from '@rushdb/javascript-sdk'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { ArrowUp } from 'lucide-react'
 import { useStore } from '@nanostores/react'
 import { action, atom, computed, map } from 'nanostores'
 import { useEffect, useMemo, useRef } from 'react'
@@ -84,7 +85,11 @@ function useCurrentFieldValuesQuery(query?: string) {
       })
       return result.data
     },
-    enabled: !!fieldId
+    enabled: !!fieldId,
+    // Keep the previously fetched values on screen while the new query loads so the
+    // list doesn't flash empty between keystrokes. The view layer narrows this stale
+    // list client-side until fresh server results arrive.
+    placeholderData: keepPreviousData
   })
 }
 const $currentOperator = atom<SearchOperations | undefined>(undefined)
@@ -140,10 +145,12 @@ const selectMax = (max?: number) => {
 function CurrentValueSuggestion({
   onSelect,
   disabled,
-  children
+  children,
+  onActivate
 }: {
   children?: ReactNode
   disabled?: boolean
+  onActivate?: () => void
   onSelect: (value: PropertyValue) => void
 }) {
   const page = useStore($page)
@@ -151,12 +158,32 @@ function CurrentValueSuggestion({
   const valuesSearchQuery = page === BoxPages.Values ? query : undefined
   const { data: fieldValues } = useCurrentFieldValuesQuery(valuesSearchQuery)
 
+  // Empty state: this row is not an input — typing happens in the field above. Make
+  // that explicit and route clicks back to the real input instead of looking like a
+  // dead search box.
+  if (query.length < 1) {
+    return (
+      <button
+        className="text-content3 hover:text-content2 flex h-11 w-full items-center gap-2 px-3 text-left text-sm transition"
+        onMouseDown={(event) => {
+          // Don't steal focus from the input above — just refocus it.
+          event.preventDefault()
+          onActivate?.()
+        }}
+        type="button"
+      >
+        <ArrowUp className="size-3.5 shrink-0" />
+        Type in the field above to search values
+      </button>
+    )
+  }
+
   return (
     <SearchItem
       onSelect={() => {
         onSelect(query)
       }}
-      disabled={disabled || query.length < 1}
+      disabled={disabled}
       hasMatch={fieldValues?.values?.some((value: PropertyValue) => value == query)}
       placeholder="Start typing..."
     >
@@ -361,7 +388,7 @@ export function SearchBox({
   const page = useStore($page)
   const currentField = useStore($currentField)
   const valuesSearchQuery = page === BoxPages.Values ? query : undefined
-  const { data: fieldValues } = useCurrentFieldValuesQuery(valuesSearchQuery)
+  const { data: fieldValues, isPlaceholderData } = useCurrentFieldValuesQuery(valuesSearchQuery)
   const currentOperator = useStore($currentOperator)
 
   const open = useStore($open)
@@ -369,7 +396,16 @@ export function SearchBox({
   // props
   const { data: fields = [] } = useProjectFieldsQuery()
 
-  const filteredValues = useMemo(() => fieldValues?.values, [fieldValues])
+  const filteredValues = useMemo(() => {
+    const values = fieldValues?.values
+    // While showing stale (kept) data during a refetch, narrow it to the current
+    // query on the client so matching options surface instantly. Fresh server
+    // results are already filtered, so trust them as-is.
+    if (!values || !isPlaceholderData) return values
+    const normalizedQuery = normalizeString(query)
+    if (!normalizedQuery) return values
+    return values.filter((value) => normalizeString(String(value)).includes(normalizedQuery))
+  }, [fieldValues, isPlaceholderData, query])
 
   const itemsCount = filteredValues?.length ?? 0
 
@@ -563,6 +599,7 @@ export function SearchBox({
             {page === BoxPages.Values && (
               <>
                 <CurrentValueSuggestion
+                  onActivate={() => inputRef.current?.focus()}
                   onSelect={() =>
                     select({
                       name: currentField!.name, // TODO: remove name

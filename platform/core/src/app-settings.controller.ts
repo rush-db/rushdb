@@ -13,6 +13,17 @@ import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { TransactionDecorator } from '@/database/transaction.decorator'
 
+const isPresent = (value: string | undefined): boolean => Boolean(value?.trim())
+
+const isPositiveInteger = (value: string | undefined): boolean => {
+  if (!value?.trim()) {
+    return false
+  }
+
+  const parsed = Number.parseInt(value, 10)
+  return Number.isInteger(parsed) && parsed > 0
+}
+
 @Controller('')
 @UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)
 export class AppSettingsController {
@@ -27,12 +38,20 @@ export class AppSettingsController {
     const googleAuthClientId = this.configService.get('GOOGLE_CLIENT_ID')
     const githubAuthClientId = this.configService.get('GH_CLIENT_ID')
     const embeddingModel = this.configService.get('RUSHDB_EMBEDDING_MODEL')
+    const embeddingApiKey = this.configService.get('RUSHDB_EMBEDDING_API_KEY')
+    const embeddingDimensions = this.configService.get('RUSHDB_EMBEDDING_DIMENSIONS')
+    const llmApiKey = this.configService.get('RUSHDB_LLM_API_KEY')
+    const llmModel = this.configService.get('RUSHDB_LLM_MODEL')
+    const synxControlToken = this.configService.get('RUSHDB_SYNX_CONTROL_TOKEN')
     return {
       selfHosted: toBoolean(selfHosted),
       dashboardUrl: dashboardUrl,
       googleOAuthEnabled: toBoolean(googleAuthClientId),
       githubOAuthEnabled: toBoolean(githubAuthClientId),
-      embeddingEnabled: toBoolean(embeddingModel)
+      embeddingEnabled:
+        isPresent(embeddingApiKey) && isPresent(embeddingModel) && isPositiveInteger(embeddingDimensions),
+      llmEnabled: isPresent(llmApiKey) && isPresent(llmModel),
+      synxEnabled: toBoolean(synxControlToken)
     }
   }
 

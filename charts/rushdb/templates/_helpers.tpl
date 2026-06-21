@@ -77,6 +77,44 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Fully qualified name for synx worker resources.
+*/}}
+{{- define "rushdb.synx.fullname" -}}
+{{- printf "%s-synx" (include "rushdb.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Common labels — synx worker.
+*/}}
+{{- define "rushdb.synx.labels" -}}
+helm.sh/chart: {{ include "rushdb.chart" . }}
+{{ include "rushdb.synx.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Selector labels — synx worker.
+*/}}
+{{- define "rushdb.synx.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "rushdb.synx.fullname" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Resolve the in-cluster platform/core URL used by synx managed mode.
+*/}}
+{{- define "rushdb.synx.coreUrl" -}}
+{{- if .Values.synx.coreUrl }}
+{{- .Values.synx.coreUrl }}
+{{- else }}
+{{- printf "http://%s:%d" (include "rushdb.fullname" .) (int .Values.rushdb.service.port) }}
+{{- end }}
+{{- end }}
+
+{{/*
 Resolve the Neo4j bolt URL for RushDB.
 When the bundled Neo4j is enabled, auto-wire the service DNS.
 Otherwise, use the user-supplied URL.

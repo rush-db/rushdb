@@ -57,7 +57,7 @@
   "packageManager": "pnpm@10.1.0",
   "engines": {
     "pnpm": "10",
-    "node": ">=18.0.0 <=22.x.x"
+    "node": ">=18.0.0 <=26.x.x"
   },
   "workspaces": [
     "packages/*",
@@ -69,6 +69,7 @@
   },
   "pnpm": {
     "overrides": {
+      "caniuse-lite": "1.0.30001799",
       "react": "19.1.0",
       "react-dom": "19.1.0"
     }

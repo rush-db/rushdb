@@ -45,6 +45,10 @@ function resolveRef(ref: string, aliasesMap: AliasesMap): string {
   const fieldRaw = ref.substring(dotIndex + 1)
   const variable = aliasesMap[aliasKey]
 
+  if (!fieldRaw) {
+    throw new BadRequestException(`Field reference "${ref}" must include a property name.`)
+  }
+
   if (!variable) {
     throw new BadRequestException(
       `Unknown alias "${aliasKey}" in select expression "${ref}". ` +
@@ -473,6 +477,21 @@ export function compileSelectMap(
   groupBy: string[] = []
 ): { withPart: string; returnPart: string; matchPart: string } {
   const groupByApplied = toBoolean(groupBy) && isArray(groupBy) && groupBy.length > 0
+  const hasLabelBasedCollect = Object.values(selectMap).some((expr) =>
+    Boolean(
+      expr &&
+        typeof expr === 'object' &&
+        !isArray(expr) &&
+        '$collect' in (expr as object) &&
+        (expr as { $collect?: CollectExpr }).$collect?.label
+    )
+  )
+
+  if (groupByApplied && hasLabelBasedCollect) {
+    throw new BadRequestException(
+      'Label-based $collect cannot be combined with root groupBy. Remove groupBy for per-root nested collections, or use alias-based aggregation.'
+    )
+  }
 
   // Topological order ensures $ref targets appear before their dependents
   const sortedKeys = topoSort(selectMap)
@@ -566,10 +585,15 @@ export function compileSelectMap(
       }
       const dotIndex = groupAlias.indexOf('.')
       if (dotIndex === -1) {
-        continue
+        throw new BadRequestException(
+          `groupBy field reference "${groupAlias}" must include a property name or reference a select key.`
+        )
       }
       const aliasKey = groupAlias.substring(0, dotIndex)
       const fieldRaw = groupAlias.substring(dotIndex + 1)
+      if (!fieldRaw) {
+        throw new BadRequestException(`groupBy field reference "${groupAlias}" must include a property name.`)
+      }
       const variable = aliasesMap[aliasKey]
       if (!variable) {
         throw new BadRequestException(
@@ -643,6 +667,12 @@ export function compileSelectMap(
       }
       const [aliasKey, ...fieldParts] = groupAlias.split('.')
       const fieldRaw = fieldParts.join('.')
+
+      if (!fieldRaw) {
+        throw new BadRequestException(
+          `groupBy field reference "${groupAlias}" must include a property name or reference a select key.`
+        )
+      }
 
       if (!aliasesMap[aliasKey]) {
         throw new BadRequestException(

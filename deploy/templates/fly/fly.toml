@@ -1,0 +1,37 @@
+app = "rushdb"
+primary_region = "iad"
+
+[build]
+  image = "rushdb/platform:latest"
+
+# Required secrets:
+# fly secrets set RUSHDB_PASSWORD=... RUSHDB_AES_256_ENCRYPTION_KEY=... NEO4J_URL=... NEO4J_PASSWORD=... SQL_DB_URL=...
+# Optional provider secrets:
+# fly secrets set RUSHDB_LLM_API_KEY=... RUSHDB_EMBEDDING_API_KEY=...
+
+[env]
+  RUSHDB_PORT = "3000"
+  RUSHDB_SELF_HOSTED = "true"
+  RUSHDB_SERVE_STATIC = "true"
+  RUSHDB_LOGIN = "admin"
+  RUSHDB_DASHBOARD_URL = "https://rushdb.fly.dev"
+  RUSHDB_BASE_URL = "https://rushdb.fly.dev"
+  SQL_DB_TYPE = "postgres"
+  NEO4J_USERNAME = "neo4j"
+  RUSHDB_LLM_BASE_URL = "https://openrouter.ai/api/v1"
+  RUSHDB_LLM_MODEL = "google/gemini-2.5-flash-lite"
+  RUSHDB_EMBEDDING_BASE_URL = "https://openrouter.ai/api/v1"
+  RUSHDB_EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
+  RUSHDB_EMBEDDING_DIMENSIONS = "1024"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

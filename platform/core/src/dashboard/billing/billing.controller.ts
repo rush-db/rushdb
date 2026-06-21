@@ -30,7 +30,7 @@ interface CreateSessionDto {
 }
 
 interface CreatePortalSessionDto {
-  returnUrn: string // Note: typo from original code - should be returnUrl
+  returnUrl: string
 }
 
 interface GetKuHistoryQuery {
@@ -89,14 +89,14 @@ export class BillingController {
   @HttpCode(HttpStatus.OK)
   async createPortalSession(@Req() request: any, @Body() body: CreatePortalSessionDto) {
     try {
-      const { returnUrn } = body
+      const { returnUrl } = body
       const workspaceId = request.workspaceId
 
       if (!workspaceId) {
         throw new ServiceUnavailableException('Workspace ID not found in request')
       }
 
-      const portalSession = await this.billingClientService.createPortalSession(workspaceId, returnUrn)
+      const portalSession = await this.billingClientService.createPortalSession(workspaceId, returnUrl)
 
       return portalSession
     } catch (error: any) {

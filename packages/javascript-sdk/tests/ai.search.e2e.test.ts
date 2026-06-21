@@ -201,6 +201,8 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
       expect(item.data.__score).toBeGreaterThan(0)
       expect(item.data.__score).toBeLessThanOrEqual(1)
       expect(item.id).toBeDefined()
+      expect(item.data.__label).toBe(LABEL)
+      expect(item.label).toBe(LABEL)
     })
 
     // ML articles should rank higher than "French Cuisine" or "Quantum Computing"

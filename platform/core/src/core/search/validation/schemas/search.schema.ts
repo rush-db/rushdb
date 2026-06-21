@@ -43,7 +43,8 @@ const searchDtoSchema = Joi.object({
   labels: Joi.array().items(Joi.string().allow(null)).optional(),
   where: Joi.object(),
   select: selectSchema.optional(),
-  aggregate: Joi.object().optional() // legacy — loose validation preserved
+  aggregate: Joi.object().optional(), // legacy — loose validation preserved
+  groupBy: Joi.array().items(Joi.string()).optional()
 })
 
 export const searchSchema = searchDtoSchema

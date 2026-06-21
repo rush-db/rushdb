@@ -13,11 +13,13 @@ import type {
   RelationOptions,
   PropertyDraft,
   DBRecordCreationOptions,
-  OrderDirection
+  OrderDirection,
+  SemanticSearchParams
 } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
 import type { BillingData, BillingInquiryPayload } from '~/features/billing/types'
+import type { Connector, ConnectorEvent, CreateConnectorInput } from '~/features/connectors/types'
 import type {
   EmbeddingIndex,
   CreateEmbeddingIndexParams,
@@ -103,6 +105,21 @@ export type ApiResult<Method extends AnyFunction> = Awaited<ReturnType<Method>>
 
 export const api = {
   ai: {
+    async generateSearchQuery({
+      currentQuery,
+      init,
+      projectId,
+      prompt
+    }: WithInit & WithProjectID & { prompt: string; currentQuery?: SearchQuery }) {
+      return fetcher<{ searchQuery: SearchQuery; warnings?: string[] }>(`/api/v1/ai/search-query`, {
+        ...init,
+        body: JSON.stringify({ prompt, currentQuery }),
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'POST'
+      })
+    },
     async getOntology({
       force,
       init,
@@ -117,6 +134,9 @@ export const api = {
         },
         method: 'POST'
       })
+    },
+    async search(params: SemanticSearchParams) {
+      return rushDBInstance.ai.search(params)
     }
   },
   records: {
@@ -126,18 +146,22 @@ export const api = {
       label,
       options = {}
     }: WithInit & {
-      label: string
+      label?: string
       data: MaybeArray<AnyObject>
       options?: DBRecordCreationOptions
     }) {
-      try {
-        return await rushDBInstance.records.importJson({ label, options, data })
-      } catch (e: any) {
-        if (e.message === BillingErrorCodes.PaymentRequired.toString()) {
-          $limitReachModalOpen.set(true)
+      return fetcher<boolean | Array<DBRecord> | { message: string; count: number }>(
+        `/api/v1/records/import/json`,
+        {
+          ...init,
+          method: 'POST',
+          body: JSON.stringify({
+            ...(label?.trim() ? { label: label.trim() } : {}),
+            data,
+            options
+          })
         }
-        return {}
-      }
+      )
     },
     async importCsv({
       init,
@@ -466,6 +490,66 @@ export const api = {
       })
     }
   },
+  connectors: {
+    async list({ projectId, init }: WithProjectID & WithInit) {
+      return fetcher<Connector[]>(`/api/v1/connectors`, {
+        ...init,
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async get({ projectId, id, init }: WithProjectID & WithInit & { id: string }) {
+      return fetcher<Connector>(`/api/v1/connectors/${id}`, {
+        ...init,
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async events({ projectId, id, init }: WithProjectID & WithInit & { id: string }) {
+      const events = await fetcher<ConnectorEvent[]>(`/api/v1/connectors/${id}/events`, {
+        ...init,
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+
+      return events.map((event) => {
+        if (!event.metadata || typeof event.metadata !== 'string') return event
+
+        try {
+          return { ...event, metadata: JSON.parse(event.metadata) as Record<string, unknown> }
+        } catch {
+          return event
+        }
+      })
+    },
+    async create({ projectId, init, ...body }: WithProjectID & WithInit & CreateConnectorInput) {
+      return fetcher<Connector>(`/api/v1/connectors`, {
+        ...init,
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async action({
+      projectId,
+      id,
+      action,
+      init
+    }: WithProjectID & WithInit & { id: string; action: 'pause' | 'resume' | 'resnapshot' | 'test' }) {
+      return fetcher<Connector | { ok: boolean; message: string }>(`/api/v1/connectors/${id}/${action}`, {
+        ...init,
+        method: 'POST',
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    }
+  },
   projects: {
     async list(init: RequestInit) {
       const { data: projects, total } = await fetcher<
@@ -686,6 +770,8 @@ export const api = {
         googleOAuthEnabled: boolean
         githubOAuthEnabled: boolean
         embeddingEnabled: boolean
+        llmEnabled: boolean
+        synxEnabled: boolean
       }>(`/api/v1/settings`, {
         ...init,
         method: 'GET'

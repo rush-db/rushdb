@@ -20,7 +20,7 @@ export class ImportJsonDto {
   format?: TImportJsonInputFormat
 
   @ApiPropertyOptional({ default: '' })
-  label: string
+  label?: string
 
   @ApiPropertyOptional({ default: {} })
   options?: TImportOptions

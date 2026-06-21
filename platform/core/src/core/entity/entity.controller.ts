@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Logger,
   NotFoundException,
   Param,
   Patch,
@@ -25,7 +24,6 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { asyncAssertExistsOrThrow } from '@/common/utils/asyncAssertExistsOrThrow'
 import { isArray } from '@/common/utils/isArray'
-import { isDevMode } from '@/common/utils/isDevMode'
 import { omit } from '@/common/utils/omit'
 import { toBoolean } from '@/common/utils/toBolean'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
@@ -311,25 +309,21 @@ export class EntityController {
     @Request() request: PlatformRequest
   ): Promise<TRecordSearchResult> {
     const projectId = request.projectId
-    try {
-      const [data, total] = await Promise.all([
-        this.entityService.find({
-          projectId,
-          searchQuery,
-          transaction
-        }),
-        this.entityService.getCount({
-          projectId,
-          searchQuery,
-          transaction
-        })
-      ])
-      return {
-        data,
-        total
-      }
-    } catch (e) {
-      isDevMode(() => Logger.error(e))
+    const [data, total] = await Promise.all([
+      this.entityService.find({
+        projectId,
+        searchQuery,
+        transaction
+      }),
+      this.entityService.getCount({
+        projectId,
+        searchQuery,
+        transaction
+      })
+    ])
+    return {
+      data,
+      total
     }
   }
 

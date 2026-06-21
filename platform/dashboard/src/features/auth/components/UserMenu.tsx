@@ -25,11 +25,6 @@ export function UserMenu() {
 
   return (
     <div className="flex items-center gap-2">
-      {!platformSettings?.selfHosted ?
-        <a href={getRoutePath('workspaceBilling')} className="px-3">
-          <CurrentSubscriptionInfo />
-        </a>
-      : null}
       <Menu
         trigger={
           <IconButton

@@ -1,8 +1,9 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { OrderDirection } from '@rushdb/javascript-sdk'
+import type { OrderDirection, SearchQuery } from '@rushdb/javascript-sdk'
 
 import type { Filter } from '~/features/search/types'
 import type { FiltersCombineMode, Sort } from '~/types'
+import type { EmbeddingIndex } from '~/features/indexes/types'
 
 import { api } from '~/lib/api'
 import { queryKeys } from '~/lib/queryKeys'
@@ -79,6 +80,64 @@ export type RecordQueryParams = {
   limit: number
   labels: string[]
   combineMode: FiltersCombineMode
+  searchMode?: 'manual' | 'ai' | 'semantic'
+  searchQuery?: SearchQuery
+  semanticSearch?: {
+    index?: EmbeddingIndex
+    query: string
+  }
+}
+
+const GRAPH_RELATION_PAGE_SIZE = 1000
+const GRAPH_RELATION_EDGE_BUDGET = 10_000
+
+export function buildManualRecordsSearchQuery(params: RecordQueryParams): SearchQuery {
+  const properties = params.filters.map(filterToSearchOperation)
+  const order = buildOrderObject(params.orderBy)
+  return {
+    where:
+      params.combineMode === 'or' ?
+        { $or: convertToSearchQuery(properties) }
+      : convertToSearchQuery(properties),
+    orderBy: order,
+    skip: params.skip,
+    limit: params.limit,
+    labels: params.labels
+  }
+}
+
+function buildRecordsSearchQuery(params: RecordQueryParams): SearchQuery {
+  if (params.searchMode === 'ai' && params.searchQuery) {
+    if (params.searchQuery.select) {
+      return params.searchQuery
+    }
+
+    return {
+      ...params.searchQuery,
+      skip: params.skip,
+      limit: params.limit
+    }
+  }
+
+  return buildManualRecordsSearchQuery(params)
+}
+
+function isSemanticSearchActive(params: RecordQueryParams) {
+  return Boolean(
+    params.searchMode === 'semantic' && params.semanticSearch?.index && params.semanticSearch.query.trim()
+  )
+}
+
+function getEffectiveRecordsSearchMode(params: RecordQueryParams) {
+  if (params.searchMode === 'ai' && !params.searchQuery) {
+    return 'manual'
+  }
+
+  if (params.searchMode === 'semantic' && !isSemanticSearchActive(params)) {
+    return 'manual'
+  }
+
+  return params.searchMode
 }
 
 export const filteredRecordsQueryOptions = (params: RecordQueryParams) =>
@@ -89,26 +148,28 @@ export const filteredRecordsQueryOptions = (params: RecordQueryParams) =>
       skip: params.skip,
       limit: params.limit,
       labels: params.labels,
-      combineMode: params.combineMode
+      combineMode: params.combineMode,
+      searchMode: getEffectiveRecordsSearchMode(params),
+      searchQuery: params.searchQuery,
+      semanticSearch: isSemanticSearchActive(params) ? params.semanticSearch : undefined
     }),
     queryFn: async ({ signal }) => {
-      const properties = params.filters.map(filterToSearchOperation)
-      const order = buildOrderObject(params.orderBy)
-      return api.records.find(
-        {
-          where:
-            params.combineMode === 'or' ?
-              { $or: convertToSearchQuery(properties) }
-            : convertToSearchQuery(properties),
-          orderBy: order,
+      if (isSemanticSearchActive(params) && params.semanticSearch?.index) {
+        const index = params.semanticSearch.index
+        return api.ai.search({
+          labels: [index.label],
+          propertyName: index.propertyName,
+          query: params.semanticSearch.query.trim(),
+          sourceType: index.sourceType,
           skip: params.skip,
-          limit: params.limit,
-          labels: params.labels
-        },
-        { signal } as RequestInit
-      )
+          limit: params.limit
+        })
+      }
+
+      return api.records.find(buildRecordsSearchQuery(params), { signal } as RequestInit)
     },
     enabled: !!params.projectId,
+    retry: false,
     staleTime: 0
   })
 
@@ -145,6 +206,89 @@ export const filteredRecordRelationsQueryOptions = (params: RecordQueryParams) =
     staleTime: 0
   })
 
+export const graphRecordRelationsQueryOptions = ({
+  projectId,
+  recordIds
+}: {
+  projectId: string | undefined
+  recordIds: string[]
+}) =>
+  queryOptions({
+    queryKey: queryKeys.projects.graphRecordRelations(projectId!, recordIds),
+    queryFn: async ({ signal }) => {
+      const visibleRecordIds = new Set(recordIds)
+      const relationshipsByKey = new Map<
+        string,
+        Awaited<ReturnType<typeof api.relationships.find>>['data'][number]
+      >()
+      let skip = 0
+      let firstPage: Awaited<ReturnType<typeof api.relationships.find>> | undefined
+      let edgeLimitReached = false
+
+      while (relationshipsByKey.size < GRAPH_RELATION_EDGE_BUDGET) {
+        const limit = Math.min(GRAPH_RELATION_PAGE_SIZE, GRAPH_RELATION_EDGE_BUDGET - relationshipsByKey.size)
+        const page = await api.relationships.find({
+          searchQuery: {
+            source: {
+              where: {
+                $id: {
+                  $in: recordIds
+                }
+              }
+            },
+            target: {
+              where: {
+                $id: {
+                  $in: recordIds
+                }
+              }
+            },
+            skip,
+            limit
+          },
+          init: { signal } as RequestInit
+        })
+
+        firstPage ??= page
+
+        const pageData = page.data ?? []
+        for (const relationship of pageData) {
+          if (!visibleRecordIds.has(relationship.sourceId) || !visibleRecordIds.has(relationship.targetId)) {
+            continue
+          }
+
+          relationshipsByKey.set(
+            `${relationship.sourceId}:${relationship.type}:${relationship.targetId}`,
+            relationship
+          )
+        }
+
+        if (pageData.length < GRAPH_RELATION_PAGE_SIZE) {
+          break
+        }
+
+        if (relationshipsByKey.size >= GRAPH_RELATION_EDGE_BUDGET) {
+          edgeLimitReached = pageData.length === limit
+          break
+        }
+
+        skip += GRAPH_RELATION_PAGE_SIZE
+      }
+
+      const deduped = Array.from(relationshipsByKey.values())
+
+      return {
+        ...(firstPage ?? { success: true }),
+        data: deduped,
+        total: deduped.length,
+        edgeLimitReached,
+        edgeLimit: GRAPH_RELATION_EDGE_BUDGET
+      }
+    },
+    enabled: !!projectId && recordIds.length > 0,
+    staleTime: 0
+  })
+
 export type ProjectFieldsQueryParams = {
   projectId: string | undefined
   labels: string[]
@@ -173,7 +317,10 @@ export const projectFieldsQueryOptions = (params: ProjectFieldsQueryParams) =>
       })
       return result.data
     },
-    enabled: !!params.projectId
+    enabled: !!params.projectId,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000
   })
 
 export const recordDetailQueryOptions = (recordId: string | undefined) =>

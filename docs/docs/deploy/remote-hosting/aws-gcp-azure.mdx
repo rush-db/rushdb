@@ -1,6 +1,6 @@
 ---
 title: AWS / GCP / Azure
-description: Deploy RushDB on major cloud providers — AWS EC2, Google Cloud Compute Engine, or Azure Virtual Machines.
+description: Deploy RushDB on AWS EC2, Google Cloud Compute Engine, or Azure Virtual Machines with cloud-init or manual Docker Compose.
 sidebar_position: 3
 displayed_sidebar: docs
 tags: [Deployment, AWS, GCP, Azure, Self-Hosted]
@@ -8,72 +8,256 @@ tags: [Deployment, AWS, GCP, Azure, Self-Hosted]
 
 import Tabs from '@theme/Tabs'
 import TabItem from '@theme/TabItem'
+import { DeployButtonGroup } from '@site/src/components/DeployMethodCard'
 
 # AWS / GCP / Azure
 
-RushDB runs on any Linux VM with Docker. The workflow is the same across providers — provision a VM, install Docker, deploy the Compose stack.
+RushDB runs well on a single Linux VM with Docker Compose. The lowest-friction path is to boot an Ubuntu VM with the cloud-init template below, after replacing the placeholder external Neo4j/Aura values in the user-data file.
 
 Verify the [Prerequisites](/deploy/remote-hosting/prerequisites) first.
 
-## Provision a VM
+<DeployButtonGroup
+  buttons={[
+    {
+      label: 'View cloud-init',
+      href: 'https://github.com/rush-db/rushdb/blob/main/deploy/templates/cloud-vm/cloud-init.yaml',
+      variant: 'primary'
+    },
+    {
+      label: 'Docker Compose template',
+      href: 'https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose'
+    }
+  ]}
+/>
+
+## Recommended VM
+
+| Setting      | Minimum                             | Recommended                                |
+| ------------ | ----------------------------------- | ------------------------------------------ |
+| OS           | Ubuntu 22.04 LTS                    | Ubuntu 22.04 or 24.04 LTS                  |
+| CPU          | 2 vCPU                              | 4 vCPU                                     |
+| RAM          | 4 GB                                | 8 GB                                       |
+| Disk         | 30 GB SSD                           | 50+ GB SSD with snapshots                  |
+| Public ports | `22`, temporary `3000`, `80`, `443` | Close `3000` after TLS proxy is configured |
+
+Do not expose Neo4j (`7474`, `7687`) or Postgres (`5432`) publicly.
+
+## Fast Path: Cloud-Init
+
+Download the template locally:
+
+```bash
+curl -L -o rushdb-cloud-init.yaml https://raw.githubusercontent.com/rush-db/rushdb/main/deploy/templates/cloud-vm/cloud-init.yaml
+```
+
+The template installs Docker, downloads the RushDB Compose stack to `/opt/rushdb/compose.yaml`, writes `/opt/rushdb/.env`, opens SSH and port `3000`, and starts RushDB. Before production use, replace every placeholder in the cloud-init file or in `/opt/rushdb/.env`.
+
+After first boot, SSH into the VM and rotate the generated configuration:
+
+```bash
+cd /opt/rushdb
+sudo nano .env
+
+# Required changes before production:
+# RUSHDB_PASSWORD
+# RUSHDB_AES_256_ENCRYPTION_KEY="$(openssl rand -hex 16)"
+# NEO4J_URL
+# NEO4J_USERNAME
+# NEO4J_PASSWORD
+# POSTGRES_PASSWORD
+# RUSHDB_DASHBOARD_URL=https://rushdb.example.com
+# RUSHDB_BASE_URL=https://rushdb.example.com
+
+sudo docker compose --env-file .env -f compose.yaml up -d
+```
 
 <Tabs groupId="cloud-provider">
 <TabItem value="aws" label="AWS EC2">
 
-1. Launch an **EC2 instance** — `t3.medium` (4 GB RAM) or larger
-2. Use **Ubuntu 22.04 LTS** AMI
-3. Security Group inbound rules:
-   - `22` (SSH) — your IP only
-   - `3000` (RushDB API) — your IP or 0.0.0.0/0
-   - `80` / `443` (reverse proxy) — 0.0.0.0/0
+Use the AWS console or CLI to launch an Ubuntu EC2 instance with user data from `rushdb-cloud-init.yaml`.
+
+Recommended defaults:
+
+- Instance type: `t3.medium` or larger
+- Storage: 50 GB `gp3`
+- Security group:
+  - `22/tcp` from your IP
+  - `3000/tcp` from your IP for first verification
+  - `80/tcp` and `443/tcp` from `0.0.0.0/0` when using a reverse proxy
+
+CLI shape:
+
+```bash
+aws ec2 run-instances \
+  --image-id ami-REPLACE_WITH_UBUNTU_AMI \
+  --instance-type t3.medium \
+  --key-name YOUR_KEY_PAIR \
+  --security-group-ids sg-REPLACE \
+  --subnet-id subnet-REPLACE \
+  --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":50,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
+  --user-data file://rushdb-cloud-init.yaml
+```
+
+Ubuntu AMI IDs are region-specific; select the current Ubuntu LTS AMI in the EC2 launch wizard or through your standard image catalog.
 
 </TabItem>
 <TabItem value="gcp" label="Google Cloud">
 
-1. Create a **Compute Engine** VM — `e2-medium` (4 GB RAM) or larger
-2. Use **Ubuntu 22.04 LTS** boot disk
-3. Firewall rules (VPC Network → Firewall):
-   - Allow ingress on `tcp:3000` for the VM's tag
-   - Allow ingress on `tcp:80,443` for public traffic
+Use Compute Engine with the cloud-init file as instance metadata.
+
+Recommended defaults:
+
+- Machine type: `e2-medium` or larger
+- Boot disk: Ubuntu LTS, 50 GB balanced persistent disk
+- Firewall:
+  - `22/tcp` from your IP
+  - `3000/tcp` from your IP for first verification
+  - `80/tcp` and `443/tcp` for HTTPS
+
+```bash
+gcloud compute instances create rushdb \
+  --zone=us-central1-a \
+  --machine-type=e2-medium \
+  --image-family=ubuntu-2204-lts \
+  --image-project=ubuntu-os-cloud \
+  --boot-disk-size=50GB \
+  --tags=rushdb \
+  --metadata-from-file=user-data=rushdb-cloud-init.yaml
+
+gcloud compute firewall-rules create allow-rushdb-https \
+  --allow=tcp:80,tcp:443 \
+  --target-tags=rushdb
+
+gcloud compute firewall-rules create allow-rushdb-setup \
+  --allow=tcp:3000 \
+  --target-tags=rushdb \
+  --source-ranges=YOUR_PUBLIC_IP/32
+```
 
 </TabItem>
 <TabItem value="azure" label="Azure">
 
-1. Create a **Virtual Machine** — `B2s` (2 vCPUs, 4 GB) or larger
-2. Use **Ubuntu 22.04 LTS** image
-3. Network Security Group inbound rules:
-   - Port `22` — SSH
-   - Port `3000` — RushDB API
-   - Port `80` / `443` — reverse proxy
+Use an Azure VM with custom data from `rushdb-cloud-init.yaml`.
+
+Recommended defaults:
+
+- Size: `Standard_B2s` or larger
+- Image: Ubuntu LTS
+- OS disk: 50 GB premium or standard SSD
+- NSG rules:
+  - `22/tcp` from your IP
+  - `3000/tcp` from your IP for first verification
+  - `80/tcp` and `443/tcp` for HTTPS
+
+```bash
+az group create --name rushdb-rg --location eastus
+
+az vm create \
+  --resource-group rushdb-rg \
+  --name rushdb \
+  --image Ubuntu2204 \
+  --size Standard_B2s \
+  --admin-username azureuser \
+  --generate-ssh-keys \
+  --custom-data rushdb-cloud-init.yaml \
+  --os-disk-size-gb 50
+
+az vm open-port --resource-group rushdb-rg --name rushdb --port 3000 --priority 1001
+az vm open-port --resource-group rushdb-rg --name rushdb --port 80 --priority 1002
+az vm open-port --resource-group rushdb-rg --name rushdb --port 443 --priority 1003
+```
+
+Restrict the `3000` rule to your IP in the Network Security Group, then remove it after TLS is configured.
 
 </TabItem>
 </Tabs>
 
-## Install Docker & Deploy
+## Manual Path
 
-After SSHing into your VM, the deployment steps are identical across all providers:
+After SSHing into your VM, install Docker and start the same Compose stack manually:
 
 ```bash
-# Install Docker
 curl -fsSL https://get.docker.com | sh
 
-# Download and configure RushDB
 mkdir rushdb && cd rushdb
-curl -O https://raw.githubusercontent.com/rush-db/rushdb/main/platform/docker-compose.yml
-curl -O https://raw.githubusercontent.com/rush-db/rushdb/main/.env.example
-cp .env.example .env
+curl -L -o compose.yaml https://raw.githubusercontent.com/rush-db/rushdb/main/deploy/templates/docker-compose/compose.yaml
+curl -L -o .env https://raw.githubusercontent.com/rush-db/rushdb/main/deploy/templates/docker-compose/.env.example
 
-# Edit .env with your settings, then start
+nano .env
 docker compose up -d
 ```
 
-See [Environment Variables](/deploy/configuration/environment-variables) for the full `.env` reference.
+Required `.env` edits:
+
+| Variable                        | What to set                                                 |
+| ------------------------------- | ----------------------------------------------------------- |
+| `RUSHDB_PASSWORD`               | Strong dashboard admin password                             |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | Exactly 32 characters; generate with `openssl rand -hex 16` |
+| `RUSHDB_DASHBOARD_URL`          | Public URL, e.g. `https://rushdb.example.com`               |
+| `RUSHDB_BASE_URL`               | Same public API URL                                         |
+| `NEO4J_URL`                     | External Neo4j/Aura Bolt URL                                |
+| `NEO4J_USERNAME`                | External Neo4j/Aura username                                |
+| `NEO4J_PASSWORD`                | External Neo4j/Aura password                                |
+| `POSTGRES_PASSWORD`             | Strong internal Postgres password                           |
+
+See [Environment Variables](/deploy/configuration/environment-variables) for the full reference.
+
+## TLS with Caddy
+
+Once DNS points at the VM, put RushDB behind HTTPS:
+
+```bash
+sudo apt install -y caddy
+sudo tee /etc/caddy/Caddyfile >/dev/null <<'EOF'
+rushdb.example.com {
+  reverse_proxy 127.0.0.1:3000
+}
+EOF
+sudo systemctl reload caddy
+```
+
+Then update `/opt/rushdb/.env` or your deployment directory:
+
+```bash
+RUSHDB_DASHBOARD_URL=https://rushdb.example.com
+RUSHDB_BASE_URL=https://rushdb.example.com
+```
+
+Restart RushDB and remove public access to port `3000` from your cloud firewall or security group.
+
+## Backups and Persistence
+
+The Docker Compose template stores Neo4j and Postgres data in Docker volumes. For production:
+
+- Enable VM disk snapshots or provider backups.
+- Prefer a separate attached disk for Docker data if your operations policy requires it.
+- Test restore from a snapshot before relying on it.
+- Keep Neo4j and Postgres ports private.
 
 ## Verify
 
 ```bash
 curl http://VM_PUBLIC_IP:3000/health
-# → {"status":"ok"}
+# or, after TLS:
+curl https://rushdb.example.com/health
 ```
 
-Next: [Get your API Key](/deploy/configuration/get-api-key) to start using the instance.
+Then open the dashboard, sign in with `RUSHDB_LOGIN` / `RUSHDB_PASSWORD`, and continue with [Get your API Key](/deploy/configuration/get-api-key).
+
+## Troubleshooting
+
+```bash
+cd /opt/rushdb # or your manual deployment directory
+docker compose --env-file .env -f compose.yaml ps
+docker compose --env-file .env -f compose.yaml logs -f rushdb
+docker compose --env-file .env -f compose.yaml logs -f neo4j
+```
+
+Common failures:
+
+| Symptom                             | Check                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| Container exits immediately         | `RUSHDB_AES_256_ENCRYPTION_KEY` must be exactly 32 characters         |
+| Browser cannot connect              | Cloud firewall/security group and VM firewall both need the port open |
+| RushDB cannot reach Neo4j           | Neo4j health, `NEO4J_PASSWORD`, and APOC plugin startup               |
+| API works on `3000` but HTTPS fails | DNS record, Caddy logs, and ports `80` / `443`                        |

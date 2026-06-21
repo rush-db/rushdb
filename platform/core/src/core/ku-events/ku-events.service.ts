@@ -59,13 +59,15 @@ export class KuEventsService {
       headers['x-rushdb-billing-secret'] = secret
     }
 
-    // Fire-and-forget: do not await, do not throw
-    this.httpService
-      .post(`${billingUrl}/api/ku-events`, event, { headers })
-      .toPromise()
-      .catch((err: Error) => {
-        this.logger.warn(`KU event delivery failed [${operation}]: ${err?.message}`)
-      })
+    // Fire-and-forget: dispatch outside the current request call stack and never throw.
+    setImmediate(() => {
+      this.httpService
+        .post(`${billingUrl}/api/ku-events`, event, { headers })
+        .toPromise()
+        .catch((err: Error) => {
+          this.logger.warn(`KU event delivery failed [${operation}]: ${err?.message}`)
+        })
+    })
   }
 
   /**

@@ -5,6 +5,7 @@ export type EmbeddingIndex = {
   propertyName: string
   modelKey: string
   sourceType?: 'managed' | 'external'
+  similarityFunction?: 'cosine' | 'euclidean'
   dimensions: number
   enabled: boolean
   /** 'pending' | 'indexing' | 'ready' | 'error' */

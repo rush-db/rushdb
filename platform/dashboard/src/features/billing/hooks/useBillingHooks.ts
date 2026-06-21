@@ -44,13 +44,24 @@ export const useAvailablePlans = () => {
     if (!billingData) return []
     const plans: DisplayPlan[] = [
       {
+        id: 'start' as const,
+        name: 'Start',
+        kuIncluded: billingData.start.kuIncluded ?? 250_000,
+        monthlyPriceId: billingData.start.monthly.priceId,
+        yearlyPriceId: billingData.start.annual.priceId,
+        monthlyPrice: billingData.start.monthly.amount,
+        yearlyPrice: billingData.start.annual.amount,
+        benefits: billingData.benefits?.start
+      },
+      {
         id: 'pro' as const,
         name: 'Pro',
-        kuIncluded: billingData.pro.kuIncluded ?? 10_000_000,
+        kuIncluded: billingData.pro.kuIncluded ?? 1_000_000,
         monthlyPriceId: billingData.pro.monthly.priceId,
         yearlyPriceId: billingData.pro.annual.priceId,
         monthlyPrice: billingData.pro.monthly.amount,
-        yearlyPrice: billingData.pro.annual.amount
+        yearlyPrice: billingData.pro.annual.amount,
+        benefits: billingData.benefits?.pro
       }
     ]
     if (billingData.scale) {
@@ -61,7 +72,8 @@ export const useAvailablePlans = () => {
         monthlyPriceId: billingData.scale.monthly.priceId,
         yearlyPriceId: billingData.scale.annual.priceId,
         monthlyPrice: billingData.scale.monthly.amount,
-        yearlyPrice: billingData.scale.annual.amount
+        yearlyPrice: billingData.scale.annual.amount,
+        benefits: billingData.benefits?.scale
       })
     }
     return plans

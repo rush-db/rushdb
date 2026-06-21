@@ -9,7 +9,8 @@ import { NothingFound } from '~/elements/NothingFound'
 import { Skeleton } from '~/elements/Skeleton'
 import { toast } from '~/elements/Toast'
 import { cn, copyToClipboard } from '~/lib/utils'
-import { useIndexStatsQuery } from '~/features/projects/hooks/useProjectQueries'
+import { getLabelColor } from '~/features/labels'
+import { useIndexStatsQuery, useProjectLabelsQuery } from '~/features/projects/hooks/useProjectQueries'
 
 import type { EmbeddingIndex } from '../types'
 
@@ -76,19 +77,25 @@ function IndexListItem({
   ({ loading: true } & Partial<EmbeddingIndex>) | ({ loading?: false } & EmbeddingIndex)
 >) {
   const { mutate } = useDeleteIndexMutation()
+  const { data: labels } = useProjectLabelsQuery()
   const statusLabel = STATUS_LABELS[status ?? 'pending'] ?? status
   const statusColor = STATUS_COLORS[status ?? 'pending'] ?? STATUS_COLORS.pending
+  const labelVariant = label ? getLabelColor(label, Object.keys(labels ?? {}).indexOf(label)) : undefined
 
   return (
     <li className={cn('flex items-center gap-3 px-3 py-3 sm:gap-4 sm:px-4', className)} {...props}>
       <Database size={20} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="mb-1 flex items-center gap-3 text-base font-bold">
+        <span className="mb-1 flex items-center gap-2">
           <Skeleton enabled={loading}>
-            <Label>
-              {label}:{propertyName}
-            </Label>
+            <span className="flex items-center gap-1.5">
+              <Label variant={labelVariant}>{label}</Label>
+              <span className="text-content3">:</span>
+              <span className="bg-content3/10 text-content2 w-fit rounded-sm px-1 font-mono text-xs">
+                {propertyName}
+              </span>
+            </span>
           </Skeleton>
         </span>
 

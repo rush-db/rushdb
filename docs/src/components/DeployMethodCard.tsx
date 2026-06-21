@@ -8,6 +8,7 @@ import {
   Clock,
   Cloud,
   Code2,
+  ExternalLink,
   Globe,
   Layers,
   Server,
@@ -187,6 +188,12 @@ export function DeployMethodCardGrid({ children }: { children: React.ReactNode }
 // ── Cross-link section ─────────────────────────────────────────────────────────
 
 type CrossLink = { label: string; href: string }
+type DeployButtonVariant = 'primary' | 'secondary'
+type DeployButton = {
+  label: string
+  href: string
+  variant?: DeployButtonVariant
+}
 
 export function DeployCrossLinks({ prefix, links }: { prefix?: string; links: CrossLink[] }) {
   return (
@@ -208,6 +215,36 @@ export function DeployCrossLinks({ prefix, links }: { prefix?: string; links: Cr
           </Link>
         ))}
       </div>
+    </div>
+  )
+}
+
+export function DeployButtonGroup({ buttons }: { buttons: DeployButton[] }) {
+  return (
+    <div className="not-prose my-6 flex flex-wrap gap-3">
+      {buttons.map((button) => {
+        const variant = button.variant ?? 'secondary'
+
+        return (
+          <Link
+            key={button.href}
+            to={button.href}
+            className={cn(
+              'inline-flex items-center gap-2 border px-4 py-2 text-sm font-semibold no-underline',
+              'transition-[background-color,border-color,color] duration-150 ease-out hover:no-underline',
+              variant === 'primary' ?
+                'border-[var(--ifm-color-primary)] bg-[var(--ifm-color-primary)] text-white hover:text-white'
+              : cn(
+                  BORDER_CLASS,
+                  'bg-[var(--ifm-card-background-color)] text-inherit hover:bg-[var(--ifm-color-emphasis-100)]'
+                )
+            )}
+          >
+            {button.label}
+            <ExternalLink size={14} strokeWidth={2} />
+          </Link>
+        )
+      })}
     </div>
   )
 }

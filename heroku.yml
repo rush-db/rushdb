@@ -1,0 +1,5 @@
+build:
+  docker:
+    web: deploy/templates/heroku/Dockerfile
+run:
+  web: RUSHDB_PORT=$PORT node dist/main.js
