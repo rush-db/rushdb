@@ -1,5 +1,11 @@
 # @rushdb/skills
 
+## 2.4.0
+
+### Minor Changes
+
+- 5de0ef8: Stability improvements
+
 ## Unreleased
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 2.4.0
+
+### Minor Changes
+
+- 5de0ef8: Stability improvements
+
 ## 2.3.3
 
 ### Patch Changes
