@@ -40,7 +40,7 @@ graph LR
 
 1. **Parse** — BFS walk. Each nested object becomes a separate record.
 2. **Type inference** — Every value is classified as `string`, `number`, `boolean`, `datetime`, or `null`.
-3. **Label assignment** — Top-level records use the label you provide. Nested objects derive their label from the parent key name (e.g., key `"engine"` → label `Engine`).
+3. **Label assignment** — Top-level arrays and object records use the label you provide. Container objects can omit `label` when each top-level value is an object or an array of nested records; each top-level key becomes the label for its nested records. Nested objects derive their label from the parent key name (e.g., key `"engine"` → label `Engine`).
 4. **Relationship creation** — Parent → child records are linked with default relationships (`__RUSHDB__RELATION__DEFAULT__`).
 
 ---
@@ -67,16 +67,21 @@ db.records.create_many(
 # MOVIE → ACTOR × 2: all created and linked automatically
 ```
 
-Infer the label from a single top-level key:
+Infer labels from top-level container keys:
 
 ```python
 db.records.create_many(
-    data={"ITEM": [
-        {"name": "Sprocket", "weight": 1.2},
-        {"name": "Cog",      "weight": 0.7}
-    ]}
+    data={
+        "ITEM": [
+            {"name": "Sprocket", "weight": 1.2},
+            {"name": "Cog",      "weight": 0.7}
+        ],
+        "SUPPLIER": [
+            {"name": "Acme Parts"}
+        ]
+    }
 )
-# label inferred as 'ITEM'
+# labels inferred as 'ITEM' and 'SUPPLIER'
 ```
 
   </TabItem>
@@ -99,7 +104,7 @@ const imported = await db.records.importJson({
 })
 ```
 
-Infer the label from a single top-level key:
+Infer labels from top-level container keys:
 
 ```typescript
 await db.records.importJson({
@@ -107,15 +112,16 @@ await db.records.importJson({
     ITEM: [
       { name: 'Sprocket', weight: 1.2 },
       { name: 'Cog', weight: 0.7 }
-    ]
+    ],
+    SUPPLIER: [{ name: 'Acme Parts' }]
   }
 })
-// label inferred as 'ITEM'
+// labels inferred as 'ITEM' and 'SUPPLIER'
 ```
 
-:::warning Invalid root object
-If you omit `label` and the top level is not a single-key map, `importJson` throws:
-`importJson requires either an explicit label or a single top-level key to infer the label`
+:::warning When label is required
+If you omit `label`, the top level must be a container object whose values are objects or arrays of nested records.
+Top-level arrays, primitive arrays, and JSON objects with primitive top-level properties require `label`.
 :::
 
   </TabItem>
@@ -284,9 +290,20 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/csv \
 
 ---
 
-## Upsert during Import
+## Upsert by Property During Import
 
-All import methods support upsert via `mergeBy` and `mergeStrategy`.
+All import methods support native upsert-by-property via `mergeBy` and `mergeStrategy`.
+Use `mergeBy` to name the property or properties that identify an existing record.
+This makes repeated imports idempotent and prevents duplicate records when source data has a stable key such as `email`, `sku`, `mongoId`, or `externalId`.
+
+Supported SDK and API surfaces:
+
+| Input shape | TypeScript SDK       | Python SDK            | REST endpoint                      |
+| ----------- | -------------------- | --------------------- | ---------------------------------- |
+| Flat rows   | `records.createMany` | `records.create_many` | `POST /api/v1/records/import/json` |
+| Nested JSON | `records.importJson` | `records.create_many` | `POST /api/v1/records/import/json` |
+| CSV text    | `records.importCsv`  | `records.import_csv`  | `POST /api/v1/records/import/csv`  |
+| Single row  | `records.upsert`     | `records.upsert`      | `POST /api/v1/records`             |
 
 <Tabs groupId="programming-language">
   <TabItem value="python" label="Python" default>
@@ -311,18 +328,25 @@ db.records.import_csv(
   <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-// Upsert (append) by email
+// Flat-row import: upsert by email and preserve other fields
 await db.records.createMany({
   label: 'AUTHOR',
   data: authors,
   options: { mergeBy: ['email'], mergeStrategy: 'append', suggestTypes: true }
 })
 
-// Rewrite (replace) by email
+// Nested JSON import: upsert by email and replace matched records
 await db.records.importJson({
   label: 'AUTHOR',
   data: authors,
   options: { mergeBy: ['email'], mergeStrategy: 'rewrite' }
+})
+
+// CSV import: same options shape
+await db.records.importCsv({
+  label: 'AUTHOR',
+  data: csvContent,
+  options: { mergeBy: ['email'], mergeStrategy: 'append' }
 })
 ```
 
@@ -358,7 +382,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 | `mergeBy` value | Match behaviour                     |
 | --------------- | ----------------------------------- |
 | `["field"]`     | Match only on listed fields         |
-| `[]` or omitted | Match on ALL incoming property keys |
+| `[]` or omitted | Match on all incoming property keys |
 
 ---
 
@@ -378,11 +402,12 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 
 ## Method Quick Reference
 
-| Scenario    | Python                         | TypeScript                      | REST                            |
-| ----------- | ------------------------------ | ------------------------------- | ------------------------------- |
-| Flat rows   | `create_many(label, data=[…])` | `createMany({label, data:[…]})` | `POST /import/json` with array  |
-| Nested JSON | `create_many(label, data={…})` | `importJson({label, data:{…}})` | `POST /import/json` with object |
-| CSV string  | `import_csv(label, data=csv)`  | `importCsv({label, data:csv})`  | `POST /import/csv`              |
+| Scenario       | Python                          | TypeScript                       | REST                                |
+| -------------- | ------------------------------- | -------------------------------- | ----------------------------------- |
+| Flat rows      | `create_many(label, data=[…])`  | `createMany({label, data:[…]})`  | `POST /import/json` with array      |
+| Nested JSON    | `create_many(label, data={…})`  | `importJson({label, data:{…}})`  | `POST /import/json` with object     |
+| Container JSON | `create_many(data={KEY:[{…}]})` | `importJson({data:{KEY:[{…}]}})` | `POST /import/json` without `label` |
+| CSV string     | `import_csv(label, data=csv)`   | `importCsv({label, data:csv})`   | `POST /import/csv`                  |
 
 ---
 

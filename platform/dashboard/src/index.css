@@ -11,12 +11,14 @@
   *,
   *::before,
   *::after {
-    @apply box-border min-w-0 border-stroke outline-none;
+    @apply border-stroke box-border min-w-0 outline-none;
   }
 
   :root {
-    @apply bg-fill font-sans text-base text-content;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    @apply bg-fill text-content font-sans text-base;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-text-size-adjust: 100%;
@@ -30,7 +32,7 @@
   }
 
   .skeleton {
-    @apply animate-pulse rounded-md bg-disabled text-disabled [&>*]:invisible;
+    @apply bg-disabled text-disabled animate-pulse rounded-md [&>*]:invisible;
   }
 }
 
@@ -39,7 +41,6 @@
 }
 
 body {
-  overflow-y: scroll;
   min-height: 100dvh;
 }
 
@@ -59,5 +60,5 @@ svg {
 }
 
 a {
-  @apply focus-visible:outline-none focus-visible:ring focus-visible:ring-primary-ring;
+  @apply focus-visible:ring-primary-ring focus-visible:outline-none focus-visible:ring;
 }

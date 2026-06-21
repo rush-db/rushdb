@@ -67,7 +67,7 @@ const slugMigrationRedirects: Array<{ from: string; to: string }> = [
   },
   {
     "from": "/deploy/remote-digital-ocean",
-    "to": "/deploy/remote-hosting/digital-ocean"
+    "to": "/deploy/remote-hosting/templates"
   },
   {
     "from": "/deploy/remote-index",

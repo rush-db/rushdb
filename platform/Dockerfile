@@ -67,9 +67,20 @@ WORKDIR /app
 COPY ../../package.json ../../pnpm-lock.yaml ../../pnpm-workspace.yaml ./
 COPY ./platform/core/package.json ./platform/core/package.json
 
-# Install pnpm and production dependencies
+# Install pnpm and production dependencies.
+# Build deps are needed for native packages such as better-sqlite3 when
+# prebuilt Alpine bindings are unavailable for the target platform.
 RUN npm install -g pnpm@10.1.0
-RUN pnpm install --prod --frozen-lockfile --no-optional --ignore-scripts
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+    && pnpm install --prod --frozen-lockfile --no-optional --ignore-scripts \
+    && cd platform/core \
+    && sqlite_pkg_dir="$(dirname "$(node -p "require.resolve('better-sqlite3/package.json')")")" \
+    && cd "$sqlite_pkg_dir" \
+    && npm rebuild --build-from-source \
+    && cd /app/platform/core \
+    && node -e "require('better-sqlite3')" \
+    && cd /app \
+    && apk del .build-deps
 
 # Copy built files from builder
 COPY --from=builder /app/platform/core/dist ./platform/core/dist

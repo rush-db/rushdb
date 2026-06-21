@@ -4,7 +4,7 @@ import { useStore } from '@nanostores/react'
 import { Bot, Brain, Cable, Code2, ExternalLink, Info, KeyRound, Terminal } from 'lucide-react'
 
 import { Button, CopyButton } from '~/elements/Button'
-import { Editor } from '~/elements/Editor'
+import { CodeEditorSnippet } from '~/elements/CodeEditorSnippet'
 import { CopyInput } from '~/elements/Input'
 import { Tab, Tabs, TabsContent, TabsList } from '~/elements/Tabs'
 import { $settings } from '~/features/auth/stores/settings'
@@ -15,7 +15,7 @@ import { useProjectTokensQuery } from '~/features/projects/hooks/useProjectQueri
 import type { Project } from '~/features/projects/types'
 import { useWorkspaceProjectsQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
 import { getRoutePath } from '~/lib/router'
-import { cn, getNumberOfLines } from '~/lib/utils'
+import { cn } from '~/lib/utils'
 
 import { AGENT_SETUP_URL, HOSTED_MCP_URL, connectDocsUrls } from './constants'
 
@@ -450,36 +450,6 @@ function CodeSnippet({ code, language, title }: { code: string; language?: strin
           <HighlightedCode code={code} language={normalizedLanguage} />
         </code>
       </pre>
-    </div>
-  )
-}
-
-function CodeEditorSnippet({
-  code,
-  language,
-  title
-}: {
-  code: string
-  language: AvailableSdkLanguage
-  title: ReactNode
-}) {
-  return (
-    <div className="bg-fill overflow-hidden rounded-md border">
-      <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
-        <span className="text-content2 text-sm font-medium">{title}</span>
-        <CopyButton text={code} size="xsmall" variant="outline">
-          Copy
-        </CopyButton>
-      </div>
-      <Editor
-        key={language}
-        value={code}
-        height={`${getNumberOfLines(code) * 1.2}em`}
-        defaultLanguage={language === 'shell' ? 'shell' : language}
-        format={language !== 'shell'}
-        readOnly
-        lineNumbers="off"
-      />
     </div>
   )
 }

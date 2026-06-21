@@ -68,16 +68,20 @@ export class AiQueryService {
 
     // Normalize scalar/list values to a list; keep a [null] marker for empty lists so
     // the record still counts toward recordsCount (min/max aggregations ignore nulls).
-    qb.append(`WITH label, propId, propName, propType, rec, apoc.coll.flatten([rawVal]) AS items`)
+    qb.append(`WITH label, propId, propName, propType, rec,`)
+    qb.append(`     apoc.meta.cypher.type(rawVal) STARTS WITH "LIST" AS isArrayValue,`)
+    qb.append(`     apoc.coll.flatten([rawVal]) AS items`)
     qb.append(`UNWIND (CASE WHEN size(items) = 0 THEN [null] ELSE items END) AS v`)
 
     qb.append(`WITH label, propId, propName, propType,`)
     qb.append(`     count(DISTINCT rec) AS recordsCount,`)
+    qb.append(`     max(CASE WHEN isArrayValue THEN 1 ELSE 0 END) AS arrayValueCount,`)
     qb.append(`     min(CASE propType WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS minAgg,`)
     qb.append(`     max(CASE propType WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS maxAgg`)
 
     qb.append(`RETURN`)
     qb.append(`  label, propId, propName, propType, recordsCount,`)
+    qb.append(`  arrayValueCount > 0 AS isArray,`)
     qb.append(`  CASE propType WHEN 'boolean' THEN ['true', 'false'] ELSE null END AS sampleValues,`)
     qb.append(`  CASE propType WHEN 'datetime' THEN toString(minAgg) ELSE minAgg END AS minValue,`)
     qb.append(`  CASE propType WHEN 'datetime' THEN toString(maxAgg) ELSE maxAgg END AS maxValue`)
@@ -381,6 +385,28 @@ export class AiQueryService {
     qb.append(`ORDER BY score DESC`)
     qb.append(`SKIP $skip LIMIT $limit`)
     qb.append(`RETURN record, score`)
+    return qb.getQuery()
+  }
+
+  /**
+   * Indexed semantic search query for the common unfiltered case.
+   *
+   * The vector index is global per embedding slot (source/similarity/dimensions), so
+   * results are post-filtered by project and propKey after Neo4j returns nearest
+   * VALUE relationships.
+   */
+  getSemanticSearchVectorIndexQuery({ labelSuffix }: { labelSuffix: string }) {
+    const qb = new QueryBuilder()
+    qb.append(
+      `CALL db.index.vector.queryRelationships($vectorIndexName, $candidateLimit, $queryVector) YIELD relationship AS rel, score`
+    )
+    qb.append(`WHERE rel.__projectId = $projectId AND rel.__propKey = $propKey`)
+    qb.append(
+      `MATCH (prop:${RUSHDB_LABEL_PROPERTY} { name: $propertyName, projectId: $projectId })-[rel:${RUSHDB_RELATION_VALUE}]->(record:${RUSHDB_LABEL_RECORD}${labelSuffix} { ${projectIdInline()} })`
+    )
+    qb.append(`RETURN record, score`)
+    qb.append(`ORDER BY score DESC`)
+    qb.append(`SKIP $skip LIMIT $limit`)
     return qb.getQuery()
   }
 }

@@ -7,11 +7,13 @@ import type { EmbeddingIndex } from '~/features/indexes/types'
 import type { Project } from '~/features/projects/types'
 
 import { Button } from '~/elements/Button'
-import { Card, CardBody, CardFooter, CardHeader } from '~/elements/Card'
+import { Card, CardBody, CardHeader } from '~/elements/Card'
+import { Dialog, DialogTitle } from '~/elements/Dialog'
 import { SearchSelect, SelectItem } from '~/elements/SearchSelect'
 import { Skeleton } from '~/elements/Skeleton'
 import { LabelName } from '~/features/labels/components/LabelName'
 import { api } from '~/lib/api'
+import { cn } from '~/lib/utils'
 
 import { useAddIndexMutation } from '../hooks/useIndexMutations'
 import { useProjectLabelsQuery } from '~/features/projects/hooks/useProjectQueries'
@@ -49,6 +51,55 @@ export function AddIndexCard({
   projectId
 }: {
   existingIndexes?: EmbeddingIndex[]
+  projectId: Project['id']
+}) {
+  return (
+    <Card>
+      <CardHeader title="Create embedding index" />
+      <CardBody>
+        <AddIndexForm existingIndexes={existingIndexes} projectId={projectId} />
+      </CardBody>
+    </Card>
+  )
+}
+
+export function AddIndexDialog({
+  existingIndexes,
+  projectId,
+  trigger
+}: {
+  existingIndexes?: EmbeddingIndex[]
+  projectId: Project['id']
+  trigger: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Dialog className="sm:max-w-2xl" onOpenChange={setOpen} open={open} trigger={trigger}>
+      <DialogTitle>Create embedding index</DialogTitle>
+      <p className="text-content2 mt-2">
+        Choose a label and string property to make that field searchable by meaning. Managed indexes embed
+        matching records and continue indexing new writes.
+      </p>
+      <AddIndexForm
+        className="mt-6"
+        existingIndexes={existingIndexes}
+        onCreated={() => setOpen(false)}
+        projectId={projectId}
+      />
+    </Dialog>
+  )
+}
+
+function AddIndexForm({
+  className,
+  existingIndexes,
+  onCreated,
+  projectId
+}: {
+  className?: string
+  existingIndexes?: EmbeddingIndex[]
+  onCreated?: () => void
   projectId: Project['id']
 }) {
   const { mutateAsync: mutate, error } = useAddIndexMutation()
@@ -94,6 +145,7 @@ export function AddIndexCard({
       await mutate({ projectId, label, propertyName })
       setLabel('')
       setPropertyName('')
+      onCreated?.()
     } catch {
       // surfaced via the mutation's onError toast and the inline error below
     } finally {
@@ -102,109 +154,106 @@ export function AddIndexCard({
   }
 
   return (
-    <Card>
-      <form onSubmit={handleSubmit}>
-        <CardHeader title="Create embedding index" />
-        <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Label</span>
-            {loadingLabels ?
-              <Skeleton enabled>
-                <Button className="w-full" size="small" variant="outline">
-                  Loading…
-                </Button>
-              </Skeleton>
-            : <SearchSelect
-                trigger={
-                  <Button
-                    className="w-full justify-between font-normal"
-                    size="small"
-                    type="button"
-                    variant="outline"
-                  >
-                    <span className={label ? '' : 'text-content3'}>
-                      {label ?
-                        <LabelName idx={Math.max(selectedLabelIdx, 0)} label={label} />
-                      : 'Select a label'}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                }
-              >
-                {labelEntries.map(([labelName], idx) => (
-                  <SelectItem key={labelName} onSelect={() => setLabel(labelName)} value={labelName}>
-                    <LabelName idx={idx} label={labelName} />
-                  </SelectItem>
-                ))}
-              </SearchSelect>
-            }
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Property</span>
-            {!label ?
-              <Button
-                className="w-full justify-between font-normal"
-                disabled
-                size="small"
-                type="button"
-                variant="outline"
-              >
-                <span className="text-content3">Select a label first</span>
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+    <form className={cn('flex flex-col gap-5', className)} onSubmit={handleSubmit}>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">Label</span>
+          {loadingLabels ?
+            <Skeleton enabled>
+              <Button className="w-full" size="small" variant="outline">
+                Loading…
               </Button>
-            : propsLoading ?
-              <Skeleton enabled>
-                <Button className="w-full" size="small" variant="outline">
-                  Loading…
+            </Skeleton>
+          : <SearchSelect
+              trigger={
+                <Button
+                  className="w-full justify-between font-normal"
+                  size="small"
+                  type="button"
+                  variant="outline"
+                >
+                  <span className={label ? '' : 'text-content3'}>
+                    {label ?
+                      <LabelName idx={Math.max(selectedLabelIdx, 0)} label={label} />
+                    : 'Select a label'}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
-              </Skeleton>
-            : <SearchSelect
-                trigger={
-                  <Button
-                    className="w-full justify-between font-normal"
-                    size="small"
-                    type="button"
-                    variant="outline"
+              }
+            >
+              {labelEntries.map(([labelName], idx) => (
+                <SelectItem key={labelName} onSelect={() => setLabel(labelName)} value={labelName}>
+                  <LabelName idx={idx} label={labelName} />
+                </SelectItem>
+              ))}
+            </SearchSelect>
+          }
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">Property</span>
+          {!label ?
+            <Button
+              className="w-full justify-between font-normal"
+              disabled
+              size="small"
+              type="button"
+              variant="outline"
+            >
+              <span className="text-content3">Select a label first</span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          : propsLoading ?
+            <Skeleton enabled>
+              <Button className="w-full" size="small" variant="outline">
+                Loading…
+              </Button>
+            </Skeleton>
+          : <SearchSelect
+              trigger={
+                <Button
+                  className="w-full justify-between font-normal"
+                  size="small"
+                  type="button"
+                  variant="outline"
+                >
+                  <span className={propertyName ? '' : 'text-content3'}>
+                    {propertyName || 'Select a text property'}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              }
+            >
+              {availableProperties.length === 0 && label && !propsLoading ?
+                <SelectItem disabled value="">
+                  No text properties found
+                </SelectItem>
+              : availableProperties.map((property: Property) => (
+                  <SelectItem
+                    key={property.id}
+                    onSelect={() => setPropertyName(property.name)}
+                    value={property.name}
                   >
-                    <span className={propertyName ? '' : 'text-content3'}>
-                      {propertyName || 'Select a text property'}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                }
-              >
-                {availableProperties.length === 0 && label && !propsLoading ?
-                  <SelectItem disabled value="">
-                    No text properties found
+                    {property.name}
                   </SelectItem>
-                : availableProperties.map((property: Property) => (
-                    <SelectItem
-                      key={property.id}
-                      onSelect={() => setPropertyName(property.name)}
-                      value={property.name}
-                    >
-                      {property.name}
-                    </SelectItem>
-                  ))
-                }
-              </SearchSelect>
-            }
-          </div>
-        </CardBody>
+                ))
+              }
+            </SearchSelect>
+          }
+        </div>
+      </div>
 
-        {error != null && (
-          <div className="px-4 pb-2 text-sm text-red-500">
-            {error instanceof Error ? error.message : 'Failed to create index'}
-          </div>
-        )}
+      {error != null && (
+        <div className="text-sm text-red-500">
+          {error instanceof Error ? error.message : 'Failed to create index'}
+        </div>
+      )}
 
-        <CardFooter className="mt-5">
-          <Button disabled={!isValid} loading={isSubmitting} type="submit" variant="accent">
-            Create
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+      <div className="flex justify-end gap-2 border-t pt-5">
+        <Button disabled={!isValid} loading={isSubmitting} type="submit" variant="accent">
+          Create
+        </Button>
+      </div>
+    </form>
   )
 }

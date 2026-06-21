@@ -19,6 +19,7 @@ import { ESideEffectType, RunSideEffectMixin } from '@/common/interceptors/run-s
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
+import { AiService } from '@/core/ai/ai.service'
 import { EntityWriteGuard } from '@/core/entity/entity-write.guard'
 import { TEntityPropertiesNormalized } from '@/core/entity/entity.types'
 import { ImportCsvDto } from '@/core/entity/import-export/dto/import-csv.dto'
@@ -29,12 +30,14 @@ import {
   TImportJsonPayload,
   TImportSummary
 } from '@/core/entity/import-export/import.types'
+import { jsonImportRequiresLabel } from '@/core/entity/import-export/json-import-label'
 import {
   importCsvSchema,
   importJsonSchema
 } from '@/core/entity/import-export/validation/schemas/import.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
+import { ProjectService } from '@/dashboard/project/project.service'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 import { TransactionDecorator } from '@/database/transaction.decorator'
@@ -43,7 +46,31 @@ import { TransactionDecorator } from '@/database/transaction.decorator'
 @ApiTags('Records')
 @UseInterceptors(NotFoundInterceptor, DataInterceptor)
 export class ImportController {
-  constructor(private readonly importService: ImportService) {}
+  constructor(
+    private readonly importService: ImportService,
+    private readonly projectService: ProjectService,
+    private readonly aiService: AiService
+  ) {}
+
+  private async refreshProjectImportReadModels({
+    projectId,
+    workspaceId,
+    transaction,
+    customTx
+  }: {
+    projectId: string
+    workspaceId?: string
+    transaction: Transaction
+    customTx: Transaction
+  }) {
+    await this.projectService.recomputeProjectNodes(projectId, transaction, customTx)
+    await this.aiService.getOntology({
+      projectId,
+      workspaceId,
+      force: true,
+      transaction: customTx
+    })
+  }
 
   private parseJsonLines(input: string): Array<Record<string, any>> {
     const lines = input
@@ -107,11 +134,7 @@ export class ImportController {
   @ApiBearerAuth()
   @UseGuards(PlanLimitsGuard, EntityWriteGuard)
   @UseInterceptors(
-    RunSideEffectMixin([
-      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
-      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
-      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
-    ]),
+    RunSideEffectMixin([ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE]),
     TransformResponseInterceptor
   )
   @UsePipes(ValidationPipe(importJsonSchema, 'body'))
@@ -129,7 +152,19 @@ export class ImportController {
         ...body,
         data: this.normalizeJsonData(body.data, body.format)
       }
-      return await this.importService.importRecords(normalizedBody, projectId, transaction, customTx)
+      if (!normalizedBody.label?.trim() && jsonImportRequiresLabel(normalizedBody.data)) {
+        throw new BadRequestException(
+          '`label` is required when importing a top-level array or JSON object with primitive top-level properties'
+        )
+      }
+      const result = await this.importService.importRecords(normalizedBody, projectId, transaction, customTx)
+      await this.refreshProjectImportReadModels({
+        projectId,
+        workspaceId: request.workspaceId,
+        transaction,
+        customTx
+      })
+      return result
     } catch (error) {
       // Re-throw HTTP exceptions (e.g. 402 Payment Required from billing limit checks)
       // directly so the correct status code reaches the client.
@@ -143,11 +178,7 @@ export class ImportController {
   @Post('/records/import/csv')
   @ApiBearerAuth()
   @UseInterceptors(
-    RunSideEffectMixin([
-      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
-      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
-      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
-    ]),
+    RunSideEffectMixin([ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE]),
     TransformResponseInterceptor
   )
   @UsePipes(ValidationPipe(importCsvSchema, 'body'))
@@ -270,7 +301,7 @@ export class ImportController {
       }
     }
 
-    return await this.importService.importRecords(
+    const importResult = await this.importService.importRecords(
       {
         data: cleanedData,
         options: body.options,
@@ -280,5 +311,12 @@ export class ImportController {
       transaction,
       customTx
     )
+    await this.refreshProjectImportReadModels({
+      projectId,
+      workspaceId: request.workspaceId,
+      transaction,
+      customTx
+    })
+    return importResult
   }
 }

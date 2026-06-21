@@ -2,7 +2,7 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "assets": ["**/*.ejs", "database/sql/migrations/**"],
+    "assets": ["**/*.ejs", "database/sql/migrations/**", "core/ai/*.md"],
     "watchAssets": true
   }
 }

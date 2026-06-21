@@ -25,7 +25,7 @@ import {
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
 import { estimateEmbeddingBatchKu, estimateTokens } from '@/core/ai/embedding.utils'
 import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
-import { ISO_8601_REGEX } from '@/core/common/constants'
+import { ISO_8601_REGEX, RUSHDB_KEY_LABEL_ALIAS, RUSHDB_LABEL_RECORD } from '@/core/common/constants'
 import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { parseWhereClause } from '@/core/search/parser/buildQuery'
@@ -236,9 +236,13 @@ export class AiService {
       const minValue = r.get('minValue')
       const maxValue = r.get('maxValue')
       const recordsCount = r.get('recordsCount')
+      const isArray = r.get('isArray')
 
       if (sampleValues != null) {
         prop.values = sampleValues
+      }
+      if (isArray === true) {
+        prop.isArray = true
       }
       if (minValue != null) {
         prop.min = typeof minValue === 'object' && minValue?.toNumber ? minValue.toNumber() : minValue
@@ -510,7 +514,8 @@ export class AiService {
               .map((vi) => `\`${vi.sourceType}\` ${vi.similarityFunction} ${vi.dimensions}d [${vi.status}]`)
               .join(', ')
           }
-          md += `| \`${esc(p.name)}\` | ${esc(p.type)} | ${fmtValues(p)} | ${semanticCell} |\n`
+          const propertyType = p.isArray ? `${p.type}[]` : p.type
+          md += `| \`${esc(p.name)}\` | ${esc(propertyType)} | ${fmtValues(p)} | ${semanticCell} |\n`
         }
         md += `\n`
       }
@@ -943,6 +948,7 @@ export class AiService {
     transaction: import('neo4j-driver').Transaction,
     workspaceId?: string
   ): Promise<Array<Record<string, any>>> {
+    const tTotal = Date.now()
     // Resolve the index by (projectId, propertyName, labels[0])
     const label = dto.labels[0]
     const sourceType: EmbeddingIndexSourceType = dto.sourceType ?? 'managed'
@@ -952,12 +958,14 @@ export class AiService {
       (Array.isArray(dto.queryVector) ? dto.queryVector.length : undefined) ??
       Number.parseInt(this.configService.get<string>('RUSHDB_EMBEDDING_DIMENSIONS') ?? '0', 10)
 
+    const tIndex = Date.now()
     const index = await this.embeddingIndexRepository.findByProjectIdPropertyAndLabel(
       projectId,
       dto.propertyName,
       label,
       { sourceType, similarityFunction, dimensions }
     )
+    const indexMs = Date.now() - tIndex
     if (!index) {
       throw new NotFoundException(
         `No embedding index found for label "${label}" and property "${dto.propertyName}" matching the requested vector signature`
@@ -997,9 +1005,13 @@ export class AiService {
         )
       }
 
+      const tEmbedding = Date.now()
       const embeddingResult = await this.embeddingProviderService.embedWithUsage(dto.query)
       queryVector = embeddingResult.embedding
       tokensUsed = embeddingResult.tokensUsed
+      isDevMode(() =>
+        Logger.debug(`[AiService] semanticSearch timing: embedding=${Date.now() - tEmbedding}ms`)
+      )
     }
 
     if (workspaceId && dto.query) {
@@ -1034,8 +1046,46 @@ export class AiService {
     let query: string
     let params: Record<string, unknown>
 
-    // Always prefilter candidates first for correctness in a multi-tenant shared index.
-    {
+    let canUseVectorIndex = !hasWhere && !hasMultiLabels
+
+    if (canUseVectorIndex) {
+      const tDdl = Date.now()
+      try {
+        await this.embeddingIndexDdlService.ensureVectorIndexExists({
+          sourceType: index.sourceType as EmbeddingIndexSourceType,
+          similarityFunction: index.similarityFunction as EmbeddingIndexSimilarityFunction,
+          dimensions: index.dimensions
+        })
+        isDevMode(() =>
+          Logger.debug(`[AiService] semanticSearch timing: ensureVectorIndex=${Date.now() - tDdl}ms`)
+        )
+      } catch (err) {
+        canUseVectorIndex = false
+        const reason = err instanceof Error ? err.message : String(err)
+        Logger.warn(
+          `[AiService] semanticSearch: vector index unavailable for ${index.vectorPropertyName} after ${Date.now() - tDdl}ms; falling back to exact search: ${reason}`
+        )
+      }
+    }
+
+    if (canUseVectorIndex) {
+      const candidateLimit = Math.min(Math.max(skip + limit, limit * 20, 1000), 10_000)
+      query = this.aiQueryService.getSemanticSearchVectorIndexQuery({ labelSuffix })
+      params = {
+        queryVector,
+        vectorIndexName: buildVectorIndexName({
+          sourceType: index.sourceType as EmbeddingIndexSourceType,
+          similarityFunction: index.similarityFunction as EmbeddingIndexSimilarityFunction,
+          dimensions: index.dimensions
+        }),
+        candidateLimit: neo4jInt(candidateLimit),
+        propertyName: dto.propertyName,
+        propKey,
+        projectId,
+        skip: neo4jInt(skip),
+        limit: neo4jInt(limit)
+      }
+    } else {
       // Narrow candidates first, then exact cosine scoring.
       // Sort all queryParts (record < record1 < ...) so that:
       //   sortedParts[0]  = root record WHERE condition
@@ -1074,14 +1124,35 @@ export class AiService {
       }
     }
 
+    const tCypher = Date.now()
     const result = await transaction.run(query, params)
+    const cypherMs = Date.now() - tCypher
 
     const toNum = (v: any) => (typeof v?.toNumber === 'function' ? v.toNumber() : Number(v))
 
-    return result.records.map((r) => ({
-      ...(r.get('record')?.properties ?? r.get('record')),
-      __score: toNum(r.get('score'))
-    }))
+    const tMap = Date.now()
+    const mapped = result.records.map((r) => {
+      const record = r.get('record')
+      const label =
+        Array.isArray(record?.labels) ?
+          record.labels.find((candidate: string) => candidate !== RUSHDB_LABEL_RECORD)
+        : undefined
+
+      return {
+        ...(record?.properties ?? record),
+        ...(label ? { [RUSHDB_KEY_LABEL_ALIAS]: label } : {}),
+        __score: toNum(r.get('score'))
+      }
+    })
+    const mapMs = Date.now() - tMap
+
+    isDevMode(() =>
+      Logger.debug(
+        `[AiService] semanticSearch timing: total=${Date.now() - tTotal}ms indexLookup=${indexMs}ms cypher=${cypherMs}ms map=${mapMs}ms mode=${canUseVectorIndex ? 'vector-index' : 'exact'} rows=${mapped.length}`
+      )
+    )
+
+    return mapped
   }
 
   /**

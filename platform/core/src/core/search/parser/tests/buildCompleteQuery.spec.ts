@@ -1112,6 +1112,27 @@ const q42 = {
   }
 }
 
+const q48 = {
+  labels: ['EMPLOYEE'],
+  select: {
+    name: '$record.name',
+    salary: '$record.salary'
+  },
+  orderBy: {
+    salary: 'desc'
+  }
+}
+
+const q49 = {
+  labels: ['EMPLOYEE'],
+  select: {
+    name: '$record.name'
+  },
+  orderBy: {
+    salary: 'desc'
+  }
+}
+
 // ── Expected outputs ─────────────────────────────────────────────────────────
 
 // q31 → identical Cypher to r2 (same logic, different syntax)
@@ -1166,6 +1187,14 @@ OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`INVENTORY\`)
 WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
 WITH record, (record1.\`quantity\` * record1.\`unitPrice\`) AS \`totalValue\`
 RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`product\`: record.\`name\`, \`totalValue\`} as records`
+
+const r48 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`salary\` DESC SKIP 0 LIMIT 100
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`name\`: record.\`name\`, \`salary\`: record.\`salary\`} as records`
+
+const r49 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`salary\` DESC SKIP 0 LIMIT 100
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`name\`: record.\`name\`} as records`
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
@@ -1222,6 +1251,14 @@ describe('select expression API', () => {
 
   it('42 - $multiply math operator', () => {
     expect(queryService.findRecords({ searchQuery: q42 })).toEqual(r42)
+  })
+
+  it('48 - orders by raw record field when orderBy matches a simple select projection', () => {
+    expect(queryService.findRecords({ searchQuery: q48 })).toEqual(r48)
+  })
+
+  it('49 - orders by raw record field when orderBy field is not selected', () => {
+    expect(queryService.findRecords({ searchQuery: q49 })).toEqual(r49)
   })
 })
 
@@ -1408,6 +1445,58 @@ const q47 = {
   }
 }
 
+const q50 = {
+  labels: ['PROJECT'],
+  select: {
+    project_name: '$record.name',
+    top_paid_employees: {
+      $collect: {
+        label: 'EMPLOYEE',
+        select: {
+          employee_name: '$self.name',
+          salary: '$self.salary'
+        },
+        orderBy: {
+          salary: 'desc'
+        },
+        limit: 3
+      }
+    }
+  }
+}
+
+const q51 = {
+  ...q50,
+  groupBy: ['$record.name']
+}
+
+const q52 = {
+  labels: ['DEPARTMENT'],
+  where: {
+    PROJECT: {
+      EMPLOYEE: {
+        $alias: '$employee'
+      }
+    }
+  },
+  select: {
+    department_name: '$record.name',
+    top_paid_employees: {
+      $collect: {
+        from: '$employee',
+        select: {
+          employee_name: '$employee.name',
+          salary: '$employee.salary'
+        },
+        orderBy: {
+          salary: 'desc'
+        },
+        limit: 3
+      }
+    }
+  }
+}
+
 const r47 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
 OPTIONAL MATCH (record)--(sel0:__RUSHDB__LABEL__RECORD__:\`DEPARTMENT\`)
@@ -1417,6 +1506,20 @@ WITH record, sel0, sel1, apoc.coll.sortMaps(collect(DISTINCT sel2 {.*, __RUSHDB_
 WITH record, sel0, apoc.coll.sortMaps(collect(DISTINCT sel1 {name: sel1.\`name\`, \`employees\`, __RUSHDB__KEY__LABEL__: [label IN labels(sel1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "__RUSHDB__KEY__ID__")[0..100] AS \`projects\`
 WITH record, apoc.coll.sortMaps(collect(DISTINCT sel0 {name: sel0.\`name\`, \`projects\`, __RUSHDB__KEY__LABEL__: [label IN labels(sel0) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "__RUSHDB__KEY__ID__")[0..100] AS \`departments\`
 RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departments\`} as records`
+
+const r50 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`PROJECT\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(sel0:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\`)
+WITH record, apoc.coll.sortMaps(collect(DISTINCT sel0 {employee_name: sel0.\`name\`, salary: sel0.\`salary\`, __RUSHDB__KEY__LABEL__: [label IN labels(sel0) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "salary")[0..3] AS \`top_paid_employees\`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`project_name\`: record.\`name\`, \`top_paid_employees\`} as records`
+
+const r52 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`DEPARTMENT\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`PROJECT\`)
+OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\`)
+WITH record, record1, record2 WHERE record IS NOT NULL AND (record1 IS NOT NULL AND record2 IS NOT NULL)
+WITH record, apoc.coll.sortMaps(collect(DISTINCT record2 {employee_name: record2.\`name\`, salary: record2.\`salary\`, __RUSHDB__KEY__LABEL__: [label IN labels(record2) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "salary")[0..3] AS \`top_paid_employees\`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`department_name\`: record.\`name\`, \`top_paid_employees\`} as records`
 
 describe('label-based $collect (inline traversal)', () => {
   let queryService: EntityQueryService
@@ -1443,5 +1546,38 @@ describe('label-based $collect (inline traversal)', () => {
 
   it('47 - 3-level nested label collect (dashboard aggregateExample4)', () => {
     expect(queryService.findRecords({ searchQuery: q47 })).toEqual(r47)
+  })
+
+  it('50 - top related records per root with label collect', () => {
+    expect(queryService.findRecords({ searchQuery: q50 })).toEqual(r50)
+  })
+
+  it('51 - rejects label collect with root groupBy', () => {
+    expect(() => queryService.findRecords({ searchQuery: q51 })).toThrow(
+      'Label-based $collect cannot be combined with root groupBy'
+    )
+  })
+
+  it('52 - top related records through an intermediate path with alias collect', () => {
+    expect(queryService.findRecords({ searchQuery: q52 })).toEqual(r52)
+  })
+
+  it('53 - rejects alias-only groupBy values before Cypher generation', () => {
+    expect(() =>
+      queryService.findRecords({
+        searchQuery: {
+          labels: ['PARENT', 'CHILD'],
+          select: {
+            count: {
+              $count: '*'
+            }
+          },
+          groupBy: ['$record'],
+          orderBy: {
+            count: 'desc'
+          }
+        }
+      })
+    ).toThrow(/groupBy field reference "\$record" must include a property name/)
   })
 })

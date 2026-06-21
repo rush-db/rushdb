@@ -1,9 +1,10 @@
-import { Ban, Check, Info, RefreshCw, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Ban, Check, ExternalLink, Info, List, Lock, Network, RefreshCw, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '@nanostores/react'
 
 import type { Project } from '~/features/projects/types'
 import type { ExistingRelationshipSummary, RelationshipPattern } from '~/features/relationship-patterns/types'
+import type { GraphOutput } from '~/features/projects/components/GraphCanvas'
 
 import { Badge } from '~/elements/Badge'
 import { Button } from '~/elements/Button'
@@ -27,33 +28,136 @@ import {
 } from '~/features/relationship-patterns/hooks'
 import { $currentProjectId } from '~/features/projects/stores/id'
 import { $tourStep, setTourStep } from '~/features/tour/stores/tour'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
+import { getLabelColor } from '~/features/labels/utils'
+import { GraphCanvas } from '~/features/projects/components/GraphCanvas'
 import { formatIsoToLocalDateTime } from '~/lib/formatters'
 import { changeSearchParam, openRoute } from '~/lib/router'
 import { cn } from '~/lib/utils'
+
+// Relationship type RushDB assigns to edges it creates automatically while importing
+// nested data. These are part of the imported structure and aren't managed from here.
+const RUSHDB_DEFAULT_RELATION_TYPE = '__RUSHDB__RELATION__DEFAULT__'
+
+// A relationship shown in the top section. `pattern` is present only when the edge
+// is backed by an approved suggestion — those stay user-deletable, while edges that
+// emerged from imports (no pattern) are read-only.
+type RelationshipRowData = {
+  key: string
+  sourceLabel: string
+  targetLabel: string
+  type: string
+  pattern?: RelationshipPattern
+}
+
+function relationshipEdgeKey(sourceLabel: string, type: string, targetLabel: string) {
+  return `${sourceLabel}|${type}|${targetLabel}`
+}
+
+// Merge import-derived existing relationships with approved patterns into a single
+// deduped list. The backend already normalizes existing edges to source → type →
+// target and approved patterns apply with the same orientation, so one key dedupes
+// both. Approved patterns not yet reflected in the ontology still appear here.
+function buildRelationshipRows(
+  relationships: ExistingRelationshipSummary[],
+  approved: RelationshipPattern[]
+): RelationshipRowData[] {
+  const rows = new Map<string, RelationshipRowData>()
+
+  relationships.forEach((item) => {
+    item.relationships.forEach((relationship) => {
+      const sourceLabel = relationship.direction === 'in' ? relationship.label : item.label
+      const targetLabel = relationship.direction === 'in' ? item.label : relationship.label
+      const key = relationshipEdgeKey(sourceLabel, relationship.type, targetLabel)
+      if (!rows.has(key)) {
+        rows.set(key, { key, sourceLabel, targetLabel, type: relationship.type })
+      }
+    })
+  })
+
+  approved.forEach((pattern) => {
+    const key = relationshipEdgeKey(pattern.source.label, pattern.type, pattern.target.label)
+    const existing = rows.get(key)
+    if (existing) {
+      existing.pattern = pattern
+    } else {
+      rows.set(key, {
+        key,
+        sourceLabel: pattern.source.label,
+        targetLabel: pattern.target.label,
+        type: pattern.type,
+        pattern
+      })
+    }
+  })
+
+  return [...rows.values()].sort((a, b) => a.key.localeCompare(b.key))
+}
+
+// The label-level ontology graph: each label rendered once, every deduped
+// relationship type as a directed edge. Reuses the Records GraphCanvas renderer.
+function buildOntologyGraph(rows: RelationshipRowData[], labelNames: string[]): GraphOutput {
+  const nodeLabels = new Set<string>()
+  rows.forEach((row) => {
+    nodeLabels.add(row.sourceLabel)
+    nodeLabels.add(row.targetLabel)
+  })
+
+  const nodes = [...nodeLabels].map((name) => ({
+    id: `label:${name}`,
+    kind: 'record' as const,
+    label: name,
+    color: getLabelColor(name, labelNames.indexOf(name))
+  }))
+
+  const links = rows.map((row) => ({
+    id: `rel:${row.key}`,
+    kind: 'record-relation' as const,
+    source: `label:${row.sourceLabel}`,
+    target: `label:${row.targetLabel}`,
+    relationType: row.type
+  }))
+
+  return { nodes, links }
+}
+
+function ontologyNodeHoverLabel(node: { label: string }) {
+  const shellStyle =
+    'background: rgba(0, 0, 0, 0.5); color: #fff; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 8px 10px; line-height: 1.35; font-size: 12px; backdrop-filter: blur(2px); max-width: 320px;'
+  return `<div style="${shellStyle}"><div><b>Label</b>: ${node.label}</div></div>`
+}
+
+const RELATIONSHIP_DOCS_URL = 'https://docs.rushdb.com/learn/relationships'
+const SUGGESTED_PATTERNS_DOCS_URL = 'https://docs.rushdb.com/learn/relationships/suggested-patterns'
 
 function RelationshipPath({
   sourceLabel,
   sourceKey,
   targetLabel,
   targetKey,
-  type
+  type,
+  labelNames
 }: {
+  labelNames: string[]
   sourceLabel: string
   sourceKey?: string
   targetLabel: string
   targetKey?: string
   type: string
 }) {
+  const sourceVariant = getLabelColor(sourceLabel, labelNames.indexOf(sourceLabel))
+  const targetVariant = getLabelColor(targetLabel, labelNames.indexOf(targetLabel))
+
   return (
     <div className="flex flex-wrap items-center gap-2 font-mono text-sm">
-      <Label className="!text-sm">
+      <Label className="!text-sm" variant={sourceVariant}>
         {sourceLabel}
         {sourceKey ? `[${sourceKey}]` : ''}
       </Label>
       <span className="text-content3">→</span>
       <Badge className="!text-sm">{type}</Badge>
       <span className="text-content3">→</span>
-      <Label className="!text-sm">
+      <Label className="!text-sm" variant={targetVariant}>
         {targetLabel}
         {targetKey ? `[${targetKey}]` : ''}
       </Label>
@@ -61,10 +165,11 @@ function RelationshipPath({
   )
 }
 
-function PatternPath({ pattern }: { pattern: RelationshipPattern }) {
+function PatternPath({ labelNames, pattern }: { labelNames: string[]; pattern: RelationshipPattern }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <RelationshipPath
+        labelNames={labelNames}
         sourceLabel={pattern.source.label}
         sourceKey={pattern.source.key}
         targetLabel={pattern.target.label}
@@ -162,9 +267,11 @@ function sortSuggestedPatterns(patterns: RelationshipPattern[]) {
 }
 
 function PatternCard({
+  labelNames,
   pattern,
   tourApproveTarget = false
 }: {
+  labelNames: string[]
   pattern: RelationshipPattern
   tourApproveTarget?: boolean
 }) {
@@ -175,9 +282,9 @@ function PatternCard({
   const tourStep = useStore($tourStep)
 
   return (
-    <li className="px-4 py-3">
+    <li className="bg-card rounded-md border px-4 py-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <PatternPath pattern={pattern} />
+        <PatternPath labelNames={labelNames} pattern={pattern} />
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
           {pattern.status === 'suggested' || pattern.status === 'ignored' || pattern.status === 'error' ?
             <div className="text-content2 flex items-center gap-1 text-sm">
@@ -258,64 +365,133 @@ function PatternCard({
   )
 }
 
-function ExistingRelationships({ relationships }: { relationships: ExistingRelationshipSummary[] }) {
-  if (!relationships.length) {
-    return <NothingFound title="No existing relationships found" />
-  }
+function RelationshipRow({ labelNames, row }: { labelNames: string[]; row: RelationshipRowData }) {
+  const remove = useDeleteRelationshipPatternMutation()
+  const pattern = row.pattern
+  const applying = !!pattern && !pattern.lastAppliedAt && !pattern.lastError
+
+  // Approved patterns show their LLM rationale; relationships that came in with the
+  // imported data structure aren't editable here and explain themselves instead.
+  const detail =
+    pattern ? pattern.rationale
+    : row.type === RUSHDB_DEFAULT_RELATION_TYPE ?
+      'Created automatically from your imported nested data (RushDB default relationship). Managed by the import structure, not editable here.'
+    : 'Emerged from your imported data structure. Managed by the data itself, not editable here.'
 
   return (
-    <Card>
-      <ul className="divide-y">
-        {relationships.map((item) =>
-          item.relationships.map((relationship) => {
-            const sourceLabel = relationship.direction === 'in' ? relationship.label : item.label
-            const targetLabel = relationship.direction === 'in' ? item.label : relationship.label
-
-            return (
-              <li
-                className="px-4 py-3"
-                key={`${item.label}-${relationship.direction}-${relationship.type}-${relationship.label}`}
+    <li className="bg-card rounded-md border px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <RelationshipPath
+              labelNames={labelNames}
+              sourceLabel={row.sourceLabel}
+              targetLabel={row.targetLabel}
+              type={row.type}
+            />
+            {applying ?
+              <Badge className="text-content2 text-sm">Applying…</Badge>
+            : null}
+          </div>
+          {detail ?
+            <p className="text-content2 text-sm leading-snug">{detail}</p>
+          : null}
+        </div>
+        {pattern ?
+          <DeletePatternDialog
+            loading={remove.isPending}
+            onDelete={(deleteExisting) => remove.mutateAsync({ id: pattern.id, deleteExisting })}
+            pattern={pattern}
+          />
+        : <Tooltip
+            align="end"
+            trigger={
+              <span
+                aria-label="Read-only relationship"
+                className="text-content3 inline-flex h-8 w-8 shrink-0 items-center justify-center"
               >
-                <RelationshipPath
-                  sourceLabel={sourceLabel}
-                  targetLabel={targetLabel}
-                  type={relationship.type}
-                />
-              </li>
-            )
-          })
-        )}
-      </ul>
-    </Card>
+                <Lock className="h-4 w-4" />
+              </span>
+            }
+          >
+            <span className="max-w-[280px] text-sm">
+              This relationship is part of the imported data structure and can't be edited here.
+            </span>
+          </Tooltip>
+        }
+      </div>
+    </li>
   )
 }
 
-function ExistingRelationshipsSection({
+function RelationshipsOverviewSection({
   isPending,
-  relationships
+  labelNames,
+  ontologyGraph,
+  rows
 }: {
   isPending: boolean
-  relationships: ExistingRelationshipSummary[]
+  labelNames: string[]
+  ontologyGraph: GraphOutput
+  rows: RelationshipRowData[]
 }) {
+  const [view, setView] = useState<'list' | 'graph'>('list')
+
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Existing relationships</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Existing relationships</h2>
+          <p className="text-content2 text-sm">
+            Review relationship types that already connect records in this project.
+          </p>
+        </div>
+        <Tabs onValueChange={(value) => setView(value as 'list' | 'graph')} value={view}>
+          <TabsList>
+            <Tab value="list">
+              <List className="h-4 w-4" />
+              List
+            </Tab>
+            <Tab value="graph">
+              <Network className="h-4 w-4" />
+              Graph
+            </Tab>
+          </TabsList>
+        </Tabs>
       </div>
+
       {isPending ?
         <Skeleton enabled>
           <Card className="h-28" />
         </Skeleton>
-      : <ExistingRelationships relationships={relationships} />}
+      : view === 'graph' ?
+        ontologyGraph.nodes.length ?
+          <div className="h-[600px] overflow-hidden rounded-md border">
+            <GraphCanvas
+              availableLayers={['recordLabels', 'relationshipTypes']}
+              getNodeHoverLabel={ontologyNodeHoverLabel}
+              graphData={ontologyGraph}
+            />
+          </div>
+        : <NothingFound title="No existing relationships found" />
+      : rows.length ?
+        <ul className="flex flex-col gap-3">
+          {rows.map((row) => (
+            <RelationshipRow key={row.key} labelNames={labelNames} row={row} />
+          ))}
+        </ul>
+      : <NothingFound title="No existing relationships found" />}
     </section>
   )
 }
 
 function PatternsSection({
+  labelNames,
   loading,
   patterns,
   tourPatternId
 }: {
+  labelNames: string[]
   loading: boolean
   patterns: RelationshipPattern[]
   tourPatternId?: string
@@ -332,17 +508,16 @@ function PatternsSection({
           </Skeleton>
         </div>
       : patterns.length ?
-        <Card>
-          <ul className="divide-y">
-            {patterns.map((pattern, index) => (
-              <PatternCard
-                key={pattern.id}
-                pattern={pattern}
-                tourApproveTarget={pattern.id === tourPatternId || (!tourPatternId && index === 0)}
-              />
-            ))}
-          </ul>
-        </Card>
+        <ul className="flex flex-col gap-3">
+          {patterns.map((pattern, index) => (
+            <PatternCard
+              key={pattern.id}
+              labelNames={labelNames}
+              pattern={pattern}
+              tourApproveTarget={pattern.id === tourPatternId || (!tourPatternId && index === 0)}
+            />
+          ))}
+        </ul>
       : <NothingFound className="min-h-0 py-8" title="No patterns found" />}
     </>
   )
@@ -362,11 +537,36 @@ function TabLabel({ count, label }: { count: number; label: string }) {
 export function ProjectRelationships({ projectId }: { projectId: Project['id'] }) {
   void projectId
   const { data, isPending } = useRelationshipPatternsQuery()
+  const { data: platformSettings, isPending: settingsPending } = usePlatformSettings()
   const analyze = useAnalyzeRelationshipPatternsMutation()
+  const llmEnabled = platformSettings?.llmEnabled === true
   const patterns = data?.patterns ?? []
+  const relationships = data?.relationships ?? []
   const suggested = sortSuggestedPatterns(patterns.filter((pattern) => pattern.status === 'suggested'))
   const approved = patterns.filter((pattern) => pattern.status === 'approved')
   const ignored = patterns.filter((pattern) => pattern.status === 'ignored' || pattern.status === 'error')
+  const labelNames = useMemo(() => {
+    const labels = new Set<string>()
+
+    relationships.forEach((item) => {
+      labels.add(item.label)
+      item.relationships.forEach((relationship) => labels.add(relationship.label))
+    })
+    patterns.forEach((pattern) => {
+      labels.add(pattern.source.label)
+      labels.add(pattern.target.label)
+    })
+
+    return [...labels].sort()
+  }, [patterns, relationships])
+  const relationshipRows = useMemo(
+    () => buildRelationshipRows(relationships, approved),
+    [relationships, approved]
+  )
+  const ontologyGraph = useMemo(
+    () => buildOntologyGraph(relationshipRows, labelNames),
+    [relationshipRows, labelNames]
+  )
   const lastAnalyzedAt = data?.analysis?.lastRunAt
   const isAnalyzing =
     analyze.isPending || data?.analysis?.status === 'pending' || data?.analysis?.status === 'running'
@@ -374,76 +574,105 @@ export function ProjectRelationships({ projectId }: { projectId: Project['id'] }
   const tourPatternId = suggested.find(isAgentRunJoinPattern)?.id ?? suggested[0]?.id
 
   useEffect(() => {
-    if (tourStep === 'projectRelationshipAnalyze' && !isAnalyzing && suggested.length > 0) {
+    if (llmEnabled && tourStep === 'projectRelationshipAnalyze' && !isAnalyzing && suggested.length > 0) {
       setTourStep('projectRelationshipApprove', true)
     }
-  }, [isAnalyzing, suggested.length, tourStep])
+  }, [isAnalyzing, llmEnabled, suggested.length, tourStep])
 
   return (
     <>
-      <PageHeader contained>
-        <div className="flex flex-col gap-2">
+      <PageHeader className="items-start" contained>
+        <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Relationships</PageTitle>
+          <p className="text-content2 text-sm leading-6">
+            Relationships are named, directed edges between records. They turn imported data into a
+            traversable graph and can be created directly, inferred from references, or approved from
+            suggested patterns.
+          </p>
+          <a
+            className="text-content2 hover:text-content inline-flex w-fit items-center gap-2 text-sm transition"
+            href={RELATIONSHIP_DOCS_URL}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Read the docs <ExternalLink className="h-3.5 w-3.5" />
+          </a>
         </div>
       </PageHeader>
-      <PageContent contained>
-        <ExistingRelationshipsSection isPending={isPending} relationships={data?.relationships ?? []} />
+      <PageContent className="gap-8" contained>
+        <RelationshipsOverviewSection
+          isPending={isPending}
+          labelNames={labelNames}
+          ontologyGraph={ontologyGraph}
+          rows={relationshipRows}
+        />
 
-        <section className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-semibold">Suggested relationships</h2>
-            <p className="text-content2 max-w-3xl text-sm">
-              RushDB analyzes your ontology after writes and suggests relationship patterns between records
-              that look connected. Some patterns match reference fields; others rename imported default
-              relationships when nested data already created the structure. Approving a pattern applies it now
-              and keeps applying it to future writes.
-            </p>
-          </div>
-
-          <Tabs className="flex flex-col gap-3" defaultValue="suggested">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <TabsList>
-                <Tab value="suggested">
-                  <TabLabel count={suggested.length} label="Suggested" />
-                </Tab>
-                <Tab value="approved">
-                  <TabLabel count={approved.length} label="Approved" />
-                </Tab>
-                <Tab value="ignored">
-                  <TabLabel count={ignored.length} label="Ignored" />
-                </Tab>
-              </TabsList>
-              <div className="flex flex-wrap items-center justify-end gap-3">
-                {isAnalyzing ?
-                  <span className="text-content2 text-sm">Exploring graph...</span>
-                : lastAnalyzedAt ?
-                  <span className="text-content2 text-sm" title={lastAnalyzedAt}>
-                    Last analyzed {formatIsoToLocalDateTime(lastAnalyzedAt)}
-                  </span>
-                : null}
-                <Button
-                  data-tour="project-relationships-analyze"
-                  disabled={isAnalyzing}
-                  onClick={() => analyze.mutate()}
-                  size="small"
-                  variant="secondary"
+        {settingsPending || llmEnabled ?
+          <section className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-lg font-semibold">Suggested relationships</h2>
+              <p className="text-content2 max-w-3xl text-sm">
+                RushDB analyzes this project after writes and suggests relationship patterns worth reviewing.
+                Approving a pattern applies it now and keeps applying it to matching future writes.{' '}
+                <a
+                  className="text-content hover:underline"
+                  href={SUGGESTED_PATTERNS_DOCS_URL}
+                  rel="noreferrer"
+                  target="_blank"
                 >
-                  <RefreshCw className={cn(isAnalyzing && 'animate-spin')} />
-                  Refresh
-                </Button>
-              </div>
+                  Learn more
+                </a>
+              </p>
             </div>
-            <TabsContent value="suggested">
-              <PatternsSection loading={isPending} patterns={suggested} tourPatternId={tourPatternId} />
-            </TabsContent>
-            <TabsContent value="approved">
-              <PatternsSection loading={isPending} patterns={approved} />
-            </TabsContent>
-            <TabsContent value="ignored">
-              <PatternsSection loading={isPending} patterns={ignored} />
-            </TabsContent>
-          </Tabs>
-        </section>
+
+            <Tabs className="flex flex-col gap-3" defaultValue="suggested">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <TabsList>
+                  <Tab value="suggested">
+                    <TabLabel count={suggested.length} label="Suggested" />
+                  </Tab>
+                  <Tab value="ignored">
+                    <TabLabel count={ignored.length} label="Ignored" />
+                  </Tab>
+                </TabsList>
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  {isAnalyzing ?
+                    <span className="text-content2 text-sm">Exploring graph...</span>
+                  : lastAnalyzedAt ?
+                    <span className="text-content2 text-sm" title={lastAnalyzedAt}>
+                      Last analyzed {formatIsoToLocalDateTime(lastAnalyzedAt)}
+                    </span>
+                  : null}
+                  <Button
+                    data-tour="project-relationships-analyze"
+                    disabled={isAnalyzing || !llmEnabled}
+                    onClick={() => analyze.mutate()}
+                    size="small"
+                    variant="secondary"
+                  >
+                    <RefreshCw className={cn(isAnalyzing && 'animate-spin')} />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+              <TabsContent value="suggested">
+                <PatternsSection
+                  labelNames={labelNames}
+                  loading={isPending || settingsPending}
+                  patterns={suggested}
+                  tourPatternId={tourPatternId}
+                />
+              </TabsContent>
+              <TabsContent value="ignored">
+                <PatternsSection
+                  labelNames={labelNames}
+                  loading={isPending || settingsPending}
+                  patterns={ignored}
+                />
+              </TabsContent>
+            </Tabs>
+          </section>
+        : null}
       </PageContent>
     </>
   )

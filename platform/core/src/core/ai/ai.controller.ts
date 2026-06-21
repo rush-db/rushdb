@@ -22,8 +22,10 @@ import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { AiService } from '@/core/ai/ai.service'
 import { OntologyItem } from '@/core/ai/ai.types'
 import { CreateEmbeddingIndexDto } from '@/core/ai/dto/create-embedding-index.dto'
+import { GenerateSearchQueryDto } from '@/core/ai/dto/generate-search-query.dto'
 import { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
 import { UpsertIndexVectorsDto } from '@/core/ai/dto/upsert-index-vectors.dto'
+import { SearchQueryGeneratorService } from '@/core/ai/search-query-generator.service'
 import { createEmbeddingIndexSchema } from '@/core/ai/validation/schemas/embedding-index.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
@@ -42,7 +44,10 @@ class OntologyFilterDto {
 @ApiTags('AI')
 @UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)
 export class AiController {
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    private readonly searchQueryGeneratorService: SearchQueryGeneratorService
+  ) {}
 
   /**
    * Returns the full graph ontology as structured JSON.
@@ -93,6 +98,26 @@ export class AiController {
       transaction
     })
     return this.aiService.buildMdSchema(ontology)
+  }
+
+  @Post('/search-query')
+  @ApiBearerAuth()
+  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
+  @AuthGuard('project')
+  @HttpCode(HttpStatus.OK)
+  async generateSearchQuery(
+    @Body() body: GenerateSearchQueryDto,
+    @PreferredTransactionDecorator() transaction: Transaction,
+    @Request() request: PlatformRequest
+  ) {
+    const raw: any = (request as any).raw ?? request
+    return this.searchQueryGeneratorService.generate({
+      prompt: body?.prompt,
+      currentQuery: body?.currentQuery,
+      projectId: request.projectId,
+      workspaceId: !raw.project?.customDb ? request.workspaceId : undefined,
+      transaction
+    })
   }
 
   /**

@@ -44,7 +44,7 @@ function formatMetadata(operation: string, metadata: Record<string, unknown> | n
 
     const parts: string[] = []
     if (typeof count === 'number') {
-      parts.push(`${count.toLocaleString()} records`)
+      parts.push(`${count?.toLocaleString()} records`)
     }
     if (projectBreakdown) {
       const projectCount = Object.keys(projectBreakdown).length
@@ -67,7 +67,7 @@ function formatMetadata(operation: string, metadata: Record<string, unknown> | n
 
   // Relationship created - show count
   if (operation === 'relationship_created' && typeof metadata.count === 'number') {
-    return `${metadata.count.toLocaleString()} relationships`
+    return `${metadata.count?.toLocaleString()} relationships`
   }
 
   // Query heavy operation - show type
@@ -80,7 +80,7 @@ function formatMetadata(operation: string, metadata: Record<string, unknown> | n
     const parts: string[] = []
     if (metadata.trigger) parts.push(String(metadata.trigger))
     if (typeof metadata.totalTokens === 'number')
-      parts.push(`${metadata.totalTokens.toLocaleString()} tokens`)
+      parts.push(`${metadata.totalTokens?.toLocaleString()} tokens`)
     if (typeof metadata.candidateCount === 'number') parts.push(`${metadata.candidateCount} candidates`)
     return parts.join(' • ')
   }
@@ -105,7 +105,7 @@ function formatMetadata(operation: string, metadata: Record<string, unknown> | n
 function formatKu(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}K`
-  return n.toLocaleString()
+  return n?.toLocaleString()
 }
 
 // Returns YYYY-MM-DD in the browser's local timezone — used for chart bucketing
@@ -695,7 +695,7 @@ export function KuUsageHistory() {
                       {OPERATION_LABELS[event.operation] || event.operation}
                     </div>
                     <div className="text-content3 text-sm">
-                      {new Date(event.timestamp).toLocaleString()}
+                      {new Date(event.timestamp)?.toLocaleString()}
                       {event.metadata && Object.keys(event.metadata).length > 0 && (
                         <span className="text-content2 ml-2">
                           {formatMetadata(event.operation, event.metadata)}

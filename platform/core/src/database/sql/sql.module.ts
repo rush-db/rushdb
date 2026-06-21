@@ -90,9 +90,10 @@ export class SqlModule implements OnModuleInit {
             if (dbType === 'postgres') {
               const { Pool } = await import('pg')
               const { drizzle } = await import('drizzle-orm/node-postgres')
-              const connectionString = configService.get<string>('SQL_DB_URL')
+              const connectionString =
+                configService.get<string>('SQL_DB_URL') ?? configService.get<string>('DATABASE_URL')
               if (!connectionString) {
-                throw new Error('SQL_DB_URL must be set when SQL_DB_TYPE=postgres')
+                throw new Error('SQL_DB_URL or DATABASE_URL must be set when SQL_DB_TYPE=postgres')
               }
               const sslEnv = configService.get<string>('SQL_DB_SSL')
               const isLocal =

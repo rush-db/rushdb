@@ -52,6 +52,27 @@ export const isFlatObject = (input: any): input is Record<string, PropertyValue>
   return isObject(input) && Object.values(input).every(isPropertyValue)
 }
 
+const isComplexImportValue = (value: unknown): boolean =>
+  isObject(value) || (isArray(value) && !value.every(isPrimitive))
+
+export const jsonImportRequiresLabel = (data: unknown): boolean => {
+  if (isArray(data)) {
+    return true
+  }
+
+  if (!isObject(data)) {
+    return true
+  }
+
+  const values = Object.values(data)
+
+  if (values.length === 0) {
+    return true
+  }
+
+  return values.some((value) => !isComplexImportValue(value))
+}
+
 export const isString = (input: any): input is string => typeof input === 'string'
 
 export const toBoolean = (value: any): boolean => {

@@ -35,6 +35,10 @@ limit?     number        — max root records (default 100; max 1000)
 skip?      number        — pagination offset
 ```
 
+`labels` defines root records only. For relationship-aware analytics, do not put related labels in `labels`; put related labels inside `where` traversal blocks and add `$alias` when they are referenced by `select` or `groupBy`.
+
+For "which/what <parent> has most/more/least/less/fewer/fewest <related records>" questions, choose the parent as the root label. Do not switch the root to the related/filter label just because that label owns the filtered property.
+
 **Critical limits:**
 
 - NEVER include `limit` when `select` is present (`$sum`/`$avg`/`$min`/`$max`/`$count`/`$collect`/`$timeBucket`). `limit` restricts the record scan → results are mathematically wrong. e.g. "total budget of all 33 projects" with `limit:10` returns only the sum of the first 10.
@@ -90,6 +94,8 @@ status: {
   $nin: ['deleted', 'archived']
 } // matches none of these values
 ```
+
+For user-provided named references that may be incomplete, abbreviated, or shortened, prefer `$contains` on a likely display field (`name`, `title`, or ontology-backed equivalent). Use exact equality only for exact IDs, canonical full values, or explicit exact-match requests.
 
 ### Number Operators
 
@@ -445,6 +451,10 @@ groupBy: ["bucket"]
 
 ## §3) GROUPBY — Two Modes
 
+`groupBy` is valid only with `select`.
+
+Do not use alias-only values in `groupBy`. `"$record"` and `"$related"` are invalid because grouped rows need a concrete dimension field. Use a property reference such as `"$record.name"` or `"$related.status"`, or use a select output key such as `"totalBudget"`.
+
 ### Mode A — Dimensional (one row per distinct value)
 
 ```js
@@ -547,6 +557,14 @@ If the metric field is NOT on the target label, search related labels before giv
 3. For each candidate related label R: `findProperties(labels:[R])` and attempt the same match.
 4. When found on CHILD: `where:{ CHILD:{ ...filters..., $alias:'$child' } }`, select referencing `'$child.*'`. Root-level filters stay at the top-level `where`.
 5. Never abandon after one miss — always attempt at least one related-label discovery pass.
+
+**Related-count ranking:**
+
+For "which/what `<parent>` has most/more/least/less/fewer/fewest `<related records>`", root the parent label, traverse the related label in `where` with `$alias`, put related filters inside that related-label block, count the related alias, group by a parent display field, and order the count.
+
+Direction: most/more/highest/largest/greatest → `desc`; least/less/fewer/fewest/lowest/smallest → `asc`.
+
+If the parent→related traversal path is absent, do not silently root on the related label; ask or return the closest valid query with an explicit assumption.
 
 ---
 
@@ -675,6 +693,9 @@ Before submitting any `findRecords` call, verify:
 - [ ] groupBy mode correct:
   - Dimensional: entries are `"$alias.propertyName"` strings
   - Self-group: entries are select key names (no dot, no alias prefix)
+- [ ] No alias-only `groupBy` values such as `"$record"` or `"$related"`
+- [ ] Root labels only in `labels`; related labels go in `where` traversal with `$alias` if referenced
+- [ ] Related-count ranking keeps the requested parent/entity as root; the related/filter label does not steal the root
 - [ ] Traversal: key = label name (ALL_CAPS). NEVER `$label`/`$direction`/`$as`/`$of`/`$through`
   - WRONG: `{ employee: { $label:'EMPLOYEE' } }` CORRECT: `{ EMPLOYEE: { $alias:'$emp' } }`
 - [ ] Vector similarity: still uses legacy `aggregate` (not `select`)
@@ -710,6 +731,23 @@ findRecords({
   orderBy: { count: 'desc' }
 })
 ```
+
+**Which parent has the most/fewest related children:**
+
+```js
+findRecords({
+  labels: ['<PARENT_LABEL>'],
+  where: { <CHILD_LABEL>: { $alias: '$child' } },
+  select: {
+    parent: '$record.<nameField>',
+    children: { $count: '$child' }
+  },
+  groupBy: ['$record.<nameField>'],
+  orderBy: { children: 'desc' }
+})
+```
+
+Use `desc` for most/more/highest/largest/greatest, and `asc` for least/less/fewer/fewest/lowest/smallest.
 
 **Self-group single KPI:**
 

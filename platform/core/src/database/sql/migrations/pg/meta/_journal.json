@@ -36,6 +36,13 @@
       "when": 1780984337441,
       "tag": "0004_project_scoped_embedding_index",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781481600000,
+      "tag": "0005_connectors",
+      "breakpoints": true
     }
   ]
 }

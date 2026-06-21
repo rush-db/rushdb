@@ -1,0 +1,205 @@
+---
+title: Templates
+description: Deploy RushDB with provider templates for self-hosted environments.
+sidebar_position: 2
+displayed_sidebar: docs
+tags: [Deployment, Templates, Self-Hosted]
+---
+
+import { DeployButtonGroup } from '@site/src/components/DeployMethodCard'
+
+# Templates
+
+RushDB can run anywhere Docker can run. If you already have Neo4j or Aura, the lowest-friction path is a single `docker run` command with SQLite for RushDB metadata.
+
+Use provider templates only when they remove real platform work: cloud-init for VM bootstrap, managed Postgres wiring, one-click app creation, or a reusable Compose bundle.
+
+For Vercel and Netlify, deploy the application that **uses** RushDB there, and point it at RushDB Cloud or a self-hosted RushDB API URL. They are not a good fit for hosting RushDB itself.
+
+## Mandatory Environment
+
+Every template must provide these variables before the first production boot:
+
+| Variable                        | Required | Notes                                                                    |
+| ------------------------------- | :------: | ------------------------------------------------------------------------ |
+| `RUSHDB_LOGIN`                  |   Yes    | Dashboard admin login                                                    |
+| `RUSHDB_PASSWORD`               |   Yes    | Dashboard admin password; store as a provider secret                     |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` |   Yes    | Exactly 32 characters; generate with `openssl rand -hex 16`              |
+| `NEO4J_URL`                     |   Yes    | External Neo4j/Aura URL; Neo4j is not managed by these Compose templates |
+| `NEO4J_USERNAME`                |   Yes    | Usually `neo4j`                                                          |
+| `NEO4J_PASSWORD`                |   Yes    | External Neo4j/Aura password; store as a provider secret                 |
+
+If you use SQLite, also set `SQL_DB_TYPE=sqlite` and `SQL_DB_PATH=/data/rushdb.db`. If a template uses Postgres, it needs either `SQL_DB_URL` or the provider's managed Postgres URL variable such as `DATABASE_URL`. Docker Compose templates build `SQL_DB_URL` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`.
+
+Optional OpenAI-compatible provider variables are present where the platform supports them:
+
+| Variable                                          | Default in templates                         |
+| ------------------------------------------------- | -------------------------------------------- |
+| `RUSHDB_LLM_BASE_URL`                             | `https://openrouter.ai/api/v1`               |
+| `RUSHDB_LLM_MODEL`                                | `google/gemini-2.5-flash-lite`               |
+| `RUSHDB_EMBEDDING_BASE_URL`                       | `https://openrouter.ai/api/v1`               |
+| `RUSHDB_EMBEDDING_MODEL`                          | `qwen/qwen3-embedding-8b`                    |
+| `RUSHDB_EMBEDDING_DIMENSIONS`                     | `1024`                                       |
+| `RUSHDB_LLM_API_KEY` / `RUSHDB_EMBEDDING_API_KEY` | Empty placeholder; store as provider secrets |
+
+## Default: Docker Run
+
+Use this when you have an external Neo4j/Aura instance and want the shortest deployment path.
+
+```bash
+docker volume create rushdb-data
+
+docker run -d \
+  --name rushdb \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -v rushdb-data:/data \
+  -e RUSHDB_SELF_HOSTED=true \
+  -e RUSHDB_SERVE_STATIC=true \
+  -e RUSHDB_LOGIN=admin \
+  -e RUSHDB_PASSWORD='change-me' \
+  -e RUSHDB_AES_256_ENCRYPTION_KEY='32SymbolStringForTokenEncryption' \
+  -e NEO4J_URL='neo4j+s://your-aura-host.databases.neo4j.io' \
+  -e NEO4J_USERNAME=neo4j \
+  -e NEO4J_PASSWORD='your-neo4j-password' \
+  -e SQL_DB_TYPE=sqlite \
+  -e SQL_DB_PATH=/data/rushdb.db \
+  rushdb/platform:latest
+```
+
+Open `http://SERVER_IP:3000`, sign in with `RUSHDB_LOGIN` / `RUSHDB_PASSWORD`, then continue with [Get your API Key](/deploy/configuration/get-api-key).
+
+Use Docker Compose or a provider template instead when you want Postgres, repeatable cloud bootstrapping, or provider-managed secrets.
+
+## Hetzner Cloud
+
+Use the Hetzner cloud-init template as server user data when creating an Ubuntu cloud server. It installs Docker, downloads the RushDB Compose template, opens SSH and port `3000`, and starts the stack. Replace the external Neo4j/Aura placeholders before production traffic.
+
+<DeployButtonGroup
+  buttons={[
+    {
+      label: 'View cloud-init',
+      href: 'https://github.com/rush-db/rushdb/blob/main/deploy/templates/hetzner/cloud-init.yaml',
+      variant: 'primary'
+    }
+  ]}
+/>
+
+Recommended server size: at least 2 vCPU and 4 GB RAM. Before production traffic, SSH into the server and set every variable in [Mandatory Environment](#mandatory-environment), especially `RUSHDB_PASSWORD`, `RUSHDB_AES_256_ENCRYPTION_KEY`, `NEO4J_URL`, `NEO4J_PASSWORD`, and `POSTGRES_PASSWORD`.
+
+## Infomaniak Jelastic
+
+Use the Infomaniak Jelastic Compose bundle when creating a Docker Compose environment or deploying through SSH in a Jelastic Docker environment.
+
+```bash
+mkdir rushdb && cd rushdb
+curl -L -o compose.yaml https://raw.githubusercontent.com/rush-db/rushdb/main/deploy/templates/infomaniak-jelastic/compose.yaml
+curl -L -o .env https://raw.githubusercontent.com/rush-db/rushdb/main/deploy/templates/infomaniak-jelastic/.env.example
+
+# Set the Jelastic public URL and rotate all passwords.
+nano .env
+
+docker compose up -d
+```
+
+The Jelastic template starts RushDB and Postgres only. Neo4j is intentionally external; set `NEO4J_URL`, `NEO4J_USERNAME`, and `NEO4J_PASSWORD` to your Aura or Neo4j instance.
+
+If your Jelastic environment provides managed PostgreSQL separately, you can reuse the `rushdb` service from this template and point `SQL_DB_URL` at the managed database instead of starting the bundled `postgres` service.
+
+## DigitalOcean App Platform
+
+Use the DigitalOcean deploy template for a managed App Platform service plus managed Postgres. You still need an external Neo4j or Aura instance.
+
+<DeployButtonGroup
+  buttons={[
+    {
+      label: 'Deploy to DigitalOcean',
+      href: 'https://cloud.digitalocean.com/apps/new?repo=https://github.com/rush-db/rushdb/tree/main',
+      variant: 'primary'
+    },
+    {
+      label: 'View template',
+      href: 'https://github.com/rush-db/rushdb/blob/main/.do/deploy.template.yaml'
+    }
+  ]}
+/>
+
+After the app is created, set these secrets before the first production boot:
+
+| Variable                        | Notes                                                       |
+| ------------------------------- | ----------------------------------------------------------- |
+| `RUSHDB_LOGIN`                  | Dashboard admin login                                       |
+| `RUSHDB_PASSWORD`               | Dashboard admin password                                    |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | Exactly 32 characters; generate with `openssl rand -hex 16` |
+| `NEO4J_URL`                     | External Neo4j/Aura Bolt URL                                |
+| `NEO4J_USERNAME`                | External Neo4j/Aura username                                |
+| `NEO4J_PASSWORD`                | External Neo4j/Aura password                                |
+
+## Heroku
+
+Use the Heroku Button when you want a single RushDB web dyno plus Heroku Postgres. Heroku does not provide Neo4j, so configure Neo4j Aura or another external Neo4j service during setup.
+
+<DeployButtonGroup
+  buttons={[
+    {
+      label: 'Deploy to Heroku',
+      href: 'https://www.heroku.com/deploy?template=https://github.com/rush-db/rushdb/tree/main',
+      variant: 'primary'
+    },
+    {
+      label: 'View app.json',
+      href: 'https://github.com/rush-db/rushdb/blob/main/app.json'
+    }
+  ]}
+/>
+
+RushDB reads Heroku Postgres from `DATABASE_URL` automatically when `SQL_DB_TYPE=postgres`.
+
+## Fly.io
+
+Fly does not have a universal deploy-button flow for this kind of backend service. Use the template `fly.toml`, set secrets, and deploy with the Fly CLI.
+
+```bash
+curl -L -o fly.toml https://raw.githubusercontent.com/rush-db/rushdb/main/deploy/templates/fly/fly.toml
+fly launch --copy-config --no-deploy
+fly secrets set \
+  RUSHDB_PASSWORD="$(openssl rand -base64 24)" \
+  RUSHDB_AES_256_ENCRYPTION_KEY="$(openssl rand -hex 16)" \
+  SQL_DB_URL="postgresql://user:password@host:5432/rushdb" \
+  NEO4J_URL="neo4j+s://your-aura-host.databases.neo4j.io" \
+  NEO4J_USERNAME="neo4j" \
+  NEO4J_PASSWORD="your-neo4j-password"
+fly deploy
+```
+
+Use Fly Postgres or another hosted Postgres provider for `SQL_DB_URL`.
+
+## Docker Compose
+
+For VMs, droplets, and bare-metal servers where you want Postgres instead of SQLite, use the Docker Compose template. It starts RushDB and Postgres; Neo4j is intentionally external.
+
+```bash
+mkdir rushdb && cd rushdb
+curl -L -o compose.yaml https://raw.githubusercontent.com/rush-db/rushdb/main/deploy/templates/docker-compose/compose.yaml
+curl -L -o .env https://raw.githubusercontent.com/rush-db/rushdb/main/deploy/templates/docker-compose/.env.example
+
+# Edit passwords, public URLs, and encryption key.
+nano .env
+
+docker compose up -d
+```
+
+For production, put RushDB behind TLS and keep Neo4j/Postgres ports private. See [Security](/deploy/configuration/security).
+
+## Vercel and Netlify
+
+Vercel and Netlify are excellent places to deploy frontends, Next.js apps, and serverless functions that call RushDB. They are not recommended for self-hosting RushDB itself because RushDB needs a persistent service with database dependencies and background work.
+
+Use them like this:
+
+| Platform | Recommended use with RushDB                                     |
+| -------- | --------------------------------------------------------------- |
+| Vercel   | Deploy a web app that calls RushDB Cloud or your RushDB API URL |
+| Netlify  | Deploy a static/app frontend or functions that call RushDB      |
+
+Store `RUSHDB_API_KEY` and your RushDB API URL in the app platform's environment variables.

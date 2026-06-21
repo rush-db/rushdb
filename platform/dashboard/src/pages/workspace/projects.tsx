@@ -20,7 +20,6 @@ import {
   useCurrentWorkspaceQuery,
   useWorkspaceProjectsQuery
 } from '~/features/workspaces/hooks/useWorkspaceQueries'
-import { ConnectGuide } from '~/features/connect-guide'
 
 const statsMap: Record<keyof ProjectStats, string> = {
   properties: 'Properties',
@@ -83,13 +82,20 @@ function Header() {
   const { data: projects } = useWorkspaceProjectsQuery()
 
   return (
-    <PageHeader className="justify-between gap-5" contained>
-      <PageTitle>
-        Projects{' '}
-        {projects?.length ?
-          <span className="text-content2 ml-1">{projects?.length}</span>
-        : null}
-      </PageTitle>
+    <PageHeader className="items-start justify-between gap-5" contained>
+      <div className="flex max-w-3xl flex-col gap-2">
+        <PageTitle>
+          Projects{' '}
+          {projects?.length ?
+            <span className="text-content2 ml-1">{projects?.length}</span>
+          : null}
+        </PageTitle>
+        <p className="text-content2 text-sm leading-6">
+          Projects are isolated data spaces for separate apps, customers, environments, or experiments.
+          Records, relationships, indexes, API keys, and access rules stay scoped to the project they belong
+          to, so each project can evolve without mixing data with another one.
+        </p>
+      </div>
       <Button data-tour="new-project-btn" as="a" href={getRoutePath('newProject')} variant="primary">
         <FolderPlus />
         New Project
@@ -103,28 +109,24 @@ function EmptyProjects() {
   const isOwner = currentUser.currentScope?.role === 'owner'
 
   return (
-    <div className="flex flex-1 overflow-auto">
-      <div className="flex w-1/4 shrink-0 flex-col items-center justify-center gap-3 border-r p-8">
-        <SearchX size={48} className="text-content2" />
-        <h4 className="text-center text-xl font-bold">No projects yet</h4>
-        <p className="text-content2 text-center text-sm">A project organizes related data</p>
-        {isOwner && (
-          <Button
-            data-tour="new-project-btn"
-            as="a"
-            className="mt-3 w-full justify-center"
-            href={getRoutePath('newProject')}
-            variant="accent"
-            size="small"
-          >
-            <FolderPlus />
-            New Project
-          </Button>
-        )}
-      </div>
-      <div className="min-w-0 flex-1 overflow-auto p-8">
-        <ConnectGuide />
-      </div>
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8">
+      <SearchX size={48} className="text-content2" />
+      <h4 className="text-center text-xl font-bold">No projects yet</h4>
+      <p className="text-content2 max-w-md text-center text-sm">
+        Create a dedicated data space for your first application, customer, or workflow.
+      </p>
+      {isOwner && (
+        <Button
+          data-tour="new-project-btn"
+          as="a"
+          className="mt-3"
+          href={getRoutePath('newProject')}
+          variant="accent"
+        >
+          <FolderPlus />
+          New Project
+        </Button>
+      )}
     </div>
   )
 }

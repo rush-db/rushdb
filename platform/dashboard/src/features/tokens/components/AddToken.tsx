@@ -1,16 +1,19 @@
+import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 
+import type { ReactNode } from 'react'
 import type { Project } from '~/features/projects/types'
 
-import { Button, CopyButton } from '~/elements/Button'
-import { Card, CardBody, CardFooter, CardHeader } from '~/elements/Card'
+import { Button } from '~/elements/Button'
+import { Checkbox } from '~/elements/Checkbox'
+import { Dialog, DialogTitle } from '~/elements/Dialog'
 import { CopyInput, TextField } from '~/elements/Input'
+import { FormField } from '~/elements/FormField'
 import { boolean, number, object, string, useForm } from '~/lib/form'
 
 import type { ProjectToken } from '../types'
 
 import { useAddTokenMutation } from '../hooks/useTokenMutations'
-import { FormField } from '~/elements/FormField'
 
 const schema = object({
   description: string(),
@@ -19,34 +22,26 @@ const schema = object({
   name: string().min(3)
 })
 
-function TokenCreated({
-  onBack,
-  token
-}: // setOpen
-{
-  onBack: () => void
-  token: ProjectToken
-  // setOpen: (open: boolean) => void
-}) {
+function TokenCreated({ onBack, token }: { onBack: () => void; token: ProjectToken }) {
   return (
-    <>
-      <CardHeader title="API key successfully created" />
-      <CardBody>
-        <FormField label={token.name} caption={token.description}>
-          <CopyInput value={token.value} />
-        </FormField>
-      </CardBody>
-      <CardFooter className="justify-between">
-        <Button onClick={onBack} variant="secondary" size="small">
+    <div className="mt-6 flex flex-col gap-5">
+      <FormField caption={token.description} label={token.name}>
+        <CopyInput value={token.value} />
+      </FormField>
+      <p className="text-content2 text-sm">
+        Copy this key now — for security reasons you won't be able to see it again.
+      </p>
+      <div className="flex justify-end gap-2 border-t pt-5">
+        <Button onClick={onBack} size="small" variant="secondary">
           <ArrowLeft />
-          New token
+          Create another
         </Button>
-      </CardFooter>
-    </>
+      </div>
+    </div>
   )
 }
 
-export function AddTokenCard({ projectId, project }: { project?: Project; projectId: Project['id'] }) {
+function AddTokenForm({ project, projectId }: { project?: Project; projectId: Project['id'] }) {
   const { data: createdToken, error, mutateAsync: mutate } = useAddTokenMutation()
 
   const defaultValues = {
@@ -61,59 +56,85 @@ export function AddTokenCard({ projectId, project }: { project?: Project; projec
     handleSubmit,
     register,
     reset,
+    setValue,
     watch
   } = useForm({
     defaultValues,
     schema
   })
-  const expirationDisabled = watch('noExpire', false)
+  const noExpire = watch('noExpire', false)
 
   const showSuccess = createdToken && !error && isSubmitted
 
+  if (showSuccess) {
+    return <TokenCreated onBack={() => reset(defaultValues)} token={createdToken} />
+  }
+
   return (
-    <Card>
-      {showSuccess ?
-        <TokenCreated onBack={() => reset(defaultValues)} token={createdToken} />
-      : <form
-          onSubmit={handleSubmit((values) =>
-            mutate({
-              projectId,
-              ...values,
-              expiration: `${values.expiration}d`,
-              level: 'write'
-            })
-          )}
-        >
-          <CardHeader title="Create token" />
-          <CardBody className="grid grid-cols-1 sm:grid-cols-2">
-            <TextField {...register('name')} error={errors.name?.message} label="API key name" />
-            <TextField
-              {...register('description')}
-              error={errors.description?.message}
-              label="API key description"
-            />
-            <div className="">
-              <TextField
-                {...register('expiration')}
-                className="mb-2"
-                disabled={expirationDisabled}
-                error={errors.expiration?.message}
-                label="Duration, in days"
-                type="number"
-              />
-              <label>
-                <input type="checkbox" defaultChecked {...register('noExpire')} />
-                <span className="ml-2 select-none text-start text-sm">No expiration</span>
-              </label>
-            </div>
-          </CardBody>
-          <CardFooter className="mt-5">
-            <Button disabled={!isValid} loading={isSubmitting} type="submit" variant="accent">
-              Create
-            </Button>
-          </CardFooter>
-        </form>
-      }
-    </Card>
+    <form
+      className="mt-6 flex flex-col gap-5"
+      onSubmit={handleSubmit((values) =>
+        mutate({
+          projectId,
+          ...values,
+          expiration: `${values.expiration}d`,
+          level: 'write'
+        })
+      )}
+    >
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <TextField {...register('name')} error={errors.name?.message} label="API key name" />
+        <TextField
+          {...register('description')}
+          error={errors.description?.message}
+          label="API key description"
+        />
+      </div>
+      <div>
+        <TextField
+          {...register('expiration')}
+          className="mb-3"
+          disabled={noExpire}
+          error={errors.expiration?.message}
+          label="Duration, in days"
+          type="number"
+        />
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+          <Checkbox
+            checked={noExpire}
+            onCheckedChange={(checked) => setValue('noExpire', checked === true, { shouldValidate: true })}
+          />
+          <span className="select-none">No expiration</span>
+        </label>
+      </div>
+      <div className="flex justify-end gap-2 border-t pt-5">
+        <Button disabled={!isValid} loading={isSubmitting} type="submit" variant="accent">
+          Create API key
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+export function AddTokenDialog({
+  project,
+  projectId,
+  trigger
+}: {
+  project?: Project
+  projectId: Project['id']
+  trigger: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Dialog className="sm:max-w-2xl" onOpenChange={setOpen} open={open} trigger={trigger}>
+      <DialogTitle>Create API key</DialogTitle>
+      <p className="text-content2 mt-2">
+        API keys authenticate requests to this project from the SDKs and REST API. Give the key a name, and
+        optionally an expiration.
+      </p>
+      <AddTokenForm project={project} projectId={projectId} />
+    </Dialog>
   )
 }

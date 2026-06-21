@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { Braces, DatabaseZap, Edit, TestTube2, Settings2, UploadCloud } from 'lucide-react'
+import { Braces, DatabaseZap, Edit, ExternalLink, Settings2, TestTube2, UploadCloud } from 'lucide-react'
 import { atom, onSet } from 'nanostores'
 import type { ChangeEvent } from 'react'
 import { type ReactNode, Suspense, lazy, useState, useEffect, useRef } from 'react'
@@ -15,6 +15,7 @@ import { $router, getRoutePath } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
 import { PageHeader, PageTitle } from '~/elements/PageHeader.tsx'
 import { $tourAllowed, $tourStep, setTourStep } from '~/features/tour/stores/tour.ts'
+import { ConnectionsPanel } from '~/features/connectors/components/ConnectionsPanel.tsx'
 
 function RadioButton({
   title,
@@ -61,6 +62,8 @@ const $csvData = atom<string>('')
 const $editorData = atom<string>('')
 const $label = atom<string>('')
 
+const IMPORT_DOCS_URL = 'https://docs.rushdb.com/learn/records-and-queries/import-data'
+
 onSet($editorData, ({ newValue }) => {
   if (newValue.length > 0) {
     $step.set('editor')
@@ -75,6 +78,40 @@ function formatEstimatedSize(content: string): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && Object.prototype.toString.call(value) === '[object Object]'
+}
+
+function jsonImportRequiresLabel(data: unknown): boolean {
+  if (Array.isArray(data)) {
+    return true
+  }
+
+  if (!isPlainObject(data)) {
+    return true
+  }
+
+  const values = Object.values(data)
+
+  if (values.length === 0) {
+    return true
+  }
+
+  return values.some(
+    (value) =>
+      !isPlainObject(value) &&
+      !(Array.isArray(value) && value.some((item) => isPlainObject(item) || Array.isArray(item)))
+  )
+}
+
+function getJsonLabelRequirement(input: string): boolean {
+  try {
+    return jsonImportRequiresLabel(JSON.parse(input))
+  } catch {
+    return true
+  }
 }
 
 type MonacoEditorLike = {
@@ -97,6 +134,7 @@ function EditorStep() {
   const editorData = useStore($editorData)
   const currentSourceContent = mode === 'json' ? editorData : csvData
   const sourceSizeEstimate = formatEstimatedSize(currentSourceContent)
+  const labelRequired = mode === 'csv' || getJsonLabelRequirement(editorData)
 
   const [suggestTypes, setSuggestTypes] = useState(true)
   const [convertNumericValuesToNumbers, setConvertNumericValuesToNumbers] = useState(false)
@@ -201,11 +239,13 @@ function EditorStep() {
           <div className="scrollbar-thin flex-1 space-y-4 overflow-y-auto py-3">
             <div>
               <TextField
-                required={true}
-                label="Label *"
+                required={labelRequired}
+                label={labelRequired ? 'Label *' : 'Label'}
                 caption={
                   mode === 'json' ?
-                    'Top-level label for created records from this JSON payload.'
+                    labelRequired ?
+                      'Required for top-level arrays or JSON objects with primitive top-level properties.'
+                    : 'Optional; top-level container keys will be used as labels.'
                   : 'Label applied to records created from each CSV row.'
                 }
                 onChange={(event: { target: { value: string } }) => {
@@ -361,13 +401,13 @@ function EditorStep() {
               <Button
                 data-tour={!loading && !submitting ? 'project-import-data-ingest' : undefined}
                 onClick={() => {
-                  if (!label) {
+                  if (labelRequired && !label.trim()) {
                     setError('Label is required')
                     return
                   }
                   mutate({
                     data: JSON.parse($editorData.get()),
-                    label,
+                    label: label.trim() || undefined,
                     options: {
                       suggestTypes,
                       convertNumericValuesToNumbers,
@@ -637,10 +677,25 @@ export function ImportRecords() {
     <div
       className={cn('flex min-h-0 flex-1 flex-col', { 'overflow-hidden sm:max-w-none': step === 'editor' })}
     >
-      <PageHeader contained>
-        <div className="flex gap-3">
-          <DatabaseZap />
-          <PageTitle>Import data</PageTitle>
+      <PageHeader className="items-start" contained>
+        <div className="flex max-w-3xl flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <DatabaseZap />
+            <PageTitle>Import data</PageTitle>
+          </div>
+          <p className="text-content2 text-sm leading-6">
+            Bring existing data into this project. RushDB auto-detects JSON, JSONL, NDJSON, and CSV, infers
+            labels and property types, and turns nested objects into connected records — or start from a
+            sample dataset, the CSV editor, or an empty JSON payload.
+          </p>
+          <a
+            className="text-content2 hover:text-content inline-flex w-fit items-center gap-2 text-sm transition"
+            href={IMPORT_DOCS_URL}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Read the docs <ExternalLink className="h-3.5 w-3.5" />
+          </a>
         </div>
       </PageHeader>
       <div className={cn('container', step === 'editor' && 'max-w-none overflow-hidden px-2 sm:px-4')}>
@@ -657,7 +712,7 @@ export function ImportRecords() {
 
             <div
               className={cn(
-                'border-border relative flex w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-transparent px-6 py-12 text-center transition-all',
+                'border-border relative mt-5 flex w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-transparent px-6 py-12 text-center transition-all',
                 isDraggingFile && 'border-accent bg-accent/5 ring-accent/30 ring-2'
               )}
               onDragOver={(event) => {
@@ -700,7 +755,6 @@ export function ImportRecords() {
                   try {
                     const data = await import('../batchData.json').then((mod) => mod.default)
                     $editorData.set(JSON.stringify(data, null, 2))
-                    $label.set('COMPANY')
                     $mode.set('json')
                     if (tourAllowed && tourStep === 'projectImportRadio') {
                       setTourStep('projectImportOverview', true)
@@ -747,6 +801,8 @@ export function ImportRecords() {
                 title="Start with CSV editor"
               />
             </div>
+
+            <ConnectionsPanel />
           </div>
         )}
 

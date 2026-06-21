@@ -203,6 +203,7 @@ type OntologyProperty = {
   id: string // use with db.properties.values()
   name: string
   type: string // 'string' | 'number' | 'boolean' | 'datetime'
+  isArray?: boolean // true when records store this property as an array of primitive values
   values?: Array<string | number> // up to 10 samples (string/boolean only)
   min?: number | string // number/datetime only
   max?: number | string

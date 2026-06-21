@@ -139,10 +139,10 @@ export const MenuIcon = ChevronsUpDown
 export const MenuButton = forwardRef<
   HTMLButtonElement,
   TInheritableElementProps<'button', { children: ReactNode }>
->(({ children, ...props }, ref) => {
+>(({ children, className, ...props }, ref) => {
   return (
-    <Button ref={ref} size="small" variant="link" {...props}>
-      <span className="truncate">{children}</span>
+    <Button ref={ref} size="small" variant="link" className={cn('min-w-0 max-w-full', className)} {...props}>
+      <span className="min-w-0 truncate">{children}</span>
       <MenuIcon />
     </Button>
   )

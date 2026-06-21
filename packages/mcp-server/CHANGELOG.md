@@ -1,5 +1,11 @@
 # @rushdb/mcp-server
 
+## Unreleased
+
+### Patch Changes
+
+- Sync query-builder prompt and SearchQuery spec with production AI SearchQuery tuning: root-label selection, related-label traversal, alias-backed related counts, comparative related-count ordering, alias-safe `groupBy`, ontology array metadata, and fuzzy named-reference matching.
+
 ## 2.3.3
 
 ### Patch Changes

@@ -22,6 +22,7 @@ rushdb:
   serveStatic: true
   dashboardUrl: '' # public URL of the RushDB dashboard (used in emails etc.)
   publicUrl: '' # public URL of the API, e.g. https://rushdb.example.com
+  baseUrl: '' # base URL passed to synx as RushDB destination; defaults to publicUrl when empty
 
   ## Neo4j connection — only used when neo4j.enabled=false
   neo4jUrl: ''
@@ -46,6 +47,10 @@ rushdb:
   llmBaseUrl: ''
   llmApiKey: ''
   llmModel: ''
+
+  ## Optional managed connector / synx control-plane settings
+  synxControlToken: ''
+  synxDestinationApiKey: ''
 
   ## Number of replicas (stateless when using postgres; keep 1 for sqlite)
   replicaCount: 1
@@ -91,6 +96,38 @@ rushdb:
   #   RATE_LIMITER_TTL: "1000"
 
   ## Pod-level settings
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── Optional synx managed connector worker ───────────────────────────────────
+synx:
+  enabled: false
+
+  image:
+    repository: rushdb/synx
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+  coreUrl: '' # defaults to http://<rushdb service>:<rushdb.service.port>
+  workerIdPrefix: synx
+  claimIntervalMs: 5000
+  heartbeatIntervalMs: 20000
+  leaseTtlMs: 60000
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  extraEnv: {}
   podAnnotations: {}
   podSecurityContext: {}
   securityContext: {}

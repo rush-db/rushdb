@@ -67,6 +67,10 @@ spec:
             - name: RUSHDB_OAUTH_ISSUER
               value: {{ .Values.rushdb.publicUrl | quote }}
             {{- end }}
+            {{- if or .Values.rushdb.baseUrl .Values.rushdb.publicUrl }}
+            - name: RUSHDB_BASE_URL
+              value: {{ default .Values.rushdb.publicUrl .Values.rushdb.baseUrl | quote }}
+            {{- end }}
             {{- if .Values.rushdb.jwtKid }}
             - name: RUSHDB_JWT_KID
               value: {{ .Values.rushdb.jwtKid | quote }}

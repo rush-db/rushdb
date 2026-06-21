@@ -7,7 +7,6 @@ import type { Project } from '~/features/projects/types'
 
 import { Badge } from '~/elements/Badge'
 import { Button } from '~/elements/Button'
-import { Card, CardBody, CardHeader } from '~/elements/Card'
 import { Label } from '~/elements/Label'
 import { Skeleton } from '~/elements/Skeleton'
 import { useAddIndexMutation } from '~/features/indexes/hooks/useIndexMutations'
@@ -16,7 +15,7 @@ import {
   flattenOntologyProperties,
   type SuggestedEmbeddingIndex
 } from '~/features/indexes/utils/suggestedIndexes'
-import { LabelName } from '~/features/labels/components/LabelName'
+import { getLabelColor } from '~/features/labels'
 import { $tourStep, setTourStep } from '~/features/tour/stores/tour'
 import { api } from '~/lib/api'
 import { openRoute } from '~/lib/router'
@@ -68,12 +67,14 @@ function SuggestedIndexItem({
   const tourStep = useStore($tourStep)
 
   return (
-    <li className="flex flex-col gap-3 border-t px-4 py-4 first:border-t-0 sm:flex-row sm:items-center sm:justify-between">
+    <li className="bg-card flex flex-col gap-3 rounded-md border px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4">
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <LabelName idx={Math.max(labelIdx, 0)} label={suggestion.label} />
+          <Label variant={getLabelColor(suggestion.label, Math.max(labelIdx, 0))}>{suggestion.label}</Label>
           <span className="text-content3">:</span>
-          <Label>{suggestion.propertyName}</Label>
+          <span className="bg-content3/10 text-content2 w-fit rounded-sm px-1 font-mono text-xs">
+            {suggestion.propertyName}
+          </span>
           <Badge>{suggestion.recordsCount ?? 0} records</Badge>
         </div>
         <p className="text-content2 text-sm">
@@ -120,46 +121,46 @@ export function SuggestedIndexesCard({
 }) {
   const { isPending, labelEntries, suggestions } = useSuggestedIndexesQuery({ existingIndexes, projectId })
   const loading = indexesLoading || isPending
-  const visibleSuggestions = suggestions.slice(0, 4)
 
-  if (!loading && visibleSuggestions.length === 0) {
+  if (!loading && suggestions.length === 0) {
     return null
   }
 
+  const description =
+    !loading && suggestions.length > 0 ?
+      `RushDB found ${suggestions.length} text fields that are likely useful for semantic search.`
+    : 'RushDB found text fields that are likely useful for semantic search.'
+
   return (
-    <Card data-tour="project-index-suggestions">
-      <CardHeader
-        title={
-          <span className="flex items-center gap-2">
-            <Lightbulb className="text-accent h-5 w-5" />
-            Suggested embedding indexes
-          </span>
-        }
-        description="RushDB found text fields that are likely useful for semantic search."
-      />
-      <CardBody className="p-0">
-        {loading ?
-          <div className="flex flex-col gap-3 px-4 pb-4">
-            <Skeleton enabled>
-              <div className="h-16 rounded-md border" />
-            </Skeleton>
-            <Skeleton enabled>
-              <div className="h-16 rounded-md border" />
-            </Skeleton>
-          </div>
-        : <ul className="flex flex-col">
-            {visibleSuggestions.map((suggestion, idx) => (
-              <SuggestedIndexItem
-                key={`${suggestion.label}:${suggestion.propertyName}`}
-                labelIdx={labelEntries.findIndex(([label]) => label === suggestion.label)}
-                primaryTourTarget={idx === 0}
-                projectId={projectId}
-                suggestion={suggestion}
-              />
-            ))}
-          </ul>
-        }
-      </CardBody>
-    </Card>
+    <div className="flex flex-col gap-3" data-tour="project-index-suggestions">
+      <div>
+        <h2 className="text-content flex items-center gap-2 text-lg font-semibold">
+          <Lightbulb className="text-accent h-5 w-5" />
+          Suggested embedding indexes
+        </h2>
+        <p className="text-content2 text-sm">{description}</p>
+      </div>
+      {loading ?
+        <div className="flex flex-col gap-3">
+          <Skeleton enabled>
+            <div className="h-16 rounded-md border" />
+          </Skeleton>
+          <Skeleton enabled>
+            <div className="h-16 rounded-md border" />
+          </Skeleton>
+        </div>
+      : <ul className="flex flex-col gap-3">
+          {suggestions.map((suggestion, idx) => (
+            <SuggestedIndexItem
+              key={`${suggestion.label}:${suggestion.propertyName}`}
+              labelIdx={labelEntries.findIndex(([label]) => label === suggestion.label)}
+              primaryTourTarget={idx === 0}
+              projectId={projectId}
+              suggestion={suggestion}
+            />
+          ))}
+        </ul>
+      }
+    </div>
   )
 }

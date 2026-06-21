@@ -23,7 +23,7 @@ RushDB is a single **NestJS** application built on the **Fastify** adapter. It s
 | API prefix        | `/api/v1`                                    |
 | Swagger UI        | `/api`                                       |
 | Body limit        | 2 GB (for large batch imports)               |
-| Health endpoint   | `GET /` → `"RushDB is running"`              |
+| Health endpoint   | `GET /health` → `{ "status": "ok" }`         |
 | Settings endpoint | `GET /settings` → OAuth flags, feature flags |
 
 ---
@@ -40,6 +40,8 @@ RushDB is a single **NestJS** application built on the **Fastify** adapter. It s
 | `RUSHDB_SERVE_STATIC`           |          | `false`    | Set to `true` to serve the dashboard from the same process (see below).                                   |
 | `RUSHDB_DASHBOARD_URL`          |          | —          | Public URL of the dashboard. Used in OAuth redirects and email links.                                     |
 | `RUSHDB_PUBLIC_URL`             |          | —          | Public URL of the API. Used as the OAuth issuer (`RUSHDB_OAUTH_ISSUER`).                                  |
+| `RUSHDB_BASE_URL`               |          | —          | Public/base URL of the API passed to managed synx connector workers.                                      |
+| `RUSHDB_SYNX_CONTROL_TOKEN`     |          | —          | Internal shared token for platform/core ↔ synx worker control endpoints. Required only when synx runs.   |
 
 See [Environment Variables](/deploy/configuration/environment-variables) for the full reference.
 
@@ -61,6 +63,40 @@ In the Docker Compose setup this is enforced with `depends_on` + `condition: ser
 The `DatabaseModule` retries the Neo4j HTTP health endpoint (`http://neo4j:7474`) up to 15 times with a 5-second interval before raising an error. This provides ~75 seconds of tolerance for slow Neo4j startup.
 :::
 
+## Managed connectors with synx
+
+Continuous datasource connectors run in a separate `synx` worker process. The platform process remains the control plane: it stores connector configs, encrypted secrets, offsets, status, and exposes the project-scoped Connector API.
+
+Minimum platform/core env:
+
+```env
+RUSHDB_BASE_URL=https://rushdb.example.com
+RUSHDB_SYNX_CONTROL_TOKEN=generate-a-long-random-token
+RUSHDB_SYNX_DESTINATION_API_KEY=project-or-internal-write-key
+```
+
+Minimum synx worker env:
+
+```env
+RUSHDB_CORE_INTERNAL_URL=http://rushdb:3000
+RUSHDB_SYNX_CONTROL_TOKEN=the-same-token
+RUST_LOG=info
+```
+
+Run the worker:
+
+```bash
+synx managed \
+  --control-url "$RUSHDB_CORE_INTERNAL_URL" \
+  --token-env RUSHDB_SYNX_CONTROL_TOKEN \
+  --worker-id "$HOSTNAME" \
+  --claim-interval-ms 5000 \
+  --heartbeat-interval-ms 20000 \
+  --lease-ttl-ms 60000
+```
+
+The worker should not be publicly exposed. It needs outbound network access to the RushDB platform and to customer datasource endpoints. Run at least two replicas for high availability; leases expire and are reclaimed when a worker crashes.
+
 ---
 
 ## Dashboard serving
@@ -70,7 +106,7 @@ RushDB can serve the built-in dashboard from the same process or delegate it to 
 <Tabs groupId="serve-static">
 <TabItem value="combined" label="Combined (API + dashboard)">
 
-Set `RUSHDB_SERVE_STATIC=true`. The `public/` directory (pre-built dashboard assets) is served at `/*`, excluding `/api*`.
+Set `RUSHDB_SERVE_STATIC=true`. The `public/` directory (pre-built dashboard assets) is served at `/*`, excluding `/api*` and `/health`.
 
 ```env
 RUSHDB_SERVE_STATIC=true
@@ -80,7 +116,7 @@ RUSHDB_DASHBOARD_URL=https://rushdb.example.com
 Requests to `/` return the dashboard HTML. Requests to `/api/v1/*` are handled by the API router.
 
 :::note
-When `RUSHDB_SERVE_STATIC=true`, the `GET /` health endpoint is replaced by the dashboard index page. Use `GET /settings` for liveness probes in this mode.
+When `RUSHDB_SERVE_STATIC=true`, `GET /` returns the dashboard index page. Use `GET /health` for liveness probes in every serving mode.
 :::
 
 </TabItem>
@@ -93,7 +129,7 @@ RUSHDB_SERVE_STATIC=false
 RUSHDB_DASHBOARD_URL=https://app.rushdb.example.com
 ```
 
-`GET /` returns `"RushDB is running"` — useful as a lightweight health check.
+`GET /` returns `"RushDB is running"`. `GET /health` returns `{ "status": "ok" }` and is the recommended lightweight health check.
 
 </TabItem>
 </Tabs>

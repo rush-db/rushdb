@@ -6,15 +6,15 @@ import { NotFoundPage } from '~/pages/404'
 import { PasswordRecoveryPage } from '~/pages/forgot-password'
 import { NewProjectPage } from '~/pages/project/new'
 import { NewWorkspacePage } from '~/pages/workspace/new'
-import { ProfilePage } from '~/pages/profile.tsx'
+import { ProfilePage, ProfileSecurityPage } from '~/pages/profile.tsx'
 import { SignInPage } from '~/pages/signin'
 import { SignUpPage } from '~/pages/signup'
 import { WorkspaceBillingPage } from '~/pages/workspace/billing'
 import { WorkspaceApiUsagePage } from '~/pages/workspace/api-usage'
-import { WorkspaceGettingStartedPage } from '~/pages/workspace/getting-started'
 import { WorkspaceProjectsPage } from '~/pages/workspace/projects'
 import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
 import { WorkspaceUsersPage } from '~/pages/workspace/users'
+import { WorkspaceConnectedAppsPage } from '~/pages/workspace/connected-apps'
 import { JoinWorkspacePage } from '~/pages/workspace/join'
 import { ConfirmEmail } from '~/pages/auth/confirmEmail'
 import { OAuthConsentPage } from '~/pages/oauth/consent'
@@ -36,12 +36,13 @@ const PAGE_TITLES: Record<string, string> = {
   newProject: 'New Project',
   newWorkspace: 'New Workspace',
   workspaceSettings: 'Workspace Settings',
-  workspaceGettingStarted: 'Getting Started',
   workspaceUsers: 'Workspace Members',
+  workspaceConnectedApps: 'Connected Apps',
   workspaceBilling: 'Billing',
   workspaceApiUsage: 'API Usage',
   joinWorkspace: 'Join Workspace',
   profile: 'Profile',
+  profileSecurity: 'Profile Security',
   signin: 'Sign In',
   signup: 'Sign Up',
   passwordRecovery: 'Recover Account',
@@ -98,12 +99,14 @@ function ProtectedRoutes() {
   switch (page?.route) {
     case 'profile':
       return <ProfilePage />
+    case 'profileSecurity':
+      return <ProfileSecurityPage />
     case 'workspaceSettings':
       return isOwner ? <WorkspaceSettingsPage /> : null
-    case 'workspaceGettingStarted':
-      return <WorkspaceGettingStartedPage />
     case 'workspaceUsers':
       return isOwner ? <WorkspaceUsersPage /> : null
+    case 'workspaceConnectedApps':
+      return isOwner ? <WorkspaceConnectedAppsPage /> : null
     case 'joinWorkspace':
       return <JoinWorkspacePage />
     case 'workspaceBilling':

@@ -10,9 +10,9 @@ import { Setting, SettingsList } from '~/elements/Setting'
 import { Skeleton } from '~/elements/Skeleton'
 import { DeleteWorkspaceDialog } from '~/features/workspaces/components/DeleteWorkspaceDialog'
 import { WorkspacesLayout } from '~/features/workspaces/layout/WorkspacesLayout'
+import { WorkspaceSettingsLayout } from '~/features/workspaces/layout/WorkspaceSettingsLayout'
 import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
 import { useUpdateWorkspaceMutation } from '~/features/workspaces/hooks/useWorkspaceMutations'
-import { ConnectionsList } from '~/pages/workspace/connected-apps'
 
 const workspaceNameSchema = object({
   name: string().min(1).max(256).required()
@@ -78,19 +78,26 @@ function DeleteWorkspaceSetting() {
 export function WorkspaceSettingsPage() {
   return (
     <WorkspacesLayout>
-      <PageHeader contained>
-        <PageTitle>Workspace Settings</PageTitle>
-      </PageHeader>
+      <WorkspaceSettingsLayout>
+        <PageHeader contained>
+          <div className="flex max-w-3xl flex-col gap-2">
+            <PageTitle>General</PageTitle>
+            <p className="text-content2 text-sm leading-6">
+              Configure workspace identity and lifecycle controls. These settings apply to the workspace
+              container, not to an individual project.
+            </p>
+          </div>
+        </PageHeader>
 
-      <PageContent contained>
-        <SettingsList>
-          <WorkspaceNameSetting />
-        </SettingsList>
-        <ConnectionsList />
-        <SettingsList>
-          <DeleteWorkspaceSetting />
-        </SettingsList>
-      </PageContent>
+        <PageContent contained>
+          <SettingsList>
+            <WorkspaceNameSetting />
+          </SettingsList>
+          <SettingsList>
+            <DeleteWorkspaceSetting />
+          </SettingsList>
+        </PageContent>
+      </WorkspaceSettingsLayout>
     </WorkspacesLayout>
   )
 }

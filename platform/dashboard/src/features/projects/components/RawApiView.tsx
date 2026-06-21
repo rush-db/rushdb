@@ -15,7 +15,6 @@ import {
   onboardingAgentRunSelectQuery
 } from '~/features/projects/stores/raw-api.ts'
 import { $recordRawApiEntity } from '~/features/projects/stores/current-project.ts'
-import { ApiRecordsModal } from '~/features/records/components/ApiRecordsModal.tsx'
 import { IconButton } from '~/elements/IconButton'
 import { Menu, MenuItem, MenuTitle } from '~/elements/Menu.tsx'
 
@@ -39,16 +38,18 @@ const rawApiOnboardingSteps = new Set(['rawApiSelectQuery', 'rawApiRunQuery', 'r
 
 const aggregateExample0 = `{
     "labels": [
-        "DEPARTMENT"
+        "FACTION"
     ],
     "select": {
-        "departmentName": "$record.name",
-        "departmentDescription": "$record.description",
-        "projects": {
+        "factionName": "$record.name",
+        "militaryStrength": "$record.military_strength_score",
+        "starships": {
             "$collect": {
-                "label": "PROJECT",
+                "label": "STARSHIP",
                 "select": {
-                    "name": "$self.name"
+                    "name": "$self.name",
+                    "isMilitary": "$self.is_military",
+                    "firepower": "$self.firepower_score"
                 }
             }
         }
@@ -60,66 +61,65 @@ const aggregateExample0 = `{
 
 const aggregateExample1 = `{
     "labels": [
-        "PROJECT"
+        "FACTION"
     ],
     "where": {
-        "budget": {
-            "$lte": 10000000
-        },
-        "EMPLOYEE": {
-            "$alias": "$employee"
+        "STARSHIP": {
+            "$alias": "$starship",
+            "is_military": true
         }
     },
     "select": {
-        "projectName": "$record.name",
-        "projectBudget": "$record.budget",
-        "employeesCount": {
-            "$count": "$employee"
+        "factionName": "$record.name",
+        "militaryShipCount": {
+            "$count": "$starship"
         },
-        "totalWage": {
-            "$sum": "$employee.salary"
+        "totalCrewCapacity": {
+            "$sum": "$starship.crew_capacity"
         },
-        "avgSalary": {
-            "$avg": "$employee.salary",
+        "avgFirepower": {
+            "$avg": "$starship.firepower_score",
             "$precision": 0
         },
-        "minSalary": {
-            "$min": "$employee.salary"
+        "minCrewCapacity": {
+            "$min": "$starship.crew_capacity"
         },
-        "maxSalary": {
-            "$max": "$employee.salary"
+        "maxCrewCapacity": {
+            "$max": "$starship.crew_capacity"
         }
     },
-    "orderBy": "asc",
-    "skip": 0,
-    "limit": 1000
+    "groupBy": ["$record.name"],
+    "orderBy": {
+        "militaryShipCount": "desc"
+    }
 }`
 
 const aggregateExample2 = `{
     "labels": [
-        "COMPANY"
+        "PLANET"
     ],
     "where": {
-        "DEPARTMENT": {
-            "PROJECT": {
-                "EMPLOYEE": {
-                    "dob": {
-                        "$lte": {
-                            "$year": 1994
-                        }
-                    },
-                    "$alias": "$employee"
+        "BATTLE": {
+            "STARSHIP": {
+                "$alias": "$starship",
+                "firepower_score": {
+                    "$gte": 60
                 }
             }
         }
     },
     "select": {
-        "company": "$record.name",
-        "employees": {
+        "planetName": "$record.name",
+        "highFirepowerStarships": {
             "$collect": {
-                "from": "$employee",
+                "from": "$starship",
+                "select": {
+                    "name": "$starship.name",
+                    "firepower": "$starship.firepower_score",
+                    "crewCapacity": "$starship.crew_capacity"
+                },
                 "orderBy": {
-                    "salary": "desc"
+                    "firepower": "desc"
                 },
                 "limit": 10
             }
@@ -129,54 +129,54 @@ const aggregateExample2 = `{
 
 const aggregateExample3 = `{
     "labels": [
-        "PROJECT"
+        "STARSHIP"
     ],
     "where": {
-        "EMPLOYEE": {
-            "$alias": "$employee"
-        }
+        "is_military": true
     },
     "select": {
-        "projectName": "$record.name",
-        "totalSalary": {
-            "$sum": "$employee.salary"
+        "totalCrewCapacity": {
+            "$sum": "$record.crew_capacity"
         },
-        "employeeCount": {
-            "$count": "$employee"
+        "shipCount": {
+            "$count": "*"
         },
-        "avgSalary": {
+        "crewPerShip": {
             "$divide": [
-                { "$ref": "totalSalary" },
-                { "$ref": "employeeCount" }
+                { "$ref": "totalCrewCapacity" },
+                { "$ref": "shipCount" }
             ]
         }
     },
-    "limit": 10
+    "groupBy": [
+        "totalCrewCapacity",
+        "shipCount",
+        "crewPerShip"
+    ],
+    "orderBy": {
+        "crewPerShip": "desc"
+    }
 }`
 
 const aggregateExample4 = `{
     "labels": [
-        "COMPANY"
+        "PLANET"
     ],
     "select": {
-        "departments": {
+        "battles": {
             "$collect": {
-                "label": "DEPARTMENT",
+                "label": "BATTLE",
                 "select": {
                     "name": "$self.name",
-                    "projects": {
+                    "starships": {
                         "$collect": {
-                            "label": "PROJECT",
+                            "label": "STARSHIP",
                             "select": {
                                 "name": "$self.name",
-                                "employees": {
-                                    "$collect": {
-                                        "label": "EMPLOYEE",
-                                        "orderBy": { "salary": "desc" },
-                                        "limit": 3
-                                    }
-                                }
-                            }
+                                "firepower": "$self.firepower_score"
+                            },
+                            "orderBy": { "firepower": "desc" },
+                            "limit": 3
                         }
                     }
                 }
@@ -187,61 +187,72 @@ const aggregateExample4 = `{
 
 const queryExample1 = `{
     "labels": [
-        "EMPLOYEE"
+        "STARSHIP"
     ],
     "where": {
         "name": {
-           "$startsWith": "Sam"
+           "$contains": "Star"
         },
-        "salary": {
-            "$gte": 300000
+        "is_military": true,
+        "firepower_score": {
+            "$gte": 80
         }
     },
-    "orderBy": "asc",
+    "orderBy": {
+        "firepower_score": "desc"
+    },
     "skip": 0,
     "limit": 1000
 }`
 
 const queryExample2 = `{
     "labels": [
-        "DEPARTMENT"
+        "BATTLE"
     ],
     "where": {
         "name": {
-            "$contains": "e"
+            "$contains": "Battle"
         },
-        "PROJECT": {
-            "budget": {
-                "$xor": {
-                    "$lte": 10000000,
-                    "$gte": 15000000
-                }
+        "$and": [
+            {
+                "is_space_battle": true
             },
-            "EMPLOYEE": {
-                "salary": {
-                    "$gte": 300000
-                }
+            {
+                "$or": [
+                    {
+                        "estimated_military_casualties": {
+                            "$gte": 500000
+                        }
+                    },
+                    {
+                        "destruction_level_score": {
+                            "$gte": 90
+                        }
+                    }
+                ]
             }
-        }
+        ]
     },
     "orderBy": {
-        "name": "asc"
+        "started_at": "asc"
     },
     "skip": 0,
     "limit": 1000
 }`
 
 const queryExample3 = `{
-  "labels": ["PROJECT"],
+  "labels": ["BATTLE"],
   "select": {
-    "count": { "$count": "*" }
+    "count": { "$count": "*" },
+    "avgMilitaryCasualties": {
+      "$avg": "$record.estimated_military_casualties",
+      "$precision": 0
+    }
   },
-  "groupBy": ["$record.active"],
+  "groupBy": ["$record.era"],
   "orderBy": {
     "count": "desc"
-  },
-  "skip": 0,
-  "limit": 1000
+  }
 }`
 
 const ExampleSelector = () => {
@@ -254,7 +265,10 @@ const ExampleSelector = () => {
       }
       align="end"
     >
-      <MenuTitle className="mb-2">Query Examples</MenuTitle>
+      <MenuTitle className="mb-2 text-lg">Query Examples</MenuTitle>
+      <p className="text-content3 px-4 pb-2 text-sm leading-4">
+        These examples use the sample dataset available on the Import Data page.
+      </p>
       <Divider />
       <MenuItem className="h-[64px]" icon={<ClipboardPaste />} onClick={() => $editorData.set(queryExample1)}>
         <div className="text-left">
@@ -499,8 +513,6 @@ export function RawApiView() {
                       onCheckedChange={$showCypherQuery.set}
                     />
                   )}
-
-                  <ApiRecordsModal />
 
                   {['records.find', 'records.findUniq', 'records.findOne'].includes(operation) && (
                     <ExampleSelector />

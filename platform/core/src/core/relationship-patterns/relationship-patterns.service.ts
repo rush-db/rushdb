@@ -31,6 +31,12 @@ import type { RelationshipPatternRow } from '@/database/sql/schema/types'
 const ANALYSIS_DEBOUNCE_MS = 60_000
 const MAX_LLM_CANDIDATES = 20
 
+type ReferenceValueProfile = {
+  tokens: Set<string>
+  maxTokensPerValue: number
+  hasListValue: boolean
+}
+
 @Injectable()
 export class RelationshipPatternsService {
   private readonly logger = new Logger(RelationshipPatternsService.name)
@@ -134,6 +140,14 @@ export class RelationshipPatternsService {
   }
 
   async forceAnalysis(projectId: string, workspaceId?: string): Promise<void> {
+    if (!this.analysisEnabled()) {
+      await this.repository.updateQueue(projectId, {
+        status: 'idle',
+        lastError: 'Relationship analysis is disabled. Set RUSHDB_LLM_API_KEY and RUSHDB_LLM_MODEL.'
+      })
+      return
+    }
+
     await this.repository.enqueueAnalysis(projectId, new Date().toISOString())
     this.runAnalysisForProject(projectId, workspaceId, true).catch((error) => {
       this.logger.error(`[RelationshipAnalysis] project ${projectId} failed`, error)
@@ -203,11 +217,23 @@ export class RelationshipPatternsService {
   }
 
   async processDueAnalysis(): Promise<void> {
+    if (!this.analysisEnabled()) {
+      return
+    }
+
     const due = await this.repository.findDueAnalysis(new Date().toISOString())
     await Promise.allSettled(due.map((queueRow) => this.runAnalysisForProject(queueRow.projectId)))
   }
 
   async runAnalysisForProject(projectId: string, workspaceId?: string, isManual = false): Promise<void> {
+    if (!this.analysisEnabled()) {
+      await this.repository.updateQueue(projectId, {
+        status: 'idle',
+        lastError: 'Relationship analysis is disabled. Set RUSHDB_LLM_API_KEY and RUSHDB_LLM_MODEL.'
+      })
+      return
+    }
+
     if (this.runningAnalysis.has(projectId)) {
       return
     }
@@ -238,14 +264,15 @@ export class RelationshipPatternsService {
 
       const existingPatterns = await this.pruneIncoherentJoinSuggestions(
         projectId,
-        await this.repository.findByProjectId(projectId)
+        await this.repository.findByProjectId(projectId),
+        ontology
       )
 
       // Neither the ontology nor the stored patterns changed since the last completed
       // run in this process — the LLM would see the identical prompt, so skip it.
       // Makes repeated Refresh clicks near-instant instead of re-billing a full analysis.
       const analysisSignature = this.signatureHash({
-        ontology: this.compactOntologyForRelationshipAnalysis(ontology),
+        ontology,
         patterns: this.compactExistingPatternsForRelationshipAnalysis(existingPatterns)
       })
       if (this.lastAnalysisSignature.get(projectId) === analysisSignature) {
@@ -275,6 +302,7 @@ export class RelationshipPatternsService {
           .filter((candidate): candidate is RelationshipPatternCandidate => Boolean(candidate))
       )
         .filter((candidate) => !this.hasExistingPatternForJoin(candidate, existingPatterns))
+        .sort((a, b) => this.scoreCandidate(b) - this.scoreCandidate(a))
         .slice(0, MAX_LLM_CANDIDATES)
 
       for (const candidate of validCandidates) {
@@ -326,24 +354,26 @@ export class RelationshipPatternsService {
 
   /**
    * Deletes previously stored auto-suggestions that no longer pass the join-coherence
-   * gate in isSafeJoinCandidate — e.g. AGENT.agentId -> RUN.runId, two unrelated identity
-   * fields suggested before the gate existed, which showed up as near-duplicates of the
-   * legitimate AGENT.agentId -> RUN.agentId pattern. Only 'suggested' rows are touched;
-   * approved/ignored rows reflect an explicit user decision and are kept.
+   * gate in isSafeJoinCandidate. Only 'suggested' rows are touched; approved/ignored rows
+   * reflect an explicit user decision and are kept.
    */
   private async pruneIncoherentJoinSuggestions(
     projectId: string,
-    patterns: RelationshipPatternRow[]
+    patterns: RelationshipPatternRow[],
+    ontology: OntologyItem[]
   ): Promise<RelationshipPatternRow[]> {
     const kept: RelationshipPatternRow[] = []
     for (const pattern of patterns) {
       const incoherent =
         pattern.status === 'suggested' &&
         this.normalizePatternMode(pattern.mode) === 'join_pattern' &&
-        !this.isSafeJoinCandidate({
-          source: { label: pattern.sourceLabel, key: pattern.sourceKey ?? undefined },
-          target: { label: pattern.targetLabel, key: pattern.targetKey ?? undefined }
-        })
+        !this.isSafeJoinCandidate(
+          {
+            source: { label: pattern.sourceLabel, key: pattern.sourceKey ?? undefined },
+            target: { label: pattern.targetLabel, key: pattern.targetKey ?? undefined }
+          },
+          ontology
+        )
 
       if (incoherent) {
         await this.repository.deletePattern(pattern.id, projectId)
@@ -359,40 +389,132 @@ export class RelationshipPatternsService {
   }
 
   private suggestDeterministicCandidates(ontology: OntologyItem[]): RelationshipPatternCandidate[] {
-    const agent = this.findOntologyItemWithProperty(ontology, ['AGENT'], 'agentId')
-    const run = this.findOntologyItemWithProperty(ontology, ['RUN'], 'agentId')
-
-    if (!agent || !run || agent.label === run.label) {
-      return []
-    }
-
     return [
-      {
-        source: { label: agent.label, key: 'agentId' },
-        target: { label: run.label, key: 'agentId' },
-        direction: 'out',
-        type: 'HAS_RUN',
-        mode: 'join_pattern',
-        confidence: 0.92,
-        rationale: `${run.label}.agentId references ${agent.label}.agentId, linking evaluation runs to the agent that produced them.`
-      }
+      ...this.suggestNameBackedReferenceCandidates(ontology),
+      ...this.suggestSampleBackedReferenceCandidates(ontology)
     ]
   }
 
-  private findOntologyItemWithProperty(
-    ontology: OntologyItem[],
-    preferredLabels: string[],
-    propertyName: string
-  ): OntologyItem | undefined {
-    const normalizedPreferred = preferredLabels.map((label) => label.toUpperCase())
-    const candidates = ontology.filter((item) =>
-      item.properties.some((property) => property.name.toLowerCase() === propertyName.toLowerCase())
-    )
+  private suggestNameBackedReferenceCandidates(ontology: OntologyItem[]): RelationshipPatternCandidate[] {
+    const candidates: RelationshipPatternCandidate[] = []
 
-    return (
-      candidates.find((item) => normalizedPreferred.includes(item.label.toUpperCase())) ??
-      candidates.find((item) => normalizedPreferred.some((label) => item.label.toUpperCase().includes(label)))
-    )
+    for (const source of ontology) {
+      for (const target of ontology) {
+        for (const sourceProperty of source.properties) {
+          for (const targetProperty of target.properties) {
+            if (source.label === target.label && sourceProperty.name === targetProperty.name) {
+              continue
+            }
+
+            if (
+              targetProperty.isArray ||
+              !this.propertyNameReferencesLabelAndKey(sourceProperty.name, target.label, targetProperty.name)
+            ) {
+              continue
+            }
+
+            const sourceValues = this.referenceValueProfile(sourceProperty)
+            const targetValues = this.referenceValueProfile(targetProperty)
+            const overlap = this.countTokenOverlap(sourceValues.tokens, targetValues.tokens)
+
+            candidates.push({
+              source: { label: source.label, key: sourceProperty.name },
+              target: { label: target.label, key: targetProperty.name },
+              direction: 'out',
+              type: this.referencePropertyRelationshipType(sourceProperty.name),
+              mode: 'join_pattern',
+              confidence: sourceProperty.isArray ? 0.9 : 0.86,
+              sampleMatchCount: overlap,
+              rationale: `${source.label}.${sourceProperty.name} names ${target.label}.${targetProperty.name} as a reference field.`
+            })
+          }
+        }
+      }
+    }
+
+    return candidates
+  }
+
+  private suggestSampleBackedReferenceCandidates(ontology: OntologyItem[]): RelationshipPatternCandidate[] {
+    const candidates: RelationshipPatternCandidate[] = []
+
+    for (let sourceIndex = 0; sourceIndex < ontology.length; sourceIndex += 1) {
+      const left = ontology[sourceIndex]
+      for (let targetIndex = sourceIndex; targetIndex < ontology.length; targetIndex += 1) {
+        const right = ontology[targetIndex]
+
+        for (const leftProperty of left.properties) {
+          for (const rightProperty of right.properties) {
+            if (left.label === right.label && leftProperty.name === rightProperty.name) {
+              continue
+            }
+
+            const candidate = this.buildSampleBackedCandidate(left, leftProperty, right, rightProperty)
+            if (candidate) {
+              candidates.push(candidate)
+            }
+          }
+        }
+      }
+    }
+
+    return candidates
+  }
+
+  private buildSampleBackedCandidate(
+    left: OntologyItem,
+    leftProperty: OntologyItem['properties'][number],
+    right: OntologyItem,
+    rightProperty: OntologyItem['properties'][number]
+  ): RelationshipPatternCandidate | undefined {
+    const leftValues = this.referenceValueProfile(leftProperty)
+    const rightValues = this.referenceValueProfile(rightProperty)
+    const overlap = this.countTokenOverlap(leftValues.tokens, rightValues.tokens)
+
+    if (
+      overlap === 0 ||
+      !this.hasReferenceLikeOverlap(leftProperty, leftValues, rightProperty, rightValues, overlap)
+    ) {
+      return undefined
+    }
+
+    const leftIsBetterSource =
+      leftValues.maxTokensPerValue > rightValues.maxTokensPerValue ||
+      (leftValues.maxTokensPerValue === rightValues.maxTokensPerValue &&
+        leftValues.tokens.size > rightValues.tokens.size) ||
+      (leftValues.maxTokensPerValue === rightValues.maxTokensPerValue &&
+        leftValues.tokens.size === rightValues.tokens.size &&
+        `${left.label}.${leftProperty.name}` <= `${right.label}.${rightProperty.name}`)
+    const source = leftIsBetterSource ? left : right
+    const sourceProperty = leftIsBetterSource ? leftProperty : rightProperty
+    const target = leftIsBetterSource ? right : left
+    const targetProperty = leftIsBetterSource ? rightProperty : leftProperty
+
+    return {
+      source: { label: source.label, key: sourceProperty.name },
+      target: { label: target.label, key: targetProperty.name },
+      direction: 'out',
+      type: this.referencePropertyRelationshipType(sourceProperty.name),
+      mode: 'join_pattern',
+      confidence: Math.min(0.95, 0.75 + overlap / 100),
+      sampleMatchCount: overlap,
+      rationale: `${source.label}.${sourceProperty.name} and ${target.label}.${targetProperty.name} share ${overlap} sampled value${overlap === 1 ? '' : 's'}.`
+    }
+  }
+
+  private referencePropertyRelationshipType(propertyName: string): string {
+    const token = propertyName
+      .replace(/([a-z])([A-Z])/g, '$1_$2')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toUpperCase()
+
+    const singular =
+      token.endsWith('IES') ? `${token.slice(0, -3)}Y`
+      : token.endsWith('S') ? token.slice(0, -1)
+      : token
+
+    return `HAS_${singular || 'RELATED_RECORD'}`
   }
 
   private async suggestCandidates(
@@ -425,24 +547,23 @@ export class RelationshipPatternsService {
             content:
               'You infer graph relationship patterns for RushDB. Return only JSON: {"candidates":[...]}. ' +
               'Every candidate must include mode: "join_pattern" or "retype_existing_relationship". ' +
-              'Use "join_pattern" only for high-confidence foreign-key-like joins where one label has a reference field matching another label key. ' +
-              'A join_pattern must reference the same identifier on both sides: either source.key equals target.key (e.g. AGENT.agentId to RUN.agentId) or one key names the other label (e.g. Order.customerId to Customer.id). Never join two unrelated identity fields such as AGENT.agentId to RUN.runId — each identifies its own label, not the other. ' +
+              'Use "join_pattern" only when sampled property values show that records can actually be matched. Shared property names or semantic-looking key names alone are not enough. ' +
+              'Array/list fields and comma-separated reference fields may join scalar fields when their sampled items overlap. ' +
               'Return at most ONE join_pattern per label pair; if several key pairs could join the same two labels, pick the single most semantically correct one. ' +
               'Use "retype_existing_relationship" when ontology already shows a RUSHDB_DEFAULT_RELATION between labels; in that case source.key and target.key are optional and the task is to rename existing structure semantically. ' +
-              'For retype_existing_relationship, infer the semantic relationship from the existing graph structure and label meanings, not from same-named descriptive properties. ' +
-              'Do not suggest joins based only on common descriptive fields such as name, title, label, description, status, country, or type. ' +
+              'For retype_existing_relationship, infer the semantic relationship from the existing graph structure and label meanings. ' +
               'If a default relationship already connects two labels, prefer retype_existing_relationship over join_pattern. ' +
               'Return ONE canonical candidate per semantic relationship; never return both A->B and B->A for the same relationship. ' +
               'Do not suggest a relationship when the same mode and label/key pair already appears in existingPatterns, even if you would use a different synonym or inverse type. ' +
               'Choose source as the natural actor/owner/parent and target as the natural object/action/child. ' +
-              'If both labels represent equal peers and direction is semantically ambiguous, choose a neutral symmetric type and use deterministic alphabetical label/key ordering for source and target. ' +
+              'For same-label relationships, never join a property to itself. Choose exactly one canonical orientation from sampled values and schema context. ' +
               'Relationship type must read naturally from source to target. Do not choose a direction where the target would appear to act on or create the source. ' +
               'Each candidate must include source.label, target.label, mode, direction "out", type, confidence 0..1, and rationale. join_pattern must also include source.key and target.key. Return at most 8 candidates.'
           },
           {
             role: 'user',
             content: JSON.stringify({
-              ontology: this.compactOntologyForRelationshipAnalysis(ontology),
+              ontology,
               existingPatterns: this.compactExistingPatternsForRelationshipAnalysis(existingPatterns),
               relationshipTypeRules:
                 'Use uppercase Neo4j-safe verb phrases from source to target. Do not use inverse duplicate types for the same relationship.'
@@ -468,7 +589,7 @@ export class RelationshipPatternsService {
     const systemContent =
       'You infer graph relationship patterns for RushDB. Return only JSON: {"candidates":[...]}. '
     const userContent = JSON.stringify({
-      ontology: this.compactOntologyForRelationshipAnalysis(ontology),
+      ontology,
       existingPatterns: this.compactExistingPatternsForRelationshipAnalysis(existingPatterns)
     })
     const promptTokens = usage?.prompt_tokens ?? estimateTokens(systemContent + userContent)
@@ -482,19 +603,6 @@ export class RelationshipPatternsService {
       completionTokens,
       totalTokens
     }
-  }
-
-  private compactOntologyForRelationshipAnalysis(ontology: OntologyItem[]) {
-    return ontology.map((item) => ({
-      label: item.label,
-      count: item.count,
-      properties: item.properties.map((property) => ({
-        name: property.name,
-        type: property.type,
-        values: property.values?.slice(0, 3)
-      })),
-      relationships: item.relationships
-    }))
   }
 
   private compactExistingPatternsForRelationshipAnalysis(patterns: RelationshipPatternRow[]) {
@@ -523,44 +631,14 @@ export class RelationshipPatternsService {
             `${candidate.target.label}.${candidate.target.key}`
           ].sort()
       const key = `${mode}|${endpoints.join('|')}`
-      const normalizedCandidate =
-        this.isSymmetricRelationship(candidate) ? this.normalizeSymmetricCandidate(candidate) : candidate
       const existing = byJoin.get(key)
 
-      if (!existing || this.scoreCandidate(normalizedCandidate) > this.scoreCandidate(existing)) {
-        byJoin.set(key, normalizedCandidate)
+      if (!existing || this.scoreCandidate(candidate) > this.scoreCandidate(existing)) {
+        byJoin.set(key, candidate)
       }
     }
 
     return [...byJoin.values()]
-  }
-
-  private isSymmetricRelationship(candidate: RelationshipPatternCandidate): boolean {
-    const type = this.normalizeRelationType(candidate.type)
-    return [
-      'FRIEND',
-      'FRIENDS',
-      'FRIEND_OF',
-      'CONNECTED_TO',
-      'RELATED_TO',
-      'PEER_OF',
-      'COLLEAGUE_OF'
-    ].includes(type)
-  }
-
-  private normalizeSymmetricCandidate(candidate: RelationshipPatternCandidate): RelationshipPatternCandidate {
-    const left = `${candidate.source.label}.${candidate.source.key}`
-    const right = `${candidate.target.label}.${candidate.target.key}`
-    if (left.localeCompare(right) <= 0) {
-      return { ...candidate, direction: 'out' }
-    }
-
-    return {
-      ...candidate,
-      source: candidate.target,
-      target: candidate.source,
-      direction: 'out'
-    }
   }
 
   private hasExistingPatternForJoin(
@@ -606,23 +684,7 @@ export class RelationshipPatternsService {
   }
 
   private scoreCandidate(candidate: RelationshipPatternCandidate): number {
-    let score = this.normalizeConfidence(candidate.confidence)
-    const type = this.normalizeRelationType(candidate.type)
-    const source = candidate.source.label.toUpperCase()
-    const target = candidate.target.label.toUpperCase()
-
-    if (type.includes(target) || type.includes(this.singularize(target))) {
-      score += 0.2
-    }
-    if (type.includes(source) && !type.includes(target)) {
-      score -= 0.2
-    }
-
-    return score
-  }
-
-  private singularize(value: string): string {
-    return value.endsWith('S') ? value.slice(0, -1) : value
+    return this.normalizeConfidence(candidate.confidence) + (candidate.sampleMatchCount ?? 0) / 10_000
   }
 
   private analysisEnabled(): boolean {
@@ -642,11 +704,16 @@ export class RelationshipPatternsService {
 
     const source = ontology.find((item) => item.label === candidate.source.label)
     const target = ontology.find((item) => item.label === candidate.target.label)
-    if (!source || !target || source.label === target.label) {
+    if (!source || !target) {
       return undefined
     }
 
     const mode = this.normalizePatternMode(candidate.mode)
+    const isSameLabel = source.label === target.label
+    if (isSameLabel && mode !== 'join_pattern') {
+      return undefined
+    }
+
     const hasDefaultRelationship = this.hasDefaultRelationshipBetween(source, target)
 
     if (mode === 'retype_existing_relationship') {
@@ -668,7 +735,7 @@ export class RelationshipPatternsService {
 
       const sourceHasKey = source.properties.some((property) => property.name === candidate.source.key)
       const targetHasKey = target.properties.some((property) => property.name === candidate.target.key)
-      if (!sourceHasKey || !targetHasKey || !this.isSafeJoinCandidate(candidate)) {
+      if (!sourceHasKey || !targetHasKey || !this.isSafeJoinCandidate(candidate, ontology)) {
         return undefined
       }
     }
@@ -718,21 +785,32 @@ export class RelationshipPatternsService {
     )
   }
 
-  private isSafeJoinCandidate(candidate: RelationshipPatternCandidate): boolean {
-    const sourceKey = candidate.source.key ?? ''
-    const targetKey = candidate.target.key ?? ''
-    const generic = new Set(['name', 'title', 'label', 'description', 'status', 'country', 'type'])
-    if (sourceKey === targetKey && generic.has(sourceKey.toLowerCase())) {
+  private isSafeJoinCandidate(
+    candidate: RelationshipPatternCandidate,
+    ontology: OntologyItem[] = []
+  ): boolean {
+    if (candidate.source.label === candidate.target.label && candidate.source.key === candidate.target.key) {
       return false
     }
 
-    // A coherent FK-like join either matches the same identifier on both sides
-    // (AGENT.agentId = RUN.agentId) or uses a key that references the other label
-    // (Order.customerId -> Customer.id). Two unrelated identity fields
-    // (AGENT.agentId vs RUN.runId) are never a join, however id-like both keys look —
-    // that was the source of duplicate near-miss suggestions between the same labels.
-    const keysMatch = sourceKey.length > 0 && sourceKey.toLowerCase() === targetKey.toLowerCase()
-    return keysMatch || this.hasLabelSpecificReference(candidate)
+    const sourceKey = candidate.source.key ?? ''
+    const targetKey = candidate.target.key ?? ''
+
+    const sourceProperty = this.findProperty(ontology, candidate.source.label, sourceKey)
+    const targetProperty = this.findProperty(ontology, candidate.target.label, targetKey)
+    if (!sourceProperty || !targetProperty) {
+      return false
+    }
+
+    const sourceTokens = this.referenceValueProfile(sourceProperty)
+    const targetTokens = this.referenceValueProfile(targetProperty)
+    const overlap = this.countTokenOverlap(sourceTokens.tokens, targetTokens.tokens)
+
+    return (
+      this.hasNameBackedReference(sourceProperty, candidate.target.label, targetProperty) ||
+      (overlap > 0 &&
+        this.hasReferenceLikeOverlap(sourceProperty, sourceTokens, targetProperty, targetTokens, overlap))
+    )
   }
 
   private calibrateConfidence(
@@ -744,23 +822,162 @@ export class RelationshipPatternsService {
       return confidence
     }
 
-    return this.hasLabelSpecificReference(candidate) ? Math.min(confidence, 0.95) : Math.min(confidence, 0.75)
+    return Math.min(confidence, 0.95)
   }
 
-  private hasLabelSpecificReference(candidate: RelationshipPatternCandidate): boolean {
-    const sourceLabel = this.normalizeReferenceToken(candidate.source.label)
-    const targetLabel = this.normalizeReferenceToken(candidate.target.label)
-    const sourceKeyToken = this.normalizeReferenceToken(candidate.source.key ?? '')
-    const targetKeyToken = this.normalizeReferenceToken(candidate.target.key ?? '')
-
-    return sourceKeyToken.includes(targetLabel) || targetKeyToken.includes(sourceLabel)
+  private findProperty(ontology: OntologyItem[], label: string, key: string) {
+    return ontology.find((item) => item.label === label)?.properties.find((property) => property.name === key)
   }
 
-  private normalizeReferenceToken(value: string): string {
-    return value
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '')
-      .replace(/s$/, '')
+  private hasNameBackedReference(
+    referenceProperty: OntologyItem['properties'][number],
+    targetLabel: string,
+    targetProperty: OntologyItem['properties'][number]
+  ): boolean {
+    if (this.isNonReferenceProperty(referenceProperty) || this.isNonReferenceProperty(targetProperty)) {
+      return false
+    }
+    if (targetProperty.isArray) {
+      return false
+    }
+    return this.propertyNameReferencesLabelAndKey(referenceProperty.name, targetLabel, targetProperty.name)
+  }
+
+  private propertyNameReferencesLabelAndKey(
+    referencePropertyName: string,
+    targetLabel: string,
+    targetPropertyName: string
+  ): boolean {
+    const referenceTokens = this.nameTokens(referencePropertyName)
+    const labelTokens = this.nameTokens(targetLabel)
+    const keyTokens = this.nameTokens(targetPropertyName)
+
+    if (!referenceTokens.size || !labelTokens.size || !keyTokens.size) {
+      return false
+    }
+
+    return (
+      [...labelTokens].every((token) => referenceTokens.has(token)) &&
+      [...keyTokens].every((token) => referenceTokens.has(token))
+    )
+  }
+
+  private nameTokens(value: string): Set<string> {
+    return new Set(
+      String(value)
+        .replace(/([a-z])([A-Z])/g, '$1_$2')
+        .split(/[^a-zA-Z0-9]+/)
+        .map((part) => part.trim().toLowerCase())
+        .filter(Boolean)
+        .map((part) =>
+          part.endsWith('ies') ? `${part.slice(0, -3)}y`
+          : part.endsWith('s') && part.length > 1 ? part.slice(0, -1)
+          : part
+        )
+    )
+  }
+
+  private hasReferenceLikeOverlap(
+    leftProperty: OntologyItem['properties'][number],
+    left: ReferenceValueProfile,
+    rightProperty: OntologyItem['properties'][number],
+    right: ReferenceValueProfile,
+    overlap: number
+  ): boolean {
+    if (this.isNonReferenceProperty(leftProperty) || this.isNonReferenceProperty(rightProperty)) {
+      return false
+    }
+
+    const leftIsCollection = this.isCollectionReferenceProfile(left)
+    const rightIsCollection = this.isCollectionReferenceProfile(right)
+
+    if (leftIsCollection && rightIsCollection) {
+      return false
+    }
+
+    if (leftIsCollection || rightIsCollection) {
+      return true
+    }
+
+    const hasStrictSubsetOverlap = this.isStrictSubsetOverlap(left, right, overlap)
+
+    if ((this.isLowSignalEnum(left) || this.isLowSignalEnum(right)) && !hasStrictSubsetOverlap) {
+      return false
+    }
+
+    return hasStrictSubsetOverlap
+  }
+
+  private isNonReferenceProperty(property: OntologyItem['properties'][number]): boolean {
+    return property.type === 'boolean' || property.type === 'datetime' || property.type === 'null'
+  }
+
+  private isLowSignalEnum(profile: ReferenceValueProfile): boolean {
+    return profile.maxTokensPerValue <= 1 && profile.tokens.size <= 3
+  }
+
+  private isCollectionReferenceProfile(profile: ReferenceValueProfile): boolean {
+    return profile.hasListValue || profile.maxTokensPerValue > 1
+  }
+
+  private isStrictSubsetOverlap(
+    left: ReferenceValueProfile,
+    right: ReferenceValueProfile,
+    overlap: number
+  ): boolean {
+    return overlap === Math.min(left.tokens.size, right.tokens.size) && left.tokens.size !== right.tokens.size
+  }
+
+  private referenceValueProfile(property: OntologyItem['properties'][number]): ReferenceValueProfile {
+    const profile = this.referenceValueTokens(property.values)
+    return {
+      ...profile,
+      hasListValue: profile.hasListValue || property.isArray === true
+    }
+  }
+
+  private referenceValueTokens(values: unknown): ReferenceValueProfile {
+    const tokens = new Set<string>()
+    let maxTokensPerValue = 0
+    let hasListValue = false
+    if (!Array.isArray(values)) {
+      return { tokens, maxTokensPerValue, hasListValue }
+    }
+
+    for (const rawValue of values) {
+      const rawValueIsArray = Array.isArray(rawValue)
+      const rawParts = rawValueIsArray ? rawValue : String(rawValue ?? '').split(',')
+      const parts = rawParts
+        .map((part) =>
+          String(part ?? '')
+            .trim()
+            .toLowerCase()
+        )
+        .filter(Boolean)
+
+      if (!parts.length) {
+        continue
+      }
+      hasListValue = hasListValue || rawValueIsArray
+      let tokensInValue = 0
+      for (const token of parts) {
+        tokens.add(token)
+        tokensInValue += 1
+      }
+      maxTokensPerValue = Math.max(maxTokensPerValue, tokensInValue)
+    }
+
+    return { tokens, maxTokensPerValue, hasListValue }
+  }
+
+  private countTokenOverlap(left: Set<string>, right: Set<string>): number {
+    let overlaps = 0
+    for (const value of left) {
+      if (right.has(value)) {
+        overlaps += 1
+      }
+    }
+    return overlaps
   }
 
   private normalizeEndpoint(endpoint: RelationshipPatternEndpoint): RelationshipPatternEndpoint {

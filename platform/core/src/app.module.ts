@@ -18,6 +18,7 @@ import { DashboardModule } from '@/dashboard/dashboard.module'
 import { ThrottleService } from '@/dashboard/throttle/throttle.service'
 import { DatabaseModule } from '@/database/database.module'
 import { RequestCleanupInterceptor } from '@/database/interceptors/request-cleanup.interceptor'
+import { HealthController } from '@/health.controller'
 
 import { join } from 'path'
 
@@ -37,7 +38,7 @@ import { join } from 'path'
         ServeStaticModule.forRoot({
           rootPath: join(__dirname, '..', 'public'),
           renderPath: '/*',
-          exclude: ['/api*']
+          exclude: ['/api*', '/health']
         })
       ]
     : []),
@@ -56,9 +57,6 @@ import { join } from 'path'
     },
     CliService
   ],
-  controllers: [
-    ...(!toBoolean(process.env.RUSHDB_SERVE_STATIC) ? [AppController] : []),
-    AppSettingsController
-  ]
+  controllers: [AppController, HealthController, AppSettingsController]
 })
 export class AppModule {}

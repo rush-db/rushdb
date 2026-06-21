@@ -50,24 +50,26 @@ All database operations are accessed through sub-namespaces on the client instan
 
 CRUD, import, export, and relationship operations on records.
 
-| Method                                                                             | Description                                  |
-| ---------------------------------------------------------------------------------- | -------------------------------------------- |
-| `create({ label, data, options, vectors }, transaction)`                           | Create a single record                       |
-| `createMany({ label, data, options, vectors }, transaction)`                       | Create multiple flat records                 |
-| `importJson({ label, data, options }, transaction)`                                | Import nested or complex JSON payloads       |
-| `importCsv({ label, data, options, parseConfig, parentId, vectors }, transaction)` | Import records from CSV text                 |
-| `upsert({ label, data, options, vectors }, transaction)`                           | Create or update a record                    |
-| `set({ target, label, data, options, vectors }, transaction)`                      | Replace all fields of a record               |
-| `update({ target, label, data, options }, transaction)`                            | Partially update a record                    |
-| `find(searchQuery, transaction)`                                                   | Search records                               |
-| `findOne(searchQuery, transaction)`                                                | Return the first match                       |
-| `findUniq(searchQuery, transaction)`                                               | Return the single match; raises if ambiguous |
-| `findById(idOrIds, transaction)`                                                   | Fetch record(s) by ID                        |
-| `delete(searchQuery, transaction)`                                                 | Delete all records matching a query          |
-| `deleteById(idOrIds, transaction)`                                                 | Delete record(s) by ID                       |
-| `attach({ source, target, options }, transaction)`                                 | Create relationships between records         |
-| `detach({ source, target, options }, transaction)`                                 | Remove relationships between records         |
-| `export(searchQuery, transaction)`                                                 | Export matching records as CSV text          |
+| Method                                                                             | Description                                                                                                                                         |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create({ label, data, options, vectors }, transaction)`                           | Create a single record                                                                                                                              |
+| `createMany({ label, data, options, vectors }, transaction)`                       | Create multiple flat records; supports upsert via `options.mergeBy`                                                                                 |
+| `importJson({ label, data, options }, transaction)`                                | Import nested or complex JSON payloads; `label` may be omitted for container objects whose top-level values are objects or arrays of nested records |
+| `importCsv({ label, data, options, parseConfig, parentId, vectors }, transaction)` | Import records from CSV text; supports upsert via `options.mergeBy`                                                                                 |
+| `upsert({ label, data, options, vectors }, transaction)`                           | Create or update a record by properties in `options.mergeBy`                                                                                        |
+| `set({ target, label, data, options, vectors }, transaction)`                      | Replace all fields of a record                                                                                                                      |
+| `update({ target, label, data, options }, transaction)`                            | Partially update a record                                                                                                                           |
+| `find(searchQuery, transaction)`                                                   | Search records                                                                                                                                      |
+| `findOne(searchQuery, transaction)`                                                | Return the first match                                                                                                                              |
+| `findUniq(searchQuery, transaction)`                                               | Return the single match; raises if ambiguous                                                                                                        |
+| `findById(idOrIds, transaction)`                                                   | Fetch record(s) by ID                                                                                                                               |
+| `delete(searchQuery, transaction)`                                                 | Delete all records matching a query                                                                                                                 |
+| `deleteById(idOrIds, transaction)`                                                 | Delete record(s) by ID                                                                                                                              |
+| `attach({ source, target, options }, transaction)`                                 | Create relationships between records                                                                                                                |
+| `detach({ source, target, options }, transaction)`                                 | Remove relationships between records                                                                                                                |
+| `export(searchQuery, transaction)`                                                 | Export matching records as CSV text                                                                                                                 |
+
+For bulk imports, pass `options: { mergeBy: ['propertyName'], mergeStrategy: 'append' | 'rewrite' }` to upsert by property instead of creating duplicates. See [Upsert by Property During Import](/learn/records-and-queries/import-data#upsert-by-property-during-import).
 
 ### `db.relationships`
 

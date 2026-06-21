@@ -10,10 +10,11 @@ import { TextField } from '~/elements/Input'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { Setting, SettingsList } from '~/elements/Setting'
 import { Skeleton } from '~/elements/Skeleton'
-import { Message } from '~/elements/Message'
 import { DeleteProjectDialog } from '~/features/projects/components/DeleteProjectDialog'
 import { useCurrentProjectQuery } from '~/features/projects/hooks/useProjectQueries'
 import { useUpdateProjectMutation } from '~/features/projects/hooks/useProjectMutations'
+import { ProjectSettingsLayout } from '~/features/projects/layout/ProjectSettingsLayout'
+import { ConnectionsList } from '~/pages/workspace/connected-apps'
 
 const workspaceNameSchema = object({
   name: string().min(1).max(256).required()
@@ -86,12 +87,15 @@ function DeleteProjectSetting({ projectId }: WithProjectID) {
 }
 
 export function ProjectSettings({ projectId }: WithProjectID) {
-  const { data: project, isPending: loading } = useCurrentProjectQuery()
-
   return (
-    <>
+    <ProjectSettingsLayout projectId={projectId}>
       <PageHeader contained>
-        <PageTitle>Project Settings</PageTitle>
+        <div className="flex max-w-3xl flex-col gap-2">
+          <PageTitle>Project Settings</PageTitle>
+          <p className="text-content2 text-sm leading-6">
+            Manage the project name and deletion controls for this isolated data space.
+          </p>
+        </div>
       </PageHeader>
       <PageContent contained>
         <SettingsList>
@@ -99,6 +103,29 @@ export function ProjectSettings({ projectId }: WithProjectID) {
           <DeleteProjectSetting projectId={projectId} />
         </SettingsList>
       </PageContent>
-    </>
+    </ProjectSettingsLayout>
+  )
+}
+
+export function ProjectConnectedApps({ projectId }: WithProjectID) {
+  return (
+    <ProjectSettingsLayout projectId={projectId}>
+      <PageHeader contained>
+        <div className="flex max-w-3xl flex-col gap-2">
+          <PageTitle>Connected Apps</PageTitle>
+          <p className="text-content2 text-sm leading-6">
+            Review third-party applications authorized against this project. Revoking an app immediately
+            invalidates its issued token.
+          </p>
+        </div>
+      </PageHeader>
+      <PageContent contained>
+        <ConnectionsList
+          emptyMessage="No connected applications have access to this project yet."
+          projectId={projectId}
+          showProject={false}
+        />
+      </PageContent>
+    </ProjectSettingsLayout>
   )
 }

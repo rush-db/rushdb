@@ -125,7 +125,16 @@ export const isOrderByAggregatedField = (searchQuery: SearchDto) =>
   toBoolean(searchQuery.orderBy) &&
   isObject(searchQuery.orderBy) &&
   Object.keys(searchQuery.orderBy).length === 1 &&
-  Object.keys(searchQuery.select ?? searchQuery.aggregate ?? {}).includes(Object.keys(searchQuery.orderBy)[0])
+  (() => {
+    const orderKey = Object.keys(searchQuery.orderBy)[0]
+
+    if (searchQuery.aggregate && Object.keys(searchQuery.aggregate).includes(orderKey)) {
+      return true
+    }
+
+    const selectExpr = searchQuery.select?.[orderKey]
+    return Boolean(selectExpr && !(typeof selectExpr === 'string' && selectExpr.startsWith('$')))
+  })()
 
 export const buildQuery = (searchQuery: SearchDto) => {
   const parsedWhere = parseWhereClause(searchQuery.where)

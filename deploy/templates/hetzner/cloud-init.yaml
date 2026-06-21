@@ -1,0 +1,47 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - ufw
+
+write_files:
+  - path: /opt/rushdb/.env
+    permissions: '0600'
+    content: |
+      RUSHDB_PORT=3000
+      RUSHDB_LOGIN=admin
+      RUSHDB_PASSWORD=change-me
+      RUSHDB_AES_256_ENCRYPTION_KEY=32SymbolStringForTokenEncryption
+      RUSHDB_DASHBOARD_URL=http://YOUR_SERVER_IP:3000
+      RUSHDB_BASE_URL=http://YOUR_SERVER_IP:3000
+      NEO4J_URL=neo4j+s://your-aura-host.databases.neo4j.io
+      NEO4J_USERNAME=neo4j
+      NEO4J_PASSWORD=change-me-neo4j
+      POSTGRES_DB=rushdb
+      POSTGRES_USER=rushdb
+      POSTGRES_PASSWORD=change-me-postgres
+      RUSHDB_LLM_BASE_URL=https://openrouter.ai/api/v1
+      RUSHDB_LLM_API_KEY=
+      RUSHDB_LLM_MODEL=google/gemini-2.5-flash-lite
+      RUSHDB_EMBEDDING_BASE_URL=https://openrouter.ai/api/v1
+      RUSHDB_EMBEDDING_API_KEY=
+      RUSHDB_EMBEDDING_MODEL=qwen/qwen3-embedding-8b
+      RUSHDB_EMBEDDING_DIMENSIONS=1024
+
+runcmd:
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - . /etc/os-release && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - curl -L -o /opt/rushdb/compose.yaml https://raw.githubusercontent.com/rush-db/rushdb/main/deploy/templates/docker-compose/compose.yaml
+  - ufw allow OpenSSH
+  - ufw allow 3000/tcp
+  - ufw --force enable
+  - docker compose --env-file /opt/rushdb/.env -f /opt/rushdb/compose.yaml up -d
+
+final_message: 'RushDB cloud-init finished. Review /opt/rushdb/.env, set the external Neo4j connection, rotate default secrets, and put the service behind TLS before production use.'

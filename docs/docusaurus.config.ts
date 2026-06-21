@@ -260,6 +260,7 @@ const config: Config = {
           { from: '/tutorials/configuring-dashboard', to: '/deploy/configuration/get-api-key' },
           { from: '/tutorials/connect-aura-instance', to: '/deploy/guides/connect-aura' },
           { from: '/tutorials/deployment', to: '/deploy/remote-hosting/self-hosting-rushdb' },
+          { from: '/deploy/remote-hosting/digital-ocean', to: '/deploy/remote-hosting/templates' },
           { from: '/tutorials/local-setup', to: '/deploy/local-hosting/docker' },
           { from: '/tutorials/mcp-operator-quickstart', to: '/deploy/guides/mcp-operator-quickstart' },
           { from: '/tutorials/self-hosted-project-setup', to: '/deploy/guides/self-hosted-project-setup' },

@@ -26,14 +26,15 @@ Bill = included KU (flat rate) + overage KU × overage rate
 
 ## Plan Comparison
 
-|                         | Free          | Pro        | Scale       | Enterprise |
-| ----------------------- | ------------- | ---------- | ----------- | ---------- |
-| Included KU / month     | 100,000       | 10,000,000 | Usage-based | Custom     |
-| Overage                 | Not available | Per KU     | Per KU      | Negotiated |
-| Projects                | 2             | Unlimited  | Unlimited   | Unlimited  |
-| Self-hosted support     | ✓             | ✓          | ✓           | ✓          |
-| SLA                     | —             | —          | ✓           | ✓          |
-| BYOC (own Neo4j / Aura) | ✓             | ✓          | ✓           | ✓          |
+|                         | Free          | Start         | Pro       | Scale       | Enterprise |
+| ----------------------- | ------------- | ------------- | --------- | ----------- | ---------- |
+| Included KU / month     | 100,000       | 250,000       | 1,000,000 | Usage-based | Custom     |
+| Overage                 | Not available | Not available | Per KU    | Per KU      | Negotiated |
+| Projects                | 2             | 2             | 10        | 100         | Custom     |
+| Team members            | 1             | 1             | 3         | 10          | Custom     |
+| Self-hosted support     | ✓             | ✓             | ✓         | ✓           | ✓          |
+| SLA                     | —             | —             | —         | ✓           | ✓          |
+| BYOC (own Neo4j / Aura) | ✓             | ✓             | ✓         | ✓           | ✓          |
 
 ## One Metric
 

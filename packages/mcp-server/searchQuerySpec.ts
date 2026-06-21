@@ -17,6 +17,14 @@ SearchQuery shape:
   limit?     number        — max root records (default 100; max 1000)
   skip?      number        — pagination offset
 
+labels defines root records only. For relationship-aware analytics, do not put related
+labels in labels; put related labels inside where traversal blocks and add $alias when
+they are referenced by select or groupBy.
+
+For "which/what <parent> has most/more/least/less/fewer/fewest <related records>"
+questions, choose the parent as the root label. Do not switch the root to the
+related/filter label just because that label owns the filtered property.
+
 CRITICAL LIMITS
 • NEVER include limit when select is present (sum/avg/min/max/count/collect/timeBucket).
   limit restricts the record scan → results are mathematically wrong.
@@ -50,6 +58,10 @@ Direct equality, all types:
   name: { $ne: "deleted" }               // not equal
   status: { $in: ["active","pending"] }  // matches any value in array
   status: { $nin: ["deleted","archived"] } // matches none of these values
+
+  For user-provided named references that may be incomplete, abbreviated, or shortened,
+  prefer $contains on a likely display field (name, title, or ontology-backed equivalent).
+  Use exact equality only for exact IDs, canonical full values, or explicit exact-match requests.
 
 ── NUMBER OPERATORS ──────────────────────────────────────────────────
   age: { $gt: 18 }        // greater than
@@ -316,6 +328,12 @@ TIMEBUCKET:
 §3) GROUPBY — TWO MODES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+groupBy is valid only with select.
+
+Do not use alias-only values in groupBy. "$record" and "$related" are invalid because
+grouped rows need a concrete dimension field. Use "$record.name", "$related.status",
+or a select output key such as "totalBudget".
+
 MODE A — DIMENSIONAL (one row per distinct value — "$alias.propertyName" format):
   select: { count: { $count: "*" }, avg: { $avg: "$record.total", $precision: 2 } },
   groupBy: ['$record.status'],
@@ -398,6 +416,15 @@ If the metric field is NOT on the target label, search related labels before giv
   4) When found on CHILD: where:{ CHILD:{ ...filters..., $alias:'$child' } }, select referencing '$child.*'.
      Root-level filters (status, dates) stay at the top-level where.
   5) Never abandon after one miss — always attempt at least one related-label discovery pass.
+
+Related-count ranking:
+  For "which/what <parent> has most/more/least/less/fewer/fewest <related records>",
+  root the parent label, traverse the related label in where with $alias, put related
+  filters inside that related-label block, count the related alias, group by a parent
+  display field, and order the count.
+  Direction: most/more/highest/largest/greatest → desc; least/less/fewer/fewest/lowest/smallest → asc.
+  If the parent→related traversal path is absent, do not silently root on the related label;
+  ask or return the closest valid query with an explicit assumption.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 §7) RANGE / DISTRIBUTION QUERIES
@@ -482,6 +509,9 @@ Before submitting a findRecords call, verify:
 □ groupBy mode correct:
     Dimensional: entries are "$alias.propertyName" strings.
     Self-group: entries are select key names (no dot, no alias prefix).
+□ No alias-only groupBy values such as "$record" or "$related".
+□ Root labels only in labels; related labels go in where traversal with $alias if referenced.
+□ Related-count ranking keeps the requested parent/entity as root; the related/filter label does not steal the root.
 □ Traversal: key = label name (ALL_CAPS). NEVER $label/$direction/$as/$of/$through.
     WRONG: { employee: { $label:'EMPLOYEE' } }   CORRECT: { EMPLOYEE: { $alias:'$emp' } }
 □ Vector threshold semantics: euclidean → $lte; others → $gte.
@@ -506,6 +536,19 @@ Dimensional groupBy (count + avg per category):
     groupBy:['$record.<categoryField>'],
     orderBy:{ count:'desc' }
   })
+
+Which parent has the most/fewest related children:
+  findRecords({
+    labels:['<PARENT_LABEL>'],
+    where:{ <CHILD_LABEL>:{ $alias:'$child' } },
+    select:{
+      parent:'$record.<nameField>',
+      children:{ $count:'$child' }
+    },
+    groupBy:['$record.<nameField>'],
+    orderBy:{ children:'desc' }
+  })
+  → use desc for most/more/highest/largest/greatest, asc for least/less/fewer/fewest/lowest/smallest.
 
 Self-group single KPI:
   findRecords({

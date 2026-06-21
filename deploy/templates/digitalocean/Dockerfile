@@ -1,0 +1,1 @@
+FROM rushdb/platform:latest

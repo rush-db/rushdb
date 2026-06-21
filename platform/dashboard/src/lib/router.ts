@@ -5,13 +5,15 @@ import { createRouter, createSearchParams, getPagePath, openPage, redirectPage }
 // eslint-disable-next-line import/no-cycle
 import { $inviteToken } from '~/features/workspaces/stores/invite'
 
-const userConfirmationLeavePublicRoutes = {
-  confirmEmail: '/confirm_email'
+// Public routes that an already-authenticated user should still be able to open
+// (they land here from an email link), instead of being bounced to home.
+const authExemptPublicRoutes = {
+  confirmEmail: '/confirm_email',
+  passwordRecovery: '/forgot-password/:token?'
 }
 
 const publicRoutes = {
-  ...userConfirmationLeavePublicRoutes,
-  passwordRecovery: '/forgot-password/:token?',
+  ...authExemptPublicRoutes,
   signin: '/signin',
   signup: '/signup',
   googleAuth: '/auth/google/:token?',
@@ -22,7 +24,10 @@ const publicRoutes = {
 export const projectRoutes = {
   project: '/projects/:id',
   projectSettings: '/projects/:id/settings',
+  projectConnectedApps: '/projects/:id/settings/connected-apps',
   projectImportData: '/projects/:id/import',
+  projectNewConnection: '/projects/:id/connections/new/:sourceType',
+  projectConnection: '/projects/:id/connections/:connectionId',
   projectTokens: '/projects/:id/tokens',
   projectIndexes: '/projects/:id/indexes',
   projectRelationships: '/projects/:id/relationships',
@@ -35,14 +40,15 @@ const protectedRoutes = {
   home: '/',
   newWorkspace: '/new-workspace',
   newProject: '/projects/new',
-  workspaceGettingStarted: '/getting-started',
   workspaceSettings: '/workspace-settings',
   workspaceUsers: '/workspace-users',
+  workspaceConnectedApps: '/workspace-settings/connected-apps',
   joinWorkspace: '/join-workspace',
   projects: '/',
   workspaceBilling: '/billing',
   workspaceApiUsage: '/api-usage',
   profile: '/profile',
+  profileSecurity: '/profile/security',
   ...projectRoutes
 } as const
 
@@ -77,8 +83,8 @@ export const isPublicRoute = <PageName extends keyof typeof routes>(route?: Page
 export const isProtectedRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
   Boolean(route && route in protectedRoutes)
 
-export const isUserLeaveConfirmationRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
-  Boolean(route && route in userConfirmationLeavePublicRoutes)
+export const isAuthExemptRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
+  Boolean(route && route in authExemptPublicRoutes)
 
 export const isProjectRoute = <PageName extends keyof typeof routes>(route?: PageName) =>
   Boolean(route && route in projectRoutes)

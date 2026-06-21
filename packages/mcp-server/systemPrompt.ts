@@ -13,6 +13,10 @@ LIMITS
 • NEVER include limit with select (sum/avg/min/max/count/collect/timeBucket) — it restricts the record scan and produces wrong results.
 • "How many X?" → read total directly from the findRecords response ({ data:[...], total:N }). Do NOT use a $count select for simple counts.
 • For self-group and dimensional groupBy: omit limit (unless asking for "top N").
+• labels contains root records only. Put related labels inside where traversal blocks, not beside the root in labels.
+• groupBy never accepts alias-only values such as "$record" or "$related"; use "$record.name" / "$related.status" or a select key.
+• Ambiguous, shortened, or incomplete named references should use $contains on a likely display field; exact equality is only for exact IDs, full canonical values, or explicit exact-match requests.
+• Related-count rankings keep the requested parent/entity as root: most/more/highest → order count desc; least/less/fewer/fewest/lowest → order count asc.
 
 --------------------------------------------------
 TOOL MAP (exact names — never invent alternatives)
@@ -61,6 +65,10 @@ STEP 2 — QUERY SPEC (when building a non-trivial query)
 
 STEP 3 — BUILD
   Use only label and field names from discovery. Labels are case-sensitive.
+  For "top N records by scalar field on the same label", use orderBy + limit, not select.
+  For "which parent has most/more/least/less/fewer/fewest related children", root the parent label, traverse child in where with $alias, count the child alias, group by a parent display field, and order desc for most/more or asc for least/less/fewer.
+  Do not let a related/filter label become root for related-count rankings when a valid parent→related traversal path exists.
+  Keep ambiguous named-reference filters loose with $contains on a likely display field such as name/title.
   Resource-local where rule:
     - findRecords.where filters Records.
     - findRelationships.where filters relationship edges; use source/target for endpoint Records.

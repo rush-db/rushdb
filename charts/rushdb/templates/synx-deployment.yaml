@@ -1,0 +1,79 @@
+{{- if .Values.synx.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rushdb.synx.fullname" . }}
+  labels:
+    {{- include "rushdb.synx.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.synx.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rushdb.synx.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.synx.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "rushdb.synx.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.synx.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.synx.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.synx.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.synx.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: synx
+          image: "{{ .Values.synx.image.repository }}:{{ .Values.synx.image.tag }}"
+          imagePullPolicy: {{ .Values.synx.image.pullPolicy }}
+          args:
+            - managed
+            - --control-url
+            - {{ include "rushdb.synx.coreUrl" . | quote }}
+            - --token-env
+            - RUSHDB_SYNX_CONTROL_TOKEN
+            - --worker-id
+            - "$(SYNX_WORKER_ID)"
+            - --claim-interval-ms
+            - {{ .Values.synx.claimIntervalMs | quote }}
+            - --heartbeat-interval-ms
+            - {{ .Values.synx.heartbeatIntervalMs | quote }}
+            - --lease-ttl-ms
+            - {{ .Values.synx.leaseTtlMs | quote }}
+          env:
+            - name: RUST_LOG
+              value: info
+            - name: RUSHDB_CORE_INTERNAL_URL
+              value: {{ include "rushdb.synx.coreUrl" . | quote }}
+            - name: SYNX_WORKER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- range $key, $val := .Values.synx.extraEnv }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ include "rushdb.fullname" . }}
+          {{- with .Values.synx.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.synx.resources | nindent 12 }}
+{{- end }}

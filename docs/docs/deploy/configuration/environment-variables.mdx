@@ -58,6 +58,7 @@ See [PostgreSQL / SQLite](/deploy/infrastructure/postgresql-sqlite) for setup de
 | ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `RUSHDB_PORT`           | `3000`                  | Port the API server listens on                                                                                                            |
 | `RUSHDB_DASHBOARD_URL`  | `http://localhost:3005` | Public URL of the dashboard. Used in OAuth redirect URIs and password-reset email links                                                   |
+| `RUSHDB_BASE_URL`       | —                       | Public/base URL of the RushDB API. Used by the connector control plane when assigning synx workers                                        |
 | `RUSHDB_SERVE_STATIC`   | `false`                 | Set to `true` to serve the frontend static assets from the same process                                                                   |
 | `RUSHDB_ALLOWED_LOGINS` | `[]`                    | JSON array of email addresses allowed to log in. Empty means all logins are allowed. Example: `'["alice@example.com","bob@example.com"]'` |
 
@@ -122,6 +123,41 @@ Both providers require `RUSHDB_DASHBOARD_URL` to be set for redirect URIs.
 | ----------------------------- | ------- | ------------------------------ |
 | `RATE_LIMITER_REQUESTS_LIMIT` | `10`    | Max requests per window per IP |
 | `RATE_LIMITER_TTL`            | `1000`  | Window size in milliseconds    |
+
+---
+
+## Managed Connectors / synx
+
+These variables are required only when running managed continuous-sync connectors. The RushDB platform process stores connector configuration, encrypted secrets, offsets, and status; synx workers run the CDC pipelines and call the platform's private connector-control endpoints.
+
+### Platform/core
+
+| Variable                          | Default | Description                                                                                                   |
+| --------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `RUSHDB_SYNX_CONTROL_TOKEN`       | —       | Shared internal token accepted by `/api/v1/connectors/_internal/*`. Required when synx workers are enabled.   |
+| `RUSHDB_SYNX_DESTINATION_API_KEY` | —       | Internal write API key passed to synx assignments. Bootstrap option until per-project connector tokens exist. |
+
+### synx worker
+
+| Variable                    | Default | Description                                                              |
+| --------------------------- | ------- | ------------------------------------------------------------------------ |
+| `RUSHDB_CORE_INTERNAL_URL`  | —       | Base URL of the RushDB platform/core process, e.g. `http://rushdb:3000`. |
+| `RUSHDB_SYNX_CONTROL_TOKEN` | —       | Same token configured on platform/core.                                  |
+| `RUST_LOG`                  | `info`  | synx log verbosity.                                                      |
+
+Run synx in managed mode:
+
+```bash
+synx managed \
+  --control-url "$RUSHDB_CORE_INTERNAL_URL" \
+  --token-env RUSHDB_SYNX_CONTROL_TOKEN \
+  --worker-id "$HOSTNAME" \
+  --claim-interval-ms 5000 \
+  --heartbeat-interval-ms 20000 \
+  --lease-ttl-ms 60000
+```
+
+Managed workers run as daemons: they claim one runnable connector, renew its lease while the CDC pipeline is active, release the lease on shutdown, and continue polling for the next assignment. Platform/core reclaims expired leases so another worker can pick up a connector after a crash.
 
 ---
 

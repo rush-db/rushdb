@@ -216,20 +216,29 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
+      # Optional: managed continuous-sync connectors via synx
+      - RUSHDB_BASE_URL=https://rushdb.example.com
+      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
+      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>Full environment variables</summary>
 
-| Name                            | Description                          | Required   | Default  |
-| ------------------------------- | ------------------------------------ | ---------- | -------- |
-| `NEO4J_URL`                     | Neo4j connection URL                 | yes        | —        |
-| `NEO4J_USERNAME`                | Neo4j username                       | yes        | neo4j    |
-| `NEO4J_PASSWORD`                | Neo4j password                       | yes        | —        |
-| `RUSHDB_AES_256_ENCRYPTION_KEY` | 32-char key for API token encryption | yes (prod) | —        |
-| `RUSHDB_PORT`                   | HTTP port                            | no         | 3000     |
-| `RUSHDB_LOGIN`                  | Admin login                          | no         | admin    |
-| `RUSHDB_PASSWORD`               | Admin password                       | no         | password |
+| Name                              | Description                                    | Required   | Default  |
+| --------------------------------- | ---------------------------------------------- | ---------- | -------- |
+| `NEO4J_URL`                       | Neo4j connection URL                           | yes        | —        |
+| `NEO4J_USERNAME`                  | Neo4j username                                 | yes        | neo4j    |
+| `NEO4J_PASSWORD`                  | Neo4j password                                 | yes        | —        |
+| `RUSHDB_AES_256_ENCRYPTION_KEY`   | 32-char key for API token encryption           | yes (prod) | —        |
+| `RUSHDB_PORT`                     | HTTP port                                      | no         | 3000     |
+| `RUSHDB_LOGIN`                    | Admin login                                    | no         | admin    |
+| `RUSHDB_PASSWORD`                 | Admin password                                 | no         | password |
+| `RUSHDB_BASE_URL`                 | Public/base API URL for synx assignments       | no         | —        |
+| `RUSHDB_SYNX_CONTROL_TOKEN`       | Internal token for managed synx workers        | no         | —        |
+| `RUSHDB_SYNX_DESTINATION_API_KEY` | Internal write key for synx destination writes | no         | —        |
+
+Managed synx workers run as daemons. They poll for runnable connectors, renew connector leases, release leases on graceful shutdown, and let platform/core reclaim expired leases after crashes.
 
 </details>
 

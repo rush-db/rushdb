@@ -242,4 +242,10 @@ describe('compileSelectMap', () => {
     expect(withPart).toBe('')
     expect(returnPart).toContain('.*')
   })
+
+  it('rejects alias-only groupBy values', () => {
+    expect(() => compileSelectMap({ count: { $count: '*' } }, aliasesMap, ['$record'])).toThrow(
+      /groupBy field reference "\$record" must include a property name/
+    )
+  })
 })

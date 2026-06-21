@@ -11,7 +11,7 @@ import { DeployMethodRow, DeployMethodRowList, DeployCrossLinks } from '@site/sr
 
 # Remote Hosting
 
-Deploy RushDB to any server. All methods use Docker Compose — pick the guide for your environment.
+Deploy RushDB to any server. Start with the universal Docker command, or use a provider template when you want cloud-init, managed Postgres, or one-click setup.
 
 <DeployMethodRowList>
   <DeployMethodRow
@@ -24,16 +24,14 @@ Deploy RushDB to any server. All methods use Docker Compose — pick the guide f
     href="/deploy/remote-hosting/prerequisites"
   />
   <DeployMethodRow
-    title="DigitalOcean"
-    description="Deploy on a DigitalOcean Droplet — create a VM, install Docker, and launch the Compose stack in under 20 minutes."
+    title="Templates"
+    description="Universal docker run command plus provider templates for Hetzner, Infomaniak Jelastic, DigitalOcean, Heroku, Fly.io, and Docker Compose."
     badge="beginner"
-    time="~20 min"
+    time="~5 min"
     icon="Cloud"
     recommended
-    prerequisites={['DigitalOcean account', 'Docker + Docker Compose']}
-    commands={['curl -fsSL https://get.docker.com | sh', 'docker compose up -d']}
-    tags={['DigitalOcean', 'Ubuntu']}
-    href="/deploy/remote-hosting/digital-ocean"
+    tags={['Docker', 'Hetzner', 'Jelastic', 'Providers']}
+    href="/deploy/remote-hosting/templates"
   />
   <DeployMethodRow
     title="AWS / GCP / Azure"
@@ -53,7 +51,7 @@ Deploy RushDB to any server. All methods use Docker Compose — pick the guide f
     time="~30 min"
     icon="Server"
     prerequisites={['Linux server', 'Docker + Docker Compose']}
-    commands={['curl -O docker-compose.yml', 'cp .env.example .env', 'docker compose up -d']}
+    commands={['curl -L -o compose.yaml ...', 'curl -L -o .env ...', 'docker compose up -d']}
     tags={['Docker Compose', 'Terraform', 'ECS']}
     href="/deploy/remote-hosting/self-hosting-rushdb"
   />
@@ -62,6 +60,7 @@ Deploy RushDB to any server. All methods use Docker Compose — pick the guide f
 <DeployCrossLinks
   prefix="Next steps after deployment:"
   links={[
+    { label: 'Templates', href: '/deploy/remote-hosting/templates' },
     { label: 'Configuration', href: '/deploy/configuration' },
     { label: 'Infrastructure', href: '/deploy/infrastructure' }
   ]}

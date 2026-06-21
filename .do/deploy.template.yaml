@@ -1,0 +1,65 @@
+spec:
+  name: rushdb
+  services:
+    - name: web
+      github:
+        repo: rush-db/rushdb
+        branch: main
+        deploy_on_push: true
+      dockerfile_path: deploy/templates/digitalocean/Dockerfile
+      http_port: 3000
+      instance_count: 1
+      instance_size_slug: apps-s-1vcpu-1gb
+      envs:
+        - key: RUSHDB_PORT
+          value: '3000'
+        - key: RUSHDB_SELF_HOSTED
+          value: 'true'
+        - key: RUSHDB_SERVE_STATIC
+          value: 'true'
+        - key: RUSHDB_LOGIN
+          value: admin
+        - key: RUSHDB_PASSWORD
+          type: SECRET
+          value: change-me
+        - key: RUSHDB_AES_256_ENCRYPTION_KEY
+          type: SECRET
+          value: 32SymbolStringForTokenEncryption
+        - key: RUSHDB_DASHBOARD_URL
+          value: ${APP_URL}
+        - key: RUSHDB_BASE_URL
+          value: ${APP_URL}
+        - key: SQL_DB_TYPE
+          value: postgres
+        - key: SQL_DB_URL
+          type: SECRET
+          value: ${rushdbdb.DATABASE_URL}
+        - key: NEO4J_URL
+          type: SECRET
+          value: neo4j+s://replace-with-aura-or-neo4j-host
+        - key: NEO4J_USERNAME
+          value: neo4j
+        - key: NEO4J_PASSWORD
+          type: SECRET
+          value: replace-with-neo4j-password
+        - key: RUSHDB_LLM_BASE_URL
+          value: https://openrouter.ai/api/v1
+        - key: RUSHDB_LLM_API_KEY
+          type: SECRET
+          value: replace-with-openai-compatible-api-key
+        - key: RUSHDB_LLM_MODEL
+          value: google/gemini-2.5-flash-lite
+        - key: RUSHDB_EMBEDDING_BASE_URL
+          value: https://openrouter.ai/api/v1
+        - key: RUSHDB_EMBEDDING_API_KEY
+          type: SECRET
+          value: replace-with-openai-compatible-api-key
+        - key: RUSHDB_EMBEDDING_MODEL
+          value: qwen/qwen3-embedding-8b
+        - key: RUSHDB_EMBEDDING_DIMENSIONS
+          value: '1024'
+  databases:
+    - name: rushdbdb
+      engine: PG
+      version: '16'
+      production: false

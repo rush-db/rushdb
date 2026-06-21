@@ -56,6 +56,10 @@ spec:
               value: "apoc.*"
             - name: NEO4J_dbms_security_procedures_allowlist
               value: "apoc.*"
+            # Enable the Java Vector API for optimal vector index performance.
+            # Appended to the image's default jvm.additional args, so JVM/GC defaults are preserved.
+            - name: NEO4J_server_jvm_additional
+              value: "--add-modules jdk.incubator.vector"
             {{- range $key, $val := .Values.neo4j.extraEnv }}
             - name: {{ $key }}
               value: {{ $val | quote }}

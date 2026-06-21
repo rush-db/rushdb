@@ -7,10 +7,25 @@ tags: [Deployment, Self-Hosted, Docker]
 
 import Tabs from '@site/src/components/LanguageTabs'
 import TabItem from '@theme/TabItem'
+import { DeployButtonGroup } from '@site/src/components/DeployMethodCard'
 
 # Self-Hosting RushDB
 
 RushDB ships as a single Docker image that includes the API server and the dashboard. You bring Neo4j and a Postgres instance (for project/token management), configure a handful of environment variables, and you have a fully functional RushDB instance with no usage limits and no billing.
+
+<DeployButtonGroup
+  buttons={[
+    {
+      label: 'Templates',
+      href: '/deploy/remote-hosting/templates',
+      variant: 'primary'
+    },
+    {
+      label: 'Docker Compose template',
+      href: 'https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose'
+    }
+  ]}
+/>
 
 ---
 
@@ -61,7 +76,7 @@ services:
       retries: 10
 
   rushdb:
-    image: rushdb/rushdb:latest
+    image: rushdb/platform:latest
     depends_on:
       neo4j:
         condition: service_healthy
@@ -116,7 +131,7 @@ If you already have Neo4j running (or an Aura instance), skip the `neo4j` servic
 
 ```yaml
 rushdb:
-  image: rushdb/rushdb:latest
+  image: rushdb/platform:latest
   ports:
     - '3000:3000'
   environment:
@@ -272,7 +287,7 @@ If you don't want to run a Postgres container, RushDB supports SQLite for the SQ
 
 ```yaml
 rushdb:
-  image: rushdb/rushdb:latest
+  image: rushdb/platform:latest
   environment:
     SQL_DB_TYPE: sqlite
     SQL_DB_PATH: /data/rushdb.db # optional — defaults to ./rushdb.db
