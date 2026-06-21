@@ -1,5 +1,16 @@
 # @rushdb/mcp-server
 
+## 2.4.0
+
+### Minor Changes
+
+- 5de0ef8: Stability improvements
+
+### Patch Changes
+
+- Updated dependencies [5de0ef8]
+  - @rushdb/javascript-sdk@2.4.0
+
 ## Unreleased
 
 ### Patch Changes
