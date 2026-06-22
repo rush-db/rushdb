@@ -15,7 +15,7 @@ LIMITS
 • For self-group and dimensional groupBy: omit limit (unless asking for "top N").
 • labels contains root records only. Put related labels inside where traversal blocks, not beside the root in labels.
 • groupBy never accepts alias-only values such as "$record" or "$related"; use "$record.name" / "$related.status" or a select key.
-• Ambiguous, shortened, or incomplete named references should use $contains on a likely display field; exact equality is only for exact IDs, full canonical values, or explicit exact-match requests.
+• Default to $contains on a likely display field for any user-typed named reference, on root and related labels alike; use exact equality only for IDs or explicit exact-match requests, and confirm canonical values via discovery rather than guessing.
 • Related-count rankings keep the requested parent/entity as root: most/more/highest → order count desc; least/less/fewer/fewest/lowest → order count asc.
 
 --------------------------------------------------

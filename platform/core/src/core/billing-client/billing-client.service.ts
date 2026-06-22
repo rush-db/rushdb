@@ -328,6 +328,32 @@ export class BillingClientService {
   }
 
   /**
+   * Fetch the public pricing catalog from the billing service.
+   * Proxied through core so the billing service host is never exposed to the browser.
+   *
+   * @returns Pricing data, or null when the billing service is disabled (self-hosted / OSS) or unreachable
+   */
+  async getPrices(): Promise<Record<string, unknown> | null> {
+    if (!this.enabled) {
+      return null
+    }
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(`${this.billingUrl}/api/prices`, {
+          headers: this.secret ? { 'x-rushdb-billing-secret': this.secret } : {},
+          timeout: 5000
+        })
+      )
+
+      return response.data
+    } catch (error: any) {
+      this.logger.error(`Failed to get prices: ${error.message}`)
+      return null
+    }
+  }
+
+  /**
    * Get KU event history for a workspace.
    * Used for displaying usage analytics in the dashboard.
    *

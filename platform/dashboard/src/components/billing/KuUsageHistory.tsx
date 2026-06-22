@@ -200,7 +200,7 @@ function KuUsageBar({ usage }: { usage: UsageData }) {
       <div className="mt-2 flex items-center justify-between text-xs">
         {isOver ?
           <span className="text-danger font-medium">
-            +{formatKu(overageKu)} KU overage{plan === 'pro' ? ' · billed at $3/M' : ''}
+            +{formatKu(overageKu)} KU overage{plan === 'pro' ? ' · billed at $10/M' : ''}
           </span>
         : remaining !== null ?
           <span className="text-content3">{formatKu(remaining)} KU remaining</span>

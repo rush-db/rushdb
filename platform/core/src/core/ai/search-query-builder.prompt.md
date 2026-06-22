@@ -41,7 +41,10 @@ The user message is a JSON object with:
 - Do not invent labels, properties, relationship labels, enum values, aliases, operators, or raw Cypher.
 - If a user asks for a concept whose exact label/property is absent, choose the closest ontology-backed field only when it is obvious. Add a warning for the assumption.
 - If the requested metric field is absent on the target label, inspect related labels from the ontology before giving up.
-- Treat short or incomplete named-entity mentions as partial references, not exact values. When filtering a likely display field such as `name`, `title`, or another ontology-backed label/name field, prefer `{ "$contains": "<user text>" }` unless the user provides an exact ID, full canonical value, or explicitly asks for exact match.
+- When filtering a display field such as `name`, `title`, or another ontology-backed label/name field with free text the user typed, resolve it against the sample values the ontology lists for that property. The ontology shows only a few sample values per property and often truncates them with `(+N more)`, so the list is not exhaustive.
+  - If the user's term exactly equals, or unambiguously maps to, one of the listed sample values, filter by that full canonical value (e.g. user "Falcon" + listed value `Millennium Falcon` => `"name": "Millennium Falcon"`).
+  - Otherwise — no listed value matches, the values are truncated behind `(+N more)`, or none are shown — you cannot confirm the canonical value, so use `{ "$contains": "<user text>" }`. Never exact-match the raw user text against a property whose matching value you have not seen; that silently returns zero rows when the stored value is longer.
+  - Use exact equality only for IDs, a value you confirmed from the sample list, or an explicit exact-match request. This applies to filters on any label, including related labels traversed inside `where`.
 
 ## Intent Mapping
 
@@ -68,7 +71,7 @@ Build query shape from intent:
 - In "which/what <parent> has <comparative> <related>" requests, do not let the related/filter label become the root just because it owns the filtered field. Keep the requested parent/entity as root if the ontology shows a traversal path.
 - If the requested parent-to-related traversal path is absent from the ontology, do not silently switch root to the related label. Return the closest valid query only with a warning that the requested relationship path is unavailable.
 - Put each filter on the label that actually owns the filtered property.
-- For ambiguous named references, keep string filters loose with `$contains` on the most likely display field. Do not use exact equality for partial names, abbreviations, or shortened titles.
+- For any named reference the user typed as free text, keep string filters loose with `$contains` on the most likely display field, whether that field lives on the root label or on a related label traversed with `$alias`. Do not use exact equality unless the value is an ID or the user explicitly requests an exact match.
 
 ## Collecting Related Records
 
@@ -100,6 +103,25 @@ Example pattern for a metric on a related label:
 ```
 
 Only use this pattern when the ontology actually shows `DEPARTMENT`, `PROJECT`, `DEPARTMENT` to `PROJECT` traversal, `DEPARTMENT.name`, and `PROJECT.budget`.
+
+Example pattern for filtering root records by a free-text name on a related label (note the `$contains`, not exact equality):
+
+```json
+{
+  "labels": ["EMPLOYEE"],
+  "where": {
+    "PROJECT": {
+      "$alias": "$project",
+      "name": { "$contains": "Apollo" }
+    }
+  },
+  "select": {
+    "employee_name": "$record.name"
+  }
+}
+```
+
+Here "Apollo" did not match any sample value listed for `PROJECT.name` (or those values were truncated), so the related-label filter uses `$contains` rather than exact-matching the raw text. If the ontology had listed a canonical value like `Apollo Program`, the filter would instead be `"name": "Apollo Program"`. Only use this pattern when the ontology actually shows `EMPLOYEE`, `PROJECT`, an `EMPLOYEE` to `PROJECT` traversal, `PROJECT.name`, and `EMPLOYEE.name`.
 
 Example pattern for "which parent has the most/fewest related records":
 
@@ -218,7 +240,7 @@ If `validationErrors` and `previousQuery` are provided:
 - Never put related labels in root `labels`. Use `where` traversal with `$alias` for related labels.
 - Never switch the root label from the user-requested parent/entity to the related/filter label for related-count rankings when a valid traversal path exists.
 - Never use alias-only values in `groupBy`, such as `"$record"` or `"$related"`. Use a property reference such as `"$record.name"` or a select key such as `"total"`.
-- Never exact-match an ambiguous or shortened named reference. Prefer `$contains` on the appropriate string field.
+- Never exact-match a user-typed named reference on a display field, including name/title filters inside related-label `where` blocks. Prefer `$contains` on the appropriate string field. Exact equality is only for IDs or explicit exact-match requests.
 - Never use `select` just to project fields for a simple listing. Prefer full record results with `labels`, `where`, `orderBy`, and `limit`.
 - Never include `limit` or `skip` for scan-level aggregate `select` queries unless the SearchQuery reference explicitly allows that specific shape.
 - Never add root `groupBy` for `$collect.label` per-root nested listings.

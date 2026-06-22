@@ -16,6 +16,8 @@
   --ifm-color-primary-light: #d96b22;
   --ifm-color-primary-lighter: #e0813d;
   --ifm-color-primary-lightest: #eda87a;
+  /* Readable text color on top of --ifm-color-primary (matches .cta-button) */
+  --rushdb-on-primary: #f5f2eb;
 
   /* Font settings */
   --ifm-font-family-base: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
@@ -98,6 +100,8 @@ html[data-theme='dark'] {
   --ifm-color-primary-light: #33ff9d;
   --ifm-color-primary-lighter: #66ffb5;
   --ifm-color-primary-lightest: #99ffcc;
+  /* Dark mode primary is bright green — needs near-black text for contrast */
+  --rushdb-on-primary: #0a0a0b;
 
   /* Card and surface colors */
   --ifm-card-background-color: #111113;

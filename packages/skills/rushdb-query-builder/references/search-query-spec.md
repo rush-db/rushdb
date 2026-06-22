@@ -95,7 +95,7 @@ status: {
 } // matches none of these values
 ```
 
-For user-provided named references that may be incomplete, abbreviated, or shortened, prefer `$contains` on a likely display field (`name`, `title`, or ontology-backed equivalent). Use exact equality only for exact IDs, canonical full values, or explicit exact-match requests.
+For any user-typed named reference, default to `$contains` on a likely display field (`name`, `title`, or ontology-backed equivalent), on both root and related labels. Use exact equality only when the value is an ID or the user explicitly requests an exact match; confirm canonical values with discovery rather than guessing an exact string.
 
 ### Number Operators
 

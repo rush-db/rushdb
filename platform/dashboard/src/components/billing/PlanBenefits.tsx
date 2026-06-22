@@ -16,7 +16,7 @@ const benefitsMap: Record<string, PlanBenefit[]> = {
     { title: 'Community support' }
   ],
   start: [
-    { title: '250K KU / month', description: 'Paid entry tier' },
+    { title: '250K KU / month', description: 'For solo devs shipping to production' },
     { title: '2 projects' },
     { title: '1 team member' },
     { title: 'Self-hosted & BYOC' },
@@ -24,15 +24,15 @@ const benefitsMap: Record<string, PlanBenefit[]> = {
   ],
   pro: [
     { title: '1M KU / month', description: 'Included before overage' },
-    { title: 'Overage billing', description: 'Beyond 1M KU at $3 / M KU' },
+    { title: 'Overage billing', description: 'Beyond 1M KU at $10 / M KU' },
     { title: '10 projects' },
-    { title: '3 team members' },
+    { title: '3 team members', description: 'Add more at $10 / seat' },
     { title: 'Self-hosted & BYOC' }
   ],
   scale: [
-    { title: 'Unlimited KU', description: 'Usage-based billing' },
+    { title: 'Unlimited KU', description: 'Usage-based at $8 / M KU' },
     { title: '100 projects' },
-    { title: '10 team members' },
+    { title: '10 team members', description: 'Add more at $25 / seat' },
     { title: 'Self-hosted & BYOC' },
     { title: 'SLA guarantee' },
     { title: 'Priority support' }

@@ -52,4 +52,10 @@ export class GetUserDto implements Omit<IAuthenticatedUser, 'isEmail'> {
 
   @ApiResponseProperty()
   token: string
+
+  @ApiResponseProperty()
+  googleConnected: boolean
+
+  @ApiResponseProperty()
+  githubConnected: boolean
 }

@@ -106,7 +106,7 @@ export function buildManualRecordsSearchQuery(params: RecordQueryParams): Search
   }
 }
 
-function buildRecordsSearchQuery(params: RecordQueryParams): SearchQuery {
+export function buildRecordsSearchQuery(params: RecordQueryParams): SearchQuery {
   if (params.searchMode === 'ai' && params.searchQuery) {
     if (params.searchQuery.select) {
       return params.searchQuery

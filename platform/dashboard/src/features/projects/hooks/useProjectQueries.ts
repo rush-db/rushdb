@@ -25,6 +25,7 @@ import {
 } from '~/features/projects/stores/records-search'
 import {
   buildManualRecordsSearchQuery,
+  buildRecordsSearchQuery,
   currentProjectQueryOptions,
   projectLabelsQueryOptions,
   projectTokensQueryOptions,
@@ -117,6 +118,13 @@ export const useFilteredRecordsQuery = () => {
 export const useCurrentManualRecordsSearchQuery = () => {
   const params = useRecordQueryParams()
   return buildManualRecordsSearchQuery(params)
+}
+
+// Mirrors the query that produced the current view (manual or AI, with pagination),
+// used by the server-side CSV export so the download matches what's on screen.
+export const useCurrentRecordsSearchQuery = () => {
+  const params = useRecordQueryParams()
+  return buildRecordsSearchQuery(params)
 }
 
 export const useGenerateSearchQueryMutation = () => {

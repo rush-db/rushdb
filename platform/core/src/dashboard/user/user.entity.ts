@@ -33,6 +33,11 @@ export class User {
 
   toJson(): IUserProperties {
     const { password, googleAuth, githubAuth, ...rest } = this.row
-    return rest as unknown as IUserProperties
+    // Expose only whether each OAuth provider is linked — never the stored hashes.
+    return {
+      ...rest,
+      googleConnected: Boolean(googleAuth),
+      githubConnected: Boolean(githubAuth)
+    } as unknown as IUserProperties
   }
 }

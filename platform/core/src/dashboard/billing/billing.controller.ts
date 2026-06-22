@@ -144,6 +144,26 @@ export class BillingController {
   }
 
   /**
+   * Get the pricing catalog.
+   * Proxies the billing service so its host is never exposed to the browser.
+   *
+   * GET /api/v1/billing/payment/prices
+   */
+  @ApiBearerAuth()
+  @AuthGuard('workspace')
+  @Get('prices')
+  @HttpCode(HttpStatus.OK)
+  async getPrices() {
+    const prices = await this.billingClientService.getPrices()
+
+    if (!prices) {
+      throw new ServiceUnavailableException('Pricing data is currently unavailable')
+    }
+
+    return prices
+  }
+
+  /**
    * Get KU event history for the current workspace.
    * Returns paginated usage data for displaying in the dashboard.
    *

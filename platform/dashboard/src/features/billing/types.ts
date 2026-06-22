@@ -26,12 +26,24 @@ type KuPlanData = {
 /** A single checkmark benefit shown on a pricing card (source of truth: billing service). */
 export type PlanBenefit = { title: string; description?: string }
 
+/** A row in the plan feature-comparison table (source of truth: billing service). */
+export type ComparisonFeature = {
+  name: string
+  free: boolean | string
+  start: boolean | string
+  pro: boolean | string
+  scale: boolean | string
+  enterprise: boolean | string
+}
+
 export type BillingData = {
   start: KuPlanData
   pro: KuPlanData
   scale?: KuPlanData
   /** Canonical per-plan card benefit lists, served by the billing service. */
   benefits?: Partial<Record<PlanId, PlanBenefit[]>>
+  /** Canonical feature-comparison matrix, served by the billing service. */
+  comparison?: ComparisonFeature[]
 }
 
 export type DisplayPlan = {
