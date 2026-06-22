@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 2.4.1
+
+### Patch Changes
+
+- ffd47f2: Dashboard UI fixes
+- Updated dependencies [ffd47f2]
+  - @rushdb/javascript-sdk@2.4.1
+
 ## 2.4.0
 
 ### Minor Changes
