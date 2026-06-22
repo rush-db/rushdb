@@ -5,9 +5,10 @@ import {
   useCurrentWorkspacePlan,
   usePricingDataQuery
 } from '~/features/billing/hooks/useBillingHooks'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { isFreePlan } from '~/features/billing/utils.ts'
 import { FREE_PLAN } from '~/features/billing/constants.ts'
-import { PlanCard } from '~/components/billing/PlanCard.tsx'
+import { PlanCard, PlanCardSkeleton } from '~/components/billing/PlanCard.tsx'
 import { api } from '~/lib/api'
 import { Link } from '~/elements/Link'
 import { toast } from '~/elements/Toast'
@@ -19,8 +20,14 @@ const TIER_RANK: Record<string, number> = { free: 0, start: 1, pro: 2, scale: 3,
 
 export function Plans({ intendedPlan }: { intendedPlan?: string } = {}) {
   const plans = useAvailablePlans()
-  const { data: billingData } = usePricingDataQuery()
+  const { data: settings, isPending: settingsPending } = usePlatformSettings()
+  const { data: billingData, isLoading: pricingLoading } = usePricingDataQuery()
   const { currentPlan } = useCurrentWorkspacePlan()
+
+  // Show skeletons until we know the tier (settings) and, for hosted workspaces,
+  // until pricing has loaded — otherwise the grid briefly renders only the Free
+  // card, which reads as "Free is your only option".
+  const showSkeleton = settingsPending || (settings?.selfHosted === false && pricingLoading)
   const paidUser = currentPlan && !isFreePlan(currentPlan)
   const currentRank = TIER_RANK[currentPlan?.id ?? 'free'] ?? 0
 
@@ -66,10 +73,12 @@ export function Plans({ intendedPlan }: { intendedPlan?: string } = {}) {
     }
   }
 
+  const SKELETON_COUNT = 4
+  const cardCount = showSkeleton ? SKELETON_COUNT : allPlans.length
   const gridCols =
-    allPlans.length <= 1 ? 'grid-cols-1 max-w-sm'
-    : allPlans.length === 2 ? 'grid-cols-1 sm:grid-cols-2'
-    : allPlans.length === 3 ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
+    cardCount <= 1 ? 'grid-cols-1 max-w-sm'
+    : cardCount === 2 ? 'grid-cols-1 sm:grid-cols-2'
+    : cardCount === 3 ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
     : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4'
 
   return (
@@ -91,25 +100,28 @@ export function Plans({ intendedPlan }: { intendedPlan?: string } = {}) {
       </div>
 
       <div className={`grid gap-5 ${gridCols}`}>
-        {allPlans.map((plan) => {
-          const rank = TIER_RANK[plan.id] ?? 0
-          const relation =
-            rank === currentRank ? 'current'
-            : rank > currentRank ? 'upgrade'
-            : 'downgrade'
+        {showSkeleton ?
+          Array.from({ length: SKELETON_COUNT }).map((_, index) => <PlanCardSkeleton key={index} />)
+        : allPlans.map((plan) => {
+            const rank = TIER_RANK[plan.id] ?? 0
+            const relation =
+              rank === currentRank ? 'current'
+              : rank > currentRank ? 'upgrade'
+              : 'downgrade'
 
-          return (
-            <PlanCard
-              id={`billing-plan-${plan.id}`}
-              key={plan.id}
-              onManage={openBillingPortal}
-              perProject={plan.perProject}
-              plan={plan}
-              recommended={plan.id === recommendedId && relation === 'upgrade'}
-              relation={relation}
-            />
-          )
-        })}
+            return (
+              <PlanCard
+                id={`billing-plan-${plan.id}`}
+                key={plan.id}
+                onManage={openBillingPortal}
+                perProject={plan.perProject}
+                plan={plan}
+                recommended={plan.id === recommendedId && relation === 'upgrade'}
+                relation={relation}
+              />
+            )
+          })
+        }
       </div>
     </>
   )

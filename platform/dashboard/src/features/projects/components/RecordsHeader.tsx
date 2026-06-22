@@ -27,6 +27,7 @@ import { SelectLabels } from '~/features/labels/components/SelectLabels'
 import { getLabelColor } from '~/features/labels'
 import { SearchBox } from '~/features/projects/components/SearchBox.tsx'
 import { SearchQueryModal } from '~/features/projects/components/SearchQueryModal'
+import { ExportCsvButton } from '~/features/records/components/ExportCsvButton'
 import {
   $activeLabels,
   $currentProjectRecordsSkip,
@@ -41,6 +42,7 @@ import {
   $semanticSearchPrompt,
   $searchQueryModalOpen,
   $recordsSearchMode,
+  resetAiSearch,
   type RecordsSearchMode
 } from '~/features/projects/stores/records-search'
 import { PropertyName } from '~/features/properties/components/PropertyName'
@@ -367,7 +369,15 @@ function AiSearchBox() {
       <Input
         className="w-full max-w-md"
         disabled={disabled}
-        onChange={(event) => $aiSearchPrompt.set(event.target.value)}
+        onChange={(event) => {
+          const value = event.target.value
+          // Clearing the input (incl. the native [X]) restores the default results view.
+          if (!value.trim()) {
+            resetAiSearch()
+            return
+          }
+          $aiSearchPrompt.set(value)
+        }}
         placeholder={
           platformSettings?.llmEnabled === false ? 'AI search is not configured' : 'Ask in plain English'
         }
@@ -467,6 +477,7 @@ export function RecordsHeader() {
         <SearchModeToggle />
         <SearchQueryModal />
         <div className="flex gap-3">
+          <ExportCsvButton />
           <SelectViewMode />
         </div>
       </div>

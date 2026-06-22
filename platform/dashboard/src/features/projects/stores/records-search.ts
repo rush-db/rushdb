@@ -25,3 +25,13 @@ export const setDraftSearchQuery = (query: SearchQuery | undefined) => {
     $recordsSearchMode.set('ai')
   }
 }
+
+// Clears the AI prompt and its generated query so results fall back to defaults.
+// Mode is intentionally left as-is: getEffectiveRecordsSearchMode treats 'ai'
+// without a query as 'manual', so the default records view is restored while the
+// user stays on the Smart tab.
+export const resetAiSearch = () => {
+  $aiSearchPrompt.set('')
+  $aiSearchQuery.set(undefined)
+  $draftSearchQuery.set(undefined)
+}

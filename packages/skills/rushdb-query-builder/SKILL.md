@@ -83,9 +83,9 @@ Top-N rule:
 
 Named-reference rule:
 
-- Treat short or incomplete named-entity mentions as partial references, not exact values.
-- When filtering a likely display field such as `name`, `title`, or another ontology-backed label/name field, prefer `{ $contains: "<user text>" }`.
-- Use exact equality only for exact IDs, canonical full values, or explicit exact-match requests.
+- When filtering a display field such as `name`, `title`, or another ontology-backed label/name field with free text the user typed, default to `{ $contains: "<user text>" }`. This applies to filters on any label, including related labels traversed with `$alias`.
+- Use exact equality only when the value is an ID, or the user explicitly asks for an exact match (e.g. "named exactly").
+- If you need to confirm a canonical value before filtering, use discovery (list/search a few records) rather than guessing an exact string.
 
 Example:
 

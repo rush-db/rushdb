@@ -6,5 +6,9 @@ export type AcceptWorkspaceInvitationParams = {
   inviteToken: string
   authUserLogin: string
 }
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface IUserProperties extends Omit<TUserProperties, TIUserAuthProperties> {}
+export interface IUserProperties extends Omit<TUserProperties, TIUserAuthProperties> {
+  /** Whether a Google account is linked as a sign-in method. Derived from googleAuth presence; the hash itself is never exposed. */
+  googleConnected: boolean
+  /** Whether a GitHub account is linked as a sign-in method. Derived from githubAuth presence; the hash itself is never exposed. */
+  githubConnected: boolean
+}

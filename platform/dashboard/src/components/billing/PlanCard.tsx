@@ -7,12 +7,36 @@ import { SparklesIcon } from 'lucide-react'
 
 import { Divider } from '~/elements/Divider.tsx'
 import { Button } from '~/elements/Button.tsx'
+import { Skeleton } from '~/elements/Skeleton.tsx'
 import { PlanBenefits } from '~/components/billing/PlanBenefits.tsx'
 import { CheckoutButton } from '~/components/billing/CheckoutButton.tsx'
 import { Message } from '~/elements/Message.tsx'
 import type { DisplayPlan } from '~/features/billing/types.ts'
 
 export type PlanRelation = 'current' | 'upgrade' | 'downgrade'
+
+// Placeholder card shown while pricing data loads, mirroring PlanCard's layout
+// (title, price, CTA, divider, benefit rows) so the grid doesn't reflow.
+export function PlanCardSkeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        'border-secondary bg-fill relative flex h-full flex-col items-start gap-5 rounded-2xl border p-5 shadow-lg',
+        className
+      )}
+    >
+      <Skeleton enabled className="h-6 w-24 rounded-md" />
+      <Skeleton enabled className="h-9 w-28 rounded-md" />
+      <Skeleton enabled className="h-10 w-full rounded-md" />
+      <Divider className="-mx-5 w-[stretch]" />
+      <div className="flex w-full flex-col gap-3">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <Skeleton enabled className="h-4 w-3/4 rounded" key={index} />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export function PlanCard({
   plan,

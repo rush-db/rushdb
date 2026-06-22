@@ -21,7 +21,7 @@ import {
   $selectedRelatedRecords,
   resetRelatedRecordsSelection
 } from '~/features/records/stores/related-actionbar'
-import { convertToSearchQuery, filterToSearchOperation } from '~/features/projects/utils'
+import { useCurrentRecordsSearchQuery } from '~/features/projects/hooks/useProjectQueries'
 
 function useCurrentRecordParams() {
   const projectId = useStore($currentProjectId)
@@ -101,26 +101,15 @@ export const useDeleteRecordMutation = () => {
 }
 
 export const useExportRecordsMutation = () => {
-  const queryClient = useQueryClient()
   const projectId = useStore($currentProjectId)
-  const labels = useStore($activeLabels)
-  const combineMode = useStore($combineFilters)
-  const orderBy = useStore($recordsOrderBy)
-  const skip = useStore($currentProjectRecordsSkip)
-  const limit = useStore($currentProjectRecordsLimit)
-  const filters = useStore($currentProjectFilters)
+  // Export exactly the query that produced the current view (manual or AI), including
+  // pagination, so the downloaded CSV matches what's on screen.
+  const searchQuery = useCurrentRecordsSearchQuery()
 
   return useMutation({
     mutationFn: async () => {
       if (!projectId) return
-      let properties
-      if (combineMode === 'and') {
-        properties = filters.map(filterToSearchOperation)
-      }
-      return api.records.export(
-        { labels, where: convertToSearchQuery(properties), orderBy, skip, limit },
-        {} as RequestInit
-      )
+      return api.records.export(searchQuery, {} as RequestInit)
     },
     onSuccess(response) {
       if (!response) return

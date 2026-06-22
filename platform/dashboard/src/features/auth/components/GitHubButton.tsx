@@ -19,7 +19,7 @@ export function GithubButton() {
         onClick={() => setLoading(true)}
         className="flex grow items-center justify-center"
       >
-        <GithubIcon /> GitHub
+        <GithubIcon size={24} /> GitHub
       </Button>
 
       {loading && <DialogLoadingOverlay />}

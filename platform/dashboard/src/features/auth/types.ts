@@ -10,6 +10,10 @@ export type AuthorizedUser = {
   isEmail?: boolean
   firstName?: string
   lastName?: string
+  /** Whether a Google account is linked as a sign-in method. */
+  googleConnected?: boolean
+  /** Whether a GitHub account is linked as a sign-in method. */
+  githubConnected?: boolean
   currentScope?: {
     role: 'owner' | 'developer'
   }

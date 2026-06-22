@@ -93,7 +93,7 @@ This returns full records and lets the dashboard table render the normal record 
 
 String comparison operators are case-insensitive except exact equality.
 
-For user-provided named references that may be incomplete, abbreviated, or shortened, prefer `$contains` on the likely display field (`name`, `title`, or an ontology-backed equivalent). Use exact equality only for exact IDs, canonical full values, or explicit exact-match requests.
+For any user-typed named reference, check the property's sample values in the ontology (listed per property, often truncated with `(+N more)`). If the user's term maps to a listed value, filter by that full canonical value; otherwise use `$contains` on the likely display field (`name`, `title`, or an ontology-backed equivalent), on both root and related labels. Never exact-match raw user text against a value you have not seen in the sample list — that returns zero rows when the stored value is longer. Use exact equality only for IDs, a confirmed canonical value, or an explicit exact-match request.
 
 ### Number Operators
 

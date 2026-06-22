@@ -696,8 +696,8 @@ export const api = {
       })
     },
     async getBillingData() {
-      const billingServiceUrl = import.meta.env.VITE_BILLING_SERVICE_URL
-      return fetcher<BillingData>(`${billingServiceUrl}/api/prices`, {
+      // Proxied through core so the billing service host is never exposed to the browser.
+      return fetcher<BillingData>(`/api/v1/billing/payment/prices`, {
         method: 'GET'
       })
     },

@@ -1,13 +1,12 @@
 import { useStore } from '@nanostores/react'
-import { Download, Trash } from 'lucide-react'
+import { Trash } from 'lucide-react'
 
 import { Button } from '~/elements/Button'
 import { ConfirmDialog } from '~/elements/ConfirmDialog'
 import { Divider } from '~/elements/Divider'
 import {
   useBatchDeleteRecordsMutation,
-  useBatchDeleteRelatedRecordsMutation,
-  useExportRecordsMutation
+  useBatchDeleteRelatedRecordsMutation
 } from '~/features/records/hooks/useRecordMutations'
 
 import { $hasRecordsSelection, $selectionLength } from '../stores/actionbar'
@@ -39,24 +38,6 @@ function DeleteSelected({ view = 'main' }: { view?: 'related' | 'main' }) {
   )
 }
 
-function ExportRecords({ view = 'main' }: { view?: 'related' | 'main' }) {
-  // @TODO: Related records export
-  const { mutate, isPending: exportInProgress } = useExportRecordsMutation()
-
-  return (
-    <Button
-      className="hover:bg-danger/20 rounded-none text-green-700"
-      disabled={exportInProgress}
-      onClick={() => mutate()}
-      size="small"
-      variant="inverse"
-    >
-      <Download />
-      Export csv
-    </Button>
-  )
-}
-
 export function RecordsBatchActionsBar({ view = 'main' }: { view?: 'related' | 'main' }) {
   const hasSelection = useStore($hasRecordsSelection)
   const selectionLength = useStore($selectionLength)
@@ -77,8 +58,6 @@ export function RecordsBatchActionsBar({ view = 'main' }: { view?: 'related' | '
       </span>
       <Divider className="bg-fill2/30" vertical />
       <DeleteSelected view={view} />
-      <Divider className="bg-fill2/30" vertical />
-      <ExportRecords view={view} />
     </div>
   )
 }

@@ -1,8 +1,18 @@
 import { useStore } from '@nanostores/react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { yupResolver } from '@hookform/resolvers/yup'
+import { object, string } from 'yup'
+import { Check, KeyRound } from 'lucide-react'
 import { TextField } from '~/elements/Input'
+import { GithubIcon } from '~/elements/GithubIcon'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { $user, useUser } from '~/features/auth/stores/user'
-import { useDeleteUserMutation, useSendRecoveryLinkMutation } from '~/features/auth/hooks/useAuthMutations'
+import {
+  useDeleteUserMutation,
+  useSendRecoveryLinkMutation,
+  useUpdateUserMutation
+} from '~/features/auth/hooks/useAuthMutations'
 
 import { Button } from '~/elements/Button.tsx'
 
@@ -34,6 +44,69 @@ function SettingsSection({
       </div>
       {children && <div className="p-5">{children}</div>}
     </section>
+  )
+}
+
+const profileNameSchema = object({
+  firstName: string().trim().max(128, 'Keep it under 128 characters').default(''),
+  lastName: string().trim().max(128, 'Keep it under 128 characters').default('')
+})
+
+function ProfileName() {
+  const user = useUser()
+  const { mutateAsync, isPending } = useUpdateUserMutation()
+
+  const {
+    formState: { errors, isDirty, isSubmitting, isValid },
+    handleSubmit,
+    register,
+    reset
+  } = useForm({
+    defaultValues: { firstName: user.firstName ?? '', lastName: user.lastName ?? '' },
+    resolver: yupResolver(profileNameSchema)
+  })
+
+  // The user store hydrates asynchronously; sync the form once it arrives/changes.
+  useEffect(() => {
+    reset({ firstName: user.firstName ?? '', lastName: user.lastName ?? '' })
+  }, [reset, user.firstName, user.lastName])
+
+  const onSubmit = handleSubmit(async ({ firstName, lastName }) => {
+    try {
+      await mutateAsync({ firstName, lastName })
+      toast({ title: 'Profile updated' })
+    } catch {
+      toast({ title: 'Could not update profile', variant: 'danger' })
+    }
+  })
+
+  return (
+    <SettingsSection
+      title="Name"
+      description="Your name is shown across the dashboard and on workspace invitations."
+    >
+      <form className="flex flex-col gap-4" onSubmit={onSubmit}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="First name" {...register('firstName')} error={errors.firstName?.message} />
+          <TextField label="Last name" {...register('lastName')} error={errors.lastName?.message} />
+        </div>
+        <div className="flex justify-end gap-3">
+          {isDirty && (
+            <Button onClick={() => reset()} type="button" variant="secondary">
+              Reset
+            </Button>
+          )}
+          <Button
+            disabled={!isDirty || !isValid}
+            loading={isSubmitting || isPending}
+            type="submit"
+            variant="primary"
+          >
+            Save
+          </Button>
+        </div>
+      </form>
+    </SettingsSection>
   )
 }
 
@@ -69,24 +142,102 @@ function ChangePassword() {
   )
 }
 
-function ConnectedAccounts() {
+const GoogleIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="20"
+    height="20"
+    viewBox="0 0 30 30"
+    fill="currentColor"
+    aria-hidden
+  >
+    <path d="M 15.003906 3 C 8.3749062 3 3 8.373 3 15 C 3 21.627 8.3749062 27 15.003906 27 C 25.013906 27 27.269078 17.707 26.330078 13 L 25 13 L 22.732422 13 L 15 13 L 15 17 L 22.738281 17 C 21.848702 20.448251 18.725955 23 15 23 C 10.582 23 7 19.418 7 15 C 7 10.582 10.582 7 15 7 C 17.009 7 18.839141 7.74575 20.244141 8.96875 L 23.085938 6.1289062 C 20.951937 4.1849063 18.116906 3 15.003906 3 z"></path>
+  </svg>
+)
+
+function SignInMethodRow({
+  icon,
+  name,
+  description,
+  connected
+}: {
+  icon: React.ReactNode
+  name: string
+  description: string
+  connected: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+      <div className="flex items-center gap-3">
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${connected ? 'text-content' : 'text-content3'}`}
+        >
+          {icon}
+        </span>
+        <div>
+          <div className="text-content text-sm font-medium">{name}</div>
+          <div className="text-content2 text-sm leading-6">{description}</div>
+        </div>
+      </div>
+      {connected ?
+        <span className="bg-success/10 text-success inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs font-medium">
+          <Check className="h-3.5 w-3.5" /> Connected
+        </span>
+      : <span className="text-content3 border-content3/30 shrink-0 rounded border px-2 py-1 text-xs font-medium">
+          Not connected
+        </span>
+      }
+    </div>
+  )
+}
+
+function SignInMethods() {
   const user = useUser()
 
-  if (user.isEmail !== false) {
-    return null
-  }
+  // Email/password is available unless this is a pure external-identity account.
+  const emailConnected = user.isEmail !== false
+
+  const methods = [
+    {
+      name: 'Email & password',
+      icon: <KeyRound className="h-5 w-5" />,
+      description: 'Sign in with your email and a password.',
+      connected: emailConnected
+    },
+    {
+      name: 'Google',
+      icon: <GoogleIcon />,
+      description: 'Sign in with your Google account.',
+      connected: Boolean(user.googleConnected)
+    },
+    {
+      name: 'GitHub',
+      icon: <GithubIcon size={20} />,
+      description: 'Sign in with your GitHub account.',
+      connected: Boolean(user.githubConnected)
+    }
+  ]
 
   return (
     <SettingsSection
-      title="Connected Accounts"
-      description="This account signs in through an external identity provider. Password changes are managed by that provider."
+      title="Sign-in methods"
+      description={
+        <>
+          Ways you can sign in to RushDB. All linked methods share the same account because they use{' '}
+          <span className="text-content font-medium">{user.login}</span>.
+        </>
+      }
     >
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="text-content text-sm font-medium">{user.login}</div>
-          <div className="text-content2 text-sm leading-6">External sign-in account</div>
-        </div>
-        <span className="bg-success/10 text-success rounded px-2 py-1 text-xs font-medium">Connected</span>
+      <div className="divide-y">
+        {methods.map((method) => (
+          <SignInMethodRow
+            connected={method.connected}
+            description={method.description}
+            icon={method.icon}
+            key={method.name}
+            name={method.name}
+          />
+        ))}
       </div>
     </SettingsSection>
   )
@@ -241,6 +392,7 @@ export function ProfilePage() {
           >
             <TextField readOnly disabled value={user.login} />
           </SettingsSection>
+          <ProfileName />
           <DangerZone />
         </div>
       </PageContent>
@@ -263,8 +415,8 @@ export function ProfileSecurityPage() {
       </PageHeader>
       <PageContent contained>
         <div className="flex max-w-5xl flex-col gap-6">
+          <SignInMethods />
           {user.isEmail !== false && <ChangePassword />}
-          <ConnectedAccounts />
         </div>
       </PageContent>
     </ProfileSettingsLayout>
