@@ -233,7 +233,7 @@ export function DeployButtonGroup({ buttons }: { buttons: DeployButton[] }) {
               'inline-flex items-center gap-2 border px-4 py-2 text-sm font-semibold no-underline',
               'transition-[background-color,border-color,color] duration-150 ease-out hover:no-underline',
               variant === 'primary' ?
-                'border-[var(--ifm-color-primary)] bg-[var(--ifm-color-primary)] text-white hover:text-white'
+                'border-[var(--ifm-color-primary)] bg-[var(--ifm-color-primary)] text-[var(--rushdb-on-primary)] hover:text-[var(--rushdb-on-primary)]'
               : cn(
                   BORDER_CLASS,
                   'bg-[var(--ifm-card-background-color)] text-inherit hover:bg-[var(--ifm-color-emphasis-100)]'
