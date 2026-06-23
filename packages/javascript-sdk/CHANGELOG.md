@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 2.5.0
+
+### Minor Changes
+
+- 58c6a45: Add SSO auth path
+
 ## 2.4.1
 
 ### Patch Changes
