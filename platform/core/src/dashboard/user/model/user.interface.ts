@@ -4,8 +4,10 @@ import { TProjectInstance, TProjectModel } from '@/dashboard/project/model/proje
 import { TWorkspaceInstance, TWorkspaceModel } from '@/dashboard/workspace/model/workspace.interface'
 
 import {
+  USER_ROLE_ADMIN,
   USER_ROLE_EDITOR,
   USER_ROLE_OWNER,
+  USER_ROLE_VIEWER,
   USER_STATUS_ACTIVE,
   USER_STATUS_BLOCKED,
   USER_STATUS_DEACTIVATED,
@@ -19,9 +21,10 @@ export type TUserStatuses =
   | typeof USER_STATUS_DELETED
 
 export type TUserRoles =
-  // | typeof USER_ROLE_ADMIN
-  typeof USER_ROLE_OWNER | typeof USER_ROLE_EDITOR
-// | typeof USER_ROLE_VIEWER
+  | typeof USER_ROLE_OWNER
+  | typeof USER_ROLE_ADMIN
+  | typeof USER_ROLE_EDITOR
+  | typeof USER_ROLE_VIEWER
 
 export type TUserProperties = {
   id: string
@@ -38,6 +41,8 @@ export type TUserProperties = {
   lastActivity?: string
   googleAuth?: string
   githubAuth?: string
+  samlAuth?: string
+  oidcAuth?: string
   facebookAuth?: string
   password?: string
   isOnboardingFinished?: boolean

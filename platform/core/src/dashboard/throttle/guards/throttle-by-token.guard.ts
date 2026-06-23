@@ -1,15 +1,15 @@
 import { Injectable, ExecutionContext } from '@nestjs/common'
-import { ThrottlerGuard, ThrottlerException } from '@nestjs/throttler'
+import { ThrottlerGuard, ThrottlerException, ThrottlerRequest } from '@nestjs/throttler'
 
 import { PlatformRequest } from '@/common/types/request'
 
 @Injectable()
 export class ThrottleByTokenGuard extends ThrottlerGuard {
   // we want to generate user by endpoint, to prevent a cycle creation of records or smth
-  generateKey(context: ExecutionContext, suffix: string) {
+  protected generateKey(context: ExecutionContext, suffix: string, name: string): string {
     const request = context.switchToHttp().getRequest()
     const url = request.url
-    return `${url}-${suffix}`
+    return `${url}-${suffix}-${name}`
   }
 
   // tracker works for both dashboard and sdk tokens
@@ -22,7 +22,8 @@ export class ThrottleByTokenGuard extends ThrottlerGuard {
   }
 
   // We add our guard to auth guard decorator app/src/dashboard/auth/guards/global-auth.guard.ts
-  protected async handleRequest(context: ExecutionContext, limit: number, ttl: number): Promise<boolean> {
+  protected async handleRequest(requestProps: ThrottlerRequest): Promise<boolean> {
+    const { context, limit, ttl, throttler, blockDuration } = requestProps
     // false by default (will not allow to bypass)
     const optionalGuard = this.reflector.get<boolean>('optionalGuard', context.getHandler()) ?? false
 
@@ -36,9 +37,10 @@ export class ThrottleByTokenGuard extends ThrottlerGuard {
         return optionalGuard
       }
 
-      const key = this.generateKey(context, token)
+      const throttlerName = throttler.name ?? 'default'
+      const key = this.generateKey(context, token, throttlerName)
 
-      const { totalHits } = await this.storageService.increment(key, ttl)
+      const { totalHits } = await this.storageService.increment(key, ttl, limit, blockDuration, throttlerName)
       if (totalHits > limit) {
         throw new ThrottlerException('Too many requests')
       }

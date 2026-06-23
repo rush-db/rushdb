@@ -57,6 +57,14 @@ import { join } from 'path'
     },
     CliService
   ],
-  controllers: [AppController, HealthController, AppSettingsController]
+  // AppController serves GET '/' as a liveness string. When RUSHDB_SERVE_STATIC
+  // is on, the dashboard SPA (via @fastify/static) owns '/', and registering both
+  // throws "Method 'HEAD' already declared for route '/'" under Fastify 5. Drop the
+  // root controller in static mode; /health (HealthController) covers liveness either way.
+  controllers: [
+    ...(toBoolean(process.env.RUSHDB_SERVE_STATIC) ? [] : [AppController]),
+    HealthController,
+    AppSettingsController
+  ]
 })
 export class AppModule {}

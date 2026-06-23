@@ -1,0 +1,111 @@
+---
+title: Backup & Restore
+description: Back up and restore a self-hosted RushDB instance (Neo4j + SQL metadata).
+sidebar_position: 1
+displayed_sidebar: docs
+tags: [Deployment, Self-Hosted, Backup]
+---
+
+# Backup & Restore
+
+A RushDB instance has two stateful stores. Back up **both** together so they
+stay consistent:
+
+| Store            | Holds                                             | Default location                              |
+| ---------------- | ------------------------------------------------- | --------------------------------------------- |
+| **Neo4j**        | your graph data (records, relationships, vectors) | `neo4j-data` volume / external Neo4j or Aura  |
+| **SQL metadata** | users, projects, API tokens, settings             | Postgres (`postgres-data`) or the SQLite file |
+
+:::tip
+Take both snapshots within the same short window, ideally with writes paused,
+so a restored Neo4j graph matches the projects/tokens in SQL metadata.
+:::
+
+## Neo4j
+
+### Bundled / self-managed Neo4j
+
+Use `neo4j-admin database dump`. The community edition requires the database to
+be stopped; with the bundled Compose stack:
+
+```bash
+# Stop only RushDB so the graph is quiescent (leave Neo4j running for online dump on Enterprise)
+docker compose stop rushdb
+
+# Dump the default database to a mounted path
+docker compose exec neo4j neo4j-admin database dump neo4j \
+  --to-path=/backups
+# (mount a host dir to /backups, or docker cp it out)
+docker compose cp neo4j:/backups/neo4j.dump ./neo4j-$(date +%F).dump
+
+docker compose start rushdb
+```
+
+Restore into a fresh Neo4j:
+
+```bash
+docker compose stop rushdb
+docker compose cp ./neo4j-YYYY-MM-DD.dump neo4j:/backups/neo4j.dump
+docker compose exec neo4j neo4j-admin database load neo4j \
+  --from-path=/backups --overwrite-destination=true
+docker compose start rushdb
+```
+
+### Neo4j Aura
+
+Use Aura's built-in snapshots (Console → your instance → **Snapshots**) for
+scheduled and on-demand backups and point-in-time restore. No action needed on
+the RushDB side.
+
+## SQL metadata
+
+### Postgres
+
+```bash
+# Backup
+docker compose exec -T postgres pg_dump -U rushdb rushdb > rushdb-meta-$(date +%F).sql
+
+# Restore (into an empty database)
+cat rushdb-meta-YYYY-MM-DD.sql | docker compose exec -T postgres psql -U rushdb -d rushdb
+```
+
+RushDB re-applies any pending schema migrations automatically on the next boot,
+so restoring a slightly older dump against a newer image is safe.
+
+### SQLite
+
+If you run with `SQL_DB_TYPE=sqlite`, the metadata is a single file at
+`SQL_DB_PATH` (default `/data/rushdb.db`). Back it up while RushDB is stopped:
+
+```bash
+docker compose stop rushdb
+docker compose cp rushdb:/data/rushdb.db ./rushdb-meta-$(date +%F).db
+docker compose start rushdb
+```
+
+## Volumes (quick full-stack snapshot)
+
+For the bundled stack you can also snapshot the Docker volumes directly:
+
+```bash
+docker run --rm -v rushdb_neo4j-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/neo4j-data.tgz -C /data .
+docker run --rm -v rushdb_postgres-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/postgres-data.tgz -C /data .
+```
+
+Replace the volume prefix (`rushdb_`) with your Compose project name. Restore by
+extracting the archives back into fresh volumes before starting the stack.
+
+## What you do not need to back up
+
+- The RushDB container itself — it is stateless; recreate it from the image.
+- The encryption key (`RUSHDB_AES_256_ENCRYPTION_KEY`) lives in your env, **not**
+  in a backup. Store it in your secret manager. Without it, restored API tokens
+  and encrypted secrets cannot be decrypted.
+
+## Recommended cadence
+
+- Automate Neo4j + SQL dumps on the same schedule (daily for active instances).
+- Periodically **test a restore** into a throwaway stack — an untested backup is
+  not a backup.

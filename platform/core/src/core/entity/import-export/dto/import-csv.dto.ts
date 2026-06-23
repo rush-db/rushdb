@@ -1,8 +1,9 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
+import { ApiExtraModels, ApiProperty, ApiPropertyOptional, getSchemaPath } from '@nestjs/swagger'
 
 import { InlineVectorEntryDto } from '@/core/ai/dto/inline-vector-entry.dto'
 import { TImportOptions, TImportCsvParseConfig } from '@/core/entity/import-export/import.types'
 
+@ApiExtraModels(InlineVectorEntryDto)
 export class ImportCsvDto {
   @ApiPropertyOptional()
   parentId?: string
@@ -29,7 +30,8 @@ export class ImportCsvDto {
   @ApiPropertyOptional({
     description:
       'Per-row inline vectors for external embedding indexes. vectors[i] is applied to CSV row i (0-based, after header).',
-    type: [[InlineVectorEntryDto]]
+    type: 'array',
+    items: { type: 'array', items: { $ref: getSchemaPath(InlineVectorEntryDto) } }
   })
   vectors?: InlineVectorEntryDto[][]
 }

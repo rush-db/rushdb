@@ -69,13 +69,15 @@ function SuggestedIndexItem({
   return (
     <li className="bg-card flex flex-col gap-3 rounded-md border px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4">
       <div className="flex min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Label variant={getLabelColor(suggestion.label, Math.max(labelIdx, 0))}>{suggestion.label}</Label>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <Label className="!text-sm" variant={getLabelColor(suggestion.label, Math.max(labelIdx, 0))}>
+            {suggestion.label}
+          </Label>
           <span className="text-content3">:</span>
           <span className="bg-content3/10 text-content2 w-fit rounded-sm px-1 font-mono text-xs">
             {suggestion.propertyName}
           </span>
-          <Badge>{suggestion.recordsCount ?? 0} records</Badge>
+          <Badge className="!text-sm">{suggestion.recordsCount ?? 0} records</Badge>
         </div>
         <p className="text-content2 text-sm">
           {suggestion.reason}. Create an embedding index for semantic search.

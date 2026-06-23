@@ -79,6 +79,15 @@ export class WorkspaceRepository {
       })
   }
 
+  async updateMemberRole(workspaceId: string, userId: string, role: string): Promise<void> {
+    await this.db
+      .update(this.workspaceMembers)
+      .set({ role })
+      .where(
+        and(eq(this.workspaceMembers.workspaceId, workspaceId), eq(this.workspaceMembers.userId, userId))
+      )
+  }
+
   async removeMember(workspaceId: string, userId: string): Promise<void> {
     await this.db
       .delete(this.workspaceMembers)

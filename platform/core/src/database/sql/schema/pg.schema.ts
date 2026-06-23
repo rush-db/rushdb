@@ -13,6 +13,8 @@ export const users = pgTable('users', {
   lastActivity: text('last_activity'),
   googleAuth: text('google_auth'),
   githubAuth: text('github_auth'),
+  samlAuth: text('saml_auth'),
+  oidcAuth: text('oidc_auth'),
   password: text('password'),
   deletedDate: text('deleted_date'),
   settings: text('settings')
@@ -49,6 +51,33 @@ export const workspaceInvites = pgTable('workspace_invites', {
   email: text('email').notNull(),
   createdAt: text('created_at').notNull()
 })
+
+export const workspaceIdentityProviders = pgTable(
+  'workspace_identity_providers',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(), // 'saml' | 'oidc'
+    enabled: boolean('enabled').notNull().default(false),
+    enforced: boolean('enforced').notNull().default(false),
+    domains: text('domains').notNull().default('[]'), // JSON string[]
+    defaultRole: text('default_role').notNull().default('developer'),
+    groupMappings: text('group_mappings'), // JSON { [idpGroup]: role }
+    // SAML
+    samlEntityId: text('saml_entity_id'),
+    samlSsoUrl: text('saml_sso_url'),
+    samlCertificate: text('saml_certificate'),
+    // OIDC
+    oidcIssuer: text('oidc_issuer'),
+    oidcClientId: text('oidc_client_id'),
+    oidcClientSecretEncrypted: text('oidc_client_secret_encrypted'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (t) => [uniqueIndex('workspace_idp_workspace_type_uniq').on(t.workspaceId, t.type)]
+)
 
 export const projects = pgTable('projects', {
   id: text('id').primaryKey(),
@@ -314,6 +343,7 @@ export const pgSchema = {
   workspaces,
   workspaceMembers,
   workspaceInvites,
+  workspaceIdentityProviders,
   projects,
   projectAccess,
   tokens,

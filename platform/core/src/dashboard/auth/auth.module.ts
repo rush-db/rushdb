@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common'
+import { forwardRef, Global, Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { JwtModule } from '@nestjs/jwt'
 
@@ -9,14 +9,21 @@ import { GithubOAuthController } from '@/dashboard/auth/providers/github/github.
 import { GithubOAuthService } from '@/dashboard/auth/providers/github/github.service'
 import { GoogleOAuthController } from '@/dashboard/auth/providers/google/google.controller'
 import { GoogleOAuthService } from '@/dashboard/auth/providers/google/google.service'
+import { SsoAdminController } from '@/dashboard/auth/providers/sso/sso-admin.controller'
+import { SsoController } from '@/dashboard/auth/providers/sso/sso.controller'
+import { SsoRepository } from '@/dashboard/auth/providers/sso/sso.repository'
+import { SsoService } from '@/dashboard/auth/providers/sso/sso.service'
 import { ProjectModule } from '@/dashboard/project/project.module'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { UserModule } from '@/dashboard/user/user.module'
+import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
 
+import { AuditService } from './audit/audit.service'
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { EmailConfirmationService } from './email-confirmation/email-confirmation.service'
 import { EncryptionService } from './encryption/encryption.service'
+import { AuthMiddleware } from './middlewares/auth.middleware'
 
 function decodePem(value?: string): string | undefined {
   if (!value) {
@@ -77,16 +84,27 @@ function decodeBase64Pem(value?: string): string | undefined {
     ProjectModule,
     UserModule,
     EntityModule,
-    CaptchaModule
+    CaptchaModule,
+    forwardRef(() => WorkspaceModule)
   ],
   providers: [
     EncryptionService,
     AuthService,
     EmailConfirmationService,
     GoogleOAuthService,
-    GithubOAuthService
+    GithubOAuthService,
+    SsoService,
+    SsoRepository,
+    AuditService,
+    AuthMiddleware
   ],
-  controllers: [AuthController, GoogleOAuthController, GithubOAuthController],
-  exports: [EncryptionService, AuthService, CaptchaModule, JwtModule]
+  controllers: [
+    AuthController,
+    GoogleOAuthController,
+    GithubOAuthController,
+    SsoController,
+    SsoAdminController
+  ],
+  exports: [EncryptionService, AuthService, AuthMiddleware, CaptchaModule, JwtModule]
 })
 export class AuthModule {}

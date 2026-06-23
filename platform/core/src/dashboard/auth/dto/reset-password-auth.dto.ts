@@ -1,4 +1,4 @@
-import { ApiModelProperty } from '@nestjs/swagger/dist/decorators/api-model-property.decorator'
+import { ApiProperty as ApiModelProperty } from '@nestjs/swagger'
 import { IsNotEmpty } from 'class-validator'
 
 export class ResetPasswordAuthDto {

@@ -51,6 +51,20 @@ export class TokenRepository {
     return this.db.select().from(this.tokens).where(eq(this.tokens.projectId, projectId))
   }
 
+  /** All tokens belonging to a workspace (across every project), each with its project info. */
+  async findByWorkspaceId(
+    workspaceId: string
+  ): Promise<Array<{ token: TokenRow; project: { id: string; name: string } }>> {
+    return this.db
+      .select({
+        token: this.tokens,
+        project: { id: this.projects.id, name: this.projects.name }
+      })
+      .from(this.tokens)
+      .innerJoin(this.projects, eq(this.tokens.projectId, this.projects.id))
+      .where(eq(this.projects.workspaceId, workspaceId))
+  }
+
   async findByConsentId(consentId: string): Promise<TokenRow | undefined> {
     const rows = await this.db.select().from(this.tokens).where(eq(this.tokens.consentId, consentId))
     return rows[0]

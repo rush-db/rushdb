@@ -212,6 +212,15 @@ export class TokenService {
     }))
   }
 
+  async getWorkspaceTokensList(workspaceId: string) {
+    const rows = await this.tokenRepository.findByWorkspaceId(workspaceId)
+    return rows.map(({ token, project }) => ({
+      ...this.normalize(token).toJson(),
+      expired: this.isTokenExpired(token),
+      project
+    }))
+  }
+
   async findLiveTokenByConsentAndProject(
     consentId: string,
     projectId: string

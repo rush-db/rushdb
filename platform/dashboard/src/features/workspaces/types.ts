@@ -2,13 +2,17 @@ import type { PlanId } from '~/features/billing/types'
 import type { ISO8601 } from '~/types'
 import type { GetUserResponse } from '~/features/auth/types.ts'
 
+export type WorkspaceRole = 'owner' | 'admin' | 'developer' | 'viewer'
+
+export const WORKSPACE_ROLES: WorkspaceRole[] = ['owner', 'admin', 'developer', 'viewer']
+
 export type Workspace = {
   created: ISO8601
   id: string
   name: string
   planId?: PlanId
   validTill?: ISO8601
-  role?: 'owner' | 'developer'
+  role?: WorkspaceRole
   isSubscriptionCancelled?: boolean
   // Operational limits from billing service (injected at runtime)
   projectLimit?: number | null // null = unlimited
@@ -18,7 +22,7 @@ export type Workspace = {
 export interface WorkspaceUser {
   id: string
   login: string
-  role: string
+  role: WorkspaceRole
 }
 
 export interface WorkspaceAccessList {

@@ -60,6 +60,33 @@ export const useApproveRelationshipPatternMutation = () => {
   })
 }
 
+export const useApproveRelationshipPatternsMutation = () => {
+  const queryClient = useQueryClient()
+  const projectId = useStore($currentProjectId)
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const result = await api.relationshipPatterns.approveMany({ projectId: projectId!, ids })
+
+      if (projectId) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.projects.relationshipPatterns(projectId) }),
+          queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'records'] }),
+          queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'record-relations'] }),
+          queryClient.invalidateQueries({ queryKey: ['records'] })
+        ])
+      }
+
+      return result
+    },
+    onSuccess(_result, ids) {
+      toast({
+        title:
+          ids.length > 1 ? `${ids.length} relationship patterns approved` : 'Relationship pattern approved'
+      })
+    }
+  })
+}
+
 export const useIgnoreRelationshipPatternMutation = () => {
   const queryClient = useQueryClient()
   const projectId = useStore($currentProjectId)

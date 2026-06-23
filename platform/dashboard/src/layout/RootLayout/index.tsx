@@ -74,8 +74,8 @@ function DashboardSidebar() {
             <div className="min-w-0 flex-1 overflow-hidden">
               <ChangeProjectMenu />
             </div>
-          : <a className="text-content text-base font-semibold leading-none" href="/">
-              RushDB
+          : <a className="text-content pt-1 font-mono text-base" href="/">
+              rushdb
             </a>)}
         {!collapsed && (
           <IconButton

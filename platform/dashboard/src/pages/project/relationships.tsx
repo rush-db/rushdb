@@ -22,6 +22,7 @@ import { Tooltip } from '~/elements/Tooltip'
 import {
   useAnalyzeRelationshipPatternsMutation,
   useApproveRelationshipPatternMutation,
+  useApproveRelationshipPatternsMutation,
   useDeleteRelationshipPatternMutation,
   useIgnoreRelationshipPatternMutation,
   useRelationshipPatternsQuery
@@ -150,18 +151,41 @@ function RelationshipPath({
 
   return (
     <div className="flex flex-wrap items-center gap-2 font-mono text-sm">
-      <Label className="!text-sm" variant={sourceVariant}>
-        {sourceLabel}
-        {sourceKey ? `[${sourceKey}]` : ''}
-      </Label>
+      <LabelWithKey label={sourceLabel} propertyKey={sourceKey} variant={sourceVariant} />
       <span className="text-content3">→</span>
       <Badge className="!text-sm">{type}</Badge>
       <span className="text-content3">→</span>
-      <Label className="!text-sm" variant={targetVariant}>
-        {targetLabel}
-        {targetKey ? `[${targetKey}]` : ''}
-      </Label>
+      <LabelWithKey label={targetLabel} propertyKey={targetKey} variant={targetVariant} />
     </div>
+  )
+}
+
+// Renders a colored label badge alongside its matched field as a separate gray
+// monospace chip — mirroring the Suggested embedding indexes layout, so the field
+// reads as a property of the label rather than part of the (colored) label itself.
+function LabelWithKey({
+  label,
+  propertyKey,
+  variant
+}: {
+  label: string
+  propertyKey?: string
+  variant: ReturnType<typeof getLabelColor>
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <Label className="!text-sm" variant={variant}>
+        {label}
+      </Label>
+      {propertyKey ?
+        <>
+          <span className="text-content3">:</span>
+          <span className="bg-content3/10 text-content2 w-fit rounded-sm px-1 font-mono text-xs">
+            {propertyKey}
+          </span>
+        </>
+      : null}
+    </span>
   )
 }
 
@@ -269,11 +293,17 @@ function sortSuggestedPatterns(patterns: RelationshipPattern[]) {
 function PatternCard({
   labelNames,
   pattern,
-  tourApproveTarget = false
+  tourApproveTarget = false,
+  selectable = false,
+  selected = false,
+  onToggleSelected
 }: {
   labelNames: string[]
   pattern: RelationshipPattern
   tourApproveTarget?: boolean
+  selectable?: boolean
+  selected?: boolean
+  onToggleSelected?: (id: string, checked: boolean) => void
 }) {
   const approve = useApproveRelationshipPatternMutation()
   const ignore = useIgnoreRelationshipPatternMutation()
@@ -284,7 +314,22 @@ function PatternCard({
   return (
     <li className="bg-card rounded-md border px-4 py-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <PatternPath labelNames={labelNames} pattern={pattern} />
+        <div className="flex min-w-0 items-start gap-3">
+          {selectable && pattern.status === 'suggested' ?
+            <Checkbox
+              aria-label="Select relationship pattern"
+              checked={selected}
+              className="mt-0.5"
+              onCheckedChange={(checked) => onToggleSelected?.(pattern.id, checked === true)}
+            />
+          : null}
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <PatternPath labelNames={labelNames} pattern={pattern} />
+            {pattern.rationale ?
+              <p className="text-content2 text-sm leading-snug">{pattern.rationale}</p>
+            : null}
+          </div>
+        </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
           {pattern.status === 'suggested' || pattern.status === 'ignored' || pattern.status === 'error' ?
             <div className="text-content2 flex items-center gap-1 text-sm">
@@ -302,9 +347,9 @@ function PatternCard({
                 }
               >
                 <span className="font-semibold">Confidence Score</span>
-                {pattern.rationale ?
-                  <span className="max-w-[320px] text-sm">{pattern.rationale}</span>
-                : null}
+                <span className="text-content2 max-w-[320px] text-sm">
+                  How likely this suggested relationship is correct, based on the analyzed data.
+                </span>
                 {pattern.lastError ?
                   <span className="text-danger max-w-[320px] text-sm">{pattern.lastError}</span>
                 : null}
@@ -489,37 +534,105 @@ function PatternsSection({
   labelNames,
   loading,
   patterns,
-  tourPatternId
+  tourPatternId,
+  selectable = false
 }: {
   labelNames: string[]
   loading: boolean
   patterns: RelationshipPattern[]
   tourPatternId?: string
+  selectable?: boolean
 }) {
+  const bulkApprove = useApproveRelationshipPatternsMutation()
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+
+  // Drop selections for patterns that left this list (approved/ignored on refetch),
+  // so the count and the bulk action never reference stale ids.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) {
+        return prev
+      }
+      const present = new Set(patterns.map((pattern) => pattern.id))
+      const next = new Set([...prev].filter((id) => present.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [patterns])
+
+  const toggleSelected = (id: string, checked: boolean) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        next.add(id)
+      } else {
+        next.delete(id)
+      }
+      return next
+    })
+
+  const allSelected = patterns.length > 0 && selectedIds.size === patterns.length
+  const toggleAll = (checked: boolean) =>
+    setSelectedIds(checked ? new Set(patterns.map((pattern) => pattern.id)) : new Set())
+
+  const approveSelected = () => {
+    const ids = [...selectedIds]
+    if (!ids.length) {
+      return
+    }
+    bulkApprove.mutate(ids, { onSuccess: () => setSelectedIds(new Set()) })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3">
+        <Skeleton enabled>
+          <Card className="h-32" />
+        </Skeleton>
+        <Skeleton enabled>
+          <Card className="h-32" />
+        </Skeleton>
+      </div>
+    )
+  }
+
+  if (!patterns.length) {
+    return <NothingFound className="min-h-0 py-8" title="No patterns found" />
+  }
+
   return (
-    <>
-      {loading ?
-        <div className="flex flex-col gap-3">
-          <Skeleton enabled>
-            <Card className="h-32" />
-          </Skeleton>
-          <Skeleton enabled>
-            <Card className="h-32" />
-          </Skeleton>
-        </div>
-      : patterns.length ?
-        <ul className="flex flex-col gap-3">
-          {patterns.map((pattern, index) => (
-            <PatternCard
-              key={pattern.id}
-              labelNames={labelNames}
-              pattern={pattern}
-              tourApproveTarget={pattern.id === tourPatternId || (!tourPatternId && index === 0)}
+    <div className="flex flex-col gap-3">
+      {selectable ?
+        <div className="bg-card flex min-h-14 items-center justify-between gap-3 rounded-md border px-4 py-2">
+          <label className="text-content2 flex items-center gap-2 text-sm">
+            <Checkbox
+              aria-label="Select all relationship patterns"
+              checked={allSelected}
+              onCheckedChange={(checked) => toggleAll(checked === true)}
             />
-          ))}
-        </ul>
-      : <NothingFound className="min-h-0 py-8" title="No patterns found" />}
-    </>
+            {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+          </label>
+          {selectedIds.size > 0 ?
+            <Button loading={bulkApprove.isPending} onClick={approveSelected} size="small" variant="accent">
+              <Check />
+              Approve selected ({selectedIds.size})
+            </Button>
+          : null}
+        </div>
+      : null}
+      <ul className="flex flex-col gap-3">
+        {patterns.map((pattern, index) => (
+          <PatternCard
+            key={pattern.id}
+            labelNames={labelNames}
+            onToggleSelected={toggleSelected}
+            pattern={pattern}
+            selectable={selectable}
+            selected={selectedIds.has(pattern.id)}
+            tourApproveTarget={pattern.id === tourPatternId || (!tourPatternId && index === 0)}
+          />
+        ))}
+      </ul>
+    </div>
   )
 }
 
@@ -660,6 +773,7 @@ export function ProjectRelationships({ projectId }: { projectId: Project['id'] }
                   labelNames={labelNames}
                   loading={isPending || settingsPending}
                   patterns={suggested}
+                  selectable
                   tourPatternId={tourPatternId}
                 />
               </TabsContent>

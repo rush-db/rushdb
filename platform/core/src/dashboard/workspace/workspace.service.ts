@@ -199,6 +199,52 @@ export class WorkspaceService {
     await this.billingClientService.emitSeatMeterEvent(workspaceId, members.length)
   }
 
+  async changeMemberRole(
+    workspaceId: string,
+    userId: string,
+    role: TUserRoles,
+    requesterId?: string,
+    _transaction?: Transaction
+  ): Promise<{ message: string }> {
+    // A user cannot change their own workspace role (prevents an owner from
+    // accidentally downgrading themselves and locking the workspace).
+    if (requesterId && requesterId === userId) {
+      throw new BadRequestException('You cannot change your own role')
+    }
+
+    const member = await this.workspaceRepository.getMember(workspaceId, userId)
+    if (!member) {
+      throw new BadRequestException('User is not a member of this workspace')
+    }
+
+    // Prevent demoting the last owner — a workspace must always have at least one owner.
+    if (member.role === USER_ROLE_OWNER && role !== USER_ROLE_OWNER) {
+      const members = await this.workspaceRepository.getMembers(workspaceId)
+      const ownerCount = members.filter((m) => m.role === USER_ROLE_OWNER).length
+      if (ownerCount <= 1) {
+        throw new BadRequestException('Cannot demote the last owner of the workspace')
+      }
+    }
+
+    await this.workspaceRepository.updateMemberRole(workspaceId, userId, role)
+    isDevMode(() =>
+      Logger.log(`[Change member role LOG]: User ${userId} role set to ${role} in workspace ${workspaceId}`)
+    )
+    return { message: 'Member role updated' }
+  }
+
+  async attachUserToWorkspaceIfAbsent(
+    workspaceId: string,
+    userId: string,
+    preferredRole: TUserRoles,
+    transaction?: Transaction
+  ): Promise<void> {
+    const member = await this.workspaceRepository.getMember(workspaceId, userId)
+    if (!member) {
+      await this.attachUserToWorkspace(workspaceId, userId, preferredRole, transaction)
+    }
+  }
+
   async patchWorkspace(
     id: string,
     workspaceProperties: Partial<TWorkspaceProperties>,

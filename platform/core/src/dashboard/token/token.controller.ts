@@ -21,6 +21,7 @@ import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-co
 import { CreateTokenDto } from '@/dashboard/token/dto/create-token.dto'
 import { ITokenProperties } from '@/dashboard/token/model/token.interface'
 import { TokenService } from '@/dashboard/token/token.service'
+import { USER_ROLE_OWNER } from '@/dashboard/user/interfaces/user.constants'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { TransactionDecorator } from '@/database/transaction.decorator'
 
@@ -64,6 +65,17 @@ export class TokenController {
     const projectId = request.projectId
 
     return await this.tokenService.getTokensList(projectId, transaction)
+  }
+
+  @Get('all')
+  @ApiTags('Tokens')
+  @ApiBearerAuth()
+  @AuthGuard('workspace', USER_ROLE_OWNER)
+  @HttpCode(HttpStatus.OK)
+  async getWorkspaceTokensList(
+    @Request() request: PlatformRequest
+  ): Promise<Array<ITokenProperties & { expired: boolean; project: { id: string; name: string } }>> {
+    return this.tokenService.getWorkspaceTokensList(request.workspaceId)
   }
 
   @Delete(':tokenId')

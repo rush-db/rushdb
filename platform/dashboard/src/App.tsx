@@ -11,10 +11,12 @@ import { SignInPage } from '~/pages/signin'
 import { SignUpPage } from '~/pages/signup'
 import { WorkspaceBillingPage } from '~/pages/workspace/billing'
 import { WorkspaceApiUsagePage } from '~/pages/workspace/api-usage'
+import { WorkspaceApiKeysPage } from '~/pages/workspace/api-keys'
 import { WorkspaceProjectsPage } from '~/pages/workspace/projects'
 import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
 import { WorkspaceUsersPage } from '~/pages/workspace/users'
 import { WorkspaceConnectedAppsPage } from '~/pages/workspace/connected-apps'
+import { WorkspaceSsoPage } from '~/pages/workspace/sso-settings'
 import { JoinWorkspacePage } from '~/pages/workspace/join'
 import { ConfirmEmail } from '~/pages/auth/confirmEmail'
 import { OAuthConsentPage } from '~/pages/oauth/consent'
@@ -22,6 +24,7 @@ import { OAuthConsentPage } from '~/pages/oauth/consent'
 import { Toaster } from './elements/Toast'
 import { ProjectLayout } from './layout/ProjectLayout'
 import { AuthGoogle } from './pages/auth/google'
+import { AuthSso } from './pages/auth/sso'
 import { useEffect, useMemo } from 'react'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { AuthGitHub } from '~/pages/auth/github.tsx'
@@ -38,8 +41,9 @@ const PAGE_TITLES: Record<string, string> = {
   workspaceSettings: 'Workspace Settings',
   workspaceUsers: 'Workspace Members',
   workspaceConnectedApps: 'Connected Apps',
+  workspaceSso: 'Single Sign-On',
   workspaceBilling: 'Billing',
-  workspaceApiUsage: 'API Usage',
+  workspaceApiUsage: 'Usage Stats',
   joinWorkspace: 'Join Workspace',
   profile: 'Profile',
   profileSecurity: 'Profile Security',
@@ -76,6 +80,8 @@ function PublicRoutes() {
       return <AuthGoogle />
     case 'githubAuth':
       return <AuthGitHub />
+    case 'ssoAuth':
+      return <AuthSso />
     case 'confirmEmail':
       return <ConfirmEmail />
     case 'oauthConsent':
@@ -107,6 +113,10 @@ function ProtectedRoutes() {
       return isOwner ? <WorkspaceUsersPage /> : null
     case 'workspaceConnectedApps':
       return isOwner ? <WorkspaceConnectedAppsPage /> : null
+    case 'workspaceSso':
+      return isOwner ? <WorkspaceSsoPage /> : null
+    case 'workspaceApiKeys':
+      return isOwner ? <WorkspaceApiKeysPage /> : null
     case 'joinWorkspace':
       return <JoinWorkspacePage />
     case 'workspaceBilling':

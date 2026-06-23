@@ -25,6 +25,17 @@ export class CloudBillingPolicyService implements BillingPolicyPort {
     return customer.plan !== 'free'
   }
 
+  async isSsoAllowed(workspaceId: string): Promise<boolean> {
+    const customer = await this.billingClientService.getCustomer(workspaceId)
+    return customer?.plan === 'scale' || customer?.plan === 'enterprise'
+  }
+
+  async assertSsoAllowed(workspaceId: string): Promise<void> {
+    if (!(await this.isSsoAllowed(workspaceId))) {
+      throw new HttpException('SSO requires the Scale plan or higher.', HttpStatus.FORBIDDEN)
+    }
+  }
+
   async assertProjectOperationAllowed(workspaceId: string, options: BillingLimitOptions): Promise<void> {
     const check = await this.checkLimits(workspaceId, options)
     if (!check.allowed) {

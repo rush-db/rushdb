@@ -104,6 +104,21 @@ export const logInGoogle = action($user, 'logInGoogle', (store, searchParams: Se
   })
 })
 
+export const logInSso = action(
+  $user,
+  'logInSso',
+  async (store, { token, workspaceId }: { token: string; workspaceId?: string }) => {
+    // The backend ACS/callback already verified the assertion and minted a
+    // session token, handing it back via the redirect URL — so unlike the
+    // social providers we don't call a callback endpoint, we just adopt the
+    // token and hydrate the user.
+    $token.set(token)
+    const user = await api.user.current()
+    store.set({ ...user, token, isLoggedIn: true })
+    return workspaceId
+  }
+)
+
 export const logInGitHub = action($user, 'logInGitHub', (store, searchParams: SearchParams) => {
   const query = new URLSearchParams(searchParams).toString()
   return fetcher<GetUserResponse['data']>(`/api/v1/auth/github/callback?${query}`).then((user) => {

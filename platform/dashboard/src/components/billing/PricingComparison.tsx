@@ -43,7 +43,7 @@ const FALLBACK_COMPARISON: ComparisonFeature[] = [
   { name: 'Self-Hosted Support', free: false, start: true, pro: true, scale: true, enterprise: true },
   { name: 'SLA Guarantee', free: false, start: false, pro: false, scale: true, enterprise: true },
   { name: 'Dedicated Instances', free: false, start: false, pro: false, scale: true, enterprise: true },
-  { name: 'SSO', free: false, start: false, pro: false, scale: 'Coming Soon', enterprise: true },
+  { name: 'SSO', free: false, start: false, pro: false, scale: true, enterprise: true },
   {
     name: 'Bring Your Own Cloud (BYOC)',
     free: true,

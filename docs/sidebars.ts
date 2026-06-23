@@ -67,6 +67,14 @@ const sidebars: SidebarsConfig = {
             'deploy/infrastructure/neo4j-and-aura',
             'deploy/infrastructure/postgresql-sqlite'
           ]
+        },
+        {
+          type: 'category',
+          label: 'Operations',
+          collapsible: true,
+          collapsed: true,
+          customProps: { icon: 'LifeBuoy' },
+          items: ['deploy/operations/backup-restore', 'deploy/operations/troubleshooting']
         }
       ]
     },
