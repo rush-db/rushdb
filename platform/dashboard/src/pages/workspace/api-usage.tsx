@@ -6,7 +6,7 @@ export function WorkspaceApiUsagePage() {
   return (
     <WorkspacesLayout>
       <PageHeader contained>
-        <PageTitle>API Usage</PageTitle>
+        <PageTitle>Usage Stats</PageTitle>
       </PageHeader>
       <PageContent contained>
         <KuUsageHistory />

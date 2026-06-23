@@ -3,7 +3,6 @@ import { ApiExtraModels, ApiOkResponse, getSchemaPath } from '@nestjs/swagger'
 
 export const CommonResponseDecorator = <TModel extends Type<any>>(model?: TModel) => {
   const apiResponse = ApiOkResponse({
-    status: 200,
     description: '',
     content: {
       'application-json': {

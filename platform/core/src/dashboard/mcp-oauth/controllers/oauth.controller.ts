@@ -67,7 +67,7 @@ export class OAuthController {
       state,
       resource
     })
-    return reply.redirect(302, redirectUrl)
+    return reply.redirect(redirectUrl, 302)
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

@@ -25,17 +25,22 @@ import type {
   CreateEmbeddingIndexParams,
   EmbeddingIndexStats
 } from '~/features/indexes/types'
-import type { RelationshipPatternsResponse } from '~/features/relationship-patterns/types'
+import type {
+  RelationshipPattern,
+  RelationshipPatternsResponse
+} from '~/features/relationship-patterns/types'
 import type { Project, ProjectStats, WithProjectID } from '~/features/projects/types'
-import type { ProjectToken } from '~/features/tokens/types'
+import type { ProjectToken, WorkspaceToken } from '~/features/tokens/types'
 import type {
   Workspace,
   WorkspaceUser,
+  WorkspaceRole,
   WorkspaceAccessList,
   InviteToWorkspaceDto,
   RevokeAccessDto,
   PendingInvite
 } from '~/features/workspaces/types'
+import type { SsoConfig, SsoDiscoverResponse, UpsertSsoConfigPayload } from '~/features/sso/types'
 import type { GenericApiResponse, Override } from '~/types'
 
 import { rushDBInstance } from '~/lib/sdk.ts'
@@ -332,6 +337,16 @@ export const api = {
         method: 'POST'
       })
     },
+    async approveMany({ projectId, ids, init }: WithProjectID & WithInit & { ids: string[] }) {
+      return fetcher<RelationshipPattern[]>(`/api/v1/relationships/patterns/approve`, {
+        ...init,
+        body: JSON.stringify({ ids }),
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'POST'
+      })
+    },
     async ignore({ projectId, id, init }: WithProjectID & WithInit & { id: string }) {
       return fetcher(`/api/v1/relationships/patterns/${id}/ignore`, {
         ...init,
@@ -413,6 +428,18 @@ export const api = {
         method: 'GET'
       })
     },
+    async changeMemberRole({
+      id,
+      userId,
+      role,
+      init
+    }: WithInit & Pick<Workspace, 'id'> & { userId: string; role: WorkspaceRole }) {
+      return fetcher<{ message: string }>(`/api/v1/workspaces/${id}/members/${userId}/role`, {
+        ...init,
+        method: 'PATCH',
+        body: JSON.stringify({ role })
+      })
+    },
     async revokeAccess({ id, userIds, init }: WithInit & Pick<Workspace, 'id'> & RevokeAccessDto) {
       return fetcher<{ message: string }>(`/api/v1/workspaces/${id}/revoke-access`, {
         ...init,
@@ -469,6 +496,11 @@ export const api = {
     async list({ projectId }: WithProjectID, init: RequestInit) {
       return fetcher<ProjectToken[]>(`/api/v1/tokens`, init)
     },
+    // Workspace-wide listing — every key across the workspace's projects. The fetcher
+    // injects the current x-workspace-id header, which scopes this on the backend.
+    async listAll(init?: RequestInit) {
+      return fetcher<WorkspaceToken[]>(`/api/v1/tokens/all`, { ...init })
+    },
     async create({ projectId, init, ...body }: WithProjectID & Partial<ProjectToken> & WithInit) {
       const { noExpire, ...payload } = body
       return fetcher<ProjectToken>(`/api/v1/tokens`, {
@@ -483,9 +515,12 @@ export const api = {
         method: 'POST'
       })
     },
-    async delete({ init, id }: WithInit & Pick<ProjectToken, 'id'>) {
+    async delete({ init, id, projectId }: WithInit & Pick<ProjectToken, 'id'> & { projectId?: string }) {
       return fetcher<ProjectToken>(`/api/v1/tokens/${id}`, {
         ...init,
+        // Deleting from the workspace view: the key may belong to a project other than
+        // the one in the global header, so pin the owning project explicitly.
+        ...(projectId ? { headers: { 'x-project-id': projectId } } : {}),
         method: 'DELETE'
       })
     }
@@ -662,6 +697,30 @@ export const api = {
       return fetcher<GetUserResponse['data']>(`/api/v1/auth/register`, {
         body: JSON.stringify({ login, password }),
         method: 'POST'
+      })
+    },
+    async ssoDiscover({ email }: { email: string } & WithInit): Promise<SsoDiscoverResponse> {
+      return fetcher<SsoDiscoverResponse>(`/api/v1/auth/sso/discover`, {
+        body: JSON.stringify({ email }),
+        method: 'POST'
+      })
+    }
+  },
+  sso: {
+    async list({ id, init }: WithInit & { id: string }): Promise<SsoConfig[]> {
+      return fetcher<SsoConfig[]>(`/api/v1/workspaces/${id}/sso`, { ...init, method: 'GET' })
+    },
+    async upsert({ id, payload, init }: WithInit & { id: string; payload: UpsertSsoConfigPayload }) {
+      return fetcher<SsoConfig>(`/api/v1/workspaces/${id}/sso`, {
+        ...init,
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      })
+    },
+    async remove({ id, configId, init }: WithInit & { id: string; configId: string }) {
+      return fetcher<{ message: string }>(`/api/v1/workspaces/${id}/sso/${configId}`, {
+        ...init,
+        method: 'DELETE'
       })
     }
   },

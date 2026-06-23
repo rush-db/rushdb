@@ -25,6 +25,7 @@ import { AuthUser } from '@/dashboard/user/decorators/user.decorator'
 import { GetUserDto } from '@/dashboard/user/dto/get-user.dto'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
 import { UserService } from '@/dashboard/user/user.service'
+import { ChangeMemberRoleDto } from '@/dashboard/workspace/dto/change-member-role.dto'
 import { CreateWorkspaceDto } from '@/dashboard/workspace/dto/create-workspace.dto'
 import { EditWorkspaceDto } from '@/dashboard/workspace/dto/edit-workspace.dto'
 import { InviteToWorkspaceDto } from '@/dashboard/workspace/dto/invite-to-workspace.dto'
@@ -212,6 +213,33 @@ export class WorkspaceController {
   @HttpCode(HttpStatus.OK)
   async getDeveloperUserList(@Param('id') id: string, @TransactionDecorator() transaction: Transaction) {
     return this.workspaceService.getUserList(id, transaction)
+  }
+
+  @Patch(':id/members/:userId/role')
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'workspace identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiParam({
+    name: 'userId',
+    required: true,
+    description: 'member user identifier (UUIDv7)',
+    type: 'string'
+  })
+  @ApiTags('Workspaces')
+  @ApiBearerAuth()
+  @AuthGuard('workspace', 'owner')
+  @HttpCode(HttpStatus.OK)
+  async changeMemberRole(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Body() { role }: ChangeMemberRoleDto,
+    @AuthUser() { id: requesterId }: IUserClaims,
+    @TransactionDecorator() transaction: Transaction
+  ): Promise<{ message: string }> {
+    return await this.workspaceService.changeMemberRole(id, userId, role, requesterId, transaction)
   }
 
   @Patch(':id/revoke-access')

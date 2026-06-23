@@ -182,12 +182,8 @@ export function ProjectTabs({
       <div className="flex min-h-0 flex-1 flex-col gap-2">
         <PageTabs collapsed={collapsed} variant="sidebar">
           {tabs.flatMap(renderTab)}
+          {helpTab && <PageTab href={helpTab.href} icon={helpTab.icon} label={helpTab.label} />}
         </PageTabs>
-        {helpTab && (
-          <PageTabs className="mt-auto" collapsed={collapsed} variant="sidebar">
-            <PageTab href={helpTab.href} icon={helpTab.icon} label={helpTab.label} />
-          </PageTabs>
-        )}
       </div>
     )
   }

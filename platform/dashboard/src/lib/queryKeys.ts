@@ -13,7 +13,9 @@ export const queryKeys = {
     users: (id: string) => ['workspaces', id, 'users'] as const,
     accessList: (id: string) => ['workspaces', id, 'access-list'] as const,
     pendingInvites: (id: string) => ['workspaces', id, 'pending-invites'] as const,
-    projects: (id: string) => ['workspaces', id, 'projects'] as const
+    projects: (id: string) => ['workspaces', id, 'projects'] as const,
+    tokens: (id: string) => ['workspaces', id, 'tokens'] as const,
+    sso: (id: string) => ['workspaces', id, 'sso'] as const
   },
 
   projects: {

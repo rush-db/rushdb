@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '@nanostores/react'
 
-import type { Workspace } from '~/features/workspaces/types'
+import type { Workspace, WorkspaceRole } from '~/features/workspaces/types'
 import type { InviteToWorkspaceDto, RevokeAccessDto, WorkspaceAccessList } from '~/features/workspaces/types'
 
 import { api } from '~/lib/api'
@@ -106,6 +106,28 @@ export const useRevokeAccessMutation = () => {
       if (!workspaceId) return
       queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.users(workspaceId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.accessList(workspaceId) })
+    }
+  })
+}
+
+export const useChangeMemberRoleMutation = () => {
+  const queryClient = useQueryClient()
+  const workspaceId = useStore($currentWorkspaceId)
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: WorkspaceRole }) => {
+      if (!workspaceId) throw new Error('No workspace selected')
+      return api.workspaces.changeMemberRole({ id: workspaceId, userId, role })
+    },
+    onSuccess() {
+      if (!workspaceId) return
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.users(workspaceId) })
+    },
+    onError(err) {
+      toast({
+        title: 'Could not update member role',
+        description: err instanceof Error ? err.message : '',
+        variant: 'danger'
+      })
     }
   })
 }

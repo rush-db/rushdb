@@ -12,3 +12,9 @@ export type ProjectToken = {
   level?: 'read' | 'write'
   issuedBy?: string // 'manual' | 'oauth_exchange'
 }
+
+// A token as returned by the workspace-wide listing — carries the project it grants
+// access to, since a workspace key list spans every project in the workspace.
+export type WorkspaceToken = ProjectToken & {
+  project: { id: string; name: string }
+}

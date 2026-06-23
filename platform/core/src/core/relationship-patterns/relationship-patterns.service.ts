@@ -159,7 +159,10 @@ export class RelationshipPatternsService {
       id,
       {
         status: 'approved',
-        lastError: null
+        lastError: null,
+        // Clear so the pattern reads as "approved, not yet applied" — the dashboard
+        // renders an "Applying…" state and polls until the background apply sets it.
+        lastAppliedAt: null
       },
       projectId
     )
@@ -167,10 +170,74 @@ export class RelationshipPatternsService {
       return undefined
     }
 
-    await this.applyPatternInFreshTransaction(pattern)
+    // Connecting the matching records is a heavy graph write (batched MERGE over every
+    // matching pair). Run it in the background so the request returns immediately; the
+    // list() endpoint reports progress via lastAppliedAt / lastError.
+    this.scheduleApprovedPatternApply(projectId)
 
-    const appliedPattern = await this.repository.findById(id, projectId)
-    return this.toDto(appliedPattern ?? pattern)
+    return this.toDto(pattern)
+  }
+
+  async approveMany(projectId: string, ids: string[]): Promise<RelationshipPatternDto[]> {
+    const uniqueIds = [...new Set(ids)].filter(Boolean)
+    if (!uniqueIds.length) {
+      return []
+    }
+
+    const updated = await this.repository.approveManyByIds(uniqueIds, projectId)
+
+    if (updated.length) {
+      this.scheduleApprovedPatternApply(projectId)
+    }
+
+    return updated.map((row) => this.toDto(row))
+  }
+
+  /**
+   * Applies approved-but-unapplied patterns for a project in the background, one per
+   * fresh transaction, until none remain. Shares runningApply with the write-path
+   * applyApprovedPatterns so only one apply touches a project's graph at a time —
+   * avoiding concurrent MERGE contention. Re-queries after each pass so patterns
+   * approved mid-run (e.g. a bulk approve) are still picked up. Fire-and-forget:
+   * per-pattern errors are recorded on the row and surfaced through list().
+   */
+  private scheduleApprovedPatternApply(projectId: string): void {
+    if (this.runningApply.has(projectId)) {
+      return
+    }
+    this.runningApply.add(projectId)
+
+    void (async () => {
+      try {
+        for (;;) {
+          const pending = (await this.repository.findApproved(projectId)).filter(
+            (pattern) => !pattern.lastAppliedAt && !pattern.lastError
+          )
+          if (!pending.length) {
+            return
+          }
+          for (const pattern of pending) {
+            try {
+              await this.applyPatternInFreshTransaction(pattern)
+            } catch (error) {
+              // applyPattern already recorded lastError on the row; log and continue
+              // so one failing pattern doesn't stall the rest of the batch.
+              this.logger.error(
+                `[RelationshipPattern] background apply failed for pattern ${pattern.id}`,
+                error
+              )
+            }
+          }
+        }
+      } catch (error) {
+        this.logger.error(
+          `[RelationshipPattern] background apply loop failed for project ${projectId}`,
+          error
+        )
+      } finally {
+        this.runningApply.delete(projectId)
+      }
+    })()
   }
 
   async ignore(projectId: string, id: string): Promise<RelationshipPatternDto | undefined> {
@@ -1117,6 +1184,23 @@ export class RelationshipPatternsService {
           transaction
         })
       }
+
+      // Track KU for the relationships materialized by applying this pattern.
+      // The graph write here is equivalent to creating relationships via import,
+      // which is metered the same way.
+      if (appliedCount > 0) {
+        const workspaceId = (await this.projectRepository.findById(pattern.projectId))?.workspaceId
+        if (workspaceId) {
+          this.kuEventsService.emitBulk(
+            workspaceId,
+            pattern.projectId,
+            KuOperation.RELATIONSHIP_CREATED,
+            appliedCount,
+            { type: pattern.type, mode: pattern.mode, trigger: 'pattern_apply' }
+          )
+        }
+      }
+
       await this.aiService.getOntology({
         projectId: pattern.projectId,
         force: true,

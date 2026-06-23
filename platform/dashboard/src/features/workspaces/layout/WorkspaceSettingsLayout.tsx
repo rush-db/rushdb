@@ -1,6 +1,7 @@
 import { useStore } from '@nanostores/react'
-import { Cable, SettingsIcon, Users } from 'lucide-react'
+import { Cable, KeyRound, SettingsIcon, Users } from 'lucide-react'
 
+import { useCanUseSso } from '~/features/sso/hooks'
 import { $router, getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 
@@ -22,11 +23,19 @@ const SETTINGS_ITEMS = [
     icon: <Cable />,
     label: 'Connected Apps',
     route: 'workspaceConnectedApps'
+  },
+  {
+    href: getRoutePath('workspaceSso'),
+    icon: <KeyRound />,
+    label: 'Single Sign-On',
+    route: 'workspaceSso'
   }
 ] as const
 
 export function WorkspaceSettingsLayout({ children }: { children: React.ReactNode }) {
   const page = useStore($router)
+  const canUseSso = useCanUseSso()
+  const items = SETTINGS_ITEMS.filter((item) => item.route !== 'workspaceSso' || canUseSso)
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -36,7 +45,7 @@ export function WorkspaceSettingsLayout({ children }: { children: React.ReactNod
           <p className="text-content2 mt-1 text-sm leading-6">Manage workspace-wide configuration.</p>
         </div>
         <nav className="flex flex-col gap-1">
-          {SETTINGS_ITEMS.map((item) => {
+          {items.map((item) => {
             const active = page?.route === item.route
             return (
               <a

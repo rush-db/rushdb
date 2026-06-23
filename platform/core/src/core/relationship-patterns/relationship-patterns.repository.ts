@@ -111,6 +111,24 @@ export class RelationshipPatternsRepository {
     return this.findById(id, projectId)
   }
 
+  async approveManyByIds(ids: string[], projectId: string): Promise<RelationshipPatternRow[]> {
+    if (!ids.length) {
+      return []
+    }
+    const scope = and(eq(this.patterns.projectId, projectId), inArray(this.patterns.id, ids))
+    await this.db
+      .update(this.patterns)
+      .set({
+        status: 'approved',
+        lastError: null,
+        // Cleared so each pattern reads as pending-apply; the background drain reapplies.
+        lastAppliedAt: null,
+        updatedAt: new Date().toISOString()
+      })
+      .where(scope)
+    return this.db.select().from(this.patterns).where(scope)
+  }
+
   async deletePattern(id: string, projectId?: string): Promise<void> {
     const where =
       projectId ?

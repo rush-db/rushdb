@@ -17,6 +17,9 @@ export type InsertWorkspaceMemberRow = typeof sqliteSchema.workspaceMembers.$inf
 export type WorkspaceInviteRow = typeof sqliteSchema.workspaceInvites.$inferSelect
 export type InsertWorkspaceInviteRow = typeof sqliteSchema.workspaceInvites.$inferInsert
 
+export type WorkspaceIdentityProviderRow = typeof sqliteSchema.workspaceIdentityProviders.$inferSelect
+export type InsertWorkspaceIdentityProviderRow = typeof sqliteSchema.workspaceIdentityProviders.$inferInsert
+
 export type ProjectRow = typeof sqliteSchema.projects.$inferSelect
 export type InsertProjectRow = typeof sqliteSchema.projects.$inferInsert
 

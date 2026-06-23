@@ -1,4 +1,4 @@
-import { Activity, LayoutDashboard, SettingsIcon, Wallet2 } from 'lucide-react'
+import { Activity, KeyRound, LayoutDashboard, SettingsIcon, Wallet2 } from 'lucide-react'
 
 import { PageTab, PageTabs } from '~/layout/RootLayout/PageTabs'
 import { getRoutePath } from '~/lib/router'
@@ -31,6 +31,11 @@ export function WorkspaceTabs({
 
     if (isOwner) {
       workspaceTabs.push({
+        href: getRoutePath('workspaceApiKeys'),
+        icon: <KeyRound />,
+        label: 'API Keys'
+      })
+      workspaceTabs.push({
         href: getRoutePath('workspaceSettings'),
         icon: <SettingsIcon />,
         label: 'Settings'
@@ -47,7 +52,7 @@ export function WorkspaceTabs({
         {
           href: getRoutePath('workspaceApiUsage'),
           icon: <Activity />,
-          label: 'API Usage'
+          label: 'Usage Stats'
         }
       )
     }

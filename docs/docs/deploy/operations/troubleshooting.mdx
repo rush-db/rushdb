@@ -1,0 +1,124 @@
+---
+title: Troubleshooting
+description: Common RushDB self-hosting failures and how to fix them.
+sidebar_position: 2
+displayed_sidebar: docs
+tags: [Deployment, Self-Hosted, Troubleshooting]
+---
+
+# Troubleshooting
+
+The fastest way to diagnose a self-hosted instance is to read the container logs:
+
+```bash
+docker compose logs -f rushdb
+```
+
+RushDB runs database migrations on boot, then starts the HTTP server. Most
+failures happen during boot and crash-loop the container — the log shows the
+exact reason. Below are the failures self-hosters hit most often.
+
+## RushDB keeps restarting
+
+Check whether it is a boot-time crash:
+
+```bash
+docker compose logs --tail=40 rushdb
+```
+
+Match the error against the sections below.
+
+### `The server does not support SSL connections`
+
+RushDB tried to open an SSL connection to a Postgres that does not offer one
+(common with a bundled/self-managed Postgres on the same network).
+
+RushDB only auto-disables SSL for `localhost` / `127.0.0.1`. When Postgres is
+reached by a Docker service name or private host, set it explicitly:
+
+```bash
+SQL_DB_SSL=false
+```
+
+Managed Postgres (RDS, Cloud SQL, Heroku, etc.) needs SSL — leave it unset (or
+`SQL_DB_SSL=true`) there.
+
+### `Can't find meta/_journal.json file`
+
+The image is missing the bundled SQL migration files. This means you are running
+an outdated image. Pull the latest and recreate:
+
+```bash
+docker compose pull rushdb
+docker compose up -d
+```
+
+Always pin a specific version tag in production (e.g. `rushdb/platform:2.4.1`)
+instead of `latest` so upgrades are deliberate.
+
+### `RUSHDB_AES_256_ENCRYPTION_KEY` errors / tokens fail to decrypt
+
+The key must be **exactly 32 characters**. Generate one with:
+
+```bash
+openssl rand -hex 16
+```
+
+Rotating this key invalidates all existing API tokens and encrypted secrets —
+plan a maintenance window. See [Security](/deploy/configuration/security).
+
+### Neo4j: `Unable to load APOC` / procedures not found
+
+RushDB requires the APOC plugin. With the bundled Neo4j, set:
+
+```yaml
+NEO4J_PLUGINS: '["apoc"]'
+```
+
+With external Neo4j or Aura, install/enable APOC Core on the server. Aura
+includes APOC by default.
+
+## Neo4j connection refused / RushDB can't reach the database
+
+- Confirm `NEO4J_URL` uses the right scheme: `bolt://` (plaintext, in-cluster),
+  `neo4j://` (routing), or `neo4j+s://` (TLS, e.g. Aura).
+- Inside Docker Compose, use the **service name** (`bolt://neo4j:7687`), not
+  `localhost`.
+- Wait for Neo4j to report healthy — first boot (APOC download) can take ~30s.
+  The bundled stack already gates RushDB on a Neo4j health check.
+
+## Dashboard loads but API calls fail / wrong URLs
+
+Set `RUSHDB_BASE_URL` and `RUSHDB_DASHBOARD_URL` to the **public** origin the
+browser uses (e.g. `https://rushdb.example.com`), not `localhost`, when behind a
+reverse proxy or on a remote host.
+
+## Port 3000 already in use
+
+Change the published port without touching the app:
+
+```bash
+RUSHDB_PORT=8080 docker compose up -d
+```
+
+## Health checks
+
+RushDB exposes an unauthenticated liveness endpoint:
+
+```bash
+curl -fsS http://localhost:3000/health    # -> {"status":"ok"}
+```
+
+Use it for container/orchestrator health checks and load-balancer probes. It is
+served at the root (no `/api/v1` prefix).
+
+## Still stuck?
+
+Collect this and open an issue at
+[github.com/rush-db/rushdb](https://github.com/rush-db/rushdb/issues):
+
+```bash
+docker compose logs --tail=200 rushdb > rushdb.log
+docker compose ps
+docker compose images
+```

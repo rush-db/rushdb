@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
-import { ApiModelProperty } from '@nestjs/swagger/dist/decorators/api-model-property.decorator'
+import { ApiProperty as ApiModelProperty } from '@nestjs/swagger'
 import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator'
 
 import { TProjectCustomDbPayload } from '@/dashboard/project/project.types'

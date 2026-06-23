@@ -26,12 +26,16 @@ import {
 import {
   useInviteUserMutation,
   useRevokeAccessMutation,
-  useRemovePendingInviteMutation
+  useRemovePendingInviteMutation,
+  useChangeMemberRoleMutation
 } from '~/features/workspaces/hooks/useWorkspaceMutations'
 import { object, string, useForm } from '~/lib/form'
-import type { PendingInvite } from '~/features/workspaces/types.ts'
+import { Select } from '~/elements/Select'
+import { WORKSPACE_ROLES } from '~/features/workspaces/types.ts'
+import type { PendingInvite, WorkspaceRole, WorkspaceUser } from '~/features/workspaces/types.ts'
 import { getRoutePath } from '~/lib/router.ts'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
+import { useUser } from '~/features/auth/stores/user'
 import { IconButton } from '~/elements/IconButton'
 
 // Custom table components
@@ -213,12 +217,39 @@ function InviteUserDialog({ disabled }: { disabled?: boolean }) {
   )
 }
 
+const ROLE_OPTIONS = WORKSPACE_ROLES.map((role) => ({
+  value: role,
+  label: role.charAt(0).toUpperCase() + role.slice(1)
+}))
+
+function MemberRoleSelect({ user, isSelf }: { user: WorkspaceUser; isSelf?: boolean }) {
+  const { mutateAsync: changeRole, isPending } = useChangeMemberRoleMutation()
+
+  return (
+    <Select
+      options={ROLE_OPTIONS}
+      value={user.role}
+      disabled={isPending || isSelf}
+      size="small"
+      onChange={(event) => {
+        const role = event.target.value as WorkspaceRole
+        if (role !== user.role) {
+          changeRole({ userId: user.id, role })
+        }
+      }}
+      aria-label={`Change role for ${user.login}`}
+      title={isSelf ? 'You cannot change your own role' : undefined}
+    />
+  )
+}
+
 function MembersTable() {
   const { data: users, isPending: loading } = useWorkspaceUsersQuery()
   const { data: invites, isPending: invitesLoading } = useWorkspacePendingInvitesQuery()
   const { data: accessList } = useWorkspaceAccessListQuery()
   const { data: projects } = useWorkspaceProjectsQuery()
   const { data: workspace } = useCurrentWorkspaceQuery()
+  const currentUser = useUser()
   const { mutateAsync: revokeUserAccess } = useRevokeAccessMutation()
   const { mutateAsync: removeInvite } = useRemovePendingInviteMutation()
 
@@ -273,7 +304,9 @@ function MembersTable() {
                   Active
                 </span>
               </TableCell>
-              <TableCell className="font-medium">{user.role}</TableCell>
+              <TableCell className="font-medium">
+                <MemberRoleSelect user={user} isSelf={user.id === currentUser.id} />
+              </TableCell>
               <TableCell>
                 {user.role === 'owner' ?
                   <span className="text-content2 text-xs">All projects</span>

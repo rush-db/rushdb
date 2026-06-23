@@ -1,5 +1,7 @@
 # Dockerfile
-FROM node:18-alpine AS builder
+# Node 22 LTS: required by @nestjs/* v11 (engines: node >=20) and by the
+# native require(ESM) path used for openid-client v6 (SSO).
+FROM node:22-alpine AS builder
 
 # Install pnpm
 RUN npm install -g pnpm@10.1.0
@@ -50,7 +52,7 @@ RUN cp -r platform/dashboard/dist/* platform/core/public/
 RUN cd platform/core && pnpm build
 
 # Production image
-FROM --platform=$TARGETPLATFORM node:18-alpine
+FROM --platform=$TARGETPLATFORM node:22-alpine
 
 ENV NODE_ENV=production \
     RUSHDB_PORT=3000 \
@@ -71,8 +73,12 @@ COPY ./platform/core/package.json ./platform/core/package.json
 # Build deps are needed for native packages such as better-sqlite3 when
 # prebuilt Alpine bindings are unavailable for the target platform.
 RUN npm install -g pnpm@10.1.0
+# NOTE: do NOT pass --no-optional. Some runtime-required native modules ship
+# their per-platform binaries as optionalDependencies (e.g. @css-inline/css-inline
+# pulled in by @nestjs-modules/mailer, and better-sqlite3). Excluding optionals
+# makes the app crash at boot with MODULE_NOT_FOUND.
 RUN apk add --no-cache --virtual .build-deps python3 make g++ \
-    && pnpm install --prod --frozen-lockfile --no-optional --ignore-scripts \
+    && pnpm install --prod --frozen-lockfile --ignore-scripts \
     && cd platform/core \
     && sqlite_pkg_dir="$(dirname "$(node -p "require.resolve('better-sqlite3/package.json')")")" \
     && cd "$sqlite_pkg_dir" \

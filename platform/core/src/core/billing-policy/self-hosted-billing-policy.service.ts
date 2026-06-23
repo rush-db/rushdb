@@ -28,4 +28,12 @@ export class SelfHostedBillingPolicyService implements BillingPolicyPort {
   async assertEmbeddingBatchAllowed(_workspaceId: string, _estimatedKu: number): Promise<void> {
     return
   }
+
+  async isSsoAllowed(_workspaceId: string): Promise<boolean> {
+    return true
+  }
+
+  async assertSsoAllowed(_workspaceId: string): Promise<void> {
+    return
+  }
 }

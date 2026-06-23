@@ -98,6 +98,21 @@ export class UserService {
     }
   }
 
+  /**
+   * Just-in-time user creation for Enterprise SSO. Unlike {@link create}, this
+   * does NOT spin up a personal "Default Workspace" — the caller (SSO service)
+   * is responsible for attaching the user to the IdP's workspace with the
+   * mapped role. The login allowlist is intentionally bypassed because the
+   * verified IdP domain already acts as the allowlist.
+   */
+  async createSsoUser(
+    properties: Omit<TUserProperties, 'id' | 'isEmail'>,
+    transaction?: Transaction
+  ): Promise<User> {
+    const userRow = await this.createUserNode({ ...properties, confirmed: true }, transaction)
+    return this.normalize(userRow)
+  }
+
   async acceptWorkspaceInvitation(
     params: AcceptWorkspaceInvitationParams,
     transaction?: Transaction
@@ -210,7 +225,9 @@ export class UserService {
         settings: userSettings || null,
         status: properties.status,
         googleAuth: properties.googleAuth,
-        githubAuth: properties.githubAuth
+        githubAuth: properties.githubAuth,
+        samlAuth: properties.samlAuth,
+        oidcAuth: properties.oidcAuth
       })
     } catch {
       throw new ConflictException('Provided email is registered already')
@@ -245,6 +262,8 @@ export class UserService {
       lastActivity: 'lastActivity',
       googleAuth: 'googleAuth',
       githubAuth: 'githubAuth',
+      samlAuth: 'samlAuth',
+      oidcAuth: 'oidcAuth',
       password: 'password',
       deletedDate: 'deletedDate'
     }

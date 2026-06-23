@@ -16,6 +16,28 @@ Use provider templates only when they remove real platform work: cloud-init for 
 
 For Vercel and Netlify, deploy the application that **uses** RushDB there, and point it at RushDB Cloud or a self-hosted RushDB API URL. They are not a good fit for hosting RushDB itself.
 
+## Quickstart: full stack in one command
+
+The fastest path to a running RushDB. This bundle includes everything — RushDB, Neo4j (with APOC), and Postgres — so no external database is required.
+
+```bash
+git clone https://github.com/rush-db/rushdb
+cd rushdb/deploy
+./install.sh
+```
+
+`install.sh` generates strong secrets into a local `.env` (nothing ships with default passwords), starts the stack, and prints your dashboard URL and admin credentials. First boot takes ~30s while Neo4j downloads APOC.
+
+Prefer to drive Compose yourself:
+
+```bash
+cd rushdb/deploy/templates/docker-compose
+cp .env.full.example .env   # edit and set strong secrets
+docker compose -f compose.full.yaml up -d
+```
+
+The bundled stack is ideal for evaluation and single-node deployments. For production, use managed Neo4j (Aura) plus a provider template below or the [Helm chart](/deploy/local-hosting/helm).
+
 ## Mandatory Environment
 
 Every template must provide these variables before the first production boot:
@@ -86,6 +108,42 @@ Use the Hetzner cloud-init template as server user data when creating an Ubuntu 
 />
 
 Recommended server size: at least 2 vCPU and 4 GB RAM. Before production traffic, SSH into the server and set every variable in [Mandatory Environment](#mandatory-environment), especially `RUSHDB_PASSWORD`, `RUSHDB_AES_256_ENCRYPTION_KEY`, `NEO4J_URL`, `NEO4J_PASSWORD`, and `POSTGRES_PASSWORD`.
+
+## Coolify
+
+[Coolify](https://coolify.io) deploys the full bundled stack (RushDB + Neo4j + Postgres) as a single Docker Compose resource — the nicest one-click path for self-hosters. Create a **Docker Compose** resource, point it at `deploy/templates/docker-compose/compose.full.yaml`, set your secrets, attach a domain to the `rushdb` service on port `3000`, and deploy.
+
+<DeployButtonGroup
+  buttons={[
+    {
+      label: 'Coolify guide',
+      href: 'https://github.com/rush-db/rushdb/blob/main/deploy/templates/coolify/README.md',
+      variant: 'primary'
+    },
+    {
+      label: 'View compose',
+      href: 'https://github.com/rush-db/rushdb/blob/main/deploy/templates/docker-compose/compose.full.yaml'
+    }
+  ]}
+/>
+
+## Dokploy
+
+[Dokploy](https://dokploy.com) runs the same full bundled stack as a Compose service. Create a **Compose** service from the repo with the Compose path `deploy/templates/docker-compose/compose.full.yaml`, set secrets, add a domain to the `rushdb` service on port `3000`, and deploy.
+
+<DeployButtonGroup
+  buttons={[
+    {
+      label: 'Dokploy guide',
+      href: 'https://github.com/rush-db/rushdb/blob/main/deploy/templates/dokploy/README.md',
+      variant: 'primary'
+    },
+    {
+      label: 'View compose',
+      href: 'https://github.com/rush-db/rushdb/blob/main/deploy/templates/docker-compose/compose.full.yaml'
+    }
+  ]}
+/>
 
 ## Infomaniak Jelastic
 

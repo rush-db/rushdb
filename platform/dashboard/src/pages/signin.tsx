@@ -7,12 +7,13 @@ import { GithubButton } from '~/features/auth/components/GitHubButton'
 import { GoogleButton } from '~/features/auth/components/GoogleButton'
 import { logIn } from '~/features/auth/stores/auth'
 import { AuthLayout } from '~/layout/AuthLayout'
+import { api } from '~/lib/api'
 import { FetchError } from '~/lib/fetcher'
 import { object, string, useForm } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
-import { LogIn } from 'lucide-react'
+import { KeyRound, LogIn } from 'lucide-react'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Spinner } from '~/elements/Spinner.tsx'
 import { $inviteToken } from '~/features/workspaces/stores/invite.ts'
 import type { SubmitHandler } from 'react-hook-form'
@@ -96,6 +97,58 @@ function SignInForm() {
   )
 }
 
+function SsoSignIn() {
+  const [open, setOpen] = useState(false)
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string>()
+
+  const handleContinue = async () => {
+    setLoading(true)
+    setError(undefined)
+    try {
+      const result = await api.auth.ssoDiscover({ email })
+      if (result.ssoAvailable && result.loginUrl) {
+        window.location.href = result.loginUrl
+      } else {
+        setError('No SSO provider is configured for this email domain.')
+      }
+    } catch {
+      setError('Could not start SSO sign-in. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <Button size="large" variant="outline" onClick={() => setOpen(true)} className="w-full">
+        <KeyRound /> Sign in with SSO
+      </Button>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <TextField
+        label="Work email"
+        placeholder="you@company.com"
+        type="email"
+        autoFocus
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        error={error}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') handleContinue()
+        }}
+      />
+      <Button size="large" variant="accent" loading={loading} disabled={!email} onClick={handleContinue}>
+        Continue with SSO
+      </Button>
+    </div>
+  )
+}
+
 export function SignInPage() {
   const invite = useStore($inviteToken)
   const { data: platformSettings, isPending } = usePlatformSettings()
@@ -139,6 +192,9 @@ export function SignInPage() {
       : null}
 
       <SignInForm />
+      <Divider />
+
+      <SsoSignIn />
       <Divider />
 
       <Button as="a" href={getRoutePath('signup')} size="large" variant="ghost">

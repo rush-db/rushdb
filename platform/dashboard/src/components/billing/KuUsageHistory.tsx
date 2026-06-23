@@ -205,7 +205,7 @@ function KuUsageBar({ usage }: { usage: UsageData }) {
         : remaining !== null ?
           <span className="text-content3">{formatKu(remaining)} KU remaining</span>
         : <span className="text-content3">Usage tracked</span>}
-        <span className="text-content3">{pct.toFixed(1)}%</span>
+        <span className="text-content3">{pct.toFixed(0)}%</span>
       </div>
     </div>
   )
@@ -652,7 +652,7 @@ export function KuUsageHistory() {
                           day: 'numeric'
                         })}
                       </div>
-                      <div className="font-mono font-semibold">{day.ku.toFixed(2)} KU</div>
+                      <div className="font-mono font-semibold">{day.ku.toFixed(0)} KU</div>
                     </div>
                   </Tooltip>
                   <div className="text-content3 text-xs">
@@ -705,7 +705,7 @@ export function KuUsageHistory() {
                   </div>
                   <div className="ml-4 text-right">
                     <div className="text-accent font-mono font-semibold">
-                      {event.kuConsumed.toFixed(3)} KU
+                      {event.kuConsumed.toFixed(0)} KU
                     </div>
                   </div>
                 </div>

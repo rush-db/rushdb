@@ -18,6 +18,7 @@ const publicRoutes = {
   signup: '/signup',
   googleAuth: '/auth/google/:token?',
   githubAuth: '/auth/github/:token?',
+  ssoAuth: '/auth/sso',
   oauthConsent: '/oauth/consent'
 } as const
 
@@ -43,10 +44,12 @@ const protectedRoutes = {
   workspaceSettings: '/workspace-settings',
   workspaceUsers: '/workspace-users',
   workspaceConnectedApps: '/workspace-settings/connected-apps',
+  workspaceSso: '/workspace-settings/sso',
   joinWorkspace: '/join-workspace',
   projects: '/',
   workspaceBilling: '/billing',
   workspaceApiUsage: '/api-usage',
+  workspaceApiKeys: '/api-keys',
   profile: '/profile',
   profileSecurity: '/profile/security',
   ...projectRoutes

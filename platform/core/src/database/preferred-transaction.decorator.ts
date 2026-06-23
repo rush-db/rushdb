@@ -1,8 +1,8 @@
 import { BadRequestException, createParamDecorator, ExecutionContext, Logger } from '@nestjs/common'
 import { Transaction } from 'neo4j-driver'
 
-export const PreferredTransactionDecorator = createParamDecorator<unknown, ExecutionContext, Transaction>(
-  (data, ctx) => {
+export const PreferredTransactionDecorator = createParamDecorator<unknown, Transaction>(
+  (data, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest()
 
     if (!request.raw.userDefinedTransaction && !request.raw.transaction && !request.raw.externalTransaction) {

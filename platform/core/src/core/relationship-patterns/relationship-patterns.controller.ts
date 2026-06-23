@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -47,6 +48,16 @@ export class RelationshipPatternsController {
   async analyze(@Request() request: PlatformRequest): Promise<{ queued: true }> {
     await this.relationshipPatternsService.forceAnalysis(request.projectId, request.workspaceId)
     return { queued: true }
+  }
+
+  @Post('/approve')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  async approveMany(
+    @Body() body: { ids?: string[] },
+    @Request() request: PlatformRequest
+  ): Promise<RelationshipPatternDto[]> {
+    return this.relationshipPatternsService.approveMany(request.projectId, body?.ids ?? [])
   }
 
   @Post('/:id/approve')

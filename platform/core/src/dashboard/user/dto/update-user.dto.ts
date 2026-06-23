@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger'
-import { ApiModelProperty } from '@nestjs/swagger/dist/decorators/api-model-property.decorator'
+import { ApiProperty as ApiModelProperty } from '@nestjs/swagger'
 
 // @TODO: Optional Props and more options
 export class UpdateUserDto {
