@@ -1,5 +1,16 @@
 # @rushdb/mcp-server
 
+## 2.5.0
+
+### Minor Changes
+
+- 58c6a45: Add SSO auth path
+
+### Patch Changes
+
+- Updated dependencies [58c6a45]
+  - @rushdb/javascript-sdk@2.5.0
+
 ## 2.4.1
 
 ### Patch Changes
