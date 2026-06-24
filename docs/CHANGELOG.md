@@ -1,5 +1,12 @@
 # rushdb-docs
 
+## 2.5.1
+
+### Patch Changes
+
+- 1736715: Update login and onboarding
+- e04be41: Fix docker image build issues
+
 ## 2.5.0
 
 ### Minor Changes
