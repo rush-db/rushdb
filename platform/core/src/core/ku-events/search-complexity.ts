@@ -63,14 +63,46 @@ export function getWhereNestingDepth(where: unknown, currentDepth = 0): number {
 }
 
 /**
+ * Aggregation operators that make a `select` expression compute-heavy.
+ *
+ * These reduce or fan out over a set of rows / sub-records. Plain field
+ * references (`"$record.name"`), literals, `$ref`, scalar arithmetic
+ * (`$add`/`$subtract`/…), and `$timeBucket` are per-row transforms and are
+ * NOT heavy — a `select` containing only those is just column projection.
+ */
+const AGGREGATION_OPERATORS = ['$sum', '$avg', '$count', '$min', '$max', '$collect']
+
+/**
+ * Recursively returns true if any `select` expression contains an aggregation
+ * operator (possibly nested inside arithmetic, e.g. `{ $add: [{ $sum: … }, 1] }`).
+ */
+function selectHasAggregation(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(selectHasAggregation)
+  }
+
+  return Object.entries(value as Record<string, unknown>).some(
+    ([key, child]) => AGGREGATION_OPERATORS.includes(key) || selectHasAggregation(child)
+  )
+}
+
+/**
  * Returns true if the search query is considered "compute-heavy" for the
  * purpose of KU tracking on a shared (RushDB-managed) Neo4j instance.
  *
  * A search is heavy when it involves:
- *  - Any aggregation (`aggregate` map is non-empty), OR
+ *  - An aggregation expression in `select` ($sum/$avg/$count/$min/$max/$collect),
+ *    or a non-empty legacy `aggregate` map, OR
  *  - A `groupBy` clause (implicit aggregation), OR
  *  - Relationship traversal depth > 2 in the `where` clause
  *    (depth ≤ 2 is considered normal and is not charged)
+ *
+ * A `select` that only projects fields (e.g. `{ name: '$record.name' }`) is
+ * NOT heavy — it is ordinary column selection on a record list.
  *
  * This function must NOT be called for external-DB projects
  * (`project.customDb` is set) — callers are responsible for
@@ -80,7 +112,7 @@ export function isHeavySearch(
   searchQuery: Partial<Pick<SearchDto, 'select' | 'aggregate' | 'where' | 'groupBy'>>
 ): boolean {
   const hasAggregations =
-    (!!searchQuery.select && Object.keys(searchQuery.select).length > 0) ||
+    selectHasAggregation(searchQuery.select) ||
     (!!searchQuery.aggregate && Object.keys(searchQuery.aggregate).length > 0)
   const hasGroupBy = Array.isArray(searchQuery.groupBy) && searchQuery.groupBy.length > 0
   const nestingDepth = getWhereNestingDepth(searchQuery.where)

@@ -87,6 +87,43 @@ async function bootstrap() {
 
   app.useGlobalFilters(new GlobalExceptionFilter(transactionService))
 
+  // Initialise explicitly so @nestjs/platform-fastify registers its own
+  // application/json and application/x-www-form-urlencoded parsers first
+  // (it marks them registered, so we must not pre-register or it throws
+  // FST_ERR_CTP_ALREADY_PRESENT). init() does not boot Fastify (no ready()),
+  // so content-type parsers can still be swapped before listen().
+  await app.init()
+
+  // Fastify 5's built-in application/json parser rejects an empty body with
+  // "Body cannot be empty when content-type is set to 'application/json'",
+  // returning 400 before the route handler runs. Clients (the published SDK
+  // and the dashboard) send bodyless requests — e.g. DELETE /projects/:id —
+  // that still carry a `Content-Type: application/json` header, which broke
+  // after the Fastify 4 → 5 upgrade. Replace ONLY the json parser so an empty
+  // body is parsed as `undefined` (no body) instead of erroring; non-empty
+  // bodies are still strictly JSON-parsed, and endpoints that require a body
+  // continue to be enforced by their validation pipes. The urlencoded parser
+  // (used by the SAML HTTP-POST binding) is left untouched.
+  const fastifyInstance = fastifyAdapter.getInstance()
+  fastifyInstance.removeContentTypeParser('application/json')
+  fastifyInstance.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_req, body: string | Buffer, done) => {
+      const raw = typeof body === 'string' ? body : body.toString()
+      if (raw.trim() === '') {
+        done(null, undefined)
+        return
+      }
+      try {
+        done(null, JSON.parse(raw))
+      } catch (err) {
+        ;(err as Error & { statusCode?: number }).statusCode = 400
+        done(err as Error, undefined)
+      }
+    }
+  )
+
   await app.listen(process.env['RUSHDB_PORT'] || process.env['PORT'] || 3000, '0.0.0.0')
 }
 

@@ -38,6 +38,17 @@ import { join } from 'path'
         ServeStaticModule.forRoot({
           rootPath: join(__dirname, '..', 'public'),
           renderPath: '/*',
+          // Fastify loader only: the catch-all renderFn serves the SPA index.html
+          // ONLY when serveStaticOptions.fallthrough is true; otherwise it returns
+          // 404. Without this, hard-reloading any non-root client route (e.g.
+          // /projects/abc) 404s because no matching static file exists and the
+          // fallback refuses to serve index.html. (The Express loader didn't gate
+          // on this; the Nest 11 / @nestjs/serve-static v5 Fastify loader does.)
+          serveStaticOptions: { fallthrough: true },
+          // NOTE: `exclude` is honored by the Express loader only — the Fastify
+          // loader ignores it. API routes are real registered routes under the
+          // `api/v1` global prefix, so find-my-way matches them before the `/*`
+          // wildcard; the SPA fallback only catches unrouted (client) paths.
           exclude: ['/api*', '/health']
         })
       ]
