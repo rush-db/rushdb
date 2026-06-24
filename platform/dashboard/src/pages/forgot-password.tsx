@@ -27,7 +27,7 @@ function SendPasswordForm() {
   const onSubmit = async ({ email }: { email?: string }) => {
     try {
       await mutateAsync({ email })
-    } catch (error) {
+    } catch {
       setError('email', { message: "Couldn't send a link to that address" })
     }
   }
@@ -81,7 +81,7 @@ function ChangePasswordForm({ token }: { token: string }) {
         token,
         password
       })
-    } catch (error) {
+    } catch {
       setError('login', { message: "Couldn't send a link to that address" })
     }
   }
@@ -137,7 +137,11 @@ export function PasswordRecoveryPage() {
   const { token } = searchParams
 
   return (
-    <AuthLayout title={'Recover your RushDB account'} type="recover">
+    <AuthLayout
+      title={'Reset your password'}
+      subtitle={'We’ll help you get back into your account'}
+      type="recover"
+    >
       {token ?
         <ChangePasswordForm token={token} />
       : <SendPasswordForm />}

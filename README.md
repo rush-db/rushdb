@@ -6,8 +6,8 @@
 
 ### The memory layer for AI agents and apps.
 
-Push any JSON. Your agent gets graph relationships, semantic search, and a live queryable schema — automatically.
-No pipeline. No separate stores. No schema planning.
+Push any JSON. Your agent gets a live ontology, graph relationships, and semantic search — inferred automatically.
+No pipeline. No separate stores. No schema or ontology modeling.
 
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
@@ -172,17 +172,18 @@ Place this in your Claude Desktop, Cursor, or Windsurf MCP config. The agent can
 
 ## What's in the box
 
-| Capability                      | What it means                                                                                                                     |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Managed embeddings**          | Index any string property once — every write is auto-embedded server-side                                                         |
-| **Graph + vector in one query** | Semantic similarity and relationship traversal compose in a single call                                                           |
-| **Zero schema**                 | Push any JSON shape. RushDB infers types, creates properties, links records                                                       |
-| **ACID transactions**           | Concurrent agents don't corrupt shared memory. Neo4j under the hood                                                               |
-| **Self-describing graph**       | Agents enumerate labels, properties, and value ranges to orient themselves                                                        |
-| **MCP-native**                  | Full MCP server with discovery-first query prompt built in                                                                        |
-| **Agent Skills**                | Installable `@rushdb/skills` package — teach any skills-compatible agent to query, model, and remember with RushDB in one command |
-| **Unified query API**           | One JSON shape for graph, vector, aggregation, and introspection                                                                  |
-| **Self-host or cloud**          | Docker + your Neo4j, or managed cloud. Full data ownership                                                                        |
+| Capability                      | What it means                                                                                                                                         |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Managed embeddings**          | Index any string property once — every write is auto-embedded server-side                                                                             |
+| **Graph + vector in one query** | Semantic similarity and relationship traversal compose in a single call                                                                               |
+| **Zero schema**                 | Push any JSON shape. RushDB infers types, creates properties, links records                                                                           |
+| **Inferred ontology**           | Properties become first-class nodes — types, labels, and relationships are discovered on write, so a queryable ontology builds itself as data arrives |
+| **ACID transactions**           | Concurrent agents don't corrupt shared memory. Neo4j under the hood                                                                                   |
+| **Self-describing ontology**    | Agents introspect the inferred ontology — labels, properties, value ranges — to know what they can safely query                                       |
+| **MCP-native**                  | Full MCP server with discovery-first query prompt built in                                                                                            |
+| **Agent Skills**                | Installable `@rushdb/skills` package — teach any skills-compatible agent to query, model, and remember with RushDB in one command                     |
+| **Unified query API**           | One JSON shape for graph, vector, aggregation, and introspection                                                                                      |
+| **Self-host or cloud**          | Docker + your Neo4j, or managed cloud. Full data ownership                                                                                            |
 
 ---
 
@@ -291,6 +292,7 @@ RushDB uses a **Labeled Meta Property Graph (LMPG)** model. Properties are eleva
 
 This means:
 
+- **Ontology without upfront design** — because properties are graph nodes, the schema _is_ an ontology: labels, types, value ranges, and relationship topology are inferred on write and queryable immediately — no manual ontology engineering, no RDF/OWL toolchain
 - **Auto-detected relationships** — records sharing properties get linked without hand-crafting edges
 - **Schema introspection** — agents can enumerate labels, property types, value ranges, and relationship topology in one query
 - **Soft constraints** — type cohesion scoring, cardinality tracking, and vector dimension enforcement without rigid upfront schemas

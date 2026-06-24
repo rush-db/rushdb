@@ -108,7 +108,7 @@ export function SignUpPage() {
 
   if (loading) {
     return (
-      <AuthLayout title={'Sign in to RushDB'} type="signin">
+      <AuthLayout title={'Create your account'} subtitle={'Get started with RushDB'} type="signup">
         <div className="m-auto flex content-center items-center justify-between">
           <Spinner />
         </div>
@@ -117,7 +117,7 @@ export function SignUpPage() {
   }
 
   return (
-    <AuthLayout title={'Create new RushDB account'} type="signup">
+    <AuthLayout title={'Create your account'} subtitle={'Get started with RushDB'} type="signup">
       {hasOauth ?
         <>
           <div className="flex w-full justify-between gap-2">

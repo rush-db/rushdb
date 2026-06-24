@@ -28,9 +28,15 @@ export function CustomTooltip({
   return (
     <div {...tooltipProps} className="bg-fill3 text-content relative max-w-sm rounded-lg p-6 shadow-lg">
       {!waitForManualAction && (
+        // The X dismisses onboarding entirely — same as Skip. It spreads
+        // skipProps (not closeProps) so react-joyride emits STATUS.SKIPPED,
+        // which OnboardingTour persists as onboardingStatus: 'skipped' and
+        // stops the tour. closeProps alone is swallowed by the controlled
+        // stepIndex/run and does nothing. Falls back to closeProps if the
+        // skip button is ever disabled.
         <IconButton
-          {...closeProps}
-          aria-label="Close tour"
+          {...(skipProps ?? closeProps)}
+          aria-label="Skip tour"
           variant="ghost"
           className="text-content2 absolute right-2 top-2"
           size="small"
