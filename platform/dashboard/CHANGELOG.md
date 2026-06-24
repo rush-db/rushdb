@@ -1,5 +1,15 @@
 # rushdb-dashboard
 
+## 2.5.1
+
+### Patch Changes
+
+- 1736715: Update login and onboarding
+- e04be41: Fix docker image build issues
+- Updated dependencies [1736715]
+- Updated dependencies [e04be41]
+  - @rushdb/javascript-sdk@2.5.1
+
 ## 2.5.0
 
 ### Minor Changes
