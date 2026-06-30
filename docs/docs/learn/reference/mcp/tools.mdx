@@ -21,17 +21,17 @@ An asterisk marks a required input.
 
 ## Discovery and Properties
 
-| Tool                    | Level       | Main inputs                                            | Purpose                                                                             |
-| ----------------------- | ----------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `getOntologyMarkdown`   | Read        | `labels?`, `force?`                                    | Return the complete graph ontology as compact Markdown. Call once at session start. |
-| `getOntology`           | Read        | `labels?`, `force?`                                    | Return structured ontology JSON, including property IDs and vector indexes.         |
-| `findLabels`            | Read        | `where?`, `limit?`, `skip?`, `orderBy?`                | List or filter record labels and counts.                                            |
-| `findProperties`        | Read        | `where?`, `limit?`, `skip?`, `orderBy?`                | Discover property names, types, IDs, and record counts.                             |
-| `findPropertyById`      | Read        | `propertyId*`                                          | Fetch metadata for one property.                                                    |
-| `propertyValues`        | Read        | `propertyId*`, `query?`, `orderBy?`, `limit?`, `skip?` | Return numeric or date ranges, or distinct string and boolean values.               |
-| `deleteProperty`        | Destructive | `propertyId*`                                          | Permanently remove a property and its values from all records.                      |
-| `getSearchQuerySpec`    | Read        | none                                                   | Return the complete SearchQuery syntax reference.                                   |
-| `getQueryBuilderPrompt` | Read        | none                                                   | Return the built-in discovery-first query builder prompt.                           |
+| Tool                    | Level       | Main inputs                                            | Purpose                                                                           |
+| ----------------------- | ----------- | ------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `getSchemaMarkdown`     | Read        | `labels?`, `force?`                                    | Return the complete graph schema as compact Markdown. Call once at session start. |
+| `getSchema`             | Read        | `labels?`, `force?`                                    | Return structured schema JSON, including property IDs and vector indexes.         |
+| `findLabels`            | Read        | `where?`, `limit?`, `skip?`, `orderBy?`                | List or filter record labels and counts.                                          |
+| `findProperties`        | Read        | `where?`, `limit?`, `skip?`, `orderBy?`                | Discover property names, types, IDs, and record counts.                           |
+| `findPropertyById`      | Read        | `propertyId*`                                          | Fetch metadata for one property.                                                  |
+| `propertyValues`        | Read        | `propertyId*`, `query?`, `orderBy?`, `limit?`, `skip?` | Return numeric or date ranges, or distinct string and boolean values.             |
+| `deleteProperty`        | Destructive | `propertyId*`                                          | Permanently remove a property and its values from all records.                    |
+| `getSearchQuerySpec`    | Read        | none                                                   | Return the complete SearchQuery syntax reference.                                 |
+| `getQueryBuilderPrompt` | Read        | none                                                   | Return the built-in discovery-first query builder prompt.                         |
 
 ## Records
 
@@ -61,13 +61,13 @@ An asterisk marks a required input.
 
 ## Suggested Relationship Patterns
 
-| Tool                          | Level       | Main inputs              | Purpose                                                                       |
-| ----------------------------- | ----------- | ------------------------ | ----------------------------------------------------------------------------- |
-| `listRelationshipPatterns`    | Read        | none                     | List inferred patterns, ontology relationship summaries, and analysis status. |
-| `analyzeRelationshipPatterns` | Write       | none                     | Queue ontology analysis. This may invoke the configured LLM.                  |
-| `approveRelationshipPattern`  | Write       | `id*`                    | Approve and apply a suggested pattern.                                        |
-| `ignoreRelationshipPattern`   | Write       | `id*`                    | Ignore a suggested pattern without applying it.                               |
-| `deleteRelationshipPattern`   | Destructive | `id*`, `deleteExisting?` | Delete a stored pattern and optionally its materialized relationships.        |
+| Tool                          | Level       | Main inputs              | Purpose                                                                     |
+| ----------------------------- | ----------- | ------------------------ | --------------------------------------------------------------------------- |
+| `listRelationshipPatterns`    | Read        | none                     | List inferred patterns, schema relationship summaries, and analysis status. |
+| `analyzeRelationshipPatterns` | Write       | none                     | Queue schema analysis. This may invoke the configured LLM.                  |
+| `approveRelationshipPattern`  | Write       | `id*`                    | Approve and apply a suggested pattern.                                      |
+| `ignoreRelationshipPattern`   | Write       | `id*`                    | Ignore a suggested pattern without applying it.                             |
+| `deleteRelationshipPattern`   | Destructive | `id*`, `deleteExisting?` | Delete a stored pattern and optionally its materialized relationships.      |
 
 See [Suggested Relationship Patterns](/learn/relationships/suggested-patterns) for lifecycle details and REST and SDK examples.
 
@@ -90,7 +90,7 @@ See [Suggested Relationship Patterns](/learn/relationships/suggested-patterns) f
 
 ## Query Rules
 
-- Never guess labels or property names. Start with `getOntologyMarkdown`.
+- Never guess labels or property names. Start with `getSchemaMarkdown`.
 - Call `getSearchQuerySpec` before complex `findRecords` queries.
 - Do not pass `limit` with `select`; it restricts the record scan and produces incorrect metrics.
 - For a simple count, read `total` from `findRecords`.

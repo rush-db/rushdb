@@ -1,14 +1,14 @@
 ---
 sidebar_position: 22
-title: 'Agent-Safe Query Planning with Ontology First'
-description: A repeatable agent pattern — ontology first, query spec second, constrained execution, and failure recovery when labels or fields are wrong.
+title: 'Agent-Safe Query Planning with Schema First'
+description: A repeatable agent pattern — schema first, query spec second, constrained execution, and failure recovery when labels or fields are wrong.
 tags: [MCP, Agents, SearchQuery, TypeScript, Python]
 ---
 
 import Tabs from '@site/src/components/LanguageTabs'
 import TabItem from '@theme/TabItem'
 
-# Agent-Safe Query Planning with Ontology First
+# Agent-Safe Query Planning with Schema First
 
 LLMs that interact with databases without schema grounding make mistakes that are hard to catch: they invent label names, assume property shapes, and produce queries that return zero results or subtly wrong ones.
 
@@ -20,10 +20,10 @@ The fix is a disciplined execution loop: load the schema first, learn the query 
 
 ```mermaid
 flowchart TD
-  A([Start]) --> B[Load ontology\ngetOntologyMarkdown]
+  A([Start]) --> B[Load schema\ngetSchemaMarkdown]
   B --> C[Load query spec\ngetSearchQuerySpec]
   C --> D{Labels and properties\nknown?}
-  D -- No --> E[Re-check ontology\nRefine label names]
+  D -- No --> E[Re-check schema\nRefine label names]
   E --> D
   D -- Yes --> F[Build query from\nvalidated params]
   F --> G[Execute query\nfindRecords]
@@ -37,9 +37,9 @@ Every agent session that touches RushDB should follow this shape.
 
 ---
 
-## Step 1: Load and ground on the ontology
+## Step 1: Load and ground on the schema
 
-At the start of every agent session, fetch the ontology and store the exact label and property names observed.
+At the start of every agent session, fetch the schema and store the exact label and property names observed.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -50,13 +50,13 @@ import RushDB from '@rushdb/javascript-sdk'
 const db = new RushDB(process.env.RUSHDB_API_KEY!)
 
 // The agent calls this at the start of every session
-async function loadOntology() {
-  const md = await db.ai.getOntologyMarkdown()
+async function loadSchema() {
+  const md = await db.ai.getSchemaMarkdown()
   // Pass this markdown to the LLM as part of its system context
   return md
 }
 
-const schemaContext = await loadOntology()
+const schemaContext = await loadSchema()
 // console.log(schemaContext) — shows all labels, properties, types
 ```
 
@@ -70,12 +70,12 @@ import os
 db = RushDB(os.environ["RUSHDB_API_KEY"], base_url="https://api.rushdb.com/api/v1")
 
 
-def load_ontology() -> str:
-    """Returns ontology markdown for injecting into agent system prompt."""
-    return db.ai.get_ontology_markdown()
+def load_schema() -> str:
+    """Returns schema markdown for injecting into agent system prompt."""
+    return db.ai.get_schema_markdown()
 
 
-schema_context = load_ontology()
+schema_context = load_schema()
 ```
 
 </TabItem>
@@ -86,8 +86,8 @@ BASE="https://api.rushdb.com/api/v1"
 TOKEN="RUSHDB_API_KEY"
 H='Content-Type: application/json'
 
-# Fetch markdown ontology for LLM context
-curl -s -X POST "$BASE/ai/ontology/md" \
+# Fetch markdown schema for LLM context
+curl -s -X POST "$BASE/ai/schema/md" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
   -d '{}'
 ```
@@ -99,19 +99,19 @@ curl -s -X POST "$BASE/ai/ontology/md" \
 
 ## Step 2: Validate label names before querying
 
-When the agent generates a query, validate that every label in `labels` and `where` appears in the ontology before executing.
+When the agent generates a query, validate that every label in `labels` and `where` appears in the schema before executing.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-type OntologyLabel = { name: string; properties: string[] }
+type SchemaLabel = { name: string; properties: string[] }
 
-function extractLabels(ontology: any): Set<string> {
-  // Ontology structure varies — read the keys from getOntology() result
+function extractLabels(schema: any): Set<string> {
+  // Schema structure varies — read the keys from getSchema() result
   const labelSet = new Set<string>()
-  if (Array.isArray(ontology)) {
-    for (const entry of ontology) {
+  if (Array.isArray(schema)) {
+    for (const entry of schema) {
       if (entry.label) labelSet.add(entry.label)
     }
   }
@@ -119,8 +119,8 @@ function extractLabels(ontology: any): Set<string> {
 }
 
 async function safeFind(query: Parameters<typeof db.records.find>[0]) {
-  const ontologyResult = await db.ai.getOntology()
-  const knownLabels = extractLabels(ontologyResult)
+  const schemaResult = await db.ai.getSchema()
+  const knownLabels = extractLabels(schemaResult)
 
   // Validate labels array
   const requestedLabels = query.labels ?? []
@@ -137,14 +137,14 @@ async function safeFind(query: Parameters<typeof db.records.find>[0]) {
 // Usage
 try {
   const result = await safeFind({
-    labels: ['CUSTOMER'], // validated against ontology
+    labels: ['CUSTOMER'], // validated against schema
     where: { status: 'active' },
     limit: 10
   })
   console.log(result.data)
 } catch (err) {
   console.error(err)
-  // Agent: re-check ontology, pick correct label, retry
+  // Agent: re-check schema, pick correct label, retry
 }
 ```
 
@@ -152,18 +152,18 @@ try {
 <TabItem value="python" label="Python">
 
 ```python
-def extract_labels(ontology) -> set:
+def extract_labels(schema) -> set:
     labels = set()
-    if isinstance(ontology, list):
-        for entry in ontology:
+    if isinstance(schema, list):
+        for entry in schema:
             if "label" in entry:
                 labels.add(entry["label"])
     return labels
 
 
 def safe_find(query: dict) -> object:
-    ontology = db.ai.get_ontology()
-    known_labels = extract_labels(ontology)
+    schema = db.ai.get_schema()
+    known_labels = extract_labels(schema)
 
     requested_labels = query.get("labels", [])
     unknown = [l for l in requested_labels if l not in known_labels]
@@ -178,15 +178,15 @@ try:
     result = safe_find({"labels": ["CUSTOMER"], "where": {"status": "active"}, "limit": 10})
 except ValueError as e:
     print(e)
-    # Agent: re-check ontology, pick correct label, retry
+    # Agent: re-check schema, pick correct label, retry
 ```
 
 </TabItem>
 <TabItem value="shell" label="Shell">
 
 ```bash
-# Get ontology to verify label before querying
-LABELS=$(curl -s -X POST "$BASE/ai/ontology" \
+# Get schema to verify label before querying
+LABELS=$(curl -s -X POST "$BASE/ai/schema" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
   -d '{}' | jq '[.[].label]')
 echo "Known labels: $LABELS"
@@ -307,7 +307,7 @@ curl -s -X POST "$BASE/records/search" \
 
 ## Step 4: Use the MCP query builder prompt in agent sessions
 
-RushDB's MCP server provides a `getQueryBuilderPrompt` tool that returns a system prompt enforcing ontology-first behavior. Inject it into your agent's system message.
+RushDB's MCP server provides a `getQueryBuilderPrompt` tool that returns a system prompt enforcing schema-first behavior. Inject it into your agent's system message.
 
 **In Claude or Cursor:**
 
@@ -323,13 +323,13 @@ Use the getQueryBuilderPrompt tool to load your operating instructions before ma
 ```typescript
 // For agents that call the MCP server programmatically
 // The query builder prompt is returned by the getQueryBuilderPrompt MCP tool
-// Inject it as system context alongside the ontology markdown
+// Inject it as system context alongside the schema markdown
 
 const systemPrompt = [
   queryBuilderPrompt, // from getQueryBuilderPrompt MCP tool
   '',
   '## Current Schema',
-  schemaContext // from getOntologyMarkdown
+  schemaContext // from getSchemaMarkdown
 ].join('\n')
 ```
 
@@ -342,7 +342,7 @@ system_prompt = "\n".join([
     query_builder_prompt,   # from getQueryBuilderPrompt MCP tool
     "",
     "## Current Schema",
-    schema_context          # from get_ontology_markdown()
+    schema_context          # from get_schema_markdown()
 ])
 ```
 
@@ -350,7 +350,7 @@ system_prompt = "\n".join([
 <TabItem value="shell" label="Shell">
 
 ```bash
-# No MCP server call from shell — use the REST ontology endpoint
+# No MCP server call from shell — use the REST schema endpoint
 # and combine with your own system prompt in the LLM call
 ```
 
@@ -363,8 +363,8 @@ system_prompt = "\n".join([
 
 These rules prevent the most common agent mistakes:
 
-1. **Always call `getOntologyMarkdown` first** — never assume label names from memory or conversation history
-2. **Use only labels that appear in the ontology** — invented labels return zero results silently
+1. **Always call `getSchemaMarkdown` first** — never assume label names from memory or conversation history
+2. **Use only labels that appear in the schema** — invented labels return zero results silently
 3. **Use only property names that appear for those labels** — unknown properties in `where` are ignored without error, producing misleading results
 4. **Enumerate categorical values before filtering** — never guess status/type/category strings
 5. **Test direction before building traversal queries** — a wrong `direction` returns zero results instead of an error
@@ -373,7 +373,7 @@ These rules prevent the most common agent mistakes:
 
 ## Production caveat
 
-Ontology grounding is a first-call overhead: one `getOntologyMarkdown` request per agent session. For high-throughput agents that execute many queries per session, cache the ontology for the session duration and invalidate it if a query returns unexpected zero results (which may indicate a schema change mid-session).
+Schema grounding is a first-call overhead: one `getSchemaMarkdown` request per agent session. For high-throughput agents that execute many queries per session, cache the schema for the session duration and invalidate it if a query returns unexpected zero results (which may indicate a schema change mid-session).
 
 ---
 

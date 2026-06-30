@@ -64,7 +64,7 @@ RushDB keeps a compact, queryable metadata layer inside the graph. This provides
 | Type-aware querying      | Agents and applications can inspect types before building filters                |
 | Value exploration        | Property IDs provide a stable handle for distinct values and numeric/date ranges |
 | Flexible ingestion       | New fields appear on write without a migration                                   |
-| Schema evolution         | Old and new record shapes can coexist while the live ontology reflects both      |
+| Schema evolution         | Old and new record shapes can coexist while the live schema reflects both        |
 | Semantic indexing        | Embedding policies attach to a label and property name discovered from the graph |
 
 ## Records, Labels, Properties, Relationships
@@ -113,12 +113,12 @@ Every write passes through the same conceptual pipeline:
 
 No schema declaration is required before step 1. The schema emerges from successful writes.
 
-## From Metadata Graph to Ontology
+## From Metadata Graph to Schema
 
-The ontology APIs turn the internal graph into an efficient runtime schema snapshot:
+The schema APIs turn the internal graph into an efficient runtime schema snapshot:
 
 ```text
-getOntologyMarkdown()
+getSchemaMarkdown()
   → labels and record counts
   → properties per label
   → inferred types
@@ -128,7 +128,7 @@ getOntologyMarkdown()
   → semantic index availability
 ```
 
-Agents should call `getOntologyMarkdown` before constructing queries. Applications that need structured metadata for filters or admin interfaces can call `getOntology`.
+Agents should call `getSchemaMarkdown` before constructing queries. Applications that need structured metadata for filters or admin interfaces can call `getSchema`.
 
 For deeper inspection:
 
@@ -147,7 +147,7 @@ RushDB does not require upfront migrations, but production data still benefits f
 - use consistent property names and types;
 - use ISO 8601 timestamps;
 - model state with fields such as `status`, not new labels;
-- inspect ontology output during ingestion development;
+- inspect schema output during ingestion development;
 - normalize accidental type drift at the source when possible.
 
 The goal is not to eliminate structure. The goal is to let structure emerge from real data, remain inspectable, and evolve without blocking writes.
@@ -160,12 +160,12 @@ The metadata layer is useful because it is explicit, but it is not free:
 | ------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | Type drift remains visible                  | Mixed `(name, type)` definitions can appear until data is normalized                      |
 | Flexible records require disciplined naming | `userId` and `userID` are distinct fields                                                 |
-| Discovery is runtime state                  | Ontology reflects what has been written, not an aspirational schema file                  |
+| Discovery is runtime state                  | Schema reflects what has been written, not an aspirational schema file                    |
 | Internal metadata should stay internal      | Query application records through RushDB APIs rather than editing metadata nodes directly |
 
 ## Next Steps
 
 - [Labels & Properties](/learn/records-and-queries/labels-and-properties) — inspect and manage schema metadata through public APIs
-- [Discover Your Schema](/learn/records-and-queries/discover-your-schema) — retrieve the live ontology
+- [Discover Your Schema](/learn/records-and-queries/discover-your-schema) — retrieve the live schema
 - [Import Data](/learn/records-and-queries/import-data) — create records and relationships from nested JSON
 - [Relationships](/learn/relationships) — understand explicit and generated graph edges

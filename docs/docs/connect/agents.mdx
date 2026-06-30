@@ -31,7 +31,7 @@ For Claude Desktop, Cursor, VS Code Copilot, OpenClaw, or another local coding a
 Set up RushDB as my persistent memory layer.
 ```
 
-The agent calls `getOntologyMarkdown`, creates a `SESSION`, and validates recall. For the full bootstrap prompt and recommended labels, follow the [Agent Memory Quickstart](/learn/agent-memory/quickstart).
+The agent calls `getSchemaMarkdown`, creates a `SESSION`, and validates recall. For the full bootstrap prompt and recommended labels, follow the [Agent Memory Quickstart](/learn/agent-memory/quickstart).
 
 ## Custom Agent Harness
 
@@ -48,7 +48,7 @@ For an application-controlled agent, choose the interface based on where orchest
 
 At the start of each agent session:
 
-1. Call `getOntologyMarkdown` to discover the live schema.
+1. Call `getSchemaMarkdown` to discover the live schema.
 2. Recall the latest `SESSION` and relevant `DECISION`, `TASK`, or `PREFERENCE` records.
 3. Create a new `SESSION`.
 

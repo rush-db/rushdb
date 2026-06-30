@@ -123,9 +123,9 @@ Add `RUSHDB_API_URL` to the `env` block:
 
 Ask your assistant:
 
-> Call `getOntologyMarkdown` and show me what labels exist in my RushDB project.
+> Call `getSchemaMarkdown` and show me what labels exist in my RushDB project.
 
-A new project returns an empty ontology. That still confirms the connection works.
+A new project returns an empty schema. That still confirms the connection works.
 
 ---
 
@@ -133,7 +133,7 @@ A new project returns an empty ontology. That still confirms the connection work
 
 RushDB MCP exposes a discovery-first workflow so agents query the schema that exists instead of guessing labels, fields, or operators:
 
-1. Call `getOntologyMarkdown` at the start of a session. It returns labels, property names and types, value ranges, and relationships.
+1. Call `getSchemaMarkdown` at the start of a session. It returns labels, property names and types, value ranges, and relationships.
 2. Classify the request as a listing, aggregation, traversal, semantic search, or mutation.
 3. Call `getSearchQuerySpec` before building queries with dates, metrics, `groupBy`, relationship traversal, or vector search.
 4. Use the discovered label and property names exactly as returned. Labels are case-sensitive.
@@ -155,7 +155,7 @@ Treat `RUSHDB_API_KEY` like a password. Inject it through your MCP client or an 
 
 | Need                            | Start with                                                                              |
 | ------------------------------- | --------------------------------------------------------------------------------------- |
-| Discover a project schema       | `getOntologyMarkdown`, `getOntology`                                                    |
+| Discover a project schema       | `getSchemaMarkdown`, `getSchema`                                                        |
 | Build a precise query           | `getSearchQuerySpec`, `findRecords`                                                     |
 | Read or write records           | `getRecord`, `createRecord`, `updateRecord`, `setRecord`                                |
 | Connect records                 | `findRelationships`, `attachRelation`, `detachRelation`                                 |
@@ -172,7 +172,7 @@ Each MCP tool publishes its input schema to the connected client. See [All MCP T
 | Hosted connector cannot discover actions | Confirm the URL is `https://mcp.rushdb.com/mcp`, including `/mcp`, then remove and recreate the connector. |
 | Local MCP reports a missing API key      | Set `RUSHDB_API_KEY` in the MCP client's `env` block and restart the client.                               |
 | Local MCP cannot reach RushDB            | Verify `RUSHDB_API_URL`, or remove it to restore the hosted default.                                       |
-| A query uses the wrong label or property | Call `getOntologyMarkdown` again and use the case-sensitive names it returns.                              |
+| A query uses the wrong label or property | Call `getSchemaMarkdown` again and use the case-sensitive names it returns.                                |
 | A structured query fails validation      | Call `getSearchQuerySpec` and rebuild the query from the documented operators.                             |
 
 For OAuth diagnostics, verify that `/.well-known/openid-configuration` returns JSON, `/.well-known/jwks.json` returns keys, and `/mcp` responds as an MCP endpoint.

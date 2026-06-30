@@ -191,7 +191,7 @@ After the MCP server is connected, send this prompt once per new agent / project
 Set up RushDB as my persistent memory layer. Follow these steps in order.
 
 INITIALIZE
-1. Call getOntologyMarkdown to check existing memory labels and record counts.
+1. Call getSchemaMarkdown to check existing memory labels and record counts.
 2. If SESSION labels already exist, call findRecords with labels:["SESSION"],
    orderBy:{startedAt:"desc"}, limit:1 and summarize the most recent session.
 3. Create a SESSION record for this conversation:
@@ -216,7 +216,7 @@ IMPORT EXISTING IDENTITY (if applicable)
    - Ongoing tasks → label "TASK"
 
 CONFIRM
-6. Call getOntologyMarkdown again and report what labels exist with record counts.
+6. Call getSchemaMarkdown again and report what labels exist with record counts.
 7. Run a test recall: findRecords with labels:["PREFERENCE"] limit:5
 ```
 

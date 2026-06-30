@@ -38,7 +38,7 @@ Connect to ChatGPT or Claude.ai using the hosted MCP endpoint. No local install,
 
 Then verify the connection:
 
-> "Call getOntologyMarkdown and show me what's in my RushDB project."
+> "Call getSchemaMarkdown and show me what's in my RushDB project."
 
 → [Full MCP client list and options](/connect/mcp)
 
@@ -95,10 +95,10 @@ After connecting, bootstrap agent memory in one prompt:
 
 > "Set up RushDB as my persistent memory layer."
 
-The agent calls `getOntologyMarkdown`, creates a `SESSION` record, and confirms recall is working. Full bootstrap prompt and memory model: [rushdb.com/agent-setup](https://rushdb.com/agent-setup).
+The agent calls `getSchemaMarkdown`, creates a `SESSION` record, and confirms recall is working. Full bootstrap prompt and memory model: [rushdb.com/agent-setup](https://rushdb.com/agent-setup).
 
 :::tip Verify the connection
-Ask: _"Call getOntologyMarkdown and show me what labels exist in my project."_ A working connection returns the schema; an empty project returns an empty ontology — both are correct responses.
+Ask: _"Call getSchemaMarkdown and show me what labels exist in my project."_ A working connection returns the schema; an empty project returns an empty schema — both are correct responses.
 :::
 
 ---

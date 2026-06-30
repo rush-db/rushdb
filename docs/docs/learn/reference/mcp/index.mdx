@@ -27,7 +27,7 @@ npx -y @rushdb/mcp-server
 
 The server exposes a discovery-first workflow:
 
-1. Call `getOntologyMarkdown` once at the start of a session.
+1. Call `getSchemaMarkdown` once at the start of a session.
 2. Call `getSearchQuerySpec` before building queries with dates, metrics, `groupBy`, relationship traversal, or vectors.
 3. Use exact label and property names returned by discovery tools.
 4. Preview and confirm destructive operations before calling them.

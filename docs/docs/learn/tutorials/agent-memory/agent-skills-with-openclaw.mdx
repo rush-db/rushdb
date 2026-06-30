@@ -21,7 +21,7 @@ By the end you will have an OpenClaw agent that can build grounded queries, stor
 
 ## Why both MCP and skills?
 
-The **MCP server** gives OpenClaw the _tools_ — callable functions like `findRecords`, `createRecord`, `getOntologyMarkdown`. Without it, your agent has nothing to call.
+The **MCP server** gives OpenClaw the _tools_ — callable functions like `findRecords`, `createRecord`, `getSchemaMarkdown`. Without it, your agent has nothing to call.
 
 The **skills pack** gives OpenClaw the _instructions_ — it teaches the agent _when_ to call which tool, in which order, and how to avoid common mistakes (hallucinated label names, wrong operator syntax, missing discovery steps). The skill is like an expert colleague whispering in your agent's ear.
 
@@ -82,7 +82,7 @@ openclaw gateway restart
 
 Open the Control UI (`openclaw dashboard`) and send:
 
-> "Call `getOntologyMarkdown` and tell me what labels exist in my RushDB project."
+> "Call `getSchemaMarkdown` and tell me what labels exist in my RushDB project."
 
 If the tool runs and returns results (even an empty schema), the MCP server is connected.
 
@@ -204,11 +204,11 @@ This skill enforces [the four-step discovery-first workflow](/connect/mcp#mandat
 
 OpenClaw will:
 
-1. Call `getOntologyMarkdown` → get exact label names and field types.
+1. Call `getSchemaMarkdown` → get exact label names and field types.
 2. Call `getSearchQuerySpec` → load the operator reference.
 3. Build and execute `findRecords` with the correct `where`, `select`, and date filter.
 
-> OpenClaw: [calls getOntologyMarkdown → confirms `ORDER`, `CUSTOMER` labels and `tier`, `createdAt` fields] > [calls getSearchQuerySpec → loads date operator reference] > `[calls findRecords: labels=["ORDER"], select={count:{"$count":"*"}}, where={CUSTOMER:{tier:"enterprise"},createdAt:{$gte:"2025-01-01"}}]` > **Result:** 342 enterprise orders placed in the last 30 days.
+> OpenClaw: [calls getSchemaMarkdown → confirms `ORDER`, `CUSTOMER` labels and `tier`, `createdAt` fields] > [calls getSearchQuerySpec → loads date operator reference] > `[calls findRecords: labels=["ORDER"], select={count:{"$count":"*"}}, where={CUSTOMER:{tier:"enterprise"},createdAt:{$gte:"2025-01-01"}}]` > **Result:** 342 enterprise orders placed in the last 30 days.
 
 **Slash command tip:**
 
