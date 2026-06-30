@@ -1,5 +1,13 @@
 # rushdb-dashboard
 
+## 2.6.1
+
+### Patch Changes
+
+- 54a0767: Update docs
+- Updated dependencies [54a0767]
+  - @rushdb/javascript-sdk@2.6.1
+
 ## 2.6.0
 
 ### Minor Changes
