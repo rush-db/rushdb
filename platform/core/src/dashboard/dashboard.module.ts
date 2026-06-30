@@ -7,6 +7,7 @@ import { ConnectorModule } from '@/dashboard/connector/connector.module'
 import { MailModule } from '@/dashboard/mail/mail.module'
 import { McpOauthModule } from '@/dashboard/mcp-oauth/mcp-oauth.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
+import { SavedQueryModule } from '@/dashboard/saved-query/saved-query.module'
 import { TokenModule } from '@/dashboard/token/token.module'
 import { UserModule } from '@/dashboard/user/user.module'
 import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
@@ -24,6 +25,7 @@ import { SessionAndTransactionAttachMiddleware } from '@/database/session-and-tr
     UserModule,
     BillingModule,
     ConnectorModule,
+    SavedQueryModule,
     McpOauthModule,
     forwardRef(() => DbConnectionModule)
   ],

@@ -18,9 +18,7 @@ import {
   RUSHDB_KEY_LABEL,
   RUSHDB_KEY_PROJECT_ID,
   RUSHDB_KEY_PROPERTIES_META,
-  RUSHDB_RELATION_DEFAULT,
-  RUSHDB_VALUE_EMPTY_ARRAY,
-  RUSHDB_VALUE_NULL
+  RUSHDB_RELATION_DEFAULT
 } from '@/core/common/constants'
 import { suggestPropertyType } from '@/core/common/normalizeRecord'
 import { MaybeArray } from '@/core/common/types'
@@ -39,11 +37,7 @@ import {
 import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { PropertyDto } from '@/core/property/dto/property.dto'
-import {
-  PROPERTY_TYPE_NULL,
-  PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_STRING
-} from '@/core/property/property.constants'
+import { PROPERTY_TYPE_NUMBER, PROPERTY_TYPE_STRING } from '@/core/property/property.constants'
 import { PropertyService } from '@/core/property/property.service'
 import { TPropertyPrimitiveValue } from '@/core/property/property.types'
 import { WorkspaceService } from '@/dashboard/workspace/workspace.service'
@@ -96,8 +90,6 @@ export class ImportService {
     target: WithId<CreateEntityDto>
     options: TImportOptions
   }) {
-    const valueParameters = this.getValueParameters(value)
-
     if (key === RUSHDB_KEY_ID) {
       target.id = value as string
     } else if (key === RUSHDB_KEY_LABEL) {
@@ -106,6 +98,11 @@ export class ImportService {
       // @TODO: Use it for schema validation https://github.com/rush-db/rushdb/issues/43
     } else if (key === RUSHDB_KEY_PROJECT_ID) {
       // do nothing
+    } else if (value === null || value === undefined) {
+      // null/undefined means the field is unset — never create a property for it.
+    } else if (options.skipEmptyValues && value === '') {
+      // skipEmptyValues: an empty string is treated as unset — no property created.
+      // (0 and false are real values and are handled in the branch below.)
     } else {
       const property = {
         id: uuidv7(),
@@ -116,25 +113,37 @@ export class ImportService {
       } as PropertyDto & { created: string }
 
       if (isArray(value)) {
+        // Strip null/undefined elements (and, with skipEmptyValues, '' elements);
+        // an array that is entirely null/empty collapses to "unset".
+        const cleaned = value.filter(
+          (item) => item !== null && item !== undefined && !(options.skipEmptyValues && item === '')
+        )
+        if (value.length > 0 && cleaned.length === 0) {
+          return
+        }
+        // with skipEmptyValues, a genuinely empty [] is treated as unset too
+        if (options.skipEmptyValues && cleaned.length === 0) {
+          return
+        }
         if (options.suggestTypes) {
-          const { isEmptyArray, isInconsistentArray } = valueParameters
+          const { isEmptyArray, isInconsistentArray } = this.getValueParameters(cleaned)
           if (isEmptyArray) {
-            property.value = RUSHDB_VALUE_EMPTY_ARRAY
-          } else if (options.convertNumericValuesToNumbers && value.every(isNumeric)) {
-            property.value = value.map(Number)
+            // Store a genuine empty array. (Legacy records may hold the
+            // RUSHDB_VALUE_EMPTY_ARRAY sentinel string instead; that is converted back to
+            // [] on read by the data interceptor and cleaned up by the `migrate-empty-arrays` CLI.)
+            property.value = []
+          } else if (options.convertNumericValuesToNumbers && cleaned.every(isNumeric)) {
+            property.value = cleaned.map(Number)
             property.type = PROPERTY_TYPE_NUMBER
-          } else if (isInconsistentArray && !value.every(isNumeric)) {
-            property.value = value.map(String)
+          } else if (isInconsistentArray && !cleaned.every(isNumeric)) {
+            property.value = cleaned.map(String)
             property.type = PROPERTY_TYPE_STRING
-          } else if (value[0] === null) {
-            property.value = value.map(() => RUSHDB_VALUE_NULL)
-            property.type = PROPERTY_TYPE_NULL
           } else {
-            property.value = value
-            property.type = suggestPropertyType(value[0])
+            property.value = cleaned
+            property.type = suggestPropertyType(cleaned[0])
           }
         } else {
-          property.value = value.map(String)
+          property.value = cleaned.map(String)
           property.type = PROPERTY_TYPE_STRING
         }
       } else {
@@ -144,10 +153,8 @@ export class ImportService {
             property.value = Number(value)
             property.type = PROPERTY_TYPE_NUMBER
           } else {
-            const valueType = suggestPropertyType(value)
-
-            property.value = valueType === PROPERTY_TYPE_NULL ? RUSHDB_VALUE_NULL : value
-            property.type = valueType
+            property.value = value
+            property.type = suggestPropertyType(value)
           }
         } else {
           property.value = String(value)

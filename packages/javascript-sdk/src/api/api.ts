@@ -886,11 +886,11 @@ export class RestAPI {
    */
   public relationships = {
     /**
-     * Reviews and manages relationship patterns inferred from the current project ontology.
+     * Reviews and manages relationship patterns inferred from the current project schema.
      */
     patterns: {
       /**
-       * Lists inferred relationship patterns, ontology relationships, and analysis status.
+       * Lists inferred relationship patterns, schema relationships, and analysis status.
        */
       list: async () => {
         const path = `/relationships/patterns`
@@ -905,7 +905,7 @@ export class RestAPI {
       },
 
       /**
-       * Queues ontology analysis to generate relationship pattern suggestions.
+       * Queues schema analysis to generate relationship pattern suggestions.
        */
       analyze: async () => {
         const path = `/relationships/patterns/analyze`
@@ -1336,7 +1336,7 @@ export class RestAPI {
    */
   public ai = {
     /**
-     * Returns the full graph ontology as structured JSON.
+     * Returns the full graph schema as structured JSON.
      * Each item contains the label name, record count, properties with value ranges/samples,
      * and cross-label relationships with direction.
      * Properties may include a `vectorIndexes` array when one or more embedding indexes
@@ -1345,15 +1345,15 @@ export class RestAPI {
      * status, and modelKey.
      * Use property `id` fields to pass to db.properties.values() for deeper drill-down.
      * @param params - Optional filter. `labels` scopes to specific labels only.
-     *                 `force: true` bypasses the 1-hour ontology cache and triggers a full recalculation.
+     *                 `force: true` bypasses the 1-hour schema cache and triggers a full recalculation.
      * @param transaction - Optional transaction for atomic operations
      */
-    getOntology: async (
+    getSchema: async (
       params?: { labels?: string[]; force?: boolean },
       transaction?: Transaction | string
     ) => {
       const txId = pickTransactionId(transaction)
-      const path = `/ai/ontology`
+      const path = `/ai/schema`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',
@@ -1369,22 +1369,22 @@ export class RestAPI {
     },
 
     /**
-     * Returns the full graph ontology as compact Markdown tables.
+     * Returns the full graph schema as compact Markdown tables.
      * Token-efficient — intended for direct LLM consumption.
      * Includes: labels with counts, properties with types and value ranges/samples,
      * cross-label relationship map, and a "Semantic Search" column per property that shows
      * `sourceType similarityFunction dimensionsd [status]` (e.g. `managed cosine 1536d [ready]`)
      * for indexed properties, or `—` when no embedding index exists.
      * @param params - Optional filter. `labels` scopes to specific labels only.
-     *                 `force: true` bypasses the 1-hour ontology cache and triggers a full recalculation.
+     *                 `force: true` bypasses the 1-hour schema cache and triggers a full recalculation.
      * @param transaction - Optional transaction for atomic operations
      */
-    getOntologyMarkdown: async (
+    getSchemaMarkdown: async (
       params?: { labels?: string[]; force?: boolean },
       transaction?: Transaction | string
     ) => {
       const txId = pickTransactionId(transaction)
-      const path = `/ai/ontology/md`
+      const path = `/ai/schema/md`
       const payload = {
         headers: Object.assign({}, buildTransactionHeader(txId)),
         method: 'POST',

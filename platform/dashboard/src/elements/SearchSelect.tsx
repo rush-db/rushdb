@@ -1,7 +1,5 @@
-import { Check, ChevronsUpDown } from 'lucide-react'
 import * as React from 'react'
 
-import { useControllableState } from '~/hooks/useControllableState'
 import { cn, composeEventHandlers } from '~/lib/utils'
 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './Command'
@@ -13,6 +11,10 @@ type SelectValue = string
 type Props = Pick<React.ComponentPropsWithoutRef<typeof Popover>, 'onOpenChange' | 'open'> & {
   asChild?: boolean
   children?: React.ReactNode
+  // Set when this select is rendered inside a modal Dialog. A non-modal popover
+  // portaled out of a modal dialog inherits `pointer-events: none`, making items
+  // unclickable; a modal popover re-enables pointer events for its own layer.
+  modal?: boolean
   onChange?: (value: SelectValue) => void
   trigger: React.ReactNode
   value?: SelectValue
@@ -23,6 +25,7 @@ export function SearchSelect({
   open: openProp,
   trigger,
   asChild = true,
+  modal = false,
   // value: valueProp,
   // onChange: onChangeProp,
   children
@@ -38,7 +41,7 @@ export function SearchSelect({
 
   return (
     <DisclosureContext.Provider value={ctx}>
-      <Popover onOpenChange={ctx.setOpen} open={ctx.isOpen}>
+      <Popover modal={modal} onOpenChange={ctx.setOpen} open={ctx.isOpen}>
         <PopoverTrigger asChild={asChild}>{trigger}</PopoverTrigger>
 
         <PopoverContent align="start">

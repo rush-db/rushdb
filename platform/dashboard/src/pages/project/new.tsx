@@ -288,7 +288,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                 <Button
                   as="a"
                   href={getRoutePath('workspaceBilling')}
-                  variant="accent"
+                  variant="primary"
                   className="w-full justify-center"
                 >
                   <SparklesIcon className="h-4 w-4" /> Upgrade Plan
@@ -303,7 +303,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
               <Button
                 loading={isSubmitting}
                 type="submit"
-                variant="accent"
+                variant="primary"
                 data-tour="create-project-btn"
                 disabled={showUpgradeButton}
                 title={showUpgradeButton ? 'Upgrade plan to create more projects' : undefined}

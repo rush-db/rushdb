@@ -89,7 +89,8 @@ function createGraphData({
           id: propertyId,
           kind: 'property',
           label: propertyName,
-          color: '#accd17',
+          // Neutral slate — property nodes carry no brand color.
+          color: '#94a3b8',
           propertyName,
           propertyType,
           propertyLabels: [label],

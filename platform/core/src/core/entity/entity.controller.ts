@@ -94,7 +94,7 @@ export class EntityController {
   @UseInterceptors(
     RunSideEffectMixin([
       ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
-      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RECALCULATE_SCHEMA_CACHE,
       ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
     ])
   )
@@ -144,7 +144,7 @@ export class EntityController {
   @UseInterceptors(
     RunSideEffectMixin([
       ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
-      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RECALCULATE_SCHEMA_CACHE,
       ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
     ])
   )
@@ -203,7 +203,7 @@ export class EntityController {
   @UseInterceptors(
     RunSideEffectMixin([
       ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
-      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RECALCULATE_SCHEMA_CACHE,
       ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
     ])
   )
@@ -252,7 +252,7 @@ export class EntityController {
   @UseInterceptors(
     RunSideEffectMixin([
       ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
-      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RECALCULATE_SCHEMA_CACHE,
       ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
     ])
   )
@@ -283,7 +283,7 @@ export class EntityController {
   @UseInterceptors(
     RunSideEffectMixin([
       ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
-      ESideEffectType.RECALCULATE_ONTOLOGY_CACHE,
+      ESideEffectType.RECALCULATE_SCHEMA_CACHE,
       ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE
     ])
   )

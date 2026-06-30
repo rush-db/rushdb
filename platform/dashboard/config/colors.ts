@@ -1,6 +1,6 @@
 import type { Oklch } from 'culori'
 
-import { formatHsl, oklch, wcagContrast } from 'culori'
+import { converter, formatHex, oklch, wcagContrast } from 'culori'
 
 import { isAnyObject } from '../src/types'
 
@@ -16,14 +16,41 @@ type ColorState = {
 
 type ColorOrColorState = Color | ColorState
 
-const isColorState = (predicate: ColorOrColorState): predicate is ColorState =>
-  isAnyObject(predicate) && 'default' in predicate
+type ColorTree = { [key: string]: Color | ColorState | ColorTree }
 
-const formatColor = (color: Color | string | undefined) =>
-  // formatCss(color) as string
-  formatHsl(color) as string
+const isColorState = (predicate: ColorOrColorState): predicate is ColorState =>
+  isAnyObject(predicate) && 'DEFAULT' in predicate
+
+const toHsl = converter('hsl')
 
 const parseColor = (color: string) => oklch(color) as Color
+
+/**
+ * Format a color as space-separated HSL channels ("H S% L%") without the
+ * `hsl()` wrapper or alpha — the shape Tailwind needs to inject opacity via
+ * `hsl(var(--x) / <alpha-value>)`.
+ */
+const clamp01 = (n: number): number => Math.min(1, Math.max(0, Number.isFinite(n) ? n : 0))
+
+const formatHslChannels = (color: Color): string => {
+  const a = color.alpha ?? 1
+
+  // Round-trip through sRGB hex first: OKLCH colors can sit slightly outside the
+  // sRGB gamut, which makes the direct HSL conversion return out-of-range
+  // saturation/luminance (e.g. negative or >100%) and distorts the color.
+  const { h = 0, l = 0, s = 0 } = toHsl(formatHex(color)) ?? {}
+
+  const hue = Number((h ?? 0).toFixed(2))
+  const sat = `${Number((clamp01(s ?? 0) * 100).toFixed(2))}%`
+  const lum = `${Number((clamp01(l ?? 0) * 100).toFixed(2))}%`
+
+  // Alpha-baked tokens carry their (per-theme) alpha in the channel value;
+  // opaque tokens leave room for Tailwind's `/opacity` modifier instead.
+  return a < 1 ? `${hue} ${sat} ${lum} / ${Number(a.toFixed(3))}` : `${hue} ${sat} ${lum}`
+}
+
+/** Baked-in alpha of a color, or 1 when fully opaque. */
+const colorAlpha = (color: Color): number => color.alpha ?? 1
 
 const shiftColorLuminance = (_color: ColorOrColorState, shiftAmount: Color['l']): Color => {
   const color = isColorState(_color) ? _color.DEFAULT : _color
@@ -71,41 +98,9 @@ const generateColorState = (_color: Color | string): ColorState => {
     hover: shiftFn(color),
     focus: shiftFn(color),
     ring: shiftColorAlpha(color, RING_ALPHA)
-    // ring: {
-    //   h: color.h,
-    //   l: 0.69,
-    //   c: 0.17,
-    //   alpha: RING_ALPHA,
-    //   mode: color.mode
-    // }
   }
 }
 
-function deepFormat<O extends Record<string, Color | string>>(obj: O) {
-  return Object.fromEntries(Object.entries(obj).map(([key, val]) => [key, formatColor(val)])) as Record<
-    keyof O,
-    ReturnType<typeof formatColor>
-  >
-}
-
-/**
- * // any color has contrast color
- * accent, danger, warning, primary, secondary, disabled {
- *  DEFAULT // green oklch(89.49% 0.186 120.89)
- *  contrast // white
- *  hover
- *  focus
- * }
- *
- * fill, fill2, menu { //bg-surface
- * }
- *
- * content, content2, note {
- * }
- *
- * stroke {}
- *
- */
 type SuggestedKeys =
   | 'accent'
   | 'content'
@@ -117,102 +112,138 @@ type SuggestedKeys =
   | 'secondary'
   | 'stroke'
 
-function createColors<E extends [key: SuggestedKeys | (string & {}), baseColor: string][]>({
-  entries
-}: {
-  entries: E
-}): Record<E[number][0], ReturnType<typeof deepFormat>> {
-  const colors = entries.map(([key, baseColor]) => {
-    return [key, deepFormat(generateColorState(baseColor))]
-  })
+type PaletteEntries = [key: SuggestedKeys | (string & {}), baseColor: string][]
 
-  return Object.fromEntries(colors)
+/**
+ * The neutral surface/content tokens are the only colors that differ between
+ * dark and light. Brand and semantic colors (accent, danger, success, warning,
+ * badges) are shared so the brand stays consistent and contrast text is still
+ * derived by `getContrastColor`.
+ */
+const brandEntries: PaletteEntries = [
+  ['danger', 'oklch(54% 0.201 22.76)'],
+  ['success', 'oklch(69.17% 0.217 142.4)'],
+  ['warning', 'oklch(86.3% 0.173 90.5)']
+]
+
+const darkNeutralEntries: PaletteEntries = [
+  // The brand accent is intentionally neutralized: `accent` mirrors `primary`
+  // so no brand color renders anywhere. CTAs use `primary` directly.
+  ['accent', 'oklch(100% 0 0)'],
+  ['primary', 'oklch(100% 0 0)'],
+  ['secondary', 'oklch(100% 0 0 / 10%)'],
+  ['disabled', 'oklch(30% 0 0)'],
+  // fill
+  ['fill', 'oklch(25.2% 0 0)'],
+  ['fill2', 'oklch(23.2% 0 0)'],
+  ['fill3', 'oklch(20.2% 0 0)'],
+  ['menu', 'oklch(20.2% 0 0)'],
+  // content
+  ['content', 'oklch(100% 0 0)'],
+  ['content2', 'oklch(80% 0 0)'],
+  ['content3', 'oklch(65% 0 0)'],
+  // stroke
+  ['stroke', 'oklch(100% 0 0 / 7%)']
+]
+
+const lightNeutralEntries: PaletteEntries = [
+  // Neutralized brand accent — mirrors `primary` (see dark palette note).
+  ['accent', 'oklch(22% 0 0)'],
+  ['primary', 'oklch(22% 0 0)'],
+  ['secondary', 'oklch(0% 0 0 / 8%)'],
+  ['disabled', 'oklch(90% 0 0)'],
+  // fill (lightest = main background)
+  ['fill', 'oklch(99% 0 0)'],
+  ['fill2', 'oklch(97% 0 0)'],
+  ['fill3', 'oklch(94% 0 0)'],
+  ['menu', 'oklch(97% 0 0)'],
+  // content
+  ['content', 'oklch(22% 0 0)'],
+  ['content2', 'oklch(40% 0 0)'],
+  ['content3', 'oklch(55% 0 0)'],
+  // stroke
+  ['stroke', 'oklch(0% 0 0 / 10%)']
+]
+
+const buildStates = (entries: PaletteEntries): Record<string, ColorState> =>
+  Object.fromEntries(entries.map(([key, baseColor]) => [key, generateColorState(baseColor)]))
+
+// `focusChannels` is the inner OKLCH channel string (e.g. "100% 0 0"); the focus
+// and ring states reuse it at fixed alphas. Kept neutral so no brand color shows.
+const interactionState = (defaultColor: string, focusChannels: string): Record<string, Color> => ({
+  DEFAULT: parseColor(defaultColor),
+  hover: parseColor(defaultColor),
+  focus: parseColor(`oklch(${focusChannels} / 88%)`),
+  ring: parseColor(`oklch(${focusChannels} / ${RING_ALPHA * 100}%)`)
+})
+
+const badgeTree: ColorTree = {
+  blue: { DEFAULT: parseColor('oklch(62.86% 0.199 261.73)'), contrast: parseColor('oklch(100% 0 0)') },
+  red: { DEFAULT: parseColor('oklch(54% 0.201 22.76)'), contrast: parseColor('oklch(100% 0 0)') },
+  yellow: { DEFAULT: parseColor('oklch(86.3% 0.173 90.5)'), contrast: parseColor('oklch(0% 0 0)') },
+  green: { DEFAULT: parseColor('oklch(69.17% 0.217 142.4)'), contrast: parseColor('oklch(100% 0 0)') },
+  pink: { DEFAULT: parseColor('oklch(69.17% 0.217 12.6)'), contrast: parseColor('oklch(100% 0 0)') },
+  orange: { DEFAULT: parseColor('oklch(69.17% 0.217 31)'), contrast: parseColor('oklch(100% 0 0)') }
 }
 
-const setColorHue = (_color: Color | string, hue: Color['h']): Color => {
-  const color = isAnyObject(_color) ? _color : parseColor(_color)
+/** Build the raw (unformatted) color tree for one theme. */
+const buildPalette = (neutralEntries: PaletteEntries): ColorTree => ({
+  ...buildStates(brandEntries),
+  ...buildStates(neutralEntries),
+  interaction: interactionState('oklch(100% 0 0 / 24%)', '100% 0 0'),
+  badge: badgeTree
+})
 
-  return { ...color, h: hue }
-}
+const darkPalette = buildPalette(darkNeutralEntries)
+const lightPalette = buildPalette(lightNeutralEntries)
+// The interaction default differs between themes (white overlay vs black overlay).
+lightPalette.interaction = interactionState('oklch(0% 0 0 / 16%)', '22% 0 0')
 
-export const colors = {
-  ...createColors({
-    entries: [
-      ['accent' as const, 'oklch(89.49% 0.186 120.89)'],
-      ['danger' as const, 'oklch(54% 0.201 22.76)'],
-      ['success' as const, 'oklch(69.17% 0.217 142.4)'],
-      ['warning' as const, 'oklch(86.3% 0.173 90.5)'],
-      ['primary' as const, 'oklch(100% 0 0)'],
-      ['secondary' as const, 'oklch(100% 0 0 / 10%)'],
-      ['disabled' as const, 'oklch(30% 0 0)'],
-      // fill
-      ['fill' as const, `oklch(25.2% 0 0)`],
-      ['fill2' as const, `oklch(23.2% 0 0)`],
-      ['fill3' as const, `oklch(20.2% 0 0)`],
-      ['menu' as const, `oklch(20.2% 0 0)`],
-      // content
-      ['content' as const, `oklch(100% 0 0)`],
-      ['content2' as const, `oklch(80% 0 0)`],
-      ['content3' as const, `oklch(65% 0 0)`],
-      // stroke
-      ['stroke' as const, 'oklch(100% 0 0 / 7%)']
-    ]
-  }),
-  // interaction: deepFormat({
-  //   DEFAULT: 'oklch(100% 0 0)',
-  //   hover: 'oklch(100% 0 0 / 24%)',
-  //   focus: 'oklch(100% 0 0 / 51%)'
-  // })
-  interaction: deepFormat({
-    DEFAULT: 'oklch(100% 0 0 / 24%)',
-    hover: 'oklch(100% 0 0 / 24%)',
-    focus: 'oklch(89.49% 0.186 120.89 / 88%)',
-    ring: `oklch(89.49% 0.186 120.89 / ${RING_ALPHA * 100}%)`
-  }),
-  badge: {
-    //     blue: '#3F81FF',
-    //     green: '#00A07A',
-    //     orange: '#F47500',
-    //     pink: '#FF44B4',
-    //     red: '#FF586D',
-    //     yellow: '#F4B000'
-    blue: deepFormat({
-      DEFAULT: 'oklch(62.86% 0.199 261.73)',
-      contrast: 'oklch(100% 0 0)'
-    }),
-    red: deepFormat({
-      DEFAULT: 'oklch(54% 0.201 22.76)',
-      contrast: 'oklch(100% 0 0)'
-    }),
-    yellow: deepFormat({
-      DEFAULT: 'oklch(86.3% 0.173 90.5)',
-      contrast: 'oklch(0% 0 0)'
-    }),
-    green: deepFormat({
-      DEFAULT: 'oklch(69.17% 0.217 142.4)',
-      contrast: 'oklch(100% 0 0)'
-    }),
-    pink: deepFormat({
-      DEFAULT: 'oklch(69.17% 0.217 12.6)',
-      contrast: 'oklch(100% 0 0)'
-    }),
-    orange: deepFormat({
-      DEFAULT: 'oklch(69.17% 0.217 31)',
-      contrast: 'oklch(100% 0 0)'
-    })
+const isColor = (value: Color | ColorState | ColorTree): value is Color =>
+  isAnyObject(value) && 'mode' in value
+
+const varName = (path: string[]): string => `--${path.join('-').replace(/-DEFAULT$/, '')}`
+
+/** Walk a palette tree, collecting CSS-variable channel values keyed by var name. */
+function collectVars(tree: ColorTree, path: string[] = [], acc: Record<string, string> = {}) {
+  for (const [key, value] of Object.entries(tree)) {
+    const nextPath = [...path, key]
+    if (isColor(value)) {
+      acc[varName(nextPath)] = formatHslChannels(value)
+    } else {
+      collectVars(value as ColorTree, nextPath, acc)
+    }
   }
-}
-
-export const RING_COLOR = formatColor(colors['content']['ring']) //formatColor(colors.surface.ring.DEFAULT)
-
-export const cssVars = Object.entries(colors).reduce((acc, [group, val]) => {
-  if ('DEFAULT' in val) {
-    Object.entries(val).forEach(([state, color]) => {
-      const colorName = `--${group}-${state}`.replace('DEFAULT', '')
-      // @ts-ignore
-      acc[colorName] = color
-    })
-  }
-
   return acc
-}, {})
+}
+
+/**
+ * Walk the (dark) palette tree to build the Tailwind color tree. Each leaf
+ * becomes a `var()` reference. Opaque tokens keep Tailwind's `<alpha-value>`
+ * placeholder so `/opacity` modifiers work; alpha-baked tokens bake their alpha
+ * into the reference instead.
+ */
+function buildTailwindTree(tree: ColorTree, path: string[] = []): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(tree)) {
+    const nextPath = [...path, key]
+    if (isColor(value)) {
+      const name = varName(nextPath)
+      // Alpha-baked tokens embed alpha in the variable value (see
+      // formatHslChannels); opaque tokens keep Tailwind's `<alpha-value>` slot
+      // so `/opacity` modifiers keep working.
+      out[key] = colorAlpha(value) < 1 ? `hsl(var(${name}))` : `hsl(var(${name}) / <alpha-value>)`
+    } else {
+      out[key] = buildTailwindTree(value as ColorTree, nextPath)
+    }
+  }
+  return out
+}
+
+export const darkVars = collectVars(darkPalette)
+export const lightVars = collectVars(lightPalette)
+
+export const colors = buildTailwindTree(darkPalette)
+
+// Only consumed by `ringColor.DEFAULT` in the Tailwind config.
+export const RING_COLOR = (colors as { content: { ring: string } }).content.ring

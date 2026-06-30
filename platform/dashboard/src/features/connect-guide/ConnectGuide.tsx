@@ -528,7 +528,7 @@ function HostedMcpGuide() {
             'Open the assistant connector or integration settings.',
             'Add the RushDB MCP endpoint, then sign in with your RushDB account.',
             'Choose the project to expose to the assistant.',
-            'Ask the assistant to call getOntologyMarkdown and show the project labels.'
+            'Ask the assistant to call getSchemaMarkdown and show the project labels.'
           ]}
         />
 
@@ -539,7 +539,7 @@ function HostedMcpGuide() {
           </div>
           <CodeSnippet
             title="Verification prompt"
-            code="Call getOntologyMarkdown and show me what labels exist in my RushDB project."
+            code="Call getSchemaMarkdown and show me what labels exist in my RushDB project."
           />
         </div>
       </div>
@@ -581,7 +581,7 @@ function LocalMcpGuide({ projectId, token }: { projectId?: Project['id']; token:
         items={[
           'Paste the matching block into your MCP client configuration.',
           'Restart the client so the RushDB tools are discovered.',
-          'Verify with getOntologyMarkdown before asking the agent to query or mutate records.'
+          'Verify with getSchemaMarkdown before asking the agent to query or mutate records.'
         ]}
       />
     </GuidePanel>
@@ -684,7 +684,7 @@ function AgentSkillsGuide() {
       <StepList
         items={[
           'Start a fresh agent session after installing skills.',
-          'Ask the agent to call getOntologyMarkdown before any query.',
+          'Ask the agent to call getSchemaMarkdown before any query.',
           'For persistent memory, give the agent the bootstrap prompt and let it validate recall.'
         ]}
       />

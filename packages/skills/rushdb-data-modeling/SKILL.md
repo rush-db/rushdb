@@ -8,7 +8,7 @@ homepage: https://rushdb.com
 
 RushDB uses the **LMPG** (Labels, Multi-Properties, Graph) model — a property-centric graph where every node (record) has a label, a set of typed properties, and can be connected to other records via named relationships.
 
-**Core insight**: you don't define a schema upfront. You push JSON, and RushDB infers structure. Labels and properties emerge from your data. Schema discovery happens via `getOntologyMarkdown`.
+**Core insight**: you don't define a schema upfront. You push JSON, and RushDB infers structure. Labels and properties emerge from your data. Schema discovery happens via `getSchemaMarkdown`.
 
 ---
 
@@ -21,7 +21,7 @@ RushDB uses the **LMPG** (Labels, Multi-Properties, Graph) model — a property-
 | Attributes | **Properties**   | Key-value pairs with typed values attached to a record          |
 | Edge       | **Relationship** | A named, directed connection between two records                |
 
-Records are schema-free: two `USER` records can have different property sets. Properties carry types: `string`, `number`, `boolean`, `datetime`, `vector`, `null`.
+Records are schema-free: two `USER` records can have different property sets. Properties carry one of four types: `string`, `number`, `boolean`, `datetime`. A `null` value leaves the field unset — query whether a field is set with `$exists`. Embeddings are `number` arrays with an embedding index for semantic search.
 
 ---
 
@@ -61,8 +61,8 @@ Use a single label per record type. Model state with a `status` property, not se
 | `number`   | `42`, `3.14`, `-100`     | Supports full range operators                                  |
 | `boolean`  | `true`, `false`          |                                                                |
 | `datetime` | `"2026-04-10T09:00:00Z"` | ISO 8601 UTC format. Use component objects for range queries.  |
-| `vector`   | `[0.1, 0.2, ..., 0.9]`   | Float array; used for semantic/similarity search               |
-| `null`     | `null`                   | Explicit absence; queryable via `$type: "null"`                |
+
+> Writing `null` (or an all-`null` array) leaves the field **unset** — it is not stored and does not appear in the schema. Match set/unset fields with `{ field: { $exists: true } }` / `{ field: { $exists: false } }`.
 
 ### Naming Conventions
 
@@ -75,9 +75,9 @@ Use a single label per record type. Model state with a `status` property, not se
 ### Property Discovery
 
 ```
-getOntologyMarkdown()         → all labels + all properties + value ranges
+getSchemaMarkdown()         → all labels + all properties + value ranges
 findProperties({ labels: ["USER"] })  → detailed property list for a label
-getOntology()                 → same as above but structured JSON with propertyId values
+getSchema()                 → same as above but structured JSON with propertyId values
 propertyValues(propertyId)    → distinct values / min-max for a property
 ```
 
@@ -185,6 +185,8 @@ Use `bulkCreateRecords` with nested label keys for structures like org charts, p
 
 Use `exportRecords` to export existing records to CSV. For import, use `bulkCreateRecords` by transforming flat rows into records with a consistent label.
 
+When source rows have blank cells, pass `options: { skipEmptyValues: true }` so empty strings (`""`) and empty arrays (`[]`) are treated as unset (no property is created) instead of being stored as empty values. `0` and `false` are real values and are always kept. Defaults to `false`.
+
 ### Enum Fields
 
 Define a consistent set of values upfront and document them as a `status` or `type` field comment. Enforce consistency via `propertyValues` queries during writes if needed.
@@ -195,7 +197,7 @@ Define a consistent set of values upfront and document them as a `status` or `ty
 
 When working with an existing database:
 
-1. **`getOntologyMarkdown()`** — see all labels, their property names/types, and relationships
+1. **`getSchemaMarkdown()`** — see all labels, their property names/types, and relationships
 2. **`findProperties({ labels: ["LABEL"] })`** — deep-dive a specific label
 3. **`propertyValues(propertyId)`** — enumerate distinct string/boolean values or get number/date ranges
 4. **`findRelationships({ source: { where: { $id: "sample-id" } } })`** and **`findRelationships({ target: { where: { $id: "sample-id" } } })`** — explore outgoing and incoming connections from a sample record
@@ -218,7 +220,7 @@ Just include it in new records. Existing records that lack it are unmatched by f
 
 ### Add a label
 
-Start creating records with the new label — it appears in `getOntologyMarkdown` once at least one record exists.
+Start creating records with the new label — it appears in `getSchemaMarkdown` once at least one record exists.
 
 ### Retire a label
 
@@ -243,7 +245,7 @@ Start creating records with the new label — it appears in `getOntologyMarkdown
 | Label as lowercase: `user`, `order`       | Always UPPER_CASE: `USER`, `ORDER`                                       |
 | Storing state in the label: `ACTIVE_USER` | Store state as `status: "active"` on `USER`                              |
 | One giant label with all fields           | Split into focused labels linked by relationships                        |
-| Guessing property names                   | Call `getOntologyMarkdown` or `findProperties` first                     |
+| Guessing property names                   | Call `getSchemaMarkdown` or `findProperties` first                       |
 | Hardcoding enum values                    | Probe with `propertyValues` before filtering                             |
 | Plain date strings in range queries       | Use component objects: `{ $gte: { $year: 2024 } }`                       |
 | Inventing `$label`/`$direction` operators | Use the label as the key, `$alias` for naming, `$relation` for edge type |

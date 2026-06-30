@@ -1,4 +1,4 @@
-import { OntologyItem } from '@/core/ai/ai.types'
+import { SchemaItem } from '@/core/ai/ai.types'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 
 import { RelationshipPatternsService } from './relationship-patterns.service'
@@ -7,12 +7,12 @@ import { RelationshipPatternCandidate } from './relationship-patterns.types'
 type TestableRelationshipPatternsService = {
   validateCandidate(
     candidate: RelationshipPatternCandidate,
-    ontology: OntologyItem[]
+    schema: SchemaItem[]
   ): RelationshipPatternCandidate | undefined
-  suggestDeterministicCandidates(ontology: OntologyItem[]): RelationshipPatternCandidate[]
+  suggestDeterministicCandidates(schema: SchemaItem[]): RelationshipPatternCandidate[]
 }
 
-const folderOntology: OntologyItem[] = [
+const folderSchema: SchemaItem[] = [
   {
     label: 'Folder',
     count: 3,
@@ -25,7 +25,7 @@ const folderOntology: OntologyItem[] = [
   }
 ]
 
-const employeeOntology: OntologyItem[] = [
+const employeeSchema: SchemaItem[] = [
   {
     label: 'Employee',
     count: 3,
@@ -38,7 +38,7 @@ const employeeOntology: OntologyItem[] = [
   }
 ]
 
-const starWarsOntology: OntologyItem[] = [
+const starWarsSchema: SchemaItem[] = [
   {
     label: 'CHARACTER',
     count: 112,
@@ -162,7 +162,7 @@ describe('RelationshipPatternsService', () => {
           mode: 'join_pattern',
           confidence: 0.91
         },
-        folderOntology
+        folderSchema
       )
 
       expect(candidate).toMatchObject({
@@ -183,7 +183,7 @@ describe('RelationshipPatternsService', () => {
           mode: 'join_pattern',
           confidence: 0.91
         },
-        folderOntology
+        folderSchema
       )
 
       expect(candidate).toBeUndefined()
@@ -199,7 +199,7 @@ describe('RelationshipPatternsService', () => {
           mode: 'join_pattern',
           confidence: 0.88
         },
-        employeeOntology
+        employeeSchema
       )
 
       expect(candidate).toMatchObject({
@@ -220,7 +220,7 @@ describe('RelationshipPatternsService', () => {
           mode: 'join_pattern',
           confidence: 0.9
         },
-        starWarsOntology
+        starWarsSchema
       )
 
       expect(candidate).toBeUndefined()
@@ -237,7 +237,7 @@ describe('RelationshipPatternsService', () => {
             mode: 'join_pattern',
             confidence: 0.9
           },
-          starWarsOntology
+          starWarsSchema
         )
       ).toBeUndefined()
     })
@@ -253,7 +253,7 @@ describe('RelationshipPatternsService', () => {
             mode: 'join_pattern',
             confidence: 0.95
           },
-          starWarsOntology
+          starWarsSchema
         )
       ).toBeUndefined()
     })
@@ -268,7 +268,7 @@ describe('RelationshipPatternsService', () => {
           mode: 'join_pattern',
           confidence: 0.9
         },
-        starWarsOntology
+        starWarsSchema
       )
 
       expect(candidate).toMatchObject({
@@ -289,7 +289,7 @@ describe('RelationshipPatternsService', () => {
           mode: 'join_pattern',
           confidence: 0.9
         },
-        starWarsOntology
+        starWarsSchema
       )
 
       expect(candidate).toMatchObject({
@@ -310,7 +310,7 @@ describe('RelationshipPatternsService', () => {
           mode: 'join_pattern',
           confidence: 0.9
         },
-        starWarsOntology
+        starWarsSchema
       )
 
       expect(candidate).toMatchObject({
@@ -324,7 +324,7 @@ describe('RelationshipPatternsService', () => {
 
   describe('suggestDeterministicCandidates', () => {
     it('suggests joins from sampled overlap', () => {
-      expect(service.suggestDeterministicCandidates(starWarsOntology)).toContainEqual(
+      expect(service.suggestDeterministicCandidates(starWarsSchema)).toContainEqual(
         expect.objectContaining({
           source: { label: 'BATTLE', key: 'commander_character_ids' },
           target: { label: 'CHARACTER', key: 'id' },
@@ -332,7 +332,7 @@ describe('RelationshipPatternsService', () => {
           mode: 'join_pattern'
         })
       )
-      expect(service.suggestDeterministicCandidates(starWarsOntology)).toContainEqual(
+      expect(service.suggestDeterministicCandidates(starWarsSchema)).toContainEqual(
         expect.objectContaining({
           source: { label: 'STARSHIP', key: 'pilots' },
           target: { label: 'CHARACTER', key: 'name' },
@@ -343,7 +343,7 @@ describe('RelationshipPatternsService', () => {
     })
 
     it('does not suggest enum or list-to-list joins', () => {
-      const suggestions = service.suggestDeterministicCandidates(starWarsOntology)
+      const suggestions = service.suggestDeterministicCandidates(starWarsSchema)
 
       expect(suggestions).not.toContainEqual(
         expect.objectContaining({

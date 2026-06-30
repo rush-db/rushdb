@@ -83,12 +83,12 @@ Query and bulk-manage relationships.
 
 #### `db.relationships.patterns`
 
-Review and manage relationship patterns inferred from the project ontology. See [Relationship Patterns](/learn/reference/typescript/relationship-patterns) for the full review flow.
+Review and manage relationship patterns inferred from the project schema. See [Relationship Patterns](/learn/reference/typescript/relationship-patterns) for the full review flow.
 
 | Method                | Description                                                            |
 | --------------------- | ---------------------------------------------------------------------- |
-| `list()`              | List saved patterns, ontology relationships, and analysis status       |
-| `analyze()`           | Queue ontology analysis to generate suggestions                        |
+| `list()`              | List saved patterns, schema relationships, and analysis status         |
+| `analyze()`           | Queue schema analysis to generate suggestions                          |
 | `approve(id)`         | Approve a suggestion and apply its relationships                       |
 | `ignore(id)`          | Ignore a suggestion without applying it                                |
 | `delete(id, options)` | Delete a saved pattern, optionally removing materialized relationships |
@@ -127,13 +127,13 @@ See also: [Transaction](/learn/reference/typescript/Transaction) for the `commit
 
 ### `db.ai`
 
-Semantic search and ontology exploration. Embedding index management is available under `db.ai.indexes`.
+Semantic search and schema exploration. Embedding index management is available under `db.ai.indexes`.
 
-| Method                                     | Description                                     |
-| ------------------------------------------ | ----------------------------------------------- |
-| `search(params)`                           | Semantic search over indexed properties         |
-| `getOntology(params, transaction)`         | Return the graph ontology as structured JSON    |
-| `getOntologyMarkdown(params, transaction)` | Return the ontology as token-efficient Markdown |
+| Method                                   | Description                                   |
+| ---------------------------------------- | --------------------------------------------- |
+| `search(params)`                         | Semantic search over indexed properties       |
+| `getSchema(params, transaction)`         | Return the graph schema as structured JSON    |
+| `getSchemaMarkdown(params, transaction)` | Return the schema as token-efficient Markdown |
 
 #### `db.ai.indexes`
 

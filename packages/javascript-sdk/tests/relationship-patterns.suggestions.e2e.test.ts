@@ -194,11 +194,11 @@ describe('relationship-patterns suggestion validation (e2e)', () => {
    *
    * When a DEFAULT relationship exists between two labels (created by importJson nesting),
    * the pattern engine must be willing to suggest retype_existing_relationship for that
-   * pair regardless of which side "owns" the relationship in the ontology.
+   * pair regardless of which side "owns" the relationship in the schema.
    *
    * This test verifies the invariant: every retype_existing_relationship pattern in the
    * result must correspond to a label pair that actually has a default relationship in
-   * the current ontology.  A regression in hasDefaultRelationshipBetween would cause
+   * the current schema.  A regression in hasDefaultRelationshipBetween would cause
    * retype patterns to appear for pairs without a default rel, or incorrectly block them
    * (both are caught by the invariant check below).
    *
@@ -215,15 +215,15 @@ describe('relationship-patterns suggestion validation (e2e)', () => {
       )
     }
 
-    const ontology = result.relationships ?? []
+    const schema = result.relationships ?? []
     const DEFAULT_TYPE_PREFIXES = ['RUSHDB_DEFAULT_RELATION', 'RUSHDB_RELATION']
 
     const isDefaultType = (type: string) =>
       DEFAULT_TYPE_PREFIXES.some((prefix) => type === prefix || type.startsWith(prefix))
 
     const hasDefaultBetween = (labelA: string, labelB: string): boolean => {
-      const entryA = ontology.find((o) => o.label === labelA)
-      const entryB = ontology.find((o) => o.label === labelB)
+      const entryA = schema.find((o) => o.label === labelA)
+      const entryB = schema.find((o) => o.label === labelB)
       return (
         entryA?.relationships.some((r) => r.label === labelB && isDefaultType(r.type)) ||
         entryB?.relationships.some((r) => r.label === labelA && isDefaultType(r.type)) ||
@@ -234,19 +234,19 @@ describe('relationship-patterns suggestion validation (e2e)', () => {
     const retypers = (result.patterns ?? []).filter((p) => p.mode === 'retype_existing_relationship')
 
     // Invariant: every retype suggestion whose labels still exist in the current
-    // ontology must have a default rel between its label pair.
+    // schema must have a default rel between its label pair.
     // Patterns from previous test runs whose records have since been deleted are
     // skipped — they are stale rows in Postgres that no longer have live graph
-    // data, so they cannot be validated against the current ontology.
+    // data, so they cannot be validated against the current schema.
     for (const pattern of retypers) {
       const { label: srcLabel } = pattern.source
       const { label: tgtLabel } = pattern.target
 
-      const srcInOntology = ontology.some((o) => o.label === srcLabel)
-      const tgtInOntology = ontology.some((o) => o.label === tgtLabel)
+      const srcInSchema = schema.some((o) => o.label === srcLabel)
+      const tgtInSchema = schema.some((o) => o.label === tgtLabel)
 
-      // Skip stale patterns (one or both labels absent from current ontology)
-      if (!srcInOntology || !tgtInOntology) continue
+      // Skip stale patterns (one or both labels absent from current schema)
+      if (!srcInSchema || !tgtInSchema) continue
 
       expect(hasDefaultBetween(srcLabel, tgtLabel)).toBe(true)
     }

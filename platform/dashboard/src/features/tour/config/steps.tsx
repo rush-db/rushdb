@@ -216,7 +216,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       <div className="space-y-4">
         <h3 className="text-content text-lg font-bold">Suggested Semantic Indexes</h3>
         <p className="text-content2">
-          RushDB inspected your imported ontology and found text fields that are useful for semantic search.
+          RushDB inspected your imported schema and found text fields that are useful for semantic search.
         </p>
       </div>
     ),
@@ -259,7 +259,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       </div>
     ),
     data: {
-      route: 'projectRelationships',
+      route: 'projectSuggestedRelationships',
       key: 'projectRelationshipAnalyze',
       nextShouldBeManuallySet: true,
       noNext: true
@@ -278,7 +278,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       </div>
     ),
     data: {
-      route: 'projectRelationships',
+      route: 'projectSuggestedRelationships',
       key: 'projectRelationshipApprove',
       nextShouldBeManuallySet: true,
       noNext: true,
@@ -304,14 +304,14 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     }
   },
   recordRawApiMode: {
-    target: '[data-tour="records-table-view-mode"]',
-    placement: 'left',
+    target: '[data-tour="project-query-lab-chip"]',
+    placement: 'right',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Switch to Raw API</h3>
+        <h3 className="text-content text-lg font-bold">Open the Query Lab</h3>
         <p className="text-content2">
-          Raw API mode is a playground for the query API — write, tweak, and run queries directly against your
-          data and see exactly what your apps would get back.
+          The Query Lab is a playground for the query API — write, tweak, and run queries directly against
+          your data and see exactly what your apps would get back.
         </p>
       </div>
     ),
@@ -320,7 +320,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       key: 'recordRawApiMode',
       nextShouldBeManuallySet: true,
       noNext: true,
-      clickTarget: '[data-tour="records-table-view-mode"] [aria-label="raw-api"]'
+      clickTarget: '[data-tour="project-query-lab-chip"]'
     }
   },
   rawApiSelectQuery: {
@@ -336,7 +336,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       </div>
     ),
     data: {
-      route: 'project',
+      route: 'projectQueryLab',
       key: 'rawApiSelectQuery',
       noBack: true
     }
@@ -353,7 +353,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       </div>
     ),
     data: {
-      route: 'project',
+      route: 'projectQueryLab',
       key: 'rawApiRunQuery',
       nextShouldBeManuallySet: true,
       noNext: true,
@@ -372,7 +372,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       </div>
     ),
     data: {
-      route: 'project',
+      route: 'projectQueryLab',
       key: 'rawApiResults',
       redirectTo: 'projectHelp'
     }

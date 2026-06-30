@@ -1,6 +1,8 @@
 import type { ComponentPropsWithoutRef } from 'react'
 import { Suspense, lazy, useEffect, useState } from 'react'
+import { useStore } from '@nanostores/react'
 import { Skeleton } from '~/elements/Skeleton'
+import { $resolvedTheme } from '~/features/auth/stores/theme'
 
 const MonacoEditor = lazy(() =>
   import('~/lib/monacoSetup').then(() =>
@@ -27,7 +29,7 @@ export const Editor = ({
   value,
   onChange,
   defaultLanguage = 'javascript',
-  theme = 'vs-dark',
+  theme,
   height = '100%',
   minimap = false,
   readOnly = false,
@@ -36,6 +38,9 @@ export const Editor = ({
   className
 }: EditorProps) => {
   const [editor, setEditor] = useState<any>(null)
+  const resolvedTheme = useStore($resolvedTheme)
+  // An explicit `theme` prop wins; otherwise follow the app theme.
+  const editorTheme = theme ?? (resolvedTheme === 'light' ? 'light' : 'vs-dark')
 
   useEffect(() => {
     if (!editor || !format) return
@@ -80,7 +85,7 @@ export const Editor = ({
         defaultValue={defaultValue}
         height={height}
         onChange={onChange}
-        theme={theme}
+        theme={editorTheme}
         className={className}
         options={{
           readOnly: readOnly,

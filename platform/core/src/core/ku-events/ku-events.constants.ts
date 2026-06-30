@@ -14,6 +14,6 @@ export enum KuOperation {
   STORAGE_FOOTPRINT = 'storage_footprint',
   /** Emitted each time an LLM-powered relationship pattern analysis runs
    *  (either triggered manually by the user or via the background scheduler).
-   *  Reflects the compute cost of ontology-to-candidate LLM inference. */
+   *  Reflects the compute cost of schema-to-candidate LLM inference. */
   RELATIONSHIP_ANALYSIS = 'relationship_analysis'
 }

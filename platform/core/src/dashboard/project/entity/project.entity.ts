@@ -15,8 +15,8 @@ export class ProjectEntity {
       customDb: this.projectNode.customDb,
       status: this.projectNode.status as any,
       stats: this.projectNode.stats,
-      ontologyCache: this.projectNode.ontologyCache,
-      ontologyCachedAt: this.projectNode.ontologyCachedAt
+      schemaCache: this.projectNode.schemaCache,
+      schemaCachedAt: this.projectNode.schemaCachedAt
     }
   }
 

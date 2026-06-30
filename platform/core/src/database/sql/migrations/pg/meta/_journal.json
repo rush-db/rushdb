@@ -50,6 +50,20 @@
       "when": 1782186971700,
       "tag": "0006_tough_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782200000000,
+      "tag": "0007_rename_schema_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782752467613,
+      "tag": "0008_living_doctor_spectrum",
+      "breakpoints": true
     }
   ]
 }

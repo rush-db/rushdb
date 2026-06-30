@@ -25,8 +25,6 @@ export const buttonVariants = cva(
       },
       variant: {
         success: 'bg-success text-success-contrast hover:bg-success-hover ring-success-ring',
-        accent:
-          'bg-accent text-accent-contrast hover:bg-accent-hover focus-visible:bg-accent-focus ring-accent-ring',
         primary: 'bg-primary ring-primary-ring text-primary-contrast hover:bg-primary-hover',
         info: 'bg-badge-blue ring-badge-blue/10 text-badge-blue-contrast hover:bg-badge-blue/80',
         danger: 'bg-danger text-danger-contrast hover:bg-danger-hover ring-danger-ring',
@@ -84,7 +82,7 @@ export function CopyButton({
   copiedText = 'Copied!',
   text,
   timeout = 1000,
-  variant = 'accent',
+  variant = 'primary',
   ...props
 }: TPolymorphicComponentProps<
   'button',

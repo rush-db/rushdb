@@ -34,20 +34,15 @@ import { NeogmaService } from '@/database/neogma/neogma.service'
 
 import { randomUUID } from 'crypto'
 
-import type {
-  OntologyItem,
-  OntologyProperty,
-  OntologyRelationship,
-  OntologyVectorIndex
-} from '@/core/ai/ai.types'
+import type { SchemaItem, SchemaProperty, SchemaRelationship, SchemaVectorIndex } from '@/core/ai/ai.types'
 import type { CreateEmbeddingIndexDto } from '@/core/ai/dto/create-embedding-index.dto'
 import type { InlineVectorEntryDto } from '@/core/ai/dto/inline-vector-entry.dto'
 import type { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
 import type { UpsertIndexVectorsDto } from '@/core/ai/dto/upsert-index-vectors.dto'
 import type { EmbeddingIndexRow } from '@/database/sql/schema/types'
 
-/** How long (ms) a cached ontology is considered fresh before a recalculation is triggered. */
-const ONTOLOGY_CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
+/** How long (ms) a cached schema is considered fresh before a recalculation is triggered. */
+const SCHEMA_CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 
 /**
  * Max VALUE relationships scanned by the pre-creation billing estimate. The request
@@ -59,11 +54,11 @@ const EMBEDDING_BILLING_SCAN_CAP = 10_000
 /** How long (ms) a successful embedding-provider healthcheck is trusted before re-probing. */
 const EMBEDDING_PROBE_TTL_MS = 10 * 60 * 1000
 
-/** Records scanned per (label, property) when sampling string values for the ontology. */
-const ONTOLOGY_SAMPLE_SCAN_RECORDS = 100
+/** Records scanned per (label, property) when sampling string values for the schema. */
+const SCHEMA_SAMPLE_SCAN_RECORDS = 100
 
-/** Max distinct sample values kept per string property in the ontology. */
-const ONTOLOGY_SAMPLE_VALUES = 10
+/** Max distinct sample values kept per string property in the schema. */
+const SCHEMA_SAMPLE_VALUES = 10
 
 @Injectable()
 export class AiService {
@@ -83,10 +78,11 @@ export class AiService {
   /** Timestamps of last successful embedding-provider probe, keyed by `${modelKey}:${dimensions}`. */
   private readonly embeddingProbeCache = new Map<string, number>()
 
-  private inferOntologyValueType(values: unknown[]): string {
+  private inferSchemaValueType(values: unknown[]): string {
     const nonNullValues = values.filter((value) => value !== null && value !== undefined)
     if (nonNullValues.length === 0) {
-      return 'null'
+      // null is no longer a stored type; an all-null/empty sample defaults to string.
+      return 'string'
     }
     if (nonNullValues.every((value) => typeof value === 'number')) {
       return 'number'
@@ -125,9 +121,9 @@ export class AiService {
     maxNumeric: number | null
     minString: string | null
     maxString: string | null
-  }): NonNullable<OntologyRelationship['properties']>[number] {
-    const type = this.inferOntologyValueType(values)
-    const prop: NonNullable<OntologyRelationship['properties']>[number] = {
+  }): NonNullable<SchemaRelationship['properties']>[number] {
+    const type = this.inferSchemaValueType(values)
+    const prop: NonNullable<SchemaRelationship['properties']>[number] = {
       name,
       type,
       relationshipsCount
@@ -151,7 +147,7 @@ export class AiService {
     return prop
   }
 
-  async getOntology({
+  async getSchema({
     projectId,
     workspaceId,
     labels,
@@ -173,32 +169,31 @@ export class AiService {
      */
     allowStale?: boolean
     transaction: Transaction
-  }): Promise<OntologyItem[]> {
+  }): Promise<SchemaItem[]> {
     const tTotal = Date.now()
 
     // ── 1. Check persisted cache in SQL projects table ────────────────────────
     const projectRow = await this.projectRepository.findById(projectId)
-    const cachedAt: string | null = projectRow?.ontologyCachedAt ?? null
-    const cacheJson: string | null = projectRow?.ontologyCache ?? null
+    const cachedAt: string | null = projectRow?.schemaCachedAt ?? null
+    const cacheJson: string | null = projectRow?.schemaCache ?? null
 
     if (!force && cachedAt && cacheJson) {
       const ageMs = Date.now() - new Date(cachedAt).getTime()
-      if (ageMs < ONTOLOGY_CACHE_TTL_MS || allowStale) {
+      if (ageMs < SCHEMA_CACHE_TTL_MS || allowStale) {
         // Cache is fresh — deserialise, optionally filter, return immediately
-        const fullOntology: OntologyItem[] = JSON.parse(cacheJson)
-        const result =
-          labels?.length ? fullOntology.filter((item) => labels.includes(item.label)) : fullOntology
+        const fullSchema: SchemaItem[] = JSON.parse(cacheJson)
+        const result = labels?.length ? fullSchema.filter((item) => labels.includes(item.label)) : fullSchema
 
         isDevMode(() =>
           Logger.debug(
-            `[AiService] ontology: cache hit — age ${Math.round(ageMs / 1000)}s, ${result.length}/${fullOntology.length} labels, total ${Date.now() - tTotal}ms`
+            `[AiService] schema: cache hit — age ${Math.round(ageMs / 1000)}s, ${result.length}/${fullSchema.length} labels, total ${Date.now() - tTotal}ms`
           )
         )
         return result
       }
     }
 
-    // ── 2. Cache is stale/missing — recalculate the FULL ontology ──────────
+    // ── 2. Cache is stale/missing — recalculate the FULL schema ──────────
     // Always run without a label filter so the persisted cache is complete.
     // Label filtering (if requested) is applied in-memory after building.
     const params: Record<string, any> = { projectId }
@@ -223,10 +218,10 @@ export class AiService {
     }
 
     // ---------- Build label → properties map (Q2) ----------
-    const labelPropsMap = new Map<string, OntologyProperty[]>()
+    const labelPropsMap = new Map<string, SchemaProperty[]>()
     for (const r of propertiesResult.records) {
       const label = r.get('label') as string
-      const prop: OntologyProperty = {
+      const prop: SchemaProperty = {
         id: r.get('propId') as string,
         name: r.get('propName') as string,
         type: r.get('propType') as string
@@ -276,8 +271,8 @@ export class AiService {
       const samplesResult = await transaction.run(this.aiQueryService.getPropertySampleValuesQuery(), {
         projectId,
         pairs: samplePairs,
-        sampleScanLimit: neo4jInt(ONTOLOGY_SAMPLE_SCAN_RECORDS),
-        sampleValuesLimit: neo4jInt(ONTOLOGY_SAMPLE_VALUES)
+        sampleScanLimit: neo4jInt(SCHEMA_SAMPLE_SCAN_RECORDS),
+        sampleValuesLimit: neo4jInt(SCHEMA_SAMPLE_VALUES)
       })
       const samplesByKey = new Map<string, unknown[]>()
       for (const r of samplesResult.records) {
@@ -290,7 +285,7 @@ export class AiService {
           }
           const samples = samplesByKey.get(`${label}|${prop.id}`)
           if (samples?.length) {
-            prop.values = samples as OntologyProperty['values']
+            prop.values = samples as SchemaProperty['values']
           }
         }
       }
@@ -299,7 +294,7 @@ export class AiService {
     // ---------- Build relationship topology + property maps (single scan, Q3) ----------
     // Rows with propName === null carry the exact per-triple relationship count;
     // rows with a propName summarize one relationship property.
-    const relationshipPropertiesMap = new Map<string, NonNullable<OntologyRelationship['properties']>>()
+    const relationshipPropertiesMap = new Map<string, NonNullable<SchemaRelationship['properties']>>()
     const relCountRows: Array<{ fromLabel: string; relType: string; toLabel: string; relCount: number }> = []
     const toNullableNumber = (v: any): number | null =>
       v == null ? null
@@ -338,9 +333,9 @@ export class AiService {
 
     // ---------- Build label → relationships map ----------
     // Relationships are stored bidirectionally: fromLabel gets 'out', toLabel gets 'in'.
-    const labelRelsMap = new Map<string, OntologyRelationship[]>()
+    const labelRelsMap = new Map<string, SchemaRelationship[]>()
 
-    const addRel = (label: string, rel: OntologyRelationship) => {
+    const addRel = (label: string, rel: SchemaRelationship) => {
       if (!labelRelsMap.has(label)) {
         labelRelsMap.set(label, [])
       }
@@ -355,14 +350,17 @@ export class AiService {
       const properties = relationshipPropertiesMap.get(`${fromLabel}|${relType}|${toLabel}`)
 
       if (fromLabel === toLabel) {
+        // Self-referential edge (e.g. CHARACTER HAS_MENTOR_CHARACTER_ID CHARACTER): record it once as
+        // outgoing so it stays traversable in the schema instead of being dropped.
+        addRel(fromLabel, { label: toLabel, type: relType, direction: 'out', count: relCount, properties })
         continue
-      } // skip self-loops
+      }
 
       addRel(fromLabel, { label: toLabel, type: relType, direction: 'out', count: relCount, properties })
       addRel(toLabel, { label: fromLabel, type: relType, direction: 'in', count: relCount, properties })
     }
 
-    // ---------- Merge into OntologyItem[] ----------
+    // ---------- Merge into SchemaItem[] ----------
     // Include all labels from Q1 plus any additional labels seen in Q2/Q3
     const allLabels = new Set<string>([
       ...labelCountMap.keys(),
@@ -370,7 +368,7 @@ export class AiService {
       ...labelRelsMap.keys()
     ])
 
-    const ontology: OntologyItem[] = []
+    const schema: SchemaItem[] = []
 
     for (const label of allLabels) {
       const rels = labelRelsMap.get(label) ?? []
@@ -384,7 +382,7 @@ export class AiService {
         return a.type.localeCompare(b.type)
       })
 
-      ontology.push({
+      schema.push({
         label,
         count: labelCountMap.get(label) ?? 0,
         properties: labelPropsMap.get(label) ?? [],
@@ -395,7 +393,7 @@ export class AiService {
     // ── Enrich properties with vector index info ─────────────────────────────
     if (allIndexes.length > 0) {
       // Build map: "label|propertyName" → index rows
-      const indexMap = new Map<string, OntologyVectorIndex[]>()
+      const indexMap = new Map<string, SchemaVectorIndex[]>()
       for (const idx of allIndexes) {
         const key = `${idx.label}|${idx.propertyName}`
         if (!indexMap.has(key)) {
@@ -410,7 +408,7 @@ export class AiService {
           modelKey: idx.modelKey
         })
       }
-      for (const item of ontology) {
+      for (const item of schema) {
         for (const prop of item.properties) {
           const key = `${item.label}|${prop.name}`
           const indexes = indexMap.get(key)
@@ -422,46 +420,46 @@ export class AiService {
     }
 
     // Sort by count descending for consistent output
-    ontology.sort((a, b) => b.count - a.count)
+    schema.sort((a, b) => b.count - a.count)
 
     const elapsed = Date.now() - t0
 
     isDevMode(() =>
       Logger.debug(
-        `[AiService] ontology: recalculated in ${elapsed}ms (${ontology.length} labels, ${propertiesResult.records.length} properties, ${relationshipsResult.records.length} relationships)`
+        `[AiService] schema: recalculated in ${elapsed}ms (${schema.length} labels, ${propertiesResult.records.length} properties, ${relationshipsResult.records.length} relationships)`
       )
     )
 
     // Emit COMPUTE_OPERATION only when a full recalculation was performed
     if (workspaceId) {
       this.kuEventsService.emit(workspaceId, projectId, KuOperation.COMPUTE_OPERATION, {
-        type: 'ontology'
+        type: 'schema'
       })
     }
 
-    // ── 3. Persist full ontology to SQL projects table for subsequent cache hits ──
+    // ── 3. Persist full schema to SQL projects table for subsequent cache hits ──
     const nowIso = new Date().toISOString()
     try {
       await this.projectRepository.update(projectId, {
-        ontologyCache: JSON.stringify(ontology),
-        ontologyCachedAt: nowIso
+        schemaCache: JSON.stringify(schema),
+        schemaCachedAt: nowIso
       })
     } catch (err) {
       // Cache write is best-effort — log but never fail the caller
-      console.warn('[AiService] failed to persist ontology cache:', err)
+      console.warn('[AiService] failed to persist schema cache:', err)
     }
 
     // ── 4. Return (apply in-memory label filter if requested) ─────────────────
-    const result = labels?.length ? ontology.filter((item) => labels.includes(item.label)) : ontology
+    const result = labels?.length ? schema.filter((item) => labels.includes(item.label)) : schema
     isDevMode(() =>
       Logger.debug(
-        `[AiService] ontology: total ${Date.now() - tTotal}ms (recalc ${elapsed}ms, ${result.length}/${ontology.length} labels returned)`
+        `[AiService] schema: total ${Date.now() - tTotal}ms (recalc ${elapsed}ms, ${result.length}/${schema.length} labels returned)`
       )
     )
     return result
   }
 
-  buildMdSchema(ontology: OntologyItem[]): string {
+  buildMdSchema(schema: SchemaItem[]): string {
     const esc = (s: string) => String(s).replace(/\|/g, '\\|').replace(/`/g, '\\`')
     const MAX_DISPLAY_VALUES = 5
     const MAX_VALUE_LEN = 48 // truncate individual string values longer than this
@@ -469,7 +467,7 @@ export class AiService {
     const truncate = (s: string): string =>
       s.length > MAX_VALUE_LEN ? s.slice(0, MAX_VALUE_LEN) + '\u2026' : s
 
-    const fmtValues = (prop: OntologyProperty): string => {
+    const fmtValues = (prop: SchemaProperty): string => {
       const t = (prop.type || '').toLowerCase()
 
       if (t === 'number' || t === 'datetime') {
@@ -489,18 +487,18 @@ export class AiService {
       return '—'
     }
 
-    let md = `# Graph Ontology\n\n`
+    let md = `# Graph Schema\n\n`
 
     // Labels summary table
     md += `## Labels\n\n`
     md += `| Label | Count |\n|-------|------:|\n`
-    for (const item of ontology) {
+    for (const item of schema) {
       md += `| \`${esc(item.label)}\` | ${item.count} |\n`
     }
     md += `\n`
 
     // Per-label detail
-    for (const item of ontology) {
+    for (const item of schema) {
       const recordWord = item.count === 1 ? 'record' : 'records'
       md += `---\n\n## \`${esc(item.label)}\` (${item.count} ${recordWord})\n\n`
 
@@ -522,13 +520,21 @@ export class AiService {
 
       if (item.relationships.length > 0) {
         md += `### Relationships\n\n`
-        md += `| Type | Direction | Other Label | Edge Properties |\n|------|-----------|-------------|-----------------|\n`
+        // Each row is a directed traversal pattern rooted at this label: `->` is outgoing, `<-` is incoming.
+        // Map straight to a where traversal: nest the other label and set $relation { type, direction } where
+        // direction is "out" for `->` and "in" for `<-`.
+        md += `| Traversal | Count | Edge Properties |\n|-----------|------:|-----------------|\n`
         for (const r of item.relationships) {
           const edgeProperties =
             r.properties?.length ?
               r.properties.map((p) => `\`${esc(p.name)}:${esc(p.type)}\``).join(', ')
             : '—'
-          md += `| \`${esc(r.type)}\` | ${r.direction} | \`${esc(r.label)}\` | ${edgeProperties} |\n`
+          const pattern =
+            r.direction === 'out' ?
+              `(${item.label})-[:${r.type}]->(${r.label})`
+            : `(${item.label})<-[:${r.type}]-(${r.label})`
+          const count = typeof r.count === 'number' ? String(r.count) : '—'
+          md += `| \`${esc(pattern)}\` | ${count} | ${edgeProperties} |\n`
         }
         md += `\n`
       }

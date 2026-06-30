@@ -7,12 +7,10 @@ export const PROPERTY_TYPE_STRING = 'string' as const
 export const PROPERTY_TYPE_DATETIME = 'datetime' as const
 export const PROPERTY_TYPE_BOOLEAN = 'boolean' as const
 export const PROPERTY_TYPE_NUMBER = 'number' as const
-export const PROPERTY_TYPE_NULL = 'null' as const
 
 export const PROPERTY_TYPES = [
   PROPERTY_TYPE_STRING,
   PROPERTY_TYPE_DATETIME,
   PROPERTY_TYPE_BOOLEAN,
-  PROPERTY_TYPE_NUMBER,
-  PROPERTY_TYPE_NULL
+  PROPERTY_TYPE_NUMBER
 ]

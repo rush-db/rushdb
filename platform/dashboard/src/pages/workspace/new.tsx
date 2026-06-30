@@ -84,7 +84,7 @@ function CreateWorkspaceForm({ ...props }: TPolymorphicComponentProps<'form'>) {
             disabled={showSuccess}
             loading={isSubmitting}
             type="submit"
-            variant={hasWorkspaceName ? 'accent' : 'ghost'}
+            variant={hasWorkspaceName ? 'primary' : 'ghost'}
           >
             Create
           </Button>

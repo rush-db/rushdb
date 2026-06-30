@@ -88,7 +88,7 @@ function SignInForm() {
           loading={isSubmitting}
           size="large"
           type="submit"
-          variant="accent"
+          variant="primary"
         >
           Sign In <LogIn />
         </Button>
@@ -142,7 +142,7 @@ function SsoSignIn() {
           if (e.key === 'Enter') handleContinue()
         }}
       />
-      <Button size="large" variant="accent" loading={loading} disabled={!email} onClick={handleContinue}>
+      <Button size="large" variant="primary" loading={loading} disabled={!email} onClick={handleContinue}>
         Continue with SSO
       </Button>
     </div>

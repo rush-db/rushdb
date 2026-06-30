@@ -6,8 +6,8 @@
 
 ### The memory layer for AI agents and apps.
 
-Push any JSON. Your agent gets a live ontology, graph relationships, and semantic search — inferred automatically.
-No pipeline. No separate stores. No schema or ontology modeling.
+Push any JSON. Your agent gets a live, queryable schema, graph relationships, and semantic search — inferred automatically.
+No pipeline. No separate stores. No schema to design.
 
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
@@ -17,6 +17,8 @@ No pipeline. No separate stores. No schema or ontology modeling.
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 Website](https://rushdb.com) • [📖 Documentation](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 Examples](https://github.com/rush-db/examples)
+
+**English** • [中文](README_ZH.md) • [日本語](README_JA.md) • [한국어](README_KO.md) • [Deutsch](README_DE.md) • [Français](README_FR.md) • [Português](README_PT.md) • [Español](README_ES.md) • [हिन्दी](README_HI.md) • [العربية](README_AR.md) • [Bahasa Indonesia](README_ID.md) • [ไทย](README_TH.md)
 
 </div>
 
@@ -111,40 +113,113 @@ results = db.records.find({
 })
 ```
 
-<details>
-<summary>Also works with nested JSON — RushDB structures it automatically</summary>
+---
+
+## Working with your data
+
+### Import nested JSON
+
+Push any JSON shape. Nested objects and arrays of objects become linked records — labels, types, and relationships are inferred on write. No schema, no migration step.
 
 ```typescript
-// Push nested JSON — RushDB normalizes it into a graph, no schema needed
 await db.records.importJson({
   label: 'COMPANY',
-  payload: {
+  data: {
     name: 'Acme Corp',
     DEPARTMENT: [
       {
         name: 'Engineering',
+        budget: 2_000_000,
         EMPLOYEE: [
-          {
-            name: 'Alice',
-            role: 'Staff Engineer'
-          }
+          { name: 'Alice', role: 'Staff Engineer', salary: 210_000 },
+          { name: 'Bob', role: 'Engineer', salary: 160_000 }
         ]
       }
     ]
   }
 })
+```
 
-// Traverse the auto-created relationships
+Each nested key (`DEPARTMENT`, `EMPLOYEE`) becomes a label, each object a record, and containment a relationship — all created automatically.
+
+### Import CSV
+
+```typescript
+const csv = `name,email,department
+Alice,alice@acme.co,Engineering
+Bob,bob@acme.co,Sales`
+
+await db.records.importCsv({
+  label: 'EMPLOYEE',
+  data: csv,
+  options: { suggestTypes: true, skipEmptyValues: true },
+  parseConfig: { header: true }
+})
+```
+
+`suggestTypes` infers numbers, booleans, and dates from strings; `skipEmptyValues` treats blank cells as unset instead of storing empty values (`0` and `false` are kept).
+
+### Traverse the graph
+
+Filter root records by conditions on their _related_ records — arbitrarily deep — in a single query. Related labels go **inside** `where`, not in `labels`:
+
+```typescript
+// Engineers in Acme's Engineering department
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
   where: {
     role: { $contains: 'Engineer' },
-    DEPARTMENT: { COMPANY: { name: 'Acme Corp' } }
+    DEPARTMENT: {
+      name: 'Engineering',
+      COMPANY: { name: 'Acme Corp' }
+    }
   }
 })
 ```
 
-</details>
+### Analytical queries (aggregate & group by)
+
+`select` shapes the output with aggregations (`$sum`, `$avg`, `$count`, `$min`, `$max`); `groupBy` controls the dimensions. Don't add `limit` to an aggregation — it would scan only the first N records and skew the totals.
+
+```typescript
+// Portfolio KPIs across ALL projects → one row
+const kpis = await db.records.find({
+  labels: ['PROJECT'],
+  select: {
+    totalBudget: { $sum: '$record.budget' },
+    avgBudget: { $avg: '$record.budget', $precision: 2 },
+    projectCount: { $count: '*' }
+  },
+  groupBy: ['totalBudget', 'avgBudget', 'projectCount'],
+  orderBy: { totalBudget: 'asc' } // late-ordering → aggregates the full dataset
+})
+// → [{ totalBudget: 18_750_000, avgBudget: 568181.82, projectCount: 33 }]
+
+// Breakdown by dimension → one row per status
+const byStatus = await db.records.find({
+  labels: ['PROJECT'],
+  select: { count: { $count: '*' }, avgBudget: { $avg: '$record.budget', $precision: 2 } },
+  groupBy: ['$record.status'],
+  orderBy: { count: 'desc' }
+})
+// → [{ status: 'active', count: 18, avgBudget: 612000 }, { status: 'paused', count: 9, ... }]
+```
+
+Aggregations compose with traversal — e.g. headcount and payroll per department:
+
+```typescript
+const payroll = await db.records.find({
+  labels: ['DEPARTMENT'],
+  where: { EMPLOYEE: { $alias: '$emp' } }, // alias the related node for use in select
+  select: {
+    headcount: { $count: '*' },
+    payroll: { $sum: '$emp.salary' }
+  },
+  groupBy: ['$record.name'],
+  orderBy: { payroll: 'desc' }
+})
+// → [{ name: 'Engineering', headcount: 2, payroll: 370000 }, ...]
+```
 
 ---
 
@@ -172,18 +247,18 @@ Place this in your Claude Desktop, Cursor, or Windsurf MCP config. The agent can
 
 ## What's in the box
 
-| Capability                      | What it means                                                                                                                                         |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Managed embeddings**          | Index any string property once — every write is auto-embedded server-side                                                                             |
-| **Graph + vector in one query** | Semantic similarity and relationship traversal compose in a single call                                                                               |
-| **Zero schema**                 | Push any JSON shape. RushDB infers types, creates properties, links records                                                                           |
-| **Inferred ontology**           | Properties become first-class nodes — types, labels, and relationships are discovered on write, so a queryable ontology builds itself as data arrives |
-| **ACID transactions**           | Concurrent agents don't corrupt shared memory. Neo4j under the hood                                                                                   |
-| **Self-describing ontology**    | Agents introspect the inferred ontology — labels, properties, value ranges — to know what they can safely query                                       |
-| **MCP-native**                  | Full MCP server with discovery-first query prompt built in                                                                                            |
-| **Agent Skills**                | Installable `@rushdb/skills` package — teach any skills-compatible agent to query, model, and remember with RushDB in one command                     |
-| **Unified query API**           | One JSON shape for graph, vector, aggregation, and introspection                                                                                      |
-| **Self-host or cloud**          | Docker + your Neo4j, or managed cloud. Full data ownership                                                                                            |
+| Capability                      | What it means                                                                                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Managed embeddings**          | Index any string property once — every write is auto-embedded server-side                                                                           |
+| **Graph + vector in one query** | Semantic similarity and relationship traversal compose in a single call                                                                             |
+| **Zero schema**                 | Push any JSON shape. RushDB infers types, creates properties, links records                                                                         |
+| **Inferred schema**             | Properties become first-class nodes — types, labels, and relationships are discovered on write, so a queryable schema builds itself as data arrives |
+| **ACID transactions**           | Concurrent agents don't corrupt shared memory. Neo4j under the hood                                                                                 |
+| **Self-describing**             | Agents introspect the inferred schema — labels, properties, value ranges — to know what they can safely query                                       |
+| **MCP-native**                  | Full MCP server with discovery-first query prompt built in                                                                                          |
+| **Agent Skills**                | Installable `@rushdb/skills` package — teach any skills-compatible agent to query, model, and remember with RushDB in one command                   |
+| **Unified query API**           | One JSON shape for graph, vector, aggregation, and introspection                                                                                    |
+| **Self-host or cloud**          | Docker + your Neo4j, or managed cloud. Full data ownership                                                                                          |
 
 ---
 
@@ -292,7 +367,7 @@ RushDB uses a **Labeled Meta Property Graph (LMPG)** model. Properties are eleva
 
 This means:
 
-- **Ontology without upfront design** — because properties are graph nodes, the schema _is_ an ontology: labels, types, value ranges, and relationship topology are inferred on write and queryable immediately — no manual ontology engineering, no RDF/OWL toolchain
+- **Schema without upfront design** — because properties are graph nodes, the schema is _inferred from your data, not designed_: labels, types, value ranges, and relationship topology are discovered on write and queryable immediately — no manual schema modeling, no RDF/OWL toolchain
 - **Auto-detected relationships** — records sharing properties get linked without hand-crafting edges
 - **Schema introspection** — agents can enumerate labels, property types, value ranges, and relationship topology in one query
 - **Soft constraints** — type cohesion scoring, cardinality tracking, and vector dimension enforcement without rigid upfront schemas

@@ -116,7 +116,7 @@ curl -X POST https://api.rushdb.com/api/v1/relationships/search \
 
 ## Suggested Patterns
 
-RushDB can analyze a project's ontology and propose relationship patterns for review before applying them. See [Suggested Relationship Patterns](/learn/relationships/suggested-patterns) for the lifecycle, SDK examples, and all five REST endpoints.
+RushDB can analyze a project's schema and propose relationship patterns for review before applying them. See [Suggested Relationship Patterns](/learn/relationships/suggested-patterns) for the lifecycle, SDK examples, and all five REST endpoints.
 
 ## Direction
 

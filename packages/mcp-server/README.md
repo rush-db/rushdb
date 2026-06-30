@@ -113,7 +113,7 @@ The agent calls `FindRelationships` to traverse the graph of connected records.
 | `AttachRelation`              | Create a relationship between two records                            |
 | `DetachRelation`              | Remove a relationship                                                |
 | `ListRelationshipPatterns`    | List inferred relationship patterns and analysis status              |
-| `AnalyzeRelationshipPatterns` | Queue ontology analysis for relationship suggestions                 |
+| `AnalyzeRelationshipPatterns` | Queue schema analysis for relationship suggestions                   |
 | `ApproveRelationshipPattern`  | Approve and apply a suggested pattern                                |
 | `IgnoreRelationshipPattern`   | Ignore a suggested pattern                                           |
 | `DeleteRelationshipPattern`   | Delete a saved pattern and optionally its materialized relationships |
@@ -168,6 +168,38 @@ git clone https://github.com/rush-db/rushdb
 cd rushdb/packages/mcp-server
 npm install
 npm run build
+```
+
+### Troubleshooting: `rushdb-mcp: command not found` / MCP error `-32000`
+
+This only happens when the MCP client launches the server with a **working directory inside this monorepo** (e.g. an `.mcp.json` at the repo root used by Claude Code / Cursor). `@rushdb/mcp-server` is a pnpm workspace package here, so any unversioned `npx @rushdb/mcp-server` (even with `-p`) resolves to the local workspace copy whose `rushdb-mcp` bin isn't linked in `node_modules/.bin`. The process exits before the MCP handshake, which the client reports as `-32000`.
+
+The published package is unaffected — the config above works as-is **outside** the repo. To run from inside the monorepo, **pin a version** so npx fetches from the registry instead of resolving the workspace package:
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      "args": ["-y", "-p", "@rushdb/mcp-server@latest", "rushdb-mcp"],
+      "env": { "RUSHDB_API_KEY": "your-api-key-here" }
+    }
+  }
+}
+```
+
+Alternatively, run the local build directly (uses your in-repo code, must be built first with `npm run build`):
+
+```json
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "node",
+      "args": ["packages/mcp-server/build/index.js"],
+      "env": { "RUSHDB_API_KEY": "your-api-key-here" }
+    }
+  }
+}
 ```
 
 ---

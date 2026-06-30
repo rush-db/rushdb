@@ -16,10 +16,10 @@ type TProjectProperties = {
   stats?: string
   customDb?: string
   status?: ProjectStatus
-  /** JSON-serialised OntologyItem[] — persisted on the node as the ontology cache. */
-  ontologyCache?: string
-  /** ISO timestamp of the last ontology recalculation. */
-  ontologyCachedAt?: string
+  /** JSON-serialised SchemaItem[] — persisted on the node as the schema cache. */
+  schemaCache?: string
+  /** ISO timestamp of the last schema recalculation. */
+  schemaCachedAt?: string
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

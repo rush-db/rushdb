@@ -11,7 +11,7 @@ The AI API covers three capabilities:
 
 | Capability            | Description                                                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **Graph Ontology**    | Self-describing schema discovery: label names, field types, value ranges, and the relationship map — always up to date |
+| **Graph Schema**      | Self-describing schema discovery: label names, field types, value ranges, and the relationship map — always up to date |
 | **Embedding Indexes** | Per-label vector policies that turn string properties into long-term semantic memory                                   |
 | **Semantic Search**   | Cosine/euclidean similarity retrieval over indexed properties, for agents and apps alike                               |
 
@@ -56,24 +56,24 @@ The AI API covers three capabilities:
 
 ## Quick links
 
-| Topic                                                                                  | Description                                                                        |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [Ontology](#graph-ontology)                                                            | Schema discovery with `POST /api/v1/ai/ontology/md` and `POST /api/v1/ai/ontology` |
-| [Indexing](/learn/reference/rest-api/ai-and-vectors/indexing)                          | Create and manage managed embedding indexes                                        |
-| [Advanced Indexing — BYOV](/learn/reference/rest-api/ai-and-vectors/advanced-indexing) | Bring Your Own Vectors: external indexes, inline writes                            |
-| [Semantic Search](/learn/reference/rest-api/ai-and-vectors/search)                     | Query by meaning with `POST /api/v1/ai/search`                                     |
-| [Writing with Vectors](/learn/reference/rest-api/ai-and-vectors/write-with-vectors)    | Attach vectors at create / upsert / importJson time                                |
-| [Agent Skills](#agent-skills)                                                          | Installable skills that teach any compatible agent to use RushDB                   |
+| Topic                                                                                  | Description                                                                    |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| [Schema](#graph-schema)                                                                | Schema discovery with `POST /api/v1/ai/schema/md` and `POST /api/v1/ai/schema` |
+| [Indexing](/learn/reference/rest-api/ai-and-vectors/indexing)                          | Create and manage managed embedding indexes                                    |
+| [Advanced Indexing — BYOV](/learn/reference/rest-api/ai-and-vectors/advanced-indexing) | Bring Your Own Vectors: external indexes, inline writes                        |
+| [Semantic Search](/learn/reference/rest-api/ai-and-vectors/search)                     | Query by meaning with `POST /api/v1/ai/search`                                 |
+| [Writing with Vectors](/learn/reference/rest-api/ai-and-vectors/write-with-vectors)    | Attach vectors at create / upsert / importJson time                            |
+| [Agent Skills](#agent-skills)                                                          | Installable skills that teach any compatible agent to use RushDB               |
 
 ---
 
-## Graph Ontology
+## Graph Schema
 
-The ontology endpoints expose a live snapshot of your database structure — without any manual schema definitions.
+The schema endpoints expose a live snapshot of your database structure — without any manual schema definitions.
 
-### Get Ontology (Markdown)
+### Get Schema (Markdown)
 
-`POST /api/v1/ai/ontology/md`
+`POST /api/v1/ai/schema/md`
 
 Returns the full schema as compact Markdown — the **recommended format for LLM context injection**: token-efficient, human-readable, and ready to paste into a system prompt or tool result.
 
@@ -87,7 +87,7 @@ Returns the full schema as compact Markdown — the **recommended format for LLM
 #### Example Request
 
 ```bash
-curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
+curl -X POST https://api.rushdb.com/api/v1/ai/schema/md \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -d '{}'
@@ -96,7 +96,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
 #### Example Response
 
 ```text
-# Graph Ontology
+# Graph Schema
 
 ## Labels
 
@@ -130,7 +130,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
 #### Filtered request (single label)
 
 ```bash
-curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
+curl -X POST https://api.rushdb.com/api/v1/ai/schema/md \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -d '{"labels": ["Order"]}'
@@ -140,11 +140,11 @@ Returns only the `Order` section. The underlying cache still covers the full sch
 
 ---
 
-### Get Ontology (JSON)
+### Get Schema (JSON)
 
-`POST /api/v1/ai/ontology`
+`POST /api/v1/ai/schema`
 
-Returns the same ontology as a structured JSON array. Each element describes one label.
+Returns the same schema as a structured JSON array. Each element describes one label.
 
 #### Request Body
 
@@ -203,7 +203,7 @@ Both endpoints share a **1-hour cache** on the ProjectNode. First call after TTL
 :::
 
 :::tip Agent quickstart
-Call `POST /api/v1/ai/ontology/md` first in every AI session. Without it, models will hallucinate label and field names.
+Call `POST /api/v1/ai/schema/md` first in every AI session. Without it, models will hallucinate label and field names.
 :::
 
 ---

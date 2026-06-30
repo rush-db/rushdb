@@ -9,6 +9,11 @@ export const RUSHDB_KEY_PROPERTIES_META = '__RUSHDB__KEY__PROPERTIES__META__' as
 
 // Internal property values
 export const RUSHDB_VALUE_NULL = '__RUSHDB__VALUE__NULL__' as const
+// LEGACY: empty arrays used to be persisted as this sentinel string. New writes store a
+// genuine []. This constant is retained only for back-compat: the data interceptor maps
+// any stored sentinel back to [] on read (see RUSHDB_INTERNALS_ALIASES below) and aggregations
+// strip it via apocRemoveFromArray. Pre-existing data is cleaned per-project by the runbook in
+// platform/core/MIGRATION-empty-array-removal.md. Remove once no project graph contains it.
 export const RUSHDB_VALUE_EMPTY_ARRAY = '__RUSHDB__VALUE__EMPTY__ARRAY__' as const
 
 // Built-in relation labels

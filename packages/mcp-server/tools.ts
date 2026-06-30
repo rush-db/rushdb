@@ -15,8 +15,8 @@
 import type { Schema } from 'jsonschema'
 
 export type ToolName =
-  | 'getOntologyMarkdown'
-  | 'getOntology'
+  | 'getSchemaMarkdown'
+  | 'getSchema'
   | 'findLabels'
   | 'createRecord'
   | 'updateRecord'
@@ -260,16 +260,16 @@ const RECORDS_OUTPUT_SCHEMA: Schema = {
 }
 
 const outputSchemas = {
-  getOntologyMarkdown: {
+  getSchemaMarkdown: {
     type: 'object',
     properties: { markdown: { type: 'string' } },
     required: ['markdown'],
     additionalProperties: false
   },
-  getOntology: {
+  getSchema: {
     type: 'object',
-    properties: { ontology: { type: 'array', items: { type: 'object', additionalProperties: true } } },
-    required: ['ontology'],
+    properties: { schema: { type: 'array', items: { type: 'object', additionalProperties: true } } },
+    required: ['schema'],
     additionalProperties: false
   },
   findLabels: {
@@ -495,12 +495,12 @@ const WRITE_SCHEMES: SecurityScheme[] = [{ type: 'oauth2', scopes: ['records:wri
 export const tools: Tool[] = (
   [
     {
-      name: 'getOntologyMarkdown',
+      name: 'getSchemaMarkdown',
       annotations: READ_ONLY,
       securitySchemes: READ_SCHEMES,
       description:
         'STEP 0 — call this ONCE at the start of every conversation before constructing any query. ' +
-        'Returns the complete graph ontology as compact Markdown: all labels with record counts, ' +
+        'Returns the complete graph schema as compact Markdown: all labels with record counts, ' +
         'all properties per label with their type and value ranges (min/max for numbers/datetimes, ' +
         'sample values for strings/booleans; array properties render as type[]), and all cross-label relationships with direction and edge property summaries. ' +
         'The Properties table includes a "Semantic Search" column: properties with an embedding index show ' +
@@ -510,29 +510,29 @@ export const tools: Tool[] = (
         'discovery calls. Use the result to determine exact label names (case-sensitive), field names, ' +
         'field types, and relationship patterns before building any findRecords query. ' +
         'Optionally pass `labels` array to narrow the output to specific labels. ' +
-        'Pass `force: true` to bypass the 1-hour ontology cache and force a fresh recalculation.',
+        'Pass `force: true` to bypass the 1-hour schema cache and force a fresh recalculation.',
       inputSchema: {
         type: 'object',
         properties: {
           labels: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Optional: scope ontology to specific labels only. Leave empty to get all labels.'
+            description: 'Optional: scope schema to specific labels only. Leave empty to get all labels.'
           },
           force: {
             type: 'boolean',
-            description: 'Pass true to bypass the 1-hour ontology cache and force a fresh recalculation.'
+            description: 'Pass true to bypass the 1-hour schema cache and force a fresh recalculation.'
           }
         },
         required: []
       }
     },
     {
-      name: 'getOntology',
+      name: 'getSchema',
       annotations: READ_ONLY,
       securitySchemes: READ_SCHEMES,
       description:
-        'Returns the same graph ontology as getOntologyMarkdown but as structured JSON. ' +
+        'Returns the same graph schema as getSchemaMarkdown but as structured JSON. ' +
         'Each item has: label (string), count (number), properties (array with id, name, type, optional isArray, ' +
         'recordsCount (number of records that carry this property), ' +
         'min/max for numbers/datetimes, values[] for strings/booleans, and an optional vectorIndexes array), ' +
@@ -542,19 +542,19 @@ export const tools: Tool[] = (
         'dimensions (number), status (pending|indexing|ready|error), modelKey. ' +
         'A non-empty vectorIndexes means the property is queryable with aiSemanticSearch. ' +
         'Use this when you need property `id` values to pass to propertyValues for deeper drill-down. ' +
-        'For initial schema orientation, getOntologyMarkdown uses fewer tokens. ' +
-        'Pass `force: true` to bypass the 1-hour ontology cache and force a fresh recalculation.',
+        'For initial schema orientation, getSchemaMarkdown uses fewer tokens. ' +
+        'Pass `force: true` to bypass the 1-hour schema cache and force a fresh recalculation.',
       inputSchema: {
         type: 'object',
         properties: {
           labels: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Optional: scope ontology to specific labels only. Leave empty to get all labels.'
+            description: 'Optional: scope schema to specific labels only. Leave empty to get all labels.'
           },
           force: {
             type: 'boolean',
-            description: 'Pass true to bypass the 1-hour ontology cache and force a fresh recalculation.'
+            description: 'Pass true to bypass the 1-hour schema cache and force a fresh recalculation.'
           }
         },
         required: []
@@ -566,10 +566,10 @@ export const tools: Tool[] = (
       securitySchemes: READ_SCHEMES,
       description:
         'List or filter available record types (labels) and their counts. ' +
-        'IMPORTANT: getOntologyMarkdown already returns ALL label names in STEP 0 — do NOT call findLabels as a substitute for it. ' +
-        'Only call findLabels when you need label counts after applying record-scoped predicates, or getOntologyMarkdown was not called yet. ' +
+        'IMPORTANT: getSchemaMarkdown already returns ALL label names in STEP 0 — do NOT call findLabels as a substitute for it. ' +
+        'Only call findLabels when you need label counts after applying record-scoped predicates, or getSchemaMarkdown was not called yet. ' +
         'Call with no arguments to list all labels. ' +
-        '`where` is applied to Records, not label metadata; use getOntologyMarkdown to search label names. ' +
+        '`where` is applied to Records, not label metadata; use getSchemaMarkdown to search label names. ' +
         'Returns objects with name (case-sensitive — use exact casing in all subsequent calls) and count (number of matching records). ' +
         'Pick the best matching label by: exact match > starts-with > substring > semantic similarity, preferring higher count on ties. ' +
         'State your label assumption briefly ("using DEAL for \'deals\'") and proceed without asking.',
@@ -691,7 +691,7 @@ export const tools: Tool[] = (
           where: {
             type: 'object',
             description:
-              'Filter conditions. Field names must match exactly what findProperties/getOntologyMarkdown returns. ' +
+              'Filter conditions. Field names must match exactly what findProperties/getSchemaMarkdown returns. ' +
               'Exact match can be field: value or field: { $eq: value }. ' +
               'For incomplete named references, prefer $contains on display fields instead of exact equality. ' +
               'For the complete operator reference (string/number/boolean/datetime/vector/$eq/$exists/$type/logical/$alias/$relation/$id) call getSearchQuerySpec.'
@@ -890,7 +890,7 @@ export const tools: Tool[] = (
       securitySchemes: READ_SCHEMES,
       description:
         'List inferred relationship patterns for the current project. ' +
-        'Returns suggestions and their lifecycle status, current ontology relationship summaries, and the latest analysis status. ' +
+        'Returns suggestions and their lifecycle status, current schema relationship summaries, and the latest analysis status. ' +
         'Use this before approving, ignoring, or deleting a relationship pattern.',
       inputSchema: { type: 'object', properties: {}, required: [] }
     },
@@ -899,7 +899,7 @@ export const tools: Tool[] = (
       annotations: WRITE,
       securitySchemes: WRITE_SCHEMES,
       description:
-        'Queue ontology analysis to generate relationship pattern suggestions for the current project. ' +
+        'Queue schema analysis to generate relationship pattern suggestions for the current project. ' +
         'This may invoke the configured LLM. Poll listRelationshipPatterns to inspect completion status and suggestions.',
       inputSchema: { type: 'object', properties: {}, required: [] }
     },
@@ -986,6 +986,11 @@ export const tools: Tool[] = (
               returnResult: {
                 type: 'boolean',
                 description: 'Return created/upserted records instead of just OK message'
+              },
+              skipEmptyValues: {
+                type: 'boolean',
+                description:
+                  'When true, empty strings ("") and empty arrays ([]) are treated as unset and not stored. 0 and false are kept. Useful for imports where empty cells mean "no data". Defaults to false.'
               }
             },
             required: []
@@ -1176,7 +1181,7 @@ export const tools: Tool[] = (
         'Discover the field names, types, and IDs available on a record label. ' +
         'Always call this before using field names in any query — never guess or invent field names. ' +
         'Filter by label using labels: ["LABEL_NAME"]. `where` is applied to Records, not property metadata. ' +
-        'Each returned property object has: id (string), name (string), type (string | number | boolean | datetime | vector | null), recordsCount (number of records that carry this property). ' +
+        'Each returned property object has: id (string), name (string), type (string | number | boolean | datetime), recordsCount (number of records that carry this property). ' +
         'Use the `name` field as the field name in where/orderBy/groupBy clauses. ' +
         'Use the `id` field as the `propertyId` argument to propertyValues. ' +
         'After calling this tool, decide the next step based on the field type: ' +

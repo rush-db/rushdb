@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
-import { RUSHDB_KEY_PROPERTIES_META, RUSHDB_VALUE_NULL } from '@/core/common/constants'
+import { RUSHDB_KEY_PROPERTIES_META } from '@/core/common/constants'
 import { QueryCriteriaParsingError } from '@/core/search/parser/errors'
 import { parseComparison } from '@/core/search/parser/parseComparison'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
@@ -73,9 +73,10 @@ describe('parseComparison', () => {
     ])
 
     const result3 = parseComparison('field', { $eq: null }, queryBuilderOptions)
-    expect(result3).toEqual([
-      `any(value IN ${queryBuilderOptions.nodeAlias}.\`field\` WHERE value = \"${RUSHDB_VALUE_NULL}\")`
-    ])
+    expect(result3).toEqual([`${queryBuilderOptions.nodeAlias}.\`field\` IS NULL`])
+
+    const result3a = parseComparison('field', { $ne: null }, queryBuilderOptions)
+    expect(result3a).toEqual([`${queryBuilderOptions.nodeAlias}.\`field\` IS NOT NULL`])
 
     const result4 = parseComparison('dob', { $eq: { $year: 1922, $month: 1, $day: 31 } }, queryBuilderOptions)
     expect(result4).toEqual([
@@ -134,11 +135,9 @@ describe('parseComparison', () => {
     }).toThrow(QueryCriteriaParsingError)
   })
 
-  it('handles null values correctly', () => {
+  it('treats a null value as an absence (IS NULL) check', () => {
     const result = parseComparison('field', null, queryBuilderOptions)
-    expect(result).toEqual(
-      `any(value IN ${queryBuilderOptions.nodeAlias}.\`field\` WHERE value = \"${RUSHDB_VALUE_NULL}\")`
-    )
+    expect(result).toEqual(`${queryBuilderOptions.nodeAlias}.\`field\` IS NULL`)
   })
 
   it('parses $exists operator correctly', () => {
@@ -167,6 +166,10 @@ describe('parseComparison', () => {
     expect(result1).toEqual([
       `apoc.convert.fromJsonMap(${queryBuilderOptions.nodeAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`age\` = "number"`
     ])
+
+    // 'null' is no longer a stored type — $type:'null' is an absence check.
+    const result2 = parseComparison('field', { $type: 'null' }, queryBuilderOptions)
+    expect(result2).toEqual([`${queryBuilderOptions.nodeAlias}.\`field\` IS NULL`])
   })
 
   it('throws error for invalid $type value', () => {

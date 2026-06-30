@@ -233,7 +233,7 @@ export function PropertyValueTooltip() {
     >
       <div className="flex justify-between">
         <PropertyName
-          className="bg-accent/30 text-2xs text-accent gap-1 rounded-sm px-1 leading-snug"
+          className="bg-secondary text-2xs text-content gap-1 rounded-sm px-1 leading-snug"
           iconSize={12}
           name={property.name}
           type={property.type}

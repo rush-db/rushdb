@@ -130,7 +130,7 @@ Never use plain ISO strings with `$gt` / `$lt`:
 Check whether a field is stored as a specific type:
 
 ```python
-{ "where": { "age":  { "$type": "number" } } }    # "string"|"number"|"boolean"|"datetime"|"null"|"vector"
+{ "where": { "age":  { "$type": "number" } } }    # "string"|"number"|"boolean"|"datetime"
 { "where": { "tags": { "$type": "string" } } }
 ```
 

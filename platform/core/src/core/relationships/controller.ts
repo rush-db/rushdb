@@ -64,7 +64,7 @@ export class RelationshipsController {
   )
   @UsePipes(ValidationPipe(createRelationSchema, 'body'))
   @AuthGuard('project')
-  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_ONTOLOGY_CACHE]))
+  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_SCHEMA_CACHE]))
   @HttpCode(HttpStatus.CREATED)
   async attach(
     @Param('entityId') entityId: string,
@@ -96,7 +96,7 @@ export class RelationshipsController {
   )
   @UsePipes(ValidationPipe(deleteRelationsSchema, 'body'))
   @AuthGuard('project')
-  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_ONTOLOGY_CACHE]))
+  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_SCHEMA_CACHE]))
   @HttpCode(HttpStatus.OK)
   async detach(
     @Param('entityId') entityId: string,
@@ -119,7 +119,7 @@ export class RelationshipsController {
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
-  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_ONTOLOGY_CACHE]))
+  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_SCHEMA_CACHE]))
   @HttpCode(HttpStatus.CREATED)
   async createMany(
     @Body()
@@ -187,7 +187,7 @@ export class RelationshipsController {
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
-  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_ONTOLOGY_CACHE]))
+  @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_SCHEMA_CACHE]))
   @HttpCode(HttpStatus.OK)
   async deleteMany(
     @Body()

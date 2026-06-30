@@ -230,7 +230,7 @@ function SsoForm({ type, existing }: { type: IdpType; existing?: SsoConfig }) {
       : null}
 
       <div className="mt-2 flex items-center gap-3">
-        <Button variant="accent" loading={saving} onClick={handleSave}>
+        <Button variant="primary" loading={saving} onClick={handleSave}>
           {existing ? 'Save changes' : 'Create configuration'}
         </Button>
         {existing ?

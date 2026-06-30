@@ -21,9 +21,9 @@ export function ProjectIndexes({ projectId }: { projectId: Project['id'] }) {
     <>
       <PageHeader className="items-start" contained>
         <div className="flex max-w-3xl flex-col gap-2">
-          <PageTitle>Embedding Indexes</PageTitle>
+          <PageTitle>Semantic Indexes</PageTitle>
           <p className="text-content2 text-sm leading-6">
-            Embedding indexes make selected text fields searchable by meaning. Each index is scoped to one
+            Semantic indexes make selected text fields searchable by meaning. Each index is scoped to one
             label and property, backfills matching records, and powers semantic search from the Records page
             and API.
           </p>
@@ -69,7 +69,7 @@ export function ProjectIndexes({ projectId }: { projectId: Project['id'] }) {
               />
             </section>
           </>
-        : <NothingFound title="Embedding indexes are disabled" />}
+        : <NothingFound title="Semantic search is disabled" />}
       </PageContent>
     </>
   )

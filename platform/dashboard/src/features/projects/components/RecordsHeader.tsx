@@ -1,13 +1,15 @@
-import type { Property } from '@rushdb/javascript-sdk'
-
 import { useStore } from '@nanostores/react'
+import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import {
   Check,
   X,
   Columns3Cog,
+  KeyRound,
+  Lock,
   Play,
   Code2,
   LoaderCircle,
+  RefreshCw,
   SlidersHorizontal,
   Sparkles,
   Brain
@@ -56,7 +58,8 @@ import {
 import { FilterPopover } from '~/features/search/components/FilterPopover'
 import { cn } from '~/lib/utils'
 
-import { $hiddenFields, $toggleHiddenField, isFieldHidden } from '../stores/hidden-fields'
+import { $currentProjectId } from '~/features/projects/stores/id'
+import { $hiddenFields, $resetHiddenFields, $toggleHiddenField, isFieldHidden } from '../stores/hidden-fields'
 import { SelectCombineFiltersMode } from './SelectCombineFiltersMode'
 import { Divider } from '~/elements/Divider.tsx'
 import { SelectViewMode } from '~/features/projects/components/SelectViewMode.tsx'
@@ -104,13 +107,24 @@ function HiddenFieldsSelector() {
   const { data: fields } = useProjectFieldsQuery()
   const hiddenFields = useStore($hiddenFields)
 
-  const internalIdField: Property = {
-    id: '__id',
-    type: 'string',
-    name: '__id'
-  }
+  // __id is the record's primary key — always present, never hideable. Keep it out of
+  // the toggleable set and self-heal any persisted state that hid it.
+  const toggleableFields = fields ?? []
+  const allVisible = toggleableFields.every((field) => !isFieldHidden(hiddenFields, field.id))
 
-  const allFields = [internalIdField, ...(fields ?? [])]
+  useEffect(() => {
+    if (hiddenFields.includes('__id')) {
+      $hiddenFields.set(hiddenFields.filter((id) => id !== '__id'))
+    }
+  }, [hiddenFields])
+
+  const toggleAll = () => {
+    if (allVisible) {
+      $hiddenFields.set(toggleableFields.map((field) => field.id))
+    } else {
+      $resetHiddenFields()
+    }
+  }
 
   return (
     <ButtonGroup>
@@ -121,7 +135,20 @@ function HiddenFieldsSelector() {
           </IconButton>
         }
       >
-        {allFields?.map((field) => (
+        <SelectItem closeOnSelect={false} onSelect={toggleAll}>
+          <span className="font-medium">{allVisible ? 'Deselect all' : 'Select all'}</span>
+          <Check className={cn('text-content2 ml-auto', allVisible ? 'opacity-100' : 'opacity-0')} />
+        </SelectItem>
+        <Divider />
+        <SelectItem closeOnSelect={false}>
+          <span className="hidden">__id</span>
+          <KeyRound className="text-content2 size-4 shrink-0" />
+          <span className="font-mono">__id</span>
+          <Tooltip align="end" trigger={<Lock className="text-content3 ml-auto size-3.5 shrink-0" />}>
+            <span className="max-w-[220px] text-sm">The primary key is always shown.</span>
+          </Tooltip>
+        </SelectItem>
+        {toggleableFields.map((field) => (
           <SelectItem closeOnSelect={false} key={field.id} onSelect={() => $toggleHiddenField(field.id)}>
             <span className="hidden">{field.id}</span>
             <PropertyName name={field.name} type={field.type} />
@@ -136,6 +163,33 @@ function HiddenFieldsSelector() {
         <Divider />
       </SearchSelect>
     </ButtonGroup>
+  )
+}
+
+function RefreshButton() {
+  const projectId = useStore($currentProjectId)
+  const queryClient = useQueryClient()
+  const fetching = useIsFetching({
+    queryKey: projectId ? ['projects', projectId, 'records'] : ['projects']
+  })
+  const isRefreshing = fetching > 0
+
+  const refresh = () => {
+    if (!projectId) return
+    queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'records'] })
+    queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'fields'] })
+  }
+
+  return (
+    <Tooltip
+      trigger={
+        <IconButton aria-label="refresh-records" onClick={refresh} size="small" variant="outline">
+          <RefreshCw className={cn(isRefreshing && 'animate-spin')} />
+        </IconButton>
+      }
+    >
+      <div className="text-2xs text-content flex items-center gap-1 uppercase">Refresh</div>
+    </Tooltip>
   )
 }
 
@@ -290,7 +344,9 @@ function SemanticIndexSelect({ labels }: { labels?: Record<string, number> }) {
         <SelectItem className="h-auto py-2" disabled>
           <div className="flex flex-col gap-1">
             <span>No ready semantic indexes</span>
-            <span className="text-content2 text-xs">Create an embedding index from the Indexes page.</span>
+            <span className="text-content2 text-xs">
+              Create a semantic index from the Semantic Indexes page.
+            </span>
           </div>
         </SelectItem>
       )}
@@ -379,7 +435,9 @@ function AiSearchBox() {
           $aiSearchPrompt.set(value)
         }}
         placeholder={
-          platformSettings?.llmEnabled === false ? 'AI search is not configured' : 'Ask in plain English'
+          platformSettings?.llmEnabled === false ?
+            'AI search is not configured'
+          : 'Describe what you’re looking for'
         }
         prefix={<Sparkles className="text-accent" />}
         size="small"
@@ -393,7 +451,7 @@ function AiSearchBox() {
             disabled={disabled || !prompt.trim()}
             size="small"
             type="submit"
-            variant="accent"
+            variant="primary"
           >
             {generateSearchQuery.isPending ?
               <LoaderCircle className="animate-spin" />
@@ -418,7 +476,7 @@ function SearchQueryButton({ label = false }: { label?: boolean }) {
         variant="outline"
       >
         <Code2 />
-        View JSON
+        View Query
       </Button>
     : <IconButton
         aria-label="raw-search-query"
@@ -431,7 +489,7 @@ function SearchQueryButton({ label = false }: { label?: boolean }) {
 
   return (
     <Tooltip trigger={trigger}>
-      <div className="text-2xs text-content flex items-center gap-1 uppercase">Search JSON</div>
+      <div className="text-2xs text-content flex items-center gap-1 uppercase">View query</div>
     </Tooltip>
   )
 }
@@ -492,6 +550,7 @@ export function RecordsHeader() {
           }
         </div>
         <SearchQueryButton label />
+        <RefreshButton />
         {view === 'table' && <HiddenFieldsSelector />}
       </div>
 

@@ -10,6 +10,22 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"
     />
     <title>RushDB</title>
+    <script>
+      // Apply the persisted theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var t = localStorage.getItem('theme')
+          if (t) t = t.replace(/^"|"$/g, '')
+          var resolved =
+            t === 'light' || t === 'dark' ? t
+            : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark'
+            : 'light'
+          document.documentElement.dataset.theme = resolved
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

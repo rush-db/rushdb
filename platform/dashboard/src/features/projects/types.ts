@@ -17,7 +17,7 @@ export type Project = {
 export type WithProjectID = { projectId: Project['id'] }
 
 // TODO: MOVE TO SEARCHPARAMS
-export type RecordViewType = 'graph' | 'table' | 'raw-api'
+export type RecordViewType = 'graph' | 'table' | 'json'
 
 export enum ERecordSheetTabs {
   api = 'API',

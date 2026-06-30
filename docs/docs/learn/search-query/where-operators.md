@@ -400,10 +400,10 @@ The `$exists` operator checks whether a field exists in the record or not. This 
 }
 ```
 
-The `$exists` operator works with all field types (string, number, boolean, datetime, null, arrays) and considers a field to:
+The `$exists` operator works with all field types (string, number, boolean, datetime, arrays) and considers a field to:
 
-- **Exist** (`$exists: true`) when the field is not null and not empty
-- **Not exist** (`$exists: false`) when the field is null or empty
+- **Exist** (`$exists: true`) when the field is present
+- **Not exist** (`$exists: false`) when the field is absent (unset)
 
 **Examples:**
 
@@ -454,7 +454,8 @@ Available types:
 - `"number"`: Numeric values
 - `"boolean"`: True/false values
 - `"datetime"`: Date and time values
-- `"null"`: Null values
+
+> To match unset fields, use `{ field: { $exists: false } }`.
 
 **Examples:**
 

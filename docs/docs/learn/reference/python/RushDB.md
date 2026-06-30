@@ -103,25 +103,25 @@ Query relationships, bulk-create them, and review inferred relationship patterns
 
 #### `db.relationships.patterns`
 
-Review and manage relationship patterns inferred from the project ontology. See [Relationship Patterns](/learn/reference/python/relationship-patterns) for the full review flow.
+Review and manage relationship patterns inferred from the project schema. See [Relationship Patterns](/learn/reference/python/relationship-patterns) for the full review flow.
 
 | Method                                         | Description                                                            |
 | ---------------------------------------------- | ---------------------------------------------------------------------- |
-| `list()`                                       | List saved patterns, ontology relationships, and analysis status       |
-| `analyze()`                                    | Queue ontology analysis to generate suggestions                        |
+| `list()`                                       | List saved patterns, schema relationships, and analysis status         |
+| `analyze()`                                    | Queue schema analysis to generate suggestions                          |
 | `approve(pattern_id)`                          | Approve a suggestion and apply its relationships                       |
 | `ignore(pattern_id)`                           | Ignore a suggestion without applying it                                |
 | `delete(pattern_id, *, delete_existing=False)` | Delete a saved pattern, optionally removing materialized relationships |
 
 ### `db.ai`
 
-Semantic search and ontology exploration. Embedding index management is available under `db.ai.indexes`.
+Semantic search and schema exploration. Embedding index management is available under `db.ai.indexes`.
 
-| Method                                          | Description                                                             |
-| ----------------------------------------------- | ----------------------------------------------------------------------- |
-| `search(params)`                                | Semantic (vector) search over indexed properties; returns `ApiResponse` |
-| `get_ontology(params, *, transaction)`          | Return the full graph ontology as structured JSON                       |
-| `get_ontology_markdown(params, *, transaction)` | Return the ontology as compact Markdown (token-efficient, for LLMs)     |
+| Method                                        | Description                                                             |
+| --------------------------------------------- | ----------------------------------------------------------------------- |
+| `search(params)`                              | Semantic (vector) search over indexed properties; returns `ApiResponse` |
+| `get_schema(params, *, transaction)`          | Return the full graph schema as structured JSON                         |
+| `get_schema_markdown(params, *, transaction)` | Return the schema as compact Markdown (token-efficient, for LLMs)       |
 
 #### `db.ai.indexes`
 

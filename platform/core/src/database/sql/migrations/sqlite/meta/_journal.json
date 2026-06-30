@@ -50,6 +50,20 @@
       "when": 1782186965432,
       "tag": "0006_naive_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1782200000000,
+      "tag": "0007_rename_schema_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1782752466983,
+      "tag": "0008_sloppy_tattoo",
+      "breakpoints": true
     }
   ]
 }

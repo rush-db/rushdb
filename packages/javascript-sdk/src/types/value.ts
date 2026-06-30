@@ -1,7 +1,6 @@
 import type {
   PROPERTY_TYPE_BOOLEAN,
   PROPERTY_TYPE_DATETIME,
-  PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
   PROPERTY_TYPE_STRING
 } from '../common/constants.js'
@@ -24,7 +23,7 @@ export type DatetimeValue = DatetimeObject | string
 // BOOLEAN
 export type BooleanValue = boolean
 
-// NULL
+// NULL — `null` is an input value meaning "unset the field".
 export type NullValue = null
 
 // NUMBER
@@ -36,7 +35,6 @@ export type StringValue = string
 export type PropertyType =
   | typeof PROPERTY_TYPE_BOOLEAN
   | typeof PROPERTY_TYPE_DATETIME
-  | typeof PROPERTY_TYPE_NULL
   | typeof PROPERTY_TYPE_NUMBER
   | typeof PROPERTY_TYPE_STRING
 
@@ -66,7 +64,6 @@ export type PropertySingleValue<TType extends PropertyType = PropertyType> =
   TType extends typeof PROPERTY_TYPE_DATETIME ? DatetimeValue
   : TType extends typeof PROPERTY_TYPE_NUMBER ? NumberValue
   : TType extends typeof PROPERTY_TYPE_STRING ? StringValue
-  : TType extends typeof PROPERTY_TYPE_NULL ? NullValue
   : TType extends typeof PROPERTY_TYPE_BOOLEAN ? BooleanValue
   : StringValue
 

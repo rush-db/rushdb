@@ -23,6 +23,7 @@ type BulkCreateRecordsArgs = {
     mergeStrategy?: 'append' | 'rewrite'
     mergeBy?: string[]
     returnResult?: boolean
+    skipEmptyValues?: boolean
   }
 }
 

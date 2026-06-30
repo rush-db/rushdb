@@ -151,7 +151,7 @@ export function PlanCard({
           <Button
             className="w-full min-w-48 justify-center font-semibold"
             onClick={onAction}
-            variant="accent"
+            variant="primary"
           >
             {plan.ctaLabel}
             <SparklesIcon />
@@ -173,7 +173,7 @@ export function PlanCard({
             className="w-full min-w-48 justify-center font-semibold"
             planName={plan.name}
             priceId={priceId ?? ''}
-            variant="accent"
+            variant="primary"
           >
             Upgrade to {plan.name}
             <SparklesIcon />

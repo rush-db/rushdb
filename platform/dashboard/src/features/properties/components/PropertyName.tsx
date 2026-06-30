@@ -1,5 +1,7 @@
 import type { Property, PropertyType } from '@rushdb/javascript-sdk'
 
+import { KeyRound } from 'lucide-react'
+
 import type { SortIconProps, SortingProps } from '~/elements/Table'
 
 import { Skeleton } from '~/elements/Skeleton'
@@ -26,6 +28,9 @@ export function PropertyName({
   } & SortingProps &
     SortIconProps
 >) {
+  // __id is the record's primary key, not a user-defined string — show a key icon.
+  const isPrimaryKey = name === '__id'
+
   return (
     <div
       className={cn(
@@ -33,10 +38,12 @@ export function PropertyName({
         className
       )}
       {...props}
-      title={`Property "${name}": ${type}`}
+      title={isPrimaryKey ? 'Record ID (primary key)' : `Property "${name}": ${type}`}
     >
       <Skeleton enabled={!type}>
-        <PropertyTypeIcon size={iconSize} type={type ?? 'string'} />
+        {isPrimaryKey ?
+          <KeyRound size={iconSize} />
+        : <PropertyTypeIcon size={iconSize} type={type ?? 'string'} />}
       </Skeleton>
       {name}
       {sortable && <SortIcon sortActive={sortActive} sortDirection={sortDirection} />}

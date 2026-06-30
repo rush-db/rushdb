@@ -39,7 +39,7 @@ graph LR
 ### The ingestion pipeline
 
 1. **Parse** — BFS walk. Each nested object becomes a separate record.
-2. **Type inference** — Every value is classified as `string`, `number`, `boolean`, `datetime`, or `null`.
+2. **Type inference** — Every value is classified as `string`, `number`, `boolean`, or `datetime`. A `null` value (or an all-`null` array) is treated as unset and is not stored.
 3. **Label assignment** — Top-level arrays and object records use the label you provide. Container objects can omit `label` when each top-level value is an object or an array of nested records; each top-level key becomes the label for its nested records. Nested objects derive their label from the parent key name (e.g., key `"engine"` → label `Engine`).
 4. **Relationship creation** — Parent → child records are linked with default relationships (`__RUSHDB__RELATION__DEFAULT__`).
 
@@ -393,6 +393,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 | `suggestTypes`                  | `boolean`  | `true`                          | Infer property types automatically. Set to `false` to store all values as strings.                                |
 | `convertNumericValuesToNumbers` | `boolean`  | `false`                         | Convert string numbers to number type                                                                             |
 | `capitalizeLabels`              | `boolean`  | `false`                         | Uppercase all auto-derived label names                                                                            |
+| `skipEmptyValues`               | `boolean`  | `false`                         | Treat empty strings (`""`) and empty arrays (`[]`) as unset — skip the property. `0` and `false` are kept.        |
 | `relationshipType`              | `string`   | `__RUSHDB__RELATION__DEFAULT__` | Relationship type for nested links                                                                                |
 | `returnResult`                  | `boolean`  | `false`                         | Return created records in the response. Ignored for imports >1 000 records (summary returned instead).            |
 | `mergeBy`                       | `string[]` | `undefined`                     | Property names to match existing records on. If omitted with `mergeStrategy` present, all incoming keys are used. |

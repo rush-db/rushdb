@@ -8,9 +8,12 @@ import { Button, CopyButton } from '~/elements/Button'
 import { CodeEditorSnippet } from '~/elements/CodeEditorSnippet'
 import { Dialog, DialogFooter, DialogTitle } from '~/elements/Dialog'
 import { Editor } from '~/elements/Editor'
+import { TextField } from '~/elements/Input'
+import { toast } from '~/elements/Toast'
 import { $currentProjectRecordsSkip } from '~/features/projects/stores/current-project'
 import { $currentProjectId } from '~/features/projects/stores/id'
 import {
+  $aiSearchPrompt,
   $aiSearchQuery,
   $draftSearchQuery,
   $recordsSearchMode,
@@ -23,6 +26,7 @@ import {
   useCurrentManualRecordsSearchQuery,
   useProjectIndexesQuery
 } from '~/features/projects/hooks/useProjectQueries'
+import { useSaveQueryMutation } from '~/features/saved-queries/hooks'
 import { Tab, Tabs, TabsContent, TabsList } from '~/elements/Tabs'
 import { SDK_LANGUAGE_CONFIG } from '~/features/onboarding/components/SelectSdkLanguage'
 
@@ -76,6 +80,7 @@ export function SearchQueryModal() {
   const open = useStore($searchQueryModalOpen)
   const mode = useStore($recordsSearchMode)
   const projectId = useStore($currentProjectId)
+  const aiPrompt = useStore($aiSearchPrompt)
   const aiQuery = useStore($aiSearchQuery)
   const draftQuery = useStore($draftSearchQuery)
   const semanticIndexId = useStore($semanticSearchIndexId)
@@ -104,6 +109,9 @@ export function SearchQueryModal() {
   const [value, setValue] = useState(formattedQuery)
   const [error, setError] = useState<string | undefined>()
   const [activeTab, setActiveTab] = useState<'json' | SdkLanguage>('json')
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const { mutateAsync: saveQuery, isPending: saving } = useSaveQueryMutation()
 
   useEffect(() => {
     if (open) {
@@ -151,7 +159,7 @@ export function SearchQueryModal() {
         )
 
         if (!matchingIndex) {
-          throw new Error('Semantic payload must reference an existing embedding index.')
+          throw new Error('Semantic payload must reference an existing semantic index.')
         }
 
         $semanticSearchIndexId.set(matchingIndex.id)
@@ -166,9 +174,37 @@ export function SearchQueryModal() {
     }
   }
 
+  const save = async () => {
+    let searchQuery: SearchQuery
+    try {
+      searchQuery = JSON.parse(value) as SearchQuery
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Invalid JSON')
+      return
+    }
+
+    try {
+      await saveQuery({
+        name: saveName.trim(),
+        searchMode: mode,
+        searchQuery,
+        prompt:
+          mode === 'ai' ? aiPrompt
+          : mode === 'semantic' ? semanticPrompt
+          : undefined,
+        semanticIndexId: mode === 'semantic' ? semanticIndexId : undefined
+      })
+      toast({ title: 'Query saved', description: `"${saveName.trim()}" is now in Saved Queries.` })
+      setSaveOpen(false)
+      setSaveName('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save query')
+    }
+  }
+
   return (
     <Dialog className="sm:max-w-4xl" onOpenChange={$searchQueryModalOpen.set} open={open}>
-      <DialogTitle>Search JSON</DialogTitle>
+      <DialogTitle>Search Query</DialogTitle>
       <Tabs value={activeTab} onValueChange={(nextValue) => setActiveTab(nextValue as typeof activeTab)}>
         <div className="mb-3 flex items-center justify-between gap-3">
           <TabsList>
@@ -229,10 +265,48 @@ export function SearchQueryModal() {
         <Button onClick={() => $searchQueryModalOpen.set(false)} variant="outline">
           Cancel
         </Button>
-        <Button onClick={apply} variant="accent">
+        <Button onClick={() => setSaveOpen(true)} variant="outline">
+          Save query
+        </Button>
+        <Button onClick={apply} variant="primary">
           Apply query
         </Button>
       </DialogFooter>
+
+      <Dialog
+        className="sm:max-w-md"
+        onOpenChange={(next) => {
+          setSaveOpen(next)
+          if (!next) setSaveName('')
+        }}
+        open={saveOpen}
+      >
+        <DialogTitle>Save query</DialogTitle>
+        <p className="text-content2 mb-3 text-sm">
+          Save the current{' '}
+          {mode === 'ai' ?
+            'Smart'
+          : mode === 'semantic' ?
+            'Semantic'
+          : 'Builder'}{' '}
+          query so you can re-run it later from Saved Queries.
+        </p>
+        <TextField
+          autoFocus
+          label="Name"
+          onChange={(event) => setSaveName(event.target.value)}
+          placeholder="e.g. Top planets by battles"
+          value={saveName}
+        />
+        <DialogFooter className="mt-4">
+          <Button onClick={() => setSaveOpen(false)} variant="outline">
+            Cancel
+          </Button>
+          <Button disabled={!saveName.trim()} loading={saving} onClick={save} variant="primary">
+            Save
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </Dialog>
   )
 }

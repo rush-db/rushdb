@@ -27,6 +27,9 @@ export const editEntitySchema = Joi.alternatives().try(
         stringValueSchema
       )
     ),
-    options: Joi.object({ suggestTypes: Joi.boolean().optional() }).optional()
+    options: Joi.object({
+      suggestTypes: Joi.boolean().optional(),
+      skipEmptyValues: Joi.boolean().optional()
+    }).optional()
   })
 )

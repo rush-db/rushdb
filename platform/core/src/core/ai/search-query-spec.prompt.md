@@ -68,6 +68,8 @@ This returns full records and lets the dashboard table render the normal record 
 
 `where` filters root records and traverses related records.
 
+Predicate values must be **literals** (strings, numbers, booleans, dates) or sample values from the schema. A `where` value can never be a field or alias reference: `{ "field": "$record.id" }` and `{ "field": { "$eq": "$alias.id" } }` are invalid — the reference is matched as a literal string and returns nothing. Correlated comparisons between two records (a "join on" a field) are not supported in `where`; `$record.*`, `$alias.*`, and `$relation` references belong in `select`, `groupBy`, and `aggregate` only. To rank or group by a scalar field that is not a relationship in the schema, root on the label that owns the field and `groupBy` that field instead of building a traversal.
+
 ### Primitive Matching
 
 ```json
@@ -93,7 +95,7 @@ This returns full records and lets the dashboard table render the normal record 
 
 String comparison operators are case-insensitive except exact equality.
 
-For any user-typed named reference, check the property's sample values in the ontology (listed per property, often truncated with `(+N more)`). If the user's term maps to a listed value, filter by that full canonical value; otherwise use `$contains` on the likely display field (`name`, `title`, or an ontology-backed equivalent), on both root and related labels. Never exact-match raw user text against a value you have not seen in the sample list — that returns zero rows when the stored value is longer. Use exact equality only for IDs, a confirmed canonical value, or an explicit exact-match request.
+For any user-typed named reference, check the property's sample values in the schema (listed per property, often truncated with `(+N more)`). If the user's term maps to a listed value, filter by that full canonical value; otherwise use `$contains` on the likely display field (`name`, `title`, or an schema-backed equivalent), on both root and related labels. Never exact-match raw user text against a value you have not seen in the sample list — that returns zero rows when the stored value is longer. Use exact equality only for IDs, a confirmed canonical value, or an explicit exact-match request.
 
 ### Number Operators
 
@@ -207,7 +209,7 @@ Use `$alias` when a related record must be referenced in `select` or `groupBy`.
 }
 ```
 
-Use `$relation` only to constrain relationship type or direction when the user explicitly asks for it and the ontology supports the path.
+Use `$relation` only to constrain relationship type or direction when the user explicitly asks for it and the schema supports the path.
 
 ```json
 {
@@ -220,6 +222,8 @@ Use `$relation` only to constrain relationship type or direction when the user e
 ```
 
 `$relation` can also be a relationship type string.
+
+Each Relationships row in `schemaMarkdown` is a directed pattern rooted at that label: `(SELF)-[:TYPE]->(OTHER)` is outgoing and `(SELF)<-[:TYPE]-(OTHER)` is incoming. To traverse, nest `OTHER` as a label key under `where` (add `$alias` if it is referenced in `select`/`groupBy`); to pin the edge set `$relation: { "type": "TYPE", "direction": ... }` with `"out"` for `->` and `"in"` for `<-`. Only patterns shown in the schema are traversable — a scalar `*_id` property is a plain value, not an edge, so never nest a label to "join" on it.
 
 Never use `$label`, `$direction`, `$as`, `$of`, or `$through`.
 
@@ -251,7 +255,7 @@ Use this shape when the user asks which root entity has the most, more, least, l
 
 Direction mapping: most/more/highest/largest/greatest => `"desc"`; least/less/fewer/fewest/lowest/smallest => `"asc"`.
 
-Only use this shape when the ontology shows the parent label, related label, display field, and traversal path. If the traversal path is absent, do not silently root on the related label; return the closest valid query with a warning.
+Only use this shape when the schema shows the parent label, related label, display field, and traversal path. If the traversal path is absent, do not silently root on the related label; return the closest valid query with a warning.
 
 ### ID Filter
 
@@ -403,7 +407,7 @@ For "top departments by project budget", root is `DEPARTMENT`, project budget is
 }
 ```
 
-Only use aliases and fields that exist in the ontology.
+Only use aliases and fields that exist in the schema.
 
 ## ORDERBY
 
@@ -595,7 +599,7 @@ Supported units:
 
 ## AGGREGATE
 
-Use `aggregate` only for vector similarity when supported by the ontology and request.
+Use `aggregate` only for vector similarity when supported by the schema and request.
 
 ```json
 {
@@ -618,9 +622,9 @@ Before returning JSON:
 
 - Output has exactly `searchQuery` and `warnings`.
 - `searchQuery` uses only allowed top-level keys.
-- Every label exists in ontology.
-- Every property exists in ontology.
-- Every related traversal uses a label key from ontology.
+- Every label exists in schema.
+- Every property exists in schema.
+- Every related traversal uses a label key from schema.
 - Every alias referenced in `select` or `groupBy` is declared with `$alias` in `where`.
 - `$record.field` references a root-label field.
 - `$alias.field` references a field on the aliased related label.

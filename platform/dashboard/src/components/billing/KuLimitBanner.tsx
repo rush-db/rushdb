@@ -77,7 +77,7 @@ export function KuLimitBanner() {
         as="a"
         href={getRoutePath('workspaceBilling')}
         size="small"
-        variant={isExceeded ? 'accent' : 'secondary'}
+        variant={isExceeded ? 'primary' : 'secondary'}
         className="shrink-0"
       >
         Upgrade Plan

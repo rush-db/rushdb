@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { object, string } from 'yup'
-import { Check, KeyRound } from 'lucide-react'
+import { Check, KeyRound, Monitor, Moon, Sun } from 'lucide-react'
 import { TextField } from '~/elements/Input'
 import { GithubIcon } from '~/elements/GithubIcon'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
@@ -26,6 +26,9 @@ import { useLeaveWorkspaceMutation } from '~/features/workspaces/hooks/useWorksp
 
 import { ProfileSettingsLayout } from '~/features/auth/layout/ProfileSettingsLayout'
 import { toast } from '~/elements/Toast'
+import type { ThemePreference } from '~/features/auth/stores/theme'
+import { $themePreference } from '~/features/auth/stores/theme'
+import { cn } from '~/lib/utils'
 
 function SettingsSection({
   children,
@@ -138,6 +141,51 @@ function ChangePassword() {
       <Button loading={isPending} onClick={sendRecoveryLink} variant="secondary">
         Send recovery link
       </Button>
+    </SettingsSection>
+  )
+}
+
+const THEME_OPTIONS: Array<{ icon: React.ReactNode; label: string; value: ThemePreference }> = [
+  { value: 'system', label: 'System', icon: <Monitor className="h-4 w-4" /> },
+  { value: 'light', label: 'Light', icon: <Sun className="h-4 w-4" /> },
+  { value: 'dark', label: 'Dark', icon: <Moon className="h-4 w-4" /> }
+]
+
+function Appearance() {
+  const preference = useStore($themePreference)
+
+  return (
+    <SettingsSection
+      title="Appearance"
+      description="Choose how RushDB looks to you. Select a theme, or follow your system setting."
+    >
+      <div
+        className="border-stroke inline-flex gap-1 rounded-md border p-1"
+        role="radiogroup"
+        aria-label="Theme"
+      >
+        {THEME_OPTIONS.map((option) => {
+          const active = preference === option.value
+          return (
+            <button
+              aria-checked={active}
+              className={cn(
+                'flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors',
+                active ? 'bg-secondary text-content' : (
+                  'text-content2 hover:bg-secondary-hover hover:text-content'
+                )
+              )}
+              key={option.value}
+              onClick={() => $themePreference.set(option.value)}
+              role="radio"
+              type="button"
+            >
+              {option.icon}
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
     </SettingsSection>
   )
 }
@@ -393,6 +441,7 @@ export function ProfilePage() {
             <TextField readOnly disabled value={user.login} />
           </SettingsSection>
           <ProfileName />
+          <Appearance />
           <DangerZone />
         </div>
       </PageContent>

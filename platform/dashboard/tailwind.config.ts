@@ -1,11 +1,21 @@
 /* eslint-disable import/no-anonymous-default-export */
 import type { Config } from 'tailwindcss'
 
-import { RING_ALPHA, RING_COLOR, colors } from './config/colors'
+import plugin from 'tailwindcss/plugin'
+
+import { RING_ALPHA, RING_COLOR, colors, darkVars, lightVars } from './config/colors'
 
 const config = {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  plugins: [require('tailwindcss-animate')],
+  plugins: [
+    require('tailwindcss-animate'),
+    plugin(({ addBase }) => {
+      addBase({
+        ':root': { ...darkVars, 'color-scheme': 'dark' },
+        '[data-theme="light"]': { ...lightVars, 'color-scheme': 'light' }
+      })
+    })
+  ],
   whitelistPatterns: [/^bg-badge-/],
   theme: {
     // colors: {

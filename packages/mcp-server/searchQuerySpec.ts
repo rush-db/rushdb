@@ -40,6 +40,17 @@ The where clause mechanism: when a nested object key is NOT a criteria operator 
 $contains, etc.) and NOT a flat value, RushDB interprets that key as the LABEL of a related
 record to traverse.
 
+── PREDICATE VALUES MUST BE LITERALS ─────────────────────────────────
+  where values are literals (string / number / boolean / date) only. A value can NEVER be a
+  field or alias reference:
+    fieldA: "$record.id"          // WRONG — matched as the literal text "$record.id", returns nothing
+    fieldA: { $eq: "$alias.id" }  // WRONG — same problem inside an operator
+  RushDB has no correlated where predicate (no "join on fieldA = fieldB"). $record.*, $alias.*,
+  and $relation references are valid ONLY in select / groupBy / aggregate.
+  To rank or group by a scalar field that is NOT a relationship in the schema, root on the label
+  that owns the field and groupBy that field — do not fabricate a related-label traversal or a
+  correlated filter.
+
 ── PRIMITIVE VALUE MATCHING ──────────────────────────────────────────
 Direct equality, all types:
   name: "John Doe"                       // exact string (case-sensitive equality)
@@ -60,7 +71,7 @@ Direct equality, all types:
   status: { $nin: ["deleted","archived"] } // matches none of these values
 
   For user-provided named references that may be incomplete, abbreviated, or shortened,
-  prefer $contains on a likely display field (name, title, or ontology-backed equivalent).
+  prefer $contains on a likely display field (name, title, or schema-backed equivalent).
   Use exact equality only for exact IDs, canonical full values, or explicit exact-match requests.
 
 ── NUMBER OPERATORS ──────────────────────────────────────────────────
@@ -101,23 +112,10 @@ Direct equality, all types:
 
   // Month+day WITHOUT year: unsupported — ask the user for a year. Do not mention internal reasons.
 
-<!--── VECTOR SIMILARITY ────────────────────────────────────────────────-->
-<!--  // Vector similarity is not yet available in select. Use the legacy aggregate clause ONLY for this case:-->
-<!--  // (All other metrics/analytics must use select.)-->
-<!--  aggregate: {-->
-<!--    similarity: {-->
-<!--      fn: "vector.similarity.cosine",   // cosine | euclidean-->
-<!--      field: "embedding",-->
-<!--      query: [1, 2, 3, 4, 5],-->
-<!--      alias: "$record"-->
-<!--    }-->
-<!--  }-->
-<!--  // TODO: When select supports vector similarity, remove aggregate entirely.-->
-
 ── FIELD EXISTENCE & TYPE ───────────────────────────────────────────
   phoneNumber: { $exists: true }    // only records that have this field (not null/empty)
   phoneNumber: { $exists: false }   // only records that do NOT have this field
-  age: { $type: "number" }          // "string"|"number"|"boolean"|"datetime"|"null"
+  age: { $type: "number" }          // "string"|"number"|"boolean"|"datetime"
 
 ── LOGICAL GROUPING OPERATORS ───────────────────────────────────────
   // Implicit $and (multiple keys at same level = AND):
@@ -188,6 +186,13 @@ $relation — constrain relationship type and/or direction:
   }
   Shorthand (type only): $relation: 'AUTHORED'
   direction options: 'in' | 'out'  (omit = any direction)
+
+  READING THE SCHEMA: each Relationships row is a directed pattern rooted at that label.
+    (SELF)-[:TYPE]->(OTHER)   → from SELF, traverse OTHER with $relation { type:'TYPE', direction:'out' }
+    (SELF)<-[:TYPE]-(OTHER)   → from SELF, traverse OTHER with $relation { type:'TYPE', direction:'in' }
+  Only patterns listed in the schema are traversable. A scalar *_id property (e.g. winner_faction_id)
+  is a plain value, NOT an edge — do not nest a label to "join" on it; root on the label that owns it
+  and groupBy that field instead.
 
 $id — filter by record ID (supports $in, $nin, string operators):
   where: { $id: { $in: ['id1','id2'] } }
@@ -411,7 +416,7 @@ Collect options (inside $collect):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 If the metric field is NOT on the target label, search related labels before giving up:
   1) Confirm target label. findProperties(labels:[<target>]) — look for the metric field.
-  2) If absent, walk adjacent labels via getOntologyMarkdown or findRelationships with source/target endpoint probes.
+  2) If absent, walk adjacent labels via getSchemaMarkdown or findRelationships with source/target endpoint probes.
   3) For each candidate related label R: findProperties(labels:[R]) and attempt the same match.
   4) When found on CHILD: where:{ CHILD:{ ...filters..., $alias:'$child' } }, select referencing '$child.*'.
      Root-level filters (status, dates) stay at the top-level where.
@@ -430,7 +435,7 @@ Related-count ranking:
 §7) RANGE / DISTRIBUTION QUERIES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   • type = number or datetime → findRecords with select:{ min:{ $min:'$record.<field>' }, max:{ $max:'$record.<field>' } }
-    plus groupBy:['min','max']. Or: getOntology (JSON) → propertyValues(propertyId) → returns { min, max } directly.
+    plus groupBy:['min','max']. Or: getSchema (JSON) → propertyValues(propertyId) → returns { min, max } directly.
   • type = string or boolean → propertyValues(propertyId) to list all distinct values.
   • NEVER call findRecords with a where filter to "search for" values of a field — that returns records, not ranges.
 
@@ -521,7 +526,7 @@ Before submitting a findRecords call, verify:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 §13) EXAMPLE PATTERNS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-(Actual label/field names always come from getOntologyMarkdown — never from these examples.)
+(Actual label/field names always come from getSchemaMarkdown — never from these examples.)
 
 List with numeric filter:
   findRecords({ labels:['<LABEL>'], where:{ <field>:{ $gt:100000 } }, limit:10 })

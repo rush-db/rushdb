@@ -1,7 +1,7 @@
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
 import { useStore } from '@nanostores/react'
-import { Code2, TableIcon } from 'lucide-react'
+import { Braces, TableIcon } from 'lucide-react'
 
 import { RadioGroup } from '~/elements/RadioGroup'
 import { Tooltip } from '~/elements/Tooltip'
@@ -9,8 +9,6 @@ import { Tooltip } from '~/elements/Tooltip'
 import { $recordView } from '../stores/current-project'
 import type { RecordViewType } from '~/features/projects/types.ts'
 import { GraphIcon } from '~/elements/GraphIcon.tsx'
-import { $tourStep, setTourStep } from '~/features/tour/stores/tour.ts'
-import { $editorData, onboardingAgentRunSelectQuery } from '~/features/projects/stores/raw-api.ts'
 
 const options = [
   {
@@ -35,13 +33,13 @@ const options = [
   },
   {
     icon: (
-      <Tooltip alignOffset={20} className="text-content2" sideOffset={10} trigger={<Code2 />}>
+      <Tooltip alignOffset={20} className="text-content2" sideOffset={10} trigger={<Braces />}>
         <div>
-          <div className="text-2xs text-content flex items-center gap-1 uppercase">Raw API mode</div>
+          <div className="text-2xs text-content flex items-center gap-1 uppercase">Raw JSON</div>
         </div>
       </Tooltip>
     ),
-    value: 'raw-api'
+    value: 'json'
   }
 ] as Array<{
   icon: ReactNode
@@ -53,14 +51,9 @@ export function SelectViewMode({
   ...props
 }: Partial<ComponentPropsWithoutRef<typeof RadioGroup>>) {
   const view = useStore($recordView)
-  const tourStep = useStore($tourStep)
 
   const handleChange = (nextView: RecordViewType) => {
     $recordView.set(nextView)
-    if (tourStep === 'recordRawApiMode' && nextView === 'raw-api') {
-      $editorData.set(onboardingAgentRunSelectQuery)
-      setTourStep('rawApiSelectQuery', true)
-    }
   }
 
   return (

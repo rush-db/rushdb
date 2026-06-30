@@ -140,6 +140,7 @@ function EditorStep() {
   const [convertNumericValuesToNumbers, setConvertNumericValuesToNumbers] = useState(false)
   const [mergeMode, setMergeMode] = useState(false)
   const [capitalizeLabels, setCapitalizeLabels] = useState(true)
+  const [skipEmptyValues, setSkipEmptyValues] = useState(false)
   const [relationshipType, setRelationshipType] = useState('__RUSHDB__RELATION__DEFAULT__')
   const label = useStore($label)
 
@@ -311,6 +312,19 @@ function EditorStep() {
               <div className="space-y-1">
                 <CheckboxField
                   className="justify-end"
+                  label="Skip empty values"
+                  onCheckedChange={() => {
+                    setSkipEmptyValues(!skipEmptyValues)
+                  }}
+                  checked={skipEmptyValues}
+                />
+                <p className="text-content2 mt-1 text-sm">
+                  Treats empty strings and empty arrays as unset (no property created). 0 and false are kept.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <CheckboxField
+                  className="justify-end"
                   label="Merge mode for upsert imports"
                   onCheckedChange={() => {
                     setMergeMode(!mergeMode)
@@ -412,6 +426,7 @@ function EditorStep() {
                       suggestTypes,
                       convertNumericValuesToNumbers,
                       capitalizeLabels,
+                      skipEmptyValues,
                       relationshipType,
                       mergeBy: mergeMode ? [] : undefined
                     }
@@ -426,7 +441,7 @@ function EditorStep() {
                   })
                 }}
                 loading={submitting}
-                variant="accent"
+                variant="primary"
               >
                 Import JSON
               </Button>
@@ -445,6 +460,7 @@ function EditorStep() {
                       suggestTypes,
                       convertNumericValuesToNumbers,
                       capitalizeLabels,
+                      skipEmptyValues,
                       relationshipType,
                       mergeBy: mergeMode ? [] : undefined
                     },
@@ -468,7 +484,7 @@ function EditorStep() {
                   })
                 }}
                 loading={csvSubmitting}
-                variant="accent"
+                variant="primary"
               >
                 Import CSV
               </Button>
@@ -731,7 +747,7 @@ export function ImportRecords() {
                 processImportFile(file)
               }}
             >
-              <div className="bg-accent/15 text-accent flex h-14 w-14 items-center justify-center rounded-full">
+              <div className="bg-secondary text-content flex h-14 w-14 items-center justify-center rounded-full">
                 <UploadCloud size={24} />
               </div>
               <div>

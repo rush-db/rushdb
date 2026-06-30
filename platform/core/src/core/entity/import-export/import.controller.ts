@@ -64,7 +64,7 @@ export class ImportController {
     customTx: Transaction
   }) {
     await this.projectService.recomputeProjectNodes(projectId, transaction, customTx)
-    await this.aiService.getOntology({
+    await this.aiService.getSchema({
       projectId,
       workspaceId,
       force: true,

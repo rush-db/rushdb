@@ -4,7 +4,7 @@ import { isArray } from '@/common/utils/isArray'
 import { isObject } from '@/common/utils/isObject'
 import { isPrimitive } from '@/common/utils/isPrimitive'
 import { toBoolean } from '@/common/utils/toBolean'
-import { RUSHDB_KEY_PROPERTIES_META, RUSHDB_VALUE_NULL, ISO_8601_REGEX } from '@/core/common/constants'
+import { RUSHDB_KEY_PROPERTIES_META, ISO_8601_REGEX } from '@/core/common/constants'
 import { PropertyExpression } from '@/core/common/types'
 import { DatetimeObject } from '@/core/property/property.types'
 import { QueryCriteriaParsingError } from '@/core/search/parser/errors'
@@ -20,8 +20,6 @@ const formatCriteriaValue = (value: unknown): string => {
   if (typeof value === 'string') {
     const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
     return `"${escaped}"`
-  } else if (value === null) {
-    return `"${RUSHDB_VALUE_NULL}"`
   } else {
     return `${value}`
   }
@@ -74,6 +72,11 @@ export const parseComparison = (
   const field = formatField(key, options)
   const datetimeQueryPrefix = datetimeConditionQueryPrefix(key, options)
 
+  // `null` means "field is unset/absent" (RushDB no longer stores null as a value).
+  if (input === null) {
+    return `${field} IS NULL`
+  }
+
   if (isPrimitive(input)) {
     return `any(value IN ${field} WHERE value = ${formatCriteriaValue(input)})`
   } else if (isObject(input)) {
@@ -88,7 +91,10 @@ export const parseComparison = (
       return Object.entries(input).map(([operator, value]) => {
         switch (operator) {
           case '$type': {
-            if (typeof value === 'string') {
+            if (value === 'null') {
+              // 'null' is no longer a stored type — treat it as an absence check.
+              return `${field} IS NULL`
+            } else if (typeof value === 'string') {
               return `apoc.convert.fromJsonMap(${options.nodeAlias}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${key}\` = "${value}"`
             } else {
               throw new QueryCriteriaParsingError(operator, value)
@@ -103,7 +109,9 @@ export const parseComparison = (
       return Object.entries(input).map(([operator, value]) => {
         switch (operator) {
           case '$eq': {
-            if (isPrimitive(value)) {
+            if (value === null) {
+              return `${field} IS NULL`
+            } else if (isPrimitive(value)) {
               return `any(value IN ${field} WHERE value = ${formatCriteriaValue(value)})`
             } else if (toBoolean(value) && containsAllowedKeys(value, datetimeOperators)) {
               const datetimeCriteria = formatDateTimeForQuery(value as DatetimeObject)
@@ -150,27 +158,55 @@ export const parseComparison = (
           }
           case '$in':
           case '$nin': {
-            const condition = () => {
-              if (isArray(value) && toBoolean(value.length)) {
-                if (arrayIsConsistent(value)) {
-                  const criteria = value.map(formatCriteriaValue).join(', ')
-                  return `value IN ${field} WHERE value IN [${criteria}]`
-                } else if (value.every((v) => toBoolean(v) && containsAllowedKeys(v, datetimeOperators))) {
-                  const datetimeQueryPrefix = datetimeConditionQueryPrefix(key, options)
-                  const datetimeConditions = value.map((v) => formatDateTimeForQuery(v as DatetimeObject))
-                  return `value IN [${datetimeConditions}] WHERE ${datetimeQueryPrefix} AND datetime(${field}) = value`
-                } else {
-                  throw new QueryCriteriaParsingError(operator, value)
-                }
+            if (!isArray(value) || !toBoolean(value.length)) {
+              throw new QueryCriteriaParsingError(operator, value)
+            }
+            // `null` in the set means "field absent"; split it from the value-membership check.
+            const hasNull = value.some((v) => v === null)
+            const nonNull = value.filter((v) => v !== null)
+
+            const setCondition = () => {
+              if (!nonNull.length) {
+                return null
+              }
+              if (arrayIsConsistent(nonNull)) {
+                const criteria = nonNull.map(formatCriteriaValue).join(', ')
+                return `value IN ${field} WHERE value IN [${criteria}]`
+              } else if (nonNull.every((v) => toBoolean(v) && containsAllowedKeys(v, datetimeOperators))) {
+                const datetimeQueryPrefix = datetimeConditionQueryPrefix(key, options)
+                const datetimeConditions = nonNull.map((v) => formatDateTimeForQuery(v as DatetimeObject))
+                return `value IN [${datetimeConditions}] WHERE ${datetimeQueryPrefix} AND datetime(${field}) = value`
               } else {
                 throw new QueryCriteriaParsingError(operator, value)
               }
             }
 
-            return operator === '$nin' ? `none(${condition()})` : `any(${condition()})`
+            const set = setCondition()
+
+            if (operator === '$nin') {
+              const parts: string[] = []
+              if (set) {
+                parts.push(`none(${set})`)
+              }
+              if (hasNull) {
+                parts.push(`${field} IS NOT NULL`)
+              }
+              return parts.length > 1 ? `(${parts.join(' AND ')})` : parts[0]
+            } else {
+              const parts: string[] = []
+              if (set) {
+                parts.push(`any(${set})`)
+              }
+              if (hasNull) {
+                parts.push(`${field} IS NULL`)
+              }
+              return parts.length > 1 ? `(${parts.join(' OR ')})` : parts[0]
+            }
           }
           case '$ne': {
-            if (isPrimitive(value)) {
+            if (value === null) {
+              return `${field} IS NOT NULL`
+            } else if (isPrimitive(value)) {
               const criteria = formatCriteriaValue(value)
               return `any(value IN ${field} WHERE value <> ${criteria})`
             } else if (toBoolean(value) && containsAllowedKeys(value, datetimeOperators)) {

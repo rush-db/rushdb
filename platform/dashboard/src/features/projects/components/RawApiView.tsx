@@ -1,20 +1,27 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useStore } from '@nanostores/react'
+import { useMutation } from '@tanstack/react-query'
 
-import { DialogLoadingOverlay } from '~/elements/Dialog.tsx'
+import { Dialog, DialogFooter, DialogLoadingOverlay, DialogTitle } from '~/elements/Dialog.tsx'
 import { Button } from '~/elements/Button.tsx'
-import { ClipboardPaste, LightbulbIcon, PlayIcon } from 'lucide-react'
+import { Bookmark, ClipboardPaste, LightbulbIcon, LoaderCircle, PlayIcon, Sparkles } from 'lucide-react'
 import { atom } from 'nanostores'
 import { SelectEntityApi } from '~/features/projects/components/SelectEntityApi.tsx'
 import { useSearchQuery } from '~/features/projects/utils.ts'
 import { Editor } from '~/elements/Editor.tsx'
+import { Input, TextField } from '~/elements/Input.tsx'
+import { Tooltip } from '~/elements/Tooltip.tsx'
+import { toast } from '~/elements/Toast.tsx'
 import {
   $editorData,
   $selectedOperation,
   onboardingAgentRunSelectQuery
 } from '~/features/projects/stores/raw-api.ts'
 import { $recordRawApiEntity } from '~/features/projects/stores/current-project.ts'
+import { $currentProjectId } from '~/features/projects/stores/id'
+import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
+import { useSaveQueryMutation } from '~/features/saved-queries/hooks'
 import { IconButton } from '~/elements/IconButton'
 import { Menu, MenuItem, MenuTitle } from '~/elements/Menu.tsx'
 
@@ -33,6 +40,15 @@ const $labelsData = atom<string>('')
 const $propertiesData = atom<string>('')
 const $showCypherQuery = atom<boolean>(true)
 const $cypherQuery = atom<string>('')
+
+function parseEditorPayload(value: string | undefined): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value || '{}')
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
 
 const rawApiOnboardingSteps = new Set(['rawApiSelectQuery', 'rawApiRunQuery', 'rawApiResults'])
 
@@ -375,6 +391,84 @@ export function RawApiView() {
   const showCypherQuery = useStore($showCypherQuery)
   const cypherQuery = useStore($cypherQuery)
 
+  const projectId = useStore($currentProjectId)
+  const { data: platformSettings, isPending: loadingSettings } = usePlatformSettings()
+  const llmEnabled = platformSettings?.llmEnabled === true
+
+  // AI mode: a natural-language prompt that generates a SearchQuery into the payload editor
+  // (same backend flow as Smart Search). The last generated prompt is captured so it can be
+  // persisted when the query is saved.
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [generatedFromPrompt, setGeneratedFromPrompt] = useState<string | undefined>()
+
+  const generateSearchQuery = useMutation({
+    mutationFn: (prompt: string) =>
+      api.ai.generateSearchQuery({
+        projectId: projectId!,
+        prompt,
+        currentQuery: parseEditorPayload(editorData)
+      }),
+    onSuccess(result, prompt) {
+      $editorData.set(JSON.stringify(result.searchQuery, null, 2))
+      setGeneratedFromPrompt(prompt)
+      if (result.warnings?.length) {
+        toast({ title: 'Query adjusted', description: result.warnings.join(' ') })
+      }
+    },
+    onError(error: unknown) {
+      toast({
+        title: 'AI search failed',
+        description: error instanceof Error ? error.message : 'Could not generate a query',
+        variant: 'danger'
+      })
+    }
+  })
+
+  const aiDisabled = loadingSettings || !llmEnabled || generateSearchQuery.isPending
+
+  const submitAiPrompt = (event: FormEvent) => {
+    event.preventDefault()
+    if (aiDisabled || !aiPrompt.trim()) {
+      return
+    }
+    generateSearchQuery.mutate(aiPrompt.trim())
+  }
+
+  // Editing the payload by hand invalidates the captured AI prompt.
+  const onEditorChange = (value?: string) => {
+    setGeneratedFromPrompt(undefined)
+    $editorData.set(value ?? '')
+  }
+
+  const { mutateAsync: saveQuery, isPending: saving } = useSaveQueryMutation()
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saveName, setSaveName] = useState('')
+
+  const openSaveDialog = () => {
+    setSaveName(`My Query ${new Date().toISOString()}`)
+    setSaveOpen(true)
+  }
+
+  const handleSave = async () => {
+    const searchQuery = parseEditorPayload(editorData)
+    try {
+      await saveQuery({
+        name: saveName.trim(),
+        searchMode: generatedFromPrompt ? 'ai' : 'manual',
+        searchQuery,
+        prompt: generatedFromPrompt
+      })
+      toast({ title: 'Query saved', description: `"${saveName.trim()}" is now in Saved Queries.` })
+      setSaveOpen(false)
+    } catch (error) {
+      toast({
+        title: 'Failed to save query',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'danger'
+      })
+    }
+  }
+
   useEffect(() => {
     // Don't reset editor during onboarding — seeding effect takes precedence
     if (rawApiOnboardingSteps.has($tourStep.get())) return
@@ -498,7 +592,7 @@ export function RawApiView() {
       <div className="grid h-full grid-cols-2 grid-rows-2 gap-5 px-5 pb-5">
         <div className="row-span-2 flex h-full min-h-[80vh] flex-col">
           <div className="border-r pr-5">
-            <div className="my-5 flex w-full items-center justify-between">
+            <div className="mb-4 flex w-full items-center justify-between">
               <div className="flex w-full items-end justify-between gap-3">
                 <p className="text-content2 mb-2 text-lg">Payload</p>
                 <div className="flex w-full items-center justify-end gap-3">
@@ -518,13 +612,18 @@ export function RawApiView() {
                     <ExampleSelector />
                   )}
 
+                  <Button onClick={openSaveDialog} size="small" variant="outline">
+                    <Bookmark />
+                    Save query
+                  </Button>
+
                   <Button
                     data-tour="raw-api-run-query"
                     onClick={handleSearch}
                     loading={recordsSubmitting || labelsSubmitting || propertiesSubmitting}
                     size="small"
                     className="min-w-0 px-3"
-                    variant={tourStep === 'rawApiRunQuery' ? 'accent' : 'secondary'}
+                    variant={tourStep === 'rawApiRunQuery' ? 'primary' : 'secondary'}
                   >
                     <PlayIcon className="h-2 w-2" />
                   </Button>
@@ -532,11 +631,48 @@ export function RawApiView() {
               </div>
             </div>
 
+            <form className="mb-3 flex min-w-0 items-center gap-3" onSubmit={submitAiPrompt}>
+              <Input
+                className="w-full"
+                disabled={aiDisabled}
+                onChange={(event) => setAiPrompt(event.target.value)}
+                placeholder={
+                  !loadingSettings && !llmEnabled ?
+                    'AI query generation is not configured'
+                  : 'Describe the query you want to build'
+                }
+                prefix={<Sparkles className="text-accent" />}
+                size="small"
+                type="search"
+                value={aiPrompt}
+              />
+              <Tooltip
+                trigger={
+                  <Button
+                    aria-label="generate-ai-query"
+                    disabled={aiDisabled || !aiPrompt.trim()}
+                    size="small"
+                    type="submit"
+                    variant="primary"
+                  >
+                    {generateSearchQuery.isPending ?
+                      <LoaderCircle className="animate-spin" />
+                    : <Sparkles />}
+                    Generate
+                  </Button>
+                }
+              >
+                <div className="text-2xs text-content flex items-center gap-1 uppercase">
+                  Generate query with AI
+                </div>
+              </Tooltip>
+            </form>
+
             <div data-tour="raw-api-payload">
               <Editor
                 defaultLanguage="json"
                 value={query}
-                onChange={$editorData.set}
+                onChange={onEditorChange}
                 height={operation === 'records.find' && showCypherQuery && cypherQuery ? '50vh' : '80vh'}
                 format={false}
                 theme="vs-dark"
@@ -554,7 +690,7 @@ export function RawApiView() {
 
         <div className="col-start-2 row-span-2 row-start-1 flex flex-col">
           <>
-            <div className="my-5 flex w-full items-center justify-between">
+            <div className="mb-4 flex w-full items-center justify-between">
               <p className="text-content2 text-lg">Result</p>
               <SelectEntityApi />
             </div>
@@ -566,6 +702,36 @@ export function RawApiView() {
       </div>
 
       {(recordsSubmitting || labelsSubmitting || propertiesSubmitting) && <DialogLoadingOverlay />}
+
+      <Dialog
+        className="sm:max-w-md"
+        onOpenChange={(next) => {
+          setSaveOpen(next)
+          if (!next) setSaveName('')
+        }}
+        open={saveOpen}
+      >
+        <DialogTitle>Save query</DialogTitle>
+        <p className="text-content2 mb-3 text-sm">
+          Save the current payload to Saved Queries so you can re-run it later
+          {generatedFromPrompt ? ', including the AI prompt that generated it' : ''}.
+        </p>
+        <TextField
+          autoFocus
+          label="Name"
+          onChange={(event) => setSaveName(event.target.value)}
+          placeholder="My Query"
+          value={saveName}
+        />
+        <DialogFooter className="mt-4">
+          <Button onClick={() => setSaveOpen(false)} variant="outline">
+            Cancel
+          </Button>
+          <Button disabled={!saveName.trim()} loading={saving} onClick={handleSave} variant="primary">
+            Save
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </>
   )
 }

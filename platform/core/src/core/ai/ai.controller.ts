@@ -20,7 +20,7 @@ import { TransformResponseInterceptor } from '@/common/interceptors/transform-re
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
 import { AiService } from '@/core/ai/ai.service'
-import { OntologyItem } from '@/core/ai/ai.types'
+import { SchemaItem } from '@/core/ai/ai.types'
 import { CreateEmbeddingIndexDto } from '@/core/ai/dto/create-embedding-index.dto'
 import { GenerateSearchQueryDto } from '@/core/ai/dto/generate-search-query.dto'
 import { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
@@ -34,9 +34,9 @@ import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
-class OntologyFilterDto {
+class SchemaFilterDto {
   labels?: string[]
-  /** When true, bypasses the 1-hour ontology cache and forces a fresh recalculation. */
+  /** When true, bypasses the 1-hour schema cache and forces a fresh recalculation. */
   force?: boolean
 }
 
@@ -50,23 +50,23 @@ export class AiController {
   ) {}
 
   /**
-   * Returns the full graph ontology as structured JSON.
+   * Returns the full graph schema as structured JSON.
    * Each item contains the label name, record count, properties with value ranges/samples,
    * and cross-label relationships.
    * Property `id` fields can be passed to /properties/:id/values for deeper drill-down.
    */
-  @Post('/ontology')
+  @Post('/schema')
   @ApiBearerAuth()
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
-  async getOntology(
-    @Body() body: OntologyFilterDto,
+  async getSchema(
+    @Body() body: SchemaFilterDto,
     @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
-  ): Promise<OntologyItem[]> {
+  ): Promise<SchemaItem[]> {
     const raw: any = (request as any).raw ?? request
-    return this.aiService.getOntology({
+    return this.aiService.getSchema({
       projectId: request.projectId,
       workspaceId: !raw.project?.customDb ? request.workspaceId : undefined,
       labels: body?.labels,
@@ -76,28 +76,28 @@ export class AiController {
   }
 
   /**
-   * Returns the full graph ontology as compact Markdown tables.
+   * Returns the full graph schema as compact Markdown tables.
    * Intended for direct LLM consumption — token-efficient alternative to the JSON endpoint.
    */
-  @Post('/ontology/md')
+  @Post('/schema/md')
   @ApiBearerAuth()
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
-  async getOntologyMarkdown(
-    @Body() body: OntologyFilterDto,
+  async getSchemaMarkdown(
+    @Body() body: SchemaFilterDto,
     @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<string> {
     const raw: any = (request as any).raw ?? request
-    const ontology = await this.aiService.getOntology({
+    const schema = await this.aiService.getSchema({
       projectId: request.projectId,
       workspaceId: !raw.project?.customDb ? request.workspaceId : undefined,
       labels: body?.labels,
       force: body?.force,
       transaction
     })
-    return this.aiService.buildMdSchema(ontology)
+    return this.aiService.buildMdSchema(schema)
   }
 
   @Post('/search-query')

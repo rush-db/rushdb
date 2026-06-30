@@ -57,8 +57,8 @@ import { deleteEmbeddingIndex } from './tools/deleteEmbeddingIndex.js'
 import { getEmbeddingIndexStats } from './tools/getEmbeddingIndexStats.js'
 import { upsertEmbeddingVectors } from './tools/upsertEmbeddingVectors.js'
 import { semanticSearch } from './tools/semanticSearch.js'
-import { getOntology } from './tools/getOntology.js'
-import { getOntologyMarkdown } from './tools/getOntologyMarkdown.js'
+import { getSchema } from './tools/getSchema.js'
+import { getSchemaMarkdown } from './tools/getSchemaMarkdown.js'
 import SYSTEM_PROMPT from './systemPrompt.js'
 import { getSearchQuerySpec } from './tools/getSearchQuerySpec.js'
 import { requestContext, RequestContext } from './util/db.js'
@@ -155,23 +155,23 @@ function createMcpServer(): Server {
     try {
       const result = await (async () => {
         switch (toolName) {
-          case 'getOntologyMarkdown': {
-            const md = await getOntologyMarkdown({
+          case 'getSchemaMarkdown': {
+            const md = await getSchemaMarkdown({
               labels: args.labels as string[] | undefined,
               force: args.force as boolean | undefined
             })
             const markdown = md ?? ''
-            return toolResult({ markdown }, markdown || 'No ontology data found.')
+            return toolResult({ markdown }, markdown || 'No schema data found.')
           }
 
-          case 'getOntology': {
-            const ontology = await getOntology({
+          case 'getSchema': {
+            const schema = await getSchema({
               labels: args.labels as string[] | undefined,
               force: args.force as boolean | undefined
             })
             return toolResult(
-              { ontology: ontology ?? [] },
-              ontology ? JSON.stringify(ontology, null, 2) : 'No ontology data found.'
+              { schema: schema ?? [] },
+              schema ? JSON.stringify(schema, null, 2) : 'No schema data found.'
             )
           }
 
@@ -572,7 +572,7 @@ function createMcpServer(): Server {
           hint = 'Forbidden (403): access denied. The API key does not have permission for this operation.'
         } else if (status === 404) {
           hint =
-            'Not found (404): the requested resource does not exist. Verify that record IDs, project IDs, and label names are correct (labels are case-sensitive). Call getOntologyMarkdown to rediscover the available schema.'
+            'Not found (404): the requested resource does not exist. Verify that record IDs, project IDs, and label names are correct (labels are case-sensitive). Call getSchemaMarkdown to rediscover the available schema.'
         } else if (status === 409) {
           hint =
             'Conflict (409): the operation conflicts with existing data. Check for duplicate keys or conflicting constraints.'

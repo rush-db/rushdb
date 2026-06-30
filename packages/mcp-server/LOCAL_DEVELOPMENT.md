@@ -132,6 +132,50 @@ Connected applications can be revoked from the **Workspace Settings** page (`/wo
 
 ---
 
+## Troubleshooting: stdio (`npx`) server fails with `-32000` inside the monorepo
+
+If you wire the **stdio** server into an MCP client (Claude Code, Cursor, …) using an `.mcp.json` that lives **inside this repo**, the client may fail to connect with `Failed to reconnect to rushdb: -32000`, and launching the command by hand prints:
+
+```
+sh: rushdb-mcp: command not found
+```
+
+**Cause.** `@rushdb/mcp-server` is a pnpm workspace package (`pnpm-workspace.yaml` → `packages/*`). When an **unversioned** `npx @rushdb/mcp-server` runs with a working directory inside the monorepo, npx resolves it to the local workspace copy instead of the registry, finds its declared `rushdb-mcp` bin, but that bin is not linked in `node_modules/.bin` — so the process exits before the MCP handshake and the client surfaces `-32000`. Adding `-p` does **not** help: it still resolves the workspace package. Outside the repo the bare command downloads `@rushdb/mcp-server` from npm and works as documented.
+
+**Fix.** Pin a **version** so npx fetches from the registry instead of the workspace (works both inside and outside the repo):
+
+```jsonc
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "npx",
+      // unversioned ["-y", "@rushdb/mcp-server"] resolves the workspace pkg and fails inside this repo.
+      // A version tag forces registry resolution:
+      "args": ["-y", "-p", "@rushdb/mcp-server@latest", "rushdb-mcp"],
+      "env": { "RUSHDB_API_KEY": "<your-api-key>" }
+    }
+  }
+}
+```
+
+Or run your local build directly (uses in-repo code; run `pnpm --filter @rushdb/mcp-server build` first):
+
+```jsonc
+{
+  "mcpServers": {
+    "rushdb": {
+      "command": "node",
+      "args": ["packages/mcp-server/build/index.js"],
+      "env": { "RUSHDB_API_KEY": "<your-api-key>" }
+    }
+  }
+}
+```
+
+After editing `.mcp.json`, reconnect from the client (`/mcp` in Claude Code) or restart it. Note that `.mcp.json` is **not** gitignored — never commit a real API key.
+
+---
+
 ## Environment Variable Reference
 
 | Variable                                                   | Description                                               | Example                            |

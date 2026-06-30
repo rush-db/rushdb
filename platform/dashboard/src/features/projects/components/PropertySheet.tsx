@@ -37,7 +37,13 @@ export function PropertySheet() {
           {property && (
             <div className="flex flex-col">
               <div className="flex flex-row items-center gap-1">
-                <Tooltip trigger={<span className="inline-flex cursor-default"><PropertyTypeIcon size={18} type={property.type} /></span>}>
+                <Tooltip
+                  trigger={
+                    <span className="inline-flex cursor-default">
+                      <PropertyTypeIcon size={18} type={property.type} />
+                    </span>
+                  }
+                >
                   {property.type}
                 </Tooltip>
                 <span>{property.name}</span>
@@ -75,7 +81,7 @@ export function PropertySheet() {
               </li>
 
               <li className="hover:bg-secondary flex items-center justify-between gap-5 px-5 py-3">
-                <span className="text-content-secondary shrink-0 text-sm">Embedding Index</span>
+                <span className="text-content-secondary shrink-0 text-sm">Semantic Index</span>
                 <span className="text-end text-sm font-medium">
                   {property.vectorIndexed ? 'Enabled' : 'Not indexed'}
                 </span>
