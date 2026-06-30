@@ -12,6 +12,13 @@ export type TImportOptions = {
   suggestTypes?: boolean
   convertNumericValuesToNumbers?: boolean
   capitalizeLabels?: boolean
+  /**
+   * When true, treats empty values as unset: empty strings ('') and empty arrays ([]) are skipped
+   * and no property is created for them (an array's '' elements are stripped first; an array that
+   * becomes empty is dropped). Zero (0) and false are real values and are never affected.
+   * Defaults to false — empty strings/arrays are stored as-is.
+   */
+  skipEmptyValues?: boolean
   relationshipType?: string
   /**
    * When true, returns the imported records in the response body.

@@ -4,7 +4,7 @@ import axios from 'axios'
 import { Transaction } from 'neo4j-driver'
 
 import { AiService } from '@/core/ai/ai.service'
-import { OntologyItem } from '@/core/ai/ai.types'
+import { SchemaItem } from '@/core/ai/ai.types'
 import { estimateTokens } from '@/core/ai/embedding.utils'
 import { RUSHDB_RELATION_DEFAULT } from '@/core/common/constants'
 import { EntityService } from '@/core/entity/entity.service'
@@ -42,7 +42,7 @@ export class RelationshipPatternsService {
   private readonly logger = new Logger(RelationshipPatternsService.name)
   private readonly runningAnalysis = new Set<string>()
   private readonly runningApply = new Set<string>()
-  /** Hash of (ontology + stored patterns) per project at the last completed run, to skip redundant LLM calls. */
+  /** Hash of (schema + stored patterns) per project at the last completed run, to skip redundant LLM calls. */
   private readonly lastAnalysisSignature = new Map<string, string>()
 
   constructor(
@@ -58,17 +58,17 @@ export class RelationshipPatternsService {
 
   async list(projectId: string, transaction: Transaction): Promise<RelationshipPatternListResponse> {
     // allowStale: the dashboard polls this endpoint every few seconds while an analysis
-    // runs — a synchronous ontology recompute here would pile concurrent full-graph scans
+    // runs — a synchronous schema recompute here would pile concurrent full-graph scans
     // on top of the analysis's own forced recompute, which refreshes the cache anyway.
-    const [patterns, ontology, analysis] = await Promise.all([
+    const [patterns, schema, analysis] = await Promise.all([
       this.repository.findByProjectId(projectId),
-      this.aiService.getOntology({ projectId, transaction, allowStale: true }),
+      this.aiService.getSchema({ projectId, transaction, allowStale: true }),
       this.repository.getQueue(projectId)
     ])
 
     return {
       patterns: patterns.map((row) => this.toDto(row)),
-      relationships: this.summarizeExistingRelationships(ontology),
+      relationships: this.summarizeExistingRelationships(schema),
       analysis:
         analysis ?
           {
@@ -83,7 +83,7 @@ export class RelationshipPatternsService {
   }
 
   private summarizeExistingRelationships(
-    ontology: OntologyItem[]
+    schema: SchemaItem[]
   ): RelationshipPatternListResponse['relationships'] {
     const grouped = new Map<
       string,
@@ -91,7 +91,7 @@ export class RelationshipPatternsService {
     >()
     const seen = new Set<string>()
 
-    for (const item of ontology) {
+    for (const item of schema) {
       for (const relationship of item.relationships) {
         const sourceLabel = relationship.direction === 'in' ? relationship.label : item.label
         const targetLabel = relationship.direction === 'in' ? item.label : relationship.label
@@ -208,17 +208,18 @@ export class RelationshipPatternsService {
     this.runningApply.add(projectId)
 
     void (async () => {
+      let totalApplied = 0
       try {
         for (;;) {
           const pending = (await this.repository.findApproved(projectId)).filter(
             (pattern) => !pattern.lastAppliedAt && !pattern.lastError
           )
           if (!pending.length) {
-            return
+            break
           }
           for (const pattern of pending) {
             try {
-              await this.applyPatternInFreshTransaction(pattern)
+              totalApplied += await this.applyPatternInFreshTransaction(pattern)
             } catch (error) {
               // applyPattern already recorded lastError on the row; log and continue
               // so one failing pattern doesn't stall the rest of the batch.
@@ -229,6 +230,12 @@ export class RelationshipPatternsService {
             }
           }
         }
+
+        // Refresh the schema cache once, after the whole batch, on its own
+        // transaction — rather than per-pattern inside applyPattern.
+        if (totalApplied > 0) {
+          await this.recomputeSchemaInFreshTransaction(projectId)
+        }
       } catch (error) {
         this.logger.error(
           `[RelationshipPattern] background apply loop failed for project ${projectId}`,
@@ -238,6 +245,26 @@ export class RelationshipPatternsService {
         this.runningApply.delete(projectId)
       }
     })()
+  }
+
+  /**
+   * Forces an schema cache recompute on a dedicated session/transaction so the heavy
+   * full-graph scan never shares a write transaction's timeout budget.
+   */
+  private async recomputeSchemaInFreshTransaction(projectId: string): Promise<void> {
+    const session = this.neogmaService.createSession('relationship-pattern-schema')
+    const transaction = session.beginTransaction({ timeout: 60_000 })
+    try {
+      await this.aiService.getSchema({ projectId, force: true, transaction })
+      await transaction.commit()
+    } catch (error) {
+      if (transaction.isOpen()) {
+        await transaction.rollback()
+      }
+      throw error
+    } finally {
+      await this.neogmaService.closeSession(session, 'relationship-pattern-schema')
+    }
   }
 
   async ignore(projectId: string, id: string): Promise<RelationshipPatternDto | undefined> {
@@ -267,17 +294,25 @@ export class RelationshipPatternsService {
     }
   }
 
-  async applyApprovedPatterns(projectId: string, transaction: Transaction): Promise<void> {
+  /**
+   * Applies approved patterns on the caller's transaction and returns the total number
+   * of relationships materialized. The caller is responsible for recomputing the schema
+   * cache once (on its own transaction) when the returned count is > 0 — this keeps the
+   * heavy full-graph scan out of the write transaction's timeout budget.
+   */
+  async applyApprovedPatterns(projectId: string, transaction: Transaction): Promise<number> {
     if (this.runningApply.has(projectId)) {
-      return
+      return 0
     }
 
     this.runningApply.add(projectId)
     try {
       const patterns = await this.repository.findApproved(projectId)
+      let totalApplied = 0
       for (const pattern of patterns) {
-        await this.applyPattern(pattern, transaction)
+        totalApplied += await this.applyPattern(pattern, transaction)
       }
+      return totalApplied
     } finally {
       this.runningApply.delete(projectId)
     }
@@ -313,15 +348,15 @@ export class RelationshipPatternsService {
 
     try {
       // No force: every write endpoint that triggers this analysis also runs the
-      // RECALCULATE_ONTOLOGY_CACHE side effect first, so the cache is already fresh for
-      // the data that queued us — forcing here recomputed the same ontology twice in a row.
+      // RECALCULATE_SCHEMA_CACHE side effect first, so the cache is already fresh for
+      // the data that queued us — forcing here recomputed the same schema twice in a row.
       // A stale/missing cache (TTL expired, old project) still recomputes.
-      const tOntology = Date.now()
-      const ontology = await this.aiService.getOntology({ projectId, transaction })
+      const tSchema = Date.now()
+      const schema = await this.aiService.getSchema({ projectId, transaction })
       await transaction.commit()
       await this.neogmaService.closeSession(session, 'relationship-analysis')
       this.logger.log(
-        `[RelationshipAnalysis] project ${projectId} ontology loaded in ${Date.now() - tOntology}ms`
+        `[RelationshipAnalysis] project ${projectId} schema loaded in ${Date.now() - tSchema}ms`
       )
 
       // Resolve workspaceId for KU billing — supplied by the controller for manual
@@ -332,14 +367,14 @@ export class RelationshipPatternsService {
       const existingPatterns = await this.pruneIncoherentJoinSuggestions(
         projectId,
         await this.repository.findByProjectId(projectId),
-        ontology
+        schema
       )
 
-      // Neither the ontology nor the stored patterns changed since the last completed
+      // Neither the schema nor the stored patterns changed since the last completed
       // run in this process — the LLM would see the identical prompt, so skip it.
       // Makes repeated Refresh clicks near-instant instead of re-billing a full analysis.
       const analysisSignature = this.signatureHash({
-        ontology,
+        schema,
         patterns: this.compactExistingPatternsForRelationshipAnalysis(existingPatterns)
       })
       if (this.lastAnalysisSignature.get(projectId) === analysisSignature) {
@@ -356,16 +391,16 @@ export class RelationshipPatternsService {
 
       const tLlm = Date.now()
       const { candidates, promptTokens, completionTokens, totalTokens } = await this.suggestCandidates(
-        ontology,
+        schema,
         existingPatterns
       )
       this.logger.log(
         `[RelationshipAnalysis] project ${projectId} LLM returned ${candidates.length} candidates in ${Date.now() - tLlm}ms`
       )
-      const deterministicCandidates = this.suggestDeterministicCandidates(ontology)
+      const deterministicCandidates = this.suggestDeterministicCandidates(schema)
       const validCandidates = this.dedupeInverseCandidates(
         [...deterministicCandidates, ...candidates]
-          .map((candidate) => this.validateCandidate(candidate, ontology))
+          .map((candidate) => this.validateCandidate(candidate, schema))
           .filter((candidate): candidate is RelationshipPatternCandidate => Boolean(candidate))
       )
         .filter((candidate) => !this.hasExistingPatternForJoin(candidate, existingPatterns))
@@ -427,7 +462,7 @@ export class RelationshipPatternsService {
   private async pruneIncoherentJoinSuggestions(
     projectId: string,
     patterns: RelationshipPatternRow[],
-    ontology: OntologyItem[]
+    schema: SchemaItem[]
   ): Promise<RelationshipPatternRow[]> {
     const kept: RelationshipPatternRow[] = []
     for (const pattern of patterns) {
@@ -439,7 +474,7 @@ export class RelationshipPatternsService {
             source: { label: pattern.sourceLabel, key: pattern.sourceKey ?? undefined },
             target: { label: pattern.targetLabel, key: pattern.targetKey ?? undefined }
           },
-          ontology
+          schema
         )
 
       if (incoherent) {
@@ -455,18 +490,18 @@ export class RelationshipPatternsService {
     return kept
   }
 
-  private suggestDeterministicCandidates(ontology: OntologyItem[]): RelationshipPatternCandidate[] {
+  private suggestDeterministicCandidates(schema: SchemaItem[]): RelationshipPatternCandidate[] {
     return [
-      ...this.suggestNameBackedReferenceCandidates(ontology),
-      ...this.suggestSampleBackedReferenceCandidates(ontology)
+      ...this.suggestNameBackedReferenceCandidates(schema),
+      ...this.suggestSampleBackedReferenceCandidates(schema)
     ]
   }
 
-  private suggestNameBackedReferenceCandidates(ontology: OntologyItem[]): RelationshipPatternCandidate[] {
+  private suggestNameBackedReferenceCandidates(schema: SchemaItem[]): RelationshipPatternCandidate[] {
     const candidates: RelationshipPatternCandidate[] = []
 
-    for (const source of ontology) {
-      for (const target of ontology) {
+    for (const source of schema) {
+      for (const target of schema) {
         for (const sourceProperty of source.properties) {
           for (const targetProperty of target.properties) {
             if (source.label === target.label && sourceProperty.name === targetProperty.name) {
@@ -502,13 +537,13 @@ export class RelationshipPatternsService {
     return candidates
   }
 
-  private suggestSampleBackedReferenceCandidates(ontology: OntologyItem[]): RelationshipPatternCandidate[] {
+  private suggestSampleBackedReferenceCandidates(schema: SchemaItem[]): RelationshipPatternCandidate[] {
     const candidates: RelationshipPatternCandidate[] = []
 
-    for (let sourceIndex = 0; sourceIndex < ontology.length; sourceIndex += 1) {
-      const left = ontology[sourceIndex]
-      for (let targetIndex = sourceIndex; targetIndex < ontology.length; targetIndex += 1) {
-        const right = ontology[targetIndex]
+    for (let sourceIndex = 0; sourceIndex < schema.length; sourceIndex += 1) {
+      const left = schema[sourceIndex]
+      for (let targetIndex = sourceIndex; targetIndex < schema.length; targetIndex += 1) {
+        const right = schema[targetIndex]
 
         for (const leftProperty of left.properties) {
           for (const rightProperty of right.properties) {
@@ -529,10 +564,10 @@ export class RelationshipPatternsService {
   }
 
   private buildSampleBackedCandidate(
-    left: OntologyItem,
-    leftProperty: OntologyItem['properties'][number],
-    right: OntologyItem,
-    rightProperty: OntologyItem['properties'][number]
+    left: SchemaItem,
+    leftProperty: SchemaItem['properties'][number],
+    right: SchemaItem,
+    rightProperty: SchemaItem['properties'][number]
   ): RelationshipPatternCandidate | undefined {
     const leftValues = this.referenceValueProfile(leftProperty)
     const rightValues = this.referenceValueProfile(rightProperty)
@@ -585,7 +620,7 @@ export class RelationshipPatternsService {
   }
 
   private async suggestCandidates(
-    ontology: OntologyItem[],
+    schema: SchemaItem[],
     existingPatterns: RelationshipPatternRow[]
   ): Promise<{
     candidates: RelationshipPatternCandidate[]
@@ -617,7 +652,7 @@ export class RelationshipPatternsService {
               'Use "join_pattern" only when sampled property values show that records can actually be matched. Shared property names or semantic-looking key names alone are not enough. ' +
               'Array/list fields and comma-separated reference fields may join scalar fields when their sampled items overlap. ' +
               'Return at most ONE join_pattern per label pair; if several key pairs could join the same two labels, pick the single most semantically correct one. ' +
-              'Use "retype_existing_relationship" when ontology already shows a RUSHDB_DEFAULT_RELATION between labels; in that case source.key and target.key are optional and the task is to rename existing structure semantically. ' +
+              'Use "retype_existing_relationship" when schema already shows a RUSHDB_DEFAULT_RELATION between labels; in that case source.key and target.key are optional and the task is to rename existing structure semantically. ' +
               'For retype_existing_relationship, infer the semantic relationship from the existing graph structure and label meanings. ' +
               'If a default relationship already connects two labels, prefer retype_existing_relationship over join_pattern. ' +
               'Return ONE canonical candidate per semantic relationship; never return both A->B and B->A for the same relationship. ' +
@@ -630,7 +665,7 @@ export class RelationshipPatternsService {
           {
             role: 'user',
             content: JSON.stringify({
-              ontology,
+              schema,
               existingPatterns: this.compactExistingPatternsForRelationshipAnalysis(existingPatterns),
               relationshipTypeRules:
                 'Use uppercase Neo4j-safe verb phrases from source to target. Do not use inverse duplicate types for the same relationship.'
@@ -656,7 +691,7 @@ export class RelationshipPatternsService {
     const systemContent =
       'You infer graph relationship patterns for RushDB. Return only JSON: {"candidates":[...]}. '
     const userContent = JSON.stringify({
-      ontology,
+      schema,
       existingPatterns: this.compactExistingPatternsForRelationshipAnalysis(existingPatterns)
     })
     const promptTokens = usage?.prompt_tokens ?? estimateTokens(systemContent + userContent)
@@ -763,14 +798,14 @@ export class RelationshipPatternsService {
 
   private validateCandidate(
     candidate: RelationshipPatternCandidate,
-    ontology: OntologyItem[]
+    schema: SchemaItem[]
   ): RelationshipPatternCandidate | undefined {
     if (!candidate?.source?.label || !candidate?.target?.label) {
       return undefined
     }
 
-    const source = ontology.find((item) => item.label === candidate.source.label)
-    const target = ontology.find((item) => item.label === candidate.target.label)
+    const source = schema.find((item) => item.label === candidate.source.label)
+    const target = schema.find((item) => item.label === candidate.target.label)
     if (!source || !target) {
       return undefined
     }
@@ -802,7 +837,7 @@ export class RelationshipPatternsService {
 
       const sourceHasKey = source.properties.some((property) => property.name === candidate.source.key)
       const targetHasKey = target.properties.some((property) => property.name === candidate.target.key)
-      if (!sourceHasKey || !targetHasKey || !this.isSafeJoinCandidate(candidate, ontology)) {
+      if (!sourceHasKey || !targetHasKey || !this.isSafeJoinCandidate(candidate, schema)) {
         return undefined
       }
     }
@@ -828,7 +863,7 @@ export class RelationshipPatternsService {
     return type === RUSHDB_RELATION_DEFAULT || type === 'RUSHDB_DEFAULT_RELATION'
   }
 
-  private hasDefaultRelationshipBetween(source: OntologyItem, target: OntologyItem): boolean {
+  private hasDefaultRelationshipBetween(source: SchemaItem, target: SchemaItem): boolean {
     return (
       source.relationships.some(
         (relationship) => relationship.label === target.label && this.isDefaultRelationType(relationship.type)
@@ -839,7 +874,7 @@ export class RelationshipPatternsService {
     )
   }
 
-  private hasSemanticRelationshipBetween(source: OntologyItem, target: OntologyItem): boolean {
+  private hasSemanticRelationshipBetween(source: SchemaItem, target: SchemaItem): boolean {
     return (
       source.relationships.some(
         (relationship) =>
@@ -852,10 +887,7 @@ export class RelationshipPatternsService {
     )
   }
 
-  private isSafeJoinCandidate(
-    candidate: RelationshipPatternCandidate,
-    ontology: OntologyItem[] = []
-  ): boolean {
+  private isSafeJoinCandidate(candidate: RelationshipPatternCandidate, schema: SchemaItem[] = []): boolean {
     if (candidate.source.label === candidate.target.label && candidate.source.key === candidate.target.key) {
       return false
     }
@@ -863,8 +895,8 @@ export class RelationshipPatternsService {
     const sourceKey = candidate.source.key ?? ''
     const targetKey = candidate.target.key ?? ''
 
-    const sourceProperty = this.findProperty(ontology, candidate.source.label, sourceKey)
-    const targetProperty = this.findProperty(ontology, candidate.target.label, targetKey)
+    const sourceProperty = this.findProperty(schema, candidate.source.label, sourceKey)
+    const targetProperty = this.findProperty(schema, candidate.target.label, targetKey)
     if (!sourceProperty || !targetProperty) {
       return false
     }
@@ -892,14 +924,14 @@ export class RelationshipPatternsService {
     return Math.min(confidence, 0.95)
   }
 
-  private findProperty(ontology: OntologyItem[], label: string, key: string) {
-    return ontology.find((item) => item.label === label)?.properties.find((property) => property.name === key)
+  private findProperty(schema: SchemaItem[], label: string, key: string) {
+    return schema.find((item) => item.label === label)?.properties.find((property) => property.name === key)
   }
 
   private hasNameBackedReference(
-    referenceProperty: OntologyItem['properties'][number],
+    referenceProperty: SchemaItem['properties'][number],
     targetLabel: string,
-    targetProperty: OntologyItem['properties'][number]
+    targetProperty: SchemaItem['properties'][number]
   ): boolean {
     if (this.isNonReferenceProperty(referenceProperty) || this.isNonReferenceProperty(targetProperty)) {
       return false
@@ -945,9 +977,9 @@ export class RelationshipPatternsService {
   }
 
   private hasReferenceLikeOverlap(
-    leftProperty: OntologyItem['properties'][number],
+    leftProperty: SchemaItem['properties'][number],
     left: ReferenceValueProfile,
-    rightProperty: OntologyItem['properties'][number],
+    rightProperty: SchemaItem['properties'][number],
     right: ReferenceValueProfile,
     overlap: number
   ): boolean {
@@ -975,8 +1007,8 @@ export class RelationshipPatternsService {
     return hasStrictSubsetOverlap
   }
 
-  private isNonReferenceProperty(property: OntologyItem['properties'][number]): boolean {
-    return property.type === 'boolean' || property.type === 'datetime' || property.type === 'null'
+  private isNonReferenceProperty(property: SchemaItem['properties'][number]): boolean {
+    return property.type === 'boolean' || property.type === 'datetime'
   }
 
   private isLowSignalEnum(profile: ReferenceValueProfile): boolean {
@@ -995,7 +1027,7 @@ export class RelationshipPatternsService {
     return overlap === Math.min(left.tokens.size, right.tokens.size) && left.tokens.size !== right.tokens.size
   }
 
-  private referenceValueProfile(property: OntologyItem['properties'][number]): ReferenceValueProfile {
+  private referenceValueProfile(property: SchemaItem['properties'][number]): ReferenceValueProfile {
     const profile = this.referenceValueTokens(property.values)
     return {
       ...profile,
@@ -1143,7 +1175,7 @@ export class RelationshipPatternsService {
     }
   }
 
-  private async applyPattern(pattern: RelationshipPatternRow, transaction: Transaction): Promise<void> {
+  private async applyPattern(pattern: RelationshipPatternRow, transaction: Transaction): Promise<number> {
     try {
       const source = {
         label: pattern.sourceLabel,
@@ -1201,16 +1233,17 @@ export class RelationshipPatternsService {
         }
       }
 
-      await this.aiService.getOntology({
-        projectId: pattern.projectId,
-        force: true,
-        transaction
-      })
+      // NOTE: the schema cache is intentionally NOT recomputed here. Recomputing
+      // per-pattern meant N full-graph scans in a single transaction, which blew the
+      // side-effect transaction timeout. Callers refresh the cache once, after all
+      // patterns are applied, on their own transaction (see applyApprovedPatterns and
+      // scheduleApprovedPatternApply).
       await this.repository.updatePattern(pattern.id, {
         lastAppliedAt: new Date().toISOString(),
         sampleMatchCount: appliedCount,
         lastError: null
       })
+      return appliedCount
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       await this.repository.updatePattern(pattern.id, { lastError: message })
@@ -1251,12 +1284,13 @@ export class RelationshipPatternsService {
     })
   }
 
-  private async applyPatternInFreshTransaction(pattern: RelationshipPatternRow): Promise<void> {
+  private async applyPatternInFreshTransaction(pattern: RelationshipPatternRow): Promise<number> {
     const session = this.neogmaService.createSession('relationship-pattern-apply')
     const transaction = session.beginTransaction({ timeout: 60_000 })
     try {
-      await this.applyPattern(pattern, transaction)
+      const appliedCount = await this.applyPattern(pattern, transaction)
       await transaction.commit()
+      return appliedCount
     } catch (error) {
       if (transaction.isOpen()) {
         await transaction.rollback()
@@ -1272,7 +1306,7 @@ export class RelationshipPatternsService {
     const transaction = session.beginTransaction({ timeout: 60_000 })
     try {
       await this.deletePatternRelationships(pattern, transaction)
-      await this.aiService.getOntology({
+      await this.aiService.getSchema({
         projectId: pattern.projectId,
         force: true,
         transaction

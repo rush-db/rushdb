@@ -50,7 +50,7 @@ function SendPasswordForm() {
         error={errors?.email?.message as string}
       />
 
-      <Button className="mt-2" loading={isSubmitting} size="large" type="submit" variant="accent">
+      <Button className="mt-2" loading={isSubmitting} size="large" type="submit" variant="primary">
         Confirm
       </Button>
     </form>
@@ -118,7 +118,7 @@ function ChangePasswordForm({ token }: { token: string }) {
         type="password"
       />
 
-      <Button className="mt-2" loading={isSubmitting} size="large" type="submit" variant="accent">
+      <Button className="mt-2" loading={isSubmitting} size="large" type="submit" variant="primary">
         Confirm
       </Button>
     </form>

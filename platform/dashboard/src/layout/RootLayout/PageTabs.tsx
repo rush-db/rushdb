@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
+import { Children, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 
 import { Tab, Tabs, TabsList } from '~/elements/Tabs'
 import { $router } from '~/lib/router'
@@ -41,6 +41,16 @@ export function PageTab({
   )
 }
 
+export function PageTabSectionHeader({ title, collapsed }: { title: string; collapsed?: boolean }) {
+  if (collapsed) {
+    return <div aria-hidden className="bg-stroke mx-1 my-2 h-px" />
+  }
+
+  return (
+    <div className="text-content3 text-2xs px-2 pb-1 pt-3 font-medium uppercase tracking-wide">{title}</div>
+  )
+}
+
 export function PageTabs({
   className,
   collapsed = false,
@@ -64,17 +74,27 @@ export function PageTabs({
         )}
       >
         {sidebar ?
-          Children.map(props.children, (child) =>
-            isValidElement<{ className?: string; hideLabel?: boolean }>(child) && child.type === PageTab ?
-              cloneElement(child, {
+          Children.map(props.children, (child) => {
+            if (!isValidElement(child)) {
+              return child
+            }
+
+            if (child.type === PageTab) {
+              return cloneElement(child as ReactElement<{ className?: string; hideLabel?: boolean }>, {
                 className: cn(
                   collapsed ? 'w-full justify-center px-0' : 'w-full justify-start',
-                  child.props.className
+                  (child.props as { className?: string }).className
                 ),
                 hideLabel: collapsed
               })
-            : child
-          )
+            }
+
+            if (child.type === PageTabSectionHeader) {
+              return cloneElement(child as ReactElement<{ collapsed?: boolean }>, { collapsed })
+            }
+
+            return child
+          })
         : props.children}
       </TabsList>
     </Tabs>

@@ -6,7 +6,6 @@ import { ISO_8601_REGEX, NUMERIC_REGEX } from '@/core/common/constants'
 import {
   PROPERTY_TYPE_BOOLEAN,
   PROPERTY_TYPE_DATETIME,
-  PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
   PROPERTY_TYPE_STRING
 } from '@/core/property/property.constants'
@@ -32,6 +31,8 @@ export const nullArraySchema = JoiArraySchema(Joi.string().valid(null).required(
 export const booleanArraySchema = JoiArraySchema(Joi.boolean().required())
 export const emptyArraySchema = Joi.array().length(0)
 
+// Accepts null / arrays-of-null / [] as INPUT. `null` is no longer a stored type — such values are
+// validated here so the request is accepted, then dropped during normalization (null === field unset).
 export const nullValueSchema = Joi.alternatives().try(
   Joi.string().valid(null).required(),
   nullArraySchema,
@@ -58,13 +59,7 @@ export const stringValueSchema = Joi.alternatives()
 
 export const propertySchema = Joi.object({
   type: Joi.string()
-    .valid(
-      PROPERTY_TYPE_STRING,
-      PROPERTY_TYPE_DATETIME,
-      PROPERTY_TYPE_BOOLEAN,
-      PROPERTY_TYPE_NUMBER,
-      PROPERTY_TYPE_NULL
-    )
+    .valid(PROPERTY_TYPE_STRING, PROPERTY_TYPE_DATETIME, PROPERTY_TYPE_BOOLEAN, PROPERTY_TYPE_NUMBER)
     .required(),
   name: Joi.string().required(),
   value: Joi.alternatives()
@@ -73,10 +68,6 @@ export const propertySchema = Joi.object({
         {
           is: PROPERTY_TYPE_BOOLEAN,
           then: booleanValueSchema
-        },
-        {
-          is: PROPERTY_TYPE_NULL,
-          then: nullValueSchema
         },
         {
           is: PROPERTY_TYPE_DATETIME,

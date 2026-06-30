@@ -20,6 +20,7 @@ import type {
 import type { GetUserResponse, User } from '~/features/auth/types'
 import type { BillingData, BillingInquiryPayload } from '~/features/billing/types'
 import type { Connector, ConnectorEvent, CreateConnectorInput } from '~/features/connectors/types'
+import type { CreateSavedQueryInput, SavedQuery } from '~/features/saved-queries/types'
 import type {
   EmbeddingIndex,
   CreateEmbeddingIndexParams,
@@ -69,7 +70,7 @@ type RelationshipSearchQuery = Pick<SearchQuery, 'limit' | 'skip' | 'orderBy'> &
   target?: RelationshipEndpointQuery
 }
 
-type OntologyVectorIndex = {
+type SchemaVectorIndex = {
   id: string
   sourceType: string
   similarityFunction: string
@@ -78,7 +79,7 @@ type OntologyVectorIndex = {
   modelKey: string
 }
 
-export type OntologyProperty = {
+export type SchemaProperty = {
   id: string
   name: string
   type: string
@@ -86,13 +87,13 @@ export type OntologyProperty = {
   max?: number | string
   values?: Array<string | number>
   recordsCount?: number
-  vectorIndexes?: OntologyVectorIndex[]
+  vectorIndexes?: SchemaVectorIndex[]
 }
 
-export type OntologyItem = {
+export type SchemaItem = {
   label: string
   count: number
-  properties: OntologyProperty[]
+  properties: SchemaProperty[]
   relationships: Array<{
     label: string
     type: string
@@ -125,13 +126,28 @@ export const api = {
         method: 'POST'
       })
     },
-    async getOntology({
+    async getSchema({
       force,
       init,
       labels,
       projectId
     }: WithInit & WithProjectID & { labels?: string[]; force?: boolean }) {
-      return fetcher<OntologyItem[]>(`/api/v1/ai/ontology`, {
+      return fetcher<SchemaItem[]>(`/api/v1/ai/schema`, {
+        ...init,
+        body: JSON.stringify({ force, labels }),
+        headers: {
+          'x-project-id': projectId
+        },
+        method: 'POST'
+      })
+    },
+    async getSchemaMarkdown({
+      force,
+      init,
+      labels,
+      projectId
+    }: WithInit & WithProjectID & { labels?: string[]; force?: boolean }) {
+      return fetcher<string>(`/api/v1/ai/schema/md`, {
         ...init,
         body: JSON.stringify({ force, labels }),
         headers: {
@@ -585,6 +601,50 @@ export const api = {
       })
     }
   },
+  savedQueries: {
+    async list({ projectId, init }: WithProjectID & WithInit) {
+      return fetcher<SavedQuery[]>(`/api/v1/saved-queries`, {
+        ...init,
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async create({ projectId, init, ...body }: WithProjectID & WithInit & CreateSavedQueryInput) {
+      return fetcher<SavedQuery>(`/api/v1/saved-queries`, {
+        ...init,
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async update({
+      projectId,
+      id,
+      init,
+      ...body
+    }: WithProjectID & WithInit & { id: string } & Partial<CreateSavedQueryInput>) {
+      return fetcher<SavedQuery>(`/api/v1/saved-queries/${id}`, {
+        ...init,
+        method: 'PATCH',
+        body: JSON.stringify(body),
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async delete({ projectId, id, init }: WithProjectID & WithInit & { id: string }) {
+      return fetcher<boolean>(`/api/v1/saved-queries/${id}`, {
+        ...init,
+        method: 'DELETE',
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    }
+  },
   projects: {
     async list(init: RequestInit) {
       const { data: projects, total } = await fetcher<
@@ -836,6 +896,16 @@ export const api = {
         method: 'GET'
       })
     }
+  },
+  health: {
+    // The backend exposes /health outside the /api/v1 prefix and returns the
+    // raw `{ status }` payload (no `data` envelope), so skip the transform.
+    get: ({ init }: WithInit) =>
+      fetcher<{ status: string }>('/health', {
+        ...init,
+        method: 'GET',
+        transformResponse: false
+      })
   },
   query: {
     'records-find': async (params: { searchQuery: SearchQuery }) => {

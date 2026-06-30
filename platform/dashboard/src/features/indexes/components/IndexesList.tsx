@@ -78,6 +78,9 @@ function IndexListItem({
 >) {
   const { mutate } = useDeleteIndexMutation()
   const { data: labels } = useProjectLabelsQuery()
+  // Reuses the same stats query the progress bar reads (deduped by react-query), so the
+  // record count is available next to the status without an extra request.
+  const { data: stats } = useIndexStatsQuery(id ?? '')
   const statusLabel = STATUS_LABELS[status ?? 'pending'] ?? status
   const statusColor = STATUS_COLORS[status ?? 'pending'] ?? STATUS_COLORS.pending
   const labelVariant = label ? getLabelColor(label, Object.keys(labels ?? {}).indexOf(label)) : undefined
@@ -108,6 +111,11 @@ function IndexListItem({
           <IndexProgressBar id={id} status={status} />
         : null}
       </div>
+      {!loading && stats && stats.totalRecords > 0 ?
+        <span className="text-content3 text-sm tabular-nums">
+          {stats.totalRecords.toLocaleString()} records
+        </span>
+      : null}
       <span
         className={cn('inline-flex items-center rounded-md border px-1.5 py-0.5 font-medium', statusColor)}
       >
@@ -129,7 +137,7 @@ function IndexListItem({
             handler={() => {
               if (!id) return
               toast({
-                title: 'Deleting embedding index...',
+                title: 'Deleting semantic index...',
                 description: 'Cleanup continues in background'
               })
               mutate({ indexId: id })
@@ -140,8 +148,8 @@ function IndexListItem({
                 Delete
               </MenuItem>
             }
-            description={`The embedding index for "${propertyName}" will be permanently deleted. Are you sure?`}
-            title="Delete embedding index"
+            description={`The semantic index for "${propertyName}" will be permanently deleted. Are you sure?`}
+            title="Delete semantic index"
           />
         </Menu>
       )}
@@ -156,7 +164,7 @@ export function IndexesList({
   ...props
 }: TPolymorphicComponentProps<'ul', { data?: EmbeddingIndex[]; loading: boolean }>) {
   if (data && data.length < 1) {
-    return <NothingFound title="No embedding indexes configured yet" />
+    return <NothingFound title="No semantic indexes configured yet" />
   }
 
   return (

@@ -7,7 +7,7 @@ import { type FiltersCombineMode, type Sort } from '~/types'
 
 import { DEFAULT_LIMIT } from '~/config'
 import { $searchParams, changeSearchParam, removeSearchParam } from '~/lib/router'
-import { $router, isProjectPage } from '~/lib/router'
+import { $router, isProjectPage, openRoute } from '~/lib/router'
 import { addOrRemove, clamp } from '~/lib/utils'
 
 import type { RawApiEntityType, RecordViewType } from '../types'
@@ -18,7 +18,7 @@ import { $currentProjectId } from './id'
 export const $recordView = atom<RecordViewType>('table')
 
 const RECORD_VIEW_SEARCH_PARAM = 'view'
-const recordViewValues = new Set<RecordViewType>(['table', 'graph', 'raw-api'])
+const recordViewValues = new Set<RecordViewType>(['table', 'graph', 'json'])
 
 function isRecordViewType(value?: string): value is RecordViewType {
   return recordViewValues.has(value as RecordViewType)
@@ -61,6 +61,15 @@ $searchParams.subscribe((value) => {
   setTimeout(() => $currentProjectFilters.set(filters), 10)
 
   const view = value[RECORD_VIEW_SEARCH_PARAM]
+  if (view === 'raw-api') {
+    // Legacy URL: the query studio moved out of the records view switcher into
+    // its own Query Lab page.
+    const page = $router.get()
+    if (isProjectPage(page)) {
+      openRoute('projectQueryLab', { id: page.params.id })
+    }
+    return
+  }
   $recordView.set(isRecordViewType(view) ? view : 'table')
 })
 

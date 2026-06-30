@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 
 import { useStore } from '@nanostores/react'
 import { Database } from 'lucide-react'
-import { forwardRef, memo, useMemo, useRef, useState } from 'react'
+import { forwardRef, memo, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { PaginatorProps } from '~/elements/Paginator'
 import type { THeadCellProps } from '~/elements/Table'
@@ -60,6 +60,33 @@ const SCORE_FIELD: Property = {
 
 function propertyKey({ name, type }: Pick<Property, 'name' | 'type'>) {
   return `${type}:${name}`
+}
+
+// Rendering a full page of rows (up to 1000) with many columns in one pass is a single
+// long task that freezes the tab on switch/paginate. Instead, render an initial chunk
+// that fills the viewport immediately, then append the rest in per-frame batches so the
+// browser can paint and stay responsive between batches. Already-rendered rows are memoized
+// (keyed by record id), so each batch only mounts the newly revealed rows.
+const INITIAL_VISIBLE_ROWS = 40
+const ROW_RENDER_BATCH = 60
+
+function useProgressiveCount(total: number, resetKey: unknown) {
+  const [count, setCount] = useState(() => Math.min(INITIAL_VISIBLE_ROWS, total))
+
+  // Restart from the initial chunk whenever the underlying data changes (new page/query).
+  useEffect(() => {
+    setCount(Math.min(INITIAL_VISIBLE_ROWS, total))
+  }, [resetKey, total])
+
+  useEffect(() => {
+    if (count >= total) return
+    const raf = requestAnimationFrame(() => {
+      setCount((current) => Math.min(current + ROW_RENDER_BATCH, total))
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [count, total])
+
+  return count
 }
 
 function unwrapRow(record: TableRecord): ShapedRow {
@@ -210,6 +237,8 @@ const ShapedRecordsTable = memo(function ShapedRecordsTable({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [rowDetails, setRowDetails] = useState<ShapedRow | undefined>()
   const columns = useMemo(() => inferShapedColumns(rows), [rows])
+  const visibleRowCount = useProgressiveCount(rows.length, rows)
+  const visibleRows = useMemo(() => rows.slice(0, visibleRowCount), [rows, visibleRowCount])
 
   const scrollToHead = () => {
     scrollRef.current?.scrollTo({ top: 0 })
@@ -240,7 +269,7 @@ const ShapedRecordsTable = memo(function ShapedRecordsTable({
               range(limit).map((index) => (
                 <RecordRowSkeleton cols={Math.max(columns.length, 1)} key={index} />
               ))
-            : rows.map((row, index) => (
+            : visibleRows.map((row, index) => (
                 <ShapedRecordRow
                   columns={columns}
                   index={index}
@@ -504,6 +533,8 @@ function RecordsTableComponent({
 
   const selectedRecords = useStore($selectedRecords)
   const recordRows = useMemo(() => records?.filter(isDbRecord) ?? [], [records])
+  const visibleRowCount = useProgressiveCount(recordRows.length, recordRows)
+  const visibleRecordRows = useMemo(() => recordRows.slice(0, visibleRowCount), [recordRows, visibleRowCount])
   const hasOnlyDbRecords = useMemo(() => !records || records.every(isDbRecord), [records])
   const pageRecordIds = useMemo(() => recordRows.map((record) => getRecordData(record).__id), [recordRows])
   const hasScore = useMemo(
@@ -607,8 +638,8 @@ function RecordsTableComponent({
               range(records?.length ?? limit).map((index) => <RecordRowSkeleton key={index} />)}
 
             {visibleFields &&
-              recordRows &&
-              recordRows?.map((record, index) => {
+              visibleRecordRows &&
+              visibleRecordRows?.map((record, index) => {
                 if (!record) {
                   return null
                 }

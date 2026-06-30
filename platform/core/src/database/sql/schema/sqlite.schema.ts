@@ -92,8 +92,8 @@ export const projects = sqliteTable('projects', {
   status: text('status'),
   stats: text('stats'),
   customDb: text('custom_db'),
-  ontologyCache: text('ontology_cache'),
-  ontologyCachedAt: text('ontology_cached_at')
+  schemaCache: text('schema_cache'),
+  schemaCachedAt: text('schema_cached_at')
 })
 
 export const projectAccess = sqliteTable(
@@ -344,6 +344,21 @@ export const connectorLeases = sqliteTable('connector_leases', {
   updatedAt: text('updated_at').notNull()
 })
 
+export const savedQueries = sqliteTable('saved_queries', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  searchMode: text('search_mode').notNull().default('manual'),
+  prompt: text('prompt'),
+  searchQuery: text('search_query').notNull(),
+  semanticIndexId: text('semantic_index_id'),
+  createdBy: text('created_by'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+})
+
 export const sqliteSchema = {
   users,
   workspaces,
@@ -365,7 +380,8 @@ export const sqliteSchema = {
   connectorSecrets,
   connectorOffsets,
   connectorEvents,
-  connectorLeases
+  connectorLeases,
+  savedQueries
 }
 
 export type SqliteSchema = typeof sqliteSchema

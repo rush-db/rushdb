@@ -146,7 +146,7 @@ export function CustomPlanInquiryModal({
           <Button disabled={submitting} onClick={() => onOpenChange(false)} type="button" variant="secondary">
             Cancel
           </Button>
-          <Button loading={submitting} type="submit" variant="accent">
+          <Button loading={submitting} type="submit" variant="primary">
             Send Inquiry
           </Button>
         </DialogFooter>

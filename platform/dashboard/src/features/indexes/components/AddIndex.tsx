@@ -55,7 +55,7 @@ export function AddIndexCard({
 }) {
   return (
     <Card>
-      <CardHeader title="Create embedding index" />
+      <CardHeader title="Create semantic index" />
       <CardBody>
         <AddIndexForm existingIndexes={existingIndexes} projectId={projectId} />
       </CardBody>
@@ -76,7 +76,7 @@ export function AddIndexDialog({
 
   return (
     <Dialog className="sm:max-w-2xl" onOpenChange={setOpen} open={open} trigger={trigger}>
-      <DialogTitle>Create embedding index</DialogTitle>
+      <DialogTitle>Create semantic index</DialogTitle>
       <p className="text-content2 mt-2">
         Choose a label and string property to make that field searchable by meaning. Managed indexes embed
         matching records and continue indexing new writes.
@@ -84,6 +84,7 @@ export function AddIndexDialog({
       <AddIndexForm
         className="mt-6"
         existingIndexes={existingIndexes}
+        modalSelect
         onCreated={() => setOpen(false)}
         projectId={projectId}
       />
@@ -94,11 +95,13 @@ export function AddIndexDialog({
 function AddIndexForm({
   className,
   existingIndexes,
+  modalSelect = false,
   onCreated,
   projectId
 }: {
   className?: string
   existingIndexes?: EmbeddingIndex[]
+  modalSelect?: boolean
   onCreated?: () => void
   projectId: Project['id']
 }) {
@@ -165,6 +168,7 @@ function AddIndexForm({
               </Button>
             </Skeleton>
           : <SearchSelect
+              modal={modalSelect}
               trigger={
                 <Button
                   className="w-full justify-between font-normal"
@@ -210,6 +214,7 @@ function AddIndexForm({
               </Button>
             </Skeleton>
           : <SearchSelect
+              modal={modalSelect}
               trigger={
                 <Button
                   className="w-full justify-between font-normal"
@@ -250,7 +255,7 @@ function AddIndexForm({
       )}
 
       <div className="flex justify-end gap-2 border-t pt-5">
-        <Button disabled={!isValid} loading={isSubmitting} type="submit" variant="accent">
+        <Button disabled={!isValid} loading={isSubmitting} type="submit" variant="primary">
           Create
         </Button>
       </div>

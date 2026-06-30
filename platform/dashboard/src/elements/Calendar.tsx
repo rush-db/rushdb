@@ -42,22 +42,21 @@ export function Calendar({
         head_row: 'flex',
         head_cell: 'text-content3 rounded-md w-9 font-normal text-[0.8rem]',
         row: 'flex w-full mt-2',
-        cell: 'text-center text-sm p-0 relative first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20 [&:has([aria-selected])]:text-accent-contrast [&:has([aria-selected])]:text-accent',
+        cell: 'text-center text-sm p-0 relative first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20 [&:has([aria-selected])]:text-primary-contrast',
         day: cn(
           buttonVariants({ size: 'small', variant: 'ghost' }),
           iconButton({ size: 'small' }),
           'font-normal'
         ),
         day_selected: cn(
-          buttonVariants({ size: 'small', variant: 'accent' }),
+          buttonVariants({ size: 'small', variant: 'primary' }),
           iconButton({ size: 'small' }),
-          'font-normal aria-selected:hover:bg-accent-hover'
+          'font-normal aria-selected:hover:bg-primary-hover'
         ),
-        day_today: 'text-accent',
-        day_outside: 'text-content2 aria-selected:text-accent-contrast',
+        day_today: 'text-content font-bold',
+        day_outside: 'text-content2 aria-selected:text-primary-contrast',
         day_disabled: 'text-content3',
-        day_range_middle:
-          'aria-selected:rounded-none aria-selected:bg-accent/20 aria-selected:text-accent',
+        day_range_middle: 'aria-selected:rounded-none aria-selected:bg-secondary aria-selected:text-content',
         day_hidden: 'invisible',
         ...classNames
       }}

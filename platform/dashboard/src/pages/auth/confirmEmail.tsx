@@ -67,7 +67,7 @@ export function ConfirmEmail() {
         </p>
 
         <DialogFooter>
-          <Button as="a" href={getRoutePath(route)} onClick={handleCloseConfirmationModal} variant="accent">
+          <Button as="a" href={getRoutePath(route)} onClick={handleCloseConfirmationModal} variant="primary">
             {isError ? 'Got it' : 'Continue'}
           </Button>
         </DialogFooter>

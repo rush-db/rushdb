@@ -17,7 +17,7 @@ export const Label = ({
   <div
     className={cn(
       className,
-      'text-content-secondary bg-accent/30 text-accent w-fit rounded-sm px-1 text-xs',
+      'bg-secondary text-content w-fit rounded-sm px-1 text-xs',
       variant && variants[variant as LabelVariant]
     )}
     {...props}

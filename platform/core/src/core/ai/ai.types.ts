@@ -1,4 +1,4 @@
-export type OntologyVectorIndex = {
+export type SchemaVectorIndex = {
   id: string
   sourceType: string
   similarityFunction: string
@@ -7,7 +7,7 @@ export type OntologyVectorIndex = {
   modelKey: string
 }
 
-export type OntologyProperty = {
+export type SchemaProperty = {
   id: string
   name: string
   type: string
@@ -17,10 +17,10 @@ export type OntologyProperty = {
   values?: Array<string | number>
   recordsCount?: number
   /** Non-empty when one or more embedding indexes exist for this (label, property) pair. */
-  vectorIndexes?: OntologyVectorIndex[]
+  vectorIndexes?: SchemaVectorIndex[]
 }
 
-export type OntologyRelationship = {
+export type SchemaRelationship = {
   label: string
   type: string
   direction: 'in' | 'out'
@@ -35,9 +35,9 @@ export type OntologyRelationship = {
   }>
 }
 
-export type OntologyItem = {
+export type SchemaItem = {
   label: string
   count: number
-  properties: OntologyProperty[]
-  relationships: OntologyRelationship[]
+  properties: SchemaProperty[]
+  relationships: SchemaRelationship[]
 }

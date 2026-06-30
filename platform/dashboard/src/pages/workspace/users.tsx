@@ -147,7 +147,7 @@ function InviteUserDialog({ disabled }: { disabled?: boolean }) {
         }
       }}
       trigger={
-        <Button disabled={disabled} variant="accent">
+        <Button disabled={disabled} variant="primary">
           <UserPlus />
           Add member
         </Button>
@@ -208,7 +208,7 @@ function InviteUserDialog({ disabled }: { disabled?: boolean }) {
           <Button type="reset" variant="outline">
             Cancel
           </Button>
-          <Button disabled={!isDirty || !isValid} loading={isSubmitting} type="submit" variant="accent">
+          <Button disabled={!isDirty || !isValid} loading={isSubmitting} type="submit" variant="primary">
             Send invite
           </Button>
         </DialogFooter>
@@ -442,7 +442,7 @@ export function WorkspaceUsersPage() {
               !platformSettings?.selfHosted ?
                 <div className="border-accent/30 bg-accent/5 mb-6 flex flex-col gap-4 rounded-lg border p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="bg-accent/15 text-accent flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+                    <div className="bg-secondary text-content flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
                       <Sparkles className="h-5 w-5" />
                     </div>
                     <div className="flex flex-col gap-1">
@@ -455,7 +455,7 @@ export function WorkspaceUsersPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-3 sm:pl-4">
-                    <Button as="a" href={getRoutePath('workspaceBilling')} variant="accent">
+                    <Button as="a" href={getRoutePath('workspaceBilling')} variant="primary">
                       Add seats
                     </Button>
                   </div>

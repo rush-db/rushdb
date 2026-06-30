@@ -40,7 +40,8 @@ export const menuItem = cva(
           'hover:bg-menu-hover focus-visible:bg-menu-focus active:bg-menu-hover aria-selected:bg-secondary-hover aria-selected:text-content data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         danger: 'text-danger hover:bg-danger/30 focus-visible:bg-menu-focus active:bg-menu-hover',
         warning: 'text-warning hover:bg-warning/30 focus-visible:bg-menu-focus active:bg-menu-hover',
-        accent: 'text-accent hover:bg-accent/30 focus-visible:bg-menu-focus'
+        accent:
+          'text-content font-semibold hover:bg-menu-hover focus-visible:bg-menu-focus active:bg-menu-hover'
       }
     },
     defaultVariants: {

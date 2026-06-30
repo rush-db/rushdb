@@ -2,9 +2,15 @@ import type { SearchQuery } from '@rushdb/javascript-sdk'
 
 import { atom } from 'nanostores'
 
+import type { SavedQuery } from '~/features/saved-queries/types'
+import { openRoute, removeSearchParam } from '~/lib/router'
+
+import { $currentProjectId } from './id'
+import { $activeLabels, $currentProjectRecordsSkip, $recordView } from './current-project'
+
 export type RecordsSearchMode = 'manual' | 'ai' | 'semantic'
 
-export const $recordsSearchMode = atom<RecordsSearchMode>('manual')
+export const $recordsSearchMode = atom<RecordsSearchMode>('ai')
 export const $aiSearchPrompt = atom('')
 export const $aiSearchQuery = atom<SearchQuery | undefined>()
 export const $draftSearchQuery = atom<SearchQuery | undefined>()
@@ -34,4 +40,41 @@ export const resetAiSearch = () => {
   $aiSearchPrompt.set('')
   $aiSearchQuery.set(undefined)
   $draftSearchQuery.set(undefined)
+}
+
+// Returns the Records view to its first-open defaults: no filters, no label drill-down,
+// Smart (AI) mode, Table view, first page. Clearing the `query`/`view` URL params (which
+// happens synchronously) also lets the subsequent tab navigation land on a clean URL.
+export const resetRecordsView = () => {
+  removeSearchParam('query')
+  removeSearchParam('view')
+  $activeLabels.set([])
+  $currentProjectRecordsSkip.set(0)
+  $recordsSearchMode.set('ai')
+  resetAiSearch()
+  $semanticSearchPrompt.set('')
+  $semanticSearchIndexId.set(undefined)
+}
+
+// Restores a saved query onto the Records page and navigates there. Manual and
+// AI queries are re-run through the AI path (which executes the stored
+// SearchQuery verbatim); semantic queries restore the index + prompt so the
+// semantic search path kicks in.
+export const applySavedQuery = (savedQuery: SavedQuery) => {
+  $currentProjectRecordsSkip.set(0)
+  $recordView.set('table')
+
+  if (savedQuery.searchMode === 'semantic') {
+    $recordsSearchMode.set('semantic')
+    $semanticSearchIndexId.set(savedQuery.semanticIndexId ?? undefined)
+    $semanticSearchPrompt.set(savedQuery.prompt ?? '')
+  } else {
+    $aiSearchPrompt.set(savedQuery.searchMode === 'ai' ? (savedQuery.prompt ?? '') : '')
+    setAiSearchQuery(savedQuery.searchQuery)
+  }
+
+  const projectId = $currentProjectId.get()
+  if (projectId) {
+    openRoute('project', { id: projectId })
+  }
 }

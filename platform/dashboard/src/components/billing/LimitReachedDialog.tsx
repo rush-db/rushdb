@@ -13,18 +13,14 @@ export function LimitReachedModal() {
   const open = useStore($limitReachModalOpen)
 
   return (
-    <Dialog
-      className="gap-5"
-      onOpenChange={$limitReachModalOpen.set}
-      open={open}
-    >
+    <Dialog className="gap-5" onOpenChange={$limitReachModalOpen.set} open={open}>
       <DialogTitle>
         <AlertTriangle /> Limit Reached
       </DialogTitle>
 
       <p className="min-h-sm">
-        You've reached the limit of your current plan. To continue enjoying all
-        the features, please consider upgrading to a subscription plan.
+        You've reached the limit of your current plan. To continue enjoying all the features, please consider
+        upgrading to a subscription plan.
       </p>
 
       <DialogFooter>
@@ -32,7 +28,7 @@ export function LimitReachedModal() {
           as="a"
           href={getRoutePath('workspaceBilling')}
           onClick={() => $limitReachModalOpen.set(false)}
-          variant="accent"
+          variant="primary"
         >
           Check subscriptions
         </Button>

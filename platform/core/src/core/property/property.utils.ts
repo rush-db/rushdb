@@ -1,11 +1,9 @@
 import { uuidv7 } from 'uuidv7'
 
 import { isArray } from '@/common/utils/isArray'
-import { RUSHDB_VALUE_EMPTY_ARRAY, RUSHDB_VALUE_NULL } from '@/core/common/constants'
 import {
   PROPERTY_TYPE_BOOLEAN,
   PROPERTY_TYPE_DATETIME,
-  PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
   PROPERTY_TYPE_STRING
 } from '@/core/property/property.constants'
@@ -22,6 +20,18 @@ export const splitValueBySeparator = (value: TPropertySingleValue, separator: st
 
 export const normalizeProperties = (arr: Array<PropertyDto>): Array<PropertyDto> => {
   return arr.reduce((acc, prop) => {
+    // A null/undefined value (or an array that is entirely null) means the field is unset — drop it.
+    if (prop.value === null || prop.value === undefined) {
+      return acc
+    }
+    if (
+      isArray(prop.value) &&
+      prop.value.length > 0 &&
+      prop.value.every((v) => v === null || v === undefined)
+    ) {
+      return acc
+    }
+
     const matchedIndex = acc.findIndex((accumulatedProp) => {
       const hasNameMatch = accumulatedProp?.name?.trim() === prop?.name?.trim()
       const hasTypeMatch = accumulatedProp?.type === prop.type
@@ -67,9 +77,6 @@ const parseValue = (value: TPropertySingleValue, type: TPropertyType) => {
     case PROPERTY_TYPE_BOOLEAN: {
       return Boolean(value)
     }
-    case PROPERTY_TYPE_NULL: {
-      return RUSHDB_VALUE_NULL
-    }
     case PROPERTY_TYPE_DATETIME:
     case PROPERTY_TYPE_STRING:
     default: {
@@ -78,9 +85,14 @@ const parseValue = (value: TPropertySingleValue, type: TPropertyType) => {
   }
 }
 
+const isNullish = (value: unknown): boolean => value === null || value === undefined
+
 const prepareValues = ({ value, valueSeparator, type }: PropertyDto) => {
   if (isArray(value)) {
-    return value.length ? value.map((v) => parseValue(v, type)) : RUSHDB_VALUE_EMPTY_ARRAY
+    // null/undefined elements mean "unset" — strip them; a genuinely empty array is
+    // preserved and stored as a real [] (no sentinel placeholder).
+    const cleaned = value.filter((v) => !isNullish(v))
+    return cleaned.length ? cleaned.map((v) => parseValue(v, type)) : []
   } else if (valueSeparator && typeof valueSeparator === 'string') {
     const valuesRaw = splitValueBySeparator(value, valueSeparator)
     return valuesRaw.map((v) => parseValue(v, type))

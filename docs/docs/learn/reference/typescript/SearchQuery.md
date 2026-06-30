@@ -19,9 +19,9 @@ export type SearchQuery<S extends Schema = any> = SearchQueryLabelsClause &
 
 ## Type Parameters
 
-| Parameter                   | Description                                                                                                                                                                                                                                                                                                                                                                                                           |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `S extends Schema = Schema` | The schema type that defines the structure of the records being queried. `Schema` is `Record<string, SchemaField>` where `SchemaField = { type: 'boolean' \| 'datetime' \| 'null' \| 'number' \| 'string'; required?: boolean; multiple?: boolean; unique?: boolean; default?: ... }`. The default `Schema` (rather than `any`) preserves type safety while remaining permissive when no explicit schema is provided. |
+| Parameter                   | Description                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `S extends Schema = Schema` | The schema type that defines the structure of the records being queried. `Schema` is `Record<string, SchemaField>` where `SchemaField = { type: 'boolean' \| 'datetime' \| 'number' \| 'string'; required?: boolean; multiple?: boolean; unique?: boolean; default?: ... }`. The default `Schema` (rather than `any`) preserves type safety while remaining permissive when no explicit schema is provided. |
 
 ## Query Components
 
@@ -292,20 +292,23 @@ export type BooleanExpression =
 
 #### Null Expressions
 
+`null` matches an **unset** field. These expressions match presence/absence:
+
 ```typescript
-export type NullExpression = null | {
-  $ne?: null
-  $exists?: boolean | null
-}
-  $ne?: null
-}
+export type NullExpression =
+  | null // same as { $exists: false }
+  | {
+      $eq?: null
+      $ne?: null // present (same as { $exists: true })
+      $exists?: boolean
+    }
 ```
 
 #### Type Expressions
 
 ```typescript
 export type TypeExpression = {
-  $type: 'string' | 'number' | 'boolean' | 'datetime' | 'null'
+  $type: 'string' | 'number' | 'boolean' | 'datetime'
 }
 ```
 

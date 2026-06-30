@@ -485,4 +485,4 @@ Never use lowercase labels — `User` ≠ `USER`. RushDB is case-sensitive.
 
 ## After Bootstrap
 
-Once the seed payload is in, run `getOntologyMarkdown()` to confirm the schema looks right, then share the result so the user can see their actual labels and properties as RushDB inferred them. From there, use `rushdb-query-builder` to build queries and `rushdb-data-modeling` for schema evolution guidance.
+Once the seed payload is in, run `getSchemaMarkdown()` to confirm the schema looks right, then share the result so the user can see their actual labels and properties as RushDB inferred them. From there, use `rushdb-query-builder` to build queries and `rushdb-data-modeling` for schema evolution guidance.

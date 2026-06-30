@@ -15,7 +15,7 @@
 import { db } from '../util/db.js'
 
 /**
- * Returns the full graph ontology as compact Markdown tables.
+ * Returns the full graph schema as compact Markdown tables.
  * Includes: all labels with record counts, per-label properties with types and
  * value ranges (min/max for numbers/datetimes, sample values for strings),
  * cross-label relationship map, and a "Semantic Search" column per property that
@@ -25,9 +25,9 @@ import { db } from '../util/db.js'
  * Call this at the start of every conversation before constructing queries.
  * It replaces the need for separate FindLabels + FindProperties + FindRelationships
  * discovery calls in most cases.
- * Pass `force: true` to bypass the 1-hour ontology cache and force a fresh recalculation.
+ * Pass `force: true` to bypass the 1-hour schema cache and force a fresh recalculation.
  */
-export async function getOntologyMarkdown(params: { labels?: string[]; force?: boolean } = {}) {
-  const result = await db.ai.getOntologyMarkdown(params)
+export async function getSchemaMarkdown(params: { labels?: string[]; force?: boolean } = {}) {
+  const result = await db.ai.getSchemaMarkdown(params)
   return result.data
 }

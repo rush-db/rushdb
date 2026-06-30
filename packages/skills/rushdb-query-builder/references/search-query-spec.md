@@ -95,7 +95,7 @@ status: {
 } // matches none of these values
 ```
 
-For any user-typed named reference, default to `$contains` on a likely display field (`name`, `title`, or ontology-backed equivalent), on both root and related labels. Use exact equality only when the value is an ID or the user explicitly requests an exact match; confirm canonical values with discovery rather than guessing an exact string.
+For any user-typed named reference, default to `$contains` on a likely display field (`name`, `title`, or schema-backed equivalent), on both root and related labels. Use exact equality only when the value is an ID or the user explicitly requests an exact match; confirm canonical values with discovery rather than guessing an exact string.
 
 ### Number Operators
 
@@ -190,7 +190,7 @@ phoneNumber: {
 } // only records that do NOT have this field
 age: {
   $type: 'number'
-} // "string"|"number"|"boolean"|"datetime"|"null"|"vector"
+} // "string"|"number"|"boolean"|"datetime"
 ```
 
 ### Logical Grouping
@@ -276,6 +276,8 @@ where: {
 // Shorthand (type only): $relation: "AUTHORED"
 // direction options: 'in' | 'out'  (omit = any direction)
 ```
+
+Each Relationships row in the schema is a directed pattern rooted at that label: `(SELF)-[:TYPE]->(OTHER)` is outgoing, `(SELF)<-[:TYPE]-(OTHER)` is incoming. Map straight to `$relation: { type: "TYPE", direction }` — `"out"` for `->`, `"in"` for `<-`. Only patterns shown in the schema are traversable; a scalar `*_id` property is a plain value, not an edge.
 
 **`$id`** — filter by record ID:
 
@@ -553,7 +555,7 @@ select: {
 If the metric field is NOT on the target label, search related labels before giving up:
 
 1. Confirm target label. `findProperties(labels:[<target>])` — look for the metric field.
-2. If absent, walk adjacent labels via `getOntologyMarkdown` or `findRelationships` with `source`/`target` endpoint probes.
+2. If absent, walk adjacent labels via `getSchemaMarkdown` or `findRelationships` with `source`/`target` endpoint probes.
 3. For each candidate related label R: `findProperties(labels:[R])` and attempt the same match.
 4. When found on CHILD: `where:{ CHILD:{ ...filters..., $alias:'$child' } }`, select referencing `'$child.*'`. Root-level filters stay at the top-level `where`.
 5. Never abandon after one miss — always attempt at least one related-label discovery pass.
@@ -570,7 +572,7 @@ If the parent→related traversal path is absent, do not silently root on the re
 
 ## §7) Range / Distribution Queries
 
-- **type = number or datetime** → `findRecords` with `select:{ min:{ $min:'$record.<field>' }, max:{ $max:'$record.<field>' } }` plus `groupBy:['min','max']`. Or: `getOntology` (JSON) → `propertyValues(propertyId)` → returns `{ min, max }` directly.
+- **type = number or datetime** → `findRecords` with `select:{ min:{ $min:'$record.<field>' }, max:{ $max:'$record.<field>' } }` plus `groupBy:['min','max']`. Or: `getSchema` (JSON) → `propertyValues(propertyId)` → returns `{ min, max }` directly.
 - **type = string or boolean** → `propertyValues(propertyId)` to list all distinct values.
 - NEVER call `findRecords` with a `where` filter to "search for" values of a field — that returns records, not ranges.
 
@@ -707,7 +709,7 @@ Before submitting any `findRecords` call, verify:
 
 ## §13) Example Patterns
 
-_(Actual label/field names always come from `getOntologyMarkdown` — never from these examples.)_
+_(Actual label/field names always come from `getSchemaMarkdown` — never from these examples.)_
 
 **List with numeric filter:**
 

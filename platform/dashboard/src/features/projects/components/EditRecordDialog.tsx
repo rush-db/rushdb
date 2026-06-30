@@ -13,6 +13,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '~/elements/Popover'
 import { Select } from '~/elements/Select'
 import { Button } from '~/elements/Button'
 import { IconButton } from '~/elements/IconButton'
+import { ChipsInput } from '~/elements/ChipsInput'
 import { PropertyTypeIcon } from '~/features/properties/components/PropertyTypeIcon'
 import { RecordTitle } from '~/features/records/components/RecordTitle'
 import { collectPropertiesFromRecord } from '~/features/projects/utils'
@@ -22,7 +23,10 @@ import { cn } from '~/lib/utils'
 type EditableProp = {
   name: string
   type: PropertyType
-  rawValue: string
+  // RushDB has no distinct array type — array-ness is detected per value via Array.isArray on load.
+  isArray: boolean
+  rawValue: string // used when !isArray
+  items: string[] // used when isArray
 }
 
 type NewProp = {
@@ -56,10 +60,6 @@ function PropertyValueEditor({
   value: string
   onChange: (v: string) => void
 }) {
-  if (type === 'null') {
-    return <span className="text-content-secondary text-sm">(null)</span>
-  }
-
   if (type === 'boolean') {
     return <Switch checked={value === 'true'} onCheckedChange={(checked) => onChange(String(checked))} />
   }
@@ -72,7 +72,12 @@ function PropertyValueEditor({
       <Popover>
         <PopoverTrigger asChild>
           <div>
-            <Input readOnly value={displayValue} placeholder="Pick a date…" className="cursor-pointer" />
+            <Input
+              readOnly
+              value={displayValue}
+              placeholder="Pick a date…"
+              className="cursor-pointer text-base"
+            />
           </div>
         </PopoverTrigger>
         <PopoverContent align="start" className="p-3">
@@ -90,14 +95,22 @@ function PropertyValueEditor({
   }
 
   if (type === 'number') {
-    return <Input type="number" step="any" value={value} onChange={(e) => onChange(e.target.value)} />
+    return (
+      <Input
+        type="number"
+        step="any"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-base"
+      />
+    )
   }
 
   // string
   return (
     <label className={cn(inputWrapper(), 'h-auto')}>
       <textarea
-        className={cn(input(), 'h-auto min-h-[68px] resize-none py-2')}
+        className={cn(input(), 'h-auto min-h-[68px] resize-none py-2 text-base')}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -115,11 +128,22 @@ export function EditRecordDialog({ record, trigger }: { record: DBRecord; trigge
   useEffect(() => {
     if (!open) return
     setProperties(
-      collectPropertiesFromRecord(record).map((p) => ({
-        name: p.name,
-        type: p.type,
-        rawValue: p.type === 'boolean' ? String(p.value) : String(p.value ?? '')
-      }))
+      collectPropertiesFromRecord(record)
+        // null/undefined means the field is unset — never editable (legacy null-typed props are skipped).
+        .filter((p) => p.value !== null && p.value !== undefined)
+        .map((p) => {
+          const isArray = Array.isArray(p.value)
+          return {
+            name: p.name,
+            type: p.type,
+            isArray,
+            rawValue:
+              isArray ? ''
+              : p.type === 'boolean' ? String(p.value)
+              : String(p.value ?? ''),
+            items: isArray ? (p.value as PropertySingleValue[]).map((v) => String(v)) : []
+          }
+        })
     )
     setNewProps([])
     setLabel(record.__label)
@@ -129,19 +153,27 @@ export function EditRecordDialog({ record, trigger }: { record: DBRecord; trigge
     setProperties((prev) => prev.map((p, i) => (i === index ? { ...p, rawValue } : p)))
   }, [])
 
+  const updatePropItems = useCallback((index: number, items: string[]) => {
+    setProperties((prev) => prev.map((p, i) => (i === index ? { ...p, items } : p)))
+  }, [])
+
   const removeProp = useCallback((index: number) => {
     setProperties((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
   const isValid =
     label.trim() !== '' &&
-    properties.every((p) => p.type === 'null' || isPropValid(p.type, p.rawValue)) &&
+    properties.every((p) =>
+      p.isArray ? p.items.every((item) => isPropValid(p.type, item)) : isPropValid(p.type, p.rawValue)
+    ) &&
     newProps.every((p) => p.name.trim() !== '' && isPropValid(p.type, p.rawValue))
 
   const handleSave = () => {
-    const existing = properties
-      .filter((p) => p.type !== 'null')
-      .map((p) => ({ name: p.name, type: p.type, value: castValue(p.type, p.rawValue) }))
+    const existing = properties.map((p) => ({
+      name: p.name,
+      type: p.type,
+      value: p.isArray ? p.items.map((item) => castValue(p.type, item)) : castValue(p.type, p.rawValue)
+    }))
 
     const additions = newProps.map((p) => ({
       name: p.name.trim(),
@@ -166,11 +198,7 @@ export function EditRecordDialog({ record, trigger }: { record: DBRecord; trigge
       <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto py-2">
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">Label</span>
-          <Input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="Record label"
-          />
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Record label" />
         </div>
 
         <Divider />
@@ -191,11 +219,18 @@ export function EditRecordDialog({ record, trigger }: { record: DBRecord; trigge
                 <TrashIcon size={14} />
               </IconButton>
             </div>
-            <PropertyValueEditor
-              type={prop.type}
-              value={prop.rawValue}
-              onChange={(v) => updatePropValue(i, v)}
-            />
+            {prop.isArray ?
+              <ChipsInput
+                type={prop.type}
+                values={prop.items}
+                onChange={(items) => updatePropItems(i, items)}
+              />
+            : <PropertyValueEditor
+                type={prop.type}
+                value={prop.rawValue}
+                onChange={(v) => updatePropValue(i, v)}
+              />
+            }
           </div>
         ))}
 
@@ -218,9 +253,13 @@ export function EditRecordDialog({ record, trigger }: { record: DBRecord; trigge
                 onChange={(e) =>
                   setNewProps((prev) =>
                     prev.map((p, j) =>
-                      j === i
-                        ? { ...p, type: e.target.value as PropertyType, rawValue: e.target.value === 'boolean' ? 'false' : '' }
-                        : p
+                      j === i ?
+                        {
+                          ...p,
+                          type: e.target.value as PropertyType,
+                          rawValue: e.target.value === 'boolean' ? 'false' : ''
+                        }
+                      : p
                     )
                   )
                 }

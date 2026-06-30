@@ -1,7 +1,6 @@
 import type {
   PROPERTY_TYPE_BOOLEAN,
   PROPERTY_TYPE_DATETIME,
-  PROPERTY_TYPE_NULL,
   PROPERTY_TYPE_NUMBER,
   PROPERTY_TYPE_STRING
 } from '../common/constants.js'
@@ -63,7 +62,6 @@ export type PropertyExpression =
 export type PropertyExpressionByType = {
   [PROPERTY_TYPE_BOOLEAN]: BooleanExpression | TypeExpression
   [PROPERTY_TYPE_DATETIME]: DatetimeExpression | TypeExpression
-  [PROPERTY_TYPE_NULL]: NullExpression | TypeExpression
   [PROPERTY_TYPE_NUMBER]: NumberExpression | TypeExpression
   [PROPERTY_TYPE_STRING]: StringExpression | TypeExpression
 }

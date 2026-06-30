@@ -44,7 +44,7 @@ export class AiQueryService {
    * min/max are EXACT — computed as streaming min()/max() aggregations over every value,
    * with O(1) memory per (label, property) group. The previous implementation collected
    * every distinct value into a list first (full column in heap) just to derive min/max
-   * and 10 samples from it; on high-cardinality properties that dominated ontology
+   * and 10 samples from it; on high-cardinality properties that dominated schema
    * recalculation time. String sample values now come from the separate bounded
    * getPropertySampleValuesQuery instead.
    */
@@ -90,7 +90,7 @@ export class AiQueryService {
   }
 
   /**
-   * Bounded sample-value lookup for string properties, run after the main ontology
+   * Bounded sample-value lookup for string properties, run after the main schema
    * aggregation. For each (label, propId) pair it scans at most $sampleScanLimit records
    * reached from the property node and returns up to $sampleValuesLimit distinct values —
    * never materializing a full column. Samples are representative, not exhaustive;

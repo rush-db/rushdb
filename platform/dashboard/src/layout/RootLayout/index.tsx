@@ -98,7 +98,7 @@ function DashboardSidebar() {
 
       {!collapsed && (
         <a
-          className="border-content/20 bg-fill hover:bg-fill2 mx-4 mb-3 flex flex-col gap-2 rounded-md border p-4 transition"
+          className="border-content/20 bg-fill hover:bg-fill2 mx-4 mb-4 flex flex-col gap-2 rounded-md border p-4 transition"
           href="https://docs.rushdb.com"
           rel="noreferrer"
           target="_blank"

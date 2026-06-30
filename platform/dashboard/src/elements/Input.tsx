@@ -24,7 +24,7 @@ export const inputWrapper = cva(
         primary:
           'bg-input focus-within:ring border border-transparent bg-secondary ring-interaction-ring focus-within:border-interaction-focus focus-within:ring [&:hover:not(:focus-within)]:bg-secondary-hover',
         ghost: 'bg-transparent border-b',
-        disabled: 'bg-[#222] border text-content-secondary ',
+        disabled: 'bg-fill3 border text-content2 ',
         error:
           'bg-input focus-within:ring border border-danger bg-secondary ring-danger-ring focus-within:border-danger-focus focus-within:ring [&:hover:not(:focus-within)]:bg-secondary-hover'
       }

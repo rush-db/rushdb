@@ -1,6 +1,6 @@
 import type { EmbeddingIndex } from '~/features/indexes/types'
 
-export type OntologyProperty = {
+export type SchemaProperty = {
   id: string
   name: string
   type: string
@@ -8,15 +8,15 @@ export type OntologyProperty = {
   recordsCount?: number
 }
 
-export type OntologyItem = {
+export type SchemaItem = {
   label: string
   count: number
-  properties: OntologyProperty[]
+  properties: SchemaProperty[]
 }
 
 export type LabelProperty = {
   label: string
-  property: OntologyProperty
+  property: SchemaProperty
 }
 
 export type SuggestedEmbeddingIndex = {
@@ -33,11 +33,22 @@ function indexKey(label: string, propertyName: string) {
   return `${label}:${propertyName}`
 }
 
-function isTextProperty(property: OntologyProperty) {
+function isTextProperty(property: SchemaProperty) {
   return property.type === 'string' || property.type === 'text'
 }
 
-function getTextValueStats(values: OntologyProperty['values']) {
+// Identifier/reference fields (e.g. `faction_id`, `related_event_ids`, `eventId`, bare
+// `id`/`ids`) hold opaque keys, not natural language, so they're poor semantic-search
+// candidates even when their values are long. Exclude them by name.
+function isIdLikeProperty(name: string) {
+  // snake_case or exact: id, ids, faction_id, related_event_ids
+  if (/(^|_)ids?$/.test(name.toLowerCase())) return true
+  // camelCase: factionId, eventIds
+  if (/[a-z]Ids?$/.test(name)) return true
+  return false
+}
+
+function getTextValueStats(values: SchemaProperty['values']) {
   const lengths = (values ?? [])
     .filter((value): value is string => typeof value === 'string')
     .map((value) => value.trim().length)
@@ -52,8 +63,8 @@ function getTextValueStats(values: OntologyProperty['values']) {
   }
 }
 
-export function flattenOntologyProperties(ontology: OntologyItem[]): LabelProperty[] {
-  return ontology.flatMap((item) =>
+export function flattenSchemaProperties(schema: SchemaItem[]): LabelProperty[] {
+  return schema.flatMap((item) =>
     item.properties.map((property) => ({
       label: item.label,
       property
@@ -77,6 +88,7 @@ export function buildSuggestedEmbeddingIndexes({
 
   properties.forEach(({ label, property }) => {
     if (!isTextProperty(property)) return
+    if (isIdLikeProperty(property.name)) return
     if (property.recordsCount === 0) return
     if (indexedPairs.has(indexKey(label, property.name))) return
 

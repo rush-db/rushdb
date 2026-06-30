@@ -4,7 +4,7 @@ import axios from 'axios'
 import { Transaction } from 'neo4j-driver'
 
 import { AiService } from '@/core/ai/ai.service'
-import { OntologyItem } from '@/core/ai/ai.types'
+import { SchemaItem } from '@/core/ai/ai.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
 
 import { existsSync, readFileSync } from 'fs'
@@ -57,6 +57,10 @@ const COMPARISON_KEYS = new Set([
   '$nanosecond'
 ])
 const RELATION_META_KEYS = new Set(['$alias', '$relation'])
+// A where-predicate value that looks like a field/alias reference, e.g. "$record.id" or "$alias.name".
+// Such references are only valid in select/groupBy/aggregate. Used as a where VALUE they are matched as a
+// literal string (see parseComparison), which silently returns no rows — so we flag them during validation.
+const FIELD_REF_VALUE_REGEX = /^\$[A-Za-z_]\w*(\.\w+)*$/
 const SELECT_OPERATOR_KEYS = new Set([
   '$ref',
   '$sum',
@@ -108,23 +112,23 @@ export class SearchQueryGeneratorService {
       throw new BadRequestException('Prompt is required.')
     }
 
-    const ontology = await this.aiService.getOntology({ projectId, workspaceId, transaction })
-    const ontologyMarkdown = this.aiService.buildMdSchema(ontology)
-    const first = await this.callLlm({ prompt: trimmed, currentQuery, ontologyMarkdown })
+    const schema = await this.aiService.getSchema({ projectId, workspaceId, transaction })
+    const schemaMarkdown = this.aiService.buildMdSchema(schema)
+    const first = await this.callLlm({ prompt: trimmed, currentQuery, schemaMarkdown })
     this.logger.log(`[AI SearchQuery] generated raw query: ${JSON.stringify(first.searchQuery)}`)
-    let validated = this.validateAndNormalize(first.searchQuery, ontology)
+    let validated = this.validateAndNormalize(first.searchQuery, schema)
 
     if (validated.errors.length) {
       this.logger.warn(`[AI SearchQuery] validation errors: ${validated.errors.join('; ')}`)
       const repaired = await this.callLlm({
         prompt: trimmed,
         currentQuery,
-        ontologyMarkdown,
+        schemaMarkdown,
         validationErrors: validated.errors,
         previousQuery: first.searchQuery
       })
       this.logger.log(`[AI SearchQuery] generated repair query: ${JSON.stringify(repaired.searchQuery)}`)
-      validated = this.validateAndNormalize(repaired.searchQuery, ontology)
+      validated = this.validateAndNormalize(repaired.searchQuery, schema)
     }
 
     if (validated.errors.length) {
@@ -164,13 +168,13 @@ export class SearchQueryGeneratorService {
   private async callLlm({
     prompt,
     currentQuery,
-    ontologyMarkdown,
+    schemaMarkdown,
     validationErrors,
     previousQuery
   }: {
     prompt: string
     currentQuery?: SearchDto
-    ontologyMarkdown: string
+    schemaMarkdown: string
     validationErrors?: string[]
     previousQuery?: SearchDto
   }): Promise<GeneratedSearchQuery> {
@@ -180,7 +184,7 @@ export class SearchQueryGeneratorService {
     const queryBuilderPrompt = this.readPromptFile(QUERY_BUILDER_PROMPT_FILE)
     const searchQuerySpecPrompt = this.readPromptFile(SEARCH_QUERY_SPEC_PROMPT_FILE)
 
-    this.logger.log(`[AI ontologyMarkdown]: ${ontologyMarkdown}`)
+    this.logger.log(`[AI schemaMarkdown]: ${schemaMarkdown}`)
 
     const response = await axios.post(
       `${baseUrl.replace(/\/$/, '')}/chat/completions`,
@@ -196,10 +200,10 @@ export class SearchQueryGeneratorService {
           {
             role: 'user',
             content: JSON.stringify({
-              task: 'Build one RushDB SearchQuery for the prompt using only the provided ontology. Return only JSON in the exact shape {"searchQuery":{...},"warnings":[...]}.',
+              task: 'Build one RushDB SearchQuery for the prompt using only the provided schema. Return only JSON in the exact shape {"searchQuery":{...},"warnings":[...]}.',
               prompt,
               currentQuery,
-              ontologyMarkdown,
+              schemaMarkdown,
               previousQuery,
               validationErrors
             })
@@ -309,7 +313,7 @@ export class SearchQueryGeneratorService {
     return JSON.stringify(normalized.length > 300 ? `${normalized.slice(0, 300)}...` : normalized)
   }
 
-  private validateAndNormalize(searchQuery: unknown, ontology: OntologyItem[]): ValidationResult {
+  private validateAndNormalize(searchQuery: unknown, schema: SchemaItem[]): ValidationResult {
     const warnings: string[] = []
     const errors: string[] = []
 
@@ -325,18 +329,16 @@ export class SearchQueryGeneratorService {
       }
     }
 
-    const ontologyByLabel = new Map(ontology.map((item) => [item.label, item]))
+    const schemaByLabel = new Map(schema.map((item) => [item.label, item]))
     const propertiesByLabel = new Map(
-      ontology.map((item) => [item.label, new Set(item.properties.map((property) => property.name))])
+      schema.map((item) => [item.label, new Set(item.properties.map((property) => property.name))])
     )
-    const allProperties = new Set(
-      ontology.flatMap((item) => item.properties.map((property) => property.name))
-    )
+    const allProperties = new Set(schema.flatMap((item) => item.properties.map((property) => property.name)))
     const labels =
       Array.isArray(query.labels) ? query.labels.filter((label) => typeof label === 'string') : []
 
     for (const label of labels) {
-      if (!ontologyByLabel.has(label)) {
+      if (!schemaByLabel.has(label)) {
         errors.push(`Unknown label "${label}"`)
       }
     }
@@ -353,12 +355,12 @@ export class SearchQueryGeneratorService {
     }
 
     const aliases = new Map<string, string>()
-    this.collectAliases(query.where, ontologyByLabel, aliases)
-    this.validateWhere(query.where, ontologyByLabel, propertiesByLabel, allProperties, errors, labels)
+    this.collectAliases(query.where, schemaByLabel, aliases)
+    this.validateWhere(query.where, schemaByLabel, propertiesByLabel, allProperties, errors, labels)
     this.validateSelectExpressions(query.select, errors)
     this.validateSelectRefs(
       query.select,
-      ontologyByLabel,
+      schemaByLabel,
       propertiesByLabel,
       allProperties,
       aliases,
@@ -472,7 +474,7 @@ export class SearchQueryGeneratorService {
 
   private validateWhere(
     value: unknown,
-    ontologyByLabel: Map<string, OntologyItem>,
+    schemaByLabel: Map<string, SchemaItem>,
     propertiesByLabel: Map<string, Set<string>>,
     allProperties: Set<string>,
     errors: string[],
@@ -485,7 +487,7 @@ export class SearchQueryGeneratorService {
       for (const nestedValue of value) {
         this.validateWhere(
           nestedValue,
-          ontologyByLabel,
+          schemaByLabel,
           propertiesByLabel,
           allProperties,
           errors,
@@ -497,7 +499,7 @@ export class SearchQueryGeneratorService {
 
     for (const [key, next] of Object.entries(value)) {
       if (LOGICAL_KEYS.has(key)) {
-        this.validateWhere(next, ontologyByLabel, propertiesByLabel, allProperties, errors, currentLabels)
+        this.validateWhere(next, schemaByLabel, propertiesByLabel, allProperties, errors, currentLabels)
         continue
       }
       if (COMPARISON_KEYS.has(key) || RELATION_META_KEYS.has(key)) {
@@ -507,10 +509,12 @@ export class SearchQueryGeneratorService {
         errors.push(`Unsupported where operator "${key}"`)
         continue
       }
-      if (ontologyByLabel.has(key)) {
-        this.validateWhere(next, ontologyByLabel, propertiesByLabel, allProperties, errors, [key])
+      if (schemaByLabel.has(key)) {
+        this.validateWhere(next, schemaByLabel, propertiesByLabel, allProperties, errors, [key])
         continue
       }
+      // `key` is a property predicate — its value must be a literal, not a field/alias reference.
+      this.flagFieldRefValues(key, next, errors)
       if (currentLabels.length && !this.propertyExistsOnAnyLabel(key, currentLabels, propertiesByLabel)) {
         errors.push(`Property "${key}" is not available on label ${currentLabels.join('|')}`)
         continue
@@ -518,13 +522,13 @@ export class SearchQueryGeneratorService {
       if (!currentLabels.length && !allProperties.has(key)) {
         errors.push(`Unknown property or relationship label "${key}"`)
       }
-      this.validateWhere(next, ontologyByLabel, propertiesByLabel, allProperties, errors, currentLabels)
+      this.validateWhere(next, schemaByLabel, propertiesByLabel, allProperties, errors, currentLabels)
     }
   }
 
   private validateSelectRefs(
     value: unknown,
-    ontologyByLabel: Map<string, OntologyItem>,
+    schemaByLabel: Map<string, SchemaItem>,
     propertiesByLabel: Map<string, Set<string>>,
     allProperties: Set<string>,
     aliases: Map<string, string>,
@@ -543,7 +547,7 @@ export class SearchQueryGeneratorService {
       value.forEach((item) =>
         this.validateSelectRefs(
           item,
-          ontologyByLabel,
+          schemaByLabel,
           propertiesByLabel,
           allProperties,
           aliases,
@@ -559,14 +563,14 @@ export class SearchQueryGeneratorService {
     }
 
     const collect = (value as any).$collect
-    if (collect?.label && !ontologyByLabel.has(collect.label)) {
+    if (collect?.label && !schemaByLabel.has(collect.label)) {
       errors.push(`Unknown collect label "${collect.label}"`)
     }
     if (
       collect?.label &&
-      ontologyByLabel.has(collect.label) &&
+      schemaByLabel.has(collect.label) &&
       currentLabels.length &&
-      !this.hasDirectRelationshipToEveryLabel(currentLabels, collect.label, ontologyByLabel)
+      !this.hasDirectRelationshipToEveryLabel(currentLabels, collect.label, schemaByLabel)
     ) {
       errors.push(
         `Collect label "${collect.label}" is not directly related to ${currentLabels.join('|')}; use where + $alias and $collect.from for intermediate paths.`
@@ -577,14 +581,14 @@ export class SearchQueryGeneratorService {
     }
 
     const nestedLabels =
-      collect?.label && typeof collect.label === 'string' && ontologyByLabel.has(collect.label) ?
+      collect?.label && typeof collect.label === 'string' && schemaByLabel.has(collect.label) ?
         [collect.label]
       : currentLabels
 
     for (const nested of Object.values(value)) {
       this.validateSelectRefs(
         nested,
-        ontologyByLabel,
+        schemaByLabel,
         propertiesByLabel,
         allProperties,
         aliases,
@@ -622,6 +626,37 @@ export class SearchQueryGeneratorService {
         this.validateFieldRef(ref, propertiesByLabel, allProperties, aliases, rootLabels, errors)
       }
     }
+  }
+
+  // Flags where-predicate values that look like field/alias references (e.g. "$record.id"). Such a value is a
+  // correlated-join attempt, which the where grammar does not support — it is matched as a literal and returns
+  // nothing. Recurses into comparison operators ($eq, $in, …) so wrapped forms are caught too.
+  private flagFieldRefValues(propertyKey: string, payload: unknown, errors: string[]) {
+    const inspect = (candidate: unknown) => {
+      if (typeof candidate === 'string') {
+        if (FIELD_REF_VALUE_REGEX.test(candidate)) {
+          errors.push(
+            `where value "${candidate}" for "${propertyKey}" is a field/alias reference, which is not supported ` +
+              `in where (it is matched as a literal string). Field references such as $record.* or $alias.* are ` +
+              `only valid in select, groupBy, and aggregate. To rank or relate records by a field, root on the ` +
+              `label that owns it and use groupBy, or traverse an existing relationship from the schema.`
+          )
+        }
+        return
+      }
+      if (Array.isArray(candidate)) {
+        candidate.forEach(inspect)
+        return
+      }
+      if (candidate && typeof candidate === 'object') {
+        for (const [innerKey, innerValue] of Object.entries(candidate)) {
+          if (COMPARISON_KEYS.has(innerKey)) {
+            inspect(innerValue)
+          }
+        }
+      }
+    }
+    inspect(payload)
   }
 
   private validateFieldRef(
@@ -668,7 +703,7 @@ export class SearchQueryGeneratorService {
 
   private collectAliases(
     value: unknown,
-    ontologyByLabel: Map<string, OntologyItem>,
+    schemaByLabel: Map<string, SchemaItem>,
     aliases: Map<string, string>,
     currentLabel?: string
   ) {
@@ -676,7 +711,7 @@ export class SearchQueryGeneratorService {
       return
     }
     if (Array.isArray(value)) {
-      value.forEach((item) => this.collectAliases(item, ontologyByLabel, aliases, currentLabel))
+      value.forEach((item) => this.collectAliases(item, schemaByLabel, aliases, currentLabel))
       return
     }
 
@@ -685,11 +720,11 @@ export class SearchQueryGeneratorService {
         aliases.set(next, currentLabel)
         continue
       }
-      if (ontologyByLabel.has(key)) {
-        this.collectAliases(next, ontologyByLabel, aliases, key)
+      if (schemaByLabel.has(key)) {
+        this.collectAliases(next, schemaByLabel, aliases, key)
         continue
       }
-      this.collectAliases(next, ontologyByLabel, aliases, currentLabel)
+      this.collectAliases(next, schemaByLabel, aliases, currentLabel)
     }
   }
 
@@ -704,12 +739,10 @@ export class SearchQueryGeneratorService {
   private hasDirectRelationshipToEveryLabel(
     sourceLabels: string[],
     targetLabel: string,
-    ontologyByLabel: Map<string, OntologyItem>
+    schemaByLabel: Map<string, SchemaItem>
   ) {
     return sourceLabels.every((sourceLabel) =>
-      ontologyByLabel
-        .get(sourceLabel)
-        ?.relationships.some((relationship) => relationship.label === targetLabel)
+      schemaByLabel.get(sourceLabel)?.relationships.some((relationship) => relationship.label === targetLabel)
     )
   }
 }

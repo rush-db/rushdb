@@ -276,7 +276,7 @@ export function OAuthConsentPage() {
               <Button disabled={acting} onClick={handleDeny} variant="secondary">
                 Deny
               </Button>
-              <Button disabled={acting || !canAllow} loading={acting} onClick={handleAllow} variant="accent">
+              <Button disabled={acting || !canAllow} loading={acting} onClick={handleAllow} variant="primary">
                 Allow Access
               </Button>
             </CardFooter>

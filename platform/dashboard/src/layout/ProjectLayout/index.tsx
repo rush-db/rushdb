@@ -14,7 +14,11 @@ import { $router, getRoutePath, isProjectPage, redirectRoute } from '~/lib/route
 import { ProjectConnectedApps, ProjectSettings } from '~/pages/project/settings'
 import { ProjectTokens } from '~/pages/project/tokens'
 import { ProjectIndexes } from '~/pages/project/indexes'
+import { ProjectLiveSchema } from '~/pages/project/live-schema'
+import { ProjectQueryLab } from '~/pages/project/query-lab'
+import { ProjectSavedQueries } from '~/pages/project/saved-queries'
 import { ProjectRelationships } from '~/pages/project/relationships'
+import { ProjectSuggestedRelationships } from '~/pages/project/suggested-relationships'
 import { ProjectRecordsPage } from '~/pages/project/records'
 import { ProjectHelpPage } from '~/pages/project/help'
 import { ProjectConnection } from '~/pages/project/connection'
@@ -29,8 +33,16 @@ function ProjectRoutes({ project }: { project: Project }) {
       return <ProjectTokens projectId={project.id} />
     case 'projectIndexes':
       return <ProjectIndexes projectId={project.id} />
+    case 'projectLiveSchema':
+      return <ProjectLiveSchema projectId={project.id} />
+    case 'projectQueryLab':
+      return <ProjectQueryLab />
+    case 'projectSavedQueries':
+      return <ProjectSavedQueries />
     case 'projectRelationships':
       return <ProjectRelationships projectId={project.id} />
+    case 'projectSuggestedRelationships':
+      return <ProjectSuggestedRelationships projectId={project.id} />
     case 'projectSettings':
       return <ProjectSettings projectId={project.id} />
     case 'projectConnectedApps':
@@ -53,9 +65,13 @@ const PROJECT_TAB_TITLES: Record<string, string> = {
   projectSettings: 'Settings',
   projectConnectedApps: 'Connected Apps',
   projectTokens: 'API Tokens',
-  projectIndexes: 'Indexes',
+  projectIndexes: 'Semantic Indexes',
+  projectQueryLab: 'Query Lab',
+  projectSavedQueries: 'Saved Queries',
   projectRelationships: 'Relationships',
+  projectSuggestedRelationships: 'Suggested Relationships',
   projectImportData: 'Import',
+  projectLiveSchema: 'Live Schema',
   projectNewConnection: 'New Connection',
   projectConnection: 'Connection',
   projectUsers: 'Users',
@@ -94,7 +110,7 @@ export function ProjectLayout() {
     return (
       <NothingFound
         action={
-          <Button as="a" href={getRoutePath('projects')} variant="accent">
+          <Button as="a" href={getRoutePath('projects')} variant="primary">
             Go to projects
           </Button>
         }

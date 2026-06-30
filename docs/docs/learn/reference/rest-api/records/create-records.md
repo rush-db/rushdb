@@ -29,15 +29,16 @@ curl -X POST https://api.rushdb.com/api/v1/records \
 
 ### Options
 
-| Option                          | Default                         | Description                               |
-| ------------------------------- | ------------------------------- | ----------------------------------------- |
-| `suggestTypes`                  | `true`                          | Infer property types automatically        |
-| `convertNumericValuesToNumbers` | `false`                         | Convert string numbers to number type     |
-| `capitalizeLabels`              | `false`                         | Uppercase all inferred label names        |
-| `relationshipType`              | `__RUSHDB__RELATION__DEFAULT__` | Relationship type for nested links        |
-| `returnResult`                  | `false`                         | Return the created record in the response |
-| `mergeBy`                       | —                               | Fields to match on for upsert             |
-| `mergeStrategy`                 | `append`                        | `append` or `rewrite`                     |
+| Option                          | Default                         | Description                                  |
+| ------------------------------- | ------------------------------- | -------------------------------------------- |
+| `suggestTypes`                  | `true`                          | Infer property types automatically           |
+| `convertNumericValuesToNumbers` | `false`                         | Convert string numbers to number type        |
+| `capitalizeLabels`              | `false`                         | Uppercase all inferred label names           |
+| `skipEmptyValues`               | `false`                         | Skip empty strings/arrays (`0`/`false` kept) |
+| `relationshipType`              | `__RUSHDB__RELATION__DEFAULT__` | Relationship type for nested links           |
+| `returnResult`                  | `false`                         | Return the created record in the response    |
+| `mergeBy`                       | —                               | Fields to match on for upsert                |
+| `mergeStrategy`                 | `append`                        | `append` or `rewrite`                        |
 
 ## Upsert (create or update)
 

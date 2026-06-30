@@ -60,14 +60,14 @@ export function CustomTooltip({
             </Button>
           )}
           {!noNext && continuous && primaryProps && (
-            <Button size="small" variant="accent" {...primaryProps}>
+            <Button size="small" variant="primary" {...primaryProps}>
               {primaryTitle}
             </Button>
           )}
           {noNext && !waitForManualAction && (
             <Button
               size="small"
-              variant="accent"
+              variant="primary"
               {...closeProps}
               onClick={(e: React.MouseEvent) => {
                 const data = step.data as TooltipStepData | undefined
@@ -83,7 +83,7 @@ export function CustomTooltip({
             </Button>
           )}
           {noNext && waitForManualAction && (
-            <Button size="small" variant="accent" {...closeProps}>
+            <Button size="small" variant="primary" {...closeProps}>
               Got it
             </Button>
           )}

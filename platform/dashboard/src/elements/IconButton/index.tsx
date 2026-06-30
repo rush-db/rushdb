@@ -54,7 +54,7 @@ IconButton.displayName = 'IconButton'
 export function IconCopyButton({
   text,
   timeout = 1000,
-  variant = 'accent',
+  variant = 'primary',
   onClick,
   ...props
 }: TPolymorphicComponentProps<

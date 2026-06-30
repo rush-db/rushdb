@@ -12,20 +12,20 @@ A discovery-first workflow for safely and correctly querying RushDB.
 
 ## Prerequisites
 
-- **RushDB MCP server** must be connected — it provides `getOntologyMarkdown`, `findRecords`, and all other tools used in this skill. Setup: `npx @rushdb/mcp-server` (requires `RUSHDB_API_KEY` env var). See https://docs.rushdb.com/mcp-server/quickstart
+- **RushDB MCP server** must be connected — it provides `getSchemaMarkdown`, `findRecords`, and all other tools used in this skill. Setup: `npx @rushdb/mcp-server` (requires `RUSHDB_API_KEY` env var). See https://docs.rushdb.com/mcp-server/quickstart
 - If the MCP tools are not available in the current session, tell the user the MCP server is not configured and link them to the quickstart above.
 
 ---
 
 ## Mandatory Workflow (always follow this order)
 
-### Step 0 — Ontology (every session, first call)
+### Step 0 — Schema (every session, first call)
 
-Call `getOntologyMarkdown` before any other tool. It returns:
+Call `getSchemaMarkdown` before any other tool. It returns:
 
 - All label names (case-sensitive — use them exactly)
 - All property names and types per label
-- Array fields shown as `type[]`; in structured `getOntology`, `isArray: true` marks primitive-array properties
+- Array fields shown as `type[]`; in structured `getSchema`, `isArray: true` marks primitive-array properties
 - Value ranges for numeric/datetime fields
 - The full relationship map between labels
 - A **Semantic Search** column per property: non-`—` value means the property is indexed and queryable via `aiSemanticSearch`
@@ -33,7 +33,7 @@ Call `getOntologyMarkdown` before any other tool. It returns:
 Do not call `findLabels`, `findProperties`, or `findRecords` before this.
 
 ```
-getOntologyMarkdown()
+getSchemaMarkdown()
 ```
 
 If the schema looks stale (e.g. new labels or properties were added recently), pass `{ force: true }` to bypass the 1-hour cache and force a fresh recalculation.
@@ -66,7 +66,7 @@ Before calling `findRecords` with any of these, call `getSearchQuerySpec`:
 
 ### Step 3 — Build and Execute
 
-Use only label and property names from the ontology. Labels are **case-sensitive**.
+Use only label and property names from the schema. Labels are **case-sensitive**.
 
 Root-label rule:
 
@@ -83,7 +83,7 @@ Top-N rule:
 
 Named-reference rule:
 
-- When filtering a display field such as `name`, `title`, or another ontology-backed label/name field with free text the user typed, default to `{ $contains: "<user text>" }`. This applies to filters on any label, including related labels traversed with `$alias`.
+- When filtering a display field such as `name`, `title`, or another schema-backed label/name field with free text the user typed, default to `{ $contains: "<user text>" }`. This applies to filters on any label, including related labels traversed with `$alias`.
 - Use exact equality only when the value is an ID, or the user explicitly asks for an exact match (e.g. "named exactly").
 - If you need to confirm a canonical value before filtering, use discovery (list/search a few records) rather than guessing an exact string.
 
@@ -108,16 +108,16 @@ findRecords({
 
 ### Discovery
 
-| Tool                  | When to use                                                                                                                  |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `getOntologyMarkdown` | Step 0 — always first, once per session                                                                                      |
-| `getOntology`         | Same as above but structured JSON; use when you need `propertyId` values or `vectorIndexes` per property                     |
-| `findLabels`          | Skip if `getOntologyMarkdown` already ran                                                                                    |
-| `findProperties`      | Discover field names + types for a specific label when not in ontology                                                       |
-| `findRelationships`   | Inspect relationships; `where` filters edge type/properties, `source`/`target` filter endpoint records; no aggregate/groupBy |
-| `propertyValues`      | List distinct values for a property (needs `propertyId` from `getOntology` or `findProperties`)                              |
+| Tool                | When to use                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `getSchemaMarkdown` | Step 0 — always first, once per session                                                                                      |
+| `getSchema`         | Same as above but structured JSON; use when you need `propertyId` values or `vectorIndexes` per property                     |
+| `findLabels`        | Skip if `getSchemaMarkdown` already ran                                                                                      |
+| `findProperties`    | Discover field names + types for a specific label when not in schema                                                         |
+| `findRelationships` | Inspect relationships; `where` filters edge type/properties, `source`/`target` filter endpoint records; no aggregate/groupBy |
+| `propertyValues`    | List distinct values for a property (needs `propertyId` from `getSchema` or `findProperties`)                                |
 
-> **Semantic search:** Properties listed as `getOntology` results with a non-empty `vectorIndexes` array are eligible for semantic search. Use `aiSemanticSearch` with the matching `propertyName` and `labels`.
+> **Semantic search:** Properties listed as `getSchema` results with a non-empty `vectorIndexes` array are eligible for semantic search. Use `aiSemanticSearch` with the matching `propertyName` and `labels`.
 
 ### Querying
 
@@ -198,7 +198,7 @@ created: { $gte: { $year: 1990 }, $lt: { $year: 2000 } }                        
 // ── Existence / type ──────────────────────────────────────────────────
 email: { $exists: true }                     // field is present and not null
 phone: { $exists: false }                    // field absent
-age:   { $type: "number" }                   // "string"|"number"|"boolean"|"datetime"|"null"|"vector"
+age:   { $type: "number" }                   // "string"|"number"|"boolean"|"datetime"
 
 // ── Logical ───────────────────────────────────────────────────────────
 // Implicit AND — multiple keys at the same level:
@@ -226,6 +226,8 @@ where: { DEPARTMENT: { $alias: "$dept", budget: { $gte: 50000 } } }
 where: { POST: { $relation: { type: "AUTHORED", direction: "in" } } }
 ```
 
+Each Relationships row in the schema is a directed pattern rooted at that label: `(SELF)-[:TYPE]->(OTHER)` is outgoing, `(SELF)<-[:TYPE]-(OTHER)` is incoming. To pin the edge, set `$relation: { type: "TYPE", direction }` — `"out"` for `->`, `"in"` for `<-`. Only patterns shown in the schema are traversable; a scalar `*_id` property is a plain value, not an edge — never nest a label to "join" on it (root on the owning label and `groupBy` it instead).
+
 **Common mistakes to avoid:**
 
 - `$label`, `$direction`, `$as`, `$of`, `$through` — **these do not exist**
@@ -234,6 +236,8 @@ where: { POST: { $relation: { type: "AUTHORED", direction: "in" } } }
 - `labels: ["PARENT", "CHILD"]` for a parent-child metric — **WRONG**: keep `labels: ["PARENT"]`, put `CHILD` in `where`
 - `labels: ["CHILD"]` for "which parent has most/fewest children" — **WRONG** when a parent-child path exists: keep the requested parent as root and count the child alias
 - `groupBy: ["$record"]` or `["$child"]` — **WRONG**: dimensional `groupBy` must include a property, e.g. `"$record.name"`; self-group uses select key names only
+- `{ fieldA: "$record.id" }` or `{ fieldA: { $eq: "$alias.id" } }` — **WRONG**: `where` values must be literals. `$record.*`/`$alias.*` references work only in `select`/`groupBy`/`aggregate`; as a `where` value they are matched as a literal string and return nothing (RushDB has no correlated where predicate)
+- Simulating a join on a scalar field that is **not** a relationship in the schema — **WRONG**: root on the label that owns the field and `groupBy` it, e.g. `{ labels: ["LABEL"], select: { count: { $count: "*" } }, groupBy: ["$record.someScalarField"] }`
 - `name: "partial user text"` for an incomplete named reference — **RISKY**: prefer `name: { $contains: "partial user text" }`
 - For calendar-semantic ranges (year / month / day boundaries) use component objects, not ISO strings
 - Do NOT include `limit` when using `select` (produces mathematically wrong results)

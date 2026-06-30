@@ -5,7 +5,7 @@ title: Relationship Patterns
 
 # Relationship Patterns
 
-RushDB can analyze the project ontology and suggest relationships that are not materialized yet. Suggestions are reviewable: no relationship is created until you approve a pattern.
+RushDB can analyze the project schema and suggest relationships that are not materialized yet. Suggestions are reviewable: no relationship is created until you approve a pattern.
 
 Access the API through `db.relationships.patterns`.
 
@@ -13,8 +13,8 @@ Access the API through `db.relationships.patterns`.
 
 | Method                | Description                                                            |
 | --------------------- | ---------------------------------------------------------------------- |
-| `list()`              | List saved patterns, ontology relationships, and analysis status       |
-| `analyze()`           | Queue ontology analysis to generate suggestions                        |
+| `list()`              | List saved patterns, schema relationships, and analysis status         |
+| `analyze()`           | Queue schema analysis to generate suggestions                          |
 | `approve(id)`         | Approve a suggestion and apply its relationships                       |
 | `ignore(id)`          | Ignore a suggestion without applying it                                |
 | `delete(id, options)` | Delete a saved pattern, optionally removing materialized relationships |

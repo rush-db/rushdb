@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { Cable, KeyRound, SettingsIcon, Users } from 'lucide-react'
+import { Activity, Cable, KeyRound, SettingsIcon, Users } from 'lucide-react'
 
 import { useCanUseSso } from '~/features/sso/hooks'
 import { $router, getRoutePath } from '~/lib/router'
@@ -29,6 +29,12 @@ const SETTINGS_ITEMS = [
     icon: <KeyRound />,
     label: 'Single Sign-On',
     route: 'workspaceSso'
+  },
+  {
+    href: getRoutePath('workspaceSystemInfo'),
+    icon: <Activity />,
+    label: 'System Info',
+    route: 'workspaceSystemInfo'
   }
 ] as const
 

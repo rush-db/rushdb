@@ -34,7 +34,7 @@ npm install @rushdb/skills
 
 ### `rushdb-query-builder`
 
-Teaches the mandatory 3-step workflow for querying RushDB: ontology discovery → intent classification → query construction. Covers the full SearchQuery shape — `where` filters, `aggregate` functions, `groupBy` modes, relationship traversal, datetime operators, and vector similarity.
+Teaches the mandatory 3-step workflow for querying RushDB: schema discovery → intent classification → query construction. Covers the full SearchQuery shape — `where` filters, `aggregate` functions, `groupBy` modes, relationship traversal, datetime operators, and vector similarity.
 
 Includes a bundled reference file (`references/search-query-spec.md`) with the complete operator reference, syntax rules, and annotated examples loaded on demand.
 
@@ -80,7 +80,7 @@ Teaches RushDB's property-centric LMPG (Labels, Multi-Properties, Graph) model: 
 
 ### `rushdb-faceted-search`
 
-Teaches the full workflow for generating faceted filter UIs: call `getOntology` for structured property metadata (including `id` values), call `propertyValues` to enumerate distinct options per property, map each property type to the right UI widget (checkbox list, range slider, date picker, toggle), and assemble a live `where` clause as filters change.
+Teaches the full workflow for generating faceted filter UIs: call `getSchema` for structured property metadata (including `id` values), call `propertyValues` to enumerate distinct options per property, map each property type to the right UI widget (checkbox list, range slider, date picker, toggle), and assemble a live `where` clause as filters change.
 
 Covers the eager/lazy loading split, context-aware vs. original value enumeration, the two-hook pattern used in real RushDB apps, active filter chips, and full reset.
 

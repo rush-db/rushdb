@@ -121,7 +121,7 @@ function EmptyProjects() {
           as="a"
           className="mt-3"
           href={getRoutePath('newProject')}
-          variant="accent"
+          variant="primary"
         >
           <FolderPlus />
           New Project

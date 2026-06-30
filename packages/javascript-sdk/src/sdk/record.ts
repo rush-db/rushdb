@@ -120,6 +120,12 @@ export type DBRecordCreationOptions = {
   suggestTypes?: boolean
   convertNumericValuesToNumbers?: boolean
   capitalizeLabels?: boolean
+  /**
+   * When true, empty strings ('') and empty arrays ([]) are treated as unset and skipped
+   * (no property is created). Zero (0) and false are real values and are never affected.
+   * Defaults to false.
+   */
+  skipEmptyValues?: boolean
   relationshipType?: string
   mergeStrategy?: 'append' | 'rewrite'
   mergeBy?: string[]

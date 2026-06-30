@@ -23,7 +23,6 @@
     text-rendering: optimizeLegibility;
     -webkit-text-size-adjust: 100%;
     --radius: 0.5rem;
-    color-scheme: dark;
     /* scrollbar-gutter: stable; */
   }
 

@@ -108,7 +108,7 @@ function AddTokenForm({ project, projectId }: { project?: Project; projectId: Pr
         </label>
       </div>
       <div className="flex justify-end gap-2 border-t pt-5">
-        <Button disabled={!isValid} loading={isSubmitting} type="submit" variant="accent">
+        <Button disabled={!isValid} loading={isSubmitting} type="submit" variant="primary">
           Create API key
         </Button>
       </div>

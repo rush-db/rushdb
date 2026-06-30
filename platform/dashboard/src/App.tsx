@@ -17,6 +17,7 @@ import { WorkspaceSettingsPage } from '~/pages/workspace/settings'
 import { WorkspaceUsersPage } from '~/pages/workspace/users'
 import { WorkspaceConnectedAppsPage } from '~/pages/workspace/connected-apps'
 import { WorkspaceSsoPage } from '~/pages/workspace/sso-settings'
+import { WorkspaceSystemInfoPage } from '~/pages/workspace/system-info'
 import { JoinWorkspacePage } from '~/pages/workspace/join'
 import { ConfirmEmail } from '~/pages/auth/confirmEmail'
 import { OAuthConsentPage } from '~/pages/oauth/consent'
@@ -42,6 +43,7 @@ const PAGE_TITLES: Record<string, string> = {
   workspaceUsers: 'Workspace Members',
   workspaceConnectedApps: 'Connected Apps',
   workspaceSso: 'Single Sign-On',
+  workspaceSystemInfo: 'System Info',
   workspaceBilling: 'Billing',
   workspaceApiUsage: 'Usage Stats',
   joinWorkspace: 'Join Workspace',
@@ -115,6 +117,8 @@ function ProtectedRoutes() {
       return isOwner ? <WorkspaceConnectedAppsPage /> : null
     case 'workspaceSso':
       return isOwner ? <WorkspaceSsoPage /> : null
+    case 'workspaceSystemInfo':
+      return isOwner ? <WorkspaceSystemInfoPage /> : null
     case 'workspaceApiKeys':
       return isOwner ? <WorkspaceApiKeysPage /> : null
     case 'joinWorkspace':

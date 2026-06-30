@@ -5,6 +5,8 @@ import type { SearchQuery } from '@rushdb/javascript-sdk'
 export const queryKeys = {
   settings: () => ['settings'] as const,
 
+  health: () => ['health'] as const,
+
   user: () => ['user'] as const,
 
   workspaces: {
@@ -34,6 +36,9 @@ export const queryKeys = {
       ['projects', projectId, 'suggested-fields', params] as const,
     indexes: (projectId: string) => ['projects', projectId, 'indexes'] as const,
     connectors: (projectId: string) => ['projects', projectId, 'connectors'] as const,
+    savedQueries: (projectId: string) => ['projects', projectId, 'saved-queries'] as const,
+    schema: (projectId: string) => ['projects', projectId, 'schema'] as const,
+    schemaMarkdown: (projectId: string) => ['projects', projectId, 'schema-md'] as const,
     relationshipPatterns: (projectId: string) => ['projects', projectId, 'relationship-patterns'] as const,
     stats: (projectId: string) => ['projects', projectId, 'stats'] as const,
     records: (

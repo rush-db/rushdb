@@ -20,7 +20,7 @@ import { $sheetRecordId } from '../stores/id'
 import { GraphView } from '~/features/projects/components/GraphView.tsx'
 import { PropertySheet } from '~/features/projects/components/PropertySheet.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
-import { RawApiView } from '~/features/projects/components/RawApiView.tsx'
+import { Editor } from '~/elements/Editor.tsx'
 import { useFilteredRecordsQuery, useProjectFieldsQuery } from '~/features/projects/hooks/useProjectQueries'
 import { $recordsSearchMode } from '~/features/projects/stores/records-search'
 import { NothingFound } from '~/elements/NothingFound'
@@ -70,6 +70,11 @@ function View() {
   const loading = !recordsFailed && (loadingRecords || (!shapedResults && loadingFields))
 
   const view = useStore($recordView)
+
+  const jsonValue = useMemo(
+    () => (view === 'json' ? JSON.stringify({ data: records ?? [], total }, null, 2) : ''),
+    [view, records, total]
+  )
 
   if (recordsFailed) {
     return (
@@ -130,23 +135,38 @@ function View() {
         </div>
       )
 
+    case 'json':
+      return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-b">
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Editor
+              defaultLanguage="json"
+              value={jsonValue}
+              height="100%"
+              readOnly
+              lineNumbers="off"
+              theme="vs-dark"
+            />
+          </div>
+          {records?.length ?
+            <Paginator
+              className="bg-fill shrink-0 border-t"
+              limit={limit}
+              onNext={incrementRecordsPage}
+              onPrev={decrementRecordsPage}
+              skip={skip}
+              total={total}
+            />
+          : null}
+        </div>
+      )
+
     default:
       return null
   }
 }
 
 export function ProjectRecords() {
-  const view = useStore($recordView)
-
-  if (view === 'raw-api') {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <RecordsHeader />
-        <RawApiView />
-      </div>
-    )
-  }
-
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <RecordsHeader />
