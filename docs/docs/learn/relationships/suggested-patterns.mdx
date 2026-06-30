@@ -25,7 +25,7 @@ For self-hosted deployments, see [Environment Variables](/deploy/configuration/e
 
 ## Lifecycle
 
-1. RushDB analyzes the current project ontology and stores inferred patterns as `suggested`.
+1. RushDB analyzes the current project schema and stores inferred patterns as `suggested`.
 2. Review the source, target, type, direction, mode, confidence, and rationale.
 3. Approve a suggestion to apply it, or ignore it without changing relationships.
 4. Delete a saved pattern when it is no longer useful. Deleting with `deleteExisting=true` also removes relationships materialized by that pattern.
@@ -98,7 +98,7 @@ curl https://api.rushdb.com/api/v1/relationships/patterns \
   -H "x-project-id: $RUSHDB_PROJECT_ID"
 ```
 
-The response includes `patterns`, current ontology `relationships`, and the latest `analysis` status.
+The response includes `patterns`, current schema `relationships`, and the latest `analysis` status.
 
 ### Queue analysis
 
@@ -152,12 +152,12 @@ curl -X DELETE "https://api.rushdb.com/api/v1/relationships/patterns/$PATTERN_ID
 
 ## MCP Tools
 
-| Tool                          | Purpose                                                    |
-| ----------------------------- | ---------------------------------------------------------- |
-| `listRelationshipPatterns`    | List patterns, ontology relationships, and analysis status |
-| `analyzeRelationshipPatterns` | Queue ontology analysis                                    |
-| `approveRelationshipPattern`  | Approve and apply a suggestion by ID                       |
-| `ignoreRelationshipPattern`   | Ignore a suggestion by ID                                  |
-| `deleteRelationshipPattern`   | Delete a pattern, optionally with `deleteExisting`         |
+| Tool                          | Purpose                                                  |
+| ----------------------------- | -------------------------------------------------------- |
+| `listRelationshipPatterns`    | List patterns, schema relationships, and analysis status |
+| `analyzeRelationshipPatterns` | Queue schema analysis                                    |
+| `approveRelationshipPattern`  | Approve and apply a suggestion by ID                     |
+| `ignoreRelationshipPattern`   | Ignore a suggestion by ID                                |
+| `deleteRelationshipPattern`   | Delete a pattern, optionally with `deleteExisting`       |
 
 Agents should call `listRelationshipPatterns` before mutating a pattern so the inferred graph change is visible for review.

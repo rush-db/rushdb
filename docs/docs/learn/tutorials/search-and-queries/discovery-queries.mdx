@@ -1,7 +1,7 @@
 ---
 sidebar_position: 20
 title: 'Discovery Queries: Exploring an Unknown Schema'
-description: A practical workflow for exploring a RushDB project you did not design — using ontology tools, label listing, and progressive query refinement before building reliable retrieval.
+description: A practical workflow for exploring a RushDB project you did not design — using schema tools, label listing, and progressive query refinement before building reliable retrieval.
 tags: [MCP, SearchQuery, Schema, Exploration]
 ---
 
@@ -25,13 +25,13 @@ RushDB does not enforce a fixed schema. Labels and properties are inferred from 
 - Relationship types may be present in one direction but not the other
 - You cannot assume anything from type names alone — verify before querying
 
-The ontology tools give you a live view of what exists.
+The schema tools give you a live view of what exists.
 
 ---
 
-## Step 1: Get the ontology
+## Step 1: Get the schema
 
-The ontology describes every label and property that exists in your project, including property types and relationship paths.
+The schema describes every label and property that exists in your project, including property types and relationship paths.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -42,11 +42,11 @@ import RushDB from '@rushdb/javascript-sdk'
 const db = new RushDB(process.env.RUSHDB_API_KEY!)
 
 // Returns labels, properties, and their types in structured JSON
-const ontology = await db.ai.getOntology()
-console.log(JSON.stringify(ontology, null, 2))
+const schema = await db.ai.getSchema()
+console.log(JSON.stringify(schema, null, 2))
 
 // Returns the same data formatted as compact Markdown — useful for pasting to an LLM
-const markdown = await db.ai.getOntologyMarkdown()
+const markdown = await db.ai.getSchemaMarkdown()
 console.log(markdown)
 ```
 
@@ -59,10 +59,10 @@ import os, json
 
 db = RushDB(os.environ["RUSHDB_API_KEY"], base_url="https://api.rushdb.com/api/v1")
 
-ontology = db.ai.get_ontology()
-print(json.dumps(ontology, indent=2))
+schema = db.ai.get_schema()
+print(json.dumps(schema, indent=2))
 
-markdown = db.ai.get_ontology_markdown()
+markdown = db.ai.get_schema_markdown()
 print(markdown)
 ```
 
@@ -74,13 +74,13 @@ BASE="https://api.rushdb.com/api/v1"
 TOKEN="RUSHDB_API_KEY"
 H='Content-Type: application/json'
 
-# JSON ontology
-curl -s -X POST "$BASE/ai/ontology" \
+# JSON schema
+curl -s -X POST "$BASE/ai/schema" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
   -d '{}'
 
-# Markdown ontology
-curl -s -X POST "$BASE/ai/ontology/md" \
+# Markdown schema
+curl -s -X POST "$BASE/ai/schema/md" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
   -d '{}'
 ```
@@ -101,7 +101,7 @@ After identifying labels, pull a small sample from each to see real data shapes.
 
 ```typescript
 // Sample 3 records from each label you found
-const labels = ['CUSTOMER', 'ORDER', 'PRODUCT'] // exact names from ontology
+const labels = ['CUSTOMER', 'ORDER', 'PRODUCT'] // exact names from schema
 
 for (const label of labels) {
   const sample = await db.records.find({
@@ -117,7 +117,7 @@ for (const label of labels) {
 <TabItem value="python" label="Python">
 
 ```python
-labels = ["CUSTOMER", "ORDER", "PRODUCT"]  # exact names from ontology
+labels = ["CUSTOMER", "ORDER", "PRODUCT"]  # exact names from schema
 
 for label in labels:
     sample = db.records.find({
@@ -216,7 +216,7 @@ Do this for every categorical field you encounter. This prevents you from queryi
 
 ## Step 4: Verify a relationship exists before traversing it
 
-Ontology shows you that a relationship path exists. Before building a traversal query, confirm direction and label names by searching for records that have a specific relationship.
+Schema shows you that a relationship path exists. Before building a traversal query, confirm direction and label names by searching for records that have a specific relationship.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -483,24 +483,24 @@ curl -s -X POST "$BASE/records/search" \
 
 If you are using the MCP server with Claude or Cursor, follow the same pattern via tool calls:
 
-1. Call `getOntologyMarkdown` — read and understand the output before anything else
+1. Call `getSchemaMarkdown` — read and understand the output before anything else
 2. Call `getSearchQuerySpec` — load the canonical query structure for the LLM's context
 3. Use `findRecords` with `limit: 3` for sampling, not `limit: 1000`
 4. Use `select` + `groupBy` queries to enumerate categorical values
 5. Add traversal filters one at a time, verifying counts match expectations
 
-The `getQueryBuilderPrompt` tool returns a system prompt you can paste into any LLM session to enforce the ontology-first discipline described in this tutorial.
+The `getQueryBuilderPrompt` tool returns a system prompt you can paste into any LLM session to enforce the schema-first discipline described in this tutorial.
 
 ---
 
 ## Production caveat
 
-Ontology output reflects the current state of the database. In a live system it changes over time. If you are building an automated pipeline that depends on a specific label or property, add an existence check at startup and fail fast if the expected ontology elements are absent. Discovery workflows are interactive; production code should be explicit.
+Schema output reflects the current state of the database. In a live system it changes over time. If you are building an automated pipeline that depends on a specific label or property, add an existence check at startup and fail fast if the expected schema elements are absent. Discovery workflows are interactive; production code should be explicit.
 
 ---
 
 ## Next steps
 
-- [Agent-Safe Query Planning with Ontology First](/learn/tutorials/agent-memory/agent-safe-query-planning) — automate the discovery loop in an agent
+- [Agent-Safe Query Planning with Schema First](/learn/tutorials/agent-memory/agent-safe-query-planning) — automate the discovery loop in an agent
 - [MCP Quickstart for Real Operators](/deploy/guides/mcp-operator-quickstart) — the same workflow via the MCP server
 - [Thinking in Graphs](/learn/tutorials/graph-modeling/thinking-in-graphs) — mental model for working with connected data

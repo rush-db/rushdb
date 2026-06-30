@@ -31,20 +31,20 @@ Most MCP tutorials stop at "it works." Real operators need to know:
 Every productive session with the RushDB MCP server follows three mandatory steps before asking any data question.
 
 ```
-Step 0: getOntologyMarkdown
+Step 0: getSchemaMarkdown
 Step 1: getSearchQuerySpec (if building a query)
 Step 2: execute the query with findRecords
 ```
 
-This loop exists because LLMs hallucinate schema. Without seeing the ontology first, a Claude session might assume a label called `User` instead of `CUSTOMER`, or a field called `createdAt` instead of `created_at`. The ontology call costs one round trip and prevents every class of hallucination downstream.
+This loop exists because LLMs hallucinate schema. Without seeing the schema first, a Claude session might assume a label called `User` instead of `CUSTOMER`, or a field called `createdAt` instead of `created_at`. The schema call costs one round trip and prevents every class of hallucination downstream.
 
 ---
 
-## Step 0: Start every session with ontology
+## Step 0: Start every session with schema
 
 Ask Claude, Cursor, or VS Code Copilot:
 
-> "Call `getOntologyMarkdown` and summarize the labels, properties, and relationships."
+> "Call `getSchemaMarkdown` and summarize the labels, properties, and relationships."
 
 What you get back includes:
 
@@ -56,13 +56,13 @@ What you get back includes:
 
 You can scope it to specific labels when your graph is large:
 
-> "Call `getOntologyMarkdown` with labels `['ORDER', 'CUSTOMER']`."
+> "Call `getSchemaMarkdown` with labels `['ORDER', 'CUSTOMER']`."
 
 This maps to the tool call:
 
 ```json
 {
-  "tool": "getOntologyMarkdown",
+  "tool": "getSchemaMarkdown",
   "input": {
     "labels": ["ORDER", "CUSTOMER"]
   }
@@ -79,9 +79,9 @@ Before you or the LLM starts writing a `findRecords` query, fetch the SearchQuer
 
 This returns the full SearchQuery schema the query must conform to, including `where`, `select`, `groupBy`, `orderBy`, `limit`, `skip`, and all filter operators (`$in`, `$gte`, `$contains`, `$exists`, `$relation`, `$alias`, etc.).
 
-For complex queries, have the LLM use both the ontology and the spec together:
+For complex queries, have the LLM use both the schema and the spec together:
 
-> "Using the ontology you fetched and the SearchQuery spec, write a query that finds all shipped orders for customers in Germany."
+> "Using the schema you fetched and the SearchQuery spec, write a query that finds all shipped orders for customers in Germany."
 
 The LLM will construct something like:
 
@@ -142,7 +142,7 @@ The MCP tool call:
 ### Exploring an unfamiliar project for the first time
 
 ```
-1. Call getOntologyMarkdown.
+1. Call getSchemaMarkdown.
 2. List all label names, their record counts, and the relationships between them.
 3. Which label has the most records?
 4. What property holds the primary identifier for each label?
@@ -151,7 +151,7 @@ The MCP tool call:
 ### Generating a targeted search query
 
 ```
-1. Call getOntologyMarkdown.
+1. Call getSchemaMarkdown.
 2. Call getSearchQuerySpec.
 3. Write a findRecords query that returns all TASK records assigned to
    engineers in the DEPARTMENT labeled "Platform", ordered by dueDate ascending.
@@ -163,7 +163,7 @@ The MCP tool call:
 For projects with embedding indexes:
 
 ```
-1. Call getOntologyMarkdown.
+1. Call getSchemaMarkdown.
 2. Call findEmbeddingIndexes to confirm which labels have AI indexes.
 3. Call semanticSearch with query "cloud cost optimization",
    propertyName "description", labels ["TASK"], limit 10.
@@ -188,11 +188,11 @@ Semantic search always operates within the current project. There is no cross-pr
 ### Attaching a relationship between two records
 
 ```
-1. Call getOntologyMarkdown.
+1. Call getSchemaMarkdown.
 2. Find the record IDs for the two records you want to connect:
    - getRecord for the source
    - findRecords with a narrow where clause for the target
-3. Call attachRelation with those IDs and a relationship type from the ontology.
+3. Call attachRelation with those IDs and a relationship type from the schema.
 ```
 
 ### Deleting records safely
@@ -215,19 +215,19 @@ Always preview before deleting:
 
 Most common causes, in order:
 
-1. Wrong label name — label names are case-sensitive. Call `getOntologyMarkdown` to confirm exact casing.
-2. Wrong field name — field names are case-sensitive. Check the ontology's properties list.
+1. Wrong label name — label names are case-sensitive. Call `getSchemaMarkdown` to confirm exact casing.
+2. Wrong field name — field names are case-sensitive. Check the schema's properties list.
 3. Wrong relational traversal key — in `where`, relationship traversal uses the related label name directly (e.g. `CUSTOMER`, not `customer` or `customerId`).
 
 Recovery prompt:
 
-> "The last findRecords returned 0 results. Call getOntologyMarkdown, show me the exact label and field names, then rewrite the query."
+> "The last findRecords returned 0 results. Call getSchemaMarkdown, show me the exact label and field names, then rewrite the query."
 
 ### "The query returned unexpected results"
 
 Ask Claude to explain the query:
 
-> "Explain why this query would return records that match X but not Y, given this ontology."
+> "Explain why this query would return records that match X but not Y, given this schema."
 
 Then narrow the filter and retry.
 
@@ -249,7 +249,7 @@ In Claude Desktop:
 
 In agents/API contexts: use `ListPrompts` to fetch `rushdb.queryBuilder`, then prepend it to the system message.
 
-This makes the LLM call ontology before every query automatically, without you needing to ask.
+This makes the LLM call schema before every query automatically, without you needing to ask.
 
 ---
 
@@ -264,5 +264,5 @@ For write operations (`createRecord`, `attachRelation`, `bulkDeleteRecords`), al
 ## Next steps
 
 - [MCP tools reference](/connect/mcp) — full tool list with input schemas
-- [Agent-Safe Query Planning with Ontology First](/learn/tutorials/agent-memory/agent-safe-query-planning) — building repeatable agent patterns with failure recovery
+- [Agent-Safe Query Planning with Schema First](/learn/tutorials/agent-memory/agent-safe-query-planning) — building repeatable agent patterns with failure recovery
 - [Hybrid Retrieval: Structured Filters Plus Semantic Search](/learn/tutorials/ai-and-rag/hybrid-retrieval) — combining semantic search with graph traversal

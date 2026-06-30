@@ -22,12 +22,12 @@ You can create relationships explicitly, generate them automatically from nested
 
 ## Relationship Sources
 
-| Source                         | What it creates                                                                 |
-| ------------------------------ | ------------------------------------------------------------------------------- |
-| Nested JSON import             | Default parent-to-child edges as RushDB decomposes the payload                  |
-| `attach` / `detach`            | Explicit edges between known record IDs                                         |
-| Bulk relationship APIs         | Edges between matching source and target records                                |
-| Approved relationship patterns | Explicit edges inferred from ontology structure and reviewed before application |
+| Source                         | What it creates                                                               |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| Nested JSON import             | Default parent-to-child edges as RushDB decomposes the payload                |
+| `attach` / `detach`            | Explicit edges between known record IDs                                       |
+| Bulk relationship APIs         | Edges between matching source and target records                              |
+| Approved relationship patterns | Explicit edges inferred from schema structure and reviewed before application |
 
 Relationship types and direction are optional when traversing broadly and explicit when your query needs a specific edge contract.
 

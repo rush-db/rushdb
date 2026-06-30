@@ -21,13 +21,13 @@ Without edge properties, data _about the connection_ has nowhere natural to live
 
 Record properties and relationship properties are stored differently, and the difference matters:
 
-|                                    | Record properties                        | Relationship properties                                |
-| ---------------------------------- | ---------------------------------------- | ------------------------------------------------------ |
-| Stored on                          | Property nodes linked to the record      | Directly on the relationship edge                      |
-| Visible in schema                  | Yes — labels, types, ranges via ontology | Yes — summarized per relationship type in the ontology |
-| Filterable via                     | `records.find()` `where`                 | `relationships.find()` `where`                         |
-| Semantic (vector) indexing         | Supported for string properties          | Not supported                                          |
-| Aggregations (`select`, `groupBy`) | Supported                                | Not supported                                          |
+|                                    | Record properties                      | Relationship properties                              |
+| ---------------------------------- | -------------------------------------- | ---------------------------------------------------- |
+| Stored on                          | Property nodes linked to the record    | Directly on the relationship edge                    |
+| Visible in schema                  | Yes — labels, types, ranges via schema | Yes — summarized per relationship type in the schema |
+| Filterable via                     | `records.find()` `where`               | `relationships.find()` `where`                       |
+| Semantic (vector) indexing         | Supported for string properties        | Not supported                                        |
+| Aggregations (`select`, `groupBy`) | Supported                              | Not supported                                        |
 
 In graph terms: a record's properties are part of RushDB's property-centric meta-graph, while edge properties are plain key-value pairs on the edge — lightweight, local to the connection, and read or filtered only when you query relationships.
 
@@ -241,7 +241,7 @@ await db.relationships.find({
 
 ## Edge Properties in Your Schema
 
-The project ontology summarizes edge properties per relationship type — property names, inferred types, exact min/max for numbers and datetimes, and sample values — so both the dashboard and AI agents can discover them alongside the rest of your schema. See [Discover Your Schema](/learn/records-and-queries/discover-your-schema).
+The project schema summarizes edge properties per relationship type — property names, inferred types, exact min/max for numbers and datetimes, and sample values — so both the dashboard and AI agents can discover them alongside the rest of your schema. See [Discover Your Schema](/learn/records-and-queries/discover-your-schema).
 
 What edge properties are **not**: they are never promoted to Property nodes, they cannot be semantically (vector) indexed, and they don't participate in record aggregations. If a value needs full-text/semantic search or heavy aggregation, model it as a record property instead.
 

@@ -27,7 +27,7 @@ Because there's no fixed schema to lock you in, you can change, extend, or compl
 | -------------- | ----------------------------------------------------------------------- | ------------------------------ |
 | **Episodic**   | Individual facts, events, entities, and their connections               | Records + Relationships        |
 | **Semantic**   | Meaning encoded as dense vectors (embeddings)                           | Vector Properties + AI Indexes |
-| **Structural** | Schema: what labels exist, what properties they carry, how they connect | Ontology API                   |
+| **Structural** | Schema: what labels exist, what properties they carry, how they connect | Schema API                     |
 
 ### Episodic Memory — Records and Relationships
 
@@ -41,9 +41,9 @@ A subset of record properties carry dense vector representations (embeddings). A
 
 → [Manage Embedding Indexes](/learn/semantic-search/manage-indexes) · [Semantic Search](/learn/semantic-search)
 
-### Structural Memory — Ontology
+### Structural Memory — Schema
 
-The **Ontology API** returns a live snapshot of the graph's schema: all labels, all properties per label with types and value ranges, and the full relationship map. An agent calls this once per session to bootstrap awareness of what is in the database — no hardcoded schema, no external documentation required.
+The **Schema API** returns a live snapshot of the graph's schema: all labels, all properties per label with types and value ranges, and the full relationship map. An agent calls this once per session to bootstrap awareness of what is in the database — no hardcoded schema, no external documentation required.
 
 → [Discover Your Schema](/learn/records-and-queries/discover-your-schema) · [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness)
 
@@ -55,13 +55,13 @@ A well-designed agent retrieval pipeline uses all three layers in sequence:
 
 ```
 Agent
-  → 1. Ontology discovery (structural)
+  → 1. Schema discovery (structural)
   → 2. Faceted filter (structural — fast, deterministic)
   → 3. Semantic re-rank (semantic — surfaces most relevant)
   → 4. Structured results returned to agent
 ```
 
-**Step 1 — Discover the schema.** Before constructing any query, the agent calls the ontology endpoint to learn what labels, properties, and relationships exist. This prevents hallucinated field names and enables dynamic query construction.
+**Step 1 — Discover the schema.** Before constructing any query, the agent calls the schema endpoint to learn what labels, properties, and relationships exist. This prevents hallucinated field names and enables dynamic query construction.
 
 **Step 2 — Filter structurally.** The `where` clause narrows the candidate set by exact or range conditions on scalar properties. Fast (index-backed) and deterministic.
 
@@ -87,10 +87,10 @@ A central design goal of RushDB is that agents should be able to operate against
 
 1. **`__proptypes`** — every Record carries a `__proptypes` field listing the name and type of each property it holds. This makes every record self-describing.
 
-2. **The Ontology API** — aggregates all `__proptypes` metadata across the project and returns it as a schema snapshot. An agent that calls the ontology endpoint at the start of a session receives the full graph schema in a single, token-efficient Markdown string.
+2. **The Schema API** — aggregates all `__proptypes` metadata across the project and returns it as a schema snapshot. An agent that calls the schema endpoint at the start of a session receives the full graph schema in a single, token-efficient Markdown string.
 
 ```
-Boot → call ontology → understand what exists in the graph
+Boot → call schema → understand what exists in the graph
      → construct query from real labels/properties
      → retrieve relevant records
      → act on structured, typed results
@@ -105,7 +105,7 @@ The rest of the Learn section covers the building blocks and query primitives th
 | Section                                                            | What you'll learn                                                             |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | [Quickstart](/learn/agent-memory/quickstart)                       | Connect the MCP server, run the bootstrap prompt, validate in 5 min           |
-| [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness) | Ontology API, `__proptypes`, dynamic query construction                       |
+| [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness) | Schema API, `__proptypes`, dynamic query construction                         |
 | [Records & Queries](/learn/records-and-queries/store-records)      | Store, import, update, delete, and search records                             |
 | [SearchQuery reference](/learn/search-query)                       | `where`, `select`, `groupBy`, `orderBy`, pagination — the full query language |
 | [Relationships](/learn/relationships/connect-records)              | Attach edges between records, bulk-connect by key, traverse in queries        |

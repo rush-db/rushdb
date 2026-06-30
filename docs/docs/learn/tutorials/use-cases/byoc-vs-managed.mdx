@@ -219,23 +219,23 @@ Managed and BYOC share the same RushDB API layer. There is no direct data export
 
 **1. Document your data shape**
 
-Use `getOntologyMarkdown()` to capture your record labels, property names, and relationship types before migrating:
+Use `getSchemaMarkdown()` to capture your record labels, property names, and relationship types before migrating:
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const ontology = await db.getOntologyMarkdown()
+const schema = await db.getSchemaMarkdown()
 // Save this as a snapshot of your schema
-console.log(ontology)
+console.log(schema)
 ```
 
 </TabItem>
 <TabItem value="python" label="Python">
 
 ```python
-ontology = db.get_ontology_markdown()
-print(ontology)
+schema = db.get_schema_markdown()
+print(schema)
 ```
 
 </TabItem>

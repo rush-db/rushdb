@@ -15,7 +15,7 @@ RushDB is **self-aware** — it continuously tracks its own structure and expose
 
 ## Why Schema Discovery Matters
 
-Without schema discovery, AI agents hallucinate field names, use wrong label casing, and construct invalid queries. With a single ontology call at session start, the agent knows:
+Without schema discovery, AI agents hallucinate field names, use wrong label casing, and construct invalid queries. With a single schema call at session start, the agent knows:
 
 - Every label and how many records it has
 - Every property per label, its type, and sample/range values
@@ -38,15 +38,15 @@ graph LR
     O -->|CONTAINS| P
 ```
 
-The ontology comes in two formats: a compact Markdown document built for LLM context injection, and structured JSON for programmatic use.
+The schema comes in two formats: a compact Markdown document built for LLM context injection, and structured JSON for programmatic use.
 
-<ThemeTabs groupId="ontology-format">
+<ThemeTabs groupId="schema-format">
   <TabItem value="markdown" label="Markdown" default>
 
-`getOntologyMarkdown()` serialises the graph into a token-efficient document ready to paste into a system prompt:
+`getSchemaMarkdown()` serialises the graph into a token-efficient document ready to paste into a system prompt:
 
 ```text
-# Graph Ontology
+# Graph Schema
 
 ## Labels
 
@@ -117,7 +117,7 @@ The ontology comes in two formats: a compact Markdown document built for LLM con
   </TabItem>
   <TabItem value="json" label="JSON">
 
-`getOntology()` returns the same schema as an `OntologyItem[]` array — one item per label:
+`getSchema()` returns the same data as a `SchemaItem[]` array — one item per label:
 
 ```json
 [
@@ -190,7 +190,7 @@ from rushdb import RushDB
 db = RushDB("RUSHDB_API_KEY")
 
 # Call once at session start
-response = db.ai.get_ontology_markdown()
+response = db.ai.get_schema_markdown()
 schema = response.data
 
 # Inject into LLM system prompt
@@ -218,7 +218,7 @@ import RushDB from '@rushdb/javascript-sdk'
 const db = new RushDB('RUSHDB_API_KEY')
 
 // Call once at session start
-const { data: schema } = await db.ai.getOntologyMarkdown()
+const { data: schema } = await db.ai.getSchemaMarkdown()
 
 // Inject into LLM system prompt
 const messages = [
@@ -244,13 +244,13 @@ When the user asks questions, construct SearchQuery filters using ONLY the label
 
 ```bash
 # Get Markdown schema for LLM injection
-curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
+curl -X POST https://api.rushdb.com/api/v1/ai/schema/md \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{}'
 
 # Scope to specific labels (reduces token usage)
-curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
+curl -X POST https://api.rushdb.com/api/v1/ai/schema/md \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"labels": ["Order", "User"]}'
@@ -263,17 +263,17 @@ curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
 
 ## Dynamic Query Construction
 
-Use structured ontology to build queries programmatically — no hardcoded field names:
+Use structured schema to build queries programmatically — no hardcoded field names:
 
 <Tabs groupId="programming-language">
   <TabItem value="python" label="Python" default>
 
 ```python
-# Get structured ontology
-ontology = db.ai.get_ontology().data
+# Get structured schema
+schema = db.ai.get_schema().data
 
 # Find a label
-order_schema = next(item for item in ontology if item["label"] == "Order")
+order_schema = next(item for item in schema if item["label"] == "Order")
 
 # Enumerate all string properties
 string_props = [
@@ -295,11 +295,11 @@ statuses = db.properties.values(status_prop["id"])
   <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-// Get structured ontology
-const { data: ontology } = await db.ai.getOntology()
+// Get structured schema
+const { data: schema } = await db.ai.getSchema()
 
 // Find a label
-const orderSchema = ontology.find((item) => item.label === 'Order')!
+const orderSchema = schema.find((item) => item.label === 'Order')!
 
 // Enumerate all string properties
 const stringProps = orderSchema.properties.filter((p) => p.type === 'string')
@@ -318,8 +318,8 @@ const { data: statuses } = await db.properties.values({ id: statusProp.id })
   <TabItem value="shell" label="Shell">
 
 ```bash
-# Get full structured JSON ontology
-curl -X POST https://api.rushdb.com/api/v1/ai/ontology \
+# Get full structured JSON schema
+curl -X POST https://api.rushdb.com/api/v1/ai/schema \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{}'
@@ -330,16 +330,16 @@ curl -X POST https://api.rushdb.com/api/v1/ai/ontology \
 
 ---
 
-## Ontology Caching
+## Schema Caching
 
-Both ontology endpoints share a **1-hour cache** per project. The first call after TTL expiry triggers a full graph scan; all subsequent calls within the hour are instant.
+Both schema endpoints share a **1-hour cache** per project. The first call after TTL expiry triggers a full graph scan; all subsequent calls within the hour are instant.
 
 <Tabs groupId="programming-language">
   <TabItem value="python" label="Python" default>
 
 ```python
 # Force fresh recalculation (bypass 1-hour cache)
-response = db.ai.get_ontology_markdown({"force": True})
+response = db.ai.get_schema_markdown({"force": True})
 ```
 
   </TabItem>
@@ -347,14 +347,14 @@ response = db.ai.get_ontology_markdown({"force": True})
 
 ```typescript
 // Force fresh recalculation (bypass 1-hour cache)
-const { data } = await db.ai.getOntologyMarkdown({ force: true })
+const { data } = await db.ai.getSchemaMarkdown({ force: true })
 ```
 
   </TabItem>
   <TabItem value="shell" label="Shell">
 
 ```bash
-curl -X POST https://api.rushdb.com/api/v1/ai/ontology/md \
+curl -X POST https://api.rushdb.com/api/v1/ai/schema/md \
   -H "Authorization: Bearer $RUSHDB_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"force": true}'
@@ -392,6 +392,6 @@ The [MCP server](/deploy/guides/mcp-operator-quickstart) gives agents direct too
 ## See also
 
 - [Agent Memory Overview](/learn/agent-memory) — three-layer memory model
-- [Discover Your Schema](/learn/records-and-queries/discover-your-schema) — full ontology API reference
+- [Discover Your Schema](/learn/records-and-queries/discover-your-schema) — full schema API reference
 - [Semantic Search](/learn/semantic-search) — search by meaning
 - [Find & Query](/learn/records-and-queries/find-and-query) — search by structure
