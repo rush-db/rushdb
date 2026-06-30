@@ -1,5 +1,16 @@
 # @rushdb/mcp-server
 
+## 2.6.0
+
+### Minor Changes
+
+- 1c9a994: Refactor Dashboard UI, add query lab, saved queries, optimize performance
+
+### Patch Changes
+
+- Updated dependencies [1c9a994]
+  - @rushdb/javascript-sdk@2.6.0
+
 ## 2.5.1
 
 ### Patch Changes

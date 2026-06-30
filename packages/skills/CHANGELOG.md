@@ -1,5 +1,11 @@
 # @rushdb/skills
 
+## 2.6.0
+
+### Minor Changes
+
+- 1c9a994: Refactor Dashboard UI, add query lab, saved queries, optimize performance
+
 ## 2.5.1
 
 ### Patch Changes
