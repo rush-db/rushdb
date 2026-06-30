@@ -1,5 +1,11 @@
 # rushdb-docs
 
+## 2.6.1
+
+### Patch Changes
+
+- 54a0767: Update docs
+
 ## 2.6.0
 
 ### Minor Changes
