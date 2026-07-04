@@ -1,11 +1,13 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common'
 import { Response, NextFunction } from 'express'
+import { Session } from 'neo4j-driver'
 
 import { PlatformRequest } from '@/common/types/request'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { AuthService } from '@/dashboard/auth/auth.service'
 import { TokenService } from '@/dashboard/token/token.service'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
@@ -32,63 +34,38 @@ export class AuthMiddleware implements NestMiddleware {
 
       // Flow for SDK auth (token-based)
       if (bearerToken && !isJwt) {
-        const session = this.neogmaService.createSession('auth-middleware-sdk')
-        const transaction = session.beginTransaction({ timeout: 30_000 })
+        let session: Session | undefined
         try {
-          const tokenHeader = bearerToken as string
-          if (tokenHeader) {
-            const tokenId = this.tokenService.decrypt(tokenHeader)
+          const tokenId = this.tokenService.decrypt(bearerToken)
 
-            const { hasAccess, projectId, project, workspaceId, workspace, accessLevel, canWrite } =
-              await this.tokenService.validateToken({
-                tokenId
-              })
+          const { hasAccess, projectId, project, workspaceId, workspace, accessLevel, canWrite } =
+            await this.tokenService.validateToken({
+              tokenId
+            })
 
-            if (hasAccess) {
-              // Custom properties will be accessible at request.raw.*
-              // Always attach to fastify raw object so interceptors / filters can see them
-              const raw: any = (request as any).raw ?? request
-              raw.project = project
-              raw.projectId = projectId
-              raw.workspace = workspace
-              raw.workspaceId = workspaceId
-              raw.session = session
-              raw.transaction = transaction
-              raw.tokenAccessLevel = accessLevel
-              raw.tokenCanWrite = canWrite
+          if (hasAccess) {
+            // Read-only tokens get a READ-mode session so Neo4j itself rejects
+            // any write, regardless of route-level authorization.
+            session = this.neogmaService.createSession('auth-middleware-sdk', canWrite ? 'WRITE' : 'READ')
+            const transaction = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
 
-              return next()
-            }
+            // Custom properties will be accessible at request.raw.*
+            // Always attach to fastify raw object so interceptors / filters can see them
+            const raw: any = (request as any).raw ?? request
+            raw.project = project
+            raw.projectId = projectId
+            raw.workspace = workspace
+            raw.workspaceId = workspaceId
+            raw.session = session
+            raw.transaction = transaction
+            raw.tokenAccessLevel = accessLevel
+            raw.tokenCanWrite = canWrite
+
+            return next()
           }
         } catch (e) {
           isDevMode(() => Logger.error('SDK auth failed in middleware', e))
-          // Rollback & close on failure to avoid leaks
-          try {
-            if (transaction?.isOpen?.()) {
-              await transaction.rollback()
-            }
-          } catch {
-            /* empty */
-          }
-          try {
-            await transaction?.close?.()
-          } catch {
-            /* empty */
-          }
-          try {
-            await this.neogmaService.closeSession(session)
-          } catch {
-            /* empty */
-          }
-        } finally {
-          // If not attached (no projectId assigned) ensure session closed
-          const raw: any = (request as any).raw ?? request
-          if (raw.session !== session) {
-            try {
-              await transaction?.close?.()
-            } catch {
-              /* empty */
-            }
+          if (session) {
             try {
               await this.neogmaService.closeSession(session)
             } catch {
@@ -101,7 +78,7 @@ export class AuthMiddleware implements NestMiddleware {
       // Flow for JWT auth (dashboard)
       if (isJwt && authHeader) {
         const session = this.neogmaService.createSession('auth-middleware-jwt')
-        const transaction = session.beginTransaction({ timeout: 30_000 })
+        const transaction = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
         try {
           const token = authHeader.split(' ')[1]
           const user = this.authService.verifyJwt(token)

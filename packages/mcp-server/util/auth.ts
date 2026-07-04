@@ -155,11 +155,36 @@ async function resolveJwtContext(jwt: string, projectId?: string): Promise<Reque
   }
 }
 
+const FULL_API_KEY_SCOPES = ['records:read', 'records:write']
+
+/**
+ * Resolves the scopes an opaque API key grants by asking the backend for the
+ * key's access level (`GET /tokens/current`). Read-only keys map to
+ * `records:read` so write tools are hidden from the tool list. Falls back to
+ * full scopes when the endpoint is unavailable (older backend) — the backend
+ * still rejects writes from read-only keys with 403 either way.
+ */
+export async function fetchApiKeyScopes(apiKey: string): Promise<string[]> {
+  try {
+    const response = await fetch(`${RUSHDB_API_URL}/tokens/current`, {
+      headers: { Authorization: `Bearer ${apiKey}` }
+    })
+    if (!response.ok) {
+      return FULL_API_KEY_SCOPES
+    }
+    const json: any = await response.json()
+    const level = json?.data?.level ?? json?.level
+    return level === 'read' ? ['records:read'] : FULL_API_KEY_SCOPES
+  } catch {
+    return FULL_API_KEY_SCOPES
+  }
+}
+
 async function resolveApiKeyContext(apiKey: string): Promise<RequestContext> {
   const db = createDbForToken(apiKey)
   return {
     db,
-    scopes: ['records:read', 'records:write']
+    scopes: await fetchApiKeyScopes(apiKey)
   }
 }
 

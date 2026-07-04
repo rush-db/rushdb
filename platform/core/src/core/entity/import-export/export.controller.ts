@@ -9,6 +9,7 @@ import { PlatformRequest } from '@/common/types/request'
 import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { ExportService } from '@/core/entity/import-export/export.service'
 import { SearchDto } from '@/core/search/dto/search.dto'
+import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
@@ -22,6 +23,7 @@ export class ExportController {
   @Post('/records/export/csv')
   @ApiBearerAuth()
   @AuthGuard('project')
+  @TokenReadAccess()
   @HttpCode(HttpStatus.OK)
   async exportCsv(
     @Body() searchQuery: SearchDto = {},

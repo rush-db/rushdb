@@ -18,6 +18,7 @@ import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 @Injectable()
 export class EmbeddingBackfillScheduler {
@@ -203,7 +204,7 @@ export class EmbeddingBackfillScheduler {
         if (updates.length > 0) {
           const writeSession = this.neogmaService.createSession('embedding-backfill-write')
           try {
-            const tx = writeSession.beginTransaction({ timeout: 30_000 })
+            const tx = writeSession.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
             try {
               await tx.run(this.aiQueryService.getWriteEmbeddingsQuery(index.vectorPropertyName), {
                 updates

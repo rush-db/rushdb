@@ -10,12 +10,8 @@
  * Run with:
  *   pnpm jest --rootDir packages/javascript-sdk -i relationship-patterns.suggestions.e2e.test.ts
  */
-import path from 'path'
-import dotenv from 'dotenv'
 
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-
-import RushDB from '../src/index.node'
+import RushDB from '../../packages/javascript-sdk/src/index.node'
 
 // -----------------------------------------------------------------
 // Helpers

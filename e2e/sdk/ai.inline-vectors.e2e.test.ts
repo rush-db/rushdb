@@ -18,13 +18,8 @@
  * If RUSHDB_API_KEY is absent the whole suite is skipped gracefully.
  */
 
-import path from 'path'
-import dotenv from 'dotenv'
-
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-
-import RushDB from '../src/index.node'
-import type { EmbeddingIndex } from '../src/api/types'
+import RushDB from '../../packages/javascript-sdk/src/index.node'
+import type { EmbeddingIndex } from '../../packages/javascript-sdk/src/api/types'
 
 jest.setTimeout(120_000)
 
@@ -255,11 +250,10 @@ describe('ai – inline vectors BYOV (e2e)', () => {
         limit: 5
       })
 
-      expect(res.success).toBe(true)
       expect(res.data.length).toBeGreaterThan(0)
       const top = res.data[0]
-      expect(top.__id).toBe(record.id)
-      expect(top.__score).toBeCloseTo(1, 2)
+      expect(top.data.__id).toBe(record.id)
+      expect(top.data.__score).toBeCloseTo(1, 2)
     })
 
     it('returns results in descending __score order', async () => {
@@ -290,7 +284,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
 
       expect(res.data.length).toBeGreaterThan(1)
       for (let i = 0; i < res.data.length - 1; i++) {
-        expect(res.data[i].__score).toBeGreaterThanOrEqual(res.data[i + 1].__score)
+        expect(res.data[i].data.__score).toBeGreaterThanOrEqual(res.data[i + 1].data.__score)
       }
     })
   })
@@ -331,7 +325,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
         limit: 5
       })
 
-      expect(res.data[0]?.__id).toBe(record.id)
+      expect(res.data[0]?.data.__id).toBe(record.id)
     })
 
     it('updates the vector when the same record is upserted again', async () => {
@@ -370,8 +364,8 @@ describe('ai – inline vectors BYOV (e2e)', () => {
         limit: 5
       })
 
-      expect(res.data[0]?.__id).toBe(first.id)
-      expect(res.data[0]?.__score).toBeCloseTo(1, 2)
+      expect(res.data[0]?.data.__id).toBe(first.id)
+      expect(res.data[0]?.data.__score).toBeCloseTo(1, 2)
     })
   })
 
@@ -420,7 +414,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
         limit: 5
       })
 
-      expect(res.data[0]?.__id).toBe(original.id)
+      expect(res.data[0]?.data.__id).toBe(original.id)
     })
   })
 
@@ -468,8 +462,8 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       })
 
       expect(res.data.length).toBe(3)
-      expect(String(res.data[0].body ?? '')).toBe('Import Alpha')
-      expect(res.data[0].__score).toBeCloseTo(1, 2)
+      expect(String(res.data[0].data.body ?? '')).toBe('Import Alpha')
+      expect(res.data[0].data.__score).toBeCloseTo(1, 2)
     })
 
     it('handles sparse vectors (rows beyond vectors.length get no vector)', async () => {
@@ -539,7 +533,6 @@ describe('ai – inline vectors BYOV (e2e)', () => {
         limit: 5
       })
 
-      expect(res.success).toBe(true)
       expect(res.data.length).toBeGreaterThan(0)
     })
   })
@@ -666,7 +659,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
         limit: 3
       })
       expect(res.length).toBeGreaterThanOrEqual(1)
-      expect(res[0].__score).toBeGreaterThan(0.99)
+      expect(res[0].data.__score).toBeGreaterThan(0.99)
     })
 
     it('rejects when vectors length exceeds data length (client-side)', async () => {
@@ -756,7 +749,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
         limit: 3
       })
       expect(res.length).toBeGreaterThanOrEqual(1)
-      expect(res[0].__score).toBeGreaterThan(0.99)
+      expect(res[0].data.__score).toBeGreaterThan(0.99)
     })
 
     it('rejects when vectors length exceeds number of CSV rows (server-side)', async () => {

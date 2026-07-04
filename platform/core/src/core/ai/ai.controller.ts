@@ -27,6 +27,7 @@ import { SemanticSearchDto } from '@/core/ai/dto/semantic-search.dto'
 import { UpsertIndexVectorsDto } from '@/core/ai/dto/upsert-index-vectors.dto'
 import { SearchQueryGeneratorService } from '@/core/ai/search-query-generator.service'
 import { createEmbeddingIndexSchema } from '@/core/ai/validation/schemas/embedding-index.schema'
+import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { PlanActiveGuard } from '@/dashboard/billing/guards/plan-active.guard'
@@ -60,6 +61,7 @@ export class AiController {
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async getSchema(
     @Body() body: SchemaFilterDto,
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -84,6 +86,7 @@ export class AiController {
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async getSchemaMarkdown(
     @Body() body: SchemaFilterDto,
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -105,6 +108,7 @@ export class AiController {
   @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async generateSearchQuery(
     @Body() body: GenerateSearchQueryDto,
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -128,6 +132,7 @@ export class AiController {
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async getIndexes(@Request() request: PlatformRequest) {
     return this.aiService.findIndexes(request.projectId)
   }
@@ -173,6 +178,7 @@ export class AiController {
   @ApiBearerAuth()
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async getIndexStats(
     @Param('id') id: string,
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -206,6 +212,7 @@ export class AiController {
   @UseGuards(PlanActiveGuard, IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async semanticSearch(
     @Body() dto: SemanticSearchDto,
     @PreferredTransactionDecorator() transaction: Transaction,

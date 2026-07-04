@@ -233,7 +233,11 @@ export const api = {
         }
         return await response.json().catch(() => ({}))
       } catch (e: any) {
-        if (e.message === BillingErrorCodes.PaymentRequired.toString()) {
+        // SDK errors are "<status>" or "<status> <server message>" — match on the status prefix.
+        if (
+          typeof e.message === 'string' &&
+          e.message.startsWith(BillingErrorCodes.PaymentRequired.toString())
+        ) {
           $limitReachModalOpen.set(true)
         }
         console.error('importCsv error', e)

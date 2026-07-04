@@ -17,3 +17,8 @@ coverage
 cjs
 esm
 packages/javascript-sdk/types
+
+# e2e harness artifacts
+e2e/.server.log
+e2e/.e2e-state.json
+e2e/.sdk-env.json

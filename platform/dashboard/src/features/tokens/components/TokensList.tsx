@@ -1,4 +1,4 @@
-import { Cable, Copy, KeyIcon, MoreVertical, Trash2 } from 'lucide-react'
+import { Cable, Copy, Eye, KeyIcon, MoreVertical, Trash2 } from 'lucide-react'
 
 import { Card } from '~/elements/Card'
 import { ConfirmDialog } from '~/elements/ConfirmDialog'
@@ -38,6 +38,7 @@ function TokenListItem({
   expiration,
   id,
   issuedBy,
+  level,
   loading,
   name,
   value,
@@ -59,6 +60,15 @@ function TokenListItem({
         </span>
         <div>
           {description && <span className="text-content2 text-sm font-normal">{description}</span>}
+          {level === 'read' && (
+            <span
+              className="text-content-2 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium"
+              title="This key can only query data — safe for client-side use"
+            >
+              <Eye className="h-3 w-3" />
+              Read-only
+            </span>
+          )}
           {issuedBy === 'oauth_exchange' && (
             <span className="text-content-2 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
               <Cable className="h-3 w-3" />

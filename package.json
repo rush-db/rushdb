@@ -13,6 +13,7 @@
     "lint": "eslint --ext mjs,js,ts,tsx",
     "lint:fix": "pnpm lint --fix",
     "test": "echo \"No test specified\" && exit 0",
+    "test:e2e": "jest --config e2e/jest.config.js --runInBand",
     "test:watch": "jest --watch",
     "version": "changeset version",
     "release": "changeset publish",

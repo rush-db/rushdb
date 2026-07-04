@@ -1,10 +1,4 @@
-import path from 'path'
-import dotenv from 'dotenv'
-
-// Load .env from the javascript-sdk package folder
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-
-import RushDB from '../src/index.node'
+import RushDB from '../../packages/javascript-sdk/src/index.node'
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms))
 

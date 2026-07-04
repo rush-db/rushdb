@@ -22,6 +22,7 @@ import { CypherDto } from '@/core/query/dto/cypher.dto'
 import { cypherSchema } from '@/core/query/validation/schemas/cypher.schema'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
+import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { PlanActiveGuard } from '@/dashboard/billing/guards/plan-active.guard'
@@ -42,6 +43,7 @@ export class QueryController {
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async find(
     @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchQuery: SearchDto

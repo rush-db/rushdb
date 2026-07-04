@@ -1,0 +1,31 @@
+services:
+  neo4j:
+    image: neo4j:2026.01.4
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider localhost:7474 || exit 1']
+      interval: 5s
+      retries: 60
+      start_period: 10s
+    ports:
+      - '7688:7687'
+      - '7476:7474'
+    environment:
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_AUTH=neo4j/e2e-password
+      # APOC is required by the record write path (apoc.create.addLabels et al.)
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_server_jvm_additional=--add-modules jdk.incubator.vector
+
+  postgres:
+    image: postgres:16-alpine
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U rushdb']
+      interval: 5s
+      retries: 30
+      start_period: 5s
+    ports:
+      - '5434:5432'
+    environment:
+      - POSTGRES_USER=rushdb
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=rushdb-e2e

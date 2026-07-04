@@ -12,6 +12,7 @@ type TTokenProperties = {
   value?: string
   /** ID of the OAuth consent that caused this token to be issued, if applicable. */
   consentId?: string
+  level?: TAccessLevel
 }
 
 export type TAccessLevel = typeof WRITE_ACCESS | typeof READ_ACCESS

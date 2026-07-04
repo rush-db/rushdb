@@ -14,6 +14,7 @@ import { INeogmaConfig } from '@/database/neogma/neogma-config.interface'
 import { NeogmaModule } from '@/database/neogma/neogma.module'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { SqlModule } from '@/database/sql/sql.module'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 @Global()
 @Module({
@@ -54,7 +55,7 @@ export class DatabaseModule implements OnModuleInit {
 
     // Drop the plain composite index before creating the uniqueness constraint that
     // covers the same properties — Neo4j requires these to be in separate transactions.
-    const dropTx = session.beginTransaction({ timeout: 30_000 })
+    const dropTx = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
     try {
       await dropTx.run(`DROP INDEX index_property_mergerer IF EXISTS`)
       await dropTx.commit()
@@ -63,7 +64,7 @@ export class DatabaseModule implements OnModuleInit {
       await dropTx.rollback()
     }
 
-    const transaction = session.beginTransaction({ timeout: 30_000 })
+    const transaction = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
     try {
       const constraints = [
         `CREATE CONSTRAINT constraint_record_id IF NOT EXISTS FOR (record:${RUSHDB_LABEL_RECORD}) REQUIRE record.${RUSHDB_KEY_ID} IS UNIQUE`,

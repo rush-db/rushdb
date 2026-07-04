@@ -48,7 +48,7 @@ npm install @rushdb/javascript-sdk
 
 ## Agent memory in 3 lines
 
-Get an API key at [app.rushdb.com](https://app.rushdb.com).
+Get an API key at [app.rushdb.com](https://app.rushdb.com). Keys come in two levels: **full access** (server-side only) and **read-only** — read-only keys can't modify data, so they're safe to ship in browser code for public demos and dashboards.
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'

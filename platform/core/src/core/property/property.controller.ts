@@ -28,6 +28,7 @@ import { TPropertyProperties } from '@/core/property/property.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { TSearchSortDirection } from '@/core/search/search.types'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
+import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
@@ -50,6 +51,7 @@ export class PropertyController {
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async listProperties(
     @Body() searchQuery: Omit<SearchDto, 'sort' | 'skip' | 'limit'>,
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -69,6 +71,7 @@ export class PropertyController {
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async getPropertyValues(
     @Param('propertyId') propertyId: string,
     @Body() searchQueryWithQuery: SearchDto & { query?: string; orderBy?: TSearchSortDirection },
@@ -91,6 +94,7 @@ export class PropertyController {
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async findById(
     @Param('propertyId') propertyId: string,
     @PreferredTransactionDecorator() transaction: Transaction,

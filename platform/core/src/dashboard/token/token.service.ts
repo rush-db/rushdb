@@ -11,6 +11,7 @@ import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { CreateTokenDto } from '@/dashboard/token/dto/create-token.dto'
 import { TokenEntity } from '@/dashboard/token/entity/token.entity'
+import { TAccessLevel } from '@/dashboard/token/model/token.interface'
 import { TokenRepository } from '@/dashboard/token/model/token.repository'
 import { ACCESS_WEIGHT, READ_ACCESS, WRITE_ACCESS, canWrite } from '@/dashboard/token/token.constants'
 import { IUserClaims } from '@/dashboard/user/interfaces/user-claims.interface'
@@ -36,7 +37,15 @@ export class TokenService {
   ) {}
 
   normalize(row: TokenRow): TokenEntity {
-    return new TokenEntity(row.id, row.name, row.created, row.expiration, row.value, row.description)
+    return new TokenEntity(
+      row.id,
+      row.name,
+      row.created,
+      row.expiration,
+      row.value,
+      row.description,
+      row.level as TAccessLevel
+    )
   }
 
   encryptTokenData(tokenData: string): string {

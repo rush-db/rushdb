@@ -43,6 +43,7 @@ import { PropertyService } from '@/core/property/property.service'
 import { PropertyValuesPipe } from '@/core/property/validation/property-values.pipe'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
+import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { HeavySearchLimitsGuard } from '@/dashboard/billing/guards/heavy-search-limits.guard'
@@ -73,6 +74,7 @@ export class EntityController {
   @ApiBearerAuth()
   @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
+  @TokenReadAccess()
   async getById(
     @Param('entityId') entityId: string,
     @PreferredTransactionDecorator() transaction: Transaction,
@@ -303,6 +305,7 @@ export class EntityController {
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async find(
     @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchQuery: SearchDto,
@@ -340,6 +343,7 @@ export class EntityController {
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async findFromId(
     @Param('entityId') entityId: string,
     @PreferredTransactionDecorator() transaction: Transaction,

@@ -18,6 +18,7 @@ import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
 import { toBoolean } from '@/common/utils/toBolean'
+import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
@@ -34,6 +35,7 @@ export class RelationshipPatternsController {
   @Get()
   @ApiBearerAuth()
   @AuthGuard('project')
+  @TokenReadAccess()
   async list(
     @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest

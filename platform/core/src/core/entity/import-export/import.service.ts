@@ -454,7 +454,8 @@ export class ImportService {
       return transaction.run(
         this.entityQueryService.importUpsertRecords({
           withResults: options.returnResult,
-          rewrite
+          rewrite,
+          mergeBy: options.mergeBy
         }),
         {
           records: recordsChunk,

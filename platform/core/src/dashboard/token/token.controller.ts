@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   Post,
   UseInterceptors,
@@ -16,6 +17,7 @@ import { Transaction } from 'neo4j-driver'
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
+import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-cors.interceptor'
 import { CreateTokenDto } from '@/dashboard/token/dto/create-token.dto'
@@ -65,6 +67,36 @@ export class TokenController {
     const projectId = request.projectId
 
     return await this.tokenService.getTokensList(projectId, transaction)
+  }
+
+  // Introspection for the calling API key itself (SDKs/MCP use this to discover
+  // the key's access level). API-key auth only — JWT sessions have no token.
+  @Get('current')
+  @ApiTags('Tokens')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  @TokenReadAccess()
+  @HttpCode(HttpStatus.OK)
+  async getCurrentToken(
+    @Request() request: PlatformRequest
+  ): Promise<Omit<ITokenProperties, 'value'> & { expired: boolean }> {
+    const authHeader = request.headers['authorization']
+    const bearerToken = authHeader?.split(' ')[1]
+    const isJwt = bearerToken?.split('.').length === 3
+
+    if (!bearerToken || isJwt) {
+      throw new NotFoundException('This endpoint is only available for API key authentication')
+    }
+
+    const tokenId = this.tokenService.decrypt(bearerToken)
+    const row = await this.tokenService.getTokenNode(tokenId)
+
+    if (!row || row.projectId !== request.projectId) {
+      throw new NotFoundException('Token not found')
+    }
+
+    const { value: _value, ...properties } = this.tokenService.normalize(row).toJson()
+    return { ...properties, expired: this.tokenService.isTokenExpired(row) }
   }
 
   @Get('all')

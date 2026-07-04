@@ -30,6 +30,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config test/jest-e2e.json",
     "types:check": "tsc --noEmit",
+    "openapi:dump": "ts-node -r tsconfig-paths/register scripts/dump-openapi.ts",
     "find-circular-deps": "madge --circular --image graph.svg app",
     "rushdb": "node dist/cli",
     "db:generate:sqlite": "drizzle-kit generate --config=drizzle.sqlite.config.ts",

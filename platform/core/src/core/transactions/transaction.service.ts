@@ -5,8 +5,9 @@ import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isDevMode } from '@/common/utils/isDevMode'
 import { TTransactionObject } from '@/core/transactions/transaction.types'
 import { dbContextStorage } from '@/database/db-context'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
-const MAX_TTL = 30000 // 30s
+const MAX_TTL = DEFAULT_TRANSACTION_TIMEOUT_MS
 const DEFAULT_TTL = 5000 // 5s
 
 @Injectable()
@@ -26,7 +27,7 @@ export class TransactionService {
       startTime: getCurrentISO(),
       session,
       transaction: session.beginTransaction({
-        timeout: config?.ttl ?? 30_000,
+        timeout: config?.ttl ?? DEFAULT_TRANSACTION_TIMEOUT_MS,
         metadata: {
           id,
           projectId

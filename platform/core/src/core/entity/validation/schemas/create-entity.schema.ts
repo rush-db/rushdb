@@ -10,10 +10,13 @@ import {
   stringValueSchema
 } from '@/core/property/validation/schemas/property.schema'
 
+// Each alternative requires its payload key (`properties` / `data`): the pipe validates
+// with allowUnknown, so without this a body with a mis-named payload field (e.g.
+// `{ label, payload: {...} }`) passed validation empty and died in Cypher as a raw 500.
 export const createEntitySchema = Joi.alternatives().try(
   Joi.object({
     label: Joi.string(),
-    properties: Joi.array().items(propertySchema).optional(),
+    properties: Joi.array().items(propertySchema).required(),
     options: Joi.object({
       suggestTypes: Joi.boolean().optional(),
       skipEmptyValues: Joi.boolean().optional(),
@@ -23,16 +26,18 @@ export const createEntitySchema = Joi.alternatives().try(
   }),
   Joi.object({
     label: Joi.string(),
-    data: Joi.object().pattern(
-      Joi.string().min(1).max(100),
-      Joi.alternatives().try(
-        nullValueSchema,
-        booleanValueSchema,
-        datetimeValueSchema,
-        numberValueSchema,
-        stringValueSchema
+    data: Joi.object()
+      .pattern(
+        Joi.string().min(1).max(100),
+        Joi.alternatives().try(
+          nullValueSchema,
+          booleanValueSchema,
+          datetimeValueSchema,
+          numberValueSchema,
+          stringValueSchema
+        )
       )
-    ),
+      .required(),
     options: Joi.object({
       suggestTypes: Joi.boolean().optional(),
       skipEmptyValues: Joi.boolean().optional(),

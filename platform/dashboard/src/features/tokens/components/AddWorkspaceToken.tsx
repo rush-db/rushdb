@@ -19,10 +19,16 @@ import { useAddWorkspaceTokenMutation } from '../hooks/useTokenMutations'
 const schema = object({
   description: string(),
   expiration: number().min(1).max(365).optional(),
+  level: string(),
   noExpire: boolean().optional(),
   name: string().min(3),
   projectId: string().min(1)
 })
+
+const levelOptions = [
+  { label: 'Full access (read & write)', value: 'write' },
+  { label: 'Read-only', value: 'read' }
+]
 
 function TokenCreated({ onBack, token }: { onBack: () => void; token: ProjectToken }) {
   return (
@@ -33,6 +39,12 @@ function TokenCreated({ onBack, token }: { onBack: () => void; token: ProjectTok
       <p className="text-content2 text-sm">
         Copy this key now — for security reasons you won't be able to see it again.
       </p>
+      {token.level === 'read' ?
+        <p className="text-content2 text-sm">
+          This key is read-only: it can query data but never modify it, so it's safe to embed in client-side
+          code and public demos.
+        </p>
+      : null}
       <div className="flex justify-end gap-2 border-t pt-5">
         <Button onClick={onBack} size="small" variant="secondary">
           <ArrowLeft />
@@ -49,6 +61,7 @@ function AddWorkspaceTokenForm({ projects }: { projects: Project[] }) {
   const defaultValues = {
     description: '',
     expiration: 30,
+    level: 'write',
     noExpire: false,
     name: 'API key',
     projectId: projects[0]?.id ?? ''
@@ -80,7 +93,7 @@ function AddWorkspaceTokenForm({ projects }: { projects: Project[] }) {
         mutate({
           ...values,
           expiration: `${values.expiration}d`,
-          level: 'write'
+          level: values.level as ProjectToken['level']
         })
       )}
     >
@@ -97,6 +110,19 @@ function AddWorkspaceTokenForm({ projects }: { projects: Project[] }) {
           error={errors.description?.message}
           label="API key description"
         />
+      </div>
+      <div>
+        <SelectField
+          {...register('level')}
+          className="mb-2"
+          error={errors.level?.message}
+          label="Permissions"
+          options={levelOptions}
+        />
+        <p className="text-content2 text-sm">
+          Read-only keys can only query data — safe to embed in client-side code and public demos. Full access
+          keys must stay server-side.
+        </p>
       </div>
       <div>
         <TextField

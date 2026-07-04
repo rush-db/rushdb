@@ -186,9 +186,19 @@ export class EntityQueryService {
    */
   importUpsertRecords({
     withResults = false,
-    rewrite = false
-  }: { withResults?: boolean; rewrite?: boolean } = {}) {
+    rewrite = false,
+    mergeBy
+  }: { withResults?: boolean; rewrite?: boolean; mergeBy?: string[] } = {}) {
     const queryBuilder = new QueryBuilder()
+
+    // When mergeBy is provided, inline the keys as static property accesses
+    // (record.`key` = valuesMap.`key`). Dynamic access (record[k]) defeats the planner:
+    // it forces a per-UNWIND-row scan of every record in the project — O(batch × graph) —
+    // which is what blew the transaction budget on large projects. Static accesses let
+    // Neo4j use a property index when one exists. Keys are inlined into the query text,
+    // so escape backticks to keep user-supplied names from breaking out of the identifier.
+    const staticMergeKeys = (mergeBy ?? []).filter((k) => typeof k === 'string' && k.trim().length > 0)
+    const useStaticMergeKeys = staticMergeKeys.length > 0
 
     queryBuilder
       .append(`WITH $records as recordsToUpsert, datetime() as time, coalesce($mergeBy, []) as mergeBy`)
@@ -197,11 +207,30 @@ export class EntityQueryService {
         `WITH *, apoc.map.fromPairs([property IN r.properties | [property.name, property.type]]) AS typesMap,`
       )
       .append(`apoc.map.fromPairs([property IN r.properties | [property.name, property.value]]) AS valuesMap`)
-      .append(`WITH *, CASE WHEN size(mergeBy)=0 THEN keys(valuesMap) ELSE mergeBy END as keysToMatch`)
-      .append(`OPTIONAL MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
-      .append(
-        `WHERE (r.label IS NULL OR ANY(l IN labels(record) WHERE l = r.label)) AND ALL(k IN keysToMatch WHERE record[k] = valuesMap[k])`
-      )
+
+    if (useStaticMergeKeys) {
+      const mergePredicates = staticMergeKeys
+        .map((key) => {
+          const escaped = `\`${key.replace(/`/g, '``')}\``
+          return `record.${escaped} = valuesMap.${escaped}`
+        })
+        .join(' AND ')
+
+      queryBuilder
+        .append(`OPTIONAL MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
+        .append(
+          `WHERE (r.label IS NULL OR ANY(l IN labels(record) WHERE l = r.label)) AND ${mergePredicates}`
+        )
+    } else {
+      queryBuilder
+        .append(`WITH *, CASE WHEN size(mergeBy)=0 THEN keys(valuesMap) ELSE mergeBy END as keysToMatch`)
+        .append(`OPTIONAL MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
+        .append(
+          `WHERE (r.label IS NULL OR ANY(l IN labels(record) WHERE l = r.label)) AND ALL(k IN keysToMatch WHERE record[k] = valuesMap[k])`
+        )
+    }
+
+    queryBuilder
       .append(
         `WITH * CALL apoc.do.when(record IS NULL, 'CREATE (newRecord:${RUSHDB_LABEL_RECORD} { ${RUSHDB_KEY_ID}: r.id, ${projectIdInline()} }) RETURN newRecord', 'RETURN NULL', { r:r, projectId: $projectId }) YIELD value`
       )

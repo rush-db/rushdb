@@ -9,7 +9,7 @@ import {
   UseInterceptors,
   UsePipes
 } from '@nestjs/common'
-import { BadRequestException, HttpException } from '@nestjs/common'
+import { BadRequestException, HttpException, RequestTimeoutException } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { Transaction } from 'neo4j-driver'
 import { parse } from 'papaparse'
@@ -19,7 +19,6 @@ import { ESideEffectType, RunSideEffectMixin } from '@/common/interceptors/run-s
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
-import { AiService } from '@/core/ai/ai.service'
 import { EntityWriteGuard } from '@/core/entity/entity-write.guard'
 import { TEntityPropertiesNormalized } from '@/core/entity/entity.types'
 import { ImportCsvDto } from '@/core/entity/import-export/dto/import-csv.dto'
@@ -37,7 +36,6 @@ import {
 } from '@/core/entity/import-export/validation/schemas/import.schema'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
-import { ProjectService } from '@/dashboard/project/project.service'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 import { TransactionDecorator } from '@/database/transaction.decorator'
@@ -46,30 +44,25 @@ import { TransactionDecorator } from '@/database/transaction.decorator'
 @ApiTags('Records')
 @UseInterceptors(NotFoundInterceptor, DataInterceptor)
 export class ImportController {
-  constructor(
-    private readonly importService: ImportService,
-    private readonly projectService: ProjectService,
-    private readonly aiService: AiService
-  ) {}
+  constructor(private readonly importService: ImportService) {}
 
-  private async refreshProjectImportReadModels({
-    projectId,
-    workspaceId,
-    transaction,
-    customTx
-  }: {
-    projectId: string
-    workspaceId?: string
-    transaction: Transaction
-    customTx: Transaction
-  }) {
-    await this.projectService.recomputeProjectNodes(projectId, transaction, customTx)
-    await this.aiService.getSchema({
-      projectId,
-      workspaceId,
-      force: true,
-      transaction: customTx
-    })
+  /**
+   * Rethrows import errors with an honest status code. Neo4j transaction timeouts are a
+   * server-side budget problem (413/408 territory), not a malformed request — surfacing
+   * them as 400 hides the real cause from clients (see write-throughput support reports).
+   */
+  private rethrowImportError(error: any): never {
+    if (error instanceof HttpException) {
+      throw error
+    }
+    const neo4jCode: string | undefined = error?.code
+    if (typeof neo4jCode === 'string' && neo4jCode.includes('TransactionTimedOut')) {
+      throw new RequestTimeoutException(
+        'Import exceeded the server-side transaction time budget. Reduce the batch size or split the import into multiple requests.',
+        { cause: error }
+      )
+    }
+    throw new BadRequestException('Import failed: ' + error.message, { cause: error })
   }
 
   private parseJsonLines(input: string): Array<Record<string, any>> {
@@ -134,7 +127,15 @@ export class ImportController {
   @ApiBearerAuth()
   @UseGuards(PlanLimitsGuard, EntityWriteGuard)
   @UseInterceptors(
-    RunSideEffectMixin([ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE]),
+    // Read models (project structure counters, schema cache) are refreshed post-commit by the
+    // side-effect runner instead of inline: the forced schema recompute is a full-graph scan
+    // and doing it inside the request transaction imposed a project-size-proportional latency
+    // floor on every import and starved the 30s transaction budget.
+    RunSideEffectMixin([
+      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE,
+      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
+      ESideEffectType.RECALCULATE_SCHEMA_CACHE
+    ]),
     TransformResponseInterceptor
   )
   @UsePipes(ValidationPipe(importJsonSchema, 'body'))
@@ -157,28 +158,21 @@ export class ImportController {
           '`label` is required when importing a top-level array or JSON object with primitive top-level properties'
         )
       }
-      const result = await this.importService.importRecords(normalizedBody, projectId, transaction, customTx)
-      await this.refreshProjectImportReadModels({
-        projectId,
-        workspaceId: request.workspaceId,
-        transaction,
-        customTx
-      })
-      return result
+      return await this.importService.importRecords(normalizedBody, projectId, transaction, customTx)
     } catch (error) {
-      // Re-throw HTTP exceptions (e.g. 402 Payment Required from billing limit checks)
-      // directly so the correct status code reaches the client.
-      if (error instanceof HttpException) {
-        throw error
-      }
-      throw new BadRequestException('Import failed: ' + error.message, { cause: error })
+      this.rethrowImportError(error)
     }
   }
 
   @Post('/records/import/csv')
   @ApiBearerAuth()
   @UseInterceptors(
-    RunSideEffectMixin([ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE]),
+    // Same post-commit read-model refresh as the JSON route — see comment there.
+    RunSideEffectMixin([
+      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE,
+      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
+      ESideEffectType.RECALCULATE_SCHEMA_CACHE
+    ]),
     TransformResponseInterceptor
   )
   @UsePipes(ValidationPipe(importCsvSchema, 'body'))
@@ -301,22 +295,19 @@ export class ImportController {
       }
     }
 
-    const importResult = await this.importService.importRecords(
-      {
-        data: cleanedData,
-        options: body.options,
-        label: body.label
-      },
-      projectId,
-      transaction,
-      customTx
-    )
-    await this.refreshProjectImportReadModels({
-      projectId,
-      workspaceId: request.workspaceId,
-      transaction,
-      customTx
-    })
-    return importResult
+    try {
+      return await this.importService.importRecords(
+        {
+          data: cleanedData,
+          options: body.options,
+          label: body.label
+        },
+        projectId,
+        transaction,
+        customTx
+      )
+    } catch (error) {
+      this.rethrowImportError(error)
+    }
   }
 }

@@ -35,13 +35,8 @@
  * Each item: item.data.__score ∈ [0, 1] — cosine similarity, higher = more similar.
  */
 
-import path from 'path'
-import dotenv from 'dotenv'
-
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-
-import RushDB from '../src/index.node'
-import type { EmbeddingIndex } from '../src/api/types'
+import RushDB from '../../packages/javascript-sdk/src/index.node'
+import type { EmbeddingIndex } from '../../packages/javascript-sdk/src/api/types'
 
 jest.setTimeout(120_000) // embedding backfill can take a while
 
@@ -76,8 +71,8 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
   const apiUrl = process.env.RUSHDB_API_URL || 'http://localhost:3000'
 
   /** Skip the entire suite when credentials or embedding env vars are absent */
-  if (!apiKey) {
-    it('skips because RUSHDB_API_KEY is not set', () => {
+  if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
+    it('skips: no RUSHDB_API_KEY or server-side embeddings unavailable', () => {
       expect(true).toBe(true)
     })
     return
@@ -325,8 +320,8 @@ describe('db.ai – multi-label index isolation (e2e)', () => {
   const apiKey = process.env.RUSHDB_API_KEY
   const apiUrl = process.env.RUSHDB_API_URL || 'http://localhost:3000'
 
-  if (!apiKey) {
-    it('skips because RUSHDB_API_KEY is not set', () => expect(true).toBe(true))
+  if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
+    it('skips: no RUSHDB_API_KEY or server-side embeddings unavailable', () => expect(true).toBe(true))
     return
   }
 

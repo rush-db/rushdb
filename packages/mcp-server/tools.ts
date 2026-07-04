@@ -492,6 +492,18 @@ const outputSchemas = {
 const READ_SCHEMES: SecurityScheme[] = [{ type: 'noauth' }, { type: 'oauth2', scopes: ['records:read'] }]
 const WRITE_SCHEMES: SecurityScheme[] = [{ type: 'oauth2', scopes: ['records:write'] }]
 
+/**
+ * Whether a tool is callable with the given granted scopes.
+ * Security schemes are alternatives: the tool is allowed if any scheme is
+ * satisfied (noauth always is; oauth2 requires all of its scopes granted).
+ * Untagged tools are allowed — the backend enforces authorization regardless.
+ */
+export function isToolAllowedForScopes(tool: Tool, scopes: string[]): boolean {
+  const schemes = tool.securitySchemes
+  if (!schemes || schemes.length === 0) return true
+  return schemes.some((s) => s.type === 'noauth' || s.scopes.every((scope) => scopes.includes(scope)))
+}
+
 export const tools: Tool[] = (
   [
     {

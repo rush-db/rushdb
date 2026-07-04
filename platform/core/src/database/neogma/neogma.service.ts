@@ -3,6 +3,7 @@ import { Driver, Session } from 'neo4j-driver'
 import { Neogma, QueryBuilder, QueryRunner } from 'neogma'
 
 import { isDevMode } from '@/common/utils/isDevMode'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 import { INeogmaConfig } from './neogma-config.interface'
 import { NEOGMA_CONFIG, NEOGMA_INSTANCE } from './neogma.constants'
@@ -28,7 +29,7 @@ export class NeogmaService implements OnApplicationShutdown {
 
   async activeSessions() {
     const session = this.getDriver().session()
-    const transaction = session.beginTransaction({ timeout: 30_000 })
+    const transaction = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
 
     const res = await transaction.run('CALL dbms.listConnections()')
 
@@ -40,7 +41,7 @@ export class NeogmaService implements OnApplicationShutdown {
 
   async activeTransactions() {
     const session = this.getDriver().session()
-    const transaction = session.beginTransaction({ timeout: 30_000 })
+    const transaction = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
 
     const res = await transaction.run('SHOW TRANSACTIONS')
 
@@ -64,8 +65,8 @@ export class NeogmaService implements OnApplicationShutdown {
     }
   }
 
-  createSession(context?: any): Session {
-    const session = this.getDriver().session()
+  createSession(context?: any, accessMode?: 'READ' | 'WRITE'): Session {
+    const session = this.getDriver().session(accessMode ? { defaultAccessMode: accessMode } : undefined)
     // isDevMode(() => {
     //   this.stats('create session ' + (context ? context : ''))
     // })
