@@ -10,7 +10,12 @@ import {
   useProjectIndexesQuery,
   useProjectLabelsQuery
 } from '~/features/projects/hooks/useProjectQueries'
-import { $sheetProperty, $sheetRecordId, type PropertySheetData } from '~/features/projects/stores/id.ts'
+import {
+  $sheetProperty,
+  openPropertySheet,
+  openRecordSheet,
+  type PropertySheetData
+} from '~/features/projects/stores/id.ts'
 import { $tourAllowed, $tourStep } from '~/features/tour/stores/tour'
 import { getLabelColor } from '~/features/labels'
 import type { DBRecord, DBRecordInstance } from '@rushdb/javascript-sdk'
@@ -182,17 +187,15 @@ export const GraphView: FC = () => {
   const handleNodeClick = useCallback(
     (node: GraphNode) => {
       if (node.kind === 'record' && node.recordId) {
-        $sheetProperty.set(undefined)
-        $sheetRecordId.set(node.recordId)
+        openRecordSheet(node.recordId)
         return
       }
 
       if (node.kind === 'property') {
-        $sheetRecordId.set(undefined)
         const name = node.propertyName ?? node.label
         const type = node.propertyType ?? 'string'
         const field = fields?.find((f) => f.name === name && f.type === type)
-        $sheetProperty.set({
+        openPropertySheet({
           id: field?.id ?? '',
           name,
           type: type as PropertySheetData['type'],

@@ -16,7 +16,7 @@ import {
   incrementRecordsPage
 } from '../stores/current-project'
 import { $hiddenFields, isFieldHidden } from '../stores/hidden-fields'
-import { $sheetRecordId } from '../stores/id'
+import { openRecordSheet } from '../stores/id'
 import { GraphView } from '~/features/projects/components/GraphView.tsx'
 import { PropertySheet } from '~/features/projects/components/PropertySheet.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
@@ -62,8 +62,8 @@ function View() {
   const skip = useStore($currentProjectRecordsSkip)
 
   const limit = useStore($currentProjectRecordsLimit)
-  const openRecordSheet = useCallback((record: DBRecord) => {
-    $sheetRecordId.set(record.__id)
+  const handleRecordClick = useCallback((record: DBRecord) => {
+    openRecordSheet(record.__id)
   }, [])
 
   const shapedResults = Boolean(records?.length && !records.every(isRecordResult))
@@ -99,7 +99,7 @@ function View() {
           loading={loading}
           onNext={incrementRecordsPage}
           onPrev={decrementRecordsPage}
-          onRecordClick={openRecordSheet}
+          onRecordClick={handleRecordClick}
           records={records}
           skip={skip}
           total={total}
@@ -168,9 +168,11 @@ function View() {
 
 export function ProjectRecords() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <RecordsHeader />
-      <View />
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <RecordsHeader />
+        <View />
+      </div>
       <RecordSheet />
       <PropertySheet />
     </div>

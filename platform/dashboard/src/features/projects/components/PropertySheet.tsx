@@ -9,18 +9,13 @@ import { Tab, Tabs, TabsContent, TabsList } from '~/elements/Tabs'
 import { Tooltip } from '~/elements/Tooltip.tsx'
 import { PropertyTypeIcon } from '~/features/properties/components/PropertyTypeIcon'
 
-import { $sheetProperty, $sheetRecordId } from '../stores/id'
+import { $sheetProperty, openRecordSheet } from '../stores/id'
 
 const tabs = [
   { value: 'data', label: 'Data', icon: <Database /> },
   { value: 'records', label: 'Records', icon: <List /> }
 ] as const
 type PropertySheetTab = (typeof tabs)[number]['value']
-
-function openRecord(id: string) {
-  $sheetProperty.set(undefined)
-  $sheetRecordId.set(id)
-}
 
 export function PropertySheet() {
   const property = useStore($sheetProperty)
@@ -107,7 +102,7 @@ export function PropertySheet() {
                       title="Open record"
                       variant="ghost"
                       size="small"
-                      onClick={() => openRecord(id)}
+                      onClick={() => openRecordSheet(id)}
                     >
                       <ArrowUpRight />
                     </IconButton>
