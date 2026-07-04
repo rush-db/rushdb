@@ -36,12 +36,7 @@
  * If RUSHDB_API_KEY is absent the whole suite is skipped gracefully.
  */
 
-import path from 'path'
-import dotenv from 'dotenv'
-
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-
-import RushDB from '../src/index.node'
+import RushDB from '../../packages/javascript-sdk/src/index.node'
 
 jest.setTimeout(60_000)
 

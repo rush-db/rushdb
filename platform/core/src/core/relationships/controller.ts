@@ -34,6 +34,7 @@ import {
   createRelationsByKeysSchema
 } from '@/core/relationships/validation/schemas/relations.schema'
 import { pagination } from '@/core/search/parser/pagination'
+import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { HeavySearchLimitsGuard } from '@/dashboard/billing/guards/heavy-search-limits.guard'
@@ -152,6 +153,7 @@ export class RelationshipsController {
   @AuthGuard('project')
   @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async findRelations(
     @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchQuery: RelationshipSearchDto = {},

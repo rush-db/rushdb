@@ -10,6 +10,7 @@ import {
   RUSHDB_LABEL_RECORD
 } from '@/core/common/constants'
 import { Neo4jCapabilitiesService } from '@/database/neo4j-capabilities.service'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 import { INeogmaConfig } from '../neogma/neogma-config.interface'
 import { createInstance } from '../neogma/neogma.util'
@@ -105,7 +106,7 @@ export class NeogmaDynamicService {
   }> {
     const connection = await this.getConnection(projectId, config)
     const session = connection.driver.session()
-    const transaction = session.beginTransaction({ timeout: 30_000 })
+    const transaction = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
 
     const runner = new QueryRunner({
       driver: connection.driver
@@ -120,7 +121,7 @@ export class NeogmaDynamicService {
     // Drop the plain composite index in its own transaction — Neo4j requires the drop
     // and the uniqueness constraint creation (which creates a new backing index) to be
     // in separate transactions.
-    const dropTx = session.beginTransaction({ timeout: 30_000 })
+    const dropTx = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
     try {
       await dropTx.run(`DROP INDEX index_property_mergerer IF EXISTS`)
       await dropTx.commit()
@@ -129,7 +130,7 @@ export class NeogmaDynamicService {
       await dropTx.rollback()
     }
 
-    const transaction = session.beginTransaction({ timeout: 30_000 })
+    const transaction = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
     try {
       const constraints = [
         `CREATE CONSTRAINT constraint_record_id IF NOT EXISTS FOR (record:${RUSHDB_LABEL_RECORD}) REQUIRE record.${RUSHDB_KEY_ID} IS UNIQUE`,

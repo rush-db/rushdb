@@ -31,13 +31,8 @@
  * Both env vars are checked; the suite is skipped gracefully if either is absent.
  */
 
-import path from 'path'
-import dotenv from 'dotenv'
-
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-
-import RushDB from '../src/index.node'
-import type { EmbeddingIndex } from '../src/api/types'
+import RushDB from '../../packages/javascript-sdk/src/index.node'
+import type { EmbeddingIndex } from '../../packages/javascript-sdk/src/api/types'
 
 jest.setTimeout(120_000) // embedding backfill can take a while
 
@@ -69,9 +64,9 @@ async function waitForIndexReady(
 const apiKey = process.env.RUSHDB_API_KEY
 const apiUrl = process.env.RUSHDB_API_URL || 'http://localhost:3000'
 
-if (!apiKey) {
+if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
   describe('ai.search() – nested where prefilter (e2e)', () => {
-    it('skips because RUSHDB_API_KEY is not set', () => expect(true).toBe(true))
+    it('skips: no RUSHDB_API_KEY or server-side embeddings unavailable', () => expect(true).toBe(true))
   })
 } else {
   const db = new RushDB(apiKey, { url: apiUrl })

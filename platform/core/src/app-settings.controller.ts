@@ -7,6 +7,7 @@ import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
 import { toBoolean } from '@/common/utils/toBolean'
+import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { ProjectService } from '@/dashboard/project/project.service'
 import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
@@ -63,6 +64,7 @@ export class AppSettingsController {
   @Get('sdk/settings')
   @ApiBearerAuth()
   @AuthGuard('project', USER_ROLE_EDITOR, true)
+  @TokenReadAccess()
   /* @deprecated */
   async sdkSettings(@TransactionDecorator() transaction: Transaction, @Request() request: PlatformRequest) {
     const projectId = request.projectId

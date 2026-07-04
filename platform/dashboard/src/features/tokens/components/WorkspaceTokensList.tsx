@@ -40,6 +40,9 @@ function WorkspaceTokenListItem({ loading, token }: { loading?: boolean; token?:
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="flex items-center gap-3 text-base font-bold">
           <Skeleton enabled={loading}>{token?.name ?? 'Loading...'}</Skeleton>
+          {token?.level === 'read' ?
+            <Badge className="shrink-0">Read-only</Badge>
+          : null}
         </span>
         {token?.description ?
           <span className="text-content2 text-sm font-normal">{token.description}</span>

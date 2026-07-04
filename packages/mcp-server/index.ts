@@ -23,7 +23,7 @@ import {
   ListPromptsRequestSchema,
   GetPromptRequestSchema
 } from '@modelcontextprotocol/sdk/types.js'
-import { ToolName, tools } from './tools.js'
+import { ToolName, isToolAllowedForScopes, tools } from './tools.js'
 import { findLabels } from './tools/findLabels.js'
 import { createRecord } from './tools/createRecord.js'
 import { updateRecord } from './tools/updateRecord.js'
@@ -62,7 +62,7 @@ import { getSchemaMarkdown } from './tools/getSchemaMarkdown.js'
 import SYSTEM_PROMPT from './systemPrompt.js'
 import { getSearchQuerySpec } from './tools/getSearchQuerySpec.js'
 import { requestContext, RequestContext } from './util/db.js'
-import { resolveRequestContext, makeMcpAuthError } from './util/auth.js'
+import { fetchApiKeyScopes, resolveRequestContext, makeMcpAuthError } from './util/auth.js'
 
 type TextContent = {
   type: string
@@ -81,6 +81,14 @@ function toolResult<T extends Record<string, unknown>>(structuredContent: T, tex
     structuredContent,
     content: [{ type: 'text', text }]
   }
+}
+
+// Scopes for STDIO mode (RUSHDB_API_KEY env), resolved once at startup.
+// HTTP mode carries per-request scopes via requestContext instead.
+let stdioScopes: string[] = ['records:read', 'records:write']
+
+function getActiveScopes(): string[] {
+  return requestContext.getStore()?.scopes ?? stdioScopes
 }
 
 // ─── MCP Server factory ───────────────────────────────────────────────────────
@@ -109,8 +117,11 @@ function createMcpServer(): Server {
   )
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
+    // Read-only sessions (read-only API keys, OAuth consents without
+    // records:write) don't see write tools at all.
+    const scopes = getActiveScopes()
     return {
-      tools
+      tools: tools.filter((tool) => isToolAllowedForScopes(tool, scopes))
     }
   })
 
@@ -151,6 +162,14 @@ function createMcpServer(): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
     const toolName = request.params.name as ToolName
     const args = request.params.arguments || {}
+
+    const toolDefinition = tools.find((tool) => tool.name === toolName)
+    if (toolDefinition && !isToolAllowedForScopes(toolDefinition, getActiveScopes())) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        `Tool ${toolName} is not available: this session is read-only (the API key or OAuth consent does not grant records:write).`
+      )
+    }
 
     try {
       const result = await (async () => {
@@ -876,7 +895,11 @@ if (mcpTransport === 'http') {
     process.stderr.write(`Set MCP_TRANSPORT=http to enable this mode\n`)
   })
 } else {
-  // ── STDIO mode (default, unchanged) ──
+  // ── STDIO mode (default) ──
+  // Resolve the API key's access level up front so read-only keys hide write tools.
+  if (process.env.RUSHDB_API_KEY) {
+    stdioScopes = await fetchApiKeyScopes(process.env.RUSHDB_API_KEY)
+  }
   const server = createMcpServer()
   const transport = new StdioServerTransport()
   await server.connect(transport)

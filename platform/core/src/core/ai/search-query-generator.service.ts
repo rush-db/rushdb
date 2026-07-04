@@ -6,6 +6,7 @@ import { Transaction } from 'neo4j-driver'
 import { AiService } from '@/core/ai/ai.service'
 import { SchemaItem } from '@/core/ai/ai.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
@@ -215,7 +216,7 @@ export class SearchQueryGeneratorService {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
-        timeout: 30_000
+        timeout: DEFAULT_TRANSACTION_TIMEOUT_MS
       }
     )
 

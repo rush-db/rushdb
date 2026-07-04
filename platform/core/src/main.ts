@@ -1,11 +1,11 @@
-import { RequestMethod } from '@nestjs/common'
 import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface'
 import { NestFactory } from '@nestjs/core'
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify'
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import { SwaggerModule } from '@nestjs/swagger'
 import fastifyRawBody from 'fastify-raw-body'
 
 import { GlobalExceptionFilter } from '@/common/global-exception.filter'
+import { buildSwaggerConfig, GLOBAL_PREFIX, GLOBAL_PREFIX_OPTIONS } from '@/common/swagger'
 import { TransactionService } from '@/core/transactions/transaction.service'
 import { AuthMiddleware } from '@/dashboard/auth/middlewares/auth.middleware'
 
@@ -48,17 +48,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, fastifyAdapter, {})
 
-  app.setGlobalPrefix('api/v1', {
-    exclude: [
-      { path: '/', method: RequestMethod.GET },
-      { path: 'health', method: RequestMethod.GET },
-      { path: '.well-known/*path', method: RequestMethod.GET },
-      { path: 'oauth/*path', method: RequestMethod.GET },
-      { path: 'oauth/*path', method: RequestMethod.POST },
-      { path: 'oauth/*path', method: RequestMethod.DELETE },
-      { path: 'oauth/*path', method: RequestMethod.PATCH }
-    ]
-  })
+  app.setGlobalPrefix(GLOBAL_PREFIX, GLOBAL_PREFIX_OPTIONS)
   app.enableCors(CORS_OPTIONS)
 
   // The OAuth routes are excluded from the global prefix so MCP clients can
@@ -73,14 +63,7 @@ async function bootstrap() {
     authMiddleware.use(req as never, res as never, next)
   )
 
-  const config = new DocumentBuilder()
-    .setTitle('RushDB API')
-    .setDescription('RushDB API specs')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build()
-
-  const document = SwaggerModule.createDocument(app, config)
+  const document = SwaggerModule.createDocument(app, buildSwaggerConfig())
   SwaggerModule.setup('api', app, document)
 
   const transactionService = app.get<TransactionService>(TransactionService)

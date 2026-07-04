@@ -5,6 +5,7 @@ import { Session, Transaction } from 'neo4j-driver'
 import { PlatformRequest } from '@/common/types/request'
 import { TransactionService } from '@/core/transactions/transaction.service'
 import { dbContextStorage } from '@/database/db-context'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 @Injectable()
 export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
@@ -21,7 +22,9 @@ export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
 
     const raw: any = (request as any).raw ?? request
 
-    if (txId && !raw.userDefinedTransaction) {
+    // Read-only tokens cannot create transactions, so they cannot use one either —
+    // an attached transaction would bypass the READ-mode session opened for them.
+    if (txId && !raw.userDefinedTransaction && raw.tokenCanWrite !== false) {
       const userDefinedTransaction = this.transactionService.getTransaction(txId)
       raw.userDefinedTransaction = userDefinedTransaction.transaction
     }
@@ -37,9 +40,13 @@ export class SessionAndTransactionAttachMiddleware implements NestMiddleware {
 
         const { body, projectId, originalUrl, method, routerMethod, path, workspaceId } = raw
 
-        session = externalDbConnection.driver?.session()
+        // Same READ-mode enforcement as the internal DB session (see AuthMiddleware) —
+        // this is what makes raw Cypher physically read-only for read tokens.
+        session = externalDbConnection.driver?.session(
+          raw.tokenCanWrite === false ? { defaultAccessMode: 'READ' } : undefined
+        )
         transaction = session?.beginTransaction({
-          timeout: 30_000,
+          timeout: DEFAULT_TRANSACTION_TIMEOUT_MS,
           metadata: { body, projectId, originalUrl, method, routerMethod, path, workspaceId }
         })
 

@@ -1,10 +1,5 @@
-import path from 'path'
-import dotenv from 'dotenv'
-
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-
-import RushDB from '../src/index.node'
-import { isArray } from '../src/common/utils.js'
+import RushDB from '../../packages/javascript-sdk/src/index.node'
+import { isArray } from '../../packages/javascript-sdk/src/common/utils.js'
 
 jest.setTimeout(60_000)
 

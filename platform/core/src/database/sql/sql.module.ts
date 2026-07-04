@@ -100,6 +100,13 @@ export class SqlModule implements OnModuleInit {
                 connectionString?.includes('localhost') || connectionString?.includes('127.0.0.1')
               const ssl = sslEnv === 'false' || (!sslEnv && isLocal) ? false : { rejectUnauthorized: false }
               const pool = new Pool({ connectionString, ssl })
+              // Without a handler, an error on an idle client (e.g. the server dropping a
+              // connection: 57P01 "terminating connection due to administrator command") is
+              // emitted as an unhandled 'error' event and crashes the whole process. The pool
+              // discards the broken client and opens a fresh one on the next query.
+              pool.on('error', (error) => {
+                Logger.error('[SqlModule] Idle Postgres client error (connection dropped)', error)
+              })
               return drizzle(pool, { schema })
             }
 

@@ -13,6 +13,7 @@ import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 import { createHash } from 'crypto'
 
@@ -678,7 +679,7 @@ export class RelationshipPatternsService {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
-        timeout: 30_000
+        timeout: DEFAULT_TRANSACTION_TIMEOUT_MS
       }
     )
 

@@ -1,4 +1,4 @@
-import { ITokenProperties } from '@/dashboard/token/model/token.interface'
+import { ITokenProperties, TAccessLevel } from '@/dashboard/token/model/token.interface'
 
 export class TokenEntity {
   constructor(
@@ -7,7 +7,8 @@ export class TokenEntity {
     private readonly created: string,
     private readonly expiration: number,
     private readonly value: string,
-    private readonly description?: string
+    private readonly description?: string,
+    private readonly level?: TAccessLevel
   ) {}
 
   getProperties(): ITokenProperties & { value: string } {
@@ -17,7 +18,8 @@ export class TokenEntity {
       created: this.created,
       expiration: this.expiration,
       value: this.value,
-      description: this.description
+      description: this.description,
+      level: this.level
     }
   }
 

@@ -51,15 +51,17 @@
     "build:package": "node esbuild.config.cjs",
     "build:types": "tsc --emitDeclarationOnly --outDir dist",
     "types:check": "tsc --noEmit",
+    "docs:reference": "typedoc",
     "clean": "rm -rf ./dist ./node_modules/.cache ./coverage ./esm ./cjs ./types",
     "flush": "rm -rf node_modules",
     "lint:circularDeps": "madge --circular ./src/*",
     "lint:circularDepsWithImage": "madge --image graph.svg --circular ./src/*"
   },
   "devDependencies": {
-    "dotenv": "^16.0.3"
+    "dotenv": "^16.0.3",
+    "typedoc": "^0.28.19",
+    "typedoc-plugin-markdown": "^4.12.0"
   },
-  "peerDependencies": {},
   "sideEffects": false,
   "publishConfig": {
     "access": "public"

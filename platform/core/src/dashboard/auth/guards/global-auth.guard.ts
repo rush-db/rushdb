@@ -2,12 +2,14 @@ import {
   applyDecorators,
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   SetMetadata,
   UseGuards
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
+import { TOKEN_READ_SAFE_KEY } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { ThrottleByTokenGuard } from '@/dashboard/throttle/guards/throttle-by-token.guard'
 import { USER_ROLE_EDITOR } from '@/dashboard/user/interfaces/user.constants'
 import { TUserRoles } from '@/dashboard/user/model/user.interface'
@@ -16,7 +18,7 @@ import { UserService } from '@/dashboard/user/user.service'
 type TDashboardTargetType = 'project' | 'workspace'
 
 @Injectable()
-class GlobalAuthGuard implements CanActivate {
+export class GlobalAuthGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     readonly userService: UserService
@@ -41,6 +43,19 @@ class GlobalAuthGuard implements CanActivate {
 
     // SDK TOKEN SHORTCUT: if bearer is not JWT, middleware has already resolved projectId
     if (!isJwt && bearerToken && request.raw.projectId && request.raw.workspaceId) {
+      // Read-only tokens are denied by default; only routes explicitly marked
+      // with @TokenReadAccess() are reachable.
+      if (request.raw.tokenCanWrite === false) {
+        const readSafe = this.reflector.getAllAndOverride<boolean>(TOKEN_READ_SAFE_KEY, [
+          context.getHandler(),
+          context.getClass()
+        ])
+
+        if (!readSafe) {
+          throw new ForbiddenException('This API key is read-only and cannot access this endpoint')
+        }
+      }
+
       request.projectId = request.raw.projectId
       request.workspaceId = request.raw.workspaceId
       return true

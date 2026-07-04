@@ -20,6 +20,7 @@ import { EntityService } from '@/core/entity/entity.service'
 import { TrackHeavySearchKu } from '@/core/ku-events/track-heavy-search-ku.interceptor'
 import { SearchDto } from '@/core/search/dto/search.dto'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
+import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
 import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
@@ -38,6 +39,7 @@ export class LabelsController {
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
+  @TokenReadAccess()
   async labelsSearch(
     @PreferredTransactionDecorator() transaction: Transaction,
     @Body() searchQuery: Pick<SearchDto, 'where'>,

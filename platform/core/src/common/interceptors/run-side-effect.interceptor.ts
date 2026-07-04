@@ -17,6 +17,7 @@ import { RelationshipPatternsService } from '@/core/relationship-patterns/relati
 import { ProjectService } from '@/dashboard/project/project.service'
 import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 export enum ESideEffectType {
   RECOUNT_PROJECT_STRUCTURE = 'recountProjectNodes',
@@ -82,7 +83,7 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
 
             // Create fresh session/transaction for side-effect work (after primary commit)
             const session = this.neogmaService.createSession('run-side-effect')
-            const transaction = session.beginTransaction({ timeout: 30_000 })
+            const transaction = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
 
             let externalSession: Session | undefined
             let externalTransaction: Transaction | undefined
@@ -92,7 +93,9 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
                 Logger.debug(`External transaction created for project ${projectId} side effect runner`)
               )
               externalSession = externalDbConnection.driver?.session()
-              externalTransaction = externalSession?.beginTransaction({ timeout: 30_000 })
+              externalTransaction = externalSession?.beginTransaction({
+                timeout: DEFAULT_TRANSACTION_TIMEOUT_MS
+              })
             }
 
             // Whether the schema cache must be refreshed once, AFTER the write
@@ -230,7 +233,7 @@ const recomputeSchemaInOwnTransaction = async (
 ): Promise<void> => {
   if (externalDbConnection) {
     const externalSession: Session | undefined = externalDbConnection.driver?.session()
-    const externalTransaction = externalSession?.beginTransaction({ timeout: 30_000 })
+    const externalTransaction = externalSession?.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
     if (!externalTransaction) {
       return
     }
@@ -255,7 +258,7 @@ const recomputeSchemaInOwnTransaction = async (
   }
 
   const session = neogmaService.createSession('run-side-effect-schema')
-  const transaction = session.beginTransaction({ timeout: 30_000 })
+  const transaction = session.beginTransaction({ timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
   try {
     await aiService.getSchema({ projectId, force: true, transaction })
     if (transaction.isOpen()) {

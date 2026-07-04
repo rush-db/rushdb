@@ -1,15 +1,11 @@
-import path from 'path'
-import dotenv from 'dotenv'
-
-// Load .env from the javascript-sdk package folder
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-
-import RushDB from '../src/index.node'
+import RushDB from '../../packages/javascript-sdk/src/index.node'
 
 jest.setTimeout(60_000)
 
 describe('query.raw (e2e)', () => {
-  const apiKey = process.env.RUSHDB_API_KEY
+  // Raw queries require a project attached to an external Neo4j; the harness provisions
+  // one and exposes its key as RUSHDB_E2E_CUSTOMDB_API_KEY.
+  const apiKey = process.env.RUSHDB_E2E_CUSTOMDB_API_KEY ?? process.env.RUSHDB_API_KEY
   const apiUrl = process.env.RUSHDB_API_URL || 'http://localhost:3000'
 
   if (!apiKey) {
