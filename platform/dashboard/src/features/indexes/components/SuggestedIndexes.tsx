@@ -69,20 +69,20 @@ function SuggestedIndexItem({
     <li className="bg-card flex flex-col gap-3 rounded-md border px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4">
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Label className="!text-sm" variant={getLabelColor(suggestion.label, Math.max(labelIdx, 0))}>
+          <Label className="text-sm!" variant={getLabelColor(suggestion.label, Math.max(labelIdx, 0))}>
             {suggestion.label}
           </Label>
           <span className="text-content3">:</span>
-          <span className="bg-content3/10 text-content2 w-fit rounded-sm px-1 font-mono text-xs">
+          <span className="w-fit rounded-sm bg-content3/10 px-1 font-mono text-xs text-content2">
             {suggestion.propertyName}
           </span>
         </div>
-        <p className="text-content2 text-sm">
+        <p className="text-sm text-content2">
           {suggestion.reason}. Create a semantic index to search it by meaning.
         </p>
       </div>
       <div className="flex items-center justify-end gap-3 sm:shrink-0">
-        <span className="text-content3 whitespace-nowrap text-sm tabular-nums">
+        <span className="text-sm whitespace-nowrap text-content3 tabular-nums">
           {(suggestion.recordsCount ?? 0).toLocaleString()} records
         </span>
         <Button
@@ -139,11 +139,11 @@ export function SuggestedIndexesCard({
   return (
     <div className="flex flex-col gap-3" data-tour="project-index-suggestions">
       <div>
-        <h2 className="text-content flex items-center gap-2 text-lg font-semibold">
-          <Lightbulb className="text-accent h-5 w-5" />
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-content">
+          <Lightbulb className="h-5 w-5 text-accent" />
           Suggested semantic indexes
         </h2>
-        <p className="text-content2 text-sm">{description}</p>
+        <p className="text-sm text-content2">{description}</p>
       </div>
       {loading ?
         <div className="flex flex-col gap-3">

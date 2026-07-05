@@ -46,21 +46,21 @@ function ProjectCard({ description, id, stats, name, customDb, status }: Project
 
   return (
     <a
-      className="interaction bg-secondary ring-interaction-ring focus-visible:border-interaction-focus [&:hover:not(:focus-visible)]:bg-secondary-hover rounded-lg border border-transparent focus-visible:ring"
+      className="interaction rounded-lg border border-transparent bg-secondary ring-interaction-ring focus-visible:border-interaction-focus focus-visible:ring [&:hover:not(:focus-visible)]:bg-secondary-hover"
       href={href}
     >
       <article className={cn('flex flex-col gap-3 p-5 transition')}>
         <header className="flex flex-col items-start justify-between">
           <div className="flex w-full items-center justify-between">
-            <h4 className="text-content truncate text-lg font-bold">{name}</h4>
+            <h4 className="truncate text-lg font-bold text-content">{name}</h4>
             {customDb && (
-              <Label className="items-center !text-sm">
+              <Label className="items-center text-sm!">
                 <Link size={18} className="pr-2" />
                 External Instance
               </Label>
             )}
           </div>
-          <p className={cn('text-content2 text-sm')}>{description || 'No description provided'}</p>
+          <p className={cn('text-sm text-content2')}>{description || 'No description provided'}</p>
         </header>
         <hr />
         <div className="flex justify-start gap-12">
@@ -87,10 +87,10 @@ function Header() {
         <PageTitle>
           Projects{' '}
           {projects?.length ?
-            <span className="text-content2 ml-1">{projects?.length}</span>
+            <span className="ml-1 text-content2">{projects?.length}</span>
           : null}
         </PageTitle>
-        <p className="text-content2 text-sm leading-6">
+        <p className="text-sm leading-6 text-content2">
           Projects are isolated data spaces for separate apps, customers, environments, or experiments.
           Records, relationships, indexes, API keys, and access rules stay scoped to the project they belong
           to, so each project can evolve without mixing data with another one.
@@ -112,7 +112,7 @@ function EmptyProjects() {
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8">
       <SearchX size={48} className="text-content2" />
       <h4 className="text-center text-xl font-bold">No projects yet</h4>
-      <p className="text-content2 max-w-md text-center text-sm">
+      <p className="max-w-md text-center text-sm text-content2">
         Create a dedicated data space for your first application, customer, or workflow.
       </p>
       {isOwner && (

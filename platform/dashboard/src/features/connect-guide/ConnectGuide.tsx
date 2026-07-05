@@ -390,10 +390,10 @@ function StepList({ items }: { items: Array<ReactNode> }) {
     <ol className="grid gap-3">
       {items.map((item, index) => (
         <li className="grid grid-cols-[2rem_1fr] gap-3" key={index}>
-          <span className="bg-accent/20 text-content grid h-8 w-8 place-items-center rounded-full text-sm font-medium">
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-accent/20 text-sm font-medium text-content">
             {index + 1}
           </span>
-          <div className="text-content2 min-w-0 pt-1 text-sm leading-6">{item}</div>
+          <div className="min-w-0 pt-1 text-sm leading-6 text-content2">{item}</div>
         </li>
       ))}
     </ol>
@@ -414,12 +414,12 @@ function GuideHeader({
   return (
     <div className="flex flex-col gap-4 border-b pb-5 md:flex-row md:items-start md:justify-between">
       <div className="flex min-w-0 gap-3">
-        <div className="bg-secondary text-content2 grid h-10 w-10 shrink-0 place-items-center rounded-md [&>svg]:h-5 [&>svg]:w-5">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-secondary text-content2 [&>svg]:h-5 [&>svg]:w-5">
           {icon}
         </div>
         <div className="min-w-0">
-          <h3 className="text-content text-lg font-semibold">{title}</h3>
-          <p className="text-content2 mt-1 max-w-2xl text-sm leading-6">{description}</p>
+          <h3 className="text-lg font-semibold text-content">{title}</h3>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-content2">{description}</p>
         </div>
       </div>
       {children && <div className="flex shrink-0 flex-wrap gap-2">{children}</div>}
@@ -431,12 +431,12 @@ function CodeSnippet({ code, language, title }: { code: string; language?: strin
   const normalizedLanguage = normalizeCodeLanguage(language)
 
   return (
-    <div className="bg-fill overflow-hidden rounded-md border">
+    <div className="overflow-hidden rounded-md border bg-fill">
       <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="text-content2 text-sm font-medium">{title}</span>
+          <span className="text-sm font-medium text-content2">{title}</span>
           {language && (
-            <span className="text-content3 rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase leading-none">
+            <span className="rounded-md border px-1.5 py-0.5 text-[10px] leading-none font-medium text-content3 uppercase">
               {languageLabels[normalizedLanguage]}
             </span>
           )}
@@ -445,8 +445,8 @@ function CodeSnippet({ code, language, title }: { code: string; language?: strin
           Copy
         </CopyButton>
       </div>
-      <pre className="text-content max-h-80 overflow-auto p-3 text-xs leading-5">
-        <code className="block min-w-max whitespace-pre font-mono">
+      <pre className="max-h-80 overflow-auto p-3 text-xs leading-5 text-content">
+        <code className="block min-w-max font-mono whitespace-pre">
           <HighlightedCode code={code} language={normalizedLanguage} />
         </code>
       </pre>
@@ -460,10 +460,10 @@ function GuidePanel({ children }: { children: ReactNode }) {
 
 function WorkspaceProjectNotice() {
   return (
-    <div className="border-badge-blue/20 bg-badge-blue/10 flex flex-col gap-3 rounded-md border p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-md border border-badge-blue/20 bg-badge-blue/10 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex gap-3">
-        <Info className="text-badge-blue mt-0.5 h-5 w-5 shrink-0" />
-        <p className="text-badge-blue text-sm leading-6">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-badge-blue" />
+        <p className="text-sm leading-6 text-badge-blue">
           Every RushDB integration — MCP, SDK, and REST — requires a project API key. API keys are issued per
           project, so create a project first.
         </p>
@@ -478,7 +478,7 @@ function WorkspaceProjectNotice() {
 function ProjectTokenNotice({ projectId, tokenReady }: { projectId: Project['id']; tokenReady: boolean }) {
   if (tokenReady) {
     return (
-      <p className="text-content2 text-sm">
+      <p className="text-sm text-content2">
         The snippets below use this project&apos;s first API key. Rotate or create keys from the API Keys page
         when needed.
       </p>
@@ -488,8 +488,8 @@ function ProjectTokenNotice({ projectId, tokenReady }: { projectId: Project['id'
   return (
     <div className="flex flex-col gap-3 rounded-md border border-dashed p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex gap-3">
-        <KeyRound className="text-content2 mt-0.5 h-5 w-5 shrink-0" />
-        <p className="text-content2 text-sm leading-6">
+        <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-content2" />
+        <p className="text-sm leading-6 text-content2">
           This project needs an API key before local MCP and SDK snippets can use project-specific
           configuration.
         </p>
@@ -534,7 +534,7 @@ function HostedMcpGuide() {
 
         <div className="grid content-start gap-3">
           <div>
-            <p className="text-content2 mb-2 text-sm font-medium">MCP endpoint</p>
+            <p className="mb-2 text-sm font-medium text-content2">MCP endpoint</p>
             <CopyInput value={HOSTED_MCP_URL} />
           </div>
           <CodeSnippet
@@ -621,7 +621,7 @@ function SdkRestGuide({ projectId, token }: { projectId?: Project['id']; token: 
 
         {installCommand && (
           <div>
-            <p className="text-content2 mb-2 text-sm font-medium">Install core SDK</p>
+            <p className="mb-2 text-sm font-medium text-content2">Install core SDK</p>
             <CopyInput value={installCommand} />
           </div>
         )}
@@ -704,8 +704,8 @@ export function ConnectGuide({ className, defaultPath = 'hosted-mcp', projectId 
 
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-content text-2xl font-bold">Connect RushDB</h2>
-          <p className="text-content2 mt-2 max-w-2xl leading-6">
+          <h2 className="text-2xl font-bold text-content">Connect RushDB</h2>
+          <p className="mt-2 max-w-2xl leading-6 text-content2">
             Start from the path that matches your workflow. Each setup gets to a working connection first,
             then points to the next useful action.
           </p>
@@ -730,7 +730,7 @@ export function ConnectGuide({ className, defaultPath = 'hosted-mcp', projectId 
               {path.icon}
               <span className="flex flex-col items-start">
                 <span>{path.label}</span>
-                <span className="text-content2 text-sm font-normal">{path.description}</span>
+                <span className="text-sm font-normal text-content2">{path.description}</span>
               </span>
             </Tab>
           ))}

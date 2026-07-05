@@ -19,10 +19,10 @@ function SourceTile({
 }) {
   return (
     <button
-      className="bg-secondary ring-accent-ring hover:border-accent-hover hover:bg-secondary-hover focus-visible:border-accent-focus flex w-full items-start gap-4 rounded-lg border px-5 py-4 text-start transition-all focus-visible:ring"
+      className="flex w-full items-start gap-4 rounded-lg border bg-secondary px-5 py-4 text-start ring-accent-ring transition-all hover:border-accent-hover hover:bg-secondary-hover focus-visible:border-accent-focus focus-visible:ring"
       onClick={onClick}
     >
-      <div className="text-accent mt-1 flex items-center justify-center">
+      <div className="mt-1 flex items-center justify-center text-accent">
         <Database size={20} />
       </div>
       <div className="min-w-0">
@@ -56,9 +56,9 @@ export function ConnectionsPanel() {
             <Cable size={18} />
             Continuous sync
           </h2>
-          <p className="text-content2 text-sm">Connect a datasource and stream changes into this project.</p>
+          <p className="text-sm text-content2">Connect a datasource and stream changes into this project.</p>
         </div>
-        <div className="text-content2 text-sm">
+        <div className="text-sm text-content2">
           {isPending ? 'Loading connections...' : `${connectors.length} configured`}
         </div>
       </div>
@@ -85,7 +85,7 @@ export function ConnectionsPanel() {
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{connector.name}</p>
-                <p className="text-content2 text-xs">
+                <p className="text-xs text-content2">
                   {connector.type} · {connector.status}
                   {connector.lastError ? ` · ${connector.lastError}` : ''}
                 </p>

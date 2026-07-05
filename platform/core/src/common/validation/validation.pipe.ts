@@ -1,18 +1,11 @@
 import { ArgumentMetadata, BadRequestException, mixin } from '@nestjs/common'
 import { Injectable, PipeTransform } from '@nestjs/common'
-import { AnySchema } from 'joi'
-import * as Joi from 'joi'
+import { ZodTypeAny } from 'zod'
 
 import { formatErrorMessage } from '@/common/validation/utils'
 
-const DEFAULT_JOI_OPTS: Joi.ValidationOptions = {
-  abortEarly: false,
-  allowUnknown: true,
-  convert: false
-}
-
 export const ValidationPipe = <T = any, R = any>(
-  schema: AnySchema,
+  schema: ZodTypeAny,
   type: ArgumentMetadata['type'],
   paramName?: string
 ) => {
@@ -22,31 +15,22 @@ export const ValidationPipe = <T = any, R = any>(
       const typeMatch = type === metadata.type
       if (typeMatch) {
         if (typeof paramName !== 'undefined' && paramName === metadata.data) {
-          return this.validate<T>(value, schema, DEFAULT_JOI_OPTS, metadata)
+          return this.validate<T>(value, schema, metadata)
         } else if (typeof paramName === 'undefined') {
-          return this.validate<T>(value, schema, DEFAULT_JOI_OPTS, metadata)
+          return this.validate<T>(value, schema, metadata)
         }
       }
       return value as T
     }
 
-    validate<T>(
-      payload: unknown,
-      schema: Joi.Schema,
-      validationOptions: Joi.ValidationOptions,
-      metadata: ArgumentMetadata = { type: 'custom' }
-    ): T {
-      const { error, value } = schema.validate(payload, validationOptions)
+    validate<T>(payload: unknown, schema: ZodTypeAny, metadata: ArgumentMetadata = { type: 'custom' }): T {
+      const result = schema.safeParse(payload)
 
-      if (error) {
-        if (Joi.isError(error)) {
-          throw new BadRequestException(formatErrorMessage(error, metadata))
-        } else {
-          throw error
-        }
+      if (!result.success) {
+        throw new BadRequestException(formatErrorMessage(result.error, metadata))
       }
 
-      return value as T
+      return result.data as T
     }
   }
 

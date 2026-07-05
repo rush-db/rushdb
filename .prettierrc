@@ -7,5 +7,6 @@
   "arrowParens": "always",
   "printWidth": 110,
   "experimentalTernaries": true,
-  "plugins": ["prettier-plugin-tailwindcss"]
+  "plugins": ["prettier-plugin-tailwindcss"],
+  "tailwindStylesheet": "./platform/dashboard/src/index.css"
 }

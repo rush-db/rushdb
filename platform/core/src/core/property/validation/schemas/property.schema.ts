@@ -1,6 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import Joi = require('joi')
-import { AnySchema } from 'joi'
+import { z } from 'zod'
 
 import { ISO_8601_REGEX, NUMERIC_REGEX } from '@/core/common/constants'
 import {
@@ -10,92 +8,67 @@ import {
   PROPERTY_TYPE_STRING
 } from '@/core/property/property.constants'
 
-const datetimeSchema = Joi.string().regex(ISO_8601_REGEX).messages({
-  'string.pattern.base': '{{#label}} with value {:[.]} fails to match ISO8601 DateTime'
-})
+const nonEmptyStringSchema = z.string().min(1)
 
-export const numericStringSchema = Joi.string()
-  .regex(NUMERIC_REGEX)
-  .messages({
-    'string.pattern.base': '{{#label}} with value {:[.]} is not a numeric value'
-  })
-  .required()
+const datetimeSchema = z.string().regex(ISO_8601_REGEX, 'fails to match ISO8601 DateTime')
 
-export const fieldValueSchema = Joi.alternatives(numericStringSchema, datetimeSchema.required())
-const JoiArraySchema = (schema: AnySchema) => Joi.array().items(schema).required()
+export const numericStringSchema = z.string().regex(NUMERIC_REGEX, 'is not a numeric value')
 
-export const stringArraySchema = JoiArraySchema(Joi.string().required())
-export const datetimeArraySchema = JoiArraySchema(datetimeSchema.required())
-export const numberArraySchema = JoiArraySchema(Joi.number().required())
-export const nullArraySchema = JoiArraySchema(Joi.string().valid(null).required())
-export const booleanArraySchema = JoiArraySchema(Joi.boolean().required())
-export const emptyArraySchema = Joi.array().length(0)
+export const fieldValueSchema = z.union([numericStringSchema, datetimeSchema])
+
+export const stringArraySchema = z.array(nonEmptyStringSchema)
+export const datetimeArraySchema = z.array(datetimeSchema)
+export const numberArraySchema = z.array(z.number())
+export const nullArraySchema = z.array(z.null())
+export const booleanArraySchema = z.array(z.boolean())
+export const emptyArraySchema = z.array(z.any()).max(0)
 
 // Accepts null / arrays-of-null / [] as INPUT. `null` is no longer a stored type — such values are
 // validated here so the request is accepted, then dropped during normalization (null === field unset).
-export const nullValueSchema = Joi.alternatives().try(
-  Joi.string().valid(null).required(),
-  nullArraySchema,
-  emptyArraySchema
-)
-export const booleanValueSchema = Joi.alternatives().try(
-  Joi.boolean().required(),
-  booleanArraySchema,
-  emptyArraySchema
-)
-export const datetimeValueSchema = Joi.alternatives().try(
-  datetimeSchema.required(),
-  datetimeArraySchema,
-  emptyArraySchema
-)
-export const numberValueSchema = Joi.alternatives().try(
-  Joi.number().required(),
-  numberArraySchema,
-  emptyArraySchema
-)
-export const stringValueSchema = Joi.alternatives()
-  .try(Joi.string().required(), stringArraySchema, emptyArraySchema)
-  .allow('')
+export const nullValueSchema = z.union([z.null(), nullArraySchema, emptyArraySchema])
+export const booleanValueSchema = z.union([z.boolean(), booleanArraySchema, emptyArraySchema])
+export const datetimeValueSchema = z.union([datetimeSchema, datetimeArraySchema, emptyArraySchema])
+export const numberValueSchema = z.union([z.number(), numberArraySchema, emptyArraySchema])
+export const stringValueSchema = z.union([z.string(), stringArraySchema, emptyArraySchema])
 
-export const propertySchema = Joi.object({
-  type: Joi.string()
-    .valid(PROPERTY_TYPE_STRING, PROPERTY_TYPE_DATETIME, PROPERTY_TYPE_BOOLEAN, PROPERTY_TYPE_NUMBER)
-    .required(),
-  name: Joi.string().required(),
-  value: Joi.alternatives()
-    .conditional('type', {
-      switch: [
-        {
-          is: PROPERTY_TYPE_BOOLEAN,
-          then: booleanValueSchema
-        },
-        {
-          is: PROPERTY_TYPE_DATETIME,
-          then: Joi.alternatives().conditional('valueSeparator', {
-            is: Joi.string().exist(),
-            then: datetimeSchema.required(),
-            otherwise: datetimeValueSchema
-          })
-        },
-        {
-          is: PROPERTY_TYPE_STRING,
-          then: Joi.alternatives().conditional('valueSeparator', {
-            is: Joi.string().exist(),
-            then: Joi.string().required(),
-            otherwise: stringValueSchema
-          })
-        },
-        {
-          is: PROPERTY_TYPE_NUMBER,
-          then: Joi.alternatives().conditional('valueSeparator', {
-            is: Joi.string().exist(),
-            then: Joi.string().required(),
-            otherwise: numberValueSchema
-          })
-        }
-      ]
-    })
-    .required(),
-  valueSeparator: Joi.string().optional(),
-  metadata: Joi.object().optional()
-})
+const valueSchemaFor = (property: { type?: string; valueSeparator?: string }): z.ZodTypeAny => {
+  const hasSeparator = typeof property.valueSeparator === 'string'
+
+  switch (property.type) {
+    case PROPERTY_TYPE_BOOLEAN:
+      return booleanValueSchema
+    case PROPERTY_TYPE_DATETIME:
+      return hasSeparator ? datetimeSchema : datetimeValueSchema
+    case PROPERTY_TYPE_STRING:
+      return hasSeparator ? nonEmptyStringSchema : stringValueSchema
+    case PROPERTY_TYPE_NUMBER:
+      return hasSeparator ? nonEmptyStringSchema : numberValueSchema
+    default:
+      return z.never()
+  }
+}
+
+export const propertySchema = z
+  .object({
+    type: z.enum([PROPERTY_TYPE_STRING, PROPERTY_TYPE_DATETIME, PROPERTY_TYPE_BOOLEAN, PROPERTY_TYPE_NUMBER]),
+    name: nonEmptyStringSchema,
+    value: z.unknown(),
+    valueSeparator: nonEmptyStringSchema.optional(),
+    metadata: z.record(z.unknown()).optional()
+  })
+  .passthrough()
+  .superRefine((property, ctx) => {
+    // `value` is typed as unknown so its presence must be enforced manually; the accepted shape
+    // depends on `type` and on whether the value arrives pre-joined via `valueSeparator`.
+    if (!('value' in property) || property.value === undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['value'], message: 'Required' })
+      return
+    }
+
+    const result = valueSchemaFor(property).safeParse(property.value)
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        ctx.addIssue({ ...issue, path: ['value', ...issue.path] })
+      }
+    }
+  })

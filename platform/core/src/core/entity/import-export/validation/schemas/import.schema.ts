@@ -1,53 +1,58 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import Joi = require('joi')
+import { z } from 'zod'
 
-export const importJsonSchema = Joi.object({
-  label: Joi.string(),
-  data: Joi.alternatives().try(Joi.object(), Joi.array().items(Joi.object()), Joi.string()),
-  format: Joi.string().valid('json', 'jsonl', 'ndjson').optional(),
-  options: Joi.object({
-    suggestTypes: Joi.boolean().optional(),
-    convertNumericValuesToNumbers: Joi.boolean().optional(),
-    capitalizeLabels: Joi.boolean().optional(),
-    skipEmptyValues: Joi.boolean().optional(),
-    relationshipType: Joi.string().optional(),
-    returnResult: Joi.boolean().optional(),
-    mergeStrategy: Joi.string().valid('append', 'rewrite').optional(),
-    mergeBy: Joi.array().items(Joi.string()).optional()
-  }).optional()
-})
+const anyObjectSchema = z.record(z.unknown())
 
-export const importCsvSchema = Joi.object({
-  label: Joi.string(),
-  data: Joi.string(),
-  options: Joi.object({
-    suggestTypes: Joi.boolean().optional(),
-    convertNumericValuesToNumbers: Joi.boolean().optional(),
-    capitalizeLabels: Joi.boolean().optional(),
-    skipEmptyValues: Joi.boolean().optional(),
-    relationshipType: Joi.string().optional(),
-    returnResult: Joi.boolean().optional(),
-    mergeStrategy: Joi.string().valid('append', 'rewrite').optional(),
-    mergeBy: Joi.array().items(Joi.string()).optional()
-  }).optional(),
-  parseConfig: Joi.object({
-    delimiter: Joi.string().max(5).optional(),
-    header: Joi.boolean().optional(),
-    skipEmptyLines: Joi.alternatives().try(Joi.boolean(), Joi.string().valid('greedy')).optional(),
-    dynamicTyping: Joi.boolean().optional(),
-    quoteChar: Joi.string().max(3).optional(),
-    escapeChar: Joi.string().max(3).optional(),
-    newline: Joi.string().max(4).optional()
-  }).optional(),
-  vectors: Joi.array()
-    .items(
-      Joi.array().items(
-        Joi.object({
-          propertyName: Joi.string().required(),
-          vector: Joi.array().items(Joi.number()).required(),
-          similarityFunction: Joi.string().valid('cosine', 'euclidean').optional()
-        })
+const importOptionsSchema = z
+  .object({
+    suggestTypes: z.boolean().optional(),
+    convertNumericValuesToNumbers: z.boolean().optional(),
+    capitalizeLabels: z.boolean().optional(),
+    skipEmptyValues: z.boolean().optional(),
+    relationshipType: z.string().min(1).optional(),
+    returnResult: z.boolean().optional(),
+    mergeStrategy: z.enum(['append', 'rewrite']).optional(),
+    mergeBy: z.array(z.string().min(1)).optional()
+  })
+  .passthrough()
+
+export const importJsonSchema = z
+  .object({
+    label: z.string().min(1).optional(),
+    data: z.union([anyObjectSchema, z.array(anyObjectSchema), z.string().min(1)]).optional(),
+    format: z.enum(['json', 'jsonl', 'ndjson']).optional(),
+    options: importOptionsSchema.optional()
+  })
+  .passthrough()
+
+export const importCsvSchema = z
+  .object({
+    label: z.string().min(1).optional(),
+    data: z.string().min(1).optional(),
+    options: importOptionsSchema.optional(),
+    parseConfig: z
+      .object({
+        delimiter: z.string().min(1).max(5).optional(),
+        header: z.boolean().optional(),
+        skipEmptyLines: z.union([z.boolean(), z.literal('greedy')]).optional(),
+        dynamicTyping: z.boolean().optional(),
+        quoteChar: z.string().min(1).max(3).optional(),
+        escapeChar: z.string().min(1).max(3).optional(),
+        newline: z.string().min(1).max(4).optional()
+      })
+      .passthrough()
+      .optional(),
+    vectors: z
+      .array(
+        z.array(
+          z
+            .object({
+              propertyName: z.string().min(1),
+              vector: z.array(z.number()),
+              similarityFunction: z.enum(['cosine', 'euclidean']).optional()
+            })
+            .passthrough()
+        )
       )
-    )
-    .optional()
-})
+      .optional()
+  })
+  .passthrough()

@@ -18,7 +18,7 @@ export function ChangeProjectMenu() {
   return (
     <Menu
       trigger={
-        <MenuButton className="m-0 grid w-full !grid-cols-[minmax(0,1fr)_auto] justify-items-start px-0 leading-3">
+        <MenuButton className="m-0 grid w-full grid-cols-[minmax(0,1fr)_auto]! justify-items-start px-0 leading-3">
           <Skeleton className="block min-w-0" enabled={loading}>
             <span className="block w-full truncate text-left">{triggerLabel}</span>
           </Skeleton>

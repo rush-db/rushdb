@@ -9,6 +9,7 @@ import { getRoutePath, openRoute } from '~/lib/router'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { useUpdateUserMutation } from '~/features/auth/hooks/useAuthMutations'
 import { $tourRunning, setTourStep } from '~/features/tour/stores/tour.ts'
+import { ThemeSwitcher } from '~/features/auth/components/ThemeSwitcher'
 import { CurrentSubscriptionInfo } from '~/components/billing/CurrentSubscriptionInfo.tsx'
 
 export function UserMenu() {
@@ -55,6 +56,11 @@ export function UserMenu() {
         <MenuItem icon={<RotateCcw />} onClick={handleRestart}>
           Restart Onboarding
         </MenuItem>
+        <Divider />
+        <div className="flex items-center justify-between gap-4 px-4 py-2 text-sm font-medium">
+          Theme
+          <ThemeSwitcher compact />
+        </div>
         <Divider />
         <MenuItem icon={<LogOut />} onClick={logOut}>
           Log Out

@@ -14,6 +14,7 @@ import {
   $sheetProperty,
   openPropertySheet,
   openRecordSheet,
+  openRelationshipSheet,
   type PropertySheetData
 } from '~/features/projects/stores/id.ts'
 import { $tourAllowed, $tourStep } from '~/features/tour/stores/tour'
@@ -21,7 +22,7 @@ import { getLabelColor } from '~/features/labels'
 import type { DBRecord, DBRecordInstance } from '@rushdb/javascript-sdk'
 import { type Relation } from '@rushdb/javascript-sdk'
 
-import { GraphCanvas, type GraphNode, type GraphOutput } from './GraphCanvas'
+import { GraphCanvas, type GraphLink, type GraphNode, type GraphOutput } from './GraphCanvas'
 
 export type { GraphMode, GraphNode, GraphLink, GraphOutput } from './GraphCanvas'
 
@@ -45,6 +46,10 @@ function propertyNodeKey(label: string, name: string, type: string) {
 
 function recordNodeKey(recordId: string) {
   return `record:${recordId}`
+}
+
+function relationLinkId(relation: Relation) {
+  return `relation:${relation.sourceId}:${relation.targetId}:${relation.type}`
 }
 
 function createGraphData({
@@ -129,7 +134,7 @@ function createGraphData({
       return
     }
 
-    const relationId = `relation:${relation.sourceId}:${relation.targetId}:${relation.type}`
+    const relationId = relationLinkId(relation)
     linkMap.set(relationId, {
       id: relationId,
       kind: 'record-relation',
@@ -209,23 +214,38 @@ export const GraphView: FC = () => {
     [fields]
   )
 
+  const handleLinkClick = useCallback(
+    (link: GraphLink) => {
+      if (link.kind !== 'record-relation') {
+        return
+      }
+
+      const relation = relations?.find((candidate) => relationLinkId(candidate) === link.id)
+      if (relation) {
+        openRelationshipSheet(relation)
+      }
+    },
+    [relations]
+  )
+
   return (
     <GraphCanvas
       dataTour="records-graph-view"
       graphData={rawGraphData}
+      onLinkClick={handleLinkClick}
       onNodeClick={handleNodeClick}
       tourFitActive={tourAllowed && tourStep === 'recordGraphView'}
     >
       {selectedProperty && (
-        <div className="bg-fill/90 border-content/30 absolute right-4 top-20 z-20 max-w-xs rounded-xl border p-3 shadow-xl backdrop-blur-sm">
-          <div className="text-xs font-semibold uppercase tracking-wide">Selected Property</div>
+        <div className="absolute top-20 right-4 z-20 max-w-xs rounded-xl border border-content/30 bg-fill/90 p-3 shadow-xl backdrop-blur-xs">
+          <div className="text-xs font-semibold tracking-wide uppercase">Selected Property</div>
           <div className="mt-1 text-sm font-medium">{selectedProperty.name}</div>
           <div className="text-content-secondary text-xs">Alt + click node to hide it</div>
         </div>
       )}
 
       {relationsResult?.edgeLimitReached && (
-        <div className="bg-fill/90 border-content/30 text-content-secondary absolute bottom-4 left-4 z-20 max-w-sm rounded-lg border px-3 py-2 text-xs shadow-xl backdrop-blur-sm">
+        <div className="text-content-secondary absolute bottom-4 left-4 z-20 max-w-sm rounded-lg border border-content/30 bg-fill/90 px-3 py-2 text-xs shadow-xl backdrop-blur-xs">
           Showing first {relationsResult.edgeLimit.toLocaleString()} relationships between loaded records.
         </div>
       )}

@@ -1,7 +1,7 @@
-import { yupResolver } from '@hookform/resolvers/yup'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
-import { object, string } from 'yup'
+import { z } from 'zod'
 
 import type { WithProjectID } from '~/features/projects/types'
 
@@ -16,8 +16,8 @@ import { useUpdateProjectMutation } from '~/features/projects/hooks/useProjectMu
 import { ProjectSettingsLayout } from '~/features/projects/layout/ProjectSettingsLayout'
 import { ConnectionsList } from '~/pages/workspace/connected-apps'
 
-const workspaceNameSchema = object({
-  name: string().min(1).max(256).required()
+const workspaceNameSchema = z.object({
+  name: z.string().min(1).max(256)
 })
 
 function ProjectNameSetting({}: WithProjectID) {
@@ -32,7 +32,7 @@ function ProjectNameSetting({}: WithProjectID) {
     reset
   } = useForm({
     defaultValues: project,
-    resolver: yupResolver(workspaceNameSchema)
+    resolver: zodResolver(workspaceNameSchema)
   })
 
   useEffect(() => {
@@ -51,7 +51,7 @@ function ProjectNameSetting({}: WithProjectID) {
       isValid={isValid}
       onSubmit={handleSubmit(async (values) => {
         if (!project?.id) return
-        await mutate({ id: project.id, ...values })
+        await mutate({ ...values, id: project.id })
       })}
       title="Project name"
     >
@@ -92,7 +92,7 @@ export function ProjectSettings({ projectId }: WithProjectID) {
       <PageHeader contained>
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Project Settings</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             Manage the project name and deletion controls for this isolated data space.
           </p>
         </div>
@@ -113,7 +113,7 @@ export function ProjectConnectedApps({ projectId }: WithProjectID) {
       <PageHeader contained>
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Connected Apps</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             Review third-party applications authorized against this project. Revoking an app immediately
             invalidates its issued token.
           </p>

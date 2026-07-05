@@ -1,9 +1,31 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4. Preflight is intentionally not imported (it would fight
+   Infima's base styles), and utilities stay unlayered so they keep winning
+   over Infima rules like they did in v3. */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css';
+
+/* Docusaurus toggles the theme via the `data-theme` attribute. */
+@custom-variant dark (&:is([data-theme='dark'], [data-theme='dark'] *));
+
+@theme {
+  --breakpoint-sm: 0px;
+  --breakpoint-lg: 997px;
+
+  --radius-sm: 4px;
+
+  --color-accent: #3f81ff;
+  --color-accent-contrast: hsl(0, 0%, 100%);
+  --color-accent-hover: #3c78ef;
+  --color-accent-focus: #346ccd;
+  --color-accent-ring: rgba(63, 129, 255, 0.24);
+}
+
+/* Infima owns `.container`; stop Tailwind from generating its own version
+   (replaces v3's `corePlugins.container: false`). */
+@source not inline('container');
 
 /* Import fonts */
 
@@ -1274,7 +1296,7 @@ html[data-theme='dark'] .theme-admonition .admonition-icon svg {
 }
 
 .menu {
-  @apply !pl-4 !pt-4;
+  @apply !pt-4 !pl-4;
 }
 
 .menu > :first-child:not(.sdk-link) {

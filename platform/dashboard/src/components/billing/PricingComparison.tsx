@@ -69,8 +69,8 @@ const PLAN_LABELS = ['Free', 'Start', 'Pro', 'Scale', 'Enterprise']
 function FeatureCell({ value }: { value: boolean | string }) {
   if (typeof value === 'boolean') {
     return value ?
-        <Check className="text-accent mx-auto h-4 w-4" />
-      : <X className="text-content3 mx-auto h-4 w-4" />
+        <Check className="mx-auto h-4 w-4 text-accent" />
+      : <X className="mx-auto h-4 w-4 text-content3" />
   }
 
   if (value === 'Coming Soon') {
@@ -83,8 +83,8 @@ function FeatureCell({ value }: { value: boolean | string }) {
 function ComparisonHeading() {
   return (
     <div className="mb-6 text-center">
-      <p className="text-content3 mb-2 font-mono text-xs uppercase tracking-widest">Compare plans</p>
-      <p className="text-content font-mono text-xl font-bold">Feature comparison</p>
+      <p className="mb-2 font-mono text-xs tracking-widest text-content3 uppercase">Compare plans</p>
+      <p className="font-mono text-xl font-bold text-content">Feature comparison</p>
     </div>
   )
 }
@@ -125,9 +125,9 @@ export function PricingComparison({ className }: { className?: string }) {
         <table className="w-full border-collapse font-mono text-sm">
           <thead>
             <tr className="bg-secondary">
-              <th className="text-content border-b px-5 py-4 text-left font-semibold">Features</th>
+              <th className="border-b px-5 py-4 text-left font-semibold text-content">Features</th>
               {PLAN_LABELS.map((label) => (
-                <th className="text-content border-b px-5 py-4 text-center font-semibold" key={label}>
+                <th className="border-b px-5 py-4 text-center font-semibold text-content" key={label}>
                   {label}
                 </th>
               ))}
@@ -136,9 +136,9 @@ export function PricingComparison({ className }: { className?: string }) {
           <tbody>
             {features.map((feature, index) => (
               <tr className={index % 2 ? 'bg-secondary' : undefined} key={feature.name}>
-                <td className="text-content border-b px-5 py-4 text-left">{feature.name}</td>
+                <td className="border-b px-5 py-4 text-left text-content">{feature.name}</td>
                 {PLAN_KEYS.map((key) => (
-                  <td className="text-content2 border-b px-5 py-4 text-center" key={key}>
+                  <td className="border-b px-5 py-4 text-center text-content2" key={key}>
                     <FeatureCell value={feature[key]} />
                   </td>
                 ))}

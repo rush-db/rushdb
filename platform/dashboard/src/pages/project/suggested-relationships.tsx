@@ -56,12 +56,12 @@ export function ProjectSuggestedRelationships({ projectId }: { projectId: Projec
       <PageHeader className="items-start" contained>
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Suggested Relationships</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             RushDB analyzes this project after writes and suggests relationship patterns worth reviewing.
             Approving a pattern applies it now and keeps applying it to matching future writes.
           </p>
           <a
-            className="text-content2 hover:text-content inline-flex w-fit items-center gap-2 text-sm transition"
+            className="inline-flex w-fit items-center gap-2 text-sm text-content2 transition hover:text-content"
             href={SUGGESTED_PATTERNS_DOCS_URL}
             rel="noreferrer"
             target="_blank"
@@ -84,9 +84,9 @@ export function ProjectSuggestedRelationships({ projectId }: { projectId: Projec
               </TabsList>
               <div className="flex flex-wrap items-center justify-end gap-3">
                 {isAnalyzing ?
-                  <span className="text-content2 text-sm">Exploring graph...</span>
+                  <span className="text-sm text-content2">Exploring graph...</span>
                 : lastAnalyzedAt ?
-                  <span className="text-content2 text-sm" title={lastAnalyzedAt}>
+                  <span className="text-sm text-content2" title={lastAnalyzedAt}>
                     Last analyzed {formatIsoToLocalDateTime(lastAnalyzedAt)}
                   </span>
                 : null}

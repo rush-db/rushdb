@@ -1,21 +1,78 @@
-@import url('@fontsource/manrope');
-@import url('@fontsource/manrope/600.css');
-@import url('@fontsource/jetbrains-mono');
-@import url('@fontsource/jetbrains-mono/600.css');
+@import '@fontsource/manrope';
+@import '@fontsource/manrope/600.css';
+@import '@fontsource/jetbrains-mono';
+@import '@fontsource/jetbrains-mono/300.css';
+@import '@fontsource/jetbrains-mono/600.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import './theme.css';
+
+/* Matches the light theme (`[data-theme='light']` on <html>) and everything inside it. */
+@custom-variant light (&:where([data-theme='light'], [data-theme='light'] *));
+
+@theme {
+  --font-sans: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --text-2xs: 10px;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 10px);
+  --radius-circle: 100%;
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+
+  /* v3 parity: bare `ring` (and rings without an explicit color) render the
+     4px focus ring in the translucent content color. */
+  --default-ring-width: 4px;
+  --default-ring-color: hsl(var(--content-ring));
+}
+
+@utility container {
+  width: 100%;
+  /* v3 parity (`container.screens: { 2xl: 1600px }`): stay fluid below
+     1600px — cancel the per-breakpoint max-widths v4's container adds. */
+  max-width: none;
+  margin-inline: auto;
+  padding-inline: 2rem;
+
+  @media (width >= 1600px) {
+    max-width: 1600px;
+  }
+}
 
 @layer base {
   *,
   *::before,
   *::after {
-    @apply border-stroke box-border min-w-0 outline-none;
+    @apply box-border min-w-0 border-stroke outline-hidden;
   }
 
   :root {
-    @apply bg-fill text-content font-sans text-base;
+    @apply bg-fill font-sans text-base text-content;
     font-feature-settings:
       'rlig' 1,
       'calt' 1;
@@ -30,34 +87,77 @@
     @apply bg-accent-ring;
   }
 
-  .skeleton {
-    @apply bg-disabled text-disabled animate-pulse rounded-md [&>*]:invisible;
+  /* Slim macOS-style scrollbars on every platform: transparent track, inset
+     pill thumb. WebKit/Blink (Chrome, Edge, Safari) via pseudo-elements. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+    background: transparent;
   }
-}
 
-[hidden] {
-  display: none;
-}
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 
-body {
-  min-height: 100dvh;
-}
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--content3) / 0.4);
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background-clip: padding-box;
+  }
 
-h1,
-h2,
-h3,
-h4 {
-  @apply text-balance;
-}
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--content3) / 0.65);
+  }
 
-p {
-  @apply text-pretty;
-}
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
 
-svg {
-  display: inline-block;
-}
+  /* Firefox fallback. Gated so Blink (which supports both syntaxes) keeps the
+     pseudo-element styling above — standard props would override it there. */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: hsl(var(--content3) / 0.4) transparent;
+    }
+  }
 
-a {
-  @apply focus-visible:ring-primary-ring focus-visible:outline-none focus-visible:ring;
+  .skeleton {
+    @apply animate-pulse rounded-md bg-disabled text-disabled [&>*]:invisible;
+  }
+
+  /* v4 preflight makes buttons `cursor: default`; keep the v3 pointer. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  [hidden] {
+    display: none;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply text-balance;
+  }
+
+  p {
+    @apply text-pretty;
+  }
+
+  svg {
+    display: inline-block;
+  }
+
+  a {
+    @apply focus-visible:ring focus-visible:ring-primary-ring focus-visible:outline-hidden;
+  }
 }

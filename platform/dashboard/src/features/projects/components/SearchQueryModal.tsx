@@ -226,9 +226,9 @@ export function SearchQueryModal() {
           </TabsList>
         </div>
         <TabsContent value="json">
-          <div className="bg-fill overflow-hidden rounded-md border">
+          <div className="overflow-hidden rounded-md border bg-fill">
             <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
-              <span className="text-content2 text-sm font-medium">Editable SearchQuery payload</span>
+              <span className="text-sm font-medium text-content2">Editable SearchQuery payload</span>
               <CopyButton size="xsmall" text={value} variant="outline">
                 Copy
               </CopyButton>
@@ -255,8 +255,8 @@ export function SearchQueryModal() {
         </TabsContent>
       </Tabs>
       {error ?
-        <p className="text-danger text-sm">{error}</p>
-      : <p className="text-content2 text-sm">
+        <p className="text-sm text-danger">{error}</p>
+      : <p className="text-sm text-content2">
           Apply executes the JSON payload. Code snippets use `RUSHDB_API_KEY`
           {projectId ? ` for project ${projectId}.` : '.'}
         </p>
@@ -282,7 +282,7 @@ export function SearchQueryModal() {
         open={saveOpen}
       >
         <DialogTitle>Save query</DialogTitle>
-        <p className="text-content2 mb-3 text-sm">
+        <p className="mb-3 text-sm text-content2">
           Save the current{' '}
           {mode === 'ai' ?
             'Smart'

@@ -1,7 +1,7 @@
-import { yupResolver } from '@hookform/resolvers/yup'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
-import { object, string } from 'yup'
+import { z } from 'zod'
 
 import { Button } from '~/elements/Button'
 import { TextField } from '~/elements/Input'
@@ -14,8 +14,8 @@ import { WorkspaceSettingsLayout } from '~/features/workspaces/layout/WorkspaceS
 import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
 import { useUpdateWorkspaceMutation } from '~/features/workspaces/hooks/useWorkspaceMutations'
 
-const workspaceNameSchema = object({
-  name: string().min(1).max(256).required()
+const workspaceNameSchema = z.object({
+  name: z.string().min(1).max(256)
 })
 
 function WorkspaceNameSetting() {
@@ -30,7 +30,7 @@ function WorkspaceNameSetting() {
     reset
   } = useForm({
     defaultValues: workspace,
-    resolver: yupResolver(workspaceNameSchema)
+    resolver: zodResolver(workspaceNameSchema)
   })
 
   useEffect(() => {
@@ -49,7 +49,7 @@ function WorkspaceNameSetting() {
       isValid={isValid}
       onSubmit={handleSubmit(async (values) => {
         if (!workspace?.id) return
-        await mutate({ id: workspace.id, ...values })
+        await mutate({ ...values, id: workspace.id })
       })}
       title="Workspace name"
     >
@@ -82,7 +82,7 @@ export function WorkspaceSettingsPage() {
         <PageHeader contained>
           <div className="flex max-w-3xl flex-col gap-2">
             <PageTitle>General</PageTitle>
-            <p className="text-content2 text-sm leading-6">
+            <p className="text-sm leading-6 text-content2">
               Configure workspace identity and lifecycle controls. These settings apply to the workspace
               container, not to an individual project.
             </p>

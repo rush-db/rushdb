@@ -22,13 +22,13 @@ export function ProjectIndexes({ projectId }: { projectId: Project['id'] }) {
       <PageHeader className="items-start" contained>
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Semantic Indexes</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             Semantic indexes make selected text fields searchable by meaning. Each index is scoped to one
             label and property, backfills matching records, and powers semantic search from the Records page
             and API.
           </p>
           <a
-            className="text-content2 hover:text-content inline-flex w-fit items-center gap-2 text-sm transition"
+            className="inline-flex w-fit items-center gap-2 text-sm text-content2 transition hover:text-content"
             href={EMBEDDING_INDEX_DOCS_URL}
             rel="noreferrer"
             target="_blank"
@@ -54,8 +54,8 @@ export function ProjectIndexes({ projectId }: { projectId: Project['id'] }) {
           <>
             <section className="flex flex-col gap-3">
               <div>
-                <h2 className="text-content text-lg font-semibold">Created indexes</h2>
-                <p className="text-content2 text-sm">
+                <h2 className="text-lg font-semibold text-content">Created indexes</h2>
+                <p className="text-sm text-content2">
                   Monitor index status and backfill progress for searchable text fields in this project.
                 </p>
               </div>

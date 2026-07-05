@@ -66,7 +66,7 @@ export function ExportCsvButton() {
         </Button>
       }
     >
-      <div className="text-2xs text-content flex items-center gap-1 uppercase">Export current view</div>
+      <div className="flex items-center gap-1 text-2xs text-content uppercase">Export current view</div>
     </Tooltip>
   )
 }

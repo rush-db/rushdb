@@ -41,34 +41,34 @@ export function KuSidebarMeter() {
   const subscriptionState =
     isFree ?
       <a
-        className="border-accent/30 bg-accent/5 hover:bg-accent/10 -mx-1 -mb-1 mt-0.5 flex items-center gap-2 rounded-md border px-2.5 py-2 transition"
+        className="-mx-1 mt-0.5 -mb-1 flex items-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-2.5 py-2 transition hover:bg-accent/10"
         href={billingHref}
       >
-        <Sparkles className="text-accent h-4 w-4 shrink-0" />
-        <span className="text-content2 text-xs leading-snug">
-          <span className="text-content font-medium">Upgrade</span> for more Knowledge Units and higher
+        <Sparkles className="h-4 w-4 shrink-0 text-accent" />
+        <span className="text-xs leading-snug text-content2">
+          <span className="font-medium text-content">Upgrade</span> for more Knowledge Units and higher
           limits.
         </span>
       </a>
     : isCancelled && validTill ?
-      <a className="text-content2 hover:text-content text-xs transition" href={billingHref}>
+      <a className="text-xs text-content2 transition hover:text-content" href={billingHref}>
         Subscription ends {formatIsoToLocal(validTill)}
       </a>
-    : <a className="text-content3 hover:text-content text-xs transition" href={billingHref}>
+    : <a className="text-xs text-content3 transition hover:text-content" href={billingHref}>
         Active subscription
       </a>
 
   // Usage-based plans (Scale / Enterprise): no fixed cap to meter, just surface consumption.
   if (usage.billingModel === 'usage' || (usage.kuIncluded === null && usage.billingModel !== 'fixed')) {
     return (
-      <div className="border-content/20 bg-fill flex flex-col gap-2 rounded-md border p-4">
+      <div className="flex flex-col gap-2 rounded-md border border-content/20 bg-fill p-4">
         <a className="group flex flex-col gap-1.5" href={getRoutePath('workspaceApiUsage')}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-content2 text-xs font-medium uppercase tracking-wide">Knowledge Units</span>
-            <span className="text-content3 text-xs capitalize">{usage.plan}</span>
+            <span className="text-xs font-medium tracking-wide text-content2 uppercase">Knowledge Units</span>
+            <span className="text-xs text-content3 capitalize">{usage.plan}</span>
           </div>
-          <span className="text-content font-mono text-sm font-medium">{formatKu(usage.kuConsumed)} KU</span>
-          <span className="text-content3 inline-flex items-center gap-1 text-xs">
+          <span className="font-mono text-sm font-medium text-content">{formatKu(usage.kuConsumed)} KU</span>
+          <span className="inline-flex items-center gap-1 text-xs text-content3">
             View usage <ArrowUpRight className="h-3 w-3" />
           </span>
         </a>
@@ -94,23 +94,23 @@ export function KuSidebarMeter() {
     : 'text-content'
 
   return (
-    <div className="border-content/20 bg-fill flex flex-col gap-2.5 rounded-md border p-4">
+    <div className="flex flex-col gap-2.5 rounded-md border border-content/20 bg-fill p-4">
       <a
         className="group flex flex-col gap-2"
         href={getRoutePath('workspaceApiUsage')}
         title={`${formatKu(usage.kuConsumed)} / ${formatKu(cap)} KU (${pct.toFixed(1)}%)`}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="text-content2 text-xs font-medium uppercase tracking-wide">Knowledge Units</span>
-          <span className="text-content3 text-xs capitalize">{usage.plan}</span>
+          <span className="text-xs font-medium tracking-wide text-content2 uppercase">Knowledge Units</span>
+          <span className="text-xs text-content3 capitalize">{usage.plan}</span>
         </div>
         <div className="flex items-baseline justify-between gap-2">
           <span className={cn('font-mono text-sm font-medium', textColor)}>
             {formatKu(usage.kuConsumed)}&thinsp;/&thinsp;{formatKu(cap)}
           </span>
-          <span className="text-content3 text-xs">{pct.toFixed(0)}%</span>
+          <span className="text-xs text-content3">{pct.toFixed(0)}%</span>
         </div>
-        <div className="bg-secondary h-1.5 w-full overflow-hidden rounded-full">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
           <div className={cn('h-full rounded-full transition-all', barColor)} style={{ width: `${pct}%` }} />
         </div>
       </a>

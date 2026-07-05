@@ -1,9 +1,18 @@
 import { ArgumentMetadata } from '@nestjs/common'
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import Joi = require('joi')
+import { ZodError, ZodIssue } from 'zod'
 
-export const formatErrorMessage = (error: Joi.ValidationError, metadata: ArgumentMetadata) => {
-  const reasons = error.details.map((detail: { message: string }) => detail.message).join(', ')
+const formatIssue = (issue: ZodIssue): string => {
+  const label = issue.path.length ? `"${issue.path.join('.')}"` : 'value'
+
+  if (issue.code === 'invalid_union') {
+    return `${label} does not match any of the allowed types`
+  }
+
+  return `${label} ${issue.message}`
+}
+
+export const formatErrorMessage = (error: ZodError, metadata: ArgumentMetadata) => {
+  const reasons = error.issues.map(formatIssue).join(', ')
 
   return (
     `Request validation of ${metadata.type} ` +

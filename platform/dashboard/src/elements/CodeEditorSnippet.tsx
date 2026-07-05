@@ -14,9 +14,9 @@ export function CodeEditorSnippet({
   title: ReactNode
 }) {
   return (
-    <div className="bg-fill overflow-hidden rounded-md border">
+    <div className="overflow-hidden rounded-md border bg-fill">
       <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
-        <span className="text-content2 text-sm font-medium">{title}</span>
+        <span className="text-sm font-medium text-content2">{title}</span>
         <CopyButton text={code} size="xsmall" variant="outline">
           Copy
         </CopyButton>

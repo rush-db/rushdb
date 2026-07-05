@@ -12,7 +12,7 @@ import type { Toast } from './Toast'
 import { toast } from './Toast'
 
 export const buttonVariants = cva(
-  'cursor-pointer min-w-[70px] inline-grid select-none transition shrink-0 grid-flow-col place-items-center outline-none focus-visible:ring aria-disabled:cursor-not-allowed aria-disabled:opacity-40 font-medium',
+  'cursor-pointer min-w-[70px] inline-grid select-none transition shrink-0 grid-flow-col place-items-center outline-hidden focus-visible:ring aria-disabled:cursor-not-allowed aria-disabled:opacity-40 font-medium',
   {
     defaultVariants: { size: 'medium', variant: 'ghost' },
     variants: {

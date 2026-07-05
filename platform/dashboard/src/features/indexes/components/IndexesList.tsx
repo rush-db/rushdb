@@ -95,7 +95,7 @@ function IndexListItem({
             <span className="flex items-center gap-1.5">
               <Label variant={labelVariant}>{label}</Label>
               <span className="text-content3">:</span>
-              <span className="bg-content3/10 text-content2 w-fit rounded-sm px-1 font-mono text-xs">
+              <span className="w-fit rounded-sm bg-content3/10 px-1 font-mono text-xs text-content2">
                 {propertyName}
               </span>
             </span>
@@ -112,7 +112,7 @@ function IndexListItem({
         : null}
       </div>
       {!loading && stats && stats.totalRecords > 0 ?
-        <span className="text-content3 text-sm tabular-nums">
+        <span className="text-sm text-content3 tabular-nums">
           {stats.totalRecords.toLocaleString()} records
         </span>
       : null}

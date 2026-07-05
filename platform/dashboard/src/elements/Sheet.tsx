@@ -22,7 +22,7 @@ export function Sheet({ children, className, trigger, ...props }: TSheetProps) {
       {trigger && <Trigger asChild>{trigger}</Trigger>}
       <Content
         className={cn(
-          'bg-fill animate-in slide-in-from-right flex w-full max-w-lg shrink-0 flex-col overflow-y-auto border-l duration-150',
+          'flex w-full max-w-lg shrink-0 animate-in flex-col overflow-y-auto border-l bg-fill duration-150 slide-in-from-right',
           className
         )}
         aria-describedby={undefined}

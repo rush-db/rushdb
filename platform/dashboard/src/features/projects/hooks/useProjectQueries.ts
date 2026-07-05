@@ -178,6 +178,7 @@ export const useProjectFieldsQuery = () => {
   const combineMode = useStore($combineFilters)
   const filters = useStore($currentProjectFilters)
   const searchMode = useStore($recordsSearchMode)
+  const aiSearchQuery = useStore($aiSearchQuery)
   const semanticSearchIndexId = useStore($semanticSearchIndexId)
   const semanticSearchPrompt = useStore($semanticSearchPrompt)
   const cachedIndexes =
@@ -190,11 +191,18 @@ export const useProjectFieldsQuery = () => {
   const semanticSearchActive = Boolean(
     searchMode === 'semantic' && semanticIndex?.label && semanticSearchPrompt.trim()
   )
+  const aiSearchActive = searchMode === 'ai' && !!aiSearchQuery
   const scopedLabels = semanticSearchActive && semanticIndex?.label ? [semanticIndex.label] : labels
   const scopedFilters = semanticSearchActive ? [] : filters
 
   return useQuery(
-    projectFieldsQueryOptions({ projectId, labels: scopedLabels, combineMode, filters: scopedFilters })
+    projectFieldsQueryOptions({
+      projectId,
+      labels: scopedLabels,
+      combineMode,
+      filters: scopedFilters,
+      searchQuery: aiSearchActive ? aiSearchQuery : undefined
+    })
   )
 }
 
@@ -206,10 +214,28 @@ export const useProjectSuggestedFieldsQuery = () => {
 }
 
 export const useCurrentRecordQuery = () => {
+  const queryClient = useQueryClient()
   const sheetId = useStore($sheetRecordId)
   const routeId = useStore($currentRecordId)
   const id = sheetId ?? routeId
-  return useQuery(recordDetailQueryOptions(id))
+  return useQuery({
+    ...recordDetailQueryOptions(id),
+    // The records table already holds this record's data — show it instantly
+    // and let the detail fetch replace it in the background.
+    placeholderData: () => {
+      if (!id) return undefined
+      const listQueries = queryClient.getQueriesData<{ data?: Array<{ __id: string }> }>({
+        predicate: (query) => query.queryKey[0] === 'projects' && query.queryKey[2] === 'records'
+      })
+      for (const [, cached] of listQueries) {
+        const match = cached?.data?.find((record) => record.__id === id)
+        if (match) {
+          return match as Awaited<ReturnType<typeof api.records.findById>>['data']
+        }
+      }
+      return undefined
+    }
+  })
 }
 
 export const useCurrentRecordRelatedQuery = () => {

@@ -2,14 +2,14 @@ import type { ReactNode } from 'react'
 import { cn } from '~/lib/utils'
 
 export function OnboardingStepTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return <h3 className={cn('text-content col-span-2 text-xl', className)}>{children}</h3>
+  return <h3 className={cn('col-span-2 text-xl text-content', className)}>{children}</h3>
 }
 
 export function OnboardingStepNumber({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cn(
-        'bg-accent/20 flex h-6 w-6 items-center justify-center rounded-full sm:h-8 sm:w-8',
+        'flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 sm:h-8 sm:w-8',
         className
       )}
     >
@@ -42,7 +42,7 @@ export function OnboardingSubStep({
       >
         {index}
       </OnboardingStepNumber>
-      <h4 className="text-content col-start-2 font-medium leading-6 sm:text-lg sm:leading-8">{children}</h4>
+      <h4 className="col-start-2 leading-6 font-medium text-content sm:text-lg sm:leading-8">{children}</h4>
     </>
   )
 }
@@ -54,7 +54,7 @@ export function OnboardingStepDescription({
   children: ReactNode
   className?: string
 }) {
-  return <p className={cn('text-content2 col-span-2', className)}>{children}</p>
+  return <p className={cn('col-span-2 text-content2', className)}>{children}</p>
 }
 
 export function OnboardingStepHeader({
@@ -69,7 +69,7 @@ export function OnboardingStepHeader({
   return (
     <div
       className={cn(
-        'gap-inherit flex h-fit flex-col items-start',
+        'flex h-fit flex-col items-start gap-[inherit]',
         {
           'col-span-1 mb-3 sm:sticky sm:top-12 sm:mb-0': sticky,
           'col-span-full': !sticky

@@ -169,7 +169,7 @@ function RelationshipPath({
     <div className="flex flex-wrap items-center gap-2 font-mono text-sm">
       <LabelWithKey label={sourceLabel} propertyKey={sourceKey} variant={sourceVariant} />
       <span className="text-content3">→</span>
-      <Badge className="!text-sm">{type}</Badge>
+      <Badge className="text-sm!">{type}</Badge>
       <span className="text-content3">→</span>
       <LabelWithKey label={targetLabel} propertyKey={targetKey} variant={targetVariant} />
     </div>
@@ -190,13 +190,13 @@ function LabelWithKey({
 }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <Label className="!text-sm" variant={variant}>
+      <Label className="text-sm!" variant={variant}>
         {label}
       </Label>
       {propertyKey ?
         <>
           <span className="text-content3">:</span>
-          <span className="bg-content3/10 text-content2 w-fit rounded-sm px-1 font-mono text-xs">
+          <span className="w-fit rounded-sm bg-content3/10 px-1 font-mono text-xs text-content2">
             {propertyKey}
           </span>
         </>
@@ -216,7 +216,7 @@ function PatternPath({ labelNames, pattern }: { labelNames: string[]; pattern: R
         targetKey={pattern.target.key}
         type={pattern.type}
       />
-      <Badge className="text-content2 text-sm">
+      <Badge className="text-sm text-content2">
         {pattern.mode === 'retype_existing_relationship' ? 'Rename existing' : 'Match fields'}
       </Badge>
     </div>
@@ -342,20 +342,20 @@ function PatternCard({
           <div className="flex min-w-0 flex-col gap-1.5">
             <PatternPath labelNames={labelNames} pattern={pattern} />
             {pattern.rationale ?
-              <p className="text-content2 text-sm leading-snug">{pattern.rationale}</p>
+              <p className="text-sm leading-snug text-content2">{pattern.rationale}</p>
             : null}
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
           {pattern.status === 'suggested' || pattern.status === 'ignored' || pattern.status === 'error' ?
-            <div className="text-content2 flex items-center gap-1 text-sm">
+            <div className="flex items-center gap-1 text-sm text-content2">
               <span>{Math.round(pattern.confidence * 100)}%</span>
               <Tooltip
                 align="end"
                 trigger={
                   <button
                     aria-label="Confidence score details"
-                    className="text-content3 hover:text-content inline-flex h-5 w-5 items-center justify-center"
+                    className="inline-flex h-5 w-5 items-center justify-center text-content3 hover:text-content"
                     type="button"
                   >
                     <Info size={14} />
@@ -363,11 +363,11 @@ function PatternCard({
                 }
               >
                 <span className="font-semibold">Confidence Score</span>
-                <span className="text-content2 max-w-[320px] text-sm">
+                <span className="max-w-[320px] text-sm text-content2">
                   How likely this suggested relationship is correct, based on the analyzed data.
                 </span>
                 {pattern.lastError ?
-                  <span className="text-danger max-w-[320px] text-sm">{pattern.lastError}</span>
+                  <span className="max-w-[320px] text-sm text-danger">{pattern.lastError}</span>
                 : null}
               </Tooltip>
             </div>
@@ -451,11 +451,11 @@ function RelationshipRow({ labelNames, row }: { labelNames: string[]; row: Relat
               type={row.type}
             />
             {applying ?
-              <Badge className="text-content2 text-sm">Applying…</Badge>
+              <Badge className="text-sm text-content2">Applying…</Badge>
             : null}
           </div>
           {detail ?
-            <p className="text-content2 text-sm leading-snug">{detail}</p>
+            <p className="text-sm leading-snug text-content2">{detail}</p>
           : null}
         </div>
         {pattern ?
@@ -469,7 +469,7 @@ function RelationshipRow({ labelNames, row }: { labelNames: string[]; row: Relat
             trigger={
               <span
                 aria-label="Read-only relationship"
-                className="text-content3 inline-flex h-8 w-8 shrink-0 items-center justify-center"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-content3"
               >
                 <Lock className="h-4 w-4" />
               </span>
@@ -503,7 +503,7 @@ function RelationshipsOverviewSection({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Existing relationships</h2>
-          <p className="text-content2 text-sm">
+          <p className="text-sm text-content2">
             Review relationship types that already connect records in this project.
           </p>
         </div>
@@ -619,7 +619,7 @@ export function PatternsSection({
     <div className="flex flex-col gap-3">
       {selectable ?
         <div className="bg-card flex min-h-14 items-center justify-between gap-3 rounded-md border px-4 py-2">
-          <label className="text-content2 flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm text-content2">
             <Checkbox
               aria-label="Select all relationship patterns"
               checked={allSelected}
@@ -656,7 +656,7 @@ export function TabLabel({ count, label }: { count: number; label: string }) {
   return (
     <>
       <span>{label}</span>
-      <span className="bg-content3/10 text-content2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-sm">
+      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-content3/10 px-1.5 text-sm text-content2">
         {count}
       </span>
     </>
@@ -684,13 +684,13 @@ export function ProjectRelationships({ projectId }: { projectId: Project['id'] }
       <PageHeader className="items-start" contained>
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Relationships</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             Relationships are named, directed edges between records. They turn imported data into a
             traversable graph and can be created directly, inferred from references, or approved from
             suggested patterns.
           </p>
           <a
-            className="text-content2 hover:text-content inline-flex w-fit items-center gap-2 text-sm transition"
+            className="inline-flex w-fit items-center gap-2 text-sm text-content2 transition hover:text-content"
             href={RELATIONSHIP_DOCS_URL}
             rel="noreferrer"
             target="_blank"

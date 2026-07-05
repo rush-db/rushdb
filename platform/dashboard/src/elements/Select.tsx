@@ -28,10 +28,7 @@ export const Select = forwardRef<HTMLSelectElement, TSelectProps>(
     return (
       <div className="relative flex items-center">
         <select
-          className={cn(
-            inputWrapper({ className, size, variant }),
-            'cursor-pointer appearance-none'
-          )}
+          className={cn(inputWrapper({ className, size, variant }), 'cursor-pointer appearance-none')}
           {...props}
           ref={ref}
         >
@@ -49,20 +46,14 @@ export const Select = forwardRef<HTMLSelectElement, TSelectProps>(
 
 Select.displayName = 'Select'
 
-export const SelectField = forwardRef<
-  HTMLSelectElement,
-  FormFieldProps & TSelectProps
->(({ caption, className, error, label, ...inputProps }, ref) => {
-  return (
-    <FormField
-      caption={caption}
-      className={className}
-      error={error}
-      label={label}
-    >
-      <Select aria-invalid={Boolean(error)} ref={ref} {...inputProps} />
-    </FormField>
-  )
-})
+export const SelectField = forwardRef<HTMLSelectElement, FormFieldProps & TSelectProps>(
+  ({ caption, className, error, label, ...inputProps }, ref) => {
+    return (
+      <FormField caption={caption} className={className} error={error} label={label}>
+        <Select aria-invalid={Boolean(error)} ref={ref} {...inputProps} />
+      </FormField>
+    )
+  }
+)
 
 SelectField.displayName = 'SelectField'

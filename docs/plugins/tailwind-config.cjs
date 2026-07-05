@@ -2,11 +2,9 @@ function tailwindPlugin(context, options) {
   return {
     name: 'tailwind-plugin',
     configurePostCss(postcssOptions) {
-      postcssOptions.plugins = [
-        require('postcss-import'),
-        require('tailwindcss'),
-        require('autoprefixer'),
-      ];
+      // Tailwind v4: a single PostCSS plugin handles imports, vendor prefixing
+      // and utilities. Docusaurus's default plugins stay in the chain.
+      postcssOptions.plugins.unshift(require('@tailwindcss/postcss'));
       return postcssOptions;
     },
   };

@@ -1,3 +1,4 @@
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react-swc'
 import { resolve } from 'path'
 import { defineConfig } from 'vite'
@@ -10,6 +11,7 @@ export default defineConfig({
     sourcemap: true // for sentry
   },
   plugins: [
+    tailwindcss(),
     react(),
     createSvgIconsPlugin({
       // Specify the icon folder to be cached

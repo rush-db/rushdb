@@ -77,7 +77,7 @@ export function AddIndexDialog({
   return (
     <Dialog className="sm:max-w-2xl" onOpenChange={setOpen} open={open} trigger={trigger}>
       <DialogTitle>Create semantic index</DialogTitle>
-      <p className="text-content2 mt-2">
+      <p className="mt-2 text-content2">
         Choose a label and string property to make that field searchable by meaning. Managed indexes embed
         matching records and continue indexing new writes.
       </p>

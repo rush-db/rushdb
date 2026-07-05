@@ -27,10 +27,7 @@ export type DisclosureOptions = {
   open?: boolean
 }
 
-export const useDisclosure = ({
-  open: openProp,
-  onOpenChange: onOpenChangeProp
-}: DisclosureOptions = {}) => {
+export const useDisclosure = ({ open: openProp, onOpenChange: onOpenChangeProp }: DisclosureOptions = {}) => {
   const [isOpen, setOpen] = useControllableState({
     value: openProp,
     onChange: onOpenChangeProp

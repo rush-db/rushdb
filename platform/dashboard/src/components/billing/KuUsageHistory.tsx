@@ -149,13 +149,13 @@ function KuUsageBar({ usage }: { usage: UsageData }) {
     return (
       <div className="bg-card rounded-md border p-5">
         <div className="mb-1 flex items-center justify-between">
-          <span className="text-content text-sm font-medium capitalize">{plan} — current period</span>
-          <span className="text-content3 text-xs">
+          <span className="text-sm font-medium text-content capitalize">{plan} — current period</span>
+          <span className="text-xs text-content3">
             {periodStart} – {periodEnd}
           </span>
         </div>
-        <div className="text-accent font-mono text-2xl font-semibold">{formatKu(kuConsumed)} KU</div>
-        <div className="text-content3 mt-1 text-xs">consumed this billing period · usage-based pricing</div>
+        <div className="font-mono text-2xl font-semibold text-accent">{formatKu(kuConsumed)} KU</div>
+        <div className="mt-1 text-xs text-content3">consumed this billing period · usage-based pricing</div>
       </div>
     )
   }
@@ -176,7 +176,7 @@ function KuUsageBar({ usage }: { usage: UsageData }) {
     <div className="bg-card rounded-md border p-5">
       {/* Header row */}
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-content text-sm font-medium capitalize">
+        <span className="text-sm font-medium text-content capitalize">
           {plan} plan · {periodStart} – {periodEnd}
         </span>
         <span
@@ -192,14 +192,14 @@ function KuUsageBar({ usage }: { usage: UsageData }) {
       </div>
 
       {/* Progress bar */}
-      <div className="bg-secondary h-2.5 w-full overflow-hidden rounded-full">
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
         <div className={cn('h-full rounded-full transition-all', barColor)} style={{ width: `${pct}%` }} />
       </div>
 
       {/* Footer row */}
       <div className="mt-2 flex items-center justify-between text-xs">
         {isOver ?
-          <span className="text-danger font-medium">
+          <span className="font-medium text-danger">
             +{formatKu(overageKu)} KU overage{plan === 'pro' ? ' · billed at $10/M' : ''}
           </span>
         : remaining !== null ?
@@ -215,13 +215,13 @@ function KuUsageHeader({ size = 'large' }: { size?: 'small' | 'large' }) {
   return (
     <div className={cn('flex flex-col gap-0.5', size === 'large' ? 'my-4' : undefined)}>
       <div className="flex items-center gap-2">
-        <h2 className={cn('text-content font-semibold', size === 'large' ? 'text-2xl' : 'text-xl')}>
+        <h2 className={cn('font-semibold text-content', size === 'large' ? 'text-2xl' : 'text-xl')}>
           KU Usage History
         </h2>
         <Tooltip
           side="right"
           trigger={
-            <button className="text-content3 hover:text-content transition-colors">
+            <button className="text-content3 transition-colors hover:text-content">
               <HelpCircle className="h-4 w-4" />
             </button>
           }
@@ -238,7 +238,7 @@ function KuUsageHeader({ size = 'large' }: { size?: 'small' | 'large' }) {
                 href="https://docs.rushdb.com/concepts/knowledge-units"
                 target="_blank"
                 rel="noreferrer"
-                className="text-accent text-xs hover:underline"
+                className="text-xs text-accent hover:underline"
               >
                 → What generates KU?
               </a>
@@ -246,7 +246,7 @@ function KuUsageHeader({ size = 'large' }: { size?: 'small' | 'large' }) {
                 href="https://docs.rushdb.com/concepts/billing-model"
                 target="_blank"
                 rel="noreferrer"
-                className="text-accent text-xs hover:underline"
+                className="text-xs text-accent hover:underline"
               >
                 → Billing model
               </a>
@@ -254,7 +254,7 @@ function KuUsageHeader({ size = 'large' }: { size?: 'small' | 'large' }) {
           </div>
         </Tooltip>
       </div>
-      <p className="text-content3 text-sm">
+      <p className="text-sm text-content3">
         Knowledge Units consumed by ingestion, relationships, embeddings, and complex queries on shared
         instances.
       </p>
@@ -483,13 +483,13 @@ export function KuUsageHistory() {
 
       {/* Filter bar */}
       <div className="bg-card flex flex-wrap items-center gap-3 rounded-md border p-3">
-        <span className="text-content3 text-sm font-medium">Filter</span>
+        <span className="text-sm font-medium text-content3">Filter</span>
 
         {/* Operation type */}
         <select
           value={filterOperation ?? ''}
           onChange={(e) => setFilterOperation(e.target.value || null)}
-          className="bg-secondary text-content border-border rounded-md border px-2.5 py-1.5 text-sm focus:outline-none"
+          className="border-border rounded-md border bg-secondary px-2.5 py-1.5 text-sm text-content focus:outline-hidden"
         >
           <option value="">All operation types</option>
           {Object.entries(OPERATION_LABELS).map(([key, label]) => (
@@ -504,7 +504,7 @@ export function KuUsageHistory() {
           <select
             value={filterProjectId ?? ''}
             onChange={(e) => setFilterProjectId(e.target.value || null)}
-            className="bg-secondary text-content border-border rounded-md border px-2.5 py-1.5 text-sm focus:outline-none"
+            className="border-border rounded-md border bg-secondary px-2.5 py-1.5 text-sm text-content focus:outline-hidden"
           >
             <option value="">All projects</option>
             {projectsList.map((project) => (
@@ -522,7 +522,7 @@ export function KuUsageHistory() {
               setFilterOperation(null)
               setFilterProjectId(null)
             }}
-            className="text-content3 hover:text-content flex items-center gap-1 text-xs transition-colors"
+            className="flex items-center gap-1 text-xs text-content3 transition-colors hover:text-content"
           >
             <X className="h-3 w-3" />
             Clear filters
@@ -536,7 +536,7 @@ export function KuUsageHistory() {
       : dailyData.length > 0 && (
           <div className="bg-card flex flex-col gap-5 rounded-md border p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-content text-lg font-medium">Daily KU Consumption</h3>
+              <h3 className="text-lg font-medium text-content">Daily KU Consumption</h3>
               <div className="flex flex-wrap items-center gap-2">
                 {/* Preset buttons — clicking one clears any custom range */}
                 <ButtonGroup>
@@ -593,9 +593,9 @@ export function KuUsageHistory() {
                         }
                       }
                     }}
-                    className="bg-secondary text-content border-border rounded-md border px-2 py-1 text-xs focus:outline-none"
+                    className="border-border rounded-md border bg-secondary px-2 py-1 text-xs text-content focus:outline-hidden"
                   />
-                  <span className="text-content3 text-xs">—</span>
+                  <span className="text-xs text-content3">—</span>
                   <input
                     type="date"
                     value={customTo}
@@ -610,7 +610,7 @@ export function KuUsageHistory() {
                       return toLocalDateKey(cap)
                     })()}
                     onChange={(e) => setCustomTo(e.target.value)}
-                    className="bg-secondary text-content border-border rounded-md border px-2 py-1 text-xs focus:outline-none"
+                    className="border-border rounded-md border bg-secondary px-2 py-1 text-xs text-content focus:outline-hidden"
                   />
                   {isCustomRange && (
                     <button
@@ -618,7 +618,7 @@ export function KuUsageHistory() {
                         setCustomFrom('')
                         setCustomTo('')
                       }}
-                      className="text-content3 hover:text-content transition-colors"
+                      className="text-content3 transition-colors hover:text-content"
                       title="Clear custom range"
                     >
                       <X className="h-3 w-3" />
@@ -635,7 +635,7 @@ export function KuUsageHistory() {
                     trigger={
                       <div className="relative w-full">
                         <div
-                          className="bg-accent hover:bg-accent-hover cursor-pointer rounded-t-md transition-all"
+                          className="cursor-pointer rounded-t-md bg-accent transition-all hover:bg-accent-hover"
                           style={{
                             height: `${(day.ku / maxKu) * 200}px`,
                             minHeight: day.ku > 0 ? '4px' : '0px'
@@ -655,13 +655,13 @@ export function KuUsageHistory() {
                       <div className="font-mono font-semibold">{day.ku.toFixed(0)} KU</div>
                     </div>
                   </Tooltip>
-                  <div className="text-content3 text-xs">
+                  <div className="text-xs text-content3">
                     {new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric'
                     })}
                   </div>
-                  <div className="text-content font-mono text-xs font-medium">{formatKu(day.ku)}</div>
+                  <div className="font-mono text-xs font-medium text-content">{formatKu(day.ku)}</div>
                 </div>
               ))}
             </div>
@@ -672,7 +672,7 @@ export function KuUsageHistory() {
       {/* Events List */}
       <div className="bg-card flex flex-col rounded-md border">
         <div className="flex items-center justify-between p-5">
-          <h3 className="text-content text-lg font-medium">Recent Operations</h3>
+          <h3 className="text-lg font-medium text-content">Recent Operations</h3>
         </div>
         <Divider />
         <div className="flex flex-col">
@@ -689,22 +689,22 @@ export function KuUsageHistory() {
           : events.map((event, index) => (
               <div key={event.id}>
                 {index > 0 && <Divider />}
-                <div className="hover:bg-secondary flex items-center justify-between p-5 transition-colors">
+                <div className="flex items-center justify-between p-5 transition-colors hover:bg-secondary">
                   <div className="flex flex-1 flex-col gap-1">
-                    <div className="text-content font-medium">
+                    <div className="font-medium text-content">
                       {OPERATION_LABELS[event.operation] || event.operation}
                     </div>
-                    <div className="text-content3 text-sm">
+                    <div className="text-sm text-content3">
                       {new Date(event.timestamp)?.toLocaleString()}
                       {event.metadata && Object.keys(event.metadata).length > 0 && (
-                        <span className="text-content2 ml-2">
+                        <span className="ml-2 text-content2">
                           {formatMetadata(event.operation, event.metadata)}
                         </span>
                       )}
                     </div>
                   </div>
                   <div className="ml-4 text-right">
-                    <div className="text-accent font-mono font-semibold">
+                    <div className="font-mono font-semibold text-accent">
                       {event.kuConsumed.toFixed(0)} KU
                     </div>
                   </div>

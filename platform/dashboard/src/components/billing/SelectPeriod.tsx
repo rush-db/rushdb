@@ -10,12 +10,12 @@ export function SelectPeriod({ className }: { className?: string }) {
   return (
     <>
       <div className={cx('flex items-center justify-center gap-4', className)}>
-        <p className="text-content2 typography-base font-medium">Monthly</p>
+        <p className="typography-base font-medium text-content2">Monthly</p>
         <Switch
           checked={currentPeriod === 'annual'}
           onCheckedChange={(checked) => $currentPeriod.set(checked ? 'annual' : 'month')}
         />
-        <p className="text-content2 typography-base font-medium">Annual</p>
+        <p className="typography-base font-medium text-content2">Annual</p>
       </div>
     </>
   )

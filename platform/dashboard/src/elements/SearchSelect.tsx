@@ -11,6 +11,9 @@ type SelectValue = string
 type Props = Pick<React.ComponentPropsWithoutRef<typeof Popover>, 'onOpenChange' | 'open'> & {
   asChild?: boolean
   children?: React.ReactNode
+  // Rendered above the search input, outside the Command — never filtered out
+  // by the search text (e.g. view settings that accompany the option list).
+  header?: React.ReactNode
   // Set when this select is rendered inside a modal Dialog. A non-modal popover
   // portaled out of a modal dialog inherits `pointer-events: none`, making items
   // unclickable; a modal popover re-enables pointer events for its own layer.
@@ -25,6 +28,7 @@ export function SearchSelect({
   open: openProp,
   trigger,
   asChild = true,
+  header,
   modal = false,
   // value: valueProp,
   // onChange: onChangeProp,
@@ -45,6 +49,7 @@ export function SearchSelect({
         <PopoverTrigger asChild={asChild}>{trigger}</PopoverTrigger>
 
         <PopoverContent align="start">
+          {header}
           <Command>
             <CommandInput className="rounded-none" placeholder="Search..." size="small" variant="ghost" />
             <CommandList>

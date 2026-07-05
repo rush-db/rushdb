@@ -28,7 +28,7 @@ export const TabsList = forwardRef<ElementRef<typeof List>, ComponentPropsWithou
   ({ className, ...props }, ref) => (
     <List
       className={cn(
-        'bg-background bg-fill2 relative flex w-fit gap-1 overflow-auto rounded-md px-1 py-1',
+        'bg-background relative flex w-fit gap-1 overflow-auto rounded-md bg-fill2 px-1 py-1',
         className
       )}
       ref={ref}
@@ -48,9 +48,9 @@ const TabInner: TPolymorphicComponent<{ layoutId?: string }, 'button'> = forward
     return (
       <Component
         className={cn(
-          'disabled:text-content3 relative z-10 inline-flex h-9 shrink-0 items-center gap-3 whitespace-nowrap rounded border-b border-transparent px-3 text-sm font-medium outline-none focus-visible:ring disabled:cursor-not-allowed [&>svg]:h-[16px] [&>svg]:w-[16px]',
+          'relative z-10 inline-flex h-9 shrink-0 items-center gap-3 rounded-md border-b border-transparent px-3 text-sm font-medium whitespace-nowrap outline-hidden focus-visible:ring disabled:cursor-not-allowed disabled:text-content3 [&>svg]:h-[16px] [&>svg]:w-[16px]',
           {
-            'text-content2 hover:text-content transition': !active
+            'text-content2 transition hover:text-content': !active
           },
           className
         )}
@@ -59,7 +59,7 @@ const TabInner: TPolymorphicComponent<{ layoutId?: string }, 'button'> = forward
       >
         {active ?
           <motion.div
-            className="bg-secondary absolute start-0 top-0 h-full w-full rounded"
+            className="absolute start-0 top-0 h-full w-full rounded-md bg-secondary"
             layoutId={layoutId ?? contextLayoutId}
           />
         : null}
@@ -88,7 +88,7 @@ export const TabsContent = forwardRef<ElementRef<typeof Content>, ComponentProps
   ({ className, ...props }, ref) => (
     <Content
       className={cn(
-        'ring-offset-background focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+        'ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden',
         className
       )}
       ref={ref}

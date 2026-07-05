@@ -12,8 +12,8 @@ import { Button } from '~/elements/Button.tsx'
 const group = cva('border-input-stroke bg-input relative flex border items-center shrink-0', {
   variants: {
     size: {
-      medium: 'h-11 px-1 gap-1 rounded',
-      small: 'h-9 px-1 gap-1 rounded'
+      medium: 'h-11 px-1 gap-1 rounded-md',
+      small: 'h-9 px-1 gap-1 rounded-md'
     }
   },
   defaultVariants: {
@@ -68,7 +68,7 @@ export function RadioGroup<Value>({
           transform: `translate3d(${Math.max(activeIdx, 0) * (buttonSize + gap)}px,-50%,0)`
         }}
         aria-hidden
-        className="bg-secondary absolute start-1 top-1/2 h-[28px] w-[28px] shrink-0 rounded-sm transition-transform"
+        className="absolute start-1 top-1/2 h-[28px] w-[28px] shrink-0 rounded-sm bg-secondary transition-transform"
         // layoutId={id}
       />
       {options.map((o, idx) => {
@@ -84,7 +84,7 @@ export function RadioGroup<Value>({
               ) : null} */}
               {useDefaultButton ?
                 <Button
-                  className={cn('relative z-10 text-center !no-underline', {
+                  className={cn('relative z-10 text-center no-underline!', {
                     // 'text-content': active,
                     'text-content2': !active
                   })}

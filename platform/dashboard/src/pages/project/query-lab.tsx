@@ -22,12 +22,12 @@ export function ProjectQueryLab() {
       <PageHeader className="items-start">
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Query Lab</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             Build and run SearchQuery payloads against this project, inspect the generated Cypher, and explore
             the raw records, properties, and labels the API returns.
           </p>
           <a
-            className="text-content2 hover:text-content inline-flex w-fit items-center gap-2 text-sm transition"
+            className="inline-flex w-fit items-center gap-2 text-sm text-content2 transition hover:text-content"
             href={QUERY_LAB_DOCS_URL}
             rel="noreferrer"
             target="_blank"

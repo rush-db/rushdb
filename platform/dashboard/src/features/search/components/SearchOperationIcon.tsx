@@ -22,11 +22,11 @@ const iconNames: Record<SearchOperations, string> = {
   // [SearchOperations.NotIn]: '!=~'
 }
 
-const operationIcon = cva('grid h-5 w-5 place-items-center rounded', {
+const operationIcon = cva('grid h-5 w-5 place-items-center rounded-md', {
   variants: {
     variant: {
       filled:
-        'grid h-5 w-5 place-items-center rounded bg-gradient-to-br from-accent/10 to-accent-hover/30 text-accent h-5 w-5 [&>svg]:w-4 [&>svg]:h-4',
+        'grid h-5 w-5 place-items-center rounded-md bg-gradient-to-br from-accent/10 to-accent-hover/30 text-accent h-5 w-5 [&>svg]:w-4 [&>svg]:h-4',
       normal: 'contents [&_svg]:w-4 [&>svg]:h-4'
     }
   },

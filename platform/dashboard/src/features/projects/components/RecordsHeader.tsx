@@ -10,6 +10,8 @@ import {
   Code2,
   LoaderCircle,
   RefreshCw,
+  Rows3,
+  Rows4,
   SlidersHorizontal,
   Sparkles,
   Brain
@@ -61,6 +63,7 @@ import { cn } from '~/lib/utils'
 
 import { $currentProjectId } from '~/features/projects/stores/id'
 import { $hiddenFields, $resetHiddenFields, $toggleHiddenField, isFieldHidden } from '../stores/hidden-fields'
+import { $rowDensity, type RowDensity } from '../stores/row-density'
 import { SelectCombineFiltersMode } from './SelectCombineFiltersMode'
 import { Divider } from '~/elements/Divider.tsx'
 import { SelectViewMode } from '~/features/projects/components/SelectViewMode.tsx'
@@ -104,6 +107,31 @@ function Filters() {
   )
 }
 
+function RowDensitySelector() {
+  const density = useStore($rowDensity)
+  const options: Array<{ value: RowDensity; label: string; icon: React.ReactNode }> = [
+    { value: 'normal', label: 'Normal', icon: <Rows3 /> },
+    { value: 'compact', label: 'Compact', icon: <Rows4 /> }
+  ]
+
+  return (
+    <div className="flex gap-1 border-b p-2">
+      {options.map(({ value, label, icon }) => (
+        <Button
+          className="flex-1 items-center justify-center"
+          key={value}
+          onClick={() => $rowDensity.set(value)}
+          size="xsmall"
+          variant={density === value ? 'secondary' : 'ghost'}
+        >
+          {icon}
+          {label}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 function HiddenFieldsSelector() {
   const { data: fields } = useProjectFieldsQuery()
   const hiddenFields = useStore($hiddenFields)
@@ -130,6 +158,7 @@ function HiddenFieldsSelector() {
   return (
     <ButtonGroup>
       <SearchSelect
+        header={<RowDensitySelector />}
         trigger={
           <IconButton size="small" variant="outline" aria-label="columns-visibility">
             <Columns3Cog />
@@ -138,7 +167,7 @@ function HiddenFieldsSelector() {
       >
         <SelectItem closeOnSelect={false} onSelect={toggleAll}>
           <span className="font-medium">{allVisible ? 'Deselect all' : 'Select all'}</span>
-          <Check className={cn('text-content2 ml-auto', allVisible ? 'opacity-100' : 'opacity-0')} />
+          <Check className={cn('ml-auto text-content2', allVisible ? 'opacity-100' : 'opacity-0')} />
         </SelectItem>
         <Divider />
         <SelectItem closeOnSelect={false}>
@@ -147,7 +176,7 @@ function HiddenFieldsSelector() {
             <KeyRound size={11} />
           </PropertyIconSquare>
           <span className="font-mono">__id</span>
-          <Tooltip align="end" trigger={<Lock className="text-content3 ml-auto size-3.5 shrink-0" />}>
+          <Tooltip align="end" trigger={<Lock className="ml-auto size-3.5 shrink-0 text-content3" />}>
             <span className="max-w-[220px] text-sm">The primary key is always shown.</span>
           </Tooltip>
         </SelectItem>
@@ -157,7 +186,7 @@ function HiddenFieldsSelector() {
             <PropertyName name={field.name} type={field.type} />
             <Check
               className={cn(
-                'text-content2 ml-auto',
+                'ml-auto text-content2',
                 isFieldHidden(hiddenFields, field.id) ? 'opacity-0' : 'opacity-100'
               )}
             />
@@ -191,7 +220,7 @@ function RefreshButton() {
         </IconButton>
       }
     >
-      <div className="text-2xs text-content flex items-center gap-1 uppercase">Refresh</div>
+      <div className="flex items-center gap-1 text-2xs text-content uppercase">Refresh</div>
     </Tooltip>
   )
 }
@@ -267,14 +296,14 @@ function SemanticIndexSummary({
   if (selected) {
     return (
       <div
-        className={cn('flex h-full min-w-0 max-w-full items-center gap-2', className)}
+        className={cn('flex h-full max-w-full min-w-0 items-center gap-2', className)}
         title={`${index.label}.${index.propertyName} · ${formatIndexSource(index.sourceType)} · ${index.dimensions}d · ${similarity}`}
       >
         <Label className="shrink-0" variant={labelVariant}>
           {index.label}
         </Label>
-        <span className="text-content min-w-0 truncate text-sm font-medium">{index.propertyName}</span>
-        <span className="bg-secondary text-content2 ml-auto inline-grid h-5 w-5 shrink-0 place-items-center rounded-sm font-mono text-xs">
+        <span className="min-w-0 truncate text-sm font-medium text-content">{index.propertyName}</span>
+        <span className="ml-auto inline-grid h-5 w-5 shrink-0 place-items-center rounded-sm bg-secondary font-mono text-xs text-content2">
           {getIndexSourceTag(index.sourceType)}
         </span>
       </div>
@@ -287,10 +316,10 @@ function SemanticIndexSummary({
         <Label className="shrink-0" variant={labelVariant}>
           {index.label}
         </Label>
-        <span className="text-content min-w-0 truncate text-sm font-medium">{index.propertyName}</span>
+        <span className="min-w-0 truncate text-sm font-medium text-content">{index.propertyName}</span>
       </div>
-      <div className="text-content2 flex min-w-0 items-center gap-x-2 text-xs">
-        <span className="bg-secondary text-content2 inline-grid h-5 w-5 shrink-0 place-items-center rounded-sm font-mono">
+      <div className="flex min-w-0 items-center gap-x-2 text-xs text-content2">
+        <span className="inline-grid h-5 w-5 shrink-0 place-items-center rounded-sm bg-secondary font-mono text-content2">
           {getIndexSourceTag(index.sourceType)}
         </span>
         <span className="truncate">
@@ -339,7 +368,7 @@ function SemanticIndexSelect({ labels }: { labels?: Record<string, number> }) {
           onSelect={() => $semanticSearchIndexId.set(index.id)}
         >
           <SemanticIndexSummary className="flex-1" index={index} labelNames={labelNames} />
-          {selectedIndexId === index.id && <Check className="text-accent ml-auto" />}
+          {selectedIndexId === index.id && <Check className="ml-auto text-accent" />}
         </SelectItem>
       ))}
       {open && isPending && <SelectItem disabled>Loading semantic indexes...</SelectItem>}
@@ -347,7 +376,7 @@ function SemanticIndexSelect({ labels }: { labels?: Record<string, number> }) {
         <SelectItem className="h-auto py-2" disabled>
           <div className="flex flex-col gap-1">
             <span>No ready semantic indexes</span>
-            <span className="text-content2 text-xs">
+            <span className="text-xs text-content2">
               Create a semantic index from the Semantic Indexes page.
             </span>
           </div>
@@ -463,7 +492,7 @@ function AiSearchBox() {
           </Button>
         }
       >
-        <div className="text-2xs text-content flex items-center gap-1 uppercase">Run AI search</div>
+        <div className="flex items-center gap-1 text-2xs text-content uppercase">Run AI search</div>
       </Tooltip>
     </form>
   )
@@ -492,7 +521,7 @@ function SearchQueryButton({ label = false }: { label?: boolean }) {
 
   return (
     <Tooltip trigger={trigger}>
-      <div className="text-2xs text-content flex items-center gap-1 uppercase">View query</div>
+      <div className="flex items-center gap-1 text-2xs text-content uppercase">View query</div>
     </Tooltip>
   )
 }

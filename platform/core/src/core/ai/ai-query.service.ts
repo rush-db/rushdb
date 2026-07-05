@@ -69,7 +69,8 @@ export class AiQueryService {
     // Normalize scalar/list values to a list; keep a [null] marker for empty lists so
     // the record still counts toward recordsCount (min/max aggregations ignore nulls).
     qb.append(`WITH label, propId, propName, propType, rec,`)
-    qb.append(`     apoc.meta.cypher.type(rawVal) STARTS WITH "LIST" AS isArrayValue,`)
+    // NULL guard required: `null IS :: LIST<ANY>` is true (null inhabits every nullable type)
+    qb.append(`     rawVal IS NOT NULL AND rawVal IS :: LIST<ANY> AS isArrayValue,`)
     qb.append(`     apoc.coll.flatten([rawVal]) AS items`)
     qb.append(`UNWIND (CASE WHEN size(items) = 0 THEN [null] ELSE items END) AS v`)
 

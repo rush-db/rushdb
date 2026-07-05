@@ -24,7 +24,7 @@ import { DialogTitle } from '~/elements/Dialog.tsx'
 
 const tabConfig: { value: ERecordSheetTabs; label: string; icon: ReactNode }[] = [
   { value: ERecordSheetTabs.data, label: 'Data', icon: <Database /> },
-  { value: ERecordSheetTabs.relations, label: 'Relations', icon: <GitFork /> },
+  { value: ERecordSheetTabs.relations, label: 'Relations', icon: <GitFork /> }
 ]
 
 export function RecordSheet() {
@@ -35,7 +35,9 @@ export function RecordSheet() {
   const { mutate: deleteRecord } = useDeleteRecordMutation()
 
   const [activeTab, setActiveTab] = useState<ERecordSheetTabs>(ERecordSheetTabs.data)
-  useEffect(() => { setActiveTab(ERecordSheetTabs.data) }, [id])
+  useEffect(() => {
+    setActiveTab(ERecordSheetTabs.data)
+  }, [id])
 
   return (
     <Sheet
@@ -46,9 +48,11 @@ export function RecordSheet() {
       }}
       open={id !== undefined}
     >
-      <PageHeader className="bg-fill2 sticky top-0 z-40 min-h-0 justify-start gap-3 px-5 py-4">
+      <PageHeader className="sticky top-0 z-40 min-h-0 justify-start gap-3 bg-fill2 px-5 py-4">
         <DialogTitle className="flex-1 truncate text-xl">
-          {record && <RecordTitle id={record.__id} label={record.__label} createdAt={idToDate(record.__id)} />}
+          {record && (
+            <RecordTitle id={record.__id} label={record.__label} createdAt={idToDate(record.__id)} />
+          )}
         </DialogTitle>
 
         {record && (
@@ -91,7 +95,7 @@ export function RecordSheet() {
       </PageHeader>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ERecordSheetTabs)}>
-        <TabsList className="bg-fill2 w-full border-b px-5">
+        <TabsList className="w-full border-b bg-fill2 px-5">
           {tabConfig
             .filter(({ value }) => relations || value !== ERecordSheetTabs.relations)
             .map(({ value, label, icon }) => (

@@ -1,6 +1,8 @@
-import * as Joi from 'joi'
+import { z } from 'zod'
 
-export const cypherSchema = Joi.object({
-  query: Joi.string().min(1).required(),
-  params: Joi.object().optional()
-})
+export const cypherSchema = z
+  .object({
+    query: z.string().min(1),
+    params: z.record(z.unknown()).optional()
+  })
+  .passthrough()

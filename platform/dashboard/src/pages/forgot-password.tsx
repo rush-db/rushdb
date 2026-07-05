@@ -6,13 +6,13 @@ import { Button } from '~/elements/Button'
 import { Divider } from '~/elements/Divider'
 import { TextField } from '~/elements/Input'
 import { AuthLayout } from '~/layout/AuthLayout'
-import { object, string, useForm } from '~/lib/form'
+import { useForm, z } from '~/lib/form'
 import { $router, $searchParams, getRoutePath, redirectRoute } from '~/lib/router'
 import { useSendRecoveryLinkMutation, useResetPasswordMutation } from '~/features/auth/hooks/useAuthMutations'
 
 import { schema as signUpSchema } from './signup'
 
-const schema = object({ email: string().email().required() })
+const schema = z.object({ email: z.string().min(1, 'Email is required').email() })
 
 function SendPasswordForm() {
   const {
@@ -35,7 +35,7 @@ function SendPasswordForm() {
   if (data) {
     return (
       <Banner
-        image={<Check className="text-success h-24 w-24" />}
+        image={<Check className="h-24 w-24 text-success" />}
         title="We've sent you a message with a recovery link"
       />
     )
@@ -89,7 +89,7 @@ function ChangePasswordForm({ token }: { token: string }) {
   if (data) {
     return (
       <Banner
-        image={<Check className="text-success h-24 w-24" />}
+        image={<Check className="h-24 w-24 text-success" />}
         title="Password was successfully changed"
       />
     )

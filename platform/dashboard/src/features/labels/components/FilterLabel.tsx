@@ -23,7 +23,7 @@ export const filterLabel = cva<{
   variants: {
     variant: variants,
     size: {
-      medium: 'h-9 rounded gap-2.5 px-4 text-xs font-bold',
+      medium: 'h-9 rounded-md gap-2.5 px-4 text-xs font-bold',
       circle: 'h-1 w-1 rounded-full'
     }
   },

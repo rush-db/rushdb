@@ -84,14 +84,14 @@ export function Plans({ intendedPlan }: { intendedPlan?: string } = {}) {
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <p className="text-content2 max-w-2xl text-sm leading-6">
-          RushDB pricing scales with <span className="text-content font-medium">Knowledge Units (KU)</span> —
+        <p className="max-w-2xl text-sm leading-6 text-content2">
+          RushDB pricing scales with <span className="font-medium text-content">Knowledge Units (KU)</span> —
           the single metric for the work your database does across reads, writes, and searches. Pick the plan
           with the headroom you need; you can change plans anytime and we prorate the difference.
         </p>
         {paidUser ?
-          <div className="text-content2 shrink-0 text-sm">
-            You're on <span className="text-content font-medium">{currentPlan?.name}</span>.{' '}
+          <div className="shrink-0 text-sm text-content2">
+            You're on <span className="font-medium text-content">{currentPlan?.name}</span>.{' '}
             <Link as="button" onClick={openBillingPortal} type="button">
               Manage subscription
             </Link>

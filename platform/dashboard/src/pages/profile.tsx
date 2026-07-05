@@ -1,9 +1,9 @@
 import { useStore } from '@nanostores/react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
-import { yupResolver } from '@hookform/resolvers/yup'
-import { object, string } from 'yup'
-import { Check, KeyRound, Monitor, Moon, Sun } from 'lucide-react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { Check, KeyRound } from 'lucide-react'
 import { TextField } from '~/elements/Input'
 import { GithubIcon } from '~/elements/GithubIcon'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
@@ -26,9 +26,7 @@ import { useLeaveWorkspaceMutation } from '~/features/workspaces/hooks/useWorksp
 
 import { ProfileSettingsLayout } from '~/features/auth/layout/ProfileSettingsLayout'
 import { toast } from '~/elements/Toast'
-import type { ThemePreference } from '~/features/auth/stores/theme'
-import { $themePreference } from '~/features/auth/stores/theme'
-import { cn } from '~/lib/utils'
+import { ThemeSwitcher } from '~/features/auth/components/ThemeSwitcher'
 
 function SettingsSection({
   children,
@@ -42,17 +40,17 @@ function SettingsSection({
   return (
     <section className="rounded-md border">
       <div className="border-b p-5">
-        <h2 className="text-content text-base font-semibold">{title}</h2>
-        {description && <p className="text-content2 mt-1 text-sm leading-6">{description}</p>}
+        <h2 className="text-base font-semibold text-content">{title}</h2>
+        {description && <p className="mt-1 text-sm leading-6 text-content2">{description}</p>}
       </div>
       {children && <div className="p-5">{children}</div>}
     </section>
   )
 }
 
-const profileNameSchema = object({
-  firstName: string().trim().max(128, 'Keep it under 128 characters').default(''),
-  lastName: string().trim().max(128, 'Keep it under 128 characters').default('')
+const profileNameSchema = z.object({
+  firstName: z.string().trim().max(128, 'Keep it under 128 characters').default(''),
+  lastName: z.string().trim().max(128, 'Keep it under 128 characters').default('')
 })
 
 function ProfileName() {
@@ -66,7 +64,7 @@ function ProfileName() {
     reset
   } = useForm({
     defaultValues: { firstName: user.firstName ?? '', lastName: user.lastName ?? '' },
-    resolver: yupResolver(profileNameSchema)
+    resolver: zodResolver(profileNameSchema)
   })
 
   // The user store hydrates asynchronously; sync the form once it arrives/changes.
@@ -145,47 +143,13 @@ function ChangePassword() {
   )
 }
 
-const THEME_OPTIONS: Array<{ icon: React.ReactNode; label: string; value: ThemePreference }> = [
-  { value: 'system', label: 'System', icon: <Monitor className="h-4 w-4" /> },
-  { value: 'light', label: 'Light', icon: <Sun className="h-4 w-4" /> },
-  { value: 'dark', label: 'Dark', icon: <Moon className="h-4 w-4" /> }
-]
-
 function Appearance() {
-  const preference = useStore($themePreference)
-
   return (
     <SettingsSection
       title="Appearance"
       description="Choose how RushDB looks to you. Select a theme, or follow your system setting."
     >
-      <div
-        className="border-stroke inline-flex gap-1 rounded-md border p-1"
-        role="radiogroup"
-        aria-label="Theme"
-      >
-        {THEME_OPTIONS.map((option) => {
-          const active = preference === option.value
-          return (
-            <button
-              aria-checked={active}
-              className={cn(
-                'flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors',
-                active ? 'bg-secondary text-content' : (
-                  'text-content2 hover:bg-secondary-hover hover:text-content'
-                )
-              )}
-              key={option.value}
-              onClick={() => $themePreference.set(option.value)}
-              role="radio"
-              type="button"
-            >
-              {option.icon}
-              {option.label}
-            </button>
-          )
-        })}
-      </div>
+      <ThemeSwitcher />
     </SettingsSection>
   )
 }
@@ -223,15 +187,15 @@ function SignInMethodRow({
           {icon}
         </span>
         <div>
-          <div className="text-content text-sm font-medium">{name}</div>
-          <div className="text-content2 text-sm leading-6">{description}</div>
+          <div className="text-sm font-medium text-content">{name}</div>
+          <div className="text-sm leading-6 text-content2">{description}</div>
         </div>
       </div>
       {connected ?
-        <span className="bg-success/10 text-success inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs font-medium">
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-success/10 px-2 py-1 text-xs font-medium text-success">
           <Check className="h-3.5 w-3.5" /> Connected
         </span>
-      : <span className="text-content3 border-content3/30 shrink-0 rounded border px-2 py-1 text-xs font-medium">
+      : <span className="shrink-0 rounded-md border border-content3/30 px-2 py-1 text-xs font-medium text-content3">
           Not connected
         </span>
       }
@@ -272,7 +236,7 @@ function SignInMethods() {
       description={
         <>
           Ways you can sign in to RushDB. All linked methods share the same account because they use{' '}
-          <span className="text-content font-medium">{user.login}</span>.
+          <span className="font-medium text-content">{user.login}</span>.
         </>
       }
     >
@@ -331,7 +295,7 @@ function DeleteAccount() {
           }}
           className="mb-4"
         >
-          <p className="text-content mb-4">
+          <p className="mb-4 text-content">
             To proceed with deleting your account, please cancel your subscription first. Once the
             subscription is canceled, you can delete your account.
           </p>
@@ -367,10 +331,10 @@ function DangerZone() {
   const isOwner = currentUser.currentScope?.role === 'owner'
 
   return (
-    <section className="border-danger rounded-md border">
-      <div className="border-danger/40 border-b p-5">
-        <h2 className="text-danger text-base font-semibold">Danger Zone</h2>
-        <p className="text-content2 mt-1 text-sm leading-6">
+    <section className="rounded-md border border-danger">
+      <div className="border-b border-danger/40 p-5">
+        <h2 className="text-base font-semibold text-danger">Danger Zone</h2>
+        <p className="mt-1 text-sm leading-6 text-content2">
           {isOwner ?
             'Deleting your account permanently removes your account and all data owned by it.'
           : 'Leaving this workspace revokes your access while keeping workspace data intact.'}
@@ -383,14 +347,14 @@ function DangerZone() {
 
         {isOwner && (
           <>
-            <p className="text-content2 mt-4 text-sm leading-6">
+            <p className="mt-4 text-sm leading-6 text-content2">
               This action is irreversible. Once you delete your account, all your data will be permanently
               wiped and cannot be restored.
             </p>
 
-            <div className="border-danger mt-4 rounded border p-4">
-              <p className="text-content text-sm font-semibold">Warning:</p>
-              <ul className="text-content2 list-disc pl-5 text-sm leading-6">
+            <div className="mt-4 rounded-md border border-danger p-4">
+              <p className="text-sm font-semibold text-content">Warning:</p>
+              <ul className="list-disc pl-5 text-sm leading-6 text-content2">
                 <li>All your data will be permanently deleted.</li>
                 <li>This action cannot be undone.</li>
                 <li>You will lose access to all your information and services.</li>
@@ -401,14 +365,14 @@ function DangerZone() {
 
         {!isOwner && (
           <>
-            <p className="text-content2 mt-4 text-sm leading-6">
+            <p className="mt-4 text-sm leading-6 text-content2">
               Your projects, data, and workspace settings will remain intact, but you will lose your access
               rights to view, edit, or add anything in this workspace.
             </p>
 
-            <div className="border-warning mt-4 rounded border p-4">
-              <p className="text-content text-sm font-semibold">Note:</p>
-              <ul className="text-content2 list-disc pl-5 text-sm leading-6">
+            <div className="mt-4 rounded-md border border-warning p-4">
+              <p className="text-sm font-semibold text-content">Note:</p>
+              <ul className="list-disc pl-5 text-sm leading-6 text-content2">
                 <li>You will be returned to your personal workspace.</li>
                 <li>You cannot rejoin this workspace unless an owner invites you again.</li>
               </ul>
@@ -427,7 +391,7 @@ export function ProfilePage() {
       <PageHeader contained>
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Profile</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             Manage your account identity and account-level settings.
           </p>
         </div>
@@ -457,7 +421,7 @@ export function ProfileSecurityPage() {
       <PageHeader contained>
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Security</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             Manage sign-in, connected accounts, and authorized application access.
           </p>
         </div>

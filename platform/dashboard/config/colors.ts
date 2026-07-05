@@ -27,8 +27,8 @@ const parseColor = (color: string) => oklch(color) as Color
 
 /**
  * Format a color as space-separated HSL channels ("H S% L%") without the
- * `hsl()` wrapper or alpha — the shape Tailwind needs to inject opacity via
- * `hsl(var(--x) / <alpha-value>)`.
+ * `hsl()` wrapper — theme tokens wrap the variable as `hsl(var(--x))` and
+ * Tailwind v4 layers opacity modifiers on top with `color-mix()`.
  */
 const clamp01 = (n: number): number => Math.min(1, Math.max(0, Number.isFinite(n) ? n : 0))
 
@@ -44,13 +44,9 @@ const formatHslChannels = (color: Color): string => {
   const sat = `${Number((clamp01(s ?? 0) * 100).toFixed(2))}%`
   const lum = `${Number((clamp01(l ?? 0) * 100).toFixed(2))}%`
 
-  // Alpha-baked tokens carry their (per-theme) alpha in the channel value;
-  // opaque tokens leave room for Tailwind's `/opacity` modifier instead.
+  // Alpha-baked tokens carry their (per-theme) alpha in the channel value.
   return a < 1 ? `${hue} ${sat} ${lum} / ${Number(a.toFixed(3))}` : `${hue} ${sat} ${lum}`
 }
-
-/** Baked-in alpha of a color, or 1 when fully opaque. */
-const colorAlpha = (color: Color): number => color.alpha ?? 1
 
 const shiftColorLuminance = (_color: ColorOrColorState, shiftAmount: Color['l']): Color => {
   const color = isColorState(_color) ? _color.DEFAULT : _color
@@ -218,32 +214,25 @@ function collectVars(tree: ColorTree, path: string[] = [], acc: Record<string, s
 }
 
 /**
- * Walk the (dark) palette tree to build the Tailwind color tree. Each leaf
- * becomes a `var()` reference. Opaque tokens keep Tailwind's `<alpha-value>`
- * placeholder so `/opacity` modifiers work; alpha-baked tokens bake their alpha
- * into the reference instead.
+ * Walk the (dark) palette tree to build the Tailwind v4 `@theme inline` token
+ * map. Each leaf becomes a `--color-*` token wrapping its runtime CSS variable
+ * (`hsl(var(--x))`), so utilities follow the active theme. `/opacity` modifiers
+ * work on both opaque and alpha-baked tokens — v4 applies them via `color-mix()`.
  */
-function buildTailwindTree(tree: ColorTree, path: string[] = []): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
+function collectThemeTokens(tree: ColorTree, path: string[] = [], acc: Record<string, string> = {}) {
   for (const [key, value] of Object.entries(tree)) {
     const nextPath = [...path, key]
     if (isColor(value)) {
-      const name = varName(nextPath)
-      // Alpha-baked tokens embed alpha in the variable value (see
-      // formatHslChannels); opaque tokens keep Tailwind's `<alpha-value>` slot
-      // so `/opacity` modifiers keep working.
-      out[key] = colorAlpha(value) < 1 ? `hsl(var(${name}))` : `hsl(var(${name}) / <alpha-value>)`
+      const channelVar = varName(nextPath)
+      acc[`--color${channelVar.slice(1)}`] = `hsl(var(${channelVar}))`
     } else {
-      out[key] = buildTailwindTree(value as ColorTree, nextPath)
+      collectThemeTokens(value as ColorTree, nextPath, acc)
     }
   }
-  return out
+  return acc
 }
 
 export const darkVars = collectVars(darkPalette)
 export const lightVars = collectVars(lightPalette)
 
-export const colors = buildTailwindTree(darkPalette)
-
-// Only consumed by `ringColor.DEFAULT` in the Tailwind config.
-export const RING_COLOR = (colors as { content: { ring: string } }).content.ring
+export const themeTokens = collectThemeTokens(darkPalette)

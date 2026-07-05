@@ -26,7 +26,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const isHttpException = exception instanceof HttpException
     const isNeo4jError = exception.constructor.name === 'Neo4jError' || exception instanceof Neo4jError
 
-    const status = isHttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR
+    // Covers Neo.ClientError.Transaction.TransactionTimedOut and
+    // ...TransactionTimedOutClientConfiguration: the server-side budget expired.
+    // This is a time-budget problem, not a server fault — answer 408 with
+    // guidance instead of a generic 500 (or, worse, the gateway's body-less 504).
+    const isTxTimeout =
+      isNeo4jError &&
+      typeof (exception as any).code === 'string' &&
+      (exception as any).code.includes('TransactionTimedOut')
+
+    const status =
+      isHttpException ? exception.getStatus()
+      : isTxTimeout ? HttpStatus.REQUEST_TIMEOUT
+      : HttpStatus.INTERNAL_SERVER_ERROR
 
     const raw: any = (request as any).raw ?? request
     const internalSession = raw?.session
@@ -93,6 +105,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     response.status?.(status).send(
       isHttpException ? exception.getResponse()
+      : isTxTimeout ?
+        {
+          statusCode: status,
+          message:
+            'The operation exceeded the server-side transaction time budget and was rolled back. ' +
+            'Narrow the operation with `where` filters or split it into smaller requests.'
+        }
       : isNeo4jError ? { statusCode: status, message: 'Neo4j database error occurred' }
       : {}
     )

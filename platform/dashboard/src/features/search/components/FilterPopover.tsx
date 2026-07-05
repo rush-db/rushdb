@@ -34,7 +34,7 @@ import { SearchOperationIcon } from '~/features/search/components/SearchOperatio
 import { SearchOperations, operatorOptions } from '~/features/search/constants'
 import { isViableSearchOperation } from '~/features/search/types'
 import { api } from '~/lib/api'
-import { mixed, object, string, useForm } from '~/lib/form'
+import { useForm, z } from '~/lib/form'
 import { convertToSearchQuery, filterToSearchOperation } from '~/features/projects/utils.ts'
 
 const $fieldId = atom<Property['id'] | undefined>(undefined)
@@ -58,12 +58,12 @@ function useFieldValuesQuery(query?: string) {
   })
 }
 
-const filterSchema = object({
-  field: string().required(),
-  operator: string().oneOf(Object.values(SearchOperations)).required(),
-  value: mixed(),
-  min: mixed(),
-  max: mixed()
+const filterSchema = z.object({
+  field: z.string().min(1),
+  operator: z.nativeEnum(SearchOperations),
+  value: z.any(),
+  min: z.any(),
+  max: z.any()
 })
 
 type TFilterSchema = InferType<typeof filterSchema>
@@ -900,7 +900,7 @@ export function FilterPopover({ filter, onRemove }: { filter: Filter; onRemove: 
           onReset={() => {
             reset()
           }}
-          className="flex min-w-[360px] flex-col px-3 pb-3 pt-3"
+          className="flex min-w-[360px] flex-col px-3 pt-3 pb-3"
           onSubmit={submit}
         >
           <div className="grid grid-cols-2 gap-3">

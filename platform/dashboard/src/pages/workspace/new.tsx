@@ -3,14 +3,14 @@ import { Card, CardBody, CardFooter, CardHeader } from '~/elements/Card'
 import { TextField } from '~/elements/Input'
 import { useCreateWorkspaceMutation } from '~/features/workspaces/hooks/useWorkspaceMutations'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
-import { object, string, useForm } from '~/lib/form'
+import { useForm, z } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { useCallback, useEffect, useRef } from 'react'
 
-const schema = object({
-  name: string().required().min(1).max(256)
-}).required()
+const schema = z.object({
+  name: z.string().min(1).max(256)
+})
 
 function CreateWorkspaceForm({ ...props }: TPolymorphicComponentProps<'form'>) {
   const { data: newWorkspace, mutateAsync: mutate } = useCreateWorkspaceMutation()

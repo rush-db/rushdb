@@ -103,7 +103,7 @@ export const ComboboxItem = CommandItem
 export const ComboboxTitle = React.forwardRef<HTMLDivElement, TPropsOf<'div'>>(
   ({ className, ...props }, ref) => (
     <div
-      className={cn('bg-fill text-content3 px-3 py-1.5 text-xs font-medium uppercase', className)}
+      className={cn('bg-fill px-3 py-1.5 text-xs font-medium text-content3 uppercase', className)}
       {...props}
       ref={ref}
     />

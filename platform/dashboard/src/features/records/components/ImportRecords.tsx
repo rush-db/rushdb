@@ -34,12 +34,12 @@ function RadioButton({
   return (
     <button
       className={cn(
-        'bg-secondary ring-accent-ring hover:border-accent-hover hover:bg-secondary-hover focus-visible:border-accent-focus group-hover:border-accent-hover group-hover:bg-secondary-hover flex w-full items-start gap-5 rounded-lg border px-5 py-4 text-start transition-all focus-visible:ring group-focus:ring',
+        'flex w-full items-start gap-5 rounded-lg border bg-secondary px-5 py-4 text-start ring-accent-ring transition-all group-hover:border-accent-hover group-hover:bg-secondary-hover group-focus:ring hover:border-accent-hover hover:bg-secondary-hover focus-visible:border-accent-focus focus-visible:ring',
         className
       )}
       {...props}
     >
-      <div className="text-accent mt-2.5 flex items-center justify-center">{icon}</div>
+      <div className="mt-2.5 flex items-center justify-center text-accent">{icon}</div>
       <div className="flex flex-col">
         <h3 className="font-bold">{title}</h3>
         <p className="text-content2">{description}</p>
@@ -189,13 +189,13 @@ function EditorStep() {
   return (
     <div className="h-[calc(100dvh-262px+57px)] overflow-hidden">
       <div className="grid h-full grid-cols-1 gap-4 xl:grid-cols-[3fr_1fr]">
-        <section className="bg-fill2 relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border">
+        <section className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-fill2">
           <div
             className="border-border bg-surface-secondary flex items-center justify-between border-b px-4 py-2"
             data-tour="project-import-data-overview"
           >
             <p className="text-sm font-semibold">Source Data</p>
-            <p className="text-content2 text-sm uppercase tracking-wide">
+            <p className="text-sm tracking-wide text-content2 uppercase">
               {mode === 'json' ? 'JSON' : 'CSV'} | ~{sourceSizeEstimate}
             </p>
           </div>
@@ -222,7 +222,7 @@ function EditorStep() {
           {mode === 'csv' && (
             <div className="flex min-h-0 flex-1 flex-col p-3">
               <textarea
-                className="scrollbar-thin bg-secondary h-full w-full resize-none rounded border p-3 font-mono text-sm outline-none focus-visible:ring"
+                className="h-full w-full resize-none scrollbar-thin rounded-md border bg-secondary p-3 font-mono text-sm outline-hidden focus-visible:ring"
                 placeholder="name,email,age\nJohn Doe,john@example.com,30"
                 value={csvData}
                 onChange={(e) => $csvData.set(e.target.value)}
@@ -234,10 +234,10 @@ function EditorStep() {
         <aside className="flex h-full min-h-0 flex-col overflow-hidden">
           <div className="pb-2">
             <h3 className="text-md font-semibold">Import Configuration</h3>
-            <p className="text-content2 text-sm">Tune parsing and ingestion behavior before submitting.</p>
+            <p className="text-sm text-content2">Tune parsing and ingestion behavior before submitting.</p>
           </div>
 
-          <div className="scrollbar-thin flex-1 space-y-4 overflow-y-auto py-3">
+          <div className="flex-1 scrollbar-thin space-y-4 overflow-y-auto py-3">
             <div>
               <TextField
                 required={labelRequired}
@@ -281,7 +281,7 @@ function EditorStep() {
                   }}
                   checked={suggestTypes}
                 />
-                <p className="text-content2 mt-1 text-sm">
+                <p className="mt-1 text-sm text-content2">
                   Infers number, boolean, and null values from input.
                 </p>
               </div>
@@ -294,7 +294,7 @@ function EditorStep() {
                   }}
                   checked={capitalizeLabels}
                 />
-                <p className="text-content2 mt-1 text-sm">Normalizes labels to uppercase for consistency.</p>
+                <p className="mt-1 text-sm text-content2">Normalizes labels to uppercase for consistency.</p>
               </div>
               <div className="space-y-1">
                 <CheckboxField
@@ -305,7 +305,7 @@ function EditorStep() {
                   }}
                   checked={convertNumericValuesToNumbers}
                 />
-                <p className="text-content2 mt-1 text-sm">
+                <p className="mt-1 text-sm text-content2">
                   Converts numeric-looking strings into numeric properties.
                 </p>
               </div>
@@ -318,7 +318,7 @@ function EditorStep() {
                   }}
                   checked={skipEmptyValues}
                 />
-                <p className="text-content2 mt-1 text-sm">
+                <p className="mt-1 text-sm text-content2">
                   Treats empty strings and empty arrays as unset (no property created). 0 and false are kept.
                 </p>
               </div>
@@ -331,14 +331,14 @@ function EditorStep() {
                   }}
                   checked={mergeMode}
                 />
-                <p className="text-content2 mt-1 text-sm">
+                <p className="mt-1 text-sm text-content2">
                   Updates matching records instead of always creating new ones.
                 </p>
               </div>
             </div>
 
             {mode === 'csv' && (
-              <div className="rounded border p-3">
+              <div className="rounded-md border p-3">
                 <div className="mb-3 flex items-center gap-2 font-semibold">
                   <Settings2 size={16} /> CSV Parse Config
                 </div>
@@ -380,7 +380,7 @@ function EditorStep() {
                       checked={header}
                       onCheckedChange={() => setHeader(!header)}
                     />
-                    <p className="text-content2 mt-1 text-sm">Treats first row as column names.</p>
+                    <p className="mt-1 text-sm text-content2">Treats first row as column names.</p>
                   </div>
                   <div className="space-y-1">
                     <CheckboxField
@@ -389,7 +389,7 @@ function EditorStep() {
                       checked={skipEmptyLines}
                       onCheckedChange={() => setSkipEmptyLines(!skipEmptyLines)}
                     />
-                    <p className="text-content2 mt-1 text-sm">Ignores blank lines while parsing.</p>
+                    <p className="mt-1 text-sm text-content2">Ignores blank lines while parsing.</p>
                   </div>
                   <div className="space-y-1">
                     <CheckboxField
@@ -398,7 +398,7 @@ function EditorStep() {
                       checked={dynamicTyping ?? false}
                       onCheckedChange={() => setDynamicTyping(dynamicTyping ? undefined : true)}
                     />
-                    <p className="text-content2 mt-1 text-sm">
+                    <p className="mt-1 text-sm text-content2">
                       Overrides type inference for CSV parser. When off, it follows Suggest data types.
                     </p>
                   </div>
@@ -699,13 +699,13 @@ export function ImportRecords() {
             <DatabaseZap />
             <PageTitle>Import data</PageTitle>
           </div>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             Bring existing data into this project. RushDB auto-detects JSON, JSONL, NDJSON, and CSV, infers
             labels and property types, and turns nested objects into connected records — or start from a
             sample dataset, the CSV editor, or an empty JSON payload.
           </p>
           <a
-            className="text-content2 hover:text-content inline-flex w-fit items-center gap-2 text-sm transition"
+            className="inline-flex w-fit items-center gap-2 text-sm text-content2 transition hover:text-content"
             href={IMPORT_DOCS_URL}
             rel="noreferrer"
             target="_blank"
@@ -729,7 +729,7 @@ export function ImportRecords() {
             <div
               className={cn(
                 'border-border relative mt-5 flex w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-transparent px-6 py-12 text-center transition-all',
-                isDraggingFile && 'border-accent bg-accent/5 ring-accent/30 ring-2'
+                isDraggingFile && 'border-accent bg-accent/5 ring-2 ring-accent/30'
               )}
               onDragOver={(event) => {
                 event.preventDefault()
@@ -747,12 +747,12 @@ export function ImportRecords() {
                 processImportFile(file)
               }}
             >
-              <div className="bg-secondary text-content flex h-14 w-14 items-center justify-center rounded-full">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary text-content">
                 <UploadCloud size={24} />
               </div>
               <div>
                 <p className="text-lg font-semibold">Drag and drop your import file</p>
-                <p className="text-content2 mt-1 text-sm">
+                <p className="mt-1 text-sm text-content2">
                   Auto-detects JSON, JSONL, NDJSON, and CSV, then routes you to the right import flow.
                 </p>
               </div>
@@ -760,9 +760,9 @@ export function ImportRecords() {
                 Browse files
               </Button>
               {lastDetectedType && (
-                <p className="text-content2 text-sm">Detected format: {lastDetectedType}</p>
+                <p className="text-sm text-content2">Detected format: {lastDetectedType}</p>
               )}
-              {uploadError && <p className="text-danger text-sm">{uploadError}</p>}
+              {uploadError && <p className="text-sm text-danger">{uploadError}</p>}
             </div>
 
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">

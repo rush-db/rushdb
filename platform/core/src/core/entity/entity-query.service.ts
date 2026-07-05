@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
 
 import { isArray } from '@/common/utils/isArray'
 import { toBoolean } from '@/common/utils/toBolean'
@@ -1056,43 +1056,68 @@ END`
     // Prepare pieces for embedding into apoc.periodic.iterate subqueries
     const sFirst = sClauses.first ? ` ${sClauses.first}` : ''
     const sRest = sClauses.rest.length ? ` ${sClauses.rest.join(' ')}` : ''
+    const tFirst = tClauses.first ? ` ${tClauses.first}` : ''
     const tRest = tClauses.rest.length ? ` ${tClauses.rest.join(' ')}` : ''
-    const tFirstStartsWithWhere = /^\s*WHERE\b/i.test(tClauses.first)
-    const tFirstNoWhere = tFirstStartsWithWhere ? tClauses.first.replace(/^\s*WHERE\s+/i, '') : ''
 
     const hasSourceWhere = sourceWhere && Object.keys(sourceWhere).length > 0
     const hasTargetWhere = targetWhere && Object.keys(targetWhere).length > 0
     const hasJoinKeys = Boolean(safeSourceKey && safeTargetKey)
 
-    // Safeguards
+    // Safeguards. A key join is never cartesian, so `where` scoping is only
+    // mandatory for the pure cross-product form of manyToMany.
     if (manyToMany) {
-      if (!hasSourceWhere || !hasTargetWhere) {
-        throw new Error(
-          'manyToMany requires non-empty `where` filters for both source and target to avoid cartesian explosion'
+      if (!hasJoinKeys && (!hasSourceWhere || !hasTargetWhere)) {
+        throw new BadRequestException(
+          'manyToMany without join keys requires non-empty `where` filters for both source and target to avoid cartesian explosion. To join on a key, provide both source.key and target.key.'
         )
       }
     } else {
       if (!hasJoinKeys) {
-        throw new Error('source.key and target.key are required unless manyToMany=true')
+        throw new BadRequestException('source.key and target.key are required unless manyToMany=true')
       }
     }
 
     const selfExclusion = safeSourceLabel === safeTargetLabel ? 'id(s) <> id(t)' : ''
 
-    const joinKeyPredicate = hasJoinKeys ? this.joinKeyPredicate('s', safeSourceKey, 't', safeTargetKey) : ''
+    // The pair statement enumerates the source and target sets ONCE each and
+    // emits distinct (s, t) pairs, so overall cost is O(|source| + |target| + pairs)
+    // instead of re-matching the target label per source row. The target side is
+    // wrapped in a CALL subquery both to build the join map up front and to scope
+    // its `where` traversal aliases (parseSubQuery names them record<level>
+    // regardless of the root alias, so source/target clauses would collide in a
+    // shared scope).
+    const targetMatch = `MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest}${tFirst}`
+    const sourceMatch = `MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })${sFirst}${sRest}`
 
-    // Build combined WHERE depending on whether join keys exist.
-    let combinedWhere = ''
+    let pairStatement: string
     if (hasJoinKeys) {
-      const eqClause = [joinKeyPredicate, selfExclusion].filter(Boolean).join(' AND ')
-      combinedWhere = tFirstNoWhere ? `WHERE ${eqClause} AND ${tFirstNoWhere}` : `WHERE ${eqClause}`
+      // toString() bucketing is a pre-filter only — it can conflate values of
+      // different types ("1" vs 1), so pairs are re-checked with the exact,
+      // type-strict join predicate before being emitted.
+      const pairFilter = [this.joinKeyPredicate('s', safeSourceKey, 't', safeTargetKey), selfExclusion]
+        .filter(Boolean)
+        .join(' AND ')
+      pairStatement =
+        `CALL { ${targetMatch} ` +
+        `UNWIND ${this.asCypherList(`t.\`${safeTargetKey}\``)} AS targetValue ` +
+        `WITH toString(targetValue) AS joinKey, collect(DISTINCT t) AS targets ` +
+        `RETURN apoc.map.fromPairs(collect([joinKey, targets])) AS targetsByKey } ` +
+        `${sourceMatch} ` +
+        `UNWIND ${this.asCypherList(`s.\`${safeSourceKey}\``)} AS sourceValue ` +
+        `WITH s, targetsByKey[toString(sourceValue)] AS candidates WHERE candidates IS NOT NULL ` +
+        `UNWIND candidates AS t ` +
+        `WITH s, t WHERE ${pairFilter} ` +
+        `RETURN DISTINCT s, t`
     } else {
-      // manyToMany path: rely solely on target's where (already required to be non-empty)
-      const clauses = [selfExclusion, tFirstNoWhere].filter(Boolean).join(' AND ')
-      combinedWhere = clauses ? `WHERE ${clauses}` : ''
+      pairStatement =
+        `CALL { ${targetMatch} RETURN collect(DISTINCT t) AS targets } ` +
+        `${sourceMatch} ` +
+        `UNWIND targets AS t ` +
+        (selfExclusion ? `WITH s, t WHERE ${selfExclusion} ` : '') +
+        `RETURN DISTINCT s, t`
     }
 
-    return { combinedWhere, safeSourceLabel, safeTargetLabel, sFirst, sRest, tRest, relPattern }
+    return { pairStatement, relPattern }
   }
 
   private joinKeyPredicate(sourceAlias: string, sourceKey: string, targetAlias: string, targetKey: string) {
@@ -1105,7 +1130,9 @@ END`
   }
 
   private asCypherList(value: string) {
-    return `CASE WHEN ${value} IS NULL THEN [] WHEN apoc.meta.cypher.type(${value}) STARTS WITH "LIST" THEN ${value} ELSE [${value}] END`
+    // Native type predicate (Neo4j 5.9+) — apoc.meta.cypher.type here cost a
+    // procedure call per evaluated row in the bulk-join hot path.
+    return `CASE WHEN ${value} IS NULL THEN [] WHEN ${value} IS :: LIST<ANY> THEN ${value} ELSE [${value}] END`
   }
 
   createRelationsByKeys(payload: {
@@ -1119,21 +1146,18 @@ END`
     targetWhere?: Where
     manyToMany?: boolean
   }) {
-    const { safeSourceLabel, safeTargetLabel, combinedWhere, sFirst, sRest, tRest, relPattern } =
-      this.constructRelationshipQueryArguments(payload)
+    const { pairStatement, relPattern } = this.constructRelationshipQueryArguments(payload)
 
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
       .append('CALL apoc.periodic.iterate(')
+      .append(`'${pairStatement}',`)
       .append(
-        `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })${sFirst}${sRest} RETURN s',`
+        `'UNWIND $_batch AS row WITH row.s AS s, row.t AS t MERGE (s)${relPattern}(t) SET rel += $relationshipProperties RETURN count(*)',`
       )
       .append(
-        `'WITH s MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest} ${combinedWhere} MERGE (s)${relPattern}(t) SET rel += $relationshipProperties RETURN count(*)',`
-      )
-      .append(
-        `{ batchSize: 5000, params: { projectId: $projectId, relationshipProperties: $relationshipProperties }, batchMode: "SINGLE", retries: 5 }`
+        `{ batchSize: 5000, params: { projectId: $projectId, relationshipProperties: $relationshipProperties }, batchMode: "BATCH_SINGLE", retries: 5 }`
       )
       .append(')')
       .append('YIELD total, committedOperations, failedOperations, errorMessages')
@@ -1190,20 +1214,17 @@ END`
     targetWhere?: Where
     manyToMany?: boolean
   }) {
-    const { safeSourceLabel, safeTargetLabel, combinedWhere, sFirst, sRest, tRest, relPattern } =
-      this.constructRelationshipQueryArguments(payload)
+    const { pairStatement, relPattern } = this.constructRelationshipQueryArguments(payload)
 
     const queryBuilder = new QueryBuilder()
 
     queryBuilder
       .append('CALL apoc.periodic.iterate(')
+      .append(`'${pairStatement}',`)
       .append(
-        `'MATCH (s:${RUSHDB_LABEL_RECORD}:\`${safeSourceLabel}\` { ${projectIdInline()} })${sFirst}${sRest} RETURN s',`
+        `'UNWIND $_batch AS row WITH row.s AS s, row.t AS t OPTIONAL MATCH (s)${relPattern}(t) DELETE rel RETURN count(*)',`
       )
-      .append(
-        `'WITH s MATCH (t:${RUSHDB_LABEL_RECORD}:\`${safeTargetLabel}\` { ${projectIdInline()} })${tRest} ${combinedWhere} OPTIONAL MATCH (s)${relPattern}(t) DELETE rel RETURN count(*)',`
-      )
-      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "SINGLE", retries: 5 }`)
+      .append(`{ batchSize: 5000, params: { projectId: $projectId }, batchMode: "BATCH_SINGLE", retries: 5 }`)
       .append(')')
       .append('YIELD total, committedOperations, failedOperations, errorMessages')
       .append('RETURN total, committedOperations, failedOperations, errorMessages')

@@ -190,7 +190,7 @@ export function ProjectTabs({
     if (recordsTab && showRecordLabels && labelEntries.length > 0) {
       nodes.push(
         <div
-          className="border-stroke mb-1 ml-[1.2rem] mt-0.5 flex flex-col gap-0.5 border-l pl-2"
+          className="mt-0.5 mb-1 ml-[1.2rem] flex flex-col gap-0.5 border-l border-stroke pl-2"
           key={`${href}:labels`}
         >
           {labelEntries.map(([recordLabel, quantity], idx) => {
@@ -199,7 +199,7 @@ export function ProjectTabs({
             return (
               <a
                 className={cn(
-                  'text-content2 hover:bg-fill3 hover:text-content flex h-7 min-w-0 items-center gap-2 rounded px-2 text-sm transition',
+                  'flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-content2 transition hover:bg-fill3 hover:text-content',
                   active && 'bg-secondary text-content'
                 )}
                 href={getRoutePath('project', { id: project.id })}
@@ -212,7 +212,7 @@ export function ProjectTabs({
               >
                 <LabelColorIcon idx={idx} label={recordLabel} />
                 <span className="min-w-0 flex-1 truncate">{recordLabel}</span>
-                <span className="text-content3 font-mono text-xs tabular-nums">
+                <span className="font-mono text-xs text-content3 tabular-nums">
                   {numberCompact.format(quantity)}
                 </span>
               </a>

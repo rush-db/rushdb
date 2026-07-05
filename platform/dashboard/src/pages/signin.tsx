@@ -9,7 +9,7 @@ import { logIn } from '~/features/auth/stores/auth'
 import { AuthLayout } from '~/layout/AuthLayout'
 import { api } from '~/lib/api'
 import { FetchError } from '~/lib/fetcher'
-import { object, string, useForm } from '~/lib/form'
+import { useForm, z } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { KeyRound, LogIn } from 'lucide-react'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
@@ -24,10 +24,10 @@ interface LoginFormValues {
   password: string
 }
 
-const schema = object({
-  login: string().required(),
-  password: string().required().min(8, 'Should be at least 8 characters long').max(32)
-}).required()
+const schema = z.object({
+  login: z.string().min(1, 'Login is required'),
+  password: z.string().min(8, 'Should be at least 8 characters long').max(32)
+})
 
 function SignInForm() {
   const {

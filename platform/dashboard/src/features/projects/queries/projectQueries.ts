@@ -294,6 +294,26 @@ export type ProjectFieldsQueryParams = {
   labels: string[]
   combineMode: FiltersCombineMode
   filters: Filter[]
+  /** Full search query driving the records view (AI/smart search) — mirrored so properties match the visible result set. */
+  searchQuery?: SearchQuery
+}
+
+function buildFieldsSearchQuery(params: ProjectFieldsQueryParams): SearchQuery {
+  if (params.searchQuery) {
+    return {
+      labels: params.searchQuery.labels ?? [],
+      where: params.searchQuery.where ?? {}
+    }
+  }
+
+  const properties = params.filters.map(filterToSearchOperation)
+  return {
+    labels: params.labels,
+    where:
+      params.combineMode === 'or' ?
+        { $or: convertToSearchQuery(properties) }
+      : convertToSearchQuery(properties)
+  }
 }
 
 export const projectFieldsQueryOptions = (params: ProjectFieldsQueryParams) =>
@@ -301,24 +321,17 @@ export const projectFieldsQueryOptions = (params: ProjectFieldsQueryParams) =>
     queryKey: queryKeys.projects.fields(params.projectId!, {
       labels: params.labels,
       combineMode: params.combineMode,
-      filters: params.filters
+      filters: params.filters,
+      searchQuery: params.searchQuery
     }),
     queryFn: async ({ signal }) => {
-      let properties
-      if (params.combineMode === 'and') {
-        properties = params.filters.map(filterToSearchOperation)
-      }
       const result = await api.properties.find({
-        searchQuery: {
-          labels: params.labels,
-          where: convertToSearchQuery(properties)
-        },
+        searchQuery: buildFieldsSearchQuery(params),
         init: { signal } as RequestInit
       })
       return result.data
     },
     enabled: !!params.projectId,
-    refetchOnMount: false,
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000
   })

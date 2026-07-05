@@ -19,6 +19,7 @@ import { getLabelColor } from '~/features/labels'
 import { useProjectLabelsQuery } from '~/features/projects/hooks/useProjectQueries'
 import { $recordsOrderBy, setRecordsSort } from '~/features/projects/stores/current-project'
 import { $hiddenFields } from '~/features/projects/stores/hidden-fields'
+import { $rowDensity } from '~/features/projects/stores/row-density'
 import { collectPropertiesFromRecord } from '~/features/projects/utils'
 import { PropertyName } from '~/features/properties/components/PropertyName'
 import { PropertyValue } from '~/features/properties/components/PropertyValue'
@@ -195,14 +196,14 @@ const ShapedRecordRow = memo(function ShapedRecordRow({
       style={{ height: 52.5 }}
       tabIndex={0}
     >
-      <DataCell className="text-content2 font-mono">{skip + index + 1}</DataCell>
+      <DataCell className="font-mono text-content2">{skip + index + 1}</DataCell>
       {columns.length ?
         columns.map((column) => {
           const value = row[column]
           return (
             <DataCell
               className={cn({
-                'text-content2 font-mono': isNestedValue(value),
+                'font-mono text-content2': isNestedValue(value),
                 'text-content3': value === null || typeof value === 'undefined'
               })}
               key={`${index}-${column}`}
@@ -251,9 +252,9 @@ const ShapedRecordsTable = memo(function ShapedRecordsTable({
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}>
       <StickyHeaderWrapper ref={scrollRef} {...props}>
-        <table className="w-full" ref={tableRef}>
+        <table className="w-full border-separate border-spacing-0" ref={tableRef}>
           <StickyTableHead>
-            <tr className="bg-fill group border-b shadow-[0_5px_10px_rgba(0,0,0,0.2)]">
+            <tr className="group bg-fill">
               <HeadCell className="w-16">#</HeadCell>
               {columns.length ?
                 columns.map((column) => (
@@ -286,7 +287,7 @@ const ShapedRecordsTable = memo(function ShapedRecordsTable({
 
       {rows.length ?
         <Paginator
-          className="bg-fill shrink-0 border-t"
+          className="shrink-0 border-t bg-fill"
           limit={limit}
           onNext={composeEventHandlers(scrollToHead, onNext)}
           onPrev={composeEventHandlers(scrollToHead, onPrev)}
@@ -303,7 +304,7 @@ const ShapedRecordsTable = memo(function ShapedRecordsTable({
         open={Boolean(rowDetails)}
       >
         <DialogTitle>Row JSON</DialogTitle>
-        <pre className="bg-fill2 text-content max-h-[70vh] overflow-auto rounded border p-4 font-mono text-xs leading-5">
+        <pre className="max-h-[70vh] overflow-auto rounded-md border bg-fill2 p-4 font-mono text-xs leading-5 text-content">
           {JSON.stringify(rowDetails, null, 2)}
         </pre>
       </Dialog>
@@ -379,6 +380,7 @@ const StickyTableHead = ({ children }: { children: ReactNode }) => (
 )
 
 const RecordRow = memo(function RecordRow({
+  compact,
   fields,
   hiddenId,
   index,
@@ -389,6 +391,7 @@ const RecordRow = memo(function RecordRow({
   selected,
   view
 }: {
+  compact: boolean
   fields: Property[]
   hiddenId: boolean
   index: number
@@ -419,13 +422,13 @@ const RecordRow = memo(function RecordRow({
         'bg-fill2': index % 2 === 0
       })}
       onClick={onRecordClick ? () => onRecordClick(recordData) : undefined}
-      style={{ height: 52.5 }}
+      style={{ height: compact ? 36 : 52.5 }}
       tabIndex={0}
     >
-      <DataCell className="text-content-secondary">
+      <DataCell className={cn('text-content-secondary', compact && 'py-1')}>
         <Checkbox
           className={cn('hidden group-hover:block', {
-            '!block': selected
+            'block!': selected
           })}
           onCheckedChange={() =>
             view === 'main' ?
@@ -442,8 +445,8 @@ const RecordRow = memo(function RecordRow({
           onClick={(e) => e.stopPropagation()}
         />
         <Database
-          className={cn('group-hover:hidden', {
-            '!hidden': selected
+          className={cn('text-content2 group-hover:hidden', {
+            'hidden!': selected
           })}
           size={16}
         />
@@ -465,7 +468,7 @@ const RecordRow = memo(function RecordRow({
           <Skeleton enabled={loading}>
             <Label variant={labelVariant}>{recordLabel}</Label>
 
-            <PropertyValue className="text-content2" type={'string'} value={recordId} />
+            {!compact && <PropertyValue className="text-content2" type={'string'} value={recordId} />}
           </Skeleton>
         </DataCell>
       )}
@@ -484,7 +487,10 @@ const RecordRow = memo(function RecordRow({
 
         if (!property) {
           return (
-            <DataCell className="text-content3" key={`${recordId}-${field.id}-${field.name}`}>
+            <DataCell
+              className={cn('text-content3', compact && 'py-1')}
+              key={`${recordId}-${field.id}-${field.name}`}
+            >
               —
             </DataCell>
           )
@@ -492,6 +498,7 @@ const RecordRow = memo(function RecordRow({
 
         return (
           <DataCell
+            className={cn(compact && 'py-1')}
             key={`${recordId}-${property.name}`}
             onPointerEnter={handlePointerEnter({ property })}
             onPointerLeave={handlePointerLeave}
@@ -523,6 +530,7 @@ function RecordsTableComponent({
   const tableRef = useRef<HTMLTableElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const hiddenFields = useStore($hiddenFields)
+  const compact = useStore($rowDensity) === 'compact'
   const { data: labels } = useProjectLabelsQuery()
   const labelNames = useMemo(() => Object.keys(labels ?? {}), [labels])
   const hiddenId = hiddenFields.includes('__id')
@@ -606,13 +614,13 @@ function RecordsTableComponent({
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}>
       <StickyHeaderWrapper ref={scrollRef} {...props}>
-        <table className="w-full" ref={tableRef}>
+        <table className="w-full border-separate border-spacing-0" ref={tableRef}>
           <StickyTableHead>
-            <tr className="bg-fill group border-b shadow-[0_5px_10px_rgba(0,0,0,0.2)]">
+            <tr className="group bg-fill">
               <HeadCell style={{ width: 44 }}>
                 <Checkbox
                   className={cn('hidden group-hover:block', {
-                    '!block': checked
+                    'block!': checked
                   })}
                   onCheckedChange={handleOnCheckedChange}
                   checked={checked}
@@ -648,6 +656,7 @@ function RecordsTableComponent({
 
                 return (
                   <RecordRow
+                    compact={compact}
                     fields={visibleFields}
                     hiddenId={hiddenId}
                     index={index}
@@ -669,7 +678,7 @@ function RecordsTableComponent({
 
       {records?.length ?
         <Paginator
-          className="bg-fill shrink-0 border-t"
+          className="shrink-0 border-t bg-fill"
           limit={limit}
           onNext={composeEventHandlers(scrollToHead, onNext)}
           onPrev={composeEventHandlers(scrollToHead, onPrev)}

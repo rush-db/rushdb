@@ -386,7 +386,84 @@ describe('EntityQueryService relationship creation', () => {
       direction: 'out'
     })
 
-    expect(query).toContain('apoc.meta.cypher.type(s.`commander_character_ids`) STARTS WITH "LIST"')
+    expect(query).toContain('s.`commander_character_ids` IS :: LIST<ANY>')
     expect(query).toContain('sourceValue IN CASE WHEN t.`id` IS NULL THEN []')
+  })
+
+  it('joins via a single-pass key map instead of re-matching the target label per source row', () => {
+    const query = new EntityQueryService().createRelationsByKeys({
+      sourceLabel: 'A',
+      sourceKey: 'key',
+      targetLabel: 'B',
+      targetKey: 'key',
+      relationType: 'REL',
+      direction: 'out'
+    })
+
+    // Target set is collected once into a key→targets map inside an isolated CALL scope…
+    expect(query).toContain('CALL { MATCH (t:')
+    expect(query).toContain('apoc.map.fromPairs(collect([joinKey, targets])) AS targetsByKey')
+    // …then source rows probe the map; the pair statement emits distinct pairs
+    expect(query).toContain('targetsByKey[toString(sourceValue)] AS candidates WHERE candidates IS NOT NULL')
+    expect(query).toContain('RETURN DISTINCT s, t')
+    // …and the write statement handles the batch itself (no per-row target re-match)
+    expect(query).toContain('batchMode: "BATCH_SINGLE"')
+    expect(query).toContain('UNWIND $_batch AS row WITH row.s AS s, row.t AS t MERGE (s)-[rel:REL]->(t)')
+    expect(query).not.toContain('apoc.meta.cypher.type')
+  })
+
+  it('allows an unscoped source for key joins (linear cost), including with manyToMany set', () => {
+    const service = new EntityQueryService()
+    expect(() =>
+      service.createRelationsByKeys({
+        sourceLabel: 'A',
+        sourceKey: 'key',
+        targetLabel: 'B',
+        targetKey: 'key',
+        manyToMany: true
+      })
+    ).not.toThrow()
+  })
+
+  it('still rejects a cartesian manyToMany without where filters on both sides', () => {
+    const service = new EntityQueryService()
+    expect(() =>
+      service.createRelationsByKeys({
+        sourceLabel: 'A',
+        targetLabel: 'B',
+        manyToMany: true,
+        targetWhere: { key: 'x' }
+      })
+    ).toThrow(/non-empty `where` filters/)
+  })
+
+  it('collects the target set once for the cartesian manyToMany path', () => {
+    const query = new EntityQueryService().createRelationsByKeys({
+      sourceLabel: 'A',
+      targetLabel: 'B',
+      manyToMany: true,
+      sourceWhere: { key: 'x' },
+      targetWhere: { key: 'y' }
+    })
+
+    expect(query).toContain('RETURN collect(DISTINCT t) AS targets')
+    expect(query).toContain('UNWIND targets AS t')
+  })
+
+  it('deletes through the same pair-producing statement', () => {
+    const query = new EntityQueryService().deleteRelationsByKeys({
+      sourceLabel: 'A',
+      sourceKey: 'key',
+      targetLabel: 'B',
+      targetKey: 'key',
+      relationType: 'REL',
+      direction: 'out'
+    })
+
+    expect(query).toContain('apoc.map.fromPairs(collect([joinKey, targets])) AS targetsByKey')
+    expect(query).toContain(
+      'UNWIND $_batch AS row WITH row.s AS s, row.t AS t OPTIONAL MATCH (s)-[rel:REL]->(t) DELETE rel'
+    )
+    expect(query).toContain('batchMode: "BATCH_SINGLE"')
   })
 })

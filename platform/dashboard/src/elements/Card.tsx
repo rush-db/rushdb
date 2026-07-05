@@ -8,16 +8,8 @@ import { cn } from '~/lib/utils'
 
 import { IconButton } from './IconButton'
 
-export function Card({
-  className,
-  ...props
-}: TPolymorphicComponentProps<'ul'>) {
-  return (
-    <article
-      className={cn('bg-card flex flex-col rounded-md border', className)}
-      {...props}
-    />
-  )
+export function Card({ className, ...props }: TPolymorphicComponentProps<'ul'>) {
+  return <article className={cn('bg-card flex flex-col rounded-md border', className)} {...props} />
 }
 
 export function CardHeader({
@@ -51,23 +43,10 @@ export function CardHeader({
   )
 }
 
-export function CardBody({
-  className,
-  ...props
-}: TPolymorphicComponentProps<'div'>) {
-  return (
-    <div className={cn('flex flex-col gap-5 p-5 pt-0', className)} {...props} />
-  )
+export function CardBody({ className, ...props }: TPolymorphicComponentProps<'div'>) {
+  return <div className={cn('flex flex-col gap-5 p-5 pt-0', className)} {...props} />
 }
 
-export function CardFooter({
-  className,
-  ...props
-}: TPolymorphicComponentProps<'ul'>) {
-  return (
-    <footer
-      className={cn('mt-auto flex justify-end gap-2 border-t p-5', className)}
-      {...props}
-    />
-  )
+export function CardFooter({ className, ...props }: TPolymorphicComponentProps<'ul'>) {
+  return <footer className={cn('mt-auto flex justify-end gap-2 border-t p-5', className)} {...props} />
 }

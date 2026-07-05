@@ -1,50 +1,55 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import Joi = require('joi')
+import { z } from 'zod'
 
 import { SORT_DESC, SORT_ASC } from '@/core/search/search.constants'
 
+const anyObjectSchema = z.record(z.unknown())
+
 // Recursive expression schema for the select clause.
-// Uses Joi.link to handle the recursive Expr type.
-const exprSchema: Joi.Schema = Joi.alternatives()
-  .try(
-    Joi.string(), // field ref "$record.field" or literal string
-    Joi.number(), // literal number
-    Joi.boolean(), // literal boolean
-    Joi.object({ $ref: Joi.string().required() }),
-    Joi.object({ $sum: Joi.link('#expr').required() }),
-    Joi.object({
-      $avg: Joi.link('#expr').required(),
-      $precision: Joi.number().integer().min(0).optional()
-    }),
-    Joi.object({
-      $count: Joi.alternatives().try(Joi.string().valid('*'), Joi.link('#expr')).required()
-    }),
-    Joi.object({ $min: Joi.link('#expr').required() }),
-    Joi.object({ $max: Joi.link('#expr').required() }),
-    Joi.object({ $divide: Joi.array().items(Joi.link('#expr')).length(2).required() }),
-    Joi.object({ $multiply: Joi.array().items(Joi.link('#expr')).length(2).required() }),
-    Joi.object({ $add: Joi.array().items(Joi.link('#expr')).length(2).required() }),
-    Joi.object({ $subtract: Joi.array().items(Joi.link('#expr')).length(2).required() }),
-    Joi.object({ $collect: Joi.object().required() }),
-    Joi.object({ $timeBucket: Joi.object().required() })
-  )
-  .id('expr')
-  .meta({ className: 'Expr' })
+// Uses z.lazy to handle the recursive Expr type.
+const exprSchema: z.ZodType<unknown> = z.lazy(() =>
+  z.union([
+    z.string(), // field ref "$record.field" or literal string
+    z.number(), // literal number
+    z.boolean(), // literal boolean
+    z.object({ $ref: z.string() }).passthrough(),
+    z.object({ $sum: exprSchema }).passthrough(),
+    z
+      .object({
+        $avg: exprSchema,
+        $precision: z.number().int().min(0).optional()
+      })
+      .passthrough(),
+    z
+      .object({
+        $count: z.union([z.literal('*'), exprSchema])
+      })
+      .passthrough(),
+    z.object({ $min: exprSchema }).passthrough(),
+    z.object({ $max: exprSchema }).passthrough(),
+    z.object({ $divide: z.array(exprSchema).length(2) }).passthrough(),
+    z.object({ $multiply: z.array(exprSchema).length(2) }).passthrough(),
+    z.object({ $add: z.array(exprSchema).length(2) }).passthrough(),
+    z.object({ $subtract: z.array(exprSchema).length(2) }).passthrough(),
+    z.object({ $collect: anyObjectSchema }).passthrough(),
+    z.object({ $timeBucket: anyObjectSchema }).passthrough()
+  ])
+)
 
-const selectSchema = Joi.object().pattern(Joi.string(), exprSchema)
+const selectSchema = z.record(exprSchema)
 
-const searchDtoSchema = Joi.object({
-  limit: Joi.number().min(1).max(1000).optional(),
-  skip: Joi.number().min(0).optional(),
-  orderBy: Joi.alternatives().try(
-    Joi.string().valid(SORT_ASC, SORT_DESC),
-    Joi.object().pattern(Joi.string(), Joi.string().valid(SORT_ASC, SORT_DESC)).optional()
-  ),
-  labels: Joi.array().items(Joi.string().allow(null)).optional(),
-  where: Joi.object(),
-  select: selectSchema.optional(),
-  aggregate: Joi.object().optional(), // legacy — loose validation preserved
-  groupBy: Joi.array().items(Joi.string()).optional()
-})
+const sortDirectionSchema = z.enum([SORT_ASC, SORT_DESC])
+
+const searchDtoSchema = z
+  .object({
+    limit: z.number().min(1).max(1000).optional(),
+    skip: z.number().min(0).optional(),
+    orderBy: z.union([sortDirectionSchema, z.record(sortDirectionSchema)]).optional(),
+    labels: z.array(z.string().min(1).nullable()).optional(),
+    where: anyObjectSchema.optional(),
+    select: selectSchema.optional(),
+    aggregate: anyObjectSchema.optional(), // legacy — loose validation preserved
+    groupBy: z.array(z.string().min(1)).optional()
+  })
+  .passthrough()
 
 export const searchSchema = searchDtoSchema

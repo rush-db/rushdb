@@ -4,7 +4,7 @@ import { TextField } from '~/elements/Input'
 import { FormField } from '~/elements/FormField'
 import { useCreateProjectMutation } from '~/features/projects/hooks/useProjectMutations'
 import { ArrowRight, SparklesIcon, Database, Globe } from 'lucide-react'
-import { object, string, useForm } from '~/lib/form'
+import { useForm, z } from '~/lib/form'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
@@ -37,23 +37,20 @@ type ProjectFormValues = {
 }
 
 // Schema for shared db (free tier)
-const sharedSchema = object({
-  description: string(),
-  name: string().required().min(1).max(256),
-  dataSource: string().required()
-}).required()
+const sharedSchema = z.object({
+  description: z.string().optional(),
+  name: z.string().min(1).max(256),
+  dataSource: z.string().min(1)
+})
 
 // Schema for custom db
-const customSchema = object({
-  description: string(),
-  name: string().required().min(1).max(256),
-  dataSource: string().required(),
-  customDb: object({
-    url: string().required(),
-    username: string().required(),
-    password: string().required()
-  }).required()
-}).required()
+const customSchema = sharedSchema.extend({
+  customDb: z.object({
+    url: z.string().min(1),
+    username: z.string().min(1),
+    password: z.string().min(1)
+  })
+})
 
 function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'form'>) {
   const { mutateAsync: mutate } = useCreateProjectMutation()
@@ -159,10 +156,10 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                   onClick={() => setSelectedTab('shared')}
                   className={cn(
                     'group relative flex h-full flex-col items-start rounded-lg border p-4 text-left transition-all',
-                    'focus:ring-accent/60 focus:outline-none focus:ring-2',
+                    'focus:ring-2 focus:ring-accent/60 focus:outline-hidden',
                     selectedTab === 'shared' ?
-                      'border-accent/60 ring-accent/60 bg-accent/5 ring-1'
-                    : 'border-border hover:border-accent/40 hover:bg-surface-secondary'
+                      'border-accent/60 bg-accent/5 ring-1 ring-accent/60'
+                    : 'border-border hover:bg-surface-secondary hover:border-accent/40'
                   )}
                 >
                   <div className="mb-3 flex w-full items-center justify-between">
@@ -176,10 +173,10 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                       <Database className="h-4 w-4" />
                     </div>
                   </div>
-                  <h3 className="mb-1 text-lg font-semibold leading-snug">
-                    Hosted Database <span className="text-content2 font-normal">[Fully Managed]</span>
+                  <h3 className="mb-1 text-lg leading-snug font-semibold">
+                    Hosted Database <span className="font-normal text-content2">[Fully Managed]</span>
                   </h3>
-                  <p className="text-content2 text-sm">
+                  <p className="text-sm text-content2">
                     Start building instantly with our managed Neo4j infrastructure. Perfect for getting
                     started, prototypes, and production apps. Zero setup required.
                   </p>
@@ -192,10 +189,10 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                   onClick={() => setSelectedTab('custom')}
                   className={cn(
                     'group relative flex h-full flex-col items-start rounded-lg border p-4 text-left transition-all',
-                    'focus:ring-accent/60 focus:outline-none focus:ring-2',
+                    'focus:ring-2 focus:ring-accent/60 focus:outline-hidden',
                     selectedTab === 'custom' ?
-                      'border-accent/60 ring-accent/60 bg-accent/5 ring-1'
-                    : 'border-border hover:border-accent/40 hover:bg-surface-secondary'
+                      'border-accent/60 bg-accent/5 ring-1 ring-accent/60'
+                    : 'border-border hover:bg-surface-secondary hover:border-accent/40'
                   )}
                 >
                   <div className="mb-3 flex w-full items-center justify-between">
@@ -209,11 +206,11 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
                       <Globe className="h-4 w-4" />
                     </div>
                   </div>
-                  <h3 className="mb-1 text-lg font-semibold leading-snug">
+                  <h3 className="mb-1 text-lg leading-snug font-semibold">
                     Your Own Database{' '}
-                    <span className="text-content2 font-normal">[Bring Your Own Neo4j]</span>
+                    <span className="font-normal text-content2">[Bring Your Own Neo4j]</span>
                   </h3>
-                  <p className="text-content2 text-sm">
+                  <p className="text-sm text-content2">
                     Connect your existing Neo4j instance (Aura or self-hosted). Full control over your data
                     and infrastructure. Unlimited custom queries.
                   </p>
@@ -281,8 +278,8 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
             )}
 
             {showUpgradeButton && (
-              <div className="bg-surface-secondary border-accent/20 rounded-lg border p-4 text-sm">
-                <p className="text-content2 mb-3">
+              <div className="bg-surface-secondary rounded-lg border border-accent/20 p-4 text-sm">
+                <p className="mb-3 text-content2">
                   You've reached the maximum number of projects for your current plan.
                 </p>
                 <Button
