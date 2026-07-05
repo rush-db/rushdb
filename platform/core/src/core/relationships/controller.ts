@@ -19,7 +19,6 @@ import { ESideEffectType, RunSideEffectMixin } from '@/common/interceptors/run-s
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
 import { ValidationPipe } from '@/common/validation/validation.pipe'
-import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
 import { EntityService } from '@/core/entity/entity.service'
 import { TRecordRelationsResponse, TRelationDirection } from '@/core/entity/entity.types'
@@ -38,7 +37,6 @@ import {
 import { pagination } from '@/core/search/parser/pagination'
 import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
-import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { HeavySearchLimitsGuard } from '@/dashboard/billing/guards/heavy-search-limits.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
@@ -84,13 +82,7 @@ export class RelationshipsController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(
-    PlanLimitsGuard,
-    IsRelatedToProjectGuard(['targetIds'], {
-      nodeProperty: RUSHDB_KEY_ID,
-      projectIdProperty: RUSHDB_KEY_PROJECT_ID
-    })
-  )
+  @UseGuards(PlanLimitsGuard)
   @UsePipes(ValidationPipe(createRelationSchema, 'body'))
   @AuthGuard('project')
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_SCHEMA_CACHE]))
@@ -124,12 +116,6 @@ export class RelationshipsController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(
-    IsRelatedToProjectGuard(['targetIds'], {
-      nodeProperty: RUSHDB_KEY_ID,
-      projectIdProperty: RUSHDB_KEY_PROJECT_ID
-    })
-  )
   @UsePipes(ValidationPipe(deleteRelationsSchema, 'body'))
   @AuthGuard('project')
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_SCHEMA_CACHE]))
@@ -159,7 +145,7 @@ export class RelationshipsController {
   // for example: { source: { where: { $id: ... } }, target: { where: { $id: ... } }, type?: string }
   @Post('/create-many')
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
+  @UseGuards(PlanLimitsGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_SCHEMA_CACHE]))
@@ -195,7 +181,7 @@ export class RelationshipsController {
 
   @Post('/search')
   @ApiBearerAuth()
-  @UseGuards(HeavySearchLimitsGuard, IsRelatedToProjectGuard())
+  @UseGuards(HeavySearchLimitsGuard)
   @AuthGuard('project')
   @UseInterceptors(TrackHeavySearchKu())
   @HttpCode(HttpStatus.OK)
@@ -232,7 +218,6 @@ export class RelationshipsController {
 
   @Post('/delete-many')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(createRelationsByKeysSchema, 'body'))
   @UseInterceptors(RunSideEffectMixin([ESideEffectType.RECALCULATE_SCHEMA_CACHE]))

@@ -22,10 +22,13 @@ export class PropertyQueryService {
   private matchPart() {
     const queryBuilder = new QueryBuilder()
 
+    // projectId scoping here is the tenant-isolation boundary: property ids arrive
+    // straight from the URL, so an unscoped match would let any token reach another
+    // project's property.
     queryBuilder
       .append(`MATCH (record:${RUSHDB_LABEL_RECORD}),`)
       .append(
-        `(record)<-[relation:${RUSHDB_RELATION_VALUE}]-(property:${RUSHDB_LABEL_PROPERTY} { id: $target })`
+        `(record)<-[relation:${RUSHDB_RELATION_VALUE}]-(property:${RUSHDB_LABEL_PROPERTY} { id: $target, projectId: $projectId })`
       )
 
     return queryBuilder.getQuery()

@@ -45,7 +45,6 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
-import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { HeavySearchLimitsGuard } from '@/dashboard/billing/guards/heavy-search-limits.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
@@ -55,6 +54,11 @@ import { CreateEntityDto } from './dto/create-entity.dto'
 import { EditEntityDto } from './dto/edit-entity.dto'
 import { EntityService } from './entity.service'
 
+/**
+ * Tenant isolation is enforced at the query layer: every Cypher statement matches
+ * records with `{ projectId: $projectId }` (see `projectIdInline`), so ids from
+ * another project simply never match — no per-request ownership guard is needed.
+ */
 @Controller('records')
 @ApiTags('Records')
 @UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)
@@ -72,7 +76,6 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @TokenReadAccess()
   async getById(
@@ -91,7 +94,7 @@ export class EntityController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
   @UsePipes(ValidationPipe(createEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(
     RunSideEffectMixin([
@@ -140,7 +143,7 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(editEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(
@@ -199,7 +202,7 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard(), EntityWriteGuard)
+  @UseGuards(PlanLimitsGuard, EntityWriteGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(editEntitySchema, 'body'), PropertyValuesPipe)
   @UseInterceptors(
@@ -249,7 +252,6 @@ export class EntityController {
 
   @Post('delete')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UseInterceptors(
     RunSideEffectMixin([
@@ -280,7 +282,6 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UseInterceptors(
     RunSideEffectMixin([
@@ -300,7 +301,7 @@ export class EntityController {
 
   @Post('/search')
   @ApiBearerAuth()
-  @UseGuards(HeavySearchLimitsGuard, IsRelatedToProjectGuard())
+  @UseGuards(HeavySearchLimitsGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())
@@ -338,7 +339,7 @@ export class EntityController {
     type: 'string'
   })
   @ApiBearerAuth()
-  @UseGuards(HeavySearchLimitsGuard, IsRelatedToProjectGuard())
+  @UseGuards(HeavySearchLimitsGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())

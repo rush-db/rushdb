@@ -71,7 +71,8 @@ export class PropertyService {
     transaction: Transaction
   }): Promise<boolean> {
     await transaction.run(this.propertyQueryService.deletePropertyQuery(), {
-      target: propertyId
+      target: propertyId,
+      projectId
     })
 
     await this.deleteOrphanProps({

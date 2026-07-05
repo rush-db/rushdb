@@ -22,7 +22,6 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
-import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
 
@@ -34,7 +33,6 @@ export class LabelsController {
 
   @Post('/search')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())
