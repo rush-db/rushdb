@@ -19,12 +19,12 @@ export function ProjectTokens({ projectId }: { projectId: Project['id'] }) {
       <PageHeader className="items-start" contained>
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>API Keys</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             API keys authenticate requests to this project from the RushDB SDKs and REST API. Create a key per
             app or environment, set an optional expiration, and revoke any key at any time.
           </p>
           <a
-            className="text-content2 hover:text-content inline-flex w-fit items-center gap-2 text-sm transition"
+            className="inline-flex w-fit items-center gap-2 text-sm text-content2 transition hover:text-content"
             href={API_KEYS_DOCS_URL}
             rel="noreferrer"
             target="_blank"
@@ -46,8 +46,8 @@ export function ProjectTokens({ projectId }: { projectId: Project['id'] }) {
       <PageContent className="gap-8" contained>
         <section className="flex flex-col gap-3">
           <div>
-            <h2 className="text-content text-lg font-semibold">Your API keys</h2>
-            <p className="text-content2 text-sm">
+            <h2 className="text-lg font-semibold text-content">Your API keys</h2>
+            <p className="text-sm text-content2">
               Manage the keys that can read from and write to this project.
             </p>
           </div>

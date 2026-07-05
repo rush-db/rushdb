@@ -164,7 +164,7 @@ function CurrentValueSuggestion({
   if (query.length < 1) {
     return (
       <button
-        className="text-content3 hover:text-content2 flex h-11 w-full items-center gap-2 px-3 text-left text-sm transition"
+        className="flex h-11 w-full items-center gap-2 px-3 text-left text-sm text-content3 transition hover:text-content2"
         onMouseDown={(event) => {
           // Don't steal focus from the input above — just refocus it.
           event.preventDefault()
@@ -203,7 +203,7 @@ function OperationItem({ start, end }: { end?: ReactNode; start?: ReactNode }) {
   return (
     <div className="flex w-full flex-col">
       <span>{start}</span>
-      <span className="text-content2 hidden truncate text-xs sm:block">{end}</span>
+      <span className="hidden truncate text-xs text-content2 sm:block">{end}</span>
     </div>
   )
 }
@@ -451,7 +451,7 @@ export function SearchBox({
     >
       <ComboboxInput
         suffix={
-          <div className="px-inherit flex gap-1">
+          <div className="flex gap-1 px-[inherit]">
             <Kbd code="Meta" pressed />
             <Kbd code="K" />
           </div>
@@ -647,7 +647,7 @@ export function SearchBox({
             )}
           </ComboboxList>
 
-          <div className="bg-fill sticky bottom-0 flex gap-3 border-t px-3 py-1.5 shadow">
+          <div className="sticky bottom-0 flex gap-3 border-t bg-fill px-3 py-1.5 shadow-sm">
             {page && (
               <Kbd code="Backspace" onClick={goPageBack}>
                 Back

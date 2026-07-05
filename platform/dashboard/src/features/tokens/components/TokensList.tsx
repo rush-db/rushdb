@@ -59,7 +59,7 @@ function TokenListItem({
           <Skeleton enabled={loading}>{name ?? 'Loading...'}</Skeleton>
         </span>
         <div>
-          {description && <span className="text-content2 text-sm font-normal">{description}</span>}
+          {description && <span className="text-sm font-normal text-content2">{description}</span>}
           {level === 'read' && (
             <span
               className="text-content-2 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium"

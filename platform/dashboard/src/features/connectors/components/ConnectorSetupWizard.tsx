@@ -107,14 +107,14 @@ export function ConnectorSetupWizard({
   }
 
   return (
-    <div className="border-border bg-fill2 mt-5 rounded-lg border">
+    <div className="border-border mt-5 rounded-lg border bg-fill2">
       <div className="flex items-start justify-between border-b px-5 py-4">
         <div>
           <h3 className="flex items-center gap-2 text-base font-semibold">
             <Cable size={18} />
             Connect {sourceType === 'postgres' ? 'PostgreSQL' : 'MongoDB'}
           </h3>
-          <p className="text-content2 text-sm">Configure a paused connector, then test and resume it.</p>
+          <p className="text-sm text-content2">Configure a paused connector, then test and resume it.</p>
         </div>
         <Button onClick={onClose} size="xsmall" variant="ghost">
           Close
@@ -196,7 +196,7 @@ export function ConnectorSetupWizard({
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-medium">Ignore patterns</span>
               <textarea
-                className="scrollbar-thin bg-secondary min-h-[190px] resize-none rounded-md border p-3 font-mono text-sm outline-none focus-visible:ring"
+                className="min-h-[190px] resize-none scrollbar-thin rounded-md border bg-secondary p-3 font-mono text-sm outline-hidden focus-visible:ring"
                 placeholder={'email\npayment.**\n*.token'}
                 value={ignore}
                 onChange={(event) => setIgnore(event.target.value)}
@@ -222,14 +222,14 @@ export function ConnectorSetupWizard({
                 <p className="font-semibold">Ignored fields</p>
                 <p className="text-content2">{ignorePatterns.length ? ignorePatterns.join(', ') : 'None'}</p>
               </div>
-              <p className="text-content2 flex items-center gap-2">
+              <p className="flex items-center gap-2 text-content2">
                 <LockKeyhole size={14} />
                 Secrets are write-only and will not be shown after saving.
               </p>
             </div>
           )}
 
-          {error && <p className="text-danger mt-3 text-sm">{error}</p>}
+          {error && <p className="mt-3 text-sm text-danger">{error}</p>}
         </div>
       </div>
 

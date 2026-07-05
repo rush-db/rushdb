@@ -68,7 +68,7 @@ function TutorialCard({ tutorial: t }: { tutorial: TutorialEntry }) {
     >
       <div className="mb-3.5 flex flex-wrap gap-4">
         {t.tags.map((tag) => (
-          <span key={tag} className="tabs__item pointer-events-none !m-0 select-none !p-0">
+          <span key={tag} className="tabs__item pointer-events-none m-0! select-none p-0!">
             {tag}
           </span>
         ))}
@@ -140,7 +140,7 @@ export default function TutorialsIndex() {
           placeholder="Search tutorials..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className={`box-border w-full border border-solid ${BORDER_CLASS} focus:border-accent bg-transparent py-3 pl-11 pr-4 text-[15px] text-[var(--ifm-font-color-base)] outline-none transition-colors duration-150 ease-out placeholder:text-[var(--ifm-color-emphasis-500)]`}
+          className={`box-border w-full border border-solid ${BORDER_CLASS} focus:border-accent bg-transparent py-3 pl-11 pr-4 text-[15px] text-[var(--ifm-font-color-base)] outline-hidden transition-colors duration-150 ease-out placeholder:text-[var(--ifm-color-emphasis-500)]`}
         />
       </div>
 
@@ -158,7 +158,7 @@ export default function TutorialsIndex() {
                   : tag
                 )
               }
-              className={`tabs__item !m-0 cursor-pointer border-0 !bg-transparent transition-[background-color,color] duration-150 ease-out ${isActive ? 'tabs__item--active' : ''}`}
+              className={`tabs__item m-0! cursor-pointer border-0 bg-transparent! transition-[background-color,color] duration-150 ease-out ${isActive ? 'tabs__item--active' : ''}`}
             >
               {tag}
             </button>

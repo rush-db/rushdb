@@ -26,11 +26,7 @@ export function ProjectMenu({ projectId, ...props }: Props) {
     >
       <DeleteProjectDialog
         trigger={
-          <MenuItem
-            className="text-accent-red"
-            dropdown
-            icon={<Trash2 size={20} />}
-          >
+          <MenuItem className="text-accent-red" dropdown icon={<Trash2 size={20} />}>
             Delete
           </MenuItem>
         }

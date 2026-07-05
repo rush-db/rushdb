@@ -66,14 +66,14 @@ curl -X POST https://api.rushdb.com/api/v1/relationships/create-many \
   }'
 ```
 
-| Field        | Type                    | Description                                                       |
-| ------------ | ----------------------- | ----------------------------------------------------------------- |
-| `source`     | `{label, key?, where?}` | Source selector                                                   |
-| `target`     | `{label, key?, where?}` | Target selector                                                   |
-| `type`       | `string`                | Relationship type                                                 |
-| `direction`  | `string`                | `in` or `out`                                                     |
-| `properties` | `object`                | Shared user-defined properties to write on each created edge      |
-| `manyToMany` | `boolean`               | Cartesian product mode — requires non-empty `where` on both sides |
+| Field        | Type                    | Description                                                                                     |
+| ------------ | ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `source`     | `{label, key?, where?}` | Source selector                                                                                 |
+| `target`     | `{label, key?, where?}` | Target selector                                                                                 |
+| `type`       | `string`                | Relationship type                                                                               |
+| `direction`  | `string`                | `in` or `out`                                                                                   |
+| `properties` | `object`                | Shared user-defined properties to write on each created edge                                    |
+| `manyToMany` | `boolean`               | Cartesian product mode — requires non-empty `where` on both sides unless join keys are provided |
 
 ## Bulk Delete
 
@@ -93,7 +93,7 @@ curl -X POST https://api.rushdb.com/api/v1/relationships/delete-many \
 ```
 
 :::warning
-Setting `manyToMany: true` without `where` filters on both sides creates an unbounded cartesian product.
+Setting `manyToMany: true` without join keys requires `where` filters on both sides — the cartesian product is otherwise unbounded and the request is rejected. Key joins (`source.key` + `target.key`) never need `where` scoping.
 :::
 
 ## Search Relationships

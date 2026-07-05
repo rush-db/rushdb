@@ -15,16 +15,16 @@ export const Slider = React.forwardRef<
   }
 >(({ className, thumbsCount = 1, ...props }, ref) => (
   <SliderPrimitive.Root
-    className={cn('relative flex w-full touch-none select-none items-center', className)}
+    className={cn('relative flex w-full touch-none items-center select-none', className)}
     ref={ref}
     {...props}
   >
-    <SliderPrimitive.Track className="bg-secondary relative h-2 w-full grow overflow-hidden rounded-full">
-      <SliderPrimitive.Range className="bg-primary absolute h-full" />
+    <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary">
+      <SliderPrimitive.Range className="absolute h-full bg-primary" />
     </SliderPrimitive.Track>
     {range(thumbsCount).map((idx) => (
       <SliderPrimitive.Thumb
-        className="ring-offset-background focus-visible:ring-ring border-primary bg-fill block h-5 w-5 rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+        className="ring-offset-background focus-visible:ring-ring block h-5 w-5 rounded-full border-2 border-primary bg-fill transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
         key={idx}
       />
     ))}

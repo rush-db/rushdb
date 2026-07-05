@@ -22,25 +22,20 @@ const PopoverContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & {
     portalled?: boolean
   }
->(
-  (
-    { className, align = 'start', sideOffset = 4, portalled = true, ...props },
-    ref
-  ) => {
-    const Wrapper = portalled ? PopoverPrimitive.Portal : React.Fragment
-    return (
-      <Wrapper>
-        <PopoverPrimitive.Content
-          align={align}
-          className={menuContent({ className })}
-          ref={ref}
-          sideOffset={sideOffset}
-          {...props}
-        />
-      </Wrapper>
-    )
-  }
-)
+>(({ className, align = 'start', sideOffset = 4, portalled = true, ...props }, ref) => {
+  const Wrapper = portalled ? PopoverPrimitive.Portal : React.Fragment
+  return (
+    <Wrapper>
+      <PopoverPrimitive.Content
+        align={align}
+        className={menuContent({ className })}
+        ref={ref}
+        sideOffset={sideOffset}
+        {...props}
+      />
+    </Wrapper>
+  )
+})
 PopoverContent.displayName = PopoverPrimitive.Content.displayName
 
 export { Popover, PopoverContent, PopoverTrigger }

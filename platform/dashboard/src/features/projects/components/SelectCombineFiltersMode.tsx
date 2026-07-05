@@ -13,19 +13,13 @@ import { $combineFilters } from '../stores/current-project'
 const options = [
   {
     icon: (
-      <Tooltip
-        alignOffset={20}
-        className="text-content2"
-        sideOffset={10}
-        trigger={<Ampersand />}
-      >
+      <Tooltip alignOffset={20} className="text-content2" sideOffset={10} trigger={<Ampersand />}>
         <div>
-          <div className="flex items-center gap-1 text-2xs uppercase text-content">
+          <div className="flex items-center gap-1 text-2xs text-content uppercase">
             Search mode
             <strong className="block text-accent">AND</strong>
           </div>
-          Show records that match <strong className="text-content">all</strong>{' '}
-          active filters
+          Show records that match <strong className="text-content">all</strong> active filters
         </div>
       </Tooltip>
     ),
@@ -40,12 +34,11 @@ const options = [
         trigger={<Equal className="rotate-90" />}
       >
         <div>
-          <div className="flex items-center gap-1 text-2xs uppercase text-content">
+          <div className="flex items-center gap-1 text-2xs text-content uppercase">
             Search mode
             <strong className="block text-accent">OR</strong>
           </div>
-          Show records that match <strong className="text-content">one</strong>{' '}
-          of the active filters
+          Show records that match <strong className="text-content">one</strong> of the active filters
         </div>
       </Tooltip>
     ),
@@ -63,12 +56,6 @@ export function SelectCombineFiltersMode({
   const currentView = useStore($combineFilters)
 
   return (
-    <RadioGroup
-      {...props}
-      onChange={$combineFilters.set}
-      options={options}
-      size={size}
-      value={currentView}
-    />
+    <RadioGroup {...props} onChange={$combineFilters.set} options={options} size={size} value={currentView} />
   )
 }

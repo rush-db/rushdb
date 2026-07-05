@@ -36,7 +36,7 @@ function SavedQueryRow({ savedQuery }: { savedQuery: SavedQuery }) {
     <li className="flex items-center gap-3 px-3 py-3 sm:gap-4 sm:px-4">
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="mb-1 flex items-center gap-2">
-          <span className="text-content truncate font-medium">{savedQuery.name}</span>
+          <span className="truncate font-medium text-content">{savedQuery.name}</span>
           <span
             className={cn(
               'inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-xs font-medium',
@@ -47,9 +47,9 @@ function SavedQueryRow({ savedQuery }: { savedQuery: SavedQuery }) {
           </span>
         </span>
         {savedQuery.prompt ?
-          <span className="text-content2 truncate text-sm">{savedQuery.prompt}</span>
+          <span className="truncate text-sm text-content2">{savedQuery.prompt}</span>
         : null}
-        <span className="text-content3 text-xs">
+        <span className="text-xs text-content3">
           {formatIsoToLocalDateTime(savedQuery.createdAt)}
           {savedQuery.createdBy ? ` · ${savedQuery.createdBy}` : ''}
         </span>
@@ -94,12 +94,12 @@ export function ProjectSavedQueries() {
       <PageHeader className="items-start" contained>
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Saved Queries</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             Reusable searches saved from the Records page. Open one to re-run it with its original search
             mode, prompt, and filters.
           </p>
           <a
-            className="text-content2 hover:text-content inline-flex w-fit items-center gap-2 text-sm transition"
+            className="inline-flex w-fit items-center gap-2 text-sm text-content2 transition hover:text-content"
             href={SAVED_QUERIES_DOCS_URL}
             rel="noreferrer"
             target="_blank"

@@ -16,9 +16,10 @@ import {
   incrementRecordsPage
 } from '../stores/current-project'
 import { $hiddenFields, isFieldHidden } from '../stores/hidden-fields'
-import { $sheetRecordId } from '../stores/id'
+import { openRecordSheet } from '../stores/id'
 import { GraphView } from '~/features/projects/components/GraphView.tsx'
 import { PropertySheet } from '~/features/projects/components/PropertySheet.tsx'
+import { RelationshipSheet } from '~/features/projects/components/RelationshipSheet.tsx'
 import { Paginator } from '~/elements/Paginator.tsx'
 import { Editor } from '~/elements/Editor.tsx'
 import { useFilteredRecordsQuery, useProjectFieldsQuery } from '~/features/projects/hooks/useProjectQueries'
@@ -62,8 +63,8 @@ function View() {
   const skip = useStore($currentProjectRecordsSkip)
 
   const limit = useStore($currentProjectRecordsLimit)
-  const openRecordSheet = useCallback((record: DBRecord) => {
-    $sheetRecordId.set(record.__id)
+  const handleRecordClick = useCallback((record: DBRecord) => {
+    openRecordSheet(record.__id)
   }, [])
 
   const shapedResults = Boolean(records?.length && !records.every(isRecordResult))
@@ -99,7 +100,7 @@ function View() {
           loading={loading}
           onNext={incrementRecordsPage}
           onPrev={decrementRecordsPage}
-          onRecordClick={openRecordSheet}
+          onRecordClick={handleRecordClick}
           records={records}
           skip={skip}
           total={total}
@@ -110,7 +111,7 @@ function View() {
       if (shapedResults) {
         return (
           <div className="grid min-h-0 flex-1 place-items-center border-b">
-            <p className="text-content2 text-sm">
+            <p className="text-sm text-content2">
               Graph view is available for record results. This query returned shaped rows.
             </p>
           </div>
@@ -124,7 +125,7 @@ function View() {
           </div>
           {records?.length ?
             <Paginator
-              className="bg-fill shrink-0 border-t"
+              className="shrink-0 border-t bg-fill"
               limit={limit}
               onNext={incrementRecordsPage}
               onPrev={decrementRecordsPage}
@@ -150,7 +151,7 @@ function View() {
           </div>
           {records?.length ?
             <Paginator
-              className="bg-fill shrink-0 border-t"
+              className="shrink-0 border-t bg-fill"
               limit={limit}
               onNext={incrementRecordsPage}
               onPrev={decrementRecordsPage}
@@ -168,11 +169,14 @@ function View() {
 
 export function ProjectRecords() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <RecordsHeader />
-      <View />
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <RecordsHeader />
+        <View />
+      </div>
       <RecordSheet />
       <PropertySheet />
+      <RelationshipSheet />
     </div>
   )
 }

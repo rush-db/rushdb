@@ -76,7 +76,7 @@ const fromConfig = (config: SsoConfig): FormState => ({
 function CopyField({ label, value }: { label: string; value: string }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-content2 text-xs font-medium">{label}</span>
+      <span className="text-xs font-medium text-content2">{label}</span>
       <CopyInput value={value} />
     </label>
   )
@@ -84,9 +84,9 @@ function CopyField({ label, value }: { label: string; value: string }) {
 
 function ServiceProviderDetails({ config }: { config: SsoConfig }) {
   return (
-    <div className="border-stroke mt-6 rounded-lg border p-5">
-      <h3 className="text-content text-sm font-semibold">Values for your identity provider</h3>
-      <p className="text-content2 mt-1 text-sm leading-6">
+    <div className="mt-6 rounded-lg border border-stroke p-5">
+      <h3 className="text-sm font-semibold text-content">Values for your identity provider</h3>
+      <p className="mt-1 text-sm leading-6 text-content2">
         Share these with your IT administrator when registering RushDB as a service provider.
       </p>
       <div className="mt-4 flex flex-col gap-4">
@@ -170,9 +170,9 @@ function SsoForm({ type, existing }: { type: IdpType; existing?: SsoConfig }) {
             onChange={(e) => set('samlSsoUrl', e.target.value)}
           />
           <label className="flex flex-col gap-1.5">
-            <span className="text-content text-sm font-medium">IdP X.509 Certificate</span>
+            <span className="text-sm font-medium text-content">IdP X.509 Certificate</span>
             <textarea
-              className="border-stroke bg-fill min-h-[120px] rounded-md border p-3 font-mono text-xs"
+              className="min-h-[120px] rounded-md border border-stroke bg-fill p-3 font-mono text-xs"
               placeholder="-----BEGIN CERTIFICATE-----"
               value={form.samlCertificate}
               onChange={(e) => set('samlCertificate', e.target.value)}
@@ -209,16 +209,16 @@ function SsoForm({ type, existing }: { type: IdpType; existing?: SsoConfig }) {
 
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-content text-sm font-medium">Enable provider</span>
-          <span className="text-content2 text-sm">Allow users to sign in through this provider.</span>
+          <span className="text-sm font-medium text-content">Enable provider</span>
+          <span className="text-sm text-content2">Allow users to sign in through this provider.</span>
         </div>
         <Switch checked={form.enabled} onCheckedChange={(v) => set('enabled', v)} />
       </div>
 
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-content text-sm font-medium">Enforce SSO</span>
-          <span className="text-content2 text-sm">
+          <span className="text-sm font-medium text-content">Enforce SSO</span>
+          <span className="text-sm text-content2">
             Require users on these domains to sign in only through SSO.
           </span>
         </div>
@@ -268,7 +268,7 @@ export function WorkspaceSsoPage() {
                 <KeyRound className="h-5 w-5" /> Single Sign-On
               </span>
             </PageTitle>
-            <p className="text-content2 text-sm leading-6">
+            <p className="text-sm leading-6 text-content2">
               Let your team sign in with your company identity provider over SAML 2.0 or OIDC. Users are
               provisioned into this workspace automatically on first login.
             </p>
@@ -276,22 +276,22 @@ export function WorkspaceSsoPage() {
         </PageHeader>
         <PageContent contained>
           {!canUseSso ?
-            <div className="border-stroke text-content2 max-w-2xl rounded-lg border p-6 text-sm leading-6">
-              Single Sign-On is available on the <span className="text-content font-medium">Scale</span> plan
+            <div className="max-w-2xl rounded-lg border border-stroke p-6 text-sm leading-6 text-content2">
+              Single Sign-On is available on the <span className="font-medium text-content">Scale</span> plan
               and above. Upgrade your workspace to configure SAML or OIDC for your team.
             </div>
           : isPending ?
             <Skeleton className="h-80 w-full max-w-2xl rounded-md" />
           : <>
-              <div className="bg-fill2 inline-flex w-fit rounded-lg p-1">
+              <div className="inline-flex w-fit rounded-lg bg-fill2 p-1">
                 {TYPE_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setType(opt.value)}
                     className={
                       type === opt.value ?
-                        'bg-fill text-content rounded-md px-4 py-1.5 text-sm font-medium shadow'
-                      : 'text-content2 px-4 py-1.5 text-sm font-medium'
+                        'rounded-md bg-fill px-4 py-1.5 text-sm font-medium text-content shadow-sm'
+                      : 'px-4 py-1.5 text-sm font-medium text-content2'
                     }
                   >
                     {opt.label}
@@ -301,7 +301,7 @@ export function WorkspaceSsoPage() {
               </div>
 
               {existing?.enforced ?
-                <div className="border-warning/30 bg-warning/5 text-content2 mt-4 rounded-lg border p-3 text-sm">
+                <div className="mt-4 rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-content2">
                   SSO is enforced for {existing.domains.join(', ')}. Password and social logins are disabled
                   for these domains.
                 </div>

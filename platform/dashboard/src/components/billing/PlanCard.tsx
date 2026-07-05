@@ -21,7 +21,7 @@ export function PlanCardSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'border-secondary bg-fill relative flex h-full flex-col items-start gap-5 rounded-2xl border p-5 shadow-lg',
+        'relative flex h-full flex-col items-start gap-5 rounded-2xl border border-secondary bg-fill p-5 shadow-lg',
         className
       )}
     >
@@ -31,7 +31,7 @@ export function PlanCardSkeleton({ className }: { className?: string }) {
       <Divider className="-mx-5 w-[stretch]" />
       <div className="flex w-full flex-col gap-3">
         {Array.from({ length: 5 }).map((_, index) => (
-          <Skeleton enabled className="h-4 w-3/4 rounded" key={index} />
+          <Skeleton enabled className="h-4 w-3/4 rounded-md" key={index} />
         ))}
       </div>
     </div>
@@ -84,7 +84,7 @@ export function PlanCard({
     <div
       className={cn(
         'relative flex h-full flex-col items-start gap-5 rounded-2xl border p-5 shadow-lg',
-        recommended ? 'border-accent ring-accent/30 ring-1'
+        recommended ? 'border-accent ring-1 ring-accent/30'
         : isCurrent ? 'border-content/40'
         : 'border-secondary',
         free ? 'bg-secondary' : 'bg-fill',
@@ -96,17 +96,17 @@ export function PlanCard({
         <div className="flex items-center gap-2">
           <h2 className="text-bold text-lg font-bold">{plan.name}</h2>
           {recommended ?
-            <span className="bg-accent text-accent-contrast rounded-full px-2.5 py-0.5 text-xs font-semibold">
+            <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-semibold text-accent-contrast">
               Recommended
             </span>
           : isCurrent ?
-            <span className="text-content2 rounded-full border px-2.5 py-0.5 text-xs font-semibold">
+            <span className="rounded-full border px-2.5 py-0.5 text-xs font-semibold text-content2">
               Current
             </span>
           : null}
         </div>
         {hasDiscount && (
-          <span className="from-badge-blue/10 to-badge-blue/30 text-badge-blue flex items-center rounded-full bg-gradient-to-bl px-3 font-mono text-base">
+          <span className="flex items-center rounded-full bg-gradient-to-bl from-badge-blue/10 to-badge-blue/30 px-3 font-mono text-base text-badge-blue">
             Save {discount}%
           </span>
         )}
@@ -122,7 +122,7 @@ export function PlanCard({
               <span className="font-mono text-3xl font-bold">
                 {currencyFormatters.usd.format(displayPrice)}
               </span>
-              <span className="text-content2 text-sm">/{free ? 'forever' : 'month'}</span>
+              <span className="text-sm text-content2">/{free ? 'forever' : 'month'}</span>
             </div>
           )
         }
@@ -131,12 +131,12 @@ export function PlanCard({
             <span className="font-mono text-3xl font-bold">
               {currencyFormatters.usd.format(displayPrice)}
               {hasDiscount && (
-                <span className="text-content3 text-lg line-through">
+                <span className="text-lg text-content3 line-through">
                   {currencyFormatters.usd.format(monthlyPrice)}
                 </span>
               )}
             </span>
-            <span className="text-content2 text-sm">/month</span>
+            <span className="text-sm text-content2">/month</span>
           </div>
         : null}
       </div>

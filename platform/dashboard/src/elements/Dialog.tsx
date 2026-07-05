@@ -27,7 +27,7 @@ const DialogOverlay = forwardRef<ElementRef<typeof Overlay>, ComponentPropsWitho
   ({ className, ...props }, ref) => (
     <Overlay
       className={cn(
-        'bg-fill2/60 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:fade-in fixed inset-0 z-50 transition-all duration-100',
+        'fixed inset-0 z-50 bg-fill2/60 transition-all duration-100 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:fade-in',
         className
       )}
       ref={ref}
@@ -50,7 +50,7 @@ const DialogBody = forwardRef<ElementRef<typeof Content>, ComponentPropsWithoutR
       <DialogOverlay />
       <Content
         className={cn(
-          'bg-fill animate-in data-[state=open]:fade-in-90 data-[state=open]:slide-in-from-bottom-10 sm:zoom-in-90 data-[state=open]:sm:slide-in-from-bottom-0 fixed z-50 flex h-fit max-h-screen w-full flex-col overflow-auto rounded-b-xl border p-6 px-6 shadow-2xl sm:max-w-lg sm:rounded-xl',
+          'fixed z-50 flex h-fit max-h-screen w-full animate-in flex-col overflow-auto rounded-b-xl border bg-fill p-6 px-6 shadow-2xl data-[state=open]:fade-in-90 data-[state=open]:slide-in-from-bottom-10 sm:max-w-lg sm:rounded-xl sm:zoom-in-90 data-[state=open]:sm:slide-in-from-bottom-0',
           className
         )}
         ref={ref}
@@ -59,7 +59,7 @@ const DialogBody = forwardRef<ElementRef<typeof Content>, ComponentPropsWithoutR
         {children}
         <Close
           asChild
-          className="ring-offset-background absolute end-4 top-4 opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus-visible:ring disabled:pointer-events-none"
+          className="ring-offset-background absolute end-4 top-4 opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden focus-visible:ring disabled:pointer-events-none"
         >
           <IconButton aria-label="close" variant="ghost">
             <X />
@@ -80,7 +80,7 @@ DialogTitle.displayName = Title.displayName
 
 export function DialogLoadingOverlay() {
   return (
-    <div className="bg-fill2/70 absolute left-0 top-0 grid h-full w-full place-items-center rounded-lg">
+    <div className="absolute top-0 left-0 grid h-full w-full place-items-center rounded-lg bg-fill2/70">
       <Spinner />
     </div>
   )

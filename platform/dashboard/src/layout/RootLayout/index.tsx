@@ -43,7 +43,7 @@ function DashboardSidebar() {
   return (
     <aside
       className={cn(
-        'bg-fill2 flex h-full shrink-0 flex-col border-r transition-[width] duration-150',
+        'flex h-full shrink-0 flex-col border-r bg-fill2 transition-[width] duration-150',
         collapsed ? 'w-16' : 'w-64'
       )}
     >
@@ -61,7 +61,7 @@ function DashboardSidebar() {
         {collapsed && (
           <IconButton
             aria-label="Open sidebar"
-            className="bg-fill2 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 shadow-lg transition-opacity group-hover/sidebar-logo:opacity-100"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-fill2 opacity-0 shadow-lg transition-opacity group-hover/sidebar-logo:opacity-100"
             onClick={() => setCollapsed(false)}
             size="small"
             variant="secondary"
@@ -74,7 +74,7 @@ function DashboardSidebar() {
             <div className="min-w-0 flex-1 overflow-hidden">
               <ChangeProjectMenu />
             </div>
-          : <a className="text-content pt-1 font-mono text-base" href="/">
+          : <a className="pt-1 font-mono text-base text-content" href="/">
               rushdb
             </a>)}
         {!collapsed && (
@@ -98,13 +98,13 @@ function DashboardSidebar() {
 
       {!collapsed && (
         <a
-          className="border-content/20 bg-fill hover:bg-fill2 mx-4 mb-4 flex flex-col gap-2 rounded-md border p-4 transition"
+          className="mx-4 mb-4 flex flex-col gap-2 rounded-md border border-content/20 bg-fill p-4 transition hover:bg-fill2"
           href="https://docs.rushdb.com"
           rel="noreferrer"
           target="_blank"
         >
-          <span className="text-content text-sm font-medium">Need help getting started?</span>
-          <span className="text-content2 inline-flex items-center gap-2 text-sm">
+          <span className="text-sm font-medium text-content">Need help getting started?</span>
+          <span className="inline-flex items-center gap-2 text-sm text-content2">
             Check out our docs <ExternalLink className="h-3.5 w-3.5" />
           </span>
         </a>

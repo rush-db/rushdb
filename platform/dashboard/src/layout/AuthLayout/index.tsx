@@ -45,7 +45,7 @@ const features = [
 
 function BrandPanel() {
   return (
-    <aside className="bg-fill3 relative hidden overflow-hidden lg:flex lg:w-1/2 xl:w-[55%]">
+    <aside className="relative hidden overflow-hidden bg-fill3 lg:flex lg:w-1/2 xl:w-[55%]">
       <GraphCanvas className="absolute inset-0" />
 
       <div className="relative z-10 flex flex-col justify-center gap-10 p-12 xl:p-16">
@@ -54,12 +54,12 @@ function BrandPanel() {
         </div>
 
         <div className="flex flex-col gap-4">
-          <h2 className="max-w-lg text-4xl font-bold leading-[1.1] tracking-tight xl:text-5xl">
+          <h2 className="max-w-lg text-4xl leading-[1.1] font-bold tracking-tight xl:text-5xl">
             Instant graph memory
             <br />
             <span className="text-accent">for AI agents</span>
           </h2>
-          <p className="text-content2 max-w-md text-base">
+          <p className="max-w-md text-base text-content2">
             Push JSON. Get semantic recall, graph traversal, and live schema over one memory.
           </p>
         </div>
@@ -67,12 +67,12 @@ function BrandPanel() {
         <ul className="flex flex-col gap-5">
           {features.map(({ icon: Icon, title, description }) => (
             <li className="flex items-center gap-4" key={title}>
-              <span className="bg-secondary border-stroke flex h-11 w-11 shrink-0 items-center justify-center rounded-full border">
-                <Icon className="text-accent h-5 w-5" />
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-stroke bg-secondary">
+                <Icon className="h-5 w-5 text-accent" />
               </span>
               <span className="flex flex-col">
                 <span className="font-semibold">{title}</span>
-                <span className="text-content2 text-sm">{description}</span>
+                <span className="text-sm text-content2">{description}</span>
               </span>
             </li>
           ))}
@@ -109,14 +109,14 @@ export function AuthLayout({
       <BrandPanel />
 
       <div className="relative flex w-full flex-col items-center justify-center p-5 lg:w-1/2 xl:w-[45%]">
-        <main className="bg-fill3/60 z-10 flex w-full max-w-md flex-col items-stretch gap-5 rounded-2xl border p-6 backdrop-blur-sm sm:p-8">
+        <main className="z-10 flex w-full max-w-md flex-col items-stretch gap-5 rounded-2xl border bg-fill3/60 p-6 backdrop-blur-xs sm:p-8">
           <Logo className="mx-auto" height={40} width={40} />
 
           {title ?
             <div className="flex flex-col gap-1 text-center">
-              <h1 className="text-2xl font-bold leading-tight tracking-tight">{title}</h1>
+              <h1 className="text-2xl leading-tight font-bold tracking-tight">{title}</h1>
               {subtitle ?
-                <p className="text-content2 text-sm">{subtitle}</p>
+                <p className="text-sm text-content2">{subtitle}</p>
               : null}
             </div>
           : null}

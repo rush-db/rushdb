@@ -1,5 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import Joi = require('joi')
+import { z } from 'zod'
 
 import {
   booleanValueSchema,
@@ -10,26 +9,32 @@ import {
   stringValueSchema
 } from '@/core/property/validation/schemas/property.schema'
 
-export const editEntitySchema = Joi.alternatives().try(
-  Joi.object({
-    label: Joi.string(),
-    properties: Joi.array().items(propertySchema).optional()
-  }),
-  Joi.object({
-    label: Joi.string(),
-    data: Joi.object().pattern(
-      Joi.string().min(1).max(100),
-      Joi.alternatives().try(
-        nullValueSchema,
-        booleanValueSchema,
-        datetimeValueSchema,
-        numberValueSchema,
-        stringValueSchema
-      )
-    ),
-    options: Joi.object({
-      suggestTypes: Joi.boolean().optional(),
-      skipEmptyValues: Joi.boolean().optional()
-    }).optional()
-  })
-)
+const dataValueSchema = z.union([
+  nullValueSchema,
+  booleanValueSchema,
+  datetimeValueSchema,
+  numberValueSchema,
+  stringValueSchema
+])
+
+export const editEntitySchema = z.union([
+  z
+    .object({
+      label: z.string().min(1).optional(),
+      properties: z.array(propertySchema).optional()
+    })
+    .passthrough(),
+  z
+    .object({
+      label: z.string().min(1).optional(),
+      data: z.record(z.string().min(1).max(100), dataValueSchema).optional(),
+      options: z
+        .object({
+          suggestTypes: z.boolean().optional(),
+          skipEmptyValues: z.boolean().optional()
+        })
+        .passthrough()
+        .optional()
+    })
+    .passthrough()
+])

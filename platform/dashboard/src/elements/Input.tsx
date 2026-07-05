@@ -13,7 +13,7 @@ import { FormField } from './FormField'
 import { useTimeout } from '~/hooks/useTimeout'
 
 export const inputWrapper = cva(
-  'flex w-full cursor-text items-center px-3  transition focus-within:outline-none [&_svg]:flex-shrink-0',
+  'flex w-full cursor-text items-center px-3  transition focus-within:outline-hidden [&_svg]:shrink-0',
   {
     variants: {
       size: {
@@ -37,7 +37,7 @@ export const inputWrapper = cva(
 )
 
 export const input = cva(
-  'w-full h-full cursor-inherit appearance-none text-start file:border-0 file:font-inherit file:text-inherit file:bg-transparent  bg-transparent text-inherit outline-none read-only:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 text-ellipsis',
+  'w-full h-full cursor-[inherit] appearance-none text-start file:border-0 file:font-inherit file:text-inherit file:bg-transparent  bg-transparent text-inherit outline-hidden read-only:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 text-ellipsis',
   {
     variants: {
       size: {
@@ -136,9 +136,9 @@ export const CopyInput = forwardRef<HTMLInputElement, InputProps>(({ className, 
     <Input
       ref={ref}
       onClick={copyToken}
-      suffix={justCopied ? <CopyCheck className="text-success h-5 w-5" /> : <Copy className="h-5 w-5" />}
+      suffix={justCopied ? <CopyCheck className="h-5 w-5 text-success" /> : <Copy className="h-5 w-5" />}
       readOnly
-      className={cn('!border-transparent !ring-0', { '!border-success': justCopied }, className)}
+      className={cn('border-transparent! ring-0!', { 'border-success!': justCopied }, className)}
       value={value}
       {...props}
     />

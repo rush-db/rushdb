@@ -14,7 +14,7 @@ import { Select } from '~/elements/Select'
 import { Button } from '~/elements/Button'
 import { IconButton } from '~/elements/IconButton'
 import { ChipsInput } from '~/elements/ChipsInput'
-import { PropertyTypeIcon } from '~/features/properties/components/PropertyTypeIcon'
+import { PropertyName } from '~/features/properties/components/PropertyName'
 import { RecordTitle } from '~/features/records/components/RecordTitle'
 import { collectPropertiesFromRecord } from '~/features/projects/utils'
 import { useSetRecordMutation } from '~/features/records/hooks/useRecordMutations'
@@ -191,7 +191,7 @@ export function EditRecordDialog({ record, trigger }: { record: DBRecord; trigge
     <Dialog open={open} onOpenChange={setOpen} trigger={trigger} loading={isPending}>
       <DialogTitle>Edit Record</DialogTitle>
 
-      <div className="border-stroke-tertiary border-b pb-3 pt-1">
+      <div className="border-stroke-tertiary border-b pt-1 pb-3">
         <RecordTitle id={record.__id} label={record.__label} createdAt={idToDate(record.__id)} />
       </div>
 
@@ -206,10 +206,11 @@ export function EditRecordDialog({ record, trigger }: { record: DBRecord; trigge
         {properties.map((prop, i) => (
           <div key={prop.name} className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-1 text-sm">
-              <div className="flex items-center gap-1">
-                <PropertyTypeIcon size={14} type={prop.type} />
-                <span className="font-medium">{prop.name}</span>
-              </div>
+              <PropertyName
+                className="font-mono text-xs font-medium text-content2"
+                name={prop.name}
+                type={prop.type}
+              />
               <IconButton
                 aria-label={`delete ${prop.name}`}
                 variant="ghost"

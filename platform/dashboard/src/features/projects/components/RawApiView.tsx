@@ -282,28 +282,28 @@ const ExampleSelector = () => {
       align="end"
     >
       <MenuTitle className="mb-2 text-lg">Query Examples</MenuTitle>
-      <p className="text-content3 px-4 pb-2 text-sm leading-4">
+      <p className="px-4 pb-2 text-sm leading-4 text-content3">
         These examples use the sample dataset available on the Import Data page.
       </p>
       <Divider />
       <MenuItem className="h-[64px]" icon={<ClipboardPaste />} onClick={() => $editorData.set(queryExample1)}>
         <div className="text-left">
           Basic Query
-          <p className="text-content3 text-xs">Find highly paid employees using simple criteria</p>
+          <p className="text-xs text-content3">Find highly paid employees using simple criteria</p>
         </div>
       </MenuItem>
       <Divider />
       <MenuItem className="h-[64px]" icon={<ClipboardPaste />} onClick={() => $editorData.set(queryExample2)}>
         <div className="text-left">
           Advanced Query
-          <p className="text-content3 text-xs">Use complex criteria with logical grouping</p>
+          <p className="text-xs text-content3">Use complex criteria with logical grouping</p>
         </div>
       </MenuItem>
       <Divider />
       <MenuItem className="h-[64px]" icon={<ClipboardPaste />} onClick={() => $editorData.set(queryExample3)}>
         <div className="text-left">
           GroupBy Query
-          <p className="text-content3 text-xs">
+          <p className="text-xs text-content3">
             Pivot results by one or more properties (groupBy + aggregations)
           </p>
         </div>
@@ -318,7 +318,7 @@ const ExampleSelector = () => {
       >
         <div className="text-left">
           Collect with Projection
-          <p className="text-content3 text-xs">Retrieve related record fields using $collect</p>
+          <p className="text-xs text-content3">Retrieve related record fields using $collect</p>
         </div>
       </MenuItem>
       <Divider />
@@ -329,7 +329,7 @@ const ExampleSelector = () => {
       >
         <div className="text-left">
           Aggregation Metrics
-          <p className="text-content3 text-xs">Analyze salary distributions using $sum, $avg, $min, $max</p>
+          <p className="text-xs text-content3">Analyze salary distributions using $sum, $avg, $min, $max</p>
         </div>
       </MenuItem>
       <Divider />
@@ -340,7 +340,7 @@ const ExampleSelector = () => {
       >
         <div className="text-left">
           Deep Collect
-          <p className="text-content3 text-xs">Traverse relations and collect top employees by salary</p>
+          <p className="text-xs text-content3">Traverse relations and collect top employees by salary</p>
         </div>
       </MenuItem>
       <Divider />
@@ -351,7 +351,7 @@ const ExampleSelector = () => {
       >
         <div className="text-left">
           Derived Metrics
-          <p className="text-content3 text-xs">Compute a ratio from two aggregations using $ref</p>
+          <p className="text-xs text-content3">Compute a ratio from two aggregations using $ref</p>
         </div>
       </MenuItem>
       <Divider />
@@ -362,7 +362,7 @@ const ExampleSelector = () => {
       >
         <div className="text-left">
           Nested Collect
-          <p className="text-content3 text-xs">
+          <p className="text-xs text-content3">
             Traverse 3 levels deep and collect records using $collect.label
           </p>
         </div>
@@ -594,14 +594,14 @@ export function RawApiView() {
           <div className="border-r pr-5">
             <div className="mb-4 flex w-full items-center justify-between">
               <div className="flex w-full items-end justify-between gap-3">
-                <p className="text-content2 mb-2 text-lg">Payload</p>
+                <p className="mb-2 text-lg text-content2">Payload</p>
                 <div className="flex w-full items-center justify-end gap-3">
                   {/*  <p className="text-content2 mb-2 text-lg">Method</p>*/}
                   {/*  <OperationSelector />*/}
 
                   {operation === 'records.find' && (
                     <CheckboxField
-                      className="mb-0 mr-2"
+                      className="mr-2 mb-0"
                       label="Show Cypher"
                       checked={showCypherQuery}
                       onCheckedChange={$showCypherQuery.set}
@@ -662,7 +662,7 @@ export function RawApiView() {
                   </Button>
                 }
               >
-                <div className="text-2xs text-content flex items-center gap-1 uppercase">
+                <div className="flex items-center gap-1 text-2xs text-content uppercase">
                   Generate query with AI
                 </div>
               </Tooltip>
@@ -681,7 +681,7 @@ export function RawApiView() {
 
             {operation === 'records.find' && showCypherQuery && cypherQuery && (
               <div className="mt-4">
-                <p className="text-content2 mb-2 text-lg">Generated Cypher Query</p>
+                <p className="mb-2 text-lg text-content2">Generated Cypher Query</p>
                 <Editor defaultLanguage="cypher" value={cypherQuery} height="25vh" readOnly theme="vs-dark" />
               </div>
             )}
@@ -691,7 +691,7 @@ export function RawApiView() {
         <div className="col-start-2 row-span-2 row-start-1 flex flex-col">
           <>
             <div className="mb-4 flex w-full items-center justify-between">
-              <p className="text-content2 text-lg">Result</p>
+              <p className="text-lg text-content2">Result</p>
               <SelectEntityApi />
             </div>
             <div className="min-h-0 flex-1" data-tour="raw-api-result">
@@ -712,7 +712,7 @@ export function RawApiView() {
         open={saveOpen}
       >
         <DialogTitle>Save query</DialogTitle>
-        <p className="text-content2 mb-3 text-sm">
+        <p className="mb-3 text-sm text-content2">
           Save the current payload to Saved Queries so you can re-run it later
           {generatedFromPrompt ? ', including the AI prompt that generated it' : ''}.
         </p>

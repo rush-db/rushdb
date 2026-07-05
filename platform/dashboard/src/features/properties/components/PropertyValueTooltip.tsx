@@ -218,7 +218,7 @@ export function PropertyValueTooltip() {
   return (
     <div
       className={cn(
-        'z-tooltip bg-menu text-menu-contrast pointer-events-auto fixed flex max-h-[60vh] w-max min-w-[200px] max-w-[300px] flex-col justify-start gap-1 overflow-auto rounded-md border p-2 shadow-lg'
+        'pointer-events-auto fixed z-100 flex max-h-[60vh] w-max max-w-[300px] min-w-[200px] flex-col justify-start gap-1 overflow-auto rounded-md border bg-menu p-2 text-menu-contrast shadow-lg'
         // { 'transition-transform': isPositioned }
       )}
       onPointerDown={(event) => {
@@ -233,19 +233,19 @@ export function PropertyValueTooltip() {
     >
       <div className="flex justify-between">
         <PropertyName
-          className="bg-secondary text-2xs text-content gap-1 rounded-sm px-1 leading-snug"
+          className="gap-1 rounded-sm bg-secondary px-1 text-2xs leading-snug text-content"
           iconSize={12}
           name={property.name}
           type={property.type}
         />{' '}
-        <p className="text-accent text-xs">{property.date}</p>
+        <p className="text-xs text-accent">{property.date}</p>
       </div>
 
       <div className="flex justify-between gap-1">
         <div className="flex overflow-auto">
           <Component
             {...(hasUrl ? { href: formattedValue, target: '_blank' } : {})}
-            className="mt-2 whitespace-normal text-xs font-medium"
+            className="mt-2 text-xs font-medium whitespace-normal"
           >
             {formattedValue}
           </Component>

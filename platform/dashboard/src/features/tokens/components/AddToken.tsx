@@ -10,18 +10,18 @@ import { Dialog, DialogTitle } from '~/elements/Dialog'
 import { CopyInput, TextField } from '~/elements/Input'
 import { SelectField } from '~/elements/Select'
 import { FormField } from '~/elements/FormField'
-import { boolean, number, object, string, useForm } from '~/lib/form'
+import { useForm, z } from '~/lib/form'
 
 import type { ProjectToken } from '../types'
 
 import { useAddTokenMutation } from '../hooks/useTokenMutations'
 
-const schema = object({
-  description: string(),
-  expiration: number().min(1).max(365).optional(),
-  level: string(),
-  noExpire: boolean().optional(),
-  name: string().min(3)
+const schema = z.object({
+  description: z.string().optional(),
+  expiration: z.coerce.number().min(1).max(365).optional(),
+  level: z.string().optional(),
+  noExpire: z.boolean().optional(),
+  name: z.string().min(3)
 })
 
 const levelOptions = [
@@ -35,11 +35,11 @@ function TokenCreated({ onBack, token }: { onBack: () => void; token: ProjectTok
       <FormField caption={token.description} label={token.name}>
         <CopyInput value={token.value} />
       </FormField>
-      <p className="text-content2 text-sm">
+      <p className="text-sm text-content2">
         Copy this key now — for security reasons you won't be able to see it again.
       </p>
       {token.level === 'read' ?
-        <p className="text-content2 text-sm">
+        <p className="text-sm text-content2">
           This key is read-only: it can query data but never modify it, so it's safe to embed in client-side
           code and public demos.
         </p>
@@ -112,7 +112,7 @@ function AddTokenForm({ project, projectId }: { project?: Project; projectId: Pr
           label="Permissions"
           options={levelOptions}
         />
-        <p className="text-content2 text-sm">
+        <p className="text-sm text-content2">
           Read-only keys can only query data — safe to embed in client-side code and public demos. Full access
           keys must stay server-side.
         </p>
@@ -157,7 +157,7 @@ export function AddTokenDialog({
   return (
     <Dialog className="sm:max-w-2xl" onOpenChange={setOpen} open={open} trigger={trigger}>
       <DialogTitle>Create API key</DialogTitle>
-      <p className="text-content2 mt-2">
+      <p className="mt-2 text-content2">
         API keys authenticate requests to this project from the SDKs and REST API. Give the key a name, and
         optionally an expiration.
       </p>

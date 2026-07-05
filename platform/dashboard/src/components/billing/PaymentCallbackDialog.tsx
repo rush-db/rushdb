@@ -35,12 +35,7 @@ export function PaymentCallbackDialog() {
   return (
     <StatusDialog
       secondaryActions={
-        <Button
-          as="a"
-          href={getRoutePath('workspaceBilling')}
-          onClick={close}
-          variant="secondary"
-        >
+        <Button as="a" href={getRoutePath('workspaceBilling')} onClick={close} variant="secondary">
           Go to subscriptions
         </Button>
       }

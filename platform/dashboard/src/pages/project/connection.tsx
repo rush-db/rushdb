@@ -31,7 +31,7 @@ function formatDate(value?: string) {
 function StatCell({ label, value }: { label: string; value: unknown }) {
   return (
     <div className="rounded-md border p-4">
-      <p className="text-content2 text-xs uppercase">{label}</p>
+      <p className="text-xs text-content2 uppercase">{label}</p>
       <p className="mt-2 truncate text-lg font-semibold">{formatValue(value)}</p>
     </div>
   )
@@ -97,7 +97,7 @@ export function ProjectConnection({ projectId }: { projectId: Project['id'] }) {
           <Cable />
           <div className="min-w-0">
             <PageTitle className="truncate">{connector.name}</PageTitle>
-            <p className="text-content2 mt-2 text-sm">
+            <p className="mt-2 text-sm text-content2">
               {connector.type} connection · {connector.status}
             </p>
           </div>
@@ -155,9 +155,9 @@ export function ProjectConnection({ projectId }: { projectId: Project['id'] }) {
         </section>
 
         {connector.lastError && (
-          <section className="border-danger/40 bg-danger/10 rounded-md border p-4">
+          <section className="rounded-md border border-danger/40 bg-danger/10 p-4">
             <p className="text-sm font-semibold">Last error</p>
-            <p className="text-content2 mt-2 text-sm">{connector.lastError}</p>
+            <p className="mt-2 text-sm text-content2">{connector.lastError}</p>
           </section>
         )}
 
@@ -171,10 +171,10 @@ export function ProjectConnection({ projectId }: { projectId: Project['id'] }) {
                 statEntries.map(([key, value]) => (
                   <div className="grid grid-cols-[160px_1fr] gap-4 p-3 text-sm" key={key}>
                     <span className="text-content2">{key}</span>
-                    <span className="min-w-0 whitespace-pre-wrap break-words">{formatValue(value)}</span>
+                    <span className="min-w-0 break-words whitespace-pre-wrap">{formatValue(value)}</span>
                   </div>
                 ))
-              : <p className="text-content2 p-4 text-sm">No sync stats yet.</p>}
+              : <p className="p-4 text-sm text-content2">No sync stats yet.</p>}
             </div>
           </div>
 
@@ -187,10 +187,10 @@ export function ProjectConnection({ projectId }: { projectId: Project['id'] }) {
                 configEntries.map(([key, value]) => (
                   <div className="grid grid-cols-[160px_1fr] gap-4 p-3 text-sm" key={key}>
                     <span className="text-content2">{key}</span>
-                    <span className="min-w-0 whitespace-pre-wrap break-words">{formatValue(value)}</span>
+                    <span className="min-w-0 break-words whitespace-pre-wrap">{formatValue(value)}</span>
                   </div>
                 ))
-              : <p className="text-content2 p-4 text-sm">No visible configuration fields.</p>}
+              : <p className="p-4 text-sm text-content2">No visible configuration fields.</p>}
             </div>
           </div>
         </section>
@@ -216,14 +216,14 @@ export function ProjectConnection({ projectId }: { projectId: Project['id'] }) {
                   <div className="min-w-0">
                     <p className="break-words">{event.message}</p>
                     {event.metadata && (
-                      <pre className="text-content2 mt-2 overflow-auto whitespace-pre-wrap rounded-sm border p-2 text-xs">
+                      <pre className="mt-2 overflow-auto rounded-sm border p-2 text-xs whitespace-pre-wrap text-content2">
                         {formatValue(event.metadata)}
                       </pre>
                     )}
                   </div>
                 </div>
               ))
-            : <p className="text-content2 p-4 text-sm">No events have been recorded for this connection.</p>}
+            : <p className="p-4 text-sm text-content2">No events have been recorded for this connection.</p>}
           </div>
         </section>
       </PageContent>

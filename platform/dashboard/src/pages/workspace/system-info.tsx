@@ -16,8 +16,8 @@ import { version } from '../../../package.json'
 function InfoRow({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
-      <span className="text-content2 text-sm">{label}</span>
-      <span className="text-content text-sm font-medium">{children}</span>
+      <span className="text-sm text-content2">{label}</span>
+      <span className="text-sm font-medium text-content">{children}</span>
     </div>
   )
 }
@@ -31,16 +31,16 @@ function HealthStatus() {
   })
 
   if (isLoading) {
-    return <span className="text-content3 text-sm">Checking…</span>
+    return <span className="text-sm text-content3">Checking…</span>
   }
 
   const healthy = !isError && data?.status === 'ok'
 
   return healthy ?
-      <span className="bg-success/10 text-success inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium">
+      <span className="inline-flex items-center gap-1 rounded-md bg-success/10 px-2 py-1 text-xs font-medium text-success">
         <Check className="h-3.5 w-3.5" /> Operational
       </span>
-    : <span className="bg-danger/10 text-danger inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium">
+    : <span className="inline-flex items-center gap-1 rounded-md bg-danger/10 px-2 py-1 text-xs font-medium text-danger">
         <X className="h-3.5 w-3.5" /> Unavailable
       </span>
 }
@@ -54,7 +54,7 @@ export function WorkspaceSystemInfoPage() {
         <PageHeader contained>
           <div className="flex max-w-3xl flex-col gap-2">
             <PageTitle>System Info</PageTitle>
-            <p className="text-content2 text-sm leading-6">
+            <p className="text-sm leading-6 text-content2">
               Status and version information for this RushDB deployment. These values are read-only.
             </p>
           </div>

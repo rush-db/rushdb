@@ -56,12 +56,12 @@ export function ProjectLiveSchema({ projectId }: { projectId: Project['id'] }) {
       <PageHeader className="items-start" contained>
         <div className="flex max-w-3xl flex-col gap-2">
           <PageTitle>Live Schema</PageTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             The current graph schema RushDB infers for this project — labels, properties with value ranges,
             and relationships. This is the same schema served to AI agents and the API.
           </p>
           <a
-            className="text-content2 hover:text-content inline-flex w-fit items-center gap-2 text-sm transition"
+            className="inline-flex w-fit items-center gap-2 text-sm text-content2 transition hover:text-content"
             href={LIVE_SCHEMA_DOCS_URL}
             rel="noreferrer"
             target="_blank"
@@ -87,7 +87,7 @@ export function ProjectLiveSchema({ projectId }: { projectId: Project['id'] }) {
             <NothingFound title="Failed to load schema" />
           : <>
               <TabsContent value="json">
-                <div className="bg-fill overflow-hidden rounded-md border">
+                <div className="overflow-hidden rounded-md border bg-fill">
                   <Editor
                     defaultLanguage="json"
                     height="70vh"
@@ -99,7 +99,7 @@ export function ProjectLiveSchema({ projectId }: { projectId: Project['id'] }) {
                 </div>
               </TabsContent>
               <TabsContent value="md">
-                <div className="bg-fill overflow-hidden rounded-md border">
+                <div className="overflow-hidden rounded-md border bg-fill">
                   <Editor
                     defaultLanguage="markdown"
                     height="70vh"

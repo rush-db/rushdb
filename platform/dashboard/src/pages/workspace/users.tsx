@@ -29,7 +29,7 @@ import {
   useRemovePendingInviteMutation,
   useChangeMemberRoleMutation
 } from '~/features/workspaces/hooks/useWorkspaceMutations'
-import { object, string, useForm } from '~/lib/form'
+import { useForm, z } from '~/lib/form'
 import { Select } from '~/elements/Select'
 import { WORKSPACE_ROLES } from '~/features/workspaces/types.ts'
 import type { PendingInvite, WorkspaceRole, WorkspaceUser } from '~/features/workspaces/types.ts'
@@ -59,7 +59,7 @@ function TableHeader({ children, className, ...props }: HTMLAttributes<HTMLTable
 
 function TableHead({ children, className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <th className={cn('text-content2 px-4 py-3 text-left font-medium', className)} {...props}>
+    <th className={cn('px-4 py-3 text-left font-medium text-content2', className)} {...props}>
       {children}
     </th>
   )
@@ -82,8 +82,8 @@ function TableCell({ children, className, ...props }: TdHTMLAttributes<HTMLTable
 }
 
 // Form validation schema for inviting users
-const inviteSchema = object({
-  email: string().email('Must be a valid email').required('Email is required')
+const inviteSchema = z.object({
+  email: z.string().min(1, 'Email is required').email('Must be a valid email')
 })
 
 interface InviteFormValues {
@@ -163,7 +163,7 @@ function InviteUserDialog({ disabled }: { disabled?: boolean }) {
       >
         <div className="flex flex-col gap-2 pr-8">
           <DialogTitle>Invite a member</DialogTitle>
-          <p className="text-content2 text-sm leading-6">
+          <p className="text-sm leading-6 text-content2">
             Add someone to this workspace, then choose which projects they can open.
           </p>
         </div>
@@ -182,7 +182,7 @@ function InviteUserDialog({ disabled }: { disabled?: boolean }) {
           </div>
         : projects && projects.length > 0 ?
           <div className="mt-2">
-            <div className="text-content mb-2 text-sm font-medium">Grant project access:</div>
+            <div className="mb-2 text-sm font-medium text-content">Grant project access:</div>
             <div className="space-y-2">
               {projects.map((project) => (
                 <div key={project.id} className="flex items-center gap-2">
@@ -196,7 +196,7 @@ function InviteUserDialog({ disabled }: { disabled?: boolean }) {
                     }}
                     id={`project-${project.id}`}
                   />
-                  <label htmlFor={`project-${project.id}`} className="text-content cursor-pointer text-sm">
+                  <label htmlFor={`project-${project.id}`} className="cursor-pointer text-sm text-content">
                     {project.name}
                   </label>
                 </div>
@@ -300,7 +300,7 @@ function MembersTable() {
             <TableRow key={user.id}>
               <TableCell className="font-medium">{user.login}</TableCell>
               <TableCell>
-                <span className="bg-success/10 text-success rounded px-2 py-1 text-xs font-medium">
+                <span className="rounded-md bg-success/10 px-2 py-1 text-xs font-medium text-success">
                   Active
                 </span>
               </TableCell>
@@ -309,7 +309,7 @@ function MembersTable() {
               </TableCell>
               <TableCell>
                 {user.role === 'owner' ?
-                  <span className="text-content2 text-xs">All projects</span>
+                  <span className="text-xs text-content2">All projects</span>
                 : projects &&
                   accessList && (
                     <div className="flex flex-wrap gap-1">
@@ -319,19 +319,19 @@ function MembersTable() {
                           return accessList[project.id]?.includes(user.id)
                         })
                         .map((project) => (
-                          <div key={project.id} className="bg-fill2 rounded px-2 py-1 text-xs">
+                          <div key={project.id} className="rounded-md bg-fill2 px-2 py-1 text-xs">
                             {project.name}
                           </div>
                         ))}
                       {!projects.some((project) => accessList[project.id]?.includes(user.id)) && (
-                        <span className="text-content2 text-xs italic">No project access</span>
+                        <span className="text-xs text-content2 italic">No project access</span>
                       )}
                     </div>
                   )
                 }
               </TableCell>
               <TableCell>
-                <span className="text-content2 text-xs">-</span>
+                <span className="text-xs text-content2">-</span>
               </TableCell>
               <TableCell>
                 <ConfirmDialog
@@ -353,18 +353,18 @@ function MembersTable() {
             <TableRow key={invite.email}>
               <TableCell className="font-medium">{invite.email}</TableCell>
               <TableCell>
-                <span className="bg-warning/10 text-warning rounded px-2 py-1 text-xs font-medium">
+                <span className="rounded-md bg-warning/10 px-2 py-1 text-xs font-medium text-warning">
                   Pending
                 </span>
               </TableCell>
               <TableCell>
-                <span className="text-content2 text-xs">Invited</span>
+                <span className="text-xs text-content2">Invited</span>
               </TableCell>
               <TableCell>
-                <span className="text-content2 text-xs">Pending acceptance</span>
+                <span className="text-xs text-content2">Pending acceptance</span>
               </TableCell>
               <TableCell>
-                <span className="text-content2 text-xs">
+                <span className="text-xs text-content2">
                   {new Date(invite.createdAt).toLocaleString(undefined, {
                     year: 'numeric',
                     month: 'short',
@@ -411,14 +411,14 @@ export function WorkspaceUsersPage() {
         <PageHeader className="items-start justify-between gap-5" contained>
           <div className="flex max-w-3xl flex-col gap-2">
             <PageTitle>Team Members</PageTitle>
-            <p className="text-content2 text-sm leading-6">
+            <p className="text-sm leading-6 text-content2">
               Manage who can work inside this workspace and which isolated projects they can access. Workspace
               owners manage membership; project permissions decide which project data a user can view or
               change.
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-content2 flex items-center gap-1">
+            <div className="flex items-center gap-1 text-content2">
               <UsersIcon className="h-4 w-4" />
               {platformSettings?.selfHosted ?
                 <span>
@@ -440,14 +440,14 @@ export function WorkspaceUsersPage() {
           <div className="flex flex-1 flex-col">
             {!loading && userLimit && usersCount >= userLimit ?
               !platformSettings?.selfHosted ?
-                <div className="border-accent/30 bg-accent/5 mb-6 flex flex-col gap-4 rounded-lg border p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mb-6 flex flex-col gap-4 rounded-lg border border-accent/30 bg-accent/5 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="bg-secondary text-content flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-content">
                       <Sparkles className="h-5 w-5" />
                     </div>
                     <div className="flex flex-col gap-1">
                       <p className="font-semibold">Bring your whole team on board</p>
-                      <p className="text-content2 max-w-xl text-sm leading-6">
+                      <p className="max-w-xl text-sm leading-6 text-content2">
                         You're using all {userLimit} seat{userLimit > 1 ? 's' : ''} on your current plan. Add
                         teammates to collaborate on projects together — extra seats are billed at your plan's
                         per-user rate, and you can scale up or down anytime.

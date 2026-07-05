@@ -12,6 +12,7 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 
 import { NotFoundInterceptor } from '@/common/interceptors/not-found.interceptor'
+import { ESideEffectType, RunSideEffectMixin } from '@/common/interceptors/run-side-effect.interceptor'
 import { TransformResponseInterceptor } from '@/common/interceptors/transform-response.interceptor'
 import { PlatformRequest } from '@/common/types/request'
 import { TransactionService } from '@/core/transactions/transaction.service'
@@ -56,6 +57,16 @@ export class TransactionController {
 
   @Post('/:txId/commit')
   @ApiBearerAuth()
+  // Write routes defer their side effects while a user-defined transaction is open
+  // (the data is not visible outside it yet — see RunSideEffectMixin). The commit is
+  // the moment those writes become visible, so the full set runs here.
+  @UseInterceptors(
+    RunSideEffectMixin([
+      ESideEffectType.RELATIONSHIP_AUTOMATION_AFTER_WRITE,
+      ESideEffectType.RECOUNT_PROJECT_STRUCTURE,
+      ESideEffectType.RECALCULATE_SCHEMA_CACHE
+    ])
+  )
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   async commit(@Param('txId') txId: string): Promise<{ message: string }> {

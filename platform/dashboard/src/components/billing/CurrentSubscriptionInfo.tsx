@@ -27,7 +27,7 @@ export function CurrentSubscriptionInfo({ className, ...props }: TPolymorphicCom
             </Link>
           </span>
         : paidUser ?
-          <span className="text-content3 text-xs">Active subscription</span>
+          <span className="text-xs text-content3">Active subscription</span>
         : <Link as="span" size="xsmall">
             Upgrade
           </Link>

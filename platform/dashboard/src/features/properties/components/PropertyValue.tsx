@@ -21,18 +21,20 @@ export function PropertyValue({
   type,
   ...props
 }: TPolymorphicComponentProps<'span', Pick<PropertyWithValue, 'type' | 'value'>>) {
-  const formatted = formatPropertyValue({ value, type })
+  const isEmptyArray = Array.isArray(value) && value.length === 0
+  const formatted = isEmptyArray ? '[]' : formatPropertyValue({ value, type })
 
   return (
     <span
       title={formatted}
       {...props}
       className={cn(
-        'font-bold',
+        'font-medium',
         {
           'font-mono': type === 'number'
         },
-        className
+        className,
+        isEmptyArray && 'font-mono text-content3'
       )}
     >
       {formatted}

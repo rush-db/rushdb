@@ -23,6 +23,8 @@ import { RUSHDB_KEY_ID, RUSHDB_KEY_PROJECT_ID } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
 import { EntityService } from '@/core/entity/entity.service'
 import { TRecordRelationsResponse, TRelationDirection } from '@/core/entity/entity.types'
+import { KuOperation } from '@/core/ku-events/ku-events.constants'
+import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { TrackHeavySearchKu } from '@/core/ku-events/track-heavy-search-ku.interceptor'
 import { AttachDto } from '@/core/relationships/dto/attach.dto'
 import { DetachDto } from '@/core/relationships/dto/detach.dto'
@@ -46,7 +48,33 @@ import { PreferredTransactionDecorator } from '@/database/preferred-transaction.
 @ApiTags('Relationships')
 @UseInterceptors(TransformResponseInterceptor, NotFoundInterceptor, DataInterceptor)
 export class RelationshipsController {
-  constructor(private readonly entityService: EntityService) {}
+  constructor(
+    private readonly entityService: EntityService,
+    private readonly kuEventsService: KuEventsService
+  ) {}
+
+  /**
+   * Meters relationship graph writes for RushDB-managed (shared) instances,
+   * mirroring how the import path and pattern-apply meter the same writes.
+   * External-DB projects (customDb) manage their own infra and are not charged;
+   * KuEventsService itself no-ops when self-hosted or billing is unconfigured.
+   */
+  private trackRelationshipKu(
+    request: PlatformRequest,
+    operation: KuOperation,
+    count: number,
+    metadata: Record<string, unknown>
+  ) {
+    if (count <= 0) {
+      return
+    }
+    const raw: any = (request as any).raw ?? request
+    const projectId: string = request.projectId ?? raw.projectId
+    const workspaceId: string = (request as any).workspaceId ?? raw.workspaceId
+    if (!raw.project?.customDb && workspaceId) {
+      this.kuEventsService.emitBulk(workspaceId, projectId, operation, count, metadata)
+    }
+  }
 
   @Post(':entityId')
   @ApiParam({
@@ -78,7 +106,14 @@ export class RelationshipsController {
       ...attachDto,
       direction: attachDto.direction?.toLowerCase() as TRelationDirection | undefined
     }
-    return await this.entityService.attach(entityId, normalizedDto, projectId, transaction)
+    const result = await this.entityService.attach(entityId, normalizedDto, projectId, transaction)
+    this.trackRelationshipKu(
+      request,
+      KuOperation.RELATIONSHIP_CREATED,
+      Array.isArray(attachDto.targetIds) ? attachDto.targetIds.length : 1,
+      { trigger: 'relationships_attach', type: attachDto.type }
+    )
+    return result
   }
 
   @Put(':entityId')
@@ -110,7 +145,14 @@ export class RelationshipsController {
       ...detachDto,
       direction: detachDto.direction?.toLowerCase() as TRelationDirection | undefined
     }
-    return await this.entityService.detach(entityId, normalizedDto, projectId, transaction)
+    const result = await this.entityService.detach(entityId, normalizedDto, projectId, transaction)
+    this.trackRelationshipKu(
+      request,
+      KuOperation.KNOWLEDGE_DELETED,
+      Array.isArray(detachDto.targetIds) ? detachDto.targetIds.length : 1,
+      { kind: 'relationship', trigger: 'relationships_detach' }
+    )
+    return result
   }
 
   // @TODO: deprecate /:entityId based endpoints in prior of source / target SearchQuery-based approach
@@ -137,12 +179,16 @@ export class RelationshipsController {
   ): Promise<{ message: string }> {
     const projectId = request.projectId
     const normalizedDirection = body.direction?.toLowerCase() as TRelationDirection | undefined
-    await this.entityService.createRelationsByKeys({
+    const createdCount = await this.entityService.createRelationsByKeys({
       ...body,
       direction: normalizedDirection,
       projectId,
       transaction,
       manyToMany: body.manyToMany
+    })
+    this.trackRelationshipKu(request, KuOperation.RELATIONSHIP_CREATED, createdCount, {
+      trigger: 'relationships_create_many',
+      type: body.type
     })
     return { message: `Relations have been successfully created` }
   }
@@ -205,12 +251,16 @@ export class RelationshipsController {
   ): Promise<{ message: string }> {
     const projectId = request.projectId
     const normalizedDirection = body.direction?.toLowerCase() as TRelationDirection | undefined
-    await this.entityService.deleteRelationsByKeys({
+    const deletedCount = await this.entityService.deleteRelationsByKeys({
       ...body,
       direction: normalizedDirection,
       projectId,
       transaction,
       manyToMany: body.manyToMany
+    })
+    this.trackRelationshipKu(request, KuOperation.KNOWLEDGE_DELETED, deletedCount, {
+      kind: 'relationship',
+      trigger: 'relationships_delete_many'
     })
     return { message: `Relations have been successfully deleted` }
   }

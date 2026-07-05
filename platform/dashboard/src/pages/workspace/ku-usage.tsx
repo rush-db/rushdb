@@ -19,7 +19,7 @@ export default function KuUsagePage() {
   if (workspaceLoading || planLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="text-content3 text-sm">Loading usage data…</div>
+        <div className="text-sm text-content3">Loading usage data…</div>
       </div>
     )
   }
@@ -48,57 +48,57 @@ export default function KuUsagePage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bg-fill2 rounded-xl border p-4">
+        <div className="rounded-xl border bg-fill2 p-4">
           <div className="mb-2 flex items-center gap-2">
-            <Zap className="text-accent h-4 w-4" />
-            <span className="text-content3 text-xs font-medium uppercase tracking-wide">KU Consumed</span>
+            <Zap className="h-4 w-4 text-accent" />
+            <span className="text-xs font-medium tracking-wide text-content3 uppercase">KU Consumed</span>
           </div>
-          <p className="text-content typography-2xl font-bold">{formatKu(kuConsumed)}</p>
-          <p className="text-content3 mt-1 text-xs">this billing period</p>
+          <p className="typography-2xl font-bold text-content">{formatKu(kuConsumed)}</p>
+          <p className="mt-1 text-xs text-content3">this billing period</p>
         </div>
 
-        <div className="bg-fill2 rounded-xl border p-4">
+        <div className="rounded-xl border bg-fill2 p-4">
           <div className="mb-2 flex items-center gap-2">
-            <Activity className="text-accent h-4 w-4" />
-            <span className="text-content3 text-xs font-medium uppercase tracking-wide">KU Remaining</span>
+            <Activity className="h-4 w-4 text-accent" />
+            <span className="text-xs font-medium tracking-wide text-content3 uppercase">KU Remaining</span>
           </div>
-          <p className="text-content typography-2xl font-bold">
+          <p className="typography-2xl font-bold text-content">
             {remaining !== null ? formatKu(remaining) : '∞'}
           </p>
-          <p className="text-content3 mt-1 text-xs">until end of period</p>
+          <p className="mt-1 text-xs text-content3">until end of period</p>
         </div>
 
-        <div className="bg-fill2 rounded-xl border p-4">
+        <div className="rounded-xl border bg-fill2 p-4">
           <div className="mb-2 flex items-center gap-2">
-            <BookOpen className="text-accent h-4 w-4" />
-            <span className="text-content3 text-xs font-medium uppercase tracking-wide">Plan</span>
+            <BookOpen className="h-4 w-4 text-accent" />
+            <span className="text-xs font-medium tracking-wide text-content3 uppercase">Plan</span>
           </div>
-          <p className="text-content typography-2xl font-bold capitalize">{planId}</p>
-          <p className="text-content3 mt-1 text-xs">{planLabel}</p>
+          <p className="typography-2xl font-bold text-content capitalize">{planId}</p>
+          <p className="mt-1 text-xs text-content3">{planLabel}</p>
         </div>
 
-        <div className="bg-fill2 rounded-xl border p-4">
+        <div className="rounded-xl border bg-fill2 p-4">
           <div className="mb-2 flex items-center gap-2">
-            <TrendingUp className="text-accent h-4 w-4" />
-            <span className="text-content3 text-xs font-medium uppercase tracking-wide">Usage</span>
+            <TrendingUp className="h-4 w-4 text-accent" />
+            <span className="text-xs font-medium tracking-wide text-content3 uppercase">Usage</span>
           </div>
-          <p className="text-content typography-2xl font-bold">
+          <p className="typography-2xl font-bold text-content">
             {kuLimit !== null ? `${usagePct.toFixed(1)}%` : 'N/A'}
           </p>
-          <p className="text-content3 mt-1 text-xs">of monthly allowance</p>
+          <p className="mt-1 text-xs text-content3">of monthly allowance</p>
         </div>
       </div>
 
       {/* Progress bar */}
       {kuLimit !== null && (
-        <div className="bg-fill2 rounded-xl border p-6">
+        <div className="rounded-xl border bg-fill2 p-6">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-content font-semibold">Monthly Allowance</h3>
-            <span className="text-content3 text-sm">
+            <h3 className="font-semibold text-content">Monthly Allowance</h3>
+            <span className="text-sm text-content3">
               {formatKu(kuConsumed)} / {formatKu(kuLimit)} KU
             </span>
           </div>
-          <div className="bg-fill h-3 overflow-hidden rounded-full">
+          <div className="h-3 overflow-hidden rounded-full bg-fill">
             <div
               className="h-3 rounded-full transition-all duration-500"
               style={{ width: `${usagePct}%`, backgroundColor: barColor }}
@@ -115,8 +115,8 @@ export default function KuUsagePage() {
       )}
 
       {/* What generates KU */}
-      <div className="bg-fill2 rounded-xl border p-6">
-        <h3 className="text-content mb-4 font-semibold">What Generates KU?</h3>
+      <div className="rounded-xl border bg-fill2 p-6">
+        <h3 className="mb-4 font-semibold text-content">What Generates KU?</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {[
             { label: 'Record ingestion', desc: 'Creating or upserting records via JSON/CSV import' },
@@ -127,15 +127,15 @@ export default function KuUsagePage() {
             { label: 'Deletions', desc: 'Stop ongoing footprint KU (creation KU is not reversed)' }
           ].map(({ label, desc }) => (
             <div key={label} className="flex gap-3">
-              <div className="bg-accent mt-1.5 h-2 w-2 shrink-0 rounded-full" />
+              <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" />
               <div>
-                <p className="text-content text-sm font-medium">{label}</p>
-                <p className="text-content3 text-xs">{desc}</p>
+                <p className="text-sm font-medium text-content">{label}</p>
+                <p className="text-xs text-content3">{desc}</p>
               </div>
             </div>
           ))}
         </div>
-        <p className="text-content3 mt-4 text-xs">
+        <p className="mt-4 text-xs text-content3">
           Internal KU weights per operation type are not exposed. You interact only with your total
           consumption.
         </p>

@@ -48,7 +48,7 @@ function ConsentRow({
       <div className="flex min-w-0 items-center gap-3">
         <Cable className="text-content-2 h-5 w-5 shrink-0" />
         <div className="min-w-0">
-          <p className="text-content truncate text-sm font-medium">{consent.client_name}</p>
+          <p className="truncate text-sm font-medium text-content">{consent.client_name}</p>
           {showProject && <p className="text-content-2 truncate text-xs">Project: {consent.project_name}</p>}
           <div className="mt-1 flex flex-wrap gap-1">
             {scopes.map((s) => (
@@ -116,10 +116,10 @@ export function ConnectionsList({
 
   return (
     <div>
-      {showHeading && <h2 className="text-content mb-4 text-base font-semibold">Connected Applications</h2>}
+      {showHeading && <h2 className="mb-4 text-base font-semibold text-content">Connected Applications</h2>}
 
       {loading && <p className="text-content-2 text-sm">Loading…</p>}
-      {error && <p className="text-danger text-sm">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {!loading && !error && consents.length === 0 && (
         <div className="rounded-md border border-dashed p-6 text-center">
@@ -153,7 +153,7 @@ export function WorkspaceConnectedAppsPage() {
         <PageHeader contained>
           <div className="flex max-w-3xl flex-col gap-2">
             <PageTitle>Connected Apps</PageTitle>
-            <p className="text-content2 text-sm leading-6">
+            <p className="text-sm leading-6 text-content2">
               Review third-party applications authorized against projects in this workspace. Revoking an app
               immediately invalidates its issued token.
             </p>

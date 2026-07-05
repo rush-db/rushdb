@@ -132,7 +132,7 @@ export function Menu({
 }
 
 export function MenuTitle({ className, ...props }: TPolymorphicComponentProps<'div'>) {
-  return <div className={cn('text-content2 px-4 pt-2 text-[12px] font-semibold', className)} {...props} />
+  return <div className={cn('px-4 pt-2 text-[12px] font-semibold text-content2', className)} {...props} />
 }
 
 export const MenuIcon = ChevronsUpDown
@@ -142,7 +142,7 @@ export const MenuButton = forwardRef<
   TInheritableElementProps<'button', { children: ReactNode }>
 >(({ children, className, ...props }, ref) => {
   return (
-    <Button ref={ref} size="small" variant="link" className={cn('min-w-0 max-w-full', className)} {...props}>
+    <Button ref={ref} size="small" variant="link" className={cn('max-w-full min-w-0', className)} {...props}>
       <span className="min-w-0 truncate">{children}</span>
       <MenuIcon />
     </Button>

@@ -30,7 +30,12 @@ export const queryKeys = {
       ['projects', projectId, 'indexes', indexId, 'semantic-search-test'] as const,
     fields: (
       projectId: string,
-      params: { labels: string[]; combineMode: FiltersCombineMode; filters: Filter[] }
+      params: {
+        labels: string[]
+        combineMode: FiltersCombineMode
+        filters: Filter[]
+        searchQuery?: SearchQuery
+      }
     ) => ['projects', projectId, 'fields', params] as const,
     suggestedFields: (projectId: string, params: { labels: string[]; filters: Filter[] }) =>
       ['projects', projectId, 'suggested-fields', params] as const,

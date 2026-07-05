@@ -25,12 +25,14 @@ export function GlobalNotification({
 
   return (
     <div className="relative flex min-h-[36px] w-full flex-col items-center justify-start bg-warning px-5 py-2 text-center text-xs text-warning-contrast sm:flex-row sm:gap-3">
-      {title ? <h3 className="font-semibold">{title}</h3> : null}
-      {description ? <p className="opacity-90">{description}</p> : null}
+      {title ?
+        <h3 className="font-semibold">{title}</h3>
+      : null}
+      {description ?
+        <p className="opacity-90">{description}</p>
+      : null}
       {children}
-      {action && (
-        <div className="end-12 mt-2 sm:absolute sm:mt-0">{action}</div>
-      )}
+      {action && <div className="end-12 mt-2 sm:absolute sm:mt-0">{action}</div>}
       <IconButton
         aria-label="Close notification"
         className="absolute end-2 top-0"

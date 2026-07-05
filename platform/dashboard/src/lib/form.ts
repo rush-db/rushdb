@@ -1,18 +1,19 @@
-import type { FieldValues, UseFormProps } from 'react-hook-form'
-import type { AnyObjectSchema } from 'yup'
+import type { FieldValues, Resolver, UseFormProps } from 'react-hook-form'
+import type { ZodType, ZodTypeDef } from 'zod'
 
-import { yupResolver } from '@hookform/resolvers/yup'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm as useFormHook } from 'react-hook-form'
 
-export * from 'yup'
+export { z } from 'zod'
+export type { TypeOf as InferType } from 'zod'
 
 export const useForm = <TFieldValues extends FieldValues = FieldValues, TContext = any>({
   schema,
   ...props
-}: Omit<UseFormProps<TFieldValues, TContext>, 'schema'> & {
-  schema: AnyObjectSchema
+}: Omit<UseFormProps<TFieldValues, TContext>, 'resolver'> & {
+  schema: ZodType<any, ZodTypeDef, any>
 }) =>
   useFormHook<TFieldValues, TContext>({
-    resolver: yupResolver(schema),
+    resolver: zodResolver(schema) as Resolver<TFieldValues, TContext>,
     ...props
   })

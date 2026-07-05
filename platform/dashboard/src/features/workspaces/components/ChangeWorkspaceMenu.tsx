@@ -26,7 +26,7 @@ export function ChangeWorkspaceMenu() {
             <div className="flex items-center justify-between gap-5">
               <div className="flex flex-col text-left">
                 <strong>{triggerText}</strong>
-                <p className="text-accent text-xs">
+                <p className="text-xs text-accent">
                   {list?.find((workspace) => workspace.id === currentWorkspace?.id)?.role}
                 </p>
               </div>
@@ -46,7 +46,7 @@ export function ChangeWorkspaceMenu() {
             <div className="flex items-center justify-between gap-5">
               <div className="flex flex-col text-left">
                 <strong>{workspace.name}</strong>
-                <p className="text-accent text-xs">{workspace.role}</p>
+                <p className="text-xs text-accent">{workspace.role}</p>
               </div>
               {workspace.id === currentWorkspace?.id && <Label>current</Label>}
             </div>

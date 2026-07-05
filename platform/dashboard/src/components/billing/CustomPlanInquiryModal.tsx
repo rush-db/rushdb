@@ -103,7 +103,7 @@ export function CustomPlanInquiryModal({
     <Dialog onOpenChange={onOpenChange} open={open} className="gap-5">
       <div className="space-y-2 pr-8">
         <DialogTitle>Talk to us about a custom plan</DialogTitle>
-        <p className="text-content2 text-sm">
+        <p className="text-sm text-content2">
           Share your contact email and any rollout context. We&apos;ll follow up with a tailored plan.
         </p>
       </div>

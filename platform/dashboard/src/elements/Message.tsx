@@ -13,8 +13,8 @@ const message = cva('grid grid-flow-col gap-2', {
       info: 'bg-badge-blue/10 text-badge-blue'
     },
     size: {
-      medium: 'rounded px-2 py-1',
-      small: 'rounded gap-3 px-3 py-1 min-h-[36px] text-sm gap-1 [&>svg]:mt-1.5 [&>svg]:w-4 [&>svg]:h-4'
+      medium: 'rounded-md px-2 py-1',
+      small: 'rounded-md gap-3 px-3 py-1 min-h-[36px] text-sm gap-1 [&>svg]:mt-1.5 [&>svg]:w-4 [&>svg]:h-4'
     }
   },
   defaultVariants: {

@@ -14,7 +14,7 @@ import { GraphIcon } from '~/elements/GraphIcon.tsx'
 const options = [
   {
     icon: (
-      <div className="text-content m-auto flex w-[90px] items-center justify-center text-sm hover:no-underline">
+      <div className="m-auto flex w-[90px] items-center justify-center text-sm text-content hover:no-underline">
         Records
       </div>
     ),
@@ -22,7 +22,7 @@ const options = [
   },
   {
     icon: (
-      <div className="text-content m-auto flex w-[90px] items-center justify-center text-sm hover:no-underline">
+      <div className="m-auto flex w-[90px] items-center justify-center text-sm text-content hover:no-underline">
         Properties
       </div>
     ),
@@ -30,7 +30,7 @@ const options = [
   },
   {
     icon: (
-      <div className="text-content m-auto flex w-[90px] items-center justify-center text-sm hover:no-underline">
+      <div className="m-auto flex w-[90px] items-center justify-center text-sm text-content hover:no-underline">
         Labels
       </div>
     ),

@@ -159,7 +159,7 @@ export function OAuthConsentPage() {
           <Card>
             <CardHeader title="Authorization Error" />
             <CardBody>
-              <p className="text-danger text-sm">{fetchError}</p>
+              <p className="text-sm text-danger">{fetchError}</p>
             </CardBody>
             <CardFooter>
               <Button onClick={() => openRoute('home')} variant="secondary">
@@ -178,10 +178,10 @@ export function OAuthConsentPage() {
             <CardBody className="gap-4">
               {/* Permissions — checkboxes */}
               <div>
-                <p className="text-content-2 mb-2 text-xs font-semibold uppercase tracking-wide">
+                <p className="text-content-2 mb-2 text-xs font-semibold tracking-wide uppercase">
                   Permissions to grant
                 </p>
-                <ul className="bg-secondary space-y-1 rounded-md border p-3">
+                <ul className="space-y-1 rounded-md border bg-secondary p-3">
                   {requestedScopes.map((scope) => {
                     const meta = SCOPE_META[scope] ?? { label: scope, description: '' }
                     const checked = selectedScopes.has(scope)
@@ -189,13 +189,13 @@ export function OAuthConsentPage() {
                       <li key={scope} className="flex items-start gap-2 py-1">
                         <input
                           checked={checked}
-                          className="accent-accent mt-0.5 h-4 w-4 cursor-pointer"
+                          className="mt-0.5 h-4 w-4 cursor-pointer accent-accent"
                           id={`scope-${scope}`}
                           onChange={() => toggleScope(scope)}
                           type="checkbox"
                         />
                         <label className="cursor-pointer" htmlFor={`scope-${scope}`}>
-                          <p className="text-content text-sm font-medium">{meta.label}</p>
+                          <p className="text-sm font-medium text-content">{meta.label}</p>
                           {meta.description && <p className="text-content-2 text-xs">{meta.description}</p>}
                         </label>
                       </li>
@@ -207,21 +207,21 @@ export function OAuthConsentPage() {
               {/* Workspace selector — only shown when there are multiple workspaces */}
               {workspaces.length > 1 && (
                 <div>
-                  <p className="text-content-2 mb-2 text-xs font-semibold uppercase tracking-wide">
+                  <p className="text-content-2 mb-2 text-xs font-semibold tracking-wide uppercase">
                     Select a workspace
                   </p>
-                  <ul className="bg-secondary space-y-1 rounded-md border p-3">
+                  <ul className="space-y-1 rounded-md border bg-secondary p-3">
                     {workspaces.map((ws) => (
                       <li key={ws.id} className="flex items-center gap-2 py-1">
                         <input
                           checked={selectedWorkspaceId === ws.id}
-                          className="accent-accent h-4 w-4 cursor-pointer"
+                          className="h-4 w-4 cursor-pointer accent-accent"
                           id={`ws-${ws.id}`}
                           name="workspace"
                           onChange={() => setSelectedWorkspaceId(ws.id)}
                           type="radio"
                         />
-                        <label className="text-content cursor-pointer text-sm" htmlFor={`ws-${ws.id}`}>
+                        <label className="cursor-pointer text-sm text-content" htmlFor={`ws-${ws.id}`}>
                           {ws.name}
                         </label>
                       </li>
@@ -233,21 +233,21 @@ export function OAuthConsentPage() {
               {/* Project selector */}
               {projects.length > 0 && (
                 <div>
-                  <p className="text-content-2 mb-2 text-xs font-semibold uppercase tracking-wide">
+                  <p className="text-content-2 mb-2 text-xs font-semibold tracking-wide uppercase">
                     Select a project to connect
                   </p>
-                  <ul className="bg-secondary space-y-1 rounded-md border p-3">
+                  <ul className="space-y-1 rounded-md border bg-secondary p-3">
                     {projects.map((project) => (
                       <li key={project.id} className="flex items-center gap-2 py-1">
                         <input
                           checked={selectedProjectId === project.id}
-                          className="accent-accent h-4 w-4 cursor-pointer"
+                          className="h-4 w-4 cursor-pointer accent-accent"
                           id={`proj-${project.id}`}
                           name="project"
                           onChange={() => setSelectedProjectId(project.id)}
                           type="radio"
                         />
-                        <label className="text-content cursor-pointer text-sm" htmlFor={`proj-${project.id}`}>
+                        <label className="cursor-pointer text-sm text-content" htmlFor={`proj-${project.id}`}>
                           {project.name}
                         </label>
                       </li>
@@ -264,7 +264,7 @@ export function OAuthConsentPage() {
                 Authorizing will create a limited-access API token on your behalf. You can revoke access at
                 any time from{' '}
                 <button
-                  className="hover:text-content underline"
+                  className="underline hover:text-content"
                   onClick={() => openRoute('workspaceSettings')}
                 >
                   Workspace Settings

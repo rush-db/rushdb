@@ -44,16 +44,16 @@ export function DeleteWorkspaceDialog({ ...props }: TDialogProps) {
       <DialogTitle className="text-base font-bold">{title}</DialogTitle>
 
       {singleWorkspace ?
-        <p className="text-content2 text-sm">
+        <p className="text-sm text-content2">
           Your account has only one workspace. Create a new one before deleting this one.
         </p>
       : <>
-          <p className="text-content2 text-sm">
+          <p className="text-sm text-content2">
             All projects and their data inside this workspace will be permanently destroyed. This action
             cannot be undone.
           </p>
-          <p className="text-content2 text-sm">
-            Type <span className="text-danger font-medium">{CONFIRM_WORD}</span> to confirm:
+          <p className="text-sm text-content2">
+            Type <span className="font-medium text-danger">{CONFIRM_WORD}</span> to confirm:
           </p>
           <TextField
             autoFocus

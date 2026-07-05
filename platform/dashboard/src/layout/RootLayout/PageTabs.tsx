@@ -43,11 +43,11 @@ export function PageTab({
 
 export function PageTabSectionHeader({ title, collapsed }: { title: string; collapsed?: boolean }) {
   if (collapsed) {
-    return <div aria-hidden className="bg-stroke mx-1 my-2 h-px" />
+    return <div aria-hidden className="mx-1 my-2 h-px bg-stroke" />
   }
 
   return (
-    <div className="text-content3 text-2xs px-2 pb-1 pt-3 font-medium uppercase tracking-wide">{title}</div>
+    <div className="px-2 pt-3 pb-1 text-2xs font-medium tracking-wide text-content3 uppercase">{title}</div>
   )
 }
 

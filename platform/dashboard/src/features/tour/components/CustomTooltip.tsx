@@ -26,7 +26,7 @@ export function CustomTooltip({
   const primaryTitle = primaryProps?.title === 'Last' ? 'Finish' : primaryProps?.title
 
   return (
-    <div {...tooltipProps} className="bg-fill3 text-content relative max-w-sm rounded-lg p-6 shadow-lg">
+    <div {...tooltipProps} className="relative max-w-sm rounded-lg bg-fill3 p-6 text-content shadow-lg">
       {!waitForManualAction && (
         // The X dismisses onboarding entirely — same as Skip. It spreads
         // skipProps (not closeProps) so react-joyride emits STATUS.SKIPPED,
@@ -38,7 +38,7 @@ export function CustomTooltip({
           {...(skipProps ?? closeProps)}
           aria-label="Skip tour"
           variant="ghost"
-          className="text-content2 absolute right-2 top-2"
+          className="absolute top-2 right-2 text-content2"
           size="small"
         >
           <X />

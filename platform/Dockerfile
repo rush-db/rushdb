@@ -28,8 +28,6 @@ COPY ./platform/dashboard/index.html ./platform/dashboard/
 COPY ./platform/dashboard/tsconfig.json ./platform/dashboard/
 COPY ./platform/dashboard/tsconfig.node.json ./platform/dashboard/
 COPY ./platform/dashboard/vite.config.ts ./platform/dashboard/
-COPY ./platform/dashboard/tailwind.config.ts ./platform/dashboard/
-COPY ./platform/dashboard/postcss.config.js ./platform/dashboard/
 COPY ./platform/dashboard/global.d.ts ./platform/dashboard/
 
 COPY ./platform/core/src ./platform/core/src

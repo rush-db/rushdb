@@ -9,12 +9,5 @@ export function NothingFound({
   title = 'Nothing found...',
   action
 }: TPolymorphicComponentProps<'div', ComponentProps<typeof Banner>>) {
-  return (
-    <Banner
-      action={action}
-      className={className}
-      image={<SearchX size={64} />}
-      title={title}
-    />
-  )
+  return <Banner action={action} className={className} image={<SearchX size={64} />} title={title} />
 }

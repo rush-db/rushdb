@@ -1,7 +1,6 @@
 import { ArgumentMetadata, BadRequestException } from '@nestjs/common'
 import { Injectable, PipeTransform } from '@nestjs/common'
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import Joi = require('joi')
+import { z, ZodError } from 'zod'
 
 import { checkTypeAndNameUniqueness } from '@/common/utils/checkTypeAndNameUniqueness'
 import { formatErrorMessage } from '@/common/validation/utils'
@@ -13,12 +12,13 @@ import { normalizeProperties, splitValueBySeparator } from '@/core/property/prop
 import {
   datetimeArraySchema,
   nullArraySchema,
-  numberArraySchema,
   stringArraySchema
 } from '@/core/property/validation/schemas/property.schema'
 
 const schemasMap = {
-  number: numberArraySchema,
+  // Separator-split values are raw strings (parseValue converts them after validation),
+  // so numeric strings must be accepted here — unlike the non-split number value schema.
+  number: z.array(z.coerce.number()),
   string: stringArraySchema,
   datetime: datetimeArraySchema,
   null: nullArraySchema
@@ -26,8 +26,8 @@ const schemasMap = {
 
 @Injectable()
 export class PropertyValuesPipe implements PipeTransform {
-  handleError(error: Error | Joi.ValidationError, metadata: any) {
-    if (Joi.isError(error)) {
+  handleError(error: Error | ZodError, metadata: any) {
+    if (error instanceof ZodError) {
       throw new BadRequestException(formatErrorMessage(error, metadata))
     } else {
       throw new BadRequestException(error)
@@ -48,9 +48,9 @@ export class PropertyValuesPipe implements PipeTransform {
             property.value as TPropertySingleValue,
             property.valueSeparator
           )
-          const { error } = schemasMap[property.type].validate(values)
-          if (error) {
-            this.handleError(error, metadata)
+          const result = schemasMap[property.type].safeParse(values)
+          if (!result.success) {
+            this.handleError(result.error, metadata)
           }
         }
       })

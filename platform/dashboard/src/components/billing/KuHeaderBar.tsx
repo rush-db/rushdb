@@ -26,7 +26,7 @@ export function KuHeaderBar() {
     return (
       <a
         href={getRoutePath('workspaceApiUsage')}
-        className="text-content3 hover:text-content hidden items-center gap-1.5 text-xs transition-colors sm:flex"
+        className="hidden items-center gap-1.5 text-xs text-content3 transition-colors hover:text-content sm:flex"
       >
         <span className="font-mono">{formatKu(usage.kuConsumed)} KU</span>
         <span className="capitalize opacity-60">{usage.plan}</span>
@@ -60,9 +60,9 @@ export function KuHeaderBar() {
         <span className={cn('font-mono text-xs font-medium', textColor)}>
           {formatKu(usage.kuConsumed)}&thinsp;/&thinsp;{formatKu(cap)} KU
         </span>
-        <span className="text-content3 text-xs opacity-60">{pct.toFixed(0)}%</span>
+        <span className="text-xs text-content3 opacity-60">{pct.toFixed(0)}%</span>
       </div>
-      <div className="bg-secondary h-1 w-full overflow-hidden rounded-full">
+      <div className="h-1 w-full overflow-hidden rounded-full bg-secondary">
         <div className={cn('h-full rounded-full transition-all', barColor)} style={{ width: `${pct}%` }} />
       </div>
     </a>

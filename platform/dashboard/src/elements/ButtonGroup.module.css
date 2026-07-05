@@ -1,13 +1,15 @@
+@reference '../index.css';
+
 .wrapper > *:not(:first-child):not(:last-child) {
   @apply rounded-none;
 }
 
 .wrapper > *:not(:first-child) {
-  @apply !border-l;
+  @apply border-l!;
 }
 
 .wrapper > *:not(:last-child) {
-  @apply !border-r-0;
+  @apply border-r-0!;
 }
 
 .wrapper > :first-child:not(:only-child) {

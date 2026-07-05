@@ -1,19 +1,6 @@
-import type {
-  ComponentPropsWithoutRef,
-  ElementRef,
-  ReactElement,
-  ReactNode
-} from 'react'
+import type { ComponentPropsWithoutRef, ElementRef, ReactElement, ReactNode } from 'react'
 
-import {
-  Action,
-  Close,
-  Description,
-  Provider,
-  Root,
-  Title,
-  Viewport
-} from '@radix-ui/react-toast'
+import { Action, Close, Description, Provider, Root, Title, Viewport } from '@radix-ui/react-toast'
 import { type VariantProps, cva } from 'class-variance-authority'
 import { X } from 'lucide-react'
 import { forwardRef, useEffect, useState } from 'react'
@@ -22,19 +9,18 @@ import { cn } from '~/lib/utils'
 
 const ToastProvider = Provider
 
-const ToastViewport = forwardRef<
-  ElementRef<typeof Viewport>,
-  ComponentPropsWithoutRef<typeof Viewport>
->(({ className, ...props }, ref) => (
-  <Viewport
-    className={cn(
-      'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]',
-      className
-    )}
-    ref={ref}
-    {...props}
-  />
-))
+const ToastViewport = forwardRef<ElementRef<typeof Viewport>, ComponentPropsWithoutRef<typeof Viewport>>(
+  ({ className, ...props }, ref) => (
+    <Viewport
+      className={cn(
+        'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:top-auto sm:right-0 sm:bottom-0 sm:flex-col md:max-w-[420px]',
+        className
+      )}
+      ref={ref}
+      {...props}
+    />
+  )
+)
 ToastViewport.displayName = Viewport.displayName
 
 const toastVariants = cva(
@@ -56,70 +42,53 @@ const Toast = forwardRef<
   ElementRef<typeof Root>,
   ComponentPropsWithoutRef<typeof Root> & VariantProps<typeof toastVariants>
 >(({ className, variant, ...props }, ref) => {
-  return (
-    <Root
-      className={cn(toastVariants({ variant }), className)}
+  return <Root className={cn(toastVariants({ variant }), className)} ref={ref} {...props} />
+})
+Toast.displayName = Root.displayName
+
+const ToastAction = forwardRef<ElementRef<typeof Action>, ComponentPropsWithoutRef<typeof Action>>(
+  ({ className, ...props }, ref) => (
+    <Action
+      className={cn(
+        'focus:ring-ring group-[.danger]:hover:text-danger-content inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium transition-colors group-[.danger]:border-danger/30 hover:bg-secondary group-[.danger]:hover:border-danger/30 group-[.danger]:hover:bg-danger focus:ring-2 focus:ring-offset-2 focus:outline-hidden group-[.danger]:focus:ring-danger disabled:pointer-events-none disabled:opacity-50',
+        className
+      )}
       ref={ref}
       {...props}
     />
   )
-})
-Toast.displayName = Root.displayName
-
-const ToastAction = forwardRef<
-  ElementRef<typeof Action>,
-  ComponentPropsWithoutRef<typeof Action>
->(({ className, ...props }, ref) => (
-  <Action
-    className={cn(
-      'focus:ring-ring group-[.danger]:hover:text-danger-content inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.danger]:border-danger/30 group-[.danger]:hover:border-danger/30 group-[.danger]:hover:bg-danger group-[.danger]:focus:ring-danger',
-      className
-    )}
-    ref={ref}
-    {...props}
-  />
-))
+)
 ToastAction.displayName = Action.displayName
 
-const ToastClose = forwardRef<
-  ElementRef<typeof Close>,
-  ComponentPropsWithoutRef<typeof Close>
->(({ className, ...props }, ref) => (
-  <Close
-    className={cn(
-      'absolute right-2 top-2 rounded-md p-1 text-content2 opacity-0 transition-opacity hover:text-content focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.danger]:text-red-300 group-[.danger]:hover:text-red-50 group-[.danger]:focus:ring-red-400 group-[.danger]:focus:ring-offset-red-600',
-      className
-    )}
-    ref={ref}
-    toast-close=""
-    {...props}
-  >
-    <X className="h-4 w-4" />
-  </Close>
-))
+const ToastClose = forwardRef<ElementRef<typeof Close>, ComponentPropsWithoutRef<typeof Close>>(
+  ({ className, ...props }, ref) => (
+    <Close
+      className={cn(
+        'absolute top-2 right-2 rounded-md p-1 text-content2 opacity-0 transition-opacity group-hover:opacity-100 group-[.danger]:text-red-300 hover:text-content group-[.danger]:hover:text-red-50 focus:opacity-100 focus:ring-2 focus:outline-hidden group-[.danger]:focus:ring-red-400 group-[.danger]:focus:ring-offset-red-600',
+        className
+      )}
+      ref={ref}
+      toast-close=""
+      {...props}
+    >
+      <X className="h-4 w-4" />
+    </Close>
+  )
+)
 ToastClose.displayName = Close.displayName
 
-const ToastTitle = forwardRef<
-  ElementRef<typeof Title>,
-  ComponentPropsWithoutRef<typeof Title>
->(({ className, ...props }, ref) => (
-  <Title
-    className={cn('text-sm font-semibold', className)}
-    ref={ref}
-    {...props}
-  />
-))
+const ToastTitle = forwardRef<ElementRef<typeof Title>, ComponentPropsWithoutRef<typeof Title>>(
+  ({ className, ...props }, ref) => (
+    <Title className={cn('text-sm font-semibold', className)} ref={ref} {...props} />
+  )
+)
 ToastTitle.displayName = Title.displayName
 
 const ToastDescription = forwardRef<
   ElementRef<typeof Description>,
   ComponentPropsWithoutRef<typeof Description>
 >(({ className, ...props }, ref) => (
-  <Description
-    className={cn('text-sm opacity-90', className)}
-    ref={ref}
-    {...props}
-  />
+  <Description className={cn('text-sm opacity-90', className)} ref={ref} {...props} />
 ))
 ToastDescription.displayName = Description.displayName
 
@@ -216,9 +185,7 @@ export const reducer = (state: State, action: Action): State => {
     case 'UPDATE_TOAST':
       return {
         ...state,
-        toasts: state.toasts.map((t) =>
-          t.id === action.toast.id ? { ...t, ...action.toast } : t
-        )
+        toasts: state.toasts.map((t) => (t.id === action.toast.id ? { ...t, ...action.toast } : t))
       }
 
     case 'DISMISS_TOAST': {
@@ -237,12 +204,12 @@ export const reducer = (state: State, action: Action): State => {
       return {
         ...state,
         toasts: state.toasts.map((t) =>
-          t.id === toastId || toastId === undefined
-            ? {
-                ...t,
-                open: false
-              }
-            : t
+          t.id === toastId || toastId === undefined ?
+            {
+              ...t,
+              open: false
+            }
+          : t
         )
       }
     }
@@ -334,9 +301,7 @@ export function Toaster() {
           <Toast key={id} {...props}>
             <div className="grid gap-1">
               {title && <ToastTitle>{title}</ToastTitle>}
-              {description && (
-                <ToastDescription>{description}</ToastDescription>
-              )}
+              {description && <ToastDescription>{description}</ToastDescription>}
             </div>
             {action}
             <ToastClose />

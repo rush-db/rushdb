@@ -38,9 +38,9 @@ export function JoinWorkspacePage() {
     return (
       <div>
         <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center p-8 text-center">
-          <XCircle className="text-danger mb-6 h-16 w-16" />
+          <XCircle className="mb-6 h-16 w-16 text-danger" />
           <h1 className="mb-4 text-2xl font-bold">Invalid Invitation Link</h1>
-          <p className="text-content2 mb-6">
+          <p className="mb-6 text-content2">
             The workspace invitation link appears to be invalid or missing. Please check the link and try
             again, or contact the workspace administrator.
           </p>
@@ -55,7 +55,7 @@ export function JoinWorkspacePage() {
     return (
       <div>
         <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center p-8 text-center">
-          <div className="border-primary mb-6 h-16 w-16 animate-spin rounded-full border-4 border-solid border-t-transparent"></div>
+          <div className="mb-6 h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
           <h1 className="mb-4 text-2xl font-bold">Accepting Invitation</h1>
           <p className="text-content2">Please wait while we process your workspace invitation...</p>
         </div>
@@ -68,9 +68,9 @@ export function JoinWorkspacePage() {
     return (
       <div>
         <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center p-8 text-center">
-          <XCircle className="text-danger mb-6 h-16 w-16" />
+          <XCircle className="mb-6 h-16 w-16 text-danger" />
           <h1 className="mb-4 text-2xl font-bold">Invitation Error</h1>
-          <p className="text-content2 mb-6">
+          <p className="mb-6 text-content2">
             {error instanceof Error ?
               error.message
             : 'There was a problem accepting this workspace invitation. The token may be expired or invalid.'}
@@ -85,9 +85,9 @@ export function JoinWorkspacePage() {
   return (
     <div>
       <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center p-8 text-center">
-        <CheckCircle2 className="text-success mb-6 h-16 w-16" />
+        <CheckCircle2 className="mb-6 h-16 w-16 text-success" />
         <h1 className="mb-4 text-2xl font-bold">Invitation Accepted!</h1>
-        <p className="text-content2 mb-6">
+        <p className="mb-6 text-content2">
           You have successfully joined the workspace. Redirecting to dashboard...
         </p>
         <Button onClick={() => openRoute('home')}>Go to Dashboard</Button>

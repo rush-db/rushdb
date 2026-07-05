@@ -11,7 +11,7 @@ export function Logo({
   ...props
 }: ComponentPropsWithoutRef<'a'> & { height?: number; width?: number }) {
   return (
-    <a className={cn('text-content inline-flex', className)} href={href} {...props}>
+    <a className={cn('inline-flex text-content', className)} href={href} {...props}>
       <svg
         height={height}
         aria-label="RushDB logo"

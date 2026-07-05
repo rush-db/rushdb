@@ -218,7 +218,7 @@ curl -X POST https://api.rushdb.com/api/v1/relationships/delete-many \
   </TabItem>
 </Tabs>
 
-:::warning Both `source.where` and `target.where` must be non-empty when `manyToMany: true`.
+:::warning Both `source.where` and `target.where` must be non-empty when `manyToMany: true` is used without join keys — the cartesian product is otherwise unbounded. When both `source.key` and `target.key` are provided, the operation is a key join and no `where` scoping is required.
 :::
 
 ---

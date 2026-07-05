@@ -1,7 +1,7 @@
 import { Global, Module, OnModuleInit, Logger } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 
-import { fetchRetry } from '@/common/utils/fetchRetry'
+import { sleep } from '@/common/utils/fetchRetry'
 import { isDevMode } from '@/common/utils/isDevMode'
 import {
   RUSHDB_KEY_ID,
@@ -44,9 +44,23 @@ export class DatabaseModule implements OnModuleInit {
     if (isDevMode()) {
       const { hostname } = new URL(this.configService.get('NEO4J_URL'))
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        // Probe the actual configured bolt connection. Guessing the HTTP port
+        // (hostname:7474) breaks whenever Neo4j's HTTP port is remapped — and can
+        // silently probe an unrelated local Neo4j that happens to sit on 7474.
         Logger.log('Checking if DB is ready...')
-        const healthCheckUrl = `http://${hostname}:7474`
-        await fetchRetry(healthCheckUrl, 5000, 15)
+        const driver = this.neogmaService.getDriver()
+        let triesLeft = 15
+        for (;;) {
+          try {
+            await driver.verifyConnectivity()
+            break
+          } catch (error) {
+            if (--triesLeft <= 0) {
+              throw error
+            }
+            await sleep(5000)
+          }
+        }
         Logger.log('DB is ready')
       }
     }

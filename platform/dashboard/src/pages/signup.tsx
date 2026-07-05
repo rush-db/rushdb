@@ -5,7 +5,7 @@ import { GithubButton } from '~/features/auth/components/GitHubButton'
 import { GoogleButton } from '~/features/auth/components/GoogleButton'
 import { createUser } from '~/features/auth/stores/auth'
 import { AuthLayout } from '~/layout/AuthLayout'
-import { object, string, useForm } from '~/lib/form'
+import { useForm, z } from '~/lib/form'
 import { useStore } from '@nanostores/react'
 import { $searchParams, getRoutePath } from '~/lib/router'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
@@ -20,13 +20,16 @@ interface SignUpFormValues {
   passwordConfirmation: string
 }
 
-export const schema = object({
-  login: string().required(),
-  password: string().required().min(8, 'Should be at least 8 characters long').max(32),
-  passwordConfirmation: string().test('passwords-match', 'Passwords must match', function (value?: string) {
-    return this.parent.password === value
+export const schema = z
+  .object({
+    login: z.string().min(1, 'Login is required'),
+    password: z.string().min(8, 'Should be at least 8 characters long').max(32),
+    passwordConfirmation: z.string().optional()
   })
-}).required()
+  .refine((values) => values.password === values.passwordConfirmation, {
+    message: 'Passwords must match',
+    path: ['passwordConfirmation']
+  })
 
 function SignUpForm() {
   const {

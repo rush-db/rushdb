@@ -24,7 +24,7 @@ function DeleteSelected({ view = 'main' }: { view?: 'related' | 'main' }) {
   return (
     <ConfirmDialog
       trigger={
-        <Button className="text-danger hover:bg-danger/20 rounded-none" size="small" variant="inverse">
+        <Button className="rounded-none text-danger hover:bg-danger/20" size="small" variant="inverse">
           <Trash />
           Delete
         </Button>
@@ -52,8 +52,8 @@ export function RecordsBatchActionsBar({ view = 'main' }: { view?: 'related' | '
   }
 
   return (
-    <div className="border-content/30 bg-content text-fill animate-in fixed bottom-24 left-1/2 z-10 flex -translate-x-1/2 items-center overflow-clip rounded-2xl shadow-2xl ring">
-      <span className="text-fill/70 px-3 font-mono text-sm font-medium">
+    <div className="fixed bottom-24 left-1/2 z-10 flex -translate-x-1/2 animate-in items-center overflow-clip rounded-2xl border-content/30 bg-content text-fill shadow-2xl ring">
+      <span className="px-3 font-mono text-sm font-medium text-fill/70">
         {selectionLength || selectionRelatedLength} selected
       </span>
       <Divider className="bg-fill2/30" vertical />

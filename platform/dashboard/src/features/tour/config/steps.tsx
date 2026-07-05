@@ -8,7 +8,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'center',
     content: (
       <div className="space-y-4">
-        <h2 className="text-content text-2xl font-bold">Welcome to RushDB!</h2>
+        <h2 className="text-2xl font-bold text-content">Welcome to RushDB!</h2>
         <p className="text-content2">
           Congratulations on creating your account and first workspace. Let’s walk through the key features.
         </p>
@@ -24,13 +24,13 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'bottom',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Create a Project</h3>
-        <p className="text-content2 font-bold">Projects help you separate and manage your data.</p>
+        <h3 className="text-lg font-bold text-content">Create a Project</h3>
+        <p className="font-bold text-content2">Projects help you separate and manage your data.</p>
         <p className="text-content2">
           Each project acts as its own data space — perfect for staging vs. production, or isolated tenants.
           Click to create your first one — we’ll guide you from there. See{' '}
           <a
-            className="text-accent ml-1 underline"
+            className="ml-1 text-accent underline"
             href="https://docs.rushdb.com/get-started/quick-tutorial"
             target="_blank"
             rel="noreferrer"
@@ -52,7 +52,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'right',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Enter Project Name</h3>
+        <h3 className="text-lg font-bold text-content">Enter Project Name</h3>
         <p className="text-content2">Give your project a descriptive name so you can find it later.</p>
       </div>
     ),
@@ -66,7 +66,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'right',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Connect Custom Neo4j</h3>
+        <h3 className="text-lg font-bold text-content">Connect Custom Neo4j</h3>
         <p className="text-content2">
           You can attach your own Neo4j instance (Aura or self-hosted) for full data isolation and control
           over your infrastructure.
@@ -83,7 +83,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'right',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Create Your Project</h3>
+        <h3 className="text-lg font-bold text-content">Create Your Project</h3>
         <p className="text-content2">Everything’s set—click “Create project” to finish the setup.</p>
       </div>
     ),
@@ -100,11 +100,11 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'top',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Your First SDK Key</h3>
+        <h3 className="text-lg font-bold text-content">Your First SDK Key</h3>
         <p className="text-content2">
           We’ve generated an API key so you can immediately start using our
           <a
-            className="text-accent ml-1 underline"
+            className="ml-1 text-accent underline"
             href="https://docs.rushdb.com/get-started/quick-tutorial/"
             target="_blank"
             rel="noreferrer"
@@ -126,7 +126,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'bottom',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">API Keys Tab</h3>
+        <h3 className="text-lg font-bold text-content">API Keys Tab</h3>
         <p className="text-content2">Create or revoke API tokens to control secure access to your project.</p>
       </div>
     ),
@@ -140,7 +140,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'bottom',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Import Data Tab</h3>
+        <h3 className="text-lg font-bold text-content">Import Data Tab</h3>
         <p className="text-content2">
           Upload your JSON or NDJSON — RushDB will handle the rest. We’ll guide you through it shortly.
         </p>
@@ -157,7 +157,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'bottom',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Push Any JSON</h3>
+        <h3 className="text-lg font-bold text-content">Push Any JSON</h3>
         <p className="text-content2">
           RushDB turns raw JSON into queryable graph records and relationships without requiring a schema
           upfront.
@@ -176,7 +176,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'bottom',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Preview Your Data</h3>
+        <h3 className="text-lg font-bold text-content">Preview Your Data</h3>
         <p className="text-content2">
           In this example, the JSON contains agents, evaluation runs, conversations, and tool calls. Import it
           to see how nested data becomes a graph.
@@ -194,7 +194,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'top',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Import Your Data</h3>
+        <h3 className="text-lg font-bold text-content">Import Your Data</h3>
         <p className="text-content2">
           Upload your JSON — RushDB automatically transforms it into graph records and relationships. Once
           complete, your data appears instantly, ready to query. Press Import JSON to continue.
@@ -214,7 +214,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'top',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Suggested Semantic Indexes</h3>
+        <h3 className="text-lg font-bold text-content">Suggested Semantic Indexes</h3>
         <p className="text-content2">
           RushDB inspected your imported schema and found text fields that are useful for semantic search.
         </p>
@@ -231,7 +231,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'left',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Create an Index</h3>
+        <h3 className="text-lg font-bold text-content">Create an Index</h3>
         <p className="text-content2">
           Index a long-text field to enable semantic search — finding records by meaning, not just exact
           keywords.
@@ -251,7 +251,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'left',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Find Relationship Patterns</h3>
+        <h3 className="text-lg font-bold text-content">Find Relationship Patterns</h3>
         <p className="text-content2">
           RushDB analyzes your data to find hidden connections — reference fields that link record types, and
           default relationships that can get meaningful names.
@@ -270,7 +270,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'left',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Approve a Suggested Pattern</h3>
+        <h3 className="text-lg font-bold text-content">Approve a Suggested Pattern</h3>
         <p className="text-content2">
           Approving a pattern materializes the inferred relationship now and keeps applying it to future
           writes.
@@ -290,7 +290,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'center',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">See the Graph</h3>
+        <h3 className="text-lg font-bold text-content">See the Graph</h3>
         <p className="text-content2">
           Your imported records and approved relationships are now visible together as a connected graph you
           can explore.
@@ -308,7 +308,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'right',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Open the Query Lab</h3>
+        <h3 className="text-lg font-bold text-content">Open the Query Lab</h3>
         <p className="text-content2">
           The Query Lab is a playground for the query API — write, tweak, and run queries directly against
           your data and see exactly what your apps would get back.
@@ -328,7 +328,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'right',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Try a Query</h3>
+        <h3 className="text-lg font-bold text-content">Try a Query</h3>
         <p className="text-content2">
           We prefilled an example that aggregates counts, sums, and averages across related records in a
           single call. Feel free to tweak it — this editor is yours to experiment in.
@@ -346,7 +346,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'left',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Run the Query</h3>
+        <h3 className="text-lg font-bold text-content">Run the Query</h3>
         <p className="text-content2">
           Execute it to see how RushDB turns graph records into aggregated metrics on the fly.
         </p>
@@ -365,7 +365,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'left',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Instant Aggregations</h3>
+        <h3 className="text-lg font-bold text-content">Instant Aggregations</h3>
         <p className="text-content2">
           The result gives you immediate operational stats without defining a schema or building a pipeline.
         </p>
@@ -382,7 +382,7 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
     placement: 'bottom',
     content: (
       <div className="space-y-4">
-        <h3 className="text-content text-lg font-bold">Connect Your Apps</h3>
+        <h3 className="text-lg font-bold text-content">Connect Your Apps</h3>
         <p className="text-content2">
           You have imported data, indexed text, approved a relationship, visualized the graph, and queried
           metrics. Use Getting Started when you are ready to connect your tools, apps, and workflows.

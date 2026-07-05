@@ -45,13 +45,13 @@ function WorkspaceTokenListItem({ loading, token }: { loading?: boolean; token?:
           : null}
         </span>
         {token?.description ?
-          <span className="text-content2 text-sm font-normal">{token.description}</span>
+          <span className="text-sm font-normal text-content2">{token.description}</span>
         : null}
       </div>
 
       <div className="flex min-w-0 flex-col items-end">
         {token?.project ?
-          <Badge className="shrink-0 !text-sm">{token.project.name}</Badge>
+          <Badge className="shrink-0 text-sm!">{token.project.name}</Badge>
         : null}
 
         <span className="text-content-secondary shrink-0 font-mono text-sm font-normal" title={expiry?.title}>

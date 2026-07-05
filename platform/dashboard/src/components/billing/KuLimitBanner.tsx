@@ -46,8 +46,8 @@ export function KuLimitBanner() {
       className={cn(
         'flex items-center gap-3 px-4 py-2.5 text-sm font-medium',
         isExceeded ?
-          'bg-danger/15 text-danger border-danger/20 border-b'
-        : 'bg-warning/10 text-warning border-warning/20 border-b'
+          'border-b border-danger/20 bg-danger/15 text-danger'
+        : 'border-b border-warning/20 bg-warning/10 text-warning'
       )}
     >
       {isExceeded ?

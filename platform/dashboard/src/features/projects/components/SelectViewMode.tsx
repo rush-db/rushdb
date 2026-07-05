@@ -15,7 +15,7 @@ const options = [
     icon: (
       <Tooltip alignOffset={20} className="text-content2" sideOffset={10} trigger={<TableIcon />}>
         <div>
-          <div className="text-2xs text-content flex items-center gap-1 uppercase">Table mode</div>
+          <div className="flex items-center gap-1 text-2xs text-content uppercase">Table mode</div>
         </div>
       </Tooltip>
     ),
@@ -25,7 +25,7 @@ const options = [
     icon: (
       <Tooltip alignOffset={20} className="text-content2" sideOffset={10} trigger={<GraphIcon />}>
         <div>
-          <div className="text-2xs text-content flex items-center gap-1 uppercase">Graph mode</div>
+          <div className="flex items-center gap-1 text-2xs text-content uppercase">Graph mode</div>
         </div>
       </Tooltip>
     ),
@@ -35,7 +35,7 @@ const options = [
     icon: (
       <Tooltip alignOffset={20} className="text-content2" sideOffset={10} trigger={<Braces />}>
         <div>
-          <div className="text-2xs text-content flex items-center gap-1 uppercase">Raw JSON</div>
+          <div className="flex items-center gap-1 text-2xs text-content uppercase">Raw JSON</div>
         </div>
       </Tooltip>
     ),

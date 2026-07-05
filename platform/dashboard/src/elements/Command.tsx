@@ -65,7 +65,7 @@ export const CommandGroup = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.Group
     className={cn(
-      'text-content [&_[cmdk-group-heading]]:bg-fill [&_[cmdk-group-heading]]:text-content3 overflow-hidden [&_[cmdk-group-heading]]:sticky [&_[cmdk-group-heading]]:top-0 [&_[cmdk-group-heading]]:border-b [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase',
+      'overflow-hidden text-content [&_[cmdk-group-heading]]:sticky [&_[cmdk-group-heading]]:top-0 [&_[cmdk-group-heading]]:border-b [&_[cmdk-group-heading]]:bg-fill [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-content3 [&_[cmdk-group-heading]]:uppercase',
       className
     )}
     ref={ref}
@@ -79,7 +79,7 @@ export const CommandSeparator = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Separator>
 >(({ className, ...props }, ref) => (
-  <CommandPrimitive.Separator className={cn('bg-stroke -mx-1 h-px', className)} ref={ref} {...props} />
+  <CommandPrimitive.Separator className={cn('-mx-1 h-px bg-stroke', className)} ref={ref} {...props} />
 ))
 CommandSeparator.displayName = CommandPrimitive.Separator.displayName
 
@@ -97,7 +97,7 @@ export const CommandItem = React.forwardRef<
 CommandItem.displayName = CommandPrimitive.Item.displayName
 
 export const CommandShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => {
-  return <span className={cn('text-content3 ml-auto gap-2 text-xs tracking-widest', className)} {...props} />
+  return <span className={cn('ml-auto gap-2 text-xs tracking-widest text-content3', className)} {...props} />
 }
 CommandShortcut.displayName = 'CommandShortcut'
 
