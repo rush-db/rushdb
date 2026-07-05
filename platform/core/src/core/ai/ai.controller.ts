@@ -29,7 +29,6 @@ import { SearchQueryGeneratorService } from '@/core/ai/search-query-generator.se
 import { createEmbeddingIndexSchema } from '@/core/ai/validation/schemas/embedding-index.schema'
 import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
-import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { PlanActiveGuard } from '@/dashboard/billing/guards/plan-active.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
@@ -58,7 +57,7 @@ export class AiController {
    */
   @Post('/schema')
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
+  @UseGuards(PlanLimitsGuard)
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   @TokenReadAccess()
@@ -83,7 +82,7 @@ export class AiController {
    */
   @Post('/schema/md')
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
+  @UseGuards(PlanLimitsGuard)
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   @TokenReadAccess()
@@ -105,7 +104,7 @@ export class AiController {
 
   @Post('/search-query')
   @ApiBearerAuth()
-  @UseGuards(PlanLimitsGuard, IsRelatedToProjectGuard())
+  @UseGuards(PlanLimitsGuard)
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   @TokenReadAccess()
@@ -129,7 +128,6 @@ export class AiController {
    */
   @Get('/indexes')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   @TokenReadAccess()
@@ -143,7 +141,6 @@ export class AiController {
    */
   @Post('/indexes')
   @ApiBearerAuth()
-  @UseGuards(IsRelatedToProjectGuard())
   @AuthGuard('project')
   @UsePipes(ValidationPipe(createEmbeddingIndexSchema, 'body'))
   @HttpCode(HttpStatus.CREATED)
@@ -157,9 +154,8 @@ export class AiController {
 
   /**
    * Deletes an embedding index policy.
-   * Note: IsRelatedToProjectGuard is intentionally omitted — embedding indexes live in
-   * Postgres (not Neo4j) so their UUIDs cannot be verified via the Neo4j ownership check.
-   * Ownership is enforced inside AiService.deleteIndex via row.projectId === projectId.
+   * Embedding indexes live in Postgres (not Neo4j); ownership is enforced inside
+   * AiService.deleteIndex via row.projectId === projectId.
    */
   @Delete('/indexes/:id')
   @ApiBearerAuth()
@@ -172,7 +168,7 @@ export class AiController {
 
   /**
    * Returns Neo4j-level statistics for an embedding index (total records vs indexed records).
-   * Note: IsRelatedToProjectGuard omitted for the same reason as deleteIndex.
+   * Ownership is enforced inside AiService like deleteIndex.
    */
   @Get('/indexes/:id/stats')
   @ApiBearerAuth()
@@ -209,7 +205,7 @@ export class AiController {
    */
   @Post('/search')
   @ApiBearerAuth()
-  @UseGuards(PlanActiveGuard, IsRelatedToProjectGuard())
+  @UseGuards(PlanActiveGuard)
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   @TokenReadAccess()

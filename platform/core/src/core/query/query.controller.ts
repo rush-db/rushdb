@@ -24,7 +24,6 @@ import { SearchDto } from '@/core/search/dto/search.dto'
 import { searchSchema } from '@/core/search/validation/schemas/search.schema'
 import { TokenReadAccess } from '@/dashboard/auth/decorators/token-read-access.decorator'
 import { AuthGuard } from '@/dashboard/auth/guards/global-auth.guard'
-import { IsRelatedToProjectGuard } from '@/dashboard/auth/guards/is-related-to-project.guard'
 import { PlanActiveGuard } from '@/dashboard/billing/guards/plan-active.guard'
 import { ExternalTransactionDecorator } from '@/database/external-transaction.decorator'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
@@ -38,7 +37,7 @@ export class QueryController {
 
   @Post('/records/find')
   @ApiBearerAuth()
-  @UseGuards(PlanActiveGuard, IsRelatedToProjectGuard())
+  @UseGuards(PlanActiveGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(searchSchema, 'body'))
   @UseInterceptors(TrackHeavySearchKu())
@@ -53,7 +52,7 @@ export class QueryController {
 
   @Post('/raw')
   @ApiBearerAuth()
-  @UseGuards(PlanActiveGuard, IsRelatedToProjectGuard())
+  @UseGuards(PlanActiveGuard)
   @AuthGuard('project')
   @UsePipes(ValidationPipe(cypherSchema, 'body'))
   @UseInterceptors(DataInterceptor.withOptions(false, false, true))
