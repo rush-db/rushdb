@@ -40,6 +40,9 @@ const api = async (
 
 describe('record import write path (e2e)', () => {
   let db: InstanceType<typeof RushDB>
+  let jwt: string
+  let workspaceId: string
+  let projectId: string
 
   beforeAll(async () => {
     // Self-hosted boot auto-creates the admin user and Default Workspace.
@@ -47,11 +50,11 @@ describe('record import write path (e2e)', () => {
       method: 'POST',
       body: { login: ADMIN_LOGIN, password: ADMIN_PASSWORD }
     })
-    const jwt: string = user.token
+    jwt = user.token
     expect(jwt).toBeTruthy()
 
     const workspaces = await api('/workspaces', { token: jwt })
-    const workspaceId: string = workspaces[0]?.id
+    workspaceId = workspaces[0]?.id
     expect(workspaceId).toBeTruthy()
 
     const project = await api('/projects', {
@@ -60,7 +63,7 @@ describe('record import write path (e2e)', () => {
       headers: { 'x-workspace-id': workspaceId },
       body: { name: `e2e-import-${RUN}`, description: 'import write path e2e' }
     })
-    const projectId: string = project.id
+    projectId = project.id
     expect(projectId).toBeTruthy()
 
     const apiToken = await api('/tokens', {
@@ -156,6 +159,47 @@ describe('record import write path (e2e)', () => {
       const found = await db.records.find({ labels: [label], limit: 1 })
       expect(found.total).toBe(100)
     }
+  })
+
+  it('runs side effects (project stats recount) after a tx-wrapped import commits', async () => {
+    const label = `E2E_TXSTATS_${RUN}`
+    const rows = Array.from({ length: 25 }, (_, i) => ({ key: `tx-${i}`, name: `Row ${i}` }))
+
+    const statsRecordCount = async (): Promise<number> => {
+      const project = await api(`/projects/${projectId}`, {
+        token: jwt,
+        headers: { 'x-project-id': projectId, 'x-workspace-id': workspaceId }
+      })
+      try {
+        return JSON.parse(project.stats ?? '{}').records ?? 0
+      } catch {
+        return 0
+      }
+    }
+
+    // Writes inside a user-defined transaction are invisible to other transactions until
+    // commit — the side-effect runner must defer to the commit, not count mid-transaction
+    // (the original bug recounted 0 records for a fresh tx-wrapped import).
+    const tx = await db.tx.begin({ ttl: 30_000 })
+    await db.records.createMany({ label, data: rows }, tx)
+    await db.tx.commit(tx)
+
+    // Every record in the project is committed at this point, so the stats counter must
+    // converge on the project-wide total (recounts from earlier tests can only land on
+    // smaller totals). The recount runs post-response in the background; poll briefly.
+    const expectedTotal = (await db.records.find({ limit: 1 })).total ?? 0
+    expect(expectedTotal).toBeGreaterThanOrEqual(rows.length)
+
+    const deadline = Date.now() + 30_000
+    let counted = 0
+    while (Date.now() < deadline) {
+      counted = await statsRecordCount()
+      if (counted >= expectedTotal) {
+        break
+      }
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+    expect(counted).toBeGreaterThanOrEqual(expectedTotal)
   })
 
   it('surfaces the server error cause through the SDK instead of a bare status code', async () => {

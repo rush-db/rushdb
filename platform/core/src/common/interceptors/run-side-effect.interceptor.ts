@@ -73,12 +73,26 @@ export const RunSideEffectMixin = (sideEffects: ESideEffectType[]) => {
           // Snapshot references to the main request transactions before they get cleared
           const mainInternalTx: Transaction | undefined = raw.transaction
           const mainExternalTx: Transaction | undefined = raw.externalTransaction
+          const userDefinedTx: Transaction | undefined = raw.userDefinedTransaction
 
           const runSideEffects = async () => {
             // Wait for the primary request transaction(s) to be committed by RequestCleanupInterceptor
             await waitForTransactionClose(mainInternalTx)
             if (mainExternalTx) {
               await waitForTransactionClose(mainExternalTx)
+            }
+
+            // Writes made through a user-defined transaction (x-transaction-id) are not
+            // committed yet when the response is sent — recounting/recomputing now would
+            // read pre-commit state (e.g. a fresh import counting 0 records). Defer: the
+            // same side effects run on POST /tx/:txId/commit once the data is visible.
+            if (userDefinedTx?.isOpen?.()) {
+              isDevMode(() =>
+                Logger.debug(
+                  `Side effects deferred to transaction commit for project ${projectId} (open user-defined transaction)`
+                )
+              )
+              return
             }
 
             // Create fresh session/transaction for side-effect work (after primary commit)
