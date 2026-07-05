@@ -1,5 +1,13 @@
 # @rushdb/mcp-server
 
+## 2.8.1
+
+### Patch Changes
+
+- 8fece4f: Remove redundant api guard
+- Updated dependencies [8fece4f]
+  - @rushdb/javascript-sdk@2.8.1
+
 ## 2.8.0
 
 ### Minor Changes
