@@ -48,6 +48,7 @@ import {
   type RecordsSearchMode
 } from '~/features/projects/stores/records-search'
 import { PropertyName } from '~/features/properties/components/PropertyName'
+import { PropertyIconSquare } from '~/features/properties/components/PropertyTypeIcon'
 import {
   useGenerateSearchQueryMutation,
   useProjectFieldsQuery,
@@ -142,7 +143,9 @@ function HiddenFieldsSelector() {
         <Divider />
         <SelectItem closeOnSelect={false}>
           <span className="hidden">__id</span>
-          <KeyRound className="text-content2 size-4 shrink-0" />
+          <PropertyIconSquare className="bg-secondary text-content2" size={16}>
+            <KeyRound size={11} />
+          </PropertyIconSquare>
           <span className="font-mono">__id</span>
           <Tooltip align="end" trigger={<Lock className="text-content3 ml-auto size-3.5 shrink-0" />}>
             <span className="max-w-[220px] text-sm">The primary key is always shown.</span>

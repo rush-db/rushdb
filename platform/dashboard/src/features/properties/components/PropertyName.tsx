@@ -8,7 +8,7 @@ import { Skeleton } from '~/elements/Skeleton'
 import { SortIcon } from '~/elements/Table'
 import { cn } from '~/lib/utils'
 
-import { PropertyTypeIcon } from './PropertyTypeIcon'
+import { PropertyIconSquare, PropertyTypeIcon } from './PropertyTypeIcon'
 
 export function PropertyName({
   className,
@@ -42,7 +42,9 @@ export function PropertyName({
     >
       <Skeleton enabled={!type}>
         {isPrimaryKey ?
-          <KeyRound size={iconSize} />
+          <PropertyIconSquare className="bg-secondary text-content2" size={iconSize}>
+            <KeyRound size={Math.round(iconSize * 0.7)} />
+          </PropertyIconSquare>
         : <PropertyTypeIcon size={iconSize} type={type ?? 'string'} />}
       </Skeleton>
       {name}
