@@ -9,7 +9,7 @@ import { IconButton } from '~/elements/IconButton'
 import { Label } from '~/elements/Label'
 
 import { useCurrentRecordQuery, useCurrentRecordRelatedQuery } from '../hooks/useProjectQueries'
-import { $sheetRecordId } from '../stores/id'
+import { openRecordSheet } from '../stores/id'
 
 interface RelationGroup {
   type: string
@@ -70,7 +70,7 @@ export function RelatedRecordsTab() {
                   title="Open record"
                   variant="ghost"
                   size="small"
-                  onClick={() => $sheetRecordId.set(sourceId)}
+                  onClick={() => openRecordSheet(sourceId)}
                 >
                   <ArrowUpRight />
                 </IconButton>
@@ -89,7 +89,7 @@ export function RelatedRecordsTab() {
                   title="Open record"
                   variant="ghost"
                   size="small"
-                  onClick={() => $sheetRecordId.set(targetId)}
+                  onClick={() => openRecordSheet(targetId)}
                 >
                   <ArrowUpRight />
                 </IconButton>
