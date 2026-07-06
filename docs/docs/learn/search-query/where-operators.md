@@ -676,6 +676,77 @@ graph LR
   PROJ --> EMP
 ```
 
+Nested label blocks are the right tool when each level is a **different** label. When the same pattern repeats — an org chart, a category tree, a dependency graph — use variable-length traversal instead.
+
+### Variable-Length Traversal (`hops`)
+
+Add `hops` to `$relation` to match related records **up to N hops away** along one relationship pattern, without knowing (or naming) the intermediate records:
+
+```typescript
+{
+  labels: ["EMPLOYEE"],
+  where: {
+    EMPLOYEE: {
+      $alias: "$manager",
+      $relation: {
+        type: "REPORTS_TO",          // Applies to every hop
+        direction: "out",            // Applies to every hop
+        hops: { min: 1, max: 4 }     // 1 to 4 hops away
+      },
+      name: { $contains: "Alice" }   // Filters the FINAL record only
+    }
+  }
+}
+```
+
+This finds every employee whose management chain — up to four levels — contains Alice.
+
+`hops` accepts two forms:
+
+- `hops: 3` — exactly 3 hops (`*3` in Cypher)
+- `hops: { min?: number, max?: number }` — a range (`min` defaults to `1`)
+
+Key semantics:
+
+- `type` and `direction` constrain **every hop**; the nested label constrains only the **endpoint** record. Intermediate records are anonymous and unconstrained.
+- Omitting `type` means "any relationship between records" — each hop may even use a different relationship type. RushDB automatically excludes its internal property metadata edges, so untyped traversal never leaves your data model.
+- `hops.max` is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 25). Omitting `max` requests **unbounded** traversal (`*min..`), which is only allowed on self-hosted deployments and projects with a custom Neo4j instance — bounded there by the transaction timeout.
+- Deeper nesting composes naturally: a nested label block under a `hops` endpoint continues from that endpoint.
+
+> **Performance:** variable-length traversal explores every matching path. Keep `max` as small as your use case allows, and prefer setting `direction` — an undirected, untyped `hops` query is the most expensive shape.
+
+> **Aggregation caveat:** multihop matching produces one row per _path_. `$count` and `$collect` deduplicate by default, but `$sum`/`$avg` over a multihop alias will count an endpoint once per path leading to it.
+
+### Cycle Detection (`$cycle`)
+
+Use `$cycle: true` to find records that sit on a **closed path back to themselves** — fraud rings, circular ownership, dependency cycles:
+
+```typescript
+{
+  labels: ["ACCOUNT"],
+  where: {
+    RING: {                          // Key is a display name — NOT matched as a label
+      $cycle: true,
+      $relation: {
+        type: "TRANSFERRED_TO",
+        direction: "out",
+        hops: { min: 2, max: 6 }     // Ring length; min defaults to 2 for cycles
+      }
+    }
+  }
+}
+```
+
+This returns every ACCOUNT participating in a directed transfer ring of 2–6 hops.
+
+Rules and semantics:
+
+- A `$cycle` block requires `$relation` with `hops` (`min` ≥ 2 — a 1-hop "cycle" would be a self-loop) and accepts **nothing else**: no `$alias`, no property criteria, no nested labels. A cycle has no separate endpoint to filter or alias — filter the root record instead.
+- The block's key is ignored as a label (both ends of the pattern are the root record); it just needs to be unique among its siblings.
+- Set `direction` for flow-like semantics (money, ownership, dependencies). An undirected cycle also matches innocent back-and-forth pairs like mutual transfers.
+- Combine with logical operators: `$not: { RING: { $cycle: true, ... } }` finds records **not** on a cycle.
+- Cypher trail semantics apply: each _relationship_ is used once per path, but a path may revisit a record through a different relationship — figure-eight shapes count as cycles.
+
 ### Aliasing for Aggregations
 
 When you need to reference related records in aggregations, use the `$alias` operator:

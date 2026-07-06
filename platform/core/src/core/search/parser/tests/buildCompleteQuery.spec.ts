@@ -1581,3 +1581,74 @@ describe('label-based $collect (inline traversal)', () => {
     ).toThrow(/groupBy field reference "\$record" must include a property name/)
   })
 })
+
+describe('variable-length traversal and cycles (complete queries)', () => {
+  let queryService: EntityQueryService
+
+  beforeEach(() => {
+    queryService = new EntityQueryService()
+  })
+
+  it('54 - findRecords with typed hops traversal and alias collect', () => {
+    const result = queryService.findRecords({
+      searchQuery: {
+        labels: ['COMPANY'],
+        where: {
+          $or: [{ stage: 'seed' }, { stage: 'roundA' }],
+          EMPLOYEE: {
+            $alias: '$employee',
+            $relation: { type: 'MANAGES', direction: 'out', hops: { max: 3 } },
+            salary: { $gte: 500_000 }
+          }
+        },
+        aggregate: {
+          employees: { fn: 'collect', orderBy: { salary: 'desc' }, alias: '$employee', limit: 10 }
+        }
+      }
+    })
+
+    expect(result)
+      .toEqual(`MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+WHERE ((any(value IN record.\`stage\` WHERE value = "seed")) OR (any(value IN record.\`stage\` WHERE value = "roundA"))) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)-[:MANAGES*1..3]->(record1:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\`) WHERE (any(value IN record1.\`salary\` WHERE value >= 500000))
+WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
+WITH record, apoc.coll.sortMaps(collect(DISTINCT record1 {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "salary")[0..10] AS \`employees\`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`employees\`} as records`)
+  })
+
+  it('55 - findRecords with a typed cycle', () => {
+    const result = queryService.findRecords({
+      searchQuery: {
+        labels: ['ACCOUNT'],
+        where: {
+          RING: { $cycle: true, $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { max: 6 } } }
+        }
+      }
+    })
+
+    expect(result)
+      .toEqual(`MATCH (record:__RUSHDB__LABEL__RECORD__:\`ACCOUNT\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
+OPTIONAL MATCH (record)-[rels1:TRANSFERRED_TO*2..6]->(record)
+WITH record, rels1 WHERE record IS NOT NULL AND rels1 IS NOT NULL
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`)
+  })
+
+  it('56 - getRecordsCount with a typed cycle keeps DISTINCT record', () => {
+    const result = queryService.getRecordsCount({
+      searchQuery: {
+        labels: ['ACCOUNT'],
+        where: {
+          RING: { $cycle: true, $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { max: 6 } } }
+        }
+      }
+    })
+
+    expect(result)
+      .toEqual(`MATCH (record:__RUSHDB__LABEL__RECORD__:\`ACCOUNT\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
+
+OPTIONAL MATCH (record)-[rels1:TRANSFERRED_TO*2..6]->(record)
+WITH record, rels1 WHERE record IS NOT NULL AND rels1 IS NOT NULL
+RETURN count(DISTINCT record) as total`)
+  })
+})

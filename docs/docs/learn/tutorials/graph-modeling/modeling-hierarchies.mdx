@@ -252,6 +252,74 @@ curl -s -X POST "$BASE/records/search" \
 </TabItem>
 </Tabs>
 
+### Same-label trees: variable-length traversal with `hops`
+
+The org chart above mixes labels — every level is a different label, so every level gets its own nested block. That manual nesting is exactly right for mixed-label paths: it lets you alias and filter each level independently.
+
+But many trees repeat **one label and one relationship type** at every level: category trees (`CATEGORY -[HAS_CHILD]-> CATEGORY`), folder trees, management chains. Nesting the same block once per level hard-codes the depth and gets verbose fast. For those, use variable-length traversal: add [`hops` to `$relation`](/learn/search-query/where-operators#variable-length-traversal-hops) and cover N levels in a single block.
+
+All descendants of the "Electronics" category, up to 4 levels deep:
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const descendants = await db.records.find({
+  labels: ['CATEGORY'],
+  where: {
+    CATEGORY: {
+      // type and direction apply to EVERY hop; hops sets the depth range
+      $relation: { type: 'HAS_CHILD', direction: 'in', hops: { min: 1, max: 4 } },
+      // criteria filter only the FINAL record — here, the ancestor
+      name: 'Electronics'
+    }
+  }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+descendants = db.records.find({
+    "labels": ["CATEGORY"],
+    "where": {
+        "CATEGORY": {
+            "$relation": {"type": "HAS_CHILD", "direction": "in", "hops": {"min": 1, "max": 4}},
+            "name": "Electronics"
+        }
+    }
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -s -X POST "$BASE/records/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "labels": ["CATEGORY"],
+    "where": {
+      "CATEGORY": {
+        "$relation": {"type": "HAS_CHILD", "direction": "in", "hops": {"min": 1, "max": 4}},
+        "name": "Electronics"
+      }
+    }
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+How `hops` behaves:
+
+- `hops: 3` matches exactly 3 hops; `hops: { min, max }` matches a range (`min` defaults to `1`).
+- `type` and `direction` constrain **every hop**; the nested label and its criteria constrain only the **endpoint** record. Intermediate records are anonymous and unconstrained.
+- `hops.max` is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 25). Omitting `max` requests unbounded traversal, which is only allowed on self-hosted deployments and projects with a custom Neo4j instance.
+
+Keep manual nesting when levels carry different labels, or when you need to alias or filter intermediate levels — `hops` cannot express per-level criteria.
+
 ---
 
 ## Shape 2: Many-to-many networks
@@ -416,7 +484,7 @@ graph LR
   PKG_C -->|DEPENDS_ON| PKG_D
 ```
 
-SearchQuery does not expose arbitrary-depth recursive traversal. Instead, scope multi-hop traversal explicitly to the depth your product requires. For blast-radius analysis (which packages are affected if `crypto-utils` has a CVE?), traverse up to a known safe depth.
+SearchQuery supports variable-length traversal natively: add [`hops` to `$relation`](/learn/search-query/where-operators#variable-length-traversal-hops) to follow a relationship pattern up to N hops in a single block. Traversal depth is bounded by a per-deployment cap (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 25); truly unbounded traversal (omitting `max`) is available only on self-hosted deployments and projects with a custom Neo4j instance. Explicitly scoping traversal to the depth your product requires remains good practice — for blast-radius analysis (which packages are affected if `crypto-utils` has a CVE?), traverse up to a known safe depth.
 
 ### Ingesting the dependency graph
 
@@ -587,15 +655,160 @@ curl -s -X POST "$BASE/records/search" \
 </TabItem>
 </Tabs>
 
+Manual nesting like this is still useful when you want to name and select the intermediate package (`via: '$mid.name'`). But when you only need the affected set, one variable-length block replaces the whole ladder.
+
+### Cyclic query: N-hop blast radius with `hops`
+
+All packages that depend on `crypto-utils` directly or transitively, up to 4 hops, in a single query:
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const blastRadius = await db.records.find({
+  labels: ['PACKAGE'],
+  where: {
+    PACKAGE: {
+      $relation: { type: 'DEPENDS_ON', direction: 'out', hops: { min: 1, max: 4 } },
+      name: 'crypto-utils'
+    }
+  },
+  select: {
+    packageName: '$record.name',
+    version: '$record.version'
+  }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+blast_radius = db.records.find({
+    "labels": ["PACKAGE"],
+    "where": {
+        "PACKAGE": {
+            "$relation": {"type": "DEPENDS_ON", "direction": "out", "hops": {"min": 1, "max": 4}},
+            "name": "crypto-utils"
+        }
+    },
+    "select": {
+        "packageName": "$record.name",
+        "version": "$record.version"
+    }
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -s -X POST "$BASE/records/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "labels": ["PACKAGE"],
+    "where": {
+      "PACKAGE": {
+        "$relation": {"type": "DEPENDS_ON", "direction": "out", "hops": {"min": 1, "max": 4}},
+        "name": "crypto-utils"
+      }
+    },
+    "select": {"packageName": "$record.name", "version": "$record.version"}
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+`type` and `direction` apply to every hop, so this only walks `DEPENDS_ON` edges in the dependency direction. The `name: 'crypto-utils'` criterion filters the endpoint of the path — intermediate packages stay anonymous.
+
+One caveat when aggregating over multihop matches: the traversal produces one row per _path_. `$count` and `$collect` deduplicate by default, but `$sum`/`$avg` over a multihop alias will count an endpoint once per path leading to it.
+
+### Cyclic query: detecting circular dependencies with `$cycle`
+
+Cyclic graphs raise a question tree-shaped data never does: does anything depend on itself, directly or transitively? [`$cycle: true`](/learn/search-query/where-operators#cycle-detection-cycle) finds records that sit on a closed path back to themselves:
+
+<Tabs groupId="programming-language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript
+const cyclicPackages = await db.records.find({
+  labels: ['PACKAGE'],
+  where: {
+    DEPENDENCY_CYCLE: {
+      // Display name — NOT matched as a label
+      $cycle: true,
+      $relation: { type: 'DEPENDS_ON', direction: 'out', hops: { min: 2, max: 6 } }
+    }
+  }
+})
+
+// The inverse: packages guaranteed NOT to be on a dependency cycle
+const acyclicPackages = await db.records.find({
+  labels: ['PACKAGE'],
+  where: {
+    $not: {
+      DEPENDENCY_CYCLE: {
+        $cycle: true,
+        $relation: { type: 'DEPENDS_ON', direction: 'out', hops: { min: 2, max: 6 } }
+      }
+    }
+  }
+})
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+cyclic_packages = db.records.find({
+    "labels": ["PACKAGE"],
+    "where": {
+        "DEPENDENCY_CYCLE": {
+            "$cycle": True,
+            "$relation": {"type": "DEPENDS_ON", "direction": "out", "hops": {"min": 2, "max": 6}}
+        }
+    }
+})
+```
+
+</TabItem>
+<TabItem value="shell" label="Shell">
+
+```bash
+curl -s -X POST "$BASE/records/search" \
+  -H "$H" -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "labels": ["PACKAGE"],
+    "where": {
+      "DEPENDENCY_CYCLE": {
+        "$cycle": true,
+        "$relation": {"type": "DEPENDS_ON", "direction": "out", "hops": {"min": 2, "max": 6}}
+      }
+    }
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+`$cycle` rules:
+
+- The block requires `$relation` with `hops` (`min` ≥ 2, and it defaults to 2 — a 1-hop "cycle" would be a self-loop) and accepts **nothing else**: no `$alias`, no property criteria, no nested labels. Both ends of the path are the root record, so filter the root instead.
+- The block's key (`DEPENDENCY_CYCLE` here) is a display name, not a label — it just needs to be unique among its siblings.
+- `direction: 'out'` matters: it makes the query mean "A depends on B depends on … depends on A". An undirected cycle would also match harmless mutual pairs.
+- Trail semantics apply: each relationship is used once per path, but records may repeat — figure-eight shapes count as cycles.
+- The query returns cycle **participants**, not the rings themselves. To reconstruct which packages form a specific cycle, walk outward from a participant with bounded one-hop queries.
+
 ---
 
 ## Comparison of the three shapes
 
-| Shape        | Key property                               | Query pattern                    | Ambush                                |
-| ------------ | ------------------------------------------ | -------------------------------- | ------------------------------------- |
-| Tree         | Single parent per node                     | Top-down with full-path select   | Deep trees require explicit hop count |
-| Many-to-many | Nodes can appear in multiple relationships | Aggregation by relationship type | Fan-out can be large without limit    |
-| Cyclic       | Loops are possible                         | Explicit depth bounds            | Unbounded traversal is not supported  |
+| Shape        | Key property                               | Query pattern                                                    | Ambush                                                                  |
+| ------------ | ------------------------------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Tree         | Single parent per node                     | Nested blocks for mixed-label paths; `hops` for same-label depth | Per-level filters/aliases need manual nesting — `hops` skips the middle |
+| Many-to-many | Nodes can appear in multiple relationships | Aggregation by relationship type                                 | Fan-out can be large without limit                                      |
+| Cyclic       | Loops are possible                         | `hops` for blast radius, `$cycle` for loop detection             | `hops.max` is capped per deployment (default 25); keep it small anyway  |
 
 ---
 
@@ -603,12 +816,15 @@ curl -s -X POST "$BASE/records/search" \
 
 Each shape has a fan-out risk. In trees, deep hierarchies multiply candidates at every hop. In networks, highly-connected hubs (an author with 200 papers) inflate traversal cost. In cyclic graphs, even a two-hop traversal can cover thousands of paths in large dependency graphs.
 
+Variable-length traversal explores every matching path, so treat `hops.max` as a budget: keep it as small as your use case allows, and always set `type` and `direction` — an undirected, untyped `hops` query is the most expensive shape. `hops.max` is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 25); unbounded traversal is only available on self-hosted deployments and custom Neo4j instances, bounded there by the transaction timeout.
+
 Apply `limit` conservatively and filter early on high-selectivity properties (e.g. `name`, `status`, `version`). Measure response times before and after adding hops to your query.
 
 ---
 
 ## Next steps
 
+- [Detecting Fraud Rings](/learn/tutorials/graph-modeling/fraud-rings) — `$cycle` and `hops` applied to money-laundering circle detection
 - [Choosing Relationship Types That Age Well](/learn/tutorials/graph-modeling/choosing-relationship-types) — when generic vs. typed edges matter
 - [Temporal Graphs: Modeling State and Event Time Together](/learn/tutorials/graph-modeling/temporal-graphs) — adding time dimension to any of these shapes
 - [SearchQuery Deep Dive](/learn/tutorials/search-and-queries/searchquery-advanced-patterns) — `$relation`, `$alias`, and `collect` patterns

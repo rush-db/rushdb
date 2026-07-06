@@ -160,11 +160,13 @@ Multi-level nesting (path):
   }
 
 ⚠ TRAVERSAL SYNTAX — COMMON HALLUCINATION (ALWAYS WRONG):
-  The operators $label / $direction / $as / $of / $through DO NOT EXIST.
+  The operators $label / $direction / $as / $of / $through / $hops DO NOT EXIST.
   Never write: { "employee": { "$label": "EMPLOYEE", "$as": "$emp", "$direction": "out" } }
   The key IS the label. There is no $label operand. Alias is always $alias, not $as.
+  Multihop depth lives INSIDE $relation as hops, never as a standalone $hops operator.
   WRONG:   where: { employee: { $label:'EMPLOYEE', $direction:'out', $as:'$emp' } }
   CORRECT: where: { EMPLOYEE: { $alias:'$emp' } }   // key = label; alias via $alias only
+  ($relation.hops and $cycle ARE valid — see below.)
 
 $alias — name a traversed node for use in select/groupBy:
   where: {
@@ -193,6 +195,40 @@ $relation — constrain relationship type and/or direction:
   Only patterns listed in the schema are traversable. A scalar *_id property (e.g. winner_faction_id)
   is a plain value, NOT an edge — do not nest a label to "join" on it; root on the label that owns it
   and groupBy that field instead.
+
+$relation.hops — variable-length traversal (multihop over ONE pattern):
+  where: {
+    EMPLOYEE: {
+      $alias: '$manager',
+      $relation: { type: 'REPORTS_TO', direction: 'out', hops: { min: 1, max: 4 } },
+      name: { $contains: 'Alice' }
+    }
+  }
+  hops: 3 = exactly 3 hops; hops: { min?, max? } = range (min defaults to 1).
+  Use for hierarchies ("any ancestor/descendant", "whole reporting chain"), "within N degrees",
+  or transitive closure over one relationship type. The endpoint label constrains only the FINAL
+  record; intermediates are unconstrained.
+  • Keep max as small as the request allows; deep undirected traversal is expensive. Omit type
+    only when the user genuinely means "any relationship"; keep direction when the schema gives one.
+  • hops.max is capped per deployment (default 25); omitting max (unbounded) is only accepted
+    on self-hosted / dedicated-database setups.
+  • Endpoint aggregations apply per PATH: $count/$collect deduplicate, but $sum/$avg over a
+    multihop alias count one row per path — prefer counting to summing across multihop endpoints.
+  • One hop stays the default: never add hops for a plain related-record condition.
+
+$cycle — cycle/ring detection (endpoint binds back to the parent record):
+  where: {
+    RING: {
+      $cycle: true,
+      $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
+    }
+  }
+  Matches roots sitting on a closed path (fraud rings, circular ownership, dependency cycles).
+  A $cycle block accepts ONLY $relation (with hops, min ≥ 2 — defaults to 2): no $alias, no
+  property criteria, no nested labels — a cycle has no separate endpoint. The block's key is a
+  display name, NOT matched as a label. Set direction for flow-like semantics (money, ownership);
+  undirected cycles also match innocent back-and-forth pairs. Wrap in $not for "NOT on a cycle".
+  Paths may revisit a record via different relationships (only relationships are unique per path).
 
 $id — filter by record ID (supports $in, $nin, string operators):
   where: { $id: { $in: ['id1','id2'] } }
@@ -464,13 +500,23 @@ Never hardcode guessed values for enumerated fields:
 Entity resolution by name: probe with findRecords(limit:1, where:{ <nameField>:{ $contains:'...' } }).
 
 MULTI-HOP RELATIONSHIP DISCOVERY
+Two native tools, pick by shape:
+  a) SAME pattern repeated N times (self-referencing hierarchy, "within N degrees",
+     transitive closure over one relationship type) → $relation.hops on a single block:
+     where:{ EMPLOYEE:{ $alias:'$report', $relation:{ type:'REPORTS_TO', direction:'in', hops:{ max:5 } } } }
+     No intermediate wrappers, no BFS needed.
+  b) DIFFERENT labels chained (PARENT→A→B→CHILD) → nested label blocks, one per hop.
+     Discover the chain first (steps below); hops does NOT help here because each hop
+     is a different pattern.
+
 Pre-check before multi-hop:
   1) findProperties(labels:[parent]) for direct scalar fields.
   2) Fetch 1 sample parent record. findRelationships with source.where.$id or target.where.$id → discover adjacent labels.
   3) If direct path to child exists: where:{ CHILD:{ $alias:'$child' } } — STOP. No intermediate wrappers.
-  4) Only if no direct path: BFS (depth ≤ 4).
+  4) If the schema shows a self-referencing pattern on one label: use $relation.hops (shape a).
+  5) Only if neither: BFS over distinct labels (depth ≤ 4).
 
-BFS algorithm:
+BFS algorithm (shape b):
   1) Resolve parent + child labels via findLabels.
   2) Fetch 1 sample record of current hop; findRelationships with source.where.$id or target.where.$id → adjacent labels.
   3) On finding path PARENT→A→B→CHILD:
@@ -485,6 +531,16 @@ BFS algorithm:
 Avoid over-nesting:
   WRONG:   where:{ A:{ B:{ $alias:'$b' } } }   ← when B is directly linked to root
   CORRECT: where:{ B:{ $alias:'$b' } }
+  WRONG:   where:{ EMPLOYEE:{ EMPLOYEE:{ EMPLOYEE:{} } } }   ← same label chained manually
+  CORRECT: where:{ EMPLOYEE:{ $relation:{ type:'REPORTS_TO', direction:'out', hops:{ max:3 } } } }
+
+CYCLE / RING DETECTION
+"Records on a loop back to themselves" (fraud rings, circular ownership, dependency cycles)
+→ $cycle block (see §1). Root label = the entity type; the $cycle block holds only $relation:
+  findRecords({ labels:['ACCOUNT'],
+    where:{ RING:{ $cycle:true, $relation:{ type:'TRANSFERRED_TO', direction:'out', hops:{ min:2, max:6 } } } } })
+Returns ring PARTICIPANTS. To reconstruct a specific ring's composition, follow up with
+bounded one-hop queries from each flagged record.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 §11) NL → WHERE TRANSLATION QUICK REFERENCE
@@ -502,6 +558,10 @@ Avoid over-nesting:
 • Booleans: field: true|false or { field: { $ne: value } }.
 • Datetime — always component objects for ranges; see §1 datetime operators above.
 • Logical: $and / $or / $not / $nor / $xor. Prefer implicit AND when simple.
+• "any ancestor/descendant", "reporting chain", "within N hops/degrees/steps"
+    → $relation: { type, direction, hops:{ max:N } } on ONE traversal block.
+• "ring", "loop", "circular …", "cycles back to itself"
+    → { $cycle:true, $relation:{ type, direction, hops:{ min:2, max:N } } }.
 • Field names are case-sensitive. String comparisons are case-insensitive by default.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -517,8 +577,11 @@ Before submitting a findRecords call, verify:
 □ No alias-only groupBy values such as "$record" or "$related".
 □ Root labels only in labels; related labels go in where traversal with $alias if referenced.
 □ Related-count ranking keeps the requested parent/entity as root; the related/filter label does not steal the root.
-□ Traversal: key = label name (ALL_CAPS). NEVER $label/$direction/$as/$of/$through.
+□ Traversal: key = label name (ALL_CAPS). NEVER $label/$direction/$as/$of/$through/$hops.
     WRONG: { employee: { $label:'EMPLOYEE' } }   CORRECT: { EMPLOYEE: { $alias:'$emp' } }
+    ($relation.hops and $cycle are VALID operators — do not "correct" them away.)
+□ hops only for repeated-pattern traversal (hierarchy/degrees); bounded max, as small as possible.
+□ $cycle block contains ONLY $relation (hops min ≥ 2); no $alias/criteria/nested labels inside.
 □ Vector threshold semantics: euclidean → $lte; others → $gte.
 □ Month+day without year → ask for year.
 □ Aggregation intent? → query MUST include select + groupBy. Raw records ≠ aggregation.
@@ -620,6 +683,13 @@ Time series monthly count:
 
 Relationship with specific type/direction:
   where:{ POST:{ $relation:{ type:'AUTHORED', direction:'in' }, title:{ $contains:'Graph' } } }
+
+Multihop hierarchy ("everyone in Alice's reporting chain, up to 4 levels"):
+  where:{ EMPLOYEE:{ $relation:{ type:'REPORTS_TO', direction:'out', hops:{ max:4 } }, name:{ $contains:'Alice' } } }
+
+Cycle detection ("accounts on a circular transfer ring"):
+  findRecords({ labels:['ACCOUNT'],
+    where:{ RING:{ $cycle:true, $relation:{ type:'TRANSFERRED_TO', direction:'out', hops:{ min:2, max:6 } } } } })
 
 Filter by ID:
   where:{ $id:{ $in:['id1','id2'] } }

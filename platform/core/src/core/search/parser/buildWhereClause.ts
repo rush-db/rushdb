@@ -4,7 +4,7 @@ import { toBoolean } from '@/common/utils/toBolean'
 import { ROOT_RECORD_ALIAS } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
 import { ParseContext } from '@/core/search/parser/types'
-import { splitCriteria, wrapInParentheses } from '@/core/search/parser/utils'
+import { splitCriteria, traversalRelsVar, wrapInParentheses } from '@/core/search/parser/utils'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
 const parseCurrentLevel = (input: Where, options?: TSearchQueryBuilderOptions, ctx?: ParseContext) => {
@@ -151,9 +151,16 @@ const parseCurrentLevel = (input: Where, options?: TSearchQueryBuilderOptions, c
 }
 
 const parseSubQuery = (input: any, options?: TSearchQueryBuilderOptions, ctx?: ParseContext) => {
-  const { $relation, $alias, ...other } = input as any
+  const { $relation, $alias, $cycle, ...other } = input as any
 
   ctx.level += 1
+
+  if (toBoolean($cycle)) {
+    // Cycle blocks bind no endpoint node — existence is carried by the rel-list
+    // variable. No recursion: Pass 1 rejects children, so level lockstep holds.
+    return `${traversalRelsVar(ctx.level)} IS NOT NULL`
+  }
+
   const nodeAlias = ROOT_RECORD_ALIAS + ctx.level
 
   const result = parseCurrentLevel(other, options, ctx)

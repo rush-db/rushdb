@@ -245,6 +245,7 @@ const sidebars: SidebarsConfig = {
                 'learn/tutorials/graph-modeling/thinking-in-graphs',
                 'learn/tutorials/graph-modeling/choosing-relationship-types',
                 'learn/tutorials/graph-modeling/modeling-hierarchies',
+                'learn/tutorials/graph-modeling/fraud-rings',
                 'learn/tutorials/graph-modeling/temporal-graphs',
                 'learn/tutorials/graph-modeling/data-lineage',
                 'learn/tutorials/graph-modeling/versioning-records',

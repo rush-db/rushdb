@@ -706,7 +706,7 @@ export const tools: Tool[] = (
               'Filter conditions. Field names must match exactly what findProperties/getSchemaMarkdown returns. ' +
               'Exact match can be field: value or field: { $eq: value }. ' +
               'For incomplete named references, prefer $contains on display fields instead of exact equality. ' +
-              'For the complete operator reference (string/number/boolean/datetime/vector/$eq/$exists/$type/logical/$alias/$relation/$id) call getSearchQuerySpec.'
+              'For the complete operator reference (string/number/boolean/datetime/vector/$eq/$exists/$type/logical/$alias/$relation incl. multihop hops/$cycle/$id) call getSearchQuerySpec.'
           },
           limit: {
             type: 'number',
@@ -1076,7 +1076,7 @@ export const tools: Tool[] = (
       description:
         'Returns the complete RushDB SearchQuery specification as a focused reference document. ' +
         'Covers: all WHERE operators (string/number/boolean/datetime component objects/vector/$exists/$type), ' +
-        'relationship traversal syntax ($alias/$relation/$id), logical grouping ($and/$or/$not/$nor/$xor), ' +
+        'relationship traversal syntax ($alias/$relation with variable-length hops/$cycle ring detection/$id), logical grouping ($and/$or/$not/$nor/$xor), ' +
         'all select functions ($sum/$avg/$min/$max/$count/$collect/$timeBucket), both groupBy modes (dimensional + self-group), ' +
         'late-ordering rules, root-label vs related-label traversal rules, COLLECT nesting, limit rules by query mode, multi-hop path discovery, ' +
         'enum normalization, validation checklist, and annotated query examples. ' +

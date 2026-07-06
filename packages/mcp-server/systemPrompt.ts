@@ -75,7 +75,9 @@ STEP 3 — BUILD
     - findLabels.where and findProperties.where filter Records before returning labels/properties.
   The traversal key in where IS the label name (UPPER_CASE). Alias is $alias only.
   Use $relation on a related-label block to constrain edge type/direction (for example: POST: { $relation: { type: 'AUTHORED', direction: 'in' } }).
-  Operators $label / $direction / $as / $of / $through do not exist — never use them.
+  For multihop over one pattern (hierarchies, "within N degrees") add hops inside $relation (for example: EMPLOYEE: { $relation: { type: 'REPORTS_TO', direction: 'out', hops: { max: 4 } } }).
+  For rings/loops/circular flows use a $cycle block holding only $relation with hops (min 2+) (for example: RING: { $cycle: true, $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } } }).
+  Operators $label / $direction / $as / $of / $through / $hops do not exist — never use them; multihop depth is always $relation.hops.
 ` as const
 
 export default SYSTEM_PROMPT

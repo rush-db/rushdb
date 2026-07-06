@@ -225,7 +225,49 @@ Use `$relation` only to constrain relationship type or direction when the user e
 
 Each Relationships row in `schemaMarkdown` is a directed pattern rooted at that label: `(SELF)-[:TYPE]->(OTHER)` is outgoing and `(SELF)<-[:TYPE]-(OTHER)` is incoming. To traverse, nest `OTHER` as a label key under `where` (add `$alias` if it is referenced in `select`/`groupBy`); to pin the edge set `$relation: { "type": "TYPE", "direction": ... }` with `"out"` for `->` and `"in"` for `<-`. Only patterns shown in the schema are traversable — a scalar `*_id` property is a plain value, not an edge, so never nest a label to "join" on it.
 
-Never use `$label`, `$direction`, `$as`, `$of`, or `$through`.
+### Variable-Length Traversal (`hops`)
+
+Add `hops` to `$relation` when the user asks about reachability across more than one hop of the **same pattern** — hierarchies ("any ancestor/descendant", "the whole reporting chain"), "within N degrees/steps", or transitive closure over one relationship type. `hops` is a number (exactly that many hops) or `{ "min": …, "max": … }` (range; `min` defaults to 1). The endpoint label constrains only the **final** record; intermediate records are unconstrained.
+
+```json
+{
+  "labels": ["EMPLOYEE"],
+  "where": {
+    "EMPLOYEE": {
+      "$alias": "$manager",
+      "$relation": { "type": "REPORTS_TO", "direction": "out", "hops": { "min": 1, "max": 4 } },
+      "name": { "$contains": "Alice" }
+    }
+  }
+}
+```
+
+Rules:
+
+- Keep `max` as small as the request allows; deep undirected traversal is expensive. Omit `type` only when the user genuinely means "any relationship" — and keep `direction` if the schema gives one, since it prunes the search.
+- `hops.max` is capped per deployment (default 25); omitting `max` (unbounded) is only accepted on self-hosted/dedicated database setups.
+- Filters and aggregations on the endpoint (`$alias` + `select`) apply per **path**: `$count`/`$collect` deduplicate, but `$sum`/`$avg` over a multihop alias count one row per path — prefer counting to summing across multihop endpoints.
+- One hop is still the default: never add `hops` for a plain related-record condition.
+
+### Cycle Detection (`$cycle`)
+
+Use `$cycle: true` when the user asks for rings, loops, circular flows, or records that "come back to themselves" (fraud rings, circular ownership, dependency cycles). The traversal block's endpoint binds back to the parent record itself, so the block accepts **only** `$relation` (with `hops`, `min` ≥ 2 — defaults to 2). No `$alias`, no property criteria, no nested labels inside a `$cycle` block; the block's key is a display name and is not matched as a label.
+
+```json
+{
+  "labels": ["ACCOUNT"],
+  "where": {
+    "RING": {
+      "$cycle": true,
+      "$relation": { "type": "TRANSFERRED_TO", "direction": "out", "hops": { "min": 2, "max": 6 } }
+    }
+  }
+}
+```
+
+This returns every ACCOUNT sitting on a directed transfer ring of 2–6 hops. Set `direction` for flow-like semantics (money, ownership); an undirected cycle also matches innocent back-and-forth pairs. Wrap in `$not` to express "records NOT on a cycle". Paths may revisit a record through different relationships (only relationships are unique per path).
+
+Never use `$label`, `$direction`, `$as`, `$of`, `$through`, or `$hops` (hops lives inside `$relation`).
 
 ### Related-Count Ranking
 

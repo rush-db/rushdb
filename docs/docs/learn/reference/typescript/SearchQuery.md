@@ -385,9 +385,16 @@ export type Related<M extends Record<string, Model['schema']> = Models> =
   : {
       [Key in keyof M]?: {
         $alias?: string
-        $relation?: RelationOptions | string
+        $relation?: TraversalRelationOptions | string
+        $cycle?: boolean
       } & Where<M[Key]>
     }
+
+export type TraversalHops = number | { min?: number; max?: number }
+
+export type TraversalRelationOptions = RelationOptions & {
+  hops?: TraversalHops
+}
 ```
 
 Defines conditions on related records. The key of the nested object **is** the label name (case-sensitive). Use `$alias` to name the traversal for later use in `select`/`groupBy`, and `$relation` to constrain the relationship type or direction:
@@ -413,6 +420,38 @@ Defines conditions on related records. The key of the nested object **is** the l
   }
 }
 ```
+
+`hops` turns the traversal into a variable-length one: a number means exactly N hops, `{ min?, max? }` a range (`min` defaults to `1`). `type` and `direction` apply to every hop; property criteria and the nested label constrain only the final record — intermediates are anonymous. `max` is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 25); omitting it requests unbounded traversal, allowed only on self-hosted deployments or projects with a custom Neo4j instance:
+
+```typescript
+// Employees whose management chain (1–4 hops) contains Alice
+{
+  labels: ['EMPLOYEE'],
+  where: {
+    EMPLOYEE: {
+      $relation: { type: 'REPORTS_TO', direction: 'out', hops: { min: 1, max: 4 } },
+      name: { $contains: 'Alice' }
+    }
+  }
+}
+```
+
+`$cycle: true` matches records that sit on a closed path back to themselves. It requires an object `$relation` with `hops` (`min` ≥ 2, defaults to 2) and accepts nothing else — no `$alias`, no property criteria, no nested labels. The block's key is a display name, not matched as a label:
+
+```typescript
+// Accounts on a directed transfer ring of 2–6 hops
+{
+  labels: ['ACCOUNT'],
+  where: {
+    RING: {
+      $cycle: true,
+      $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
+    }
+  }
+}
+```
+
+See [Variable-Length Traversal and Cycle Detection](/learn/search-query/where-operators#variable-length-traversal-hops) for full semantics.
 
 Learn more about [relationships in RushDB](/learn/relationships).
 
@@ -607,6 +646,17 @@ const users = await UserModel.find({
     POST: {
       $relation: { type: 'AUTHORED', direction: 'in' },
       title: { $contains: 'Graph' }
+    }
+  }
+})
+
+// Variable-length traversal — employees up to 4 hops down a reporting chain
+const reports = await db.records.find({
+  labels: ['EMPLOYEE'],
+  where: {
+    EMPLOYEE: {
+      $relation: { type: 'REPORTS_TO', direction: 'in', hops: { min: 1, max: 4 } },
+      active: true
     }
   }
 })

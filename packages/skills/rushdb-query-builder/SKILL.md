@@ -224,13 +224,19 @@ where: { DEPARTMENT: { $alias: "$dept", budget: { $gte: 50000 } } }
 
 // Constrain relationship type or direction:
 where: { POST: { $relation: { type: "AUTHORED", direction: "in" } } }
+
+// Multihop over one pattern (hierarchies, "within N degrees") — hops inside $relation:
+where: { EMPLOYEE: { $relation: { type: "REPORTS_TO", direction: "out", hops: { max: 4 } } } }
+
+// Cycle/ring detection (fraud rings, circular ownership) — $cycle block holds only $relation:
+where: { RING: { $cycle: true, $relation: { type: "TRANSFERRED_TO", direction: "out", hops: { min: 2, max: 6 } } } }
 ```
 
 Each Relationships row in the schema is a directed pattern rooted at that label: `(SELF)-[:TYPE]->(OTHER)` is outgoing, `(SELF)<-[:TYPE]-(OTHER)` is incoming. To pin the edge, set `$relation: { type: "TYPE", direction }` — `"out"` for `->`, `"in"` for `<-`. Only patterns shown in the schema are traversable; a scalar `*_id` property is a plain value, not an edge — never nest a label to "join" on it (root on the owning label and `groupBy` it instead).
 
 **Common mistakes to avoid:**
 
-- `$label`, `$direction`, `$as`, `$of`, `$through` — **these do not exist**
+- `$label`, `$direction`, `$as`, `$of`, `$through`, `$hops` — **these do not exist** (multihop depth is `$relation.hops`; `$relation.hops` and `$cycle` ARE valid)
 - `{ employee: { $label: "EMPLOYEE" } }` — **WRONG**: key must be the label name
 - `{ EMPLOYEE: { $alias: "$emp" } }` — **CORRECT**
 - `labels: ["PARENT", "CHILD"]` for a parent-child metric — **WRONG**: keep `labels: ["PARENT"]`, put `CHILD` in `where`
