@@ -88,7 +88,7 @@ const memories = await db.ai.search({
 // Push nested JSON — relationships created automatically
 await db.records.importJson({
   label: 'COMPANY',
-  payload: {
+  data: {
     name: 'Acme Corp',
     DEPARTMENT: [
       {
