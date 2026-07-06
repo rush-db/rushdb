@@ -7,3 +7,9 @@ export class QueryCriteriaParsingError extends BadRequestException {
     )
   }
 }
+
+export class TraversalQueryError extends BadRequestException {
+  constructor(message: string) {
+    super(message)
+  }
+}

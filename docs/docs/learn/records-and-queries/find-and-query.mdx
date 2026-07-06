@@ -320,6 +320,70 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
   </TabItem>
 </Tabs>
 
+### Multi-hop and cycles
+
+Add `hops` to `$relation` to traverse a variable number of hops (`type`/`direction` apply to every hop; criteria filter only the final record), and `$cycle: true` to find records on a closed path back to themselves:
+
+<Tabs groupId="programming-language">
+  <TabItem value="python" label="Python" default>
+
+```python
+# Employees up to 4 hops down Alice's reporting chain
+result = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {
+        "EMPLOYEE": {
+            "$relation": {"type": "REPORTS_TO", "direction": "in", "hops": {"min": 1, "max": 4}},
+            "name": "Alice"
+        }
+    }
+})
+
+# Accounts on a directed transfer ring of 2-6 hops
+result = db.records.find({
+    "labels": ["ACCOUNT"],
+    "where": {
+        "RING": {  # display name, not matched as a label
+            "$cycle": True,
+            "$relation": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
+        }
+    }
+})
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```typescript
+// Employees up to 4 hops down Alice's reporting chain
+const { data } = await db.records.find({
+  labels: ['EMPLOYEE'],
+  where: {
+    EMPLOYEE: {
+      $relation: { type: 'REPORTS_TO', direction: 'in', hops: { min: 1, max: 4 } },
+      name: 'Alice'
+    }
+  }
+})
+
+// Accounts on a directed transfer ring of 2-6 hops
+const { data: rings } = await db.records.find({
+  labels: ['ACCOUNT'],
+  where: {
+    RING: {
+      // display name, not matched as a label
+      $cycle: true,
+      $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
+    }
+  }
+})
+```
+
+  </TabItem>
+</Tabs>
+
+Full semantics — hop caps, untyped traversal, aggregation caveats: [Where Operators](/learn/search-query/where-operators#variable-length-traversal-hops)
+
 ---
 
 ## Select Expressions & Aggregations

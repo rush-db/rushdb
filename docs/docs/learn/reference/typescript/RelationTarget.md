@@ -68,6 +68,18 @@ export type RelationOptions = {
 
 Options for creating a relationship.
 
+### TraversalRelationOptions
+
+```typescript
+export type TraversalHops = number | { min?: number; max?: number }
+
+export type TraversalRelationOptions = RelationOptions & {
+  hops?: TraversalHops
+}
+```
+
+Used by the `$relation` operator in [SearchQuery](/learn/reference/typescript/SearchQuery) `where` traversals — not by attach/detach. `hops` enables variable-length traversal: a number means exactly N hops, `{ min?, max? }` a range (`min` defaults to `1`). See [Variable-Length Traversal](/learn/search-query/where-operators#variable-length-traversal-hops).
+
 ### RelationDetachOptions
 
 ```typescript

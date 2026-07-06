@@ -15,7 +15,7 @@ LIMITS
 • For self-group and dimensional groupBy: omit limit (unless asking for "top N").
 • labels contains root records only. Put related labels inside where traversal blocks, not beside the root in labels.
 • groupBy never accepts alias-only values such as "$record" or "$related"; use "$record.name" / "$related.status" or a select key.
-• Default to $contains on a likely display field for any user-typed named reference, on root and related labels alike; use exact equality only for IDs or explicit exact-match requests, and confirm canonical values via discovery rather than guessing.
+• Default to $contains on the label's display property resolved from schema discovery (often name or title — never assume one exists) for any user-typed named reference, on root and related labels alike; use exact equality only for IDs or explicit exact-match requests, and confirm canonical values via discovery rather than guessing.
 • Related-count rankings keep the requested parent/entity as root: most/more/highest → order count desc; least/less/fewer/fewest/lowest → order count asc.
 
 --------------------------------------------------
@@ -66,16 +66,18 @@ STEP 2 — QUERY SPEC (when building a non-trivial query)
 STEP 3 — BUILD
   Use only label and field names from discovery. Labels are case-sensitive.
   For "top N records by scalar field on the same label", use orderBy + limit, not select.
-  For "which parent has most/more/least/less/fewer/fewest related children", root the parent label, traverse child in where with $alias, count the child alias, group by a parent display field, and order desc for most/more or asc for least/less/fewer.
+  For "which parent has most/more/least/less/fewer/fewest related children", root the parent label, traverse child in where with $alias, count the child alias, group by the parent's display property from the schema, and order desc for most/more or asc for least/less/fewer.
   Do not let a related/filter label become root for related-count rankings when a valid parent→related traversal path exists.
-  Keep ambiguous named-reference filters loose with $contains on a likely display field such as name/title.
+  Keep ambiguous named-reference filters loose with $contains on the display property discovery shows for that label.
   Resource-local where rule:
     - findRecords.where filters Records.
     - findRelationships.where filters relationship edges; use source/target for endpoint Records.
     - findLabels.where and findProperties.where filter Records before returning labels/properties.
-  The traversal key in where IS the label name (UPPER_CASE). Alias is $alias only.
-  Use $relation on a related-label block to constrain edge type/direction (for example: POST: { $relation: { type: 'AUTHORED', direction: 'in' } }).
-  Operators $label / $direction / $as / $of / $through do not exist — never use them.
+  The traversal key in where IS a label copied exactly as spelled in the schema (labels are case-sensitive and may be any case — never change a label's case). Alias is $alias only.
+  Use $relation on a related-label block to constrain edge type/direction (for example: POST: { $relation: { type: 'AUTHORED', direction: 'in' } }). Copy type verbatim from a schema Relationships row or omit it — data imported as nested JSON has only __RUSHDB__RELATION__DEFAULT__ edges, and untyped traversal is valid.
+  For multihop over one pattern (hierarchies, "within N degrees") add hops inside $relation (for example: EMPLOYEE: { $relation: { type: 'REPORTS_TO', direction: 'out', hops: { max: 4 } } }).
+  For rings/loops/circular flows use a $cycle block holding only $relation with hops (min 2+) (for example: RING: { $cycle: true, $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } } }).
+  Operators $label / $direction / $as / $of / $through / $hops do not exist — never use them; multihop depth is always $relation.hops.
 ` as const
 
 export default SYSTEM_PROMPT

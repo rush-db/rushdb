@@ -12,6 +12,7 @@ import { parseSubQuery } from '@/core/search/parser/parseSubQuery'
 import { processCriteria } from '@/core/search/parser/processCriteria'
 import { ParseContext } from '@/core/search/parser/types'
 import { splitCriteria, wrapInParentheses } from '@/core/search/parser/utils'
+import { resolveMaxTraversalHops } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions, TSearchSort } from '@/core/search/search.types'
 
 export const buildLabelsClause = (labels?: string[]): string => {
@@ -73,6 +74,8 @@ export const parseWhereClause = (
   input: Where,
   options: TSearchQueryBuilderOptions = { nodeAlias: ROOT_RECORD_ALIAS }
 ) => {
+  options.maxHops ??= resolveMaxTraversalHops()
+
   const normalizedInput = processCriteria(input)
 
   const nodeAliases = [options.nodeAlias]

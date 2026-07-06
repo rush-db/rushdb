@@ -12,11 +12,16 @@ import { TSearchSort } from '@/core/search/search.types'
 import {
   RELATION_CLAUSE_OPERATOR,
   ALIAS_CLAUSE_OPERATOR,
+  CYCLE_CLAUSE_OPERATOR,
   ID_CLAUSE_OPERATOR,
   SORT_ASC
 } from '../search.constants'
 
 export const wrapInParentheses = (input: string) => `(${input})`
+
+// Deterministic across both parser passes (parseSubQuery and buildWhereClause walk
+// the tree independently but increment ctx.level in lockstep).
+export const traversalRelsVar = (level: number) => `rels${level}`
 
 export const wrapInCurlyBraces = (input: string) => `{${input}}`
 
@@ -33,6 +38,8 @@ export const isSubQuery = (input: Where) => {
       RELATION_CLAUSE_OPERATOR in input ||
       // has `$alias` in a query object behind property
       ALIAS_CLAUSE_OPERATOR in input ||
+      // has `$cycle` in a query object behind property
+      CYCLE_CLAUSE_OPERATOR in input ||
       // Input object is current level criteria (like date-related operators or comparison)
       !isPropertyCriteria(input) ||
       !containsAllowedKeys(input, allowedKeys)

@@ -12,12 +12,35 @@ import type {
 import type { Schema } from './schema.js'
 import type { AnyObject, MaybeArray, RequireAtLeastOne } from './utils.js'
 
+/**
+ * Variable-length traversal depth for `$relation.hops`.
+ * A number matches exactly that many hops; `{ min?, max? }` matches a range
+ * (`min` defaults to 1, or 2 inside a `$cycle` block). Omitting `max` requests
+ * unbounded traversal, which is only allowed on self-hosted deployments and
+ * projects with a custom Neo4j instance.
+ */
+export type TraversalHops = number | { min?: number; max?: number }
+
+/**
+ * Relationship constraints for a traversal block in `where`.
+ * Extends {@link RelationOptions} with variable-length traversal support.
+ */
+export type TraversalRelationOptions = RelationOptions & {
+  hops?: TraversalHops
+}
+
 export type Related<M extends Record<string, Model['schema']> = Models> =
   keyof M extends never ? AnyObject
   : {
       [Key in keyof M]?: {
         $alias?: string
-        $relation?: RelationOptions | string
+        $relation?: TraversalRelationOptions | string
+        /**
+         * Matches records sitting on a closed path (cycle/ring) back to the
+         * parent record. Requires `$relation` with `hops` (`min` ≥ 2); accepts
+         * no other keys — a cycle has no separate endpoint to filter or alias.
+         */
+        $cycle?: boolean
       } & Where<M[Key]>
     }
 

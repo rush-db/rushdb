@@ -82,12 +82,15 @@ export type LogicalGrouping<T> = {
   $nor: MaybeArray<T>
 }
 
-export type Relation = string | { type: string; direction: TRelationDirection }
+export type TraversalHops = number | { min?: number; max?: number }
+
+export type Relation = string | { type?: string; direction?: TRelationDirection; hops?: TraversalHops }
 
 export type Related = {
   [K in keyof Models]?: {
     $relation?: Relation
     $alias?: string
+    $cycle?: boolean
   } & Where<Models[K]>
 }
 
