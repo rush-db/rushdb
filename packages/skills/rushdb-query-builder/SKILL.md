@@ -77,13 +77,13 @@ Root-label rule:
 Top-N rule:
 
 - "Top N records by a scalar field on the same label" is a listing: use `orderBy` + `limit`, no `select`.
-- "Which parent has most/more/least/less/fewer/fewest related children" is an aggregation: root the parent label, traverse the child label with `$alias`, count the child alias, group by a parent display field.
+- "Which parent has most/more/least/less/fewer/fewest related children" is an aggregation: root the parent label, traverse the child label with `$alias`, count the child alias, group by the parent's display property from the schema.
 - Related-count direction: most/more/highest/largest/greatest => `desc`; least/less/fewer/fewest/lowest/smallest => `asc`.
 - Do not let the related/filter label become the root just because it owns the filtered field. If the requested parent-to-related traversal path is absent, do not silently switch roots; state the path is unavailable or use a closest valid fallback with an explicit assumption.
 
 Named-reference rule:
 
-- When filtering a display field such as `name`, `title`, or another schema-backed label/name field with free text the user typed, default to `{ $contains: "<user text>" }`. This applies to filters on any label, including related labels traversed with `$alias`.
+- When filtering a display property with free text the user typed, resolve the property from schema discovery first (often `name` or `title` — never assume one exists), then default to `{ $contains: "<user text>" }`. This applies to filters on any label, including related labels traversed with `$alias`.
 - Use exact equality only when the value is an ID, or the user explicitly asks for an exact match (e.g. "named exactly").
 - If you need to confirm a canonical value before filtering, use discovery (list/search a few records) rather than guessing an exact string.
 
@@ -211,7 +211,7 @@ $not: { status: "deleted" }
 $nor: [ { status: "deleted" }, { status: "archived" } ]   // none must match
 $xor: [ { isPremium: true }, { hasTrial: true } ]         // exactly one must match
 
-// ── Relationship traversal — key IS the label (UPPER_CASE) ────────────
+// ── Relationship traversal — key IS the label, exactly as spelled in the schema ──
 where: {
   DEPARTMENT: {
     name: "Engineering",
@@ -237,6 +237,8 @@ Each Relationships row in the schema is a directed pattern rooted at that label:
 **Common mistakes to avoid:**
 
 - `$label`, `$direction`, `$as`, `$of`, `$through`, `$hops` — **these do not exist** (multihop depth is `$relation.hops`; `$relation.hops` and `$cycle` ARE valid)
+- Inventing a semantic `$relation.type` when the schema shows only `__RUSHDB__RELATION__DEFAULT__` edges — **WRONG**: copy the type verbatim from a schema Relationships row, or omit `type` (untyped traversal is valid)
+- Changing a label's case (e.g. uppercasing `departments` to `DEPARTMENTS`) — **WRONG**: labels are case-sensitive; copy them exactly as the schema spells them
 - `{ employee: { $label: "EMPLOYEE" } }` — **WRONG**: key must be the label name
 - `{ EMPLOYEE: { $alias: "$emp" } }` — **CORRECT**
 - `labels: ["PARENT", "CHILD"]` for a parent-child metric — **WRONG**: keep `labels: ["PARENT"]`, put `CHILD` in `where`

@@ -90,6 +90,7 @@ Use `bulkCreateRecords` with nested objects. RushDB creates one record per neste
 ```
 
 This produces:
+
 - 1 `SESSION` record
 - 1 `DECISION` record → linked to the `SESSION`
 - 2 `ENTITY` records → each linked to the `SESSION`
@@ -260,20 +261,24 @@ Common relationship types:
 ## Naming Conventions
 
 ### Labels
-- **UPPER_CASE** — required by RushDB's LMPG model
+
+- **UPPER_CASE** — recommended convention (labels are case-sensitive; queries must match the exact spelling)
 - Use nouns, not verbs: `DECISION` not `DECIDED`, `TASK` not `TASK_CREATED`
 - Keep them broad enough to reuse across sessions
 
 ### Properties
+
 - **camelCase** — e.g. `sessionId`, `decidedAt`, `isActive`
 - Use ISO 8601 for all datetimes: `"2026-04-10T09:00:00Z"`
 - Use consistent enum values across records (see `rushdb-data-modeling` skill for more)
 
 ### Relationship Types
+
 - **UPPER_SNAKE_CASE** — e.g. `HAS_DECISION`, `DEPENDS_ON`
 - Directional: read left→right as a sentence (`SESSION HAS_DECISION DECISION`)
 
 ### ID References
+
 - Store `sessionId` as a property on child records for easy flat filtering
 - Don't rely solely on graph traversal when a scalar filter is faster
 
@@ -282,13 +287,17 @@ Common relationship types:
 ## Schema Evolution
 
 ### Adding a new property
+
 Just include it in `data` on new records. Existing records that lack the property are simply unmatched by filters on that field.
 
 ### Renaming a label
+
 Use `findRecords` to retrieve all records of the old label, re-create them with the new label, attach original relationships, then `bulkDeleteRecords` on the old label. Always preview before deleting.
 
 ### Deprecating a label
+
 Add a `deprecated: true` property to existing records, stop creating new ones, and filter `{ deprecated: { $ne: true } }` in queries.
 
 ### Splitting a label
+
 Create the two new labels, copy records, update relationships, deprecate the old label.

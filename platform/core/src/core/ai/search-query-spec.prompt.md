@@ -68,6 +68,8 @@ This returns full records and lets the dashboard table render the normal record 
 
 `where` filters root records and traverses related records.
 
+All label, field, and relationship-type names in this document are placeholders — real names come exclusively from the schema, never from these examples. Labels are case-sensitive: copy them exactly as spelled in the schema and never change their case.
+
 Predicate values must be **literals** (strings, numbers, booleans, dates) or sample values from the schema. A `where` value can never be a field or alias reference: `{ "field": "$record.id" }` and `{ "field": { "$eq": "$alias.id" } }` are invalid — the reference is matched as a literal string and returns nothing. Correlated comparisons between two records (a "join on" a field) are not supported in `where`; `$record.*`, `$alias.*`, and `$relation` references belong in `select`, `groupBy`, and `aggregate` only. To rank or group by a scalar field that is not a relationship in the schema, root on the label that owns the field and `groupBy` that field instead of building a traversal.
 
 ### Primitive Matching
@@ -95,7 +97,7 @@ Predicate values must be **literals** (strings, numbers, booleans, dates) or sam
 
 String comparison operators are case-insensitive except exact equality.
 
-For any user-typed named reference, check the property's sample values in the schema (listed per property, often truncated with `(+N more)`). If the user's term maps to a listed value, filter by that full canonical value; otherwise use `$contains` on the likely display field (`name`, `title`, or an schema-backed equivalent), on both root and related labels. Never exact-match raw user text against a value you have not seen in the sample list — that returns zero rows when the stored value is longer. Use exact equality only for IDs, a confirmed canonical value, or an explicit exact-match request.
+For any user-typed named reference, check the property's sample values in the schema (listed per property, often truncated with `(+N more)`). If the user's term maps to a listed value, filter by that full canonical value; otherwise use `$contains` on the label's display property as shown in the schema — often `name` or `title`, but never assume such a field exists; if the schema shows none, pick from its string properties. Applies to both root and related labels. Never exact-match raw user text against a value you have not seen in the sample list — that returns zero rows when the stored value is longer. Use exact equality only for IDs, a confirmed canonical value, or an explicit exact-match request.
 
 ### Number Operators
 
@@ -222,6 +224,8 @@ Use `$relation` only to constrain relationship type or direction when the user e
 ```
 
 `$relation` can also be a relationship type string.
+
+`type` must be copied **verbatim** from a schema Relationships row — never invent a semantic type like the examples here. Data imported as nested JSON has only `__RUSHDB__RELATION__DEFAULT__` edges; when the schema shows that, either use that exact string or omit `type` entirely (untyped traversal is valid, including with `hops`).
 
 Each Relationships row in `schemaMarkdown` is a directed pattern rooted at that label: `(SELF)-[:TYPE]->(OTHER)` is outgoing and `(SELF)<-[:TYPE]-(OTHER)` is incoming. To traverse, nest `OTHER` as a label key under `where` (add `$alias` if it is referenced in `select`/`groupBy`); to pin the edge set `$relation: { "type": "TYPE", "direction": ... }` with `"out"` for `->` and `"in"` for `<-`. Only patterns shown in the schema are traversable — a scalar `*_id` property is a plain value, not an edge, so never nest a label to "join" on it.
 

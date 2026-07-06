@@ -1058,4 +1058,4 @@ This query finds records created in 2023 by authors with a reputation of at leas
 - String comparison (`$contains`, `$startsWith`, `$endsWith`) is case-insensitive by default.
 - When working with arrays in records, the conditions are satisfied if any element in the array matches. For example, `{ tags: "typescript" }` will match a record with `tags: ["javascript", "typescript", "react"]`.
 - Logical operators can be used both at the root level and at any nested level, including inside relationship queries.
-- Relationship queries are executed using `OPTIONAL MATCH` in Cypher, which means records will be included even if the related record doesn't exist unless you specifically filter for it.
+- A relationship block requires the related record to exist: the query compiler adds a `recordN IS NOT NULL` check for every traversal. `OPTIONAL MATCH` is used internally only so that logical operators (`$or`, `$not`, `$nor`) between sibling relationship blocks compose correctly — to express "records _without_ a related X", wrap the block in `$not`.

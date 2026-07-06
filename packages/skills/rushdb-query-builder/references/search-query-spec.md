@@ -49,6 +49,8 @@ For "which/what <parent> has most/more/least/less/fewer/fewest <related records>
 
 ## §1) WHERE — Filters & Traversal
 
+All label, field, and relationship-type names in this document are placeholders — real names come exclusively from `getSchemaMarkdown`/discovery, never from these examples.
+
 The where clause mechanism: when a nested object key is NOT a criteria operator (like `$gt`, `$contains`, etc.) and NOT a flat value, RushDB interprets that key as the **LABEL** of a related record to traverse.
 
 ### Primitive Value Matching
@@ -95,7 +97,7 @@ status: {
 } // matches none of these values
 ```
 
-For any user-typed named reference, default to `$contains` on a likely display field (`name`, `title`, or schema-backed equivalent), on both root and related labels. Use exact equality only when the value is an ID or the user explicitly requests an exact match; confirm canonical values with discovery rather than guessing an exact string.
+For any user-typed named reference, default to `$contains` on the label's display property resolved from schema discovery (`getSchemaMarkdown`/`findProperties`) — often `name` or `title`, but never assume such a field exists; if discovery shows none, pick from the schema's string properties or ask. Applies to both root and related labels. Use exact equality only when the value is an ID or the user explicitly requests an exact match; confirm canonical values with discovery rather than guessing an exact string.
 
 ### Number Operators
 
@@ -215,7 +217,7 @@ $or: [
 
 ### Relationship Traversal
 
-Traversal rule: ANY top-level key that reads as a label name (ALL_CAPS style) is interpreted as a related-record traversal. Uses OPTIONAL MATCH in Cypher — records are included even if the related record doesn't exist UNLESS you explicitly filter for it.
+Traversal rule: ANY nested key whose value is an object that is not operator criteria is interpreted as a related-record traversal, not a field filter. The key IS a label copied **exactly as spelled in the schema** — labels are case-sensitive and may be any case (UPPER_CASE is a common naming convention, not a requirement). Never change a label's case. A traversal block **requires** the related record to exist: the compiler adds a `recordN IS NOT NULL` check. OPTIONAL MATCH is used internally only so `$or`/`$not`/`$nor` between sibling blocks composes — to express absence, wrap the block in `$not`.
 
 ```js
 // Basic (filter by related record properties):
@@ -277,7 +279,10 @@ where: {
 }
 // Shorthand (type only): $relation: "AUTHORED"
 // direction options: 'in' | 'out'  (omit = any direction)
+// type is OPTIONAL — omitting it traverses any relationship, which is valid (including with hops)
 ```
+
+⚠ **Type comes from the schema, verbatim**: copy `$relation.type` exactly from a schema Relationships row — never invent a semantic type like the `AUTHORED`/`REPORTS_TO` examples here. Data imported as nested JSON has only `__RUSHDB__RELATION__DEFAULT__` edges; when the schema shows that, either use that exact string or omit `type` entirely.
 
 Each Relationships row in the schema is a directed pattern rooted at that label: `(SELF)-[:TYPE]->(OTHER)` is outgoing, `(SELF)<-[:TYPE]-(OTHER)` is incoming. Map straight to `$relation: { type: "TYPE", direction }` — `"out"` for `->`, `"in"` for `<-`. Only patterns shown in the schema are traversable; a scalar `*_id` property is a plain value, not an edge.
 
@@ -364,7 +369,7 @@ where: {
 - Missing fields are NOT matched — `{ active: true }` skips records without an `active` field
 - String operators (`$contains`, `$startsWith`, `$endsWith`) are case-insensitive
 - Array fields: condition satisfied if ANY element matches (`tags:"typescript"` matches `["js","typescript"]`)
-- Relationship traversal uses OPTIONAL MATCH — records are returned even if no related record exists, unless you add a property filter on that related block
+- A traversal block requires the related record to exist (the compiler adds a `recordN IS NOT NULL` check); use `$not` around the block to express absence
 - Logical operators work at ANY nesting level, including inside relationship blocks
 
 ---
@@ -597,7 +602,7 @@ If the metric field is NOT on the target label, search related labels before giv
 
 **Related-count ranking:**
 
-For "which/what `<parent>` has most/more/least/less/fewer/fewest `<related records>`", root the parent label, traverse the related label in `where` with `$alias`, put related filters inside that related-label block, count the related alias, group by a parent display field, and order the count.
+For "which/what `<parent>` has most/more/least/less/fewer/fewest `<related records>`", root the parent label, traverse the related label in `where` with `$alias`, put related filters inside that related-label block, count the related alias, group by the parent's display property (from the schema), and order the count.
 
 Direction: most/more/highest/largest/greatest → `desc`; least/less/fewer/fewest/lowest/smallest → `asc`.
 
@@ -726,26 +731,26 @@ Returns ring **participants**. To reconstruct a specific ring's composition, fol
 
 ## §11) NL → WHERE Translation Quick Reference
 
-| Natural language             | Where syntax                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------------- |
-| equals                       | `field: value` or `field: { $eq: value }`                                    |
-| not equals                   | `field: { $ne: value }`                                                      |
-| in set                       | `field: { $in: [v1,v2] }`                                                    |
-| not in set                   | `field: { $nin: [v1,v2] }`                                                   |
-| greater than                 | `field: { $gt: N }`                                                          |
-| between X and Y              | `field: { $gte: X, $lte: Y }`                                                |
-| contains "text"              | `field: { $contains: "text" }`                                               |
-| starts with                  | `field: { $startsWith: "..." }`                                              |
-| ends with                    | `field: { $endsWith: "..." }`                                                |
-| has field                    | `field: { $exists: true }`                                                   |
-| AND conditions               | implicit (multiple keys) or `$and:[...]`                                     |
-| OR conditions                | `$or: [...]`                                                                 |
-| NOT condition                | `$not: { ... }`                                                              |
-| related to X                 | `LABEL_NAME: { ...filters... }`                                              |
-| within N hops / any ancestor | `LABEL: { $relation: { type, direction, hops: { max: N } } }`                |
-| ring / loop / circular flow  | `{ $cycle: true, $relation: { type, direction, hops: { min: 2, max: N } } }` |
-| last 7 days                  | compute ISO boundary → `createdAt: { $gte: "ISO-UTC" }`                      |
-| in year 1994                 | `date: { $gte: { $year:1994 }, $lt: { $year:1995 } }`                        |
+| Natural language             | Where syntax                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
+| equals                       | `field: value` or `field: { $eq: value }`                                                              |
+| not equals                   | `field: { $ne: value }`                                                                                |
+| in set                       | `field: { $in: [v1,v2] }`                                                                              |
+| not in set                   | `field: { $nin: [v1,v2] }`                                                                             |
+| greater than                 | `field: { $gt: N }`                                                                                    |
+| between X and Y              | `field: { $gte: X, $lte: Y }`                                                                          |
+| contains "text"              | `field: { $contains: "text" }`                                                                         |
+| starts with                  | `field: { $startsWith: "..." }`                                                                        |
+| ends with                    | `field: { $endsWith: "..." }`                                                                          |
+| has field                    | `field: { $exists: true }`                                                                             |
+| AND conditions               | implicit (multiple keys) or `$and:[...]`                                                               |
+| OR conditions                | `$or: [...]`                                                                                           |
+| NOT condition                | `$not: { ... }`                                                                                        |
+| related to X                 | `LABEL_NAME: { ...filters... }`                                                                        |
+| within N hops / any ancestor | `LABEL: { $relation: { type?, direction, hops: { max: N } } }` — type verbatim from schema, or omitted |
+| ring / loop / circular flow  | `{ $cycle: true, $relation: { type?, direction, hops: { min: 2, max: N } } }`                          |
+| last 7 days                  | compute ISO boundary → `createdAt: { $gte: "ISO-UTC" }`                                                |
+| in year 1994                 | `date: { $gte: { $year:1994 }, $lt: { $year:1995 } }`                                                  |
 
 **Numerics:** 1k=1000, 1m=1000000, 1b=1000000000. Strip currency symbols ($100k→100000).
 
@@ -764,9 +769,10 @@ Before submitting any `findRecords` call, verify:
 - [ ] No alias-only `groupBy` values such as `"$record"` or `"$related"`
 - [ ] Root labels only in `labels`; related labels go in `where` traversal with `$alias` if referenced
 - [ ] Related-count ranking keeps the requested parent/entity as root; the related/filter label does not steal the root
-- [ ] Traversal: key = label name (ALL_CAPS). NEVER `$label`/`$direction`/`$as`/`$of`/`$through`/`$hops`
+- [ ] Traversal: key = a label exactly as spelled in the schema (case-sensitive; do not change its case). NEVER `$label`/`$direction`/`$as`/`$of`/`$through`/`$hops`
   - WRONG: `{ employee: { $label:'EMPLOYEE' } }` CORRECT: `{ EMPLOYEE: { $alias:'$emp' } }`
   - `$relation.hops` and `$cycle` are VALID operators — do not "correct" them away
+- [ ] `$relation.type` copied verbatim from a schema Relationships row, or omitted; never invented
 - [ ] `hops` only for repeated-pattern traversal (hierarchy/degrees); bounded `max`, as small as possible
 - [ ] `$cycle` block contains ONLY `$relation` (`hops` min ≥ 2); no `$alias`/criteria/nested labels inside
 - [ ] Vector similarity: still uses legacy `aggregate` (not `select`)

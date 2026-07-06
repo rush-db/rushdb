@@ -36,6 +36,9 @@ CRITICAL LIMITS
 §1) WHERE — COMPLETE FILTER & TRAVERSAL REFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+ALL label, field, and relationship-type names in this document are placeholders — real
+names come exclusively from getSchemaMarkdown/discovery, never from these examples.
+
 The where clause mechanism: when a nested object key is NOT a criteria operator (like $gt,
 $contains, etc.) and NOT a flat value, RushDB interprets that key as the LABEL of a related
 record to traverse.
@@ -71,7 +74,9 @@ Direct equality, all types:
   status: { $nin: ["deleted","archived"] } // matches none of these values
 
   For user-provided named references that may be incomplete, abbreviated, or shortened,
-  prefer $contains on a likely display field (name, title, or schema-backed equivalent).
+  prefer $contains on the label's display property resolved from schema discovery
+  (getSchemaMarkdown/findProperties) — often name or title, but NEVER assume such a field
+  exists; if discovery shows none, pick from the schema's string properties or ask.
   Use exact equality only for exact IDs, canonical full values, or explicit exact-match requests.
 
 ── NUMBER OPERATORS ──────────────────────────────────────────────────
@@ -135,9 +140,13 @@ Direct equality, all types:
   ]
 
 ── RELATIONSHIP TRAVERSAL ────────────────────────────────────────────
-Traversal rule: ANY top-level key that reads as a label name (ALL_CAPS style) is interpreted
-as a related-record traversal, not a field filter. Uses OPTIONAL MATCH in Cypher — records
-are included even if the related record doesn't exist UNLESS you explicitly filter for it.
+Traversal rule: ANY nested key whose value is an object that is not operator criteria is
+interpreted as a related-record traversal, not a field filter. The key IS a label copied
+exactly as spelled in the schema — labels are case-sensitive and may be any case
+(UPPER_CASE is a common naming convention, not a requirement). Never change a label's case.
+A traversal block REQUIRES the related record to exist: the compiler adds a
+"recordN IS NOT NULL" check. OPTIONAL MATCH is used internally only so $or/$not/$nor
+between sibling blocks composes — to express absence, wrap the block in $not.
 
 Basic (filter by related record properties):
   where: {
@@ -188,6 +197,12 @@ $relation — constrain relationship type and/or direction:
   }
   Shorthand (type only): $relation: 'AUTHORED'
   direction options: 'in' | 'out'  (omit = any direction)
+  type is OPTIONAL — omitting it traverses any relationship, which is valid (including with hops).
+
+  ⚠ TYPE COMES FROM THE SCHEMA, VERBATIM: copy $relation.type exactly from a schema
+  Relationships row — never invent a semantic type like the AUTHORED/REPORTS_TO examples here.
+  Data imported as nested JSON has only __RUSHDB__RELATION__DEFAULT__ edges; when the schema
+  shows that, either use that exact string or omit type entirely.
 
   READING THE SCHEMA: each Relationships row is a directed pattern rooted at that label.
     (SELF)-[:TYPE]->(OTHER)   → from SELF, traverse OTHER with $relation { type:'TYPE', direction:'out' }
@@ -271,8 +286,8 @@ Logical operators INSIDE relationship blocks:
   • Missing fields are NOT matched — { active: true } skips records without an 'active' field.
   • String operators ($contains, $startsWith, $endsWith) are case-insensitive.
   • Array fields: condition satisfied if ANY element matches (tags:"typescript" matches ["js","typescript"]).
-  • Relationship traversal uses OPTIONAL MATCH — records are returned even if no related record
-    exists, unless you add a property filter on that related block.
+  • A traversal block requires the related record to exist (the compiler adds a
+    "recordN IS NOT NULL" check); use $not around the block to express absence.
   • Logical operators work at ANY nesting level, including inside relationship blocks.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -461,8 +476,8 @@ If the metric field is NOT on the target label, search related labels before giv
 Related-count ranking:
   For "which/what <parent> has most/more/least/less/fewer/fewest <related records>",
   root the parent label, traverse the related label in where with $alias, put related
-  filters inside that related-label block, count the related alias, group by a parent
-  display field, and order the count.
+  filters inside that related-label block, count the related alias, group by the parent's
+  display property (from the schema), and order the count.
   Direction: most/more/highest/largest/greatest → desc; least/less/fewer/fewest/lowest/smallest → asc.
   If the parent→related traversal path is absent, do not silently root on the related label;
   ask or return the closest valid query with an explicit assumption.
@@ -559,9 +574,10 @@ bounded one-hop queries from each flagged record.
 • Datetime — always component objects for ranges; see §1 datetime operators above.
 • Logical: $and / $or / $not / $nor / $xor. Prefer implicit AND when simple.
 • "any ancestor/descendant", "reporting chain", "within N hops/degrees/steps"
-    → $relation: { type, direction, hops:{ max:N } } on ONE traversal block.
+    → $relation: { type?, direction, hops:{ max:N } } on ONE traversal block
+      (type verbatim from the schema, or omitted).
 • "ring", "loop", "circular …", "cycles back to itself"
-    → { $cycle:true, $relation:{ type, direction, hops:{ min:2, max:N } } }.
+    → { $cycle:true, $relation:{ type?, direction, hops:{ min:2, max:N } } }.
 • Field names are case-sensitive. String comparisons are case-insensitive by default.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -577,9 +593,11 @@ Before submitting a findRecords call, verify:
 □ No alias-only groupBy values such as "$record" or "$related".
 □ Root labels only in labels; related labels go in where traversal with $alias if referenced.
 □ Related-count ranking keeps the requested parent/entity as root; the related/filter label does not steal the root.
-□ Traversal: key = label name (ALL_CAPS). NEVER $label/$direction/$as/$of/$through/$hops.
+□ Traversal: key = a label exactly as spelled in the schema (case-sensitive; do not
+    change its case). NEVER $label/$direction/$as/$of/$through/$hops.
     WRONG: { employee: { $label:'EMPLOYEE' } }   CORRECT: { EMPLOYEE: { $alias:'$emp' } }
     ($relation.hops and $cycle are VALID operators — do not "correct" them away.)
+□ $relation.type copied verbatim from a schema Relationships row, or omitted; never invented.
 □ hops only for repeated-pattern traversal (hierarchy/degrees); bounded max, as small as possible.
 □ $cycle block contains ONLY $relation (hops min ≥ 2); no $alias/criteria/nested labels inside.
 □ Vector threshold semantics: euclidean → $lte; others → $gte.
