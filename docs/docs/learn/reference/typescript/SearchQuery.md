@@ -386,7 +386,6 @@ export type Related<M extends Record<string, Model['schema']> = Models> =
       [Key in keyof M]?: {
         $alias?: string
         $relation?: TraversalRelationOptions | string
-        $cycle?: boolean
       } & Where<M[Key]>
     }
 
@@ -394,6 +393,10 @@ export type TraversalHops = number | { min?: number; max?: number }
 
 export type TraversalRelationOptions = RelationOptions & {
   hops?: TraversalHops
+}
+
+export type CycleExpression = RelationOptions & {
+  hops: TraversalHops
 }
 ```
 
@@ -421,7 +424,7 @@ Defines conditions on related records. The key of the nested object **is** the l
 }
 ```
 
-`hops` turns the traversal into a variable-length one: a number means exactly N hops, `{ min?, max? }` a range (`min` defaults to `1`). `type` and `direction` apply to every hop; property criteria and the nested label constrain only the final record — intermediates are anonymous. `max` is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 25); omitting it requests unbounded traversal, allowed only on self-hosted deployments or projects with a custom Neo4j instance:
+`hops` turns the traversal into a variable-length one: a number means exactly N hops, `{ min?, max? }` a range (`min` defaults to `1`). `type` and `direction` apply to every hop; property criteria and the nested label constrain only the final record — intermediates are anonymous. `max` is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 10); omitting it requests unbounded traversal, allowed only on self-hosted deployments or projects with a custom Neo4j instance:
 
 ```typescript
 // Employees whose management chain (1–4 hops) contains Alice
@@ -436,17 +439,14 @@ Defines conditions on related records. The key of the nested object **is** the l
 }
 ```
 
-`$cycle: true` matches records that sit on a closed path back to themselves. It requires an object `$relation` with `hops` (`min` ≥ 2, defaults to 2) and accepts nothing else — no `$alias`, no property criteria, no nested labels. The block's key is a display name, not matched as a label:
+`$cycle` is a record-level predicate that matches records sitting on a closed path back to themselves. Its value is the traversal spec itself — `type`, `direction`, `hops` — with `hops` mandatory (`min` ≥ 2, defaults to 2). It accepts nothing else — no `$alias`, no property criteria, no nested labels; intermediate node labels are unconstrained. It composes under `$not`/`$or`/`$and`, and can be placed inside a label block to anchor the cycle at a related record:
 
 ```typescript
 // Accounts on a directed transfer ring of 2–6 hops
 {
   labels: ['ACCOUNT'],
   where: {
-    RING: {
-      $cycle: true,
-      $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
-    }
+    $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
   }
 }
 ```

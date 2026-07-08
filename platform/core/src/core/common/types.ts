@@ -86,11 +86,14 @@ export type TraversalHops = number | { min?: number; max?: number }
 
 export type Relation = string | { type?: string; direction?: TRelationDirection; hops?: TraversalHops }
 
+/** Record-level cycle predicate: the record lies on a closed path over these edges.
+ *  `hops` is mandatory (floor 2); intermediate node labels are unconstrained. */
+export type CycleExpression = { type?: string; direction?: TRelationDirection; hops: TraversalHops }
+
 export type Related = {
   [K in keyof Models]?: {
     $relation?: Relation
     $alias?: string
-    $cycle?: boolean
   } & Where<Models[K]>
 }
 
@@ -144,8 +147,8 @@ export type Condition<T extends Schema = Schema> =
     }
   | { $id?: MaybeLogicalExpression<StringExpression> }
 
-export type Where<T extends Schema = Schema> = (Condition<T> & Related) &
-  Partial<LogicalGrouping<Condition<T> & Related>>
+export type Where<T extends Schema = Schema> = (Condition<T> & Related & { $cycle?: CycleExpression }) &
+  Partial<LogicalGrouping<Condition<T> & Related & { $cycle?: CycleExpression }>>
 
 /** @deprecated Use SelectExprMap / select expressions instead. To be removed in a future major version. */
 export type AggregateCollectFn = {

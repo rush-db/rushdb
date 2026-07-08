@@ -558,7 +558,7 @@ chain = db.records.find({
 
 ### Cycle detection
 
-Use `$cycle: true` to find records on a closed path back to themselves. The block requires an object `$relation` with `hops` (`min` ≥ 2, defaults to 2) and accepts nothing else — no `$alias`, property criteria, or nested labels. Its key is a display name, not matched as a label.
+Use `$cycle` to find records on a closed path back to themselves. It is a record-level predicate whose value is the traversal spec itself — `type`, `direction`, `hops` — with `hops` mandatory (`min` ≥ 2, defaults to 2). It accepts nothing else — no `$alias`, property criteria, or nested labels.
 
 <Tabs groupId="programming-language">
   <TabItem value="typescript" label="TypeScript" default>
@@ -567,10 +567,7 @@ Use `$cycle: true` to find records on a closed path back to themselves. The bloc
 const rings = await db.records.find({
   labels: ['ACCOUNT'],
   where: {
-    RING: {
-      $cycle: true,
-      $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
-    }
+    $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
   },
   limit: 50
 })
@@ -582,10 +579,7 @@ const rings = await db.records.find({
 rings = db.records.find({
     "labels": ["ACCOUNT"],
     "where": {
-        "RING": {
-            "$cycle": True,
-            "$relation": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
-        }
+        "$cycle": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
     },
     "limit": 50
 })

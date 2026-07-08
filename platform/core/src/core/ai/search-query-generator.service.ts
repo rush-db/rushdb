@@ -6,6 +6,7 @@ import { Transaction } from 'neo4j-driver'
 import { AiService } from '@/core/ai/ai.service'
 import { SchemaItem } from '@/core/ai/ai.types'
 import { SearchDto } from '@/core/search/dto/search.dto'
+import { resolveMaxTraversalHops } from '@/core/search/search.constants'
 import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 import { existsSync, readFileSync } from 'fs'
@@ -185,8 +186,6 @@ export class SearchQueryGeneratorService {
     const queryBuilderPrompt = this.readPromptFile(QUERY_BUILDER_PROMPT_FILE)
     const searchQuerySpecPrompt = this.readPromptFile(SEARCH_QUERY_SPEC_PROMPT_FILE)
 
-    this.logger.log(`[AI schemaMarkdown]: ${schemaMarkdown}`)
-
     const response = await axios.post(
       `${baseUrl.replace(/\/$/, '')}/chat/completions`,
       {
@@ -324,6 +323,7 @@ export class SearchQueryGeneratorService {
 
     const query = JSON.parse(JSON.stringify(searchQuery)) as SearchDto
     this.normalizeOrderBy(query, warnings)
+    this.normalizeTraversalHops(query.where, warnings)
     for (const key of Object.keys(query)) {
       if (!TOP_LEVEL_KEYS.has(key)) {
         errors.push(`Unsupported top-level key "${key}"`)
@@ -424,6 +424,42 @@ export class SearchQueryGeneratorService {
     }
   }
 
+  // Unbounded hops are rejected by the parser on capped connections; defaulting max to the
+  // deployment cap (like the limit/skip normalization above) saves a repair round.
+  private normalizeTraversalHops(value: unknown, warnings: string[]) {
+    if (!value || typeof value !== 'object') {
+      return
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => this.normalizeTraversalHops(item, warnings))
+      return
+    }
+
+    for (const [key, next] of Object.entries(value)) {
+      // The $cycle operator's value is a relation spec itself — its hops live directly
+      // under the operator, not under a $relation wrapper.
+      if (
+        (key === '$relation' || key === '$cycle') &&
+        next &&
+        typeof next === 'object' &&
+        !Array.isArray(next)
+      ) {
+        const hops = (next as any).hops
+        if (hops && typeof hops === 'object' && !Array.isArray(hops) && hops.max === undefined) {
+          const maxHops = resolveMaxTraversalHops()
+          if (maxHops !== Infinity) {
+            hops.max = maxHops
+            warnings.push(
+              `Set hops.max to ${maxHops} because unbounded traversal is not allowed on this connection.`
+            )
+          }
+        }
+        continue
+      }
+      this.normalizeTraversalHops(next, warnings)
+    }
+  }
+
   private validateSelectExpressions(select: unknown, errors: string[]) {
     if (!select || typeof select !== 'object' || Array.isArray(select)) {
       return
@@ -503,11 +539,27 @@ export class SearchQueryGeneratorService {
         this.validateWhere(next, schemaByLabel, propertiesByLabel, allProperties, errors, currentLabels)
         continue
       }
+      if (key === '$relation') {
+        this.validateRelation(next, 1, `label "${currentLabels.join('|') || '<root>'}"`, errors)
+        continue
+      }
+      if (key === '$cycle') {
+        this.validateCycleOperator(next, errors)
+        continue
+      }
       if (COMPARISON_KEYS.has(key) || RELATION_META_KEYS.has(key)) {
         continue
       }
       if (key.startsWith('$')) {
-        errors.push(`Unsupported where operator "${key}"`)
+        if (key === '$ref') {
+          errors.push(
+            `Unsupported where operator "$ref": "$ref" is only valid inside select expressions. ` +
+              `where values must be literals — correlated joins between records are not supported. ` +
+              `To rank or relate records by a scalar field, root on the label that owns that field and use groupBy.`
+          )
+        } else {
+          errors.push(`Unsupported where operator "${key}"`)
+        }
         continue
       }
       if (schemaByLabel.has(key)) {
@@ -525,6 +577,70 @@ export class SearchQueryGeneratorService {
       }
       this.validateWhere(next, schemaByLabel, propertiesByLabel, allProperties, errors, currentLabels)
     }
+  }
+
+  // Canonical operator form: { "$cycle": { "type"?, "direction", "hops" } } — the value
+  // IS the traversal spec. Mirrors the parser's normalizeHops rules (hops mandatory,
+  // floor 2) so a query the spec prompt teaches is not rejected here or at execution.
+  private validateCycleOperator(value: unknown, errors: string[]) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || !('hops' in value)) {
+      errors.push(
+        `'$cycle' requires a traversal spec with 'hops', e.g. ` +
+          `{ "$cycle": { "type": "FLOWS_TO", "direction": "out", "hops": { "min": 2, "max": 6 } } }`
+      )
+      return
+    }
+    this.validateRelation(value, 2, `'$cycle'`, errors)
+  }
+
+  private validateRelation(relation: unknown, hopsFloor: number, context: string, errors: string[]) {
+    if (!relation || typeof relation !== 'object' || Array.isArray(relation)) {
+      return
+    }
+
+    const direction = (relation as any).direction
+    const hops = (relation as any).hops
+    if (hops === undefined) {
+      return
+    }
+    if (direction !== undefined && direction !== 'in' && direction !== 'out') {
+      errors.push(
+        `'$relation.direction' must be "in" or "out" when 'hops' is set in ${context}, got ${JSON.stringify(direction)}`
+      )
+    }
+
+    const maxHops = resolveMaxTraversalHops()
+    const maxHopsLabel = maxHops === Infinity ? 'unbounded' : maxHops
+    if (typeof hops === 'number') {
+      if (!Number.isInteger(hops) || hops < hopsFloor || hops > maxHops) {
+        errors.push(
+          `'hops' in ${context} must be an integer between ${hopsFloor} and ${maxHopsLabel}, got ${JSON.stringify(hops)}`
+        )
+      }
+      return
+    }
+    if (hops && typeof hops === 'object' && !Array.isArray(hops)) {
+      const max = (hops as any).max
+      const min = (hops as any).min ?? hopsFloor
+      if (max === undefined) {
+        if (maxHops !== Infinity) {
+          errors.push(
+            `'hops.max' is required in ${context}: unbounded traversal is not allowed on this connection (max allowed hops: ${maxHops})`
+          )
+        }
+      } else if (!Number.isInteger(max) || max < hopsFloor || max > maxHops) {
+        errors.push(
+          `'hops.max' in ${context} must be an integer between ${hopsFloor} and ${maxHopsLabel}, got ${JSON.stringify(max)}`
+        )
+      }
+      if (!Number.isInteger(min) || min < hopsFloor || (Number.isInteger(max) && min > max)) {
+        errors.push(
+          `'hops.min' in ${context} must be an integer between ${hopsFloor} and 'hops.max', got ${JSON.stringify(min)}`
+        )
+      }
+      return
+    }
+    errors.push(`'hops' in ${context} must be a number or { min?, max? } object, got ${JSON.stringify(hops)}`)
   }
 
   private validateSelectRefs(

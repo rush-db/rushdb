@@ -1621,7 +1621,7 @@ RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHE
       searchQuery: {
         labels: ['ACCOUNT'],
         where: {
-          RING: { $cycle: true, $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { max: 6 } } }
+          $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { max: 6 } }
         }
       }
     })
@@ -1629,8 +1629,7 @@ RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHE
     expect(result)
       .toEqual(`MATCH (record:__RUSHDB__LABEL__RECORD__:\`ACCOUNT\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
-OPTIONAL MATCH (record)-[rels1:TRANSFERRED_TO*2..6]->(record)
-WITH record, rels1 WHERE record IS NOT NULL AND rels1 IS NOT NULL
+WITH record WHERE record IS NOT NULL AND EXISTS { MATCH (record)-[:TRANSFERRED_TO*2..6]->(record) }
 RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]} AS records`)
   })
 
@@ -1639,16 +1638,14 @@ RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHE
       searchQuery: {
         labels: ['ACCOUNT'],
         where: {
-          RING: { $cycle: true, $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { max: 6 } } }
+          $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { max: 6 } }
         }
       }
     })
 
     expect(result)
       .toEqual(`MATCH (record:__RUSHDB__LABEL__RECORD__:\`ACCOUNT\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-
-OPTIONAL MATCH (record)-[rels1:TRANSFERRED_TO*2..6]->(record)
-WITH record, rels1 WHERE record IS NOT NULL AND rels1 IS NOT NULL
+WITH record WHERE record IS NOT NULL AND EXISTS { MATCH (record)-[:TRANSFERRED_TO*2..6]->(record) }
 RETURN count(DISTINCT record) as total`)
   })
 })

@@ -13,9 +13,9 @@ import type { Schema } from './schema.js'
 import type { AnyObject, MaybeArray, RequireAtLeastOne } from './utils.js'
 
 /**
- * Variable-length traversal depth for `$relation.hops`.
+ * Variable-length traversal depth for `$relation.hops` and `$cycle.hops`.
  * A number matches exactly that many hops; `{ min?, max? }` matches a range
- * (`min` defaults to 1, or 2 inside a `$cycle` block). Omitting `max` requests
+ * (`min` defaults to 1, or 2 for `$cycle`). Omitting `max` requests
  * unbounded traversal, which is only allowed on self-hosted deployments and
  * projects with a custom Neo4j instance.
  */
@@ -29,18 +29,23 @@ export type TraversalRelationOptions = RelationOptions & {
   hops?: TraversalHops
 }
 
+/**
+ * Record-level cycle predicate: matches records sitting on a closed path
+ * (cycle/ring) back to themselves over the described edges. The value is the
+ * traversal spec itself — `hops` is mandatory (`min` ≥ 2, defaults to 2);
+ * intermediate node labels are unconstrained. A cycle has no separate endpoint
+ * to filter or alias.
+ */
+export type CycleExpression = RelationOptions & {
+  hops: TraversalHops
+}
+
 export type Related<M extends Record<string, Model['schema']> = Models> =
   keyof M extends never ? AnyObject
   : {
       [Key in keyof M]?: {
         $alias?: string
         $relation?: TraversalRelationOptions | string
-        /**
-         * Matches records sitting on a closed path (cycle/ring) back to the
-         * parent record. Requires `$relation` with `hops` (`min` ≥ 2); accepts
-         * no other keys — a cycle has no separate endpoint to filter or alias.
-         */
-        $cycle?: boolean
       } & Where<M[Key]>
     }
 
@@ -100,8 +105,9 @@ export type Expression<S extends Schema = Schema> =
       })
 
 export type Where<S extends Schema = Schema> =
-  | ((Expression<S> & Related) & LogicalGrouping<Expression<S> & Related>)
-  | LogicalGrouping<Expression<S> & Related>
+  | ((Expression<S> & Related & { $cycle?: CycleExpression }) &
+      LogicalGrouping<Expression<S> & Related & { $cycle?: CycleExpression }>)
+  | LogicalGrouping<Expression<S> & Related & { $cycle?: CycleExpression }>
 
 export type OrderDirection = 'asc' | 'desc'
 export type Order<S extends Schema = Schema> = OrderDirection | Partial<Record<keyof S, OrderDirection>>

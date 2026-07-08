@@ -155,7 +155,7 @@ Relationships are traversed in `where` by using the target label as the key:
 
 Omit `$relation` when direction and type are not important — RushDB traverses any edge.
 
-For self-referencing hierarchies (org charts, category trees, dependency graphs), one nested block traverses multiple levels via `hops`: `"$relation": { "type": "REPORTS_TO", "direction": "out", "hops": { "max": 4 } }`. Cycles in such graphs are queryable with a `$cycle` block — see the query-builder skill for both.
+For self-referencing hierarchies (org charts, category trees, dependency graphs), one nested block traverses multiple levels via `hops`: `"$relation": { "type": "REPORTS_TO", "direction": "out", "hops": { "max": 4 } }`. Cycles in such graphs are queryable with the `$cycle` operator — see the query-builder skill for both.
 
 ---
 

@@ -79,6 +79,7 @@ Top-N rule:
 - "Top N records by a scalar field on the same label" is a listing: use `orderBy` + `limit`, no `select`.
 - "Which parent has most/more/least/less/fewer/fewest related children" is an aggregation: root the parent label, traverse the child label with `$alias`, count the child alias, group by the parent's display property from the schema.
 - Related-count direction: most/more/highest/largest/greatest => `desc`; least/less/fewer/fewest/lowest/smallest => `asc`.
+- Condition-verb exception: when the ranking condition ("won", "wrote", "approved", …) is expressed only by a scalar reference property on the related label (`author_id` / `winner_*` / `approvedBy` style — confirm via discovery) and no relationship type expresses it, root on the label that owns that property and `groupBy` it instead. `where` cannot correlate two records — no `$record.*`/`$alias.*` values and no `$ref` (`$ref` is select-only).
 - Do not let the related/filter label become the root just because it owns the filtered field. If the requested parent-to-related traversal path is absent, do not silently switch roots; state the path is unavailable or use a closest valid fallback with an explicit assumption.
 
 Named-reference rule:
@@ -228,8 +229,8 @@ where: { POST: { $relation: { type: "AUTHORED", direction: "in" } } }
 // Multihop over one pattern (hierarchies, "within N degrees") — hops inside $relation:
 where: { EMPLOYEE: { $relation: { type: "REPORTS_TO", direction: "out", hops: { max: 4 } } } }
 
-// Cycle/ring detection (fraud rings, circular ownership) — $cycle block holds only $relation:
-where: { RING: { $cycle: true, $relation: { type: "TRANSFERRED_TO", direction: "out", hops: { min: 2, max: 6 } } } }
+// Cycle/ring detection (fraud rings, circular ownership) — the $cycle operator's value IS the traversal spec:
+where: { $cycle: { type: "TRANSFERRED_TO", direction: "out", hops: { min: 2, max: 6 } } }
 ```
 
 Each Relationships row in the schema is a directed pattern rooted at that label: `(SELF)-[:TYPE]->(OTHER)` is outgoing, `(SELF)<-[:TYPE]-(OTHER)` is incoming. To pin the edge, set `$relation: { type: "TYPE", direction }` — `"out"` for `->`, `"in"` for `<-`. Only patterns shown in the schema are traversable; a scalar `*_id` property is a plain value, not an edge — never nest a label to "join" on it (root on the owning label and `groupBy` it instead).

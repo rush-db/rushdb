@@ -23,6 +23,12 @@ export const wrapInParentheses = (input: string) => `(${input})`
 // the tree independently but increment ctx.level in lockstep).
 export const traversalRelsVar = (level: number) => `rels${level}`
 
+// The $cycle operator's subQueries key: `$cycle` itself, or the `$cycle#N` suffix
+// splitCriteria mints when an $or/$and array carries several cycle predicates at
+// one level ('$' keys can never be user labels, so the namespace is safe).
+export const isCycleOperatorKey = (key: string) =>
+  key === CYCLE_CLAUSE_OPERATOR || key.startsWith(`${CYCLE_CLAUSE_OPERATOR}#`)
+
 export const wrapInCurlyBraces = (input: string) => `{${input}}`
 
 export const isSubQuery = (input: Where) => {
@@ -59,7 +65,20 @@ export function splitCriteria(input: Where) {
   // !containsAllowedKeys(value, allowedKeys)
   const split = (v: Where) =>
     Object.entries(v).forEach(([key, value]) => {
-      if (isObject(value) && isSubQuery(value as Where)) {
+      if (key === CYCLE_CLAUSE_OPERATOR) {
+        // { $cycle: { type?, direction, hops } } — the value IS the traversal spec and
+        // is stored raw; both passes recognize the key via isCycleOperatorKey. Suffix
+        // duplicates when an $or/$and array carries several cycle predicates at one
+        // level — deterministic across both passes, which walk the same input in the
+        // same order. Storing the raw value keeps re-splitting idempotent (the
+        // logical-operator path splits twice); suffixed keys re-enter through the
+        // isSubQuery branch below and are still parsed by key prefix.
+        let uniqueKey: string = key
+        for (let n = 2; uniqueKey in subQueries; n += 1) {
+          uniqueKey = `${key}#${n}`
+        }
+        subQueries[uniqueKey] = value
+      } else if (isObject(value) && isSubQuery(value as Where)) {
         subQueries[key] = value
       } else {
         currentLevel[key] = value

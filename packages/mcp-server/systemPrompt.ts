@@ -68,15 +68,16 @@ STEP 3 — BUILD
   For "top N records by scalar field on the same label", use orderBy + limit, not select.
   For "which parent has most/more/least/less/fewer/fewest related children", root the parent label, traverse child in where with $alias, count the child alias, group by the parent's display property from the schema, and order desc for most/more or asc for least/less/fewer.
   Do not let a related/filter label become root for related-count rankings when a valid parent→related traversal path exists.
+  Exception — condition verbs ("won", "wrote", "approved", …): a traversal satisfies the verb only if the relationship type expresses it. When the condition exists only as a scalar reference property on the related label (author_id / winner_* / approvedBy style — discover with findProperties), root on the label that OWNS that property and groupBy it instead; where cannot correlate two records (no $record.*/$alias.* values, no $ref — $ref is select-only).
   Keep ambiguous named-reference filters loose with $contains on the display property discovery shows for that label.
   Resource-local where rule:
     - findRecords.where filters Records.
     - findRelationships.where filters relationship edges; use source/target for endpoint Records.
     - findLabels.where and findProperties.where filter Records before returning labels/properties.
   The traversal key in where IS a label copied exactly as spelled in the schema (labels are case-sensitive and may be any case — never change a label's case). Alias is $alias only.
-  Use $relation on a related-label block to constrain edge type/direction (for example: POST: { $relation: { type: 'AUTHORED', direction: 'in' } }). Copy type verbatim from a schema Relationships row or omit it — data imported as nested JSON has only __RUSHDB__RELATION__DEFAULT__ edges, and untyped traversal is valid.
+  Use $relation on a related-label block to constrain edge type/direction (for example: POST: { $relation: { type: 'AUTHORED', direction: 'in' } }). Copy type verbatim from a schema Relationships row or omit it (untyped traversal is valid) — never write __RUSHDB__RELATION__DEFAULT__ unless a schema row shows that exact type.
   For multihop over one pattern (hierarchies, "within N degrees") add hops inside $relation (for example: EMPLOYEE: { $relation: { type: 'REPORTS_TO', direction: 'out', hops: { max: 4 } } }).
-  For rings/loops/circular flows use a $cycle block holding only $relation with hops (min 2+) (for example: RING: { $cycle: true, $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } } }).
+  For rings/loops/circular flows use the record-level $cycle operator whose value is the traversal spec itself, hops mandatory with min 2+ (for example: where: { $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } } }). Never wrap $cycle in a named block and never nest $relation inside it.
   Operators $label / $direction / $as / $of / $through / $hops do not exist — never use them; multihop depth is always $relation.hops.
 ` as const
 

@@ -48,7 +48,7 @@ export const ALIAS_CLAUSE_OPERATOR = '$alias'
 export const ID_CLAUSE_OPERATOR = '$id'
 export const CYCLE_CLAUSE_OPERATOR = '$cycle'
 
-export const DEFAULT_MAX_TRAVERSAL_HOPS = 25
+export const DEFAULT_MAX_TRAVERSAL_HOPS = 10
 
 /**
  * Effective hop ceiling for variable-length traversal (`$relation.hops`).

@@ -29,17 +29,14 @@
   db.records.find({
     labels: ['ACCOUNT'],
     where: {
-      RING: {
-        $cycle: true,
-        $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
-      }
+      $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
     }
   })
   ```
 
-  A `$cycle` block requires `$relation` with `hops` (`min` ≥ 2, the default) and accepts no other keys; its label key is a display name. Combine with `$not` to select records not on a cycle.
+  `$cycle` is a record-level predicate: its value is the traversal spec itself (`type`, `direction`, `hops` — `hops` mandatory, `min` ≥ 2, defaulting to 2). A cycle has no separate endpoint, so it accepts no `$alias`, no property criteria, and no nested labels. Combine with `$not` to select records not on a cycle.
 
-  **Traversal depth policy** — `hops.max` is capped per deployment via `RUSHDB_MAX_TRAVERSAL_HOPS` (default 25) on the shared cloud connection. Self-hosted deployments (`RUSHDB_SELF_HOSTED=true`) and projects with a custom external Neo4j allow unbounded traversal (`max` omitted), guarded by the existing transaction timeout.
+  **Traversal depth policy** — `hops.max` is capped per deployment via `RUSHDB_MAX_TRAVERSAL_HOPS` (default 10) on the shared cloud connection. Self-hosted deployments (`RUSHDB_SELF_HOSTED=true`) and projects with a custom external Neo4j allow unbounded traversal (`max` omitted), guarded by the existing transaction timeout.
 
   Also in this release:
 

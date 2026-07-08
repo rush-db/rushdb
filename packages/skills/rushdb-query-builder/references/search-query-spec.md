@@ -53,6 +53,8 @@ All label, field, and relationship-type names in this document are placeholders 
 
 The where clause mechanism: when a nested object key is NOT a criteria operator (like `$gt`, `$contains`, etc.) and NOT a flat value, RushDB interprets that key as the **LABEL** of a related record to traverse.
 
+Predicate values must be **literals** (strings, numbers, booleans, dates). A where value can never be a field or alias reference: `{ field: "$record.id" }`, `{ field: { $eq: "$alias.id" } }`, and `{ field: { $ref: "$record.id" } }` are all invalid — `$ref` exists only in `select`, and a plain reference is matched as a literal string and returns nothing. There is no correlated where predicate (no "join on fieldA = fieldB") in any syntax. To rank or group by a scalar field that is not a relationship in the schema, root on the label that owns the field and `groupBy` that field instead of building a traversal.
+
 ### Primitive Value Matching
 
 ```js
@@ -282,7 +284,7 @@ where: {
 // type is OPTIONAL — omitting it traverses any relationship, which is valid (including with hops)
 ```
 
-⚠ **Type comes from the schema, verbatim**: copy `$relation.type` exactly from a schema Relationships row — never invent a semantic type like the `AUTHORED`/`REPORTS_TO` examples here. Data imported as nested JSON has only `__RUSHDB__RELATION__DEFAULT__` edges; when the schema shows that, either use that exact string or omit `type` entirely.
+⚠ **Type comes from the schema, verbatim**: copy `$relation.type` exactly from a schema Relationships row — never invent a semantic type like the `AUTHORED`/`REPORTS_TO` examples here, and never write `__RUSHDB__RELATION__DEFAULT__` unless a schema row shows that exact type. When it does (data imported as nested JSON often has only such edges), either use that exact string or omit `type` entirely.
 
 Each Relationships row in the schema is a directed pattern rooted at that label: `(SELF)-[:TYPE]->(OTHER)` is outgoing, `(SELF)<-[:TYPE]-(OTHER)` is incoming. Map straight to `$relation: { type: "TYPE", direction }` — `"out"` for `->`, `"in"` for `<-`. Only patterns shown in the schema are traversable; a scalar `*_id` property is a plain value, not an edge.
 
@@ -302,22 +304,19 @@ where: {
 Use for hierarchies ("any ancestor/descendant", "whole reporting chain"), "within N degrees", or transitive closure over one relationship type. The endpoint label constrains only the **final** record; intermediates are unconstrained.
 
 - Keep `max` as small as the request allows; deep undirected traversal is expensive. Omit `type` only when the user genuinely means "any relationship"; keep `direction` when the schema gives one.
-- `hops.max` is capped per deployment (default 25); omitting `max` (unbounded) is only accepted on self-hosted / dedicated-database setups.
+- Always set `hops.max` (an integer as small as the request allows). Omitting `max` means unbounded traversal, which is rejected on shared cloud connections and only accepted on self-hosted / dedicated-database setups; `hops.max` is capped per deployment (default 10).
 - Endpoint aggregations apply per **path**: `$count`/`$collect` deduplicate, but `$sum`/`$avg` over a multihop alias count one row per path — prefer counting to summing across multihop endpoints.
 - One hop stays the default: never add `hops` for a plain related-record condition.
 
-**`$cycle`** — cycle/ring detection (endpoint binds back to the parent record):
+**`$cycle`** — cycle/ring detection (a record-level predicate; the path binds back to the record):
 
 ```js
 where: {
-  RING: {
-    $cycle: true,
-    $relation: { type: "TRANSFERRED_TO", direction: "out", hops: { min: 2, max: 6 } }
-  }
+  $cycle: { type: "TRANSFERRED_TO", direction: "out", hops: { min: 2, max: 6 } }
 }
 ```
 
-Matches roots sitting on a closed path (fraud rings, circular ownership, dependency cycles). A `$cycle` block accepts **only** `$relation` (with `hops`, `min` ≥ 2 — defaults to 2): no `$alias`, no property criteria, no nested labels — a cycle has no separate endpoint. The block's key is a display name, not matched as a label. Set `direction` for flow-like semantics (money, ownership); undirected cycles also match innocent back-and-forth pairs. Wrap in `$not` for "NOT on a cycle". Paths may revisit a record via different relationships (only relationships are unique per path).
+Matches roots sitting on a closed path (fraud rings, circular ownership, dependency cycles). The operator's value IS the traversal spec (`type`, `direction`, `hops` — `hops` mandatory, `min` ≥ 2, defaults to 2). No `$alias`, no property criteria, no nested labels — a cycle has no separate endpoint. Intermediate node labels are unconstrained. Place inside a label block (`ACCOUNT: { country: "US", $cycle: {...} }`) to anchor the cycle at the related record. Set `direction` for flow-like semantics (money, ownership); undirected cycles also match innocent back-and-forth pairs. Wrap in `$not` for "NOT on a cycle". Paths may revisit a record via different relationships (only relationships are unique per path). Never wrap `$cycle` in a named block and never nest `$relation` inside it — the value IS the relation spec, and it sits directly at a `where` level like any other operator.
 
 **`$id`** — filter by record ID:
 
@@ -714,13 +713,13 @@ where: { EMPLOYEE: { $relation: { type: 'REPORTS_TO', direction: 'out', hops: { 
 
 ### Cycle / Ring Detection
 
-"Records on a loop back to themselves" (fraud rings, circular ownership, dependency cycles) → `$cycle` block (see §1). Root label = the entity type; the `$cycle` block holds only `$relation`:
+"Records on a loop back to themselves" (fraud rings, circular ownership, dependency cycles) → `$cycle` operator (see §1). Root label = the entity type; the operator's value is the traversal spec:
 
 ```js
 findRecords({
   labels: ['ACCOUNT'],
   where: {
-    RING: { $cycle: true, $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } } }
+    $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
   }
 })
 ```
@@ -748,7 +747,7 @@ Returns ring **participants**. To reconstruct a specific ring's composition, fol
 | NOT condition                | `$not: { ... }`                                                                                        |
 | related to X                 | `LABEL_NAME: { ...filters... }`                                                                        |
 | within N hops / any ancestor | `LABEL: { $relation: { type?, direction, hops: { max: N } } }` — type verbatim from schema, or omitted |
-| ring / loop / circular flow  | `{ $cycle: true, $relation: { type?, direction, hops: { min: 2, max: N } } }`                          |
+| ring / loop / circular flow  | `{ $cycle: { type?, direction, hops: { min: 2, max: N } } }`                                           |
 | last 7 days                  | compute ISO boundary → `createdAt: { $gte: "ISO-UTC" }`                                                |
 | in year 1994                 | `date: { $gte: { $year:1994 }, $lt: { $year:1995 } }`                                                  |
 
@@ -774,7 +773,7 @@ Before submitting any `findRecords` call, verify:
   - `$relation.hops` and `$cycle` are VALID operators — do not "correct" them away
 - [ ] `$relation.type` copied verbatim from a schema Relationships row, or omitted; never invented
 - [ ] `hops` only for repeated-pattern traversal (hierarchy/degrees); bounded `max`, as small as possible
-- [ ] `$cycle` block contains ONLY `$relation` (`hops` min ≥ 2); no `$alias`/criteria/nested labels inside
+- [ ] `$cycle` value is the traversal spec itself (`hops` mandatory, min ≥ 2); never a named block, never `$relation` nested inside
 - [ ] Vector similarity: still uses legacy `aggregate` (not `select`)
 - [ ] Vector threshold semantics: euclidean → `$lte`; others → `$gte`
 - [ ] Month+day without year → ask for year
@@ -923,7 +922,7 @@ where: { EMPLOYEE: { $relation: { type: 'REPORTS_TO', direction: 'out', hops: { 
 findRecords({
   labels: ['ACCOUNT'],
   where: {
-    RING: { $cycle: true, $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } } }
+    $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
   }
 })
 ```

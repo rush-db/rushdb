@@ -6,7 +6,7 @@ import { Relation, TraversalHops, Where } from '@/core/common/types'
 import { parseLevel } from '@/core/search/parser/buildQuery'
 import { TraversalQueryError } from '@/core/search/parser/errors'
 import { ParseContext } from '@/core/search/parser/types'
-import { traversalRelsVar } from '@/core/search/parser/utils'
+import { isCycleOperatorKey, traversalRelsVar } from '@/core/search/parser/utils'
 import { resolveMaxTraversalHops } from '@/core/search/search.constants'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
@@ -23,7 +23,7 @@ const normalizeHops = (
   if (hops === undefined) {
     if (isCycle) {
       throw new TraversalQueryError(
-        `'$cycle' requires '$relation' with 'hops', e.g. { "$relation": { "hops": { "min": 2, "max": 6 } } }.`
+        `'$cycle' requires 'hops', e.g. { "$cycle": { "type": "FLOWS_TO", "direction": "out", "hops": { "min": 2, "max": 6 } } }.`
       )
     }
     return null
@@ -100,7 +100,7 @@ const buildRelationPart = (
 
   if (isCycle && !isObject(relation)) {
     throw new TraversalQueryError(
-      `'$cycle' requires '$relation' with 'hops', e.g. { "$relation": { "hops": { "min": 2, "max": 6 } } }.`
+      `'$cycle' requires a traversal spec with 'hops', e.g. { "$cycle": { "type": "FLOWS_TO", "direction": "out", "hops": { "min": 2, "max": 6 } } }.`
     )
   }
 
@@ -117,9 +117,10 @@ const buildRelationPart = (
   }
 
   const hops = normalizeHops(relation, isCycle, maxHops)
-  // Variable-length patterns bind the relationship list when the untyped filter or
-  // the cycle existence check (`relsN IS NOT NULL`) needs to reference it.
-  const bindVar = hops !== null && (isCycle || !relation.type)
+  // Variable-length patterns bind the relationship list only when the untyped
+  // VALUE-edge filter needs to reference it; cycles compile to EXISTS subqueries
+  // and carry no variable out of the pattern.
+  const bindVar = hops !== null && !relation.type
   const needsValueEdgeFilter = hops !== null && !relation.type
 
   const inner = `${bindVar ? relVar : ''}${relation.type ? `:${relation.type}` : ''}${renderHops(hops)}`
@@ -153,39 +154,32 @@ export const parseSubQuery = (
   options?: TSearchQueryBuilderOptions,
   ctx?: ParseContext
 ) => {
-  const { $relation, $alias, $cycle, ...other } = input as any
-
   ctx.level += 1
   // Capture the level before parseLevel recursion mutates ctx.level.
   const level = ctx.level
   const maxHops = options?.maxHops ?? resolveMaxTraversalHops()
 
-  if (toBoolean($cycle)) {
-    if ($alias) {
-      throw new TraversalQueryError(`'$cycle' does not accept '$alias': a cycle has no separate endpoint.`)
-    }
-    if (Object.keys(other).length) {
-      throw new TraversalQueryError(
-        `'$cycle' accepts only '$relation': criteria and nested labels have no endpoint to anchor to, got ${JSON.stringify(Object.keys(other))}.`
-      )
-    }
-
+  if (isCycleOperatorKey(key)) {
+    // { $cycle: { type?, direction, hops } } — `input` IS the traversal spec; a cycle
+    // has no endpoint, so there is no $alias, no criteria, no nested labels.
     const relVar = traversalRelsVar(level)
-    const { pattern, needsValueEdgeFilter } = buildRelationPart($relation, relVar, true, maxHops)
+    const { pattern, needsValueEdgeFilter } = buildRelationPart(input as Relation, relVar, true, maxHops)
     const filter = needsValueEdgeFilter ? valueEdgeFilter(relVar) : ''
 
-    // The rel var takes the place of a node alias: the existence check in the final
-    // `WITH ... WHERE` is `relsN IS NOT NULL`, and WITH is a projection barrier.
-    ctx.nodeAliases.push(relVar)
-
-    // Keyed by the level's record slot purely for sortQueryParts ordering; both
-    // pattern endpoints are the parent alias — the block's label key is ignored.
-    ctx.result[ROOT_RECORD_ALIAS + level] =
-      `OPTIONAL MATCH (${options.nodeAlias})${pattern}(${options.nodeAlias})${
-        filter ? ` WHERE ${filter}` : ''
-      }`
+    // $cycle is a pure existence predicate: it binds no endpoint and nothing downstream
+    // ever references the path. Compiling it to an EXISTS subquery lets Neo4j stop at
+    // the FIRST cycle found per record — an OPTIONAL MATCH would enumerate every
+    // relationship-unique path (branching^hops rows on dense graphs) only to null-check
+    // the list afterwards. The predicate is stored for buildWhereClause (Pass 2), which
+    // walks levels in lockstep and inlines it into the boolean tree, so $or/$not
+    // composition keeps working.
+    ctx.cycleExistsByLevel[level] = `EXISTS { MATCH (${options.nodeAlias})${pattern}(${options.nodeAlias})${
+      filter ? ` WHERE ${filter}` : ''
+    } }`
     return
   }
+
+  const { $relation, $alias, ...other } = input as any
 
   const nodeAlias = ROOT_RECORD_ALIAS + level
   ctx.nodeAliases.push(nodeAlias)
