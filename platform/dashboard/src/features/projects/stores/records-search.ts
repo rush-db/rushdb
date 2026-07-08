@@ -18,6 +18,10 @@ export const $semanticSearchPrompt = atom('')
 export const $semanticSearchIndexId = atom<string | undefined>()
 export const $searchQueryModalOpen = atom(false)
 
+// Builder search-box input text; lives here (not in SearchBox.tsx) so it can be
+// reset alongside the rest of the search state on project switch.
+export const $recordQuery = atom<string>('')
+
 export const setAiSearchQuery = (query: SearchQuery | undefined) => {
   $aiSearchQuery.set(query)
   if (query) {
@@ -55,6 +59,19 @@ export const resetRecordsView = () => {
   $semanticSearchPrompt.set('')
   $semanticSearchIndexId.set(undefined)
 }
+
+// Search state lives in module-level atoms, so it survives client-side navigation
+// between projects. Clear it whenever the current project changes; mirrors the
+// filters/pagination reset in current-project.ts. Same-project navigation (e.g.
+// applySavedQuery) is unaffected: the atom doesn't notify when the id is unchanged.
+$currentProjectId.subscribe(() => {
+  $recordsSearchMode.set('ai')
+  resetAiSearch()
+  $semanticSearchPrompt.set('')
+  $semanticSearchIndexId.set(undefined)
+  $recordQuery.set('')
+  $searchQueryModalOpen.set(false)
+})
 
 // Restores a saved query onto the Records page and navigates there. Manual and
 // AI queries are re-run through the AI path (which executes the stored

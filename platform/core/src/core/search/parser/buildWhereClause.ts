@@ -4,7 +4,7 @@ import { toBoolean } from '@/common/utils/toBolean'
 import { ROOT_RECORD_ALIAS } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
 import { ParseContext } from '@/core/search/parser/types'
-import { splitCriteria, traversalRelsVar, wrapInParentheses } from '@/core/search/parser/utils'
+import { isCycleOperatorKey, splitCriteria, wrapInParentheses } from '@/core/search/parser/utils'
 import { TSearchQueryBuilderOptions } from '@/core/search/search.types'
 
 const parseCurrentLevel = (input: Where, options?: TSearchQueryBuilderOptions, ctx?: ParseContext) => {
@@ -64,7 +64,7 @@ const parseCurrentLevel = (input: Where, options?: TSearchQueryBuilderOptions, c
     const { currentLevel, subQueries } = splitCriteria(input)
     // SUB QUERY PROCESSING
     if (toBoolean(subQueries)) {
-      return Object.entries(subQueries).map(([k, value]) => parseSubQuery(value, options, ctx))
+      return Object.entries(subQueries).map(([k, value]) => parseSubQuery(k, value, options, ctx))
     } else {
       return Object.entries(currentLevel).map(([k, v]) => {
         switch (k) {
@@ -134,9 +134,12 @@ const parseCurrentLevel = (input: Where, options?: TSearchQueryBuilderOptions, c
               ctx
             )
 
-            const condition = conditionRaw?.filter?.(toBoolean)
+            // Array input (e.g. $and: [{...}, {...}]) makes parseCurrentLevel return a
+            // pre-joined string — pass it through like the other operators do, instead
+            // of dropping it via a filter() that only exists on arrays.
+            const condition = isArray(conditionRaw) ? conditionRaw.filter(toBoolean) : conditionRaw
 
-            if (condition) {
+            if (isArray(condition) ? condition.length : toBoolean(condition)) {
               return wrapInParentheses(isArray(condition) ? condition.join(' AND ') : condition)
             }
             break
@@ -150,16 +153,17 @@ const parseCurrentLevel = (input: Where, options?: TSearchQueryBuilderOptions, c
   }
 }
 
-const parseSubQuery = (input: any, options?: TSearchQueryBuilderOptions, ctx?: ParseContext) => {
-  const { $relation, $alias, $cycle, ...other } = input as any
-
+const parseSubQuery = (key: string, input: any, options?: TSearchQueryBuilderOptions, ctx?: ParseContext) => {
   ctx.level += 1
 
-  if (toBoolean($cycle)) {
-    // Cycle blocks bind no endpoint node — existence is carried by the rel-list
-    // variable. No recursion: Pass 1 rejects children, so level lockstep holds.
-    return `${traversalRelsVar(ctx.level)} IS NOT NULL`
+  if (isCycleOperatorKey(key)) {
+    // $cycle binds no endpoint node — Pass 1 compiled it to an EXISTS subquery
+    // predicate (short-circuits at the first cycle found per record) stored by level.
+    // No recursion: the operator's value is a traversal spec, so level lockstep holds.
+    return ctx.cycleExistsByLevel[ctx.level]
   }
+
+  const { $relation, $alias, ...other } = input as any
 
   const nodeAlias = ROOT_RECORD_ALIAS + ctx.level
 

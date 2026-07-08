@@ -689,79 +689,43 @@ describe('variable-length traversal ($relation.hops)', () => {
   })
 })
 
+// { $cycle: { type?, direction, hops } } at record level — the value IS the traversal
+// spec. A cycle has no endpoint, so there is no key, no $relation wrapper, no $alias.
 describe('cycle detection ($cycle)', () => {
   const options = (): TSearchQueryBuilderOptions => ({ nodeAlias: 'record' })
 
-  it('binds both pattern endpoints to the parent for a typed cycle', () => {
+  it('compiles a typed cycle to an EXISTS predicate anchored to the parent', () => {
     const result = parseWhereClause(
-      {
-        RING: {
-          $cycle: true,
-          $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { max: 6 } }
-        }
-      },
+      { $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { max: 6 } } },
       options()
     )
 
+    // No OPTIONAL MATCH part and no bound rel var: EXISTS short-circuits at the first
+    // cycle found per record instead of enumerating every path and null-checking after.
     expect(result).toEqual({
       aliasesMap: { $record: 'record' },
-      nodeAliases: ['record', 'rels1'],
+      nodeAliases: ['record'],
       queryParts: {
-        record: '',
-        record1: 'OPTIONAL MATCH (record)-[rels1:TRANSFERRED_TO*2..6]->(record)'
+        record: ''
       },
-      where: 'record IS NOT NULL AND rels1 IS NOT NULL'
+      where: 'record IS NOT NULL AND EXISTS { MATCH (record)-[:TRANSFERRED_TO*2..6]->(record) }'
     })
   })
 
-  it('adds the VALUE-edge filter for an untyped cycle', () => {
-    const result = parseWhereClause(
-      {
-        RING: {
-          $cycle: true,
-          $relation: { direction: 'out', hops: { max: 6 } }
-        }
-      },
-      options()
-    )
+  it('adds the VALUE-edge filter inside EXISTS for an untyped cycle', () => {
+    const result = parseWhereClause({ $cycle: { direction: 'out', hops: { max: 6 } } }, options())
 
-    expect(result.queryParts.record1).toEqual(
-      "OPTIONAL MATCH (record)-[rels1*2..6]->(record) WHERE all(r IN rels1 WHERE type(r) <> '__RUSHDB__RELATION__VALUE__')"
+    expect(result.where).toEqual(
+      'record IS NOT NULL AND ' +
+        "EXISTS { MATCH (record)-[rels1*2..6]->(record) WHERE all(r IN rels1 WHERE type(r) <> '__RUSHDB__RELATION__VALUE__') }"
     )
+    expect(result.queryParts).toEqual({ record: '' })
   })
 
-  it('anchors a cycle to a nested parent and keeps its criteria', () => {
+  it('keeps level numbering for siblings after a cycle predicate', () => {
     const result = parseWhereClause(
       {
-        ACCOUNT: {
-          country: 'US',
-          RING: {
-            $cycle: true,
-            $relation: { direction: 'out', hops: { max: 4 } }
-          }
-        }
-      },
-      options()
-    )
-
-    expect(result.queryParts).toEqual({
-      record: '',
-      record1:
-        'OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:`ACCOUNT`) WHERE (any(value IN record1.`country` WHERE value = "US"))',
-      record2:
-        "OPTIONAL MATCH (record1)-[rels2*2..4]->(record1) WHERE all(r IN rels2 WHERE type(r) <> '__RUSHDB__RELATION__VALUE__')"
-    })
-    expect(result.nodeAliases).toEqual(['record', 'record1', 'rels2'])
-    expect(result.where).toEqual('record IS NOT NULL AND (record1 IS NOT NULL AND rels2 IS NOT NULL)')
-  })
-
-  it('keeps level numbering for siblings after a cycle block', () => {
-    const result = parseWhereClause(
-      {
-        RING: {
-          $cycle: true,
-          $relation: { type: 'T', direction: 'out', hops: { max: 3 } }
-        },
+        $cycle: { type: 'T', direction: 'out', hops: { max: 3 } },
         FRIEND: {
           name: 'Bob'
         }
@@ -771,75 +735,95 @@ describe('cycle detection ($cycle)', () => {
 
     expect(result.queryParts).toEqual({
       record: '',
-      record1: 'OPTIONAL MATCH (record)-[rels1:T*2..3]->(record)',
       record2:
         'OPTIONAL MATCH (record)--(record2:__RUSHDB__LABEL__RECORD__:`FRIEND`) WHERE (any(value IN record2.`name` WHERE value = "Bob"))'
     })
-    expect(result.nodeAliases).toEqual(['record', 'rels1', 'record2'])
-    expect(result.where).toEqual('record IS NOT NULL AND rels1 IS NOT NULL AND record2 IS NOT NULL')
-  })
-
-  it('combines a cycle with a normal block under $or', () => {
-    const result = parseWhereClause(
-      {
-        $or: {
-          RING: {
-            $cycle: true,
-            $relation: { type: 'T', direction: 'out', hops: { max: 3 } }
-          },
-          EMPLOYEE: {
-            name: 'X'
-          }
-        }
-      },
-      options()
+    expect(result.nodeAliases).toEqual(['record', 'record2'])
+    expect(result.where).toEqual(
+      'record IS NOT NULL AND EXISTS { MATCH (record)-[:T*2..3]->(record) } AND record2 IS NOT NULL'
     )
-
-    expect(result.where).toEqual('record IS NOT NULL AND (rels1 IS NOT NULL OR record2 IS NOT NULL)')
-  })
-
-  it('negates a cycle with $not (acyclic check)', () => {
-    const result = parseWhereClause(
-      {
-        $not: {
-          RING: {
-            $cycle: true,
-            $relation: { type: 'T', direction: 'out', hops: { max: 3 } }
-          }
-        }
-      },
-      options()
-    )
-
-    expect(result.where).toEqual('record IS NOT NULL AND (NOT(rels1 IS NOT NULL))')
   })
 
   it('defaults cycle min to 2 and rejects hops below it', () => {
-    expect(() =>
-      parseWhereClause({ RING: { $cycle: true, $relation: { type: 'T', hops: 1 } } }, options())
-    ).toThrow()
-    expect(() =>
-      parseWhereClause(
-        { RING: { $cycle: true, $relation: { type: 'T', hops: { min: 1, max: 3 } } } },
-        options()
-      )
-    ).toThrow("'hops.min'")
+    expect(() => parseWhereClause({ $cycle: { type: 'T', hops: 1 } }, options())).toThrow()
+    expect(() => parseWhereClause({ $cycle: { type: 'T', hops: { min: 1, max: 3 } } }, options())).toThrow(
+      "'hops.min'"
+    )
+  })
+
+  it('anchors to a related record when nested in a label block', () => {
+    const result = parseWhereClause(
+      {
+        ACCOUNT: {
+          country: 'US',
+          $cycle: { direction: 'out', hops: { max: 4 } }
+        }
+      },
+      options()
+    )
+
+    expect(result.where).toEqual(
+      'record IS NOT NULL AND (record1 IS NOT NULL AND ' +
+        "EXISTS { MATCH (record1)-[rels2*2..4]->(record1) WHERE all(r IN rels2 WHERE type(r) <> '__RUSHDB__RELATION__VALUE__') })"
+    )
+  })
+
+  it('composes under $or with other blocks', () => {
+    const result = parseWhereClause(
+      {
+        $or: {
+          $cycle: { type: 'T', direction: 'out', hops: { max: 3 } },
+          EMPLOYEE: { name: 'X' }
+        }
+      },
+      options()
+    )
+
+    expect(result.where).toEqual(
+      'record IS NOT NULL AND (EXISTS { MATCH (record)-[:T*2..3]->(record) } OR record2 IS NOT NULL)'
+    )
+  })
+
+  it('negates with $not (acyclic check)', () => {
+    const result = parseWhereClause(
+      { $not: { $cycle: { type: 'T', direction: 'out', hops: { max: 3 } } } },
+      options()
+    )
+
+    expect(result.where).toEqual(
+      'record IS NOT NULL AND (NOT(EXISTS { MATCH (record)-[:T*2..3]->(record) }))'
+    )
+  })
+
+  it('supports several cycle predicates at one level via an $and array', () => {
+    const result = parseWhereClause(
+      {
+        $and: [
+          { $cycle: { type: 'A', direction: 'out', hops: { max: 3 } } },
+          { $cycle: { type: 'B', direction: 'out', hops: { max: 4 } } }
+        ]
+      },
+      options()
+    )
+
+    expect(result.where).toContain('EXISTS { MATCH (record)-[:A*2..3]->(record) }')
+    expect(result.where).toContain('EXISTS { MATCH (record)-[:B*2..4]->(record) }')
   })
 
   it.each([
-    ['without $relation', { RING: { $cycle: true } }],
-    ['with a string $relation', { RING: { $cycle: true, $relation: 'T' } }],
-    ['without hops', { RING: { $cycle: true, $relation: { type: 'T' } } }],
-    ['with $alias', { RING: { $cycle: true, $alias: '$ring', $relation: { type: 'T', hops: { max: 3 } } } }],
-    [
-      'with property criteria',
-      { RING: { $cycle: true, $relation: { type: 'T', hops: { max: 3 } }, name: 'X' } }
-    ],
-    [
-      'with a nested label block',
-      { RING: { $cycle: true, $relation: { type: 'T', hops: { max: 3 } }, POST: { title: 'X' } } }
-    ]
-  ])('rejects $cycle %s', (_, where) => {
-    expect(() => parseWhereClause(where, options())).toThrow()
+    ['a bare boolean', { $cycle: true }],
+    ['a string value', { $cycle: 'T' }],
+    ['a spec without hops', { $cycle: { type: 'T' } }]
+  ])('rejects $cycle with %s', (_, where) => {
+    expect(() => parseWhereClause(where as never, options())).toThrow("'$cycle' requires")
+  })
+
+  it('rejects the removed block form with operator-form guidance', () => {
+    expect(() =>
+      parseWhereClause(
+        { SOME_KEY: { $cycle: true, $relation: { type: 'T', direction: 'out', hops: { max: 3 } } } },
+        options()
+      )
+    ).toThrow("'$cycle' requires")
   })
 })

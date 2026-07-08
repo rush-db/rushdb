@@ -85,7 +85,8 @@ export const parseWhereClause = (
     aliasesMap,
     level: 0,
     result: { [options.nodeAlias]: '' },
-    withQueryQueue: { [options.nodeAlias]: [] }
+    withQueryQueue: { [options.nodeAlias]: [] },
+    cycleExistsByLevel: {}
   }
 
   parseLevel('', normalizedInput, options, ctx)

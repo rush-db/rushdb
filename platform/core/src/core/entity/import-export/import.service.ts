@@ -104,6 +104,17 @@ export class ImportService {
       // skipEmptyValues: an empty string is treated as unset — no property created.
       // (0 and false are real values and are handled in the branch below.)
     } else {
+      // PapaParse dynamicTyping (CSV import) turns ISO-8601 cells into JS Date instances.
+      // A Date is not a driver-serializable property value — it reaches Neo4j as an empty
+      // map and fails the whole write — so fold it back to the ISO string it came from
+      // (which suggestPropertyType then types as datetime).
+      if (value instanceof Date) {
+        value = value.toISOString()
+      } else if (isArray(value)) {
+        value = value.map((item) =>
+          (item as unknown) instanceof Date ? (item as any as Date).toISOString() : item
+        )
+      }
       const property = {
         id: uuidv7(),
         name: key,

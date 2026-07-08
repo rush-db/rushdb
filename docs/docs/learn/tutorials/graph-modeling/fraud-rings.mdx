@@ -157,14 +157,10 @@ For Model B you would create a `TRANSACTION` record per movement (`{ amount: 950
 const ringParticipants = await db.records.find({
   labels: ['ACCOUNT'],
   where: {
-    RING: {
-      // Display name — NOT matched as a label
-      $cycle: true,
-      $relation: {
-        type: 'TRANSFERRED_TO', // Every hop is a transfer
-        direction: 'out', // Money always flows forward
-        hops: { min: 2, max: 6 } // Ring length in transfers
-      }
+    $cycle: {
+      type: 'TRANSFERRED_TO', // Every hop is a transfer
+      direction: 'out', // Money always flows forward
+      hops: { min: 2, max: 6 } // Ring length in transfers
     }
   }
 })
@@ -178,13 +174,10 @@ const ringParticipants = await db.records.find({
 ring_participants = db.records.find({
     "labels": ["ACCOUNT"],
     "where": {
-        "RING": {
-            "$cycle": True,
-            "$relation": {
-                "type": "TRANSFERRED_TO",
-                "direction": "out",
-                "hops": {"min": 2, "max": 6}
-            }
+        "$cycle": {
+            "type": "TRANSFERRED_TO",
+            "direction": "out",
+            "hops": {"min": 2, "max": 6}
         }
     }
 })
@@ -199,10 +192,7 @@ curl -s -X POST "$BASE/records/search" \
   -d '{
     "labels": ["ACCOUNT"],
     "where": {
-      "RING": {
-        "$cycle": true,
-        "$relation": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
-      }
+      "$cycle": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
     }
   }'
 ```
@@ -210,15 +200,14 @@ curl -s -X POST "$BASE/records/search" \
 </TabItem>
 </Tabs>
 
-The rules of a `$cycle` block, briefly:
+The rules of the `$cycle` operator, briefly:
 
-- It requires `$relation` with `hops` (`min` ≥ 2, defaulting to 2 — a 1-hop "cycle" would be a self-loop) and accepts **nothing else**: no `$alias`, no property criteria, no nested labels. Both ends of the path are the root record, so filter the root instead.
-- The key (`RING`) is a display name, not a label; it just has to be unique among its siblings.
-- `type` and `direction` apply to every hop; `hops` bounds the ring length.
+- It is a record-level predicate: its value is the traversal spec itself — `type`, `direction`, `hops` — with `hops` mandatory (`min` ≥ 2, defaulting to 2 — a 1-hop "cycle" would be a self-loop). It accepts **nothing else**: no `$alias`, no property criteria, no nested labels. Both ends of the path are the root record, so filter the root instead.
+- `type` and `direction` apply to every hop; `hops` bounds the ring length. Intermediate node labels are unconstrained.
 
 ### Model B: untyped, directed hops — with doubled counts
 
-In Model B the path alternates `ACCOUNT -[SENT]-> TRANSACTION -[CREDITS]-> ACCOUNT`, so each money movement costs **two hops**. A ring of 2–6 transfers is a closed path of 4–12 hops. And because the hops alternate between two relationship types, omit `type` — untyped traversal allows a different type on each hop (RushDB automatically excludes its internal property metadata edges, so this never leaves your data model):
+In Model B the path alternates `ACCOUNT -[SENT]-> TRANSACTION -[CREDITS]-> ACCOUNT`, so each money movement costs **two hops**. A ring of 2–5 transfers is a closed path of 4–10 hops (the default cloud hop cap is 10, so in Model B that budget covers rings of up to 5 transfers). And because the hops alternate between two relationship types, omit `type` — untyped traversal allows a different type on each hop (RushDB automatically excludes its internal property metadata edges, so this never leaves your data model):
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -227,12 +216,9 @@ In Model B the path alternates `ACCOUNT -[SENT]-> TRANSACTION -[CREDITS]-> ACCOU
 const ringParticipants = await db.records.find({
   labels: ['ACCOUNT'],
   where: {
-    RING: {
-      $cycle: true,
-      $relation: {
-        direction: 'out', // SENT and CREDITS both point "downstream"
-        hops: { min: 4, max: 12 } // 2–6 transfers × 2 hops each
-      }
+    $cycle: {
+      direction: 'out', // SENT and CREDITS both point "downstream"
+      hops: { min: 4, max: 10 } // 2–5 transfers × 2 hops each
     }
   }
 })
@@ -245,10 +231,7 @@ const ringParticipants = await db.records.find({
 ring_participants = db.records.find({
     "labels": ["ACCOUNT"],
     "where": {
-        "RING": {
-            "$cycle": True,
-            "$relation": {"direction": "out", "hops": {"min": 4, "max": 12}}
-        }
+        "$cycle": {"direction": "out", "hops": {"min": 4, "max": 10}}
     }
 })
 ```
@@ -262,10 +245,7 @@ curl -s -X POST "$BASE/records/search" \
   -d '{
     "labels": ["ACCOUNT"],
     "where": {
-      "RING": {
-        "$cycle": true,
-        "$relation": {"direction": "out", "hops": {"min": 4, "max": 12}}
-      }
+      "$cycle": {"direction": "out", "hops": {"min": 4, "max": 10}}
     }
   }'
 ```
@@ -296,7 +276,7 @@ hops: { min: 3, max: 6 }   // rings of 3+ accounts only
 
 ## Step 3: Combine with root filters
 
-A `$cycle` block cannot carry criteria — but the **root** record can. Scope candidate detection to the accounts your analysts actually care about:
+A `$cycle` spec cannot carry criteria — but the **root** record can. Scope candidate detection to the accounts your analysts actually care about:
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -308,10 +288,7 @@ const suspects = await db.records.find({
   where: {
     country: { $in: ['CY', 'LV', 'MT'] },
     riskTier: 'high',
-    RING: {
-      $cycle: true,
-      $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
-    }
+    $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
   }
 })
 
@@ -320,10 +297,7 @@ const cleanAccounts = await db.records.find({
   labels: ['ACCOUNT'],
   where: {
     $not: {
-      RING: {
-        $cycle: true,
-        $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
-      }
+      $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
     }
   }
 })
@@ -338,10 +312,7 @@ suspects = db.records.find({
     "where": {
         "country": {"$in": ["CY", "LV", "MT"]},
         "riskTier": "high",
-        "RING": {
-            "$cycle": True,
-            "$relation": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
-        }
+        "$cycle": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
     }
 })
 
@@ -349,10 +320,7 @@ clean_accounts = db.records.find({
     "labels": ["ACCOUNT"],
     "where": {
         "$not": {
-            "RING": {
-                "$cycle": True,
-                "$relation": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
-            }
+            "$cycle": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
         }
     }
 })
@@ -369,10 +337,7 @@ curl -s -X POST "$BASE/records/search" \
     "where": {
       "country": {"$in": ["CY", "LV", "MT"]},
       "riskTier": "high",
-      "RING": {
-        "$cycle": true,
-        "$relation": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
-      }
+      "$cycle": {"type": "TRANSFERRED_TO", "direction": "out", "hops": {"min": 2, "max": 6}}
     }
   }'
 ```
@@ -465,16 +430,16 @@ Each step is a one-hop, ID-anchored query — cheap and index-friendly. In pract
 
 ### Honest limitations
 
-- **No per-hop predicates.** You cannot express "every transfer along the path exceeds $10,000". In Model A the amounts don't exist at all; in Model B the intermediate `TRANSACTION` records inside a `hops` traversal are anonymous and unconstrained — only the endpoint can be filtered, and a `$cycle`block can't even do that. Amount-aware ring scoring belongs in the reconstruction step, where each`TRANSACTION` is a normal record you can filter and aggregate.
+- **No per-hop predicates.** You cannot express "every transfer along the path exceeds $10,000". In Model A the amounts don't exist at all; in Model B the intermediate `TRANSACTION` records inside a `hops` traversal are anonymous and unconstrained — only the endpoint can be filtered, and a `$cycle` spec can't even do that. Amount-aware ring scoring belongs in the reconstruction step, where each`TRANSACTION` is a normal record you can filter and aggregate.
 - **Trail semantics.** Each _relationship_ is used at most once per path, but records may repeat — a figure-eight through a shared mule account counts as one cycle. Treat `$cycle` as a candidate generator, not a verdict.
 
 ---
 
 ## Performance notes
 
-- **Keep `max` small.** Variable-length traversal explores every matching path, and each extra hop multiplies the path count. Real laundering rings are short (3–6 parties); start there and widen only with evidence. Remember that in Model B the hop budget spends twice as fast — 12 hops is only 6 transfers.
+- **Keep `max` small.** Variable-length traversal explores every matching path, and each extra hop multiplies the path count. Real laundering rings are short (3–6 parties); start there and widen only with evidence. Remember that in Model B the hop budget spends twice as fast — 10 hops is only 5 transfers.
 - **Always set `direction`.** It halves the expansion at every hop _and_ it is what makes the result mean "circular flow". An undirected, untyped `hops` query is the most expensive shape SearchQuery can produce.
-- **Mind the hop cap.** `hops.max` is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 25) on shared cloud. Unbounded traversal (omitting `max`) is only available on self-hosted deployments and projects with a custom Neo4j instance, bounded there by the transaction timeout.
+- **Mind the hop cap.** `hops.max` is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 10) on shared cloud. Unbounded traversal (omitting `max`) is only available on self-hosted deployments and projects with a custom Neo4j instance, bounded there by the transaction timeout.
 - **Filter the root first.** Property criteria on the root (`country`, `riskTier`, activity flags) run before traversal and shrink the candidate set the cycle check has to cover.
 
 ---

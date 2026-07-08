@@ -451,6 +451,38 @@ export class EntityService {
       : Number(committedOperations ?? 0)
   }
 
+  /**
+   * Probes how many record pairs a join pattern would actually connect, capped at
+   * `limit`. Read-only; runs the same pair-matching statement as createRelationsByKeys.
+   */
+  async countRelationCandidatesByKeys({
+    source,
+    target,
+    projectId,
+    transaction,
+    limit
+  }: {
+    source: { label: string; key?: string; where?: Where }
+    target: { label: string; key?: string; where?: Where }
+    projectId: string
+    transaction: Transaction
+    limit: number
+  }): Promise<number> {
+    const query = this.entityQueryService.countRelationCandidatesByKeys({
+      sourceLabel: source.label,
+      sourceKey: source.key,
+      targetLabel: target.label,
+      targetKey: target.key,
+      sourceWhere: source.where,
+      targetWhere: target.where,
+      limit
+    })
+
+    const result = await transaction.run(query, { projectId })
+    const matchCount = result.records[0]?.get('matchCount')
+    return typeof matchCount?.toNumber === 'function' ? matchCount.toNumber() : Number(matchCount ?? 0)
+  }
+
   async retypeRelationsByLabels({
     source,
     target,

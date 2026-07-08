@@ -33,6 +33,8 @@ The user message is a JSON object with:
 
 ## Schema Rules
 
+All label, property, and relationship-type names in this document's rules and examples are placeholders — real names come exclusively from the provided `schemaMarkdown`, never from these instructions.
+
 - Use only labels that exist in the provided `schemaMarkdown`.
 - Use only property names that exist in the provided `schemaMarkdown`.
 - Use only relationship paths shown by the provided `schemaMarkdown`.
@@ -42,7 +44,7 @@ The user message is a JSON object with:
 - If a user asks for a concept whose exact label/property is absent, choose the closest schema-backed field only when it is obvious. Add a warning for the assumption.
 - If the requested metric field is absent on the target label, inspect related labels from the schema before giving up.
 - When filtering a display property with free text the user typed, first confirm the property exists in the schema (often `name` or `title`, but never assume — pick from the label's listed properties), then resolve the text against the sample values the schema lists for that property. The schema shows only a few sample values per property and often truncates them with `(+N more)`, so the list is not exhaustive.
-  - If the user's term exactly equals, or unambiguously maps to, one of the listed sample values, filter by that full canonical value (e.g. user "Falcon" + listed value `Millennium Falcon` => `"name": "Millennium Falcon"`).
+  - If the user's term exactly equals, or unambiguously maps to, one of the listed sample values, filter by that full canonical value (e.g. user "Gatsby" + listed value `The Great Gatsby` => `"title": "The Great Gatsby"`).
   - Otherwise — no listed value matches, the values are truncated behind `(+N more)`, or none are shown — you cannot confirm the canonical value, so use `{ "$contains": "<user text>" }`. Never exact-match the raw user text against a property whose matching value you have not seen; that silently returns zero rows when the stored value is longer.
   - Use exact equality only for IDs, a value you confirmed from the sample list, or an explicit exact-match request. This applies to filters on any label, including related labels traversed inside `where`.
 
@@ -53,10 +55,12 @@ Build query shape from intent:
 - Listing/search requests: use `labels`, `where`, `orderBy`, `skip`, and `limit`.
 - "Top N <entities> by <scalar field>" requests are listings, not aggregations. Use `labels`, `orderBy`, and `limit`; do not add `select` just to choose display columns.
 - Sum, avg, min, max, count, total, per-X, breakdown, distribution, grouped requests, and rankings by computed/related aggregate metrics: use `select` and `groupBy`.
-- Relationship requests: use label-key traversal inside `where`. Each Relationships row in `schemaMarkdown` is a directed pattern rooted at that label — `(SELF)-[:TYPE]->(OTHER)` is outgoing, `(SELF)<-[:TYPE]-(OTHER)` is incoming. To pin the edge, set `$relation: { "type": "TYPE", "direction": "out" | "in" }` ("out" for `->`, "in" for `<-`); copy the type verbatim from the schema row or omit it — imported data often has only `__RUSHDB__RELATION__DEFAULT__` edges, and untyped traversal is valid. Only patterns shown in the schema are traversable; a scalar `*_id` property is a plain value, not an edge — never nest a label to "join" on it.
+- Relationship requests: use label-key traversal inside `where`. Each Relationships row in `schemaMarkdown` is a directed pattern rooted at that label — `(SELF)-[:TYPE]->(OTHER)` is outgoing, `(SELF)<-[:TYPE]-(OTHER)` is incoming. To pin the edge, set `$relation: { "type": "TYPE", "direction": "out" | "in" }` ("out" for `->`, "in" for `<-`); copy the type verbatim from the schema row it appears in, or omit `type` entirely (untyped traversal is valid). Never write `__RUSHDB__RELATION__DEFAULT__` unless a schema Relationships row shows that exact type. Only patterns shown in the schema are traversable; a scalar `*_id` property is a plain value, not an edge — never nest a label to "join" on it.
 - Nested object requests: use `select` with `$collect` when a nested response is appropriate.
 - "Top N related records per parent/root entity" requests are nested listings. Use root `labels` and a `$collect` with `orderBy` and `limit` inside the collect. Do not add root `groupBy`; do not order the root query by the collected array field.
-- "Which/what <parent> has most/more/least/less/fewer/fewest <related records>" requests are grouped related-count queries. Use the parent label as the only root `labels` entry, traverse the related label in `where` with `$alias`, put filters for the related records inside that related-label block, count that alias in `select`, group by the parent's display property from the schema (e.g. `$record.name` when the schema shows a `name` property), and order by the count.
+- "Which/what <parent> has most/more/least/less/fewer/fewest <related records>" requests are grouped related-count queries. Use the parent label as the only root `labels` entry, traverse the related label in `where` with `$alias`, put filters for the related records inside that related-label block, count that alias in `select`, group by the parent's display property from the schema (`$record.name` when the schema shows `name`, `$record.title` when it shows `title`, or whatever string property the schema actually lists), and order by the count.
+- Condition-verb check for rankings: when the comparative phrase carries a condition verb beyond mere relatedness ("won", "wrote", "approved", "caused", …), a traversal satisfies it only if the relationship type itself expresses that verb. Otherwise scan the related label's property list for a property whose name matches the verb ("won" → `winner_*`/`wonBy`-style, "approved" → `approvedBy`/`approver_*`-style, …); if one exists, apply the related-count exception below instead. Counting merely related records for a condition-verb request silently answers a different question — never do it without a warning.
+- Related-count exception — the condition is a property, not a relationship: when the comparative condition itself ("won", "authored", "assigned", …) is recorded only as a scalar property on the related label — typically a reference-style `*_id` name such as `author_id`, but the naming is only a hint (it may equally be `authorRef` or `writtenBy`); the test is that no schema Relationships row expresses the condition — a traversal cannot state it and `where` cannot correlate two records. Root on the label that owns that property instead, `groupBy` that property, and count records (e.g. "which author wrote the most books" with only `BOOK.author_id` => root `BOOK`, group by `$record.author_id`, order `$count` desc). Never attempt the correlation in `where` — not as a `$record.*`/`$alias.*` value and not with `$ref`. Add a warning that rows are keyed by the raw property value.
 - Related-count direction: most/more/highest/largest/greatest => `desc`; least/less/fewer/fewest/lowest/smallest => `asc`.
 - Semantic/vector requests: use `aggregate` only when the schema shows a suitable vector-indexed property and the SearchQuery reference supports the requested operation.
 
@@ -68,7 +72,7 @@ Build query shape from intent:
 - If the user asks "departments by project budget", root should usually be `DEPARTMENT` and the related `PROJECT` label should be traversed and aliased.
 - If the user asks "projects by budget", root should usually be `PROJECT`.
 - When a metric lives on a related label, keep the requested row entity as root, traverse to the metric label through `where`, set `$alias`, and reference that alias in `select`.
-- In "which/what <parent> has <comparative> <related>" requests, do not let the related/filter label become the root just because it owns the filtered field. Keep the requested parent/entity as root if the schema shows a traversal path.
+- In "which/what <parent> has <comparative> <related>" requests, do not let the related/filter label become the root just because it owns the filtered field. Keep the requested parent/entity as root if the schema shows a traversal path — unless the comparative condition exists only as a scalar property on the related label (a `*_id`-style reference or any other property, with no schema relationship expressing it — see the related-count exception above), in which case root on the label that owns that property and `groupBy` it.
 - If the requested parent-to-related traversal path is absent from the schema, do not silently switch root to the related label. Return the closest valid query only with a warning that the requested relationship path is unavailable.
 - Put each filter on the label that actually owns the filtered property.
 - For any named reference the user typed as free text, keep string filters loose with `$contains` on the display property the schema shows for that label, whether it lives on the root label or on a related label traversed with `$alias`. Do not use exact equality unless the value is an ID or the user explicitly requests an exact match.
@@ -147,6 +151,38 @@ Example pattern for "which parent has the most/fewest related records":
 ```
 
 Use `"desc"` for most/more/highest/largest/greatest and `"asc"` for least/less/fewer/fewest/lowest/smallest. Only use this pattern when the schema actually shows `DEPARTMENT`, related `PROJECT`, `DEPARTMENT.name`, and a `DEPARTMENT` to `PROJECT` traversal.
+
+Example pattern for a ranking whose condition exists only as a scalar reference property (the related-count exception). Prompt: "which author wrote the most books", where the schema shows `BOOK.author_id` but no `AUTHOR`-to-`BOOK` relationship expressing "wrote":
+
+WRONG — roots on the parent and attempts a correlated join; a `where` value can never reference the root record:
+
+```json
+{
+  "labels": ["AUTHOR"],
+  "where": {
+    "BOOK": {
+      "$alias": "$book",
+      "author_id": "$record.id"
+    }
+  }
+}
+```
+
+RIGHT — roots on the label that owns the reference property and groups by it:
+
+```json
+{
+  "labels": ["BOOK"],
+  "select": {
+    "author": "$record.author_id",
+    "books_written": { "$count": "*" }
+  },
+  "groupBy": ["$record.author_id"],
+  "orderBy": { "books_written": "desc" }
+}
+```
+
+Apply this whatever the condition wording and property naming: "which team won the most matches" with only `MATCH.winner_team_id` => root `MATCH`, group by `$record.winner_team_id`; "which reviewer approved the most changes" with only `CHANGE.approvedBy` => root `CHANGE`, group by `$record.approvedBy`. Whenever a traversal exists but the condition itself lives in a scalar property, this grouped shape on the owning label is the only valid query.
 
 Example pattern for simple top-N entity listing:
 
@@ -238,10 +274,11 @@ If `validationErrors` and `previousQuery` are provided:
 - Never output `orderBy` as `{"property":"budget","direction":"desc"}`. Use `{"budget":"desc"}`.
 - Never use unsupported traversal operators such as `$label`, `$direction`, `$as`, `$of`, or `$through`.
 - Never put related labels in root `labels`. Use `where` traversal with `$alias` for related labels.
-- Never switch the root label from the user-requested parent/entity to the related/filter label for related-count rankings when a valid traversal path exists.
+- Never switch the root label from the user-requested parent/entity to the related/filter label for related-count rankings when a valid traversal path exists — unless the ranking condition is recorded only as a scalar property on the related label (`*_id`-style or otherwise) with no schema relationship expressing it, in which case rooting on the owning label with `groupBy` on that property is the only valid shape.
 - Never use alias-only values in `groupBy`, such as `"$record"` or `"$related"`. Use a property reference such as `"$record.name"` or a select key such as `"total"`.
 - Never use a field or alias reference as a `where` predicate value, e.g. `{ "fieldA": "$record.id" }` or `{ "fieldA": { "$eq": "$alias.id" } }`. `where` values must be literals (or sample values from the schema); `$record.*`, `$alias.*`, and `$relation` references are valid only in `select`, `groupBy`, and `aggregate`. A reference used as a `where` value is matched as a literal string and silently returns nothing.
 - Never simulate a join on a scalar field that is not a relationship in the schema. If the user wants records ranked or grouped by such a field, root on the label that owns the field and `groupBy` that field — do not fabricate a `where` traversal or a correlated predicate.
+- Never use `$ref` anywhere inside `where`. `$ref` exists only in `select`, for referencing another select output key. If a previous query attempted a correlated join — via `$ref` or a `$record.*`/`$alias.*` value — do not rephrase the join; restructure the query to root on the label that owns the field and `groupBy` it.
 - Never exact-match a user-typed named reference on a display property, including name/title filters inside related-label `where` blocks. Prefer `$contains` on the appropriate string property from the schema. Exact equality is only for IDs or explicit exact-match requests.
 - Never use `select` just to project fields for a simple listing. Prefer full record results with `labels`, `where`, `orderBy`, and `limit`.
 - Never include `limit` or `skip` for scan-level aggregate `select` queries unless the SearchQuery reference explicitly allows that specific shape.

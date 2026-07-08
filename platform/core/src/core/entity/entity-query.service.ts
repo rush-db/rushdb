@@ -308,7 +308,7 @@ export class EntityQueryService {
       .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
       .append(normalizedQueryClauses)
 
-    if (parsedWhere.nodeAliases.filter(toBoolean).length > 1) {
+    if (this.needsWhereBarrier(parsedWhere)) {
       const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
 
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
@@ -329,6 +329,16 @@ export class EntityQueryService {
     return queryBuilder.getQuery()
   }
 
+  /**
+   * The WITH…WHERE barrier is needed when the where tree references traversal aliases
+   * (nodeAliases beyond the root) or carries alias-free predicates — a $cycle-only
+   * query compiles to an EXISTS subquery with nodeAliases === ['record'] but a
+   * non-empty where, which the alias-count check alone would silently drop.
+   */
+  private needsWhereBarrier(parsedWhere: { nodeAliases: string[]; where: string }): boolean {
+    return parsedWhere.nodeAliases.filter(toBoolean).length > 1 || toBoolean(parsedWhere.where)
+  }
+
   getRecordsCount({ id, searchQuery }: { id?: string; searchQuery?: SearchDto }) {
     const relatedQueryPart = buildRelatedQueryPart(id)
     const labelPart = singleLabelPart(searchQuery?.labels)
@@ -346,7 +356,7 @@ export class EntityQueryService {
       .append(`MATCH ${relatedQueryPart}(record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
       .append(queryClauses.join(`\n`))
 
-    if (parsedWhere.nodeAliases.filter(toBoolean).length > 1) {
+    if (this.needsWhereBarrier(parsedWhere)) {
       const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
 
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
@@ -378,7 +388,7 @@ export class EntityQueryService {
         .append(`MATCH (record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
         .append(queryClauses.join(`\n`))
 
-      if (parsedWhere.nodeAliases.filter(toBoolean).length > 1) {
+      if (this.needsWhereBarrier(parsedWhere)) {
         const wherePart = parsedWhere.where ? `WHERE ${parsedWhere.where}` : ''
 
         queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
@@ -1162,6 +1172,34 @@ END`
       .append(')')
       .append('YIELD total, committedOperations, failedOperations, errorMessages')
       .append('RETURN total, committedOperations, failedOperations, errorMessages')
+
+    return queryBuilder.getQuery()
+  }
+
+  /**
+   * Counts (up to `limit`) the distinct record pairs a join pattern would connect,
+   * via the same pair statement createRelationsByKeys executes — so a probe result
+   * is exact evidence of what applying the pattern would do. LIMIT caps the pairs
+   * pulled from the lazy pair pipeline, bounding probe cost on large graphs.
+   */
+  countRelationCandidatesByKeys(payload: {
+    sourceLabel: string
+    sourceKey?: string
+    targetLabel: string
+    targetKey?: string
+    sourceWhere?: Where
+    targetWhere?: Where
+    limit: number
+  }) {
+    const { pairStatement } = this.constructRelationshipQueryArguments(payload)
+    const limit = Math.max(1, Math.floor(payload.limit))
+
+    const queryBuilder = new QueryBuilder()
+
+    queryBuilder
+      .append(`CALL { ${pairStatement} }`)
+      .append(`WITH s, t LIMIT ${limit}`)
+      .append('RETURN count(*) AS matchCount')
 
     return queryBuilder.getQuery()
   }

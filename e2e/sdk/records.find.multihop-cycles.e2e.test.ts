@@ -227,10 +227,7 @@ if (!apiKey) {
           labels: [L_ACCOUNT],
           where: {
             tenantId,
-            RING: {
-              $cycle: true,
-              $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
-            }
+            $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
           }
         })
         expect(names(res)).toEqual(['A', 'B', 'C'])
@@ -243,15 +240,13 @@ if (!apiKey) {
           where: {
             tenantId,
             $not: {
-              RING: {
-                $cycle: true,
-                $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
-              }
+              $cycle: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 6 } }
             }
           }
         })
         expect(names(res)).toEqual(['X', 'Y', 'Z'])
       })
+
     })
 
     // ══════════════════════════════════════════════════════════════════════
@@ -279,27 +274,35 @@ if (!apiKey) {
         ).rejects.toThrow()
       })
 
-      it('rejects $cycle with $alias', async () => {
+      it('rejects the removed $cycle block form', async () => {
         await expect(
           db.records.find({
             labels: [L_ACCOUNT],
             where: {
               tenantId,
-              RING: {
+              SOME_KEY: {
                 $cycle: true,
-                $alias: '$ring',
-                $relation: { type: 'TRANSFERRED_TO', hops: { min: 2, max: 4 } }
+                $relation: { type: 'TRANSFERRED_TO', direction: 'out', hops: { min: 2, max: 4 } }
               }
-            }
+            } as never
           })
         ).rejects.toThrow()
       })
 
-      it('rejects $cycle without hops', async () => {
+      it('rejects the $cycle operator without hops', async () => {
         await expect(
           db.records.find({
             labels: [L_ACCOUNT],
-            where: { tenantId, RING: { $cycle: true, $relation: { type: 'TRANSFERRED_TO' } } }
+            where: { tenantId, $cycle: { type: 'TRANSFERRED_TO' } as never }
+          })
+        ).rejects.toThrow()
+      })
+
+      it('rejects $cycle operator hops below the cycle floor of 2', async () => {
+        await expect(
+          db.records.find({
+            labels: [L_ACCOUNT],
+            where: { tenantId, $cycle: { type: 'TRANSFERRED_TO', hops: { min: 1, max: 4 } } }
           })
         ).rejects.toThrow()
       })

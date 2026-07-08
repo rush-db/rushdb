@@ -35,6 +35,7 @@ import { api } from '~/lib/api.ts'
 import { isInViewport, normalizeString } from '~/lib/utils.ts'
 
 import { $activeLabels, $currentProjectFilters, addFilter } from '../stores/current-project.ts'
+import { $recordQuery } from '../stores/records-search.ts'
 import { useProjectFieldsQuery } from '../hooks/useProjectQueries'
 import { convertToSearchQuery, filterToSearchOperation } from '~/features/projects/utils.ts'
 
@@ -46,8 +47,6 @@ const ITEM_HEIGHT = 44
 const MAX_SEARCH_CHARS = 200
 
 export const $open = atom<boolean>(false)
-
-const $recordQuery = atom<string>('')
 
 // pages
 enum BoxPages {

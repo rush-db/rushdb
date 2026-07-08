@@ -372,7 +372,9 @@ export class AiQueryService {
       qb.append(clause)
     }
     // Enforce that traversed nodes were actually found (converts OPTIONAL to required).
-    if (extraMatchClauses.length > 0 && requiredAliasCheck) {
+    // Gated on the check itself, not extraMatchClauses: a $cycle-only where compiles to
+    // an alias-free EXISTS predicate with no OPTIONAL MATCH clauses to inject.
+    if (requiredAliasCheck) {
       qb.append(`WITH ${nodeAliases.join(', ')} WHERE ${requiredAliasCheck}`)
     }
     qb.append(

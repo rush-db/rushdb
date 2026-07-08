@@ -126,7 +126,7 @@ For optimal performance when using the Search API:
 1. **Be Specific**: Filter by labels when possible to narrow the search scope
 2. **Use Indexed Properties**: Prioritize filtering on properties that have indexes
 3. **Limit Results**: Use pagination to retrieve only the records you need
-4. **Bound Your Traversals**: Variable-length traversal (`$relation.hops`) is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 25) — keep `max` as small as your use case allows, and constrain `type` and `direction` to prune the search
+4. **Bound Your Traversals**: Variable-length traversal (`$relation.hops`) is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 10) — keep `max` as small as your use case allows, and constrain `type` and `direction` to prune the search
 5. **Use Aliases Efficiently**: Define aliases only for records you need to reference in aggregations
 
 ## Next Steps

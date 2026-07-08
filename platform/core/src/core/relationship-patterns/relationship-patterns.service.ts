@@ -31,12 +31,11 @@ import type { RelationshipPatternRow } from '@/database/sql/schema/types'
 
 const ANALYSIS_DEBOUNCE_MS = 60_000
 const MAX_LLM_CANDIDATES = 20
-
-type ReferenceValueProfile = {
-  tokens: Set<string>
-  maxTokensPerValue: number
-  hasListValue: boolean
-}
+// Reference-suffix tokens that never identify the entity a chain flows through.
+const CHAIN_GENERIC_NAME_TOKENS = new Set(['id', 'ref', 'key', 'code'])
+// Pairs to count per candidate when probing the live graph; one matched pair is
+// already real evidence, the cap only bounds probe cost on large graphs.
+const PROBE_MATCH_LIMIT = 100
 
 @Injectable()
 export class RelationshipPatternsService {
@@ -365,7 +364,7 @@ export class RelationshipPatternsService {
       const resolvedWorkspaceId =
         workspaceId ?? (await this.projectRepository.findById(projectId))?.workspaceId
 
-      const existingPatterns = await this.pruneIncoherentJoinSuggestions(
+      const existingPatterns = await this.pruneOrphanedJoinSuggestions(
         projectId,
         await this.repository.findByProjectId(projectId),
         schema
@@ -390,17 +389,22 @@ export class RelationshipPatternsService {
         return
       }
 
+      // Names propose, the LLM judges, the graph verifies: deterministic name analysis
+      // only produces *hints* the LLM evaluates alongside the schema — sampled values
+      // never gate anything (tiny samples of high-cardinality data carry no evidence) —
+      // and every surviving join is probed against the live graph before it is stored.
+      const candidateHints = this.buildCandidateHints(schema)
       const tLlm = Date.now()
       const { candidates, promptTokens, completionTokens, totalTokens } = await this.suggestCandidates(
         schema,
-        existingPatterns
+        existingPatterns,
+        candidateHints
       )
       this.logger.log(
         `[RelationshipAnalysis] project ${projectId} LLM returned ${candidates.length} candidates in ${Date.now() - tLlm}ms`
       )
-      const deterministicCandidates = this.suggestDeterministicCandidates(schema)
       const validCandidates = this.dedupeInverseCandidates(
-        [...deterministicCandidates, ...candidates]
+        candidates
           .map((candidate) => this.validateCandidate(candidate, schema))
           .filter((candidate): candidate is RelationshipPatternCandidate => Boolean(candidate))
       )
@@ -408,7 +412,9 @@ export class RelationshipPatternsService {
         .sort((a, b) => this.scoreCandidate(b) - this.scoreCandidate(a))
         .slice(0, MAX_LLM_CANDIDATES)
 
-      for (const candidate of validCandidates) {
+      const evidencedCandidates = await this.probeJoinCandidates(projectId, validCandidates)
+
+      for (const candidate of evidencedCandidates) {
         const row = this.candidateToInsert(projectId, candidate)
         await this.repository.upsertCandidate(row)
       }
@@ -419,7 +425,7 @@ export class RelationshipPatternsService {
           promptTokens,
           completionTokens,
           totalTokens,
-          candidateCount: validCandidates.length,
+          candidateCount: evidencedCandidates.length,
           trigger: isManual ? 'manual' : 'scheduler'
         })
       }
@@ -456,21 +462,22 @@ export class RelationshipPatternsService {
   }
 
   /**
-   * Deletes previously stored auto-suggestions that no longer pass the join-coherence
-   * gate in isSafeJoinCandidate. Only 'suggested' rows are touched; approved/ignored rows
-   * reflect an explicit user decision and are kept.
+   * Deletes previously stored auto-suggestions whose endpoints no longer make sense
+   * against the current schema (label or key gone, or the property type became
+   * non-joinable). Only 'suggested' rows are touched; approved/ignored rows reflect
+   * an explicit user decision and are kept.
    */
-  private async pruneIncoherentJoinSuggestions(
+  private async pruneOrphanedJoinSuggestions(
     projectId: string,
     patterns: RelationshipPatternRow[],
     schema: SchemaItem[]
   ): Promise<RelationshipPatternRow[]> {
     const kept: RelationshipPatternRow[] = []
     for (const pattern of patterns) {
-      const incoherent =
+      const orphaned =
         pattern.status === 'suggested' &&
         this.normalizePatternMode(pattern.mode) === 'join_pattern' &&
-        !this.isSafeJoinCandidate(
+        !this.isPlausibleJoinCandidate(
           {
             source: { label: pattern.sourceLabel, key: pattern.sourceKey ?? undefined },
             target: { label: pattern.targetLabel, key: pattern.targetKey ?? undefined }
@@ -478,10 +485,10 @@ export class RelationshipPatternsService {
           schema
         )
 
-      if (incoherent) {
+      if (orphaned) {
         await this.repository.deletePattern(pattern.id, projectId)
         this.logger.log(
-          `[RelationshipAnalysis] pruned incoherent join suggestion ${pattern.id}: ` +
+          `[RelationshipAnalysis] pruned orphaned join suggestion ${pattern.id}: ` +
             `${pattern.sourceLabel}.${pattern.sourceKey} -> ${pattern.targetLabel}.${pattern.targetKey} (${pattern.type})`
         )
       } else {
@@ -491,10 +498,17 @@ export class RelationshipPatternsService {
     return kept
   }
 
-  private suggestDeterministicCandidates(schema: SchemaItem[]): RelationshipPatternCandidate[] {
+  /**
+   * Name-derived join hypotheses handed to the LLM for semantic vetting. Built from
+   * the schema's structure only (labels, property names, types) — never from sampled
+   * values, whose overlap carries no signal on high-cardinality real data. The LLM
+   * decides which hints reference an entity (vs. attribute coincidences like paired
+   * country columns), and the graph probe then supplies the actual evidence.
+   */
+  private buildCandidateHints(schema: SchemaItem[]): RelationshipPatternCandidate[] {
     return [
       ...this.suggestNameBackedReferenceCandidates(schema),
-      ...this.suggestSampleBackedReferenceCandidates(schema)
+      ...this.suggestSameLabelChainCandidates(schema)
     ]
   }
 
@@ -516,10 +530,6 @@ export class RelationshipPatternsService {
               continue
             }
 
-            const sourceValues = this.referenceValueProfile(sourceProperty)
-            const targetValues = this.referenceValueProfile(targetProperty)
-            const overlap = this.countTokenOverlap(sourceValues.tokens, targetValues.tokens)
-
             candidates.push({
               source: { label: source.label, key: sourceProperty.name },
               target: { label: target.label, key: targetProperty.name },
@@ -527,7 +537,6 @@ export class RelationshipPatternsService {
               type: this.referencePropertyRelationshipType(sourceProperty.name),
               mode: 'join_pattern',
               confidence: sourceProperty.isArray ? 0.9 : 0.86,
-              sampleMatchCount: overlap,
               rationale: `${source.label}.${sourceProperty.name} names ${target.label}.${targetProperty.name} as a reference field.`
             })
           }
@@ -538,24 +547,24 @@ export class RelationshipPatternsService {
     return candidates
   }
 
-  private suggestSampleBackedReferenceCandidates(schema: SchemaItem[]): RelationshipPatternCandidate[] {
+  // Same-label chain/flow detection: two reference-like properties on ONE label that
+  // identify the same kind of entity (receiver_account / sender_account, to_station /
+  // from_station) chain records into a sequence. Detected purely from property names —
+  // shared entity token plus opposing direction words — since sampled values from
+  // high-cardinality columns (thousands of accounts) practically never overlap.
+  private suggestSameLabelChainCandidates(schema: SchemaItem[]): RelationshipPatternCandidate[] {
     const candidates: RelationshipPatternCandidate[] = []
 
-    for (let sourceIndex = 0; sourceIndex < schema.length; sourceIndex += 1) {
-      const left = schema[sourceIndex]
-      for (let targetIndex = sourceIndex; targetIndex < schema.length; targetIndex += 1) {
-        const right = schema[targetIndex]
-
-        for (const leftProperty of left.properties) {
-          for (const rightProperty of right.properties) {
-            if (left.label === right.label && leftProperty.name === rightProperty.name) {
-              continue
-            }
-
-            const candidate = this.buildSampleBackedCandidate(left, leftProperty, right, rightProperty)
-            if (candidate) {
-              candidates.push(candidate)
-            }
+    for (const item of schema) {
+      for (let leftIndex = 0; leftIndex < item.properties.length; leftIndex += 1) {
+        for (let rightIndex = leftIndex + 1; rightIndex < item.properties.length; rightIndex += 1) {
+          const candidate = this.buildSameLabelChainCandidate(
+            item,
+            item.properties[leftIndex],
+            item.properties[rightIndex]
+          )
+          if (candidate) {
+            candidates.push(candidate)
           }
         }
       }
@@ -564,45 +573,119 @@ export class RelationshipPatternsService {
     return candidates
   }
 
-  private buildSampleBackedCandidate(
-    left: SchemaItem,
+  private buildSameLabelChainCandidate(
+    item: SchemaItem,
     leftProperty: SchemaItem['properties'][number],
-    right: SchemaItem,
     rightProperty: SchemaItem['properties'][number]
   ): RelationshipPatternCandidate | undefined {
-    const leftValues = this.referenceValueProfile(leftProperty)
-    const rightValues = this.referenceValueProfile(rightProperty)
-    const overlap = this.countTokenOverlap(leftValues.tokens, rightValues.tokens)
-
-    if (
-      overlap === 0 ||
-      !this.hasReferenceLikeOverlap(leftProperty, leftValues, rightProperty, rightValues, overlap)
-    ) {
+    if (!this.isSameLabelChainPair(leftProperty, rightProperty)) {
       return undefined
     }
 
-    const leftIsBetterSource =
-      leftValues.maxTokensPerValue > rightValues.maxTokensPerValue ||
-      (leftValues.maxTokensPerValue === rightValues.maxTokensPerValue &&
-        leftValues.tokens.size > rightValues.tokens.size) ||
-      (leftValues.maxTokensPerValue === rightValues.maxTokensPerValue &&
-        leftValues.tokens.size === rightValues.tokens.size &&
-        `${left.label}.${leftProperty.name}` <= `${right.label}.${rightProperty.name}`)
-    const source = leftIsBetterSource ? left : right
-    const sourceProperty = leftIsBetterSource ? leftProperty : rightProperty
-    const target = leftIsBetterSource ? right : left
-    const targetProperty = leftIsBetterSource ? rightProperty : leftProperty
+    // A chain hint is only emitted when the column names disambiguate flow direction;
+    // ambiguous pairs are left to the LLM pass (isPlausibleJoinCandidate still admits
+    // them there). Edge semantics: the record whose destination-side value is X points
+    // at the record whose origin-side value is X — (hop N)-[:FLOW]->(hop N+1).
+    const leftRole = this.chainDirectionRole(leftProperty.name)
+    const rightRole = this.chainDirectionRole(rightProperty.name)
+    if (!leftRole || !rightRole || leftRole === rightRole) {
+      return undefined
+    }
+
+    const sourceProperty = leftRole === 'destination' ? leftProperty : rightProperty
+    const targetProperty = leftRole === 'destination' ? rightProperty : leftProperty
+    const sharedTokens = [...this.nameTokens(sourceProperty.name)]
+      .filter((token) => this.nameTokens(targetProperty.name).has(token))
+      .sort()
 
     return {
-      source: { label: source.label, key: sourceProperty.name },
-      target: { label: target.label, key: targetProperty.name },
+      source: { label: item.label, key: sourceProperty.name },
+      target: { label: item.label, key: targetProperty.name },
       direction: 'out',
-      type: this.referencePropertyRelationshipType(sourceProperty.name),
+      type: this.chainRelationshipType(sharedTokens),
       mode: 'join_pattern',
-      confidence: Math.min(0.95, 0.75 + overlap / 100),
-      sampleMatchCount: overlap,
-      rationale: `${source.label}.${sourceProperty.name} and ${target.label}.${targetProperty.name} share ${overlap} sampled value${overlap === 1 ? '' : 's'}.`
+      confidence: 0.82,
+      rationale:
+        `${item.label}.${sourceProperty.name} and ${item.label}.${targetProperty.name} appear to identify ` +
+        `the same kind of entity — records chain into a flow where one record's ` +
+        `${sourceProperty.name} is the next record's ${targetProperty.name}.`
     }
+  }
+
+  private isSameLabelChainPair(
+    leftProperty: SchemaItem['properties'][number],
+    rightProperty: SchemaItem['properties'][number]
+  ): boolean {
+    if (leftProperty.name === rightProperty.name) {
+      return false
+    }
+    if (this.isNonReferenceProperty(leftProperty) || this.isNonReferenceProperty(rightProperty)) {
+      return false
+    }
+    if (leftProperty.isArray || rightProperty.isArray) {
+      return false
+    }
+
+    // The two columns must talk about the same entity: their names share a token
+    // (receiver_ACCOUNT / sender_ACCOUNT) beyond the direction word — generic reference
+    // suffixes (id/ref/key/code) don't count, or ownerRef/regionRef would pair up.
+    const leftTokens = this.nameTokens(leftProperty.name)
+    return [...this.nameTokens(rightProperty.name)].some(
+      (token) => leftTokens.has(token) && !CHAIN_GENERIC_NAME_TOKENS.has(token)
+    )
+  }
+
+  private chainDirectionRole(propertyName: string): 'destination' | 'origin' | undefined {
+    // Tokens as emitted by nameTokens (lowercased, crudely singularized).
+    const DESTINATION_TOKENS = new Set([
+      'to',
+      'receiver',
+      'recipient',
+      'dest',
+      'destination',
+      'next',
+      'child',
+      'successor',
+      'output',
+      'sink',
+      'head'
+    ])
+    const ORIGIN_TOKENS = new Set([
+      'from',
+      'sender',
+      'origin',
+      'prev',
+      'previou',
+      'parent',
+      'predecessor',
+      'input',
+      'tail'
+    ])
+
+    let role: 'destination' | 'origin' | undefined
+    for (const token of this.nameTokens(propertyName)) {
+      const tokenRole =
+        DESTINATION_TOKENS.has(token) ? ('destination' as const)
+        : ORIGIN_TOKENS.has(token) ? ('origin' as const)
+        : undefined
+      if (!tokenRole) {
+        continue
+      }
+      if (role && role !== tokenRole) {
+        return undefined
+      }
+      role = tokenRole
+    }
+    return role
+  }
+
+  private chainRelationshipType(sharedTokens: string[]): string {
+    const entity = sharedTokens
+      .filter((token) => !CHAIN_GENERIC_NAME_TOKENS.has(token))
+      .map((token) => token.toUpperCase())
+      .join('_')
+
+    return entity ? `FLOWS_TO_${entity}` : 'FLOWS_TO'
   }
 
   private referencePropertyRelationshipType(propertyName: string): string {
@@ -622,7 +705,8 @@ export class RelationshipPatternsService {
 
   private async suggestCandidates(
     schema: SchemaItem[],
-    existingPatterns: RelationshipPatternRow[]
+    existingPatterns: RelationshipPatternRow[],
+    candidateHints: RelationshipPatternCandidate[] = []
   ): Promise<{
     candidates: RelationshipPatternCandidate[]
     promptTokens: number
@@ -638,6 +722,40 @@ export class RelationshipPatternsService {
       return empty
     }
 
+    const systemContent =
+      'You infer graph relationship patterns for RushDB. Return only JSON: {"candidates":[...]}. ' +
+      'Every candidate must include mode: "join_pattern" or "retype_existing_relationship". ' +
+      'Judge joinability from label semantics, property names, and property types — the schema is your substrate. ' +
+      'Sampled property values, when present, are illustrative only: they are tiny samples of potentially huge datasets, so a lack of overlap between samples is NEVER evidence against a join. ' +
+      'Every join_pattern you return is verified against the live graph before it is suggested to the user, so propose every join you judge semantically correct. ' +
+      'Only propose joins between properties that reference an entity (identifiers, names of things, reference fields). Never join mere attribute columns (statuses, countries, currencies, categories) whose values may coincide without referencing an entity. ' +
+      'candidateHints in the user message are join hypotheses derived mechanically from property names. Evaluate each hint: include it (refining type and direction if needed) when it references an entity; omit it when the shared naming is an attribute coincidence rather than an entity reference. ' +
+      'Array/list fields and comma-separated reference fields may join scalar fields. ' +
+      'Return at most ONE join_pattern per label pair; if several key pairs could join the same two labels, pick the single most semantically correct one. ' +
+      'Use "retype_existing_relationship" when schema already shows a RUSHDB_DEFAULT_RELATION between labels; in that case source.key and target.key are optional and the task is to rename existing structure semantically. ' +
+      'For retype_existing_relationship, infer the semantic relationship from the existing graph structure and label meanings. ' +
+      'If a default relationship already connects two labels, prefer retype_existing_relationship over join_pattern. ' +
+      'Return ONE canonical candidate per semantic relationship; never return both A->B and B->A for the same relationship. ' +
+      'Do not suggest a relationship when the same mode and label/key pair already appears in existingPatterns, even if you would use a different synonym or inverse type. ' +
+      'Choose source as the natural actor/owner/parent and target as the natural object/action/child. ' +
+      'For same-label relationships, never join a property to itself. Choose exactly one canonical orientation from the schema context. ' +
+      'Same-label chain/flow patterns are valid join_patterns: when two different reference-like properties on ONE label identify the same kind of entity (e.g. receiver_account of one record equals sender_account of the next; to_station / from_station), suggest source.label === target.label with source.key = the destination-side property and target.key = the origin-side property, chaining records into a sequence. ' +
+      'Relationship type must read naturally from source to target. Do not choose a direction where the target would appear to act on or create the source. ' +
+      'Each candidate must include source.label, target.label, mode, direction "out", type, confidence 0..1, and rationale. join_pattern must also include source.key and target.key. Return at most 12 candidates.'
+    const userContent = JSON.stringify({
+      schema,
+      existingPatterns: this.compactExistingPatternsForRelationshipAnalysis(existingPatterns),
+      candidateHints: candidateHints.map((hint) => ({
+        source: hint.source,
+        target: hint.target,
+        direction: hint.direction,
+        type: hint.type,
+        rationale: hint.rationale
+      })),
+      relationshipTypeRules:
+        'Use uppercase Neo4j-safe verb phrases from source to target. Do not use inverse duplicate types for the same relationship.'
+    })
+
     const response = await axios.post(
       `${baseUrl.replace(/\/$/, '')}/chat/completions`,
       {
@@ -645,33 +763,8 @@ export class RelationshipPatternsService {
         temperature: 0,
         response_format: { type: 'json_object' },
         messages: [
-          {
-            role: 'system',
-            content:
-              'You infer graph relationship patterns for RushDB. Return only JSON: {"candidates":[...]}. ' +
-              'Every candidate must include mode: "join_pattern" or "retype_existing_relationship". ' +
-              'Use "join_pattern" only when sampled property values show that records can actually be matched. Shared property names or semantic-looking key names alone are not enough. ' +
-              'Array/list fields and comma-separated reference fields may join scalar fields when their sampled items overlap. ' +
-              'Return at most ONE join_pattern per label pair; if several key pairs could join the same two labels, pick the single most semantically correct one. ' +
-              'Use "retype_existing_relationship" when schema already shows a RUSHDB_DEFAULT_RELATION between labels; in that case source.key and target.key are optional and the task is to rename existing structure semantically. ' +
-              'For retype_existing_relationship, infer the semantic relationship from the existing graph structure and label meanings. ' +
-              'If a default relationship already connects two labels, prefer retype_existing_relationship over join_pattern. ' +
-              'Return ONE canonical candidate per semantic relationship; never return both A->B and B->A for the same relationship. ' +
-              'Do not suggest a relationship when the same mode and label/key pair already appears in existingPatterns, even if you would use a different synonym or inverse type. ' +
-              'Choose source as the natural actor/owner/parent and target as the natural object/action/child. ' +
-              'For same-label relationships, never join a property to itself. Choose exactly one canonical orientation from sampled values and schema context. ' +
-              'Relationship type must read naturally from source to target. Do not choose a direction where the target would appear to act on or create the source. ' +
-              'Each candidate must include source.label, target.label, mode, direction "out", type, confidence 0..1, and rationale. join_pattern must also include source.key and target.key. Return at most 8 candidates.'
-          },
-          {
-            role: 'user',
-            content: JSON.stringify({
-              schema,
-              existingPatterns: this.compactExistingPatternsForRelationshipAnalysis(existingPatterns),
-              relationshipTypeRules:
-                'Use uppercase Neo4j-safe verb phrases from source to target. Do not use inverse duplicate types for the same relationship.'
-            })
-          }
+          { role: 'system', content: systemContent },
+          { role: 'user', content: userContent }
         ]
       },
       {
@@ -689,12 +782,6 @@ export class RelationshipPatternsService {
     }
 
     const usage = response.data?.usage
-    const systemContent =
-      'You infer graph relationship patterns for RushDB. Return only JSON: {"candidates":[...]}. '
-    const userContent = JSON.stringify({
-      schema,
-      existingPatterns: this.compactExistingPatternsForRelationshipAnalysis(existingPatterns)
-    })
     const promptTokens = usage?.prompt_tokens ?? estimateTokens(systemContent + userContent)
     const completionTokens = usage?.completion_tokens ?? estimateTokens(content)
     const totalTokens = usage?.total_tokens ?? promptTokens + completionTokens
@@ -838,7 +925,7 @@ export class RelationshipPatternsService {
 
       const sourceHasKey = source.properties.some((property) => property.name === candidate.source.key)
       const targetHasKey = target.properties.some((property) => property.name === candidate.target.key)
-      if (!sourceHasKey || !targetHasKey || !this.isSafeJoinCandidate(candidate, schema)) {
+      if (!sourceHasKey || !targetHasKey || !this.isPlausibleJoinCandidate(candidate, schema)) {
         return undefined
       }
     }
@@ -888,29 +975,94 @@ export class RelationshipPatternsService {
     )
   }
 
-  private isSafeJoinCandidate(candidate: RelationshipPatternCandidate, schema: SchemaItem[] = []): boolean {
+  /**
+   * Structural plausibility only — the semantic judgment belongs to the LLM and the
+   * factual evidence to the graph probe. Rejects joins that can never be meaningful
+   * regardless of data: a property joined to itself, missing properties, non-reference
+   * value types, and list-to-list joins.
+   */
+  private isPlausibleJoinCandidate(
+    candidate: RelationshipPatternCandidate,
+    schema: SchemaItem[] = []
+  ): boolean {
     if (candidate.source.label === candidate.target.label && candidate.source.key === candidate.target.key) {
       return false
     }
 
-    const sourceKey = candidate.source.key ?? ''
-    const targetKey = candidate.target.key ?? ''
-
-    const sourceProperty = this.findProperty(schema, candidate.source.label, sourceKey)
-    const targetProperty = this.findProperty(schema, candidate.target.label, targetKey)
+    const sourceProperty = this.findProperty(schema, candidate.source.label, candidate.source.key ?? '')
+    const targetProperty = this.findProperty(schema, candidate.target.label, candidate.target.key ?? '')
     if (!sourceProperty || !targetProperty) {
       return false
     }
 
-    const sourceTokens = this.referenceValueProfile(sourceProperty)
-    const targetTokens = this.referenceValueProfile(targetProperty)
-    const overlap = this.countTokenOverlap(sourceTokens.tokens, targetTokens.tokens)
+    if (this.isNonReferenceProperty(sourceProperty) || this.isNonReferenceProperty(targetProperty)) {
+      return false
+    }
 
-    return (
-      this.hasNameBackedReference(sourceProperty, candidate.target.label, targetProperty) ||
-      (overlap > 0 &&
-        this.hasReferenceLikeOverlap(sourceProperty, sourceTokens, targetProperty, targetTokens, overlap))
-    )
+    return !(sourceProperty.isArray && targetProperty.isArray)
+  }
+
+  /**
+   * Verifies join candidates against the live graph: each join_pattern is kept only
+   * when at least one real record pair matches its join, and sampleMatchCount is set
+   * to the probed pair count (capped at PROBE_MATCH_LIMIT). This is the evidence
+   * gate — schema samples never decide, the actual data does. Retype candidates pass
+   * through untouched: their evidence is the existing relationship in the schema.
+   */
+  private async probeJoinCandidates(
+    projectId: string,
+    candidates: RelationshipPatternCandidate[]
+  ): Promise<RelationshipPatternCandidate[]> {
+    if (!candidates.some((candidate) => this.normalizePatternMode(candidate.mode) === 'join_pattern')) {
+      return candidates
+    }
+
+    const evidenced: RelationshipPatternCandidate[] = []
+    const session = this.neogmaService.createSession('relationship-pattern-probe')
+    const transaction = session.beginTransaction({ timeout: 60_000 })
+    try {
+      for (const candidate of candidates) {
+        if (this.normalizePatternMode(candidate.mode) !== 'join_pattern') {
+          evidenced.push(candidate)
+          continue
+        }
+
+        try {
+          const matchCount = await this.entityService.countRelationCandidatesByKeys({
+            source: candidate.source,
+            target: candidate.target,
+            projectId,
+            transaction,
+            limit: PROBE_MATCH_LIMIT
+          })
+
+          if (matchCount > 0) {
+            evidenced.push({ ...candidate, sampleMatchCount: matchCount })
+          } else {
+            this.logger.log(
+              `[RelationshipAnalysis] probe found no matching pairs for ` +
+                `${candidate.source.label}.${candidate.source.key} -> ` +
+                `${candidate.target.label}.${candidate.target.key} (${candidate.type}) — dropped`
+            )
+          }
+        } catch (error) {
+          // No evidence gathered — drop rather than suggest unverified structure.
+          this.logger.error(
+            `[RelationshipAnalysis] probe failed for ${candidate.source.label}.${candidate.source.key} -> ` +
+              `${candidate.target.label}.${candidate.target.key}`,
+            error
+          )
+        }
+      }
+      await transaction.commit()
+    } finally {
+      if (transaction.isOpen()) {
+        await transaction.rollback()
+      }
+      await this.neogmaService.closeSession(session, 'relationship-pattern-probe')
+    }
+
+    return evidenced
   }
 
   private calibrateConfidence(
@@ -927,20 +1079,6 @@ export class RelationshipPatternsService {
 
   private findProperty(schema: SchemaItem[], label: string, key: string) {
     return schema.find((item) => item.label === label)?.properties.find((property) => property.name === key)
-  }
-
-  private hasNameBackedReference(
-    referenceProperty: SchemaItem['properties'][number],
-    targetLabel: string,
-    targetProperty: SchemaItem['properties'][number]
-  ): boolean {
-    if (this.isNonReferenceProperty(referenceProperty) || this.isNonReferenceProperty(targetProperty)) {
-      return false
-    }
-    if (targetProperty.isArray) {
-      return false
-    }
-    return this.propertyNameReferencesLabelAndKey(referenceProperty.name, targetLabel, targetProperty.name)
   }
 
   private propertyNameReferencesLabelAndKey(
@@ -977,107 +1115,8 @@ export class RelationshipPatternsService {
     )
   }
 
-  private hasReferenceLikeOverlap(
-    leftProperty: SchemaItem['properties'][number],
-    left: ReferenceValueProfile,
-    rightProperty: SchemaItem['properties'][number],
-    right: ReferenceValueProfile,
-    overlap: number
-  ): boolean {
-    if (this.isNonReferenceProperty(leftProperty) || this.isNonReferenceProperty(rightProperty)) {
-      return false
-    }
-
-    const leftIsCollection = this.isCollectionReferenceProfile(left)
-    const rightIsCollection = this.isCollectionReferenceProfile(right)
-
-    if (leftIsCollection && rightIsCollection) {
-      return false
-    }
-
-    if (leftIsCollection || rightIsCollection) {
-      return true
-    }
-
-    const hasStrictSubsetOverlap = this.isStrictSubsetOverlap(left, right, overlap)
-
-    if ((this.isLowSignalEnum(left) || this.isLowSignalEnum(right)) && !hasStrictSubsetOverlap) {
-      return false
-    }
-
-    return hasStrictSubsetOverlap
-  }
-
   private isNonReferenceProperty(property: SchemaItem['properties'][number]): boolean {
     return property.type === 'boolean' || property.type === 'datetime'
-  }
-
-  private isLowSignalEnum(profile: ReferenceValueProfile): boolean {
-    return profile.maxTokensPerValue <= 1 && profile.tokens.size <= 3
-  }
-
-  private isCollectionReferenceProfile(profile: ReferenceValueProfile): boolean {
-    return profile.hasListValue || profile.maxTokensPerValue > 1
-  }
-
-  private isStrictSubsetOverlap(
-    left: ReferenceValueProfile,
-    right: ReferenceValueProfile,
-    overlap: number
-  ): boolean {
-    return overlap === Math.min(left.tokens.size, right.tokens.size) && left.tokens.size !== right.tokens.size
-  }
-
-  private referenceValueProfile(property: SchemaItem['properties'][number]): ReferenceValueProfile {
-    const profile = this.referenceValueTokens(property.values)
-    return {
-      ...profile,
-      hasListValue: profile.hasListValue || property.isArray === true
-    }
-  }
-
-  private referenceValueTokens(values: unknown): ReferenceValueProfile {
-    const tokens = new Set<string>()
-    let maxTokensPerValue = 0
-    let hasListValue = false
-    if (!Array.isArray(values)) {
-      return { tokens, maxTokensPerValue, hasListValue }
-    }
-
-    for (const rawValue of values) {
-      const rawValueIsArray = Array.isArray(rawValue)
-      const rawParts = rawValueIsArray ? rawValue : String(rawValue ?? '').split(',')
-      const parts = rawParts
-        .map((part) =>
-          String(part ?? '')
-            .trim()
-            .toLowerCase()
-        )
-        .filter(Boolean)
-
-      if (!parts.length) {
-        continue
-      }
-      hasListValue = hasListValue || rawValueIsArray
-      let tokensInValue = 0
-      for (const token of parts) {
-        tokens.add(token)
-        tokensInValue += 1
-      }
-      maxTokensPerValue = Math.max(maxTokensPerValue, tokensInValue)
-    }
-
-    return { tokens, maxTokensPerValue, hasListValue }
-  }
-
-  private countTokenOverlap(left: Set<string>, right: Set<string>): number {
-    let overlaps = 0
-    for (const value of left) {
-      if (right.has(value)) {
-        overlaps += 1
-      }
-    }
-    return overlaps
   }
 
   private normalizeEndpoint(endpoint: RelationshipPatternEndpoint): RelationshipPatternEndpoint {

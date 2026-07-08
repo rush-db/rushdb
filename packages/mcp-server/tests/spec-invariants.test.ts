@@ -42,6 +42,10 @@ const BANNED: Array<{ pattern: RegExp; reason: string }> = [
   {
     pattern: /even if (the related record doesn'?t exist|no related record exists)/i,
     reason: 'traversal blocks require existence (recordN IS NOT NULL)'
+  },
+  {
+    pattern: /\$cycle["']?\s*:\s*true/,
+    reason: 'the removed $cycle block form must never be shown, even as a counter-example'
   }
 ]
 
@@ -51,7 +55,11 @@ const REQUIRED: Array<{ pattern: RegExp; reason: string }> = [
   { pattern: /__RUSHDB__RELATION__DEFAULT__/, reason: 'default-relation reality for imported data' },
   { pattern: /exactly as spelled in the schema/, reason: 'case-agnostic, schema-verbatim traversal keys' },
   { pattern: /hops/, reason: 'variable-length traversal documented' },
-  { pattern: /\$cycle/, reason: 'cycle detection documented' }
+  { pattern: /\$cycle/, reason: 'cycle detection documented' },
+  {
+    pattern: /\$cycle["']?\s*:\s*\{\s*["']?(type|direction|hops)/,
+    reason: 'cycle operator form documented (the value IS the traversal spec)'
+  }
 ]
 
 describe('SearchQuery spec invariants', () => {

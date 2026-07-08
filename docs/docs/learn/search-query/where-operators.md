@@ -710,7 +710,7 @@ Key semantics:
 
 - `type` and `direction` constrain **every hop**; the nested label constrains only the **endpoint** record. Intermediate records are anonymous and unconstrained.
 - Omitting `type` means "any relationship between records" — each hop may even use a different relationship type. RushDB automatically excludes its internal property metadata edges, so untyped traversal never leaves your data model.
-- `hops.max` is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 25). Omitting `max` requests **unbounded** traversal (`*min..`), which is only allowed on self-hosted deployments and projects with a custom Neo4j instance — bounded there by the transaction timeout.
+- `hops.max` is capped per deployment (`RUSHDB_MAX_TRAVERSAL_HOPS`, default 10). Omitting `max` requests **unbounded** traversal (`*min..`), which is only allowed on self-hosted deployments and projects with a custom Neo4j instance — bounded there by the transaction timeout.
 - Deeper nesting composes naturally: a nested label block under a `hops` endpoint continues from that endpoint.
 
 > **Performance:** variable-length traversal explores every matching path. Keep `max` as small as your use case allows, and prefer setting `direction` — an undirected, untyped `hops` query is the most expensive shape.
@@ -719,19 +719,16 @@ Key semantics:
 
 ### Cycle Detection (`$cycle`)
 
-Use `$cycle: true` to find records that sit on a **closed path back to themselves** — fraud rings, circular ownership, dependency cycles:
+`$cycle` is a record-level predicate that finds records sitting on a **closed path back to themselves** — fraud rings, circular ownership, dependency cycles. Its value is the traversal spec itself:
 
 ```typescript
 {
   labels: ["ACCOUNT"],
   where: {
-    RING: {                          // Key is a display name — NOT matched as a label
-      $cycle: true,
-      $relation: {
-        type: "TRANSFERRED_TO",
-        direction: "out",
-        hops: { min: 2, max: 6 }     // Ring length; min defaults to 2 for cycles
-      }
+    $cycle: {
+      type: "TRANSFERRED_TO",
+      direction: "out",
+      hops: { min: 2, max: 6 }       // Ring length; min defaults to 2 for cycles
     }
   }
 }
@@ -741,10 +738,10 @@ This returns every ACCOUNT participating in a directed transfer ring of 2–6 ho
 
 Rules and semantics:
 
-- A `$cycle` block requires `$relation` with `hops` (`min` ≥ 2 — a 1-hop "cycle" would be a self-loop) and accepts **nothing else**: no `$alias`, no property criteria, no nested labels. A cycle has no separate endpoint to filter or alias — filter the root record instead.
-- The block's key is ignored as a label (both ends of the pattern are the root record); it just needs to be unique among its siblings.
+- `$cycle`'s value is the traversal spec — `type`, `direction`, `hops` — with `hops` mandatory (`min` ≥ 2, defaults to 2 — a 1-hop "cycle" would be a self-loop). It accepts **nothing else**: no `$alias`, no property criteria, no nested labels. A cycle has no separate endpoint to filter or alias — filter the root record instead. Intermediate node labels are unconstrained.
 - Set `direction` for flow-like semantics (money, ownership, dependencies). An undirected cycle also matches innocent back-and-forth pairs like mutual transfers.
-- Combine with logical operators: `$not: { RING: { $cycle: true, ... } }` finds records **not** on a cycle.
+- Combine with logical operators: `$not: { $cycle: { ... } }` finds records **not** on a cycle.
+- `$cycle` can also be placed inside a label block to anchor the cycle at a **related** record: `ACCOUNT: { country: "US", $cycle: { ... } }`.
 - Cypher trail semantics apply: each _relationship_ is used once per path, but a path may revisit a record through a different relationship — figure-eight shapes count as cycles.
 
 ### Aliasing for Aggregations

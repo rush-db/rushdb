@@ -70,7 +70,7 @@ This returns full records and lets the dashboard table render the normal record 
 
 All label, field, and relationship-type names in this document are placeholders — real names come exclusively from the schema, never from these examples. Labels are case-sensitive: copy them exactly as spelled in the schema and never change their case.
 
-Predicate values must be **literals** (strings, numbers, booleans, dates) or sample values from the schema. A `where` value can never be a field or alias reference: `{ "field": "$record.id" }` and `{ "field": { "$eq": "$alias.id" } }` are invalid — the reference is matched as a literal string and returns nothing. Correlated comparisons between two records (a "join on" a field) are not supported in `where`; `$record.*`, `$alias.*`, and `$relation` references belong in `select`, `groupBy`, and `aggregate` only. To rank or group by a scalar field that is not a relationship in the schema, root on the label that owns the field and `groupBy` that field instead of building a traversal.
+Predicate values must be **literals** (strings, numbers, booleans, dates) or sample values from the schema. A `where` value can never be a field or alias reference: `{ "field": "$record.id" }`, `{ "field": { "$eq": "$alias.id" } }`, and `{ "field": { "$ref": "$record.id" } }` are all invalid — `$ref` exists only in `select` expressions, and a plain reference is matched as a literal string and returns nothing. Correlated comparisons between two records (a "join on" a field) are not supported in `where` in any syntax; `$record.*`, `$alias.*`, and `$relation` references belong in `select`, `groupBy`, and `aggregate` only. To rank or group by a scalar field that is not a relationship in the schema, root on the label that owns the field and `groupBy` that field instead of building a traversal.
 
 ### Primitive Matching
 
@@ -225,7 +225,7 @@ Use `$relation` only to constrain relationship type or direction when the user e
 
 `$relation` can also be a relationship type string.
 
-`type` must be copied **verbatim** from a schema Relationships row — never invent a semantic type like the examples here. Data imported as nested JSON has only `__RUSHDB__RELATION__DEFAULT__` edges; when the schema shows that, either use that exact string or omit `type` entirely (untyped traversal is valid, including with `hops`).
+`type` must be copied **verbatim** from a schema Relationships row — never invent a semantic type like the examples here, and never write `__RUSHDB__RELATION__DEFAULT__` unless a schema row shows that exact type. When it does — data imported as nested JSON often has only such edges — either use that exact string or omit `type` entirely (untyped traversal is valid, including with `hops`).
 
 Each Relationships row in `schemaMarkdown` is a directed pattern rooted at that label: `(SELF)-[:TYPE]->(OTHER)` is outgoing and `(SELF)<-[:TYPE]-(OTHER)` is incoming. To traverse, nest `OTHER` as a label key under `where` (add `$alias` if it is referenced in `select`/`groupBy`); to pin the edge set `$relation: { "type": "TYPE", "direction": ... }` with `"out"` for `->` and `"in"` for `<-`. Only patterns shown in the schema are traversable — a scalar `*_id` property is a plain value, not an edge, so never nest a label to "join" on it.
 
@@ -249,27 +249,26 @@ Add `hops` to `$relation` when the user asks about reachability across more than
 Rules:
 
 - Keep `max` as small as the request allows; deep undirected traversal is expensive. Omit `type` only when the user genuinely means "any relationship" — and keep `direction` if the schema gives one, since it prunes the search.
-- `hops.max` is capped per deployment (default 25); omitting `max` (unbounded) is only accepted on self-hosted/dedicated database setups.
+- Always set `hops.max` (an integer as small as the request allows). Omitting `max` means unbounded traversal, which is rejected on shared cloud connections and only accepted on self-hosted/dedicated database setups; `hops.max` is capped per deployment (default 10).
 - Filters and aggregations on the endpoint (`$alias` + `select`) apply per **path**: `$count`/`$collect` deduplicate, but `$sum`/`$avg` over a multihop alias count one row per path — prefer counting to summing across multihop endpoints.
 - One hop is still the default: never add `hops` for a plain related-record condition.
 
 ### Cycle Detection (`$cycle`)
 
-Use `$cycle: true` when the user asks for rings, loops, circular flows, or records that "come back to themselves" (fraud rings, circular ownership, dependency cycles). The traversal block's endpoint binds back to the parent record itself, so the block accepts **only** `$relation` (with `hops`, `min` ≥ 2 — defaults to 2). No `$alias`, no property criteria, no nested labels inside a `$cycle` block; the block's key is a display name and is not matched as a label.
+Use the `$cycle` operator when the user asks for rings, loops, circular flows, or records that "come back to themselves" (fraud rings, circular ownership, dependency cycles). `$cycle` is a record-level predicate — its value is the traversal spec itself (`type`, `direction`, `hops`; `hops` is mandatory, `min` ≥ 2, defaulting to 2). A cycle has no separate endpoint: no `$alias`, no property criteria, no nested labels.
 
 ```json
 {
   "labels": ["ACCOUNT"],
   "where": {
-    "RING": {
-      "$cycle": true,
-      "$relation": { "type": "TRANSFERRED_TO", "direction": "out", "hops": { "min": 2, "max": 6 } }
-    }
+    "$cycle": { "type": "TRANSFERRED_TO", "direction": "out", "hops": { "min": 2, "max": 6 } }
   }
 }
 ```
 
-This returns every ACCOUNT sitting on a directed transfer ring of 2–6 hops. Set `direction` for flow-like semantics (money, ownership); an undirected cycle also matches innocent back-and-forth pairs. Wrap in `$not` to express "records NOT on a cycle". Paths may revisit a record through different relationships (only relationships are unique per path).
+This returns every ACCOUNT sitting on a directed transfer ring of 2–6 hops. Set `direction` for flow-like semantics (money, ownership); an undirected cycle also matches innocent back-and-forth pairs. Wrap in `$not` to express "records NOT on a cycle"; place inside a label block (`"ACCOUNT": { "country": "US", "$cycle": {...} }`) to anchor the cycle at the related record. Intermediate node labels are unconstrained. Paths may revisit a record through different relationships (only relationships are unique per path).
+
+Never wrap `$cycle` in a named block and never nest `$relation` inside it — the operator's value IS the relation spec, and it sits directly at a `where` level like any other operator.
 
 Never use `$label`, `$direction`, `$as`, `$of`, `$through`, or `$hops` (hops lives inside `$relation`).
 
@@ -302,6 +301,20 @@ Use this shape when the user asks which root entity has the most, more, least, l
 Direction mapping: most/more/highest/largest/greatest => `"desc"`; least/less/fewer/fewest/lowest/smallest => `"asc"`.
 
 Only use this shape when the schema shows the parent label, related label, display field, and traversal path. If the traversal path is absent, do not silently root on the related label; return the closest valid query with a warning.
+
+Exception: this shape requires the traversal itself to express the requested condition. If the condition ("won", "authored", "assigned", …) is recorded only as a scalar property on the related label — typically a reference-style `*_id` name such as `author_id`, but any property counts, whatever its naming (`authorRef`, `writtenBy`, …); the test is that no schema Relationships row expresses the condition — do not use this shape. A traversal cannot state it and `where` cannot correlate the property with the parent (no `$record.*`/`$alias.*` values, no `$ref`). Root on the label that owns the property, `groupBy` that property, count records, and add a warning that rows are keyed by the raw property value:
+
+```json
+{
+  "labels": ["<RELATED_LABEL>"],
+  "select": {
+    "parent": "$record.<parentIdField>",
+    "count": { "$count": "*" }
+  },
+  "groupBy": ["$record.<parentIdField>"],
+  "orderBy": { "count": "desc" }
+}
+```
 
 ### ID Filter
 
@@ -412,6 +425,8 @@ Use field references to produce one row per distinct value.
   "orderBy": { "count": "desc" }
 }
 ```
+
+The group key is any property the schema lists — a display property works the same way whatever it is called (`$record.title` on a label whose display property is `title`, `$record.name` when it is `name`).
 
 The returned group key appears without the alias prefix.
 

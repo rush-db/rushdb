@@ -169,6 +169,7 @@ const config: Config = {
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
+  trailingSlash: true,
 
   // Serve raw .mdx/.md source files at their natural paths (e.g. /deploy/infra-neo4j.mdx)
   // so CopyPageButton can fetch content locally without depending on GitHub raw.
