@@ -159,6 +159,7 @@ const sidebars: SidebarsConfig = {
           customProps: { icon: 'Filter' },
           link: { type: 'doc', id: 'learn/search-query/search-query' },
           items: [
+            'learn/search-query/smart-search',
             'learn/search-query/where-operators',
             'learn/search-query/select-expressions',
             'learn/search-query/group-by',
@@ -187,7 +188,6 @@ const sidebars: SidebarsConfig = {
           customProps: { icon: 'Search' },
           link: { type: 'doc', id: 'learn/semantic-search/semantic-search' },
           items: [
-            'learn/semantic-search/smart-search',
             'learn/semantic-search/manage-indexes',
             'learn/semantic-search/write-with-vectors',
             'learn/semantic-search/bring-your-own-vectors'
