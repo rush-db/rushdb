@@ -15,7 +15,11 @@ export {
   RelationshipPatternStatus,
   SemanticSearchParams,
   SemanticSearchResult,
+  SmartSearchOptions,
+  SmartSearchQueryResponse,
   UpsertEmbeddingVectorItem,
   UpsertEmbeddingVectorsParams,
-  UpsertEmbeddingVectorsResult
+  UpsertEmbeddingVectorsResult,
+  VectorSearchParams,
+  VectorSearchResult
 } from './types.js'

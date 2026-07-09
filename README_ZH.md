@@ -77,7 +77,7 @@ await db.records.create({
 })
 
 // Recall by meaning — graph filter + semantic search in one call
-const memories = await db.ai.search({
+const memories = await db.records.vectorSearch({
   labels: ['MEMORY'],
   propertyName: 'output',
   query: 'what did we decide about Q4?',
@@ -266,7 +266,7 @@ RushDB 自带一个 MCP 服务器。你的智能体开箱即可获得持久化�
 
 | 应用场景           | RushDB 取代的对象           | 关键 API                                                      |
 | ------------------ | --------------------------- | ------------------------------------------------------------- |
-| **智能体记忆**     | Redis + 向量存储 + 图数据库 | `db.ai.search({ query, where: { agent_id } })`                |
+| **智能体记忆**     | Redis + 向量存储 + 图数据库 | `db.records.vectorSearch({ query, where: { agent_id } })`     |
 | **带上下文的 RAG** | 扁平的向量存储              | `db.records.find({ where, labels })` + 关系遍历               |
 | **无模式应用**     | Postgres + 迁移 + ETL       | `db.records.importJson(nestedJson)`                           |
 | **关联数据产品**   | 多个联接的服务              | `db.records.find({ labels, where: { SOME_LABEL: { ... } } })` |

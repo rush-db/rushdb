@@ -98,7 +98,7 @@ import RushDB from '@rushdb/javascript-sdk'
 const db = new RushDB(process.env.RUSHDB_API_KEY)
 
 // Run a query and inspect results to build ground truth
-const hits = await db.ai.search({
+const hits = await db.records.vectorSearch({
   query: 'how to set up a self-hosted instance',
   labels: ['DOC_CHUNK'],
   propertyName: 'text',
@@ -118,12 +118,12 @@ from rushdb import RushDB
 
 db = RushDB(os.environ['RUSHDB_API_KEY'])
 
-hits = db.ai.search(
-    query='how to set up a self-hosted instance',
-    labels=['DOC_CHUNK'],
-    property_name='text',
-    limit=10
-)
+hits = db.records.vector_search({
+    'query': 'how to set up a self-hosted instance',
+    'labels': ['DOC_CHUNK'],
+    'propertyName': 'text',
+    'limit': 10,
+})
 
 for h in hits:
     print(h.__id, f'{h.__score:.3f}', h.text[:80])
@@ -209,7 +209,7 @@ async function evaluate() {
   const recalls = []
 
   for (const { query, expectedIds } of evalDataset) {
-    const hits = await db.ai.search({
+    const hits = await db.records.vectorSearch({
       query,
       labels: ['DOC_CHUNK'],
       propertyName: 'text',
@@ -261,12 +261,12 @@ def evaluate():
     recalls = []
 
     for item in EVAL_DATASET:
-        hits = db.ai.search(
-            query=item['query'],
-            labels=['DOC_CHUNK'],
-            property_name='text',
-            limit=K
-        )
+        hits = db.records.vector_search({
+            'query': item['query'],
+            'labels': ['DOC_CHUNK'],
+            'propertyName': 'text',
+            'limit': K,
+        })
         retrieved_ids = [h.__id for h in hits]
         precisions.append(precision_at_k(retrieved_ids, item['expected_ids'], K))
         recalls.append(recall_at_k(retrieved_ids, item['expected_ids'], K))
@@ -314,7 +314,7 @@ const SNAPSHOT_FILE = './eval-score-snapshot.json'
 async function captureScoreSnapshot(db, queries) {
   const snapshot = {}
   for (const query of queries) {
-    const hits = await db.ai.search({
+    const hits = await db.records.vectorSearch({
       query,
       labels: ['DOC_CHUNK'],
       propertyName: 'text',
@@ -359,12 +359,12 @@ SNAPSHOT_FILE = './eval_score_snapshot.json'
 def capture_score_snapshot(db, queries: list[str]) -> dict:
     snapshot = {}
     for query in queries:
-        hits = db.ai.search(
-            query=query,
-            labels=['DOC_CHUNK'],
-            property_name='text',
-            limit=5
-        )
+        hits = db.records.vector_search({
+            'query': query,
+            'labels': ['DOC_CHUNK'],
+            'propertyName': 'text',
+            'limit': 5,
+        })
         snapshot[query] = [{'id': h.__id, 'score': h.__score} for h in hits]
 
     with open(SNAPSHOT_FILE, 'w') as f:

@@ -257,7 +257,7 @@ db.records.create(
 )
 
 # ✅ Search the euclidean index only
-db.ai.search({
+db.records.vector_search({
     "labels": ["Product"],
     "propertyName": "embedding",
     "queryVector": vec,
@@ -306,7 +306,7 @@ await db.records.create({
 })
 
 // ✅ Search euclidean index only
-await db.ai.search({
+await db.records.vectorSearch({
   labels: ['Product'],
   propertyName: 'embedding',
   queryVector: vec,
@@ -390,7 +390,7 @@ for article in articles:
     )
 
 # 3. Search using a pre-computed query vector
-response = db.ai.search({
+response = db.records.vector_search({
     "labels": ["Doc"],
     "propertyName": "content",
     "queryVector": [1, 0, 0],   # closest to Alpha
@@ -434,7 +434,7 @@ for (const { title, content, vector } of articles) {
 }
 
 // 3. Search using a pre-computed query vector
-const { data: results } = await db.ai.search({
+const { data: results } = await db.records.vectorSearch({
   labels: ['Doc'],
   propertyName: 'content',
   queryVector: [1, 0, 0], // closest to Alpha

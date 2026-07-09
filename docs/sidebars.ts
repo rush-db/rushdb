@@ -187,6 +187,7 @@ const sidebars: SidebarsConfig = {
           customProps: { icon: 'Search' },
           link: { type: 'doc', id: 'learn/semantic-search/semantic-search' },
           items: [
+            'learn/semantic-search/smart-search',
             'learn/semantic-search/manage-indexes',
             'learn/semantic-search/write-with-vectors',
             'learn/semantic-search/bring-your-own-vectors'

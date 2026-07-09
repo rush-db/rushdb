@@ -184,7 +184,7 @@ describe('BYOV semantic indexes are project isolated (e2e)', () => {
 
     await Promise.all([waitForIndexReady(dbA, indexAId), waitForIndexReady(dbB, indexBId)])
 
-    const projectAResults = await dbA.ai.search({
+    const projectAResults = await dbA.records.vectorSearch({
       propertyName: PROPERTY,
       labels: [LABEL],
       sourceType: 'external',
@@ -197,7 +197,7 @@ describe('BYOV semantic indexes are project isolated (e2e)', () => {
     expect(projectAResults.data[0]?.data.__id).toBe(projectARecord.id)
     expect(projectAResults.data.map((record) => record.data.owner)).not.toContain('userB-primary')
 
-    const projectBResultsForAQuery = await dbB.ai.search({
+    const projectBResultsForAQuery = await dbB.records.vectorSearch({
       propertyName: PROPERTY,
       labels: [LABEL],
       sourceType: 'external',
@@ -214,7 +214,7 @@ describe('BYOV semantic indexes are project isolated (e2e)', () => {
       true
     )
 
-    const projectBResults = await dbB.ai.search({
+    const projectBResults = await dbB.records.vectorSearch({
       propertyName: PROPERTY,
       labels: [LABEL],
       sourceType: 'external',
@@ -261,7 +261,7 @@ describe('BYOV semantic indexes are project isolated (e2e)', () => {
       })
 
       await expect(
-        dbB.ai.search({
+        dbB.records.vectorSearch({
           propertyName: PROPERTY,
           labels: [noIndexLabel],
           sourceType: 'external',
@@ -272,7 +272,7 @@ describe('BYOV semantic indexes are project isolated (e2e)', () => {
         })
       ).rejects.toBeTruthy()
 
-      const ownerResults = await dbA.ai.search({
+      const ownerResults = await dbA.records.vectorSearch({
         propertyName: PROPERTY,
         labels: [noIndexLabel],
         sourceType: 'external',

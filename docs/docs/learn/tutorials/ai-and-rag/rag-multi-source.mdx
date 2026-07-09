@@ -24,14 +24,14 @@ Real retrieval pipelines rarely draw from a single data source. This tutorial sh
        │                 │                 │
        └─────────────────┼─────────────────┘
                          │
-                  ai.search across
+                  records.vectorSearch across
                   all three labels
                          │
                     LLM synthesis
                     with citations
 ```
 
-Each source type lands in its own RushDB label. This keeps data organized and lets you filter by source when needed, while a single `ai.search` call lets you retrieve relevantly from all of them simultaneously.
+Each source type lands in its own RushDB label. This keeps data organized and lets you filter by source when needed, while a single `records.vectorSearch` call lets you retrieve relevantly from all of them simultaneously.
 
 ---
 
@@ -337,14 +337,14 @@ def wait_for_index(index_id: str):
 
 ## Step 5: Cross-source search
 
-A single `ai.search` call across multiple labels returns results ranked by vector similarity regardless of source type.
+A single `records.vectorSearch` call across multiple labels returns results ranked by vector similarity regardless of source type.
 
 <Tabs>
 <TabItem value="js" label="JavaScript">
 
 ```js
 async function searchAllSources(query, limit = 8) {
-  const results = await db.ai.search({
+  const results = await db.records.vectorSearch({
     query,
     labels: ['PDF_CHUNK', 'WEB_CHUNK', 'DB_SUMMARY'],
     propertyName: 'text',
@@ -361,12 +361,12 @@ const hits = await searchAllSources('how does the pricing model work?')
 
 ```python
 def search_all_sources(query: str, limit: int = 8):
-    return db.ai.search(
-        query=query,
-        labels=['PDF_CHUNK', 'WEB_CHUNK', 'DB_SUMMARY'],
-        property_name='text',
-        limit=limit
-    )
+    return db.records.vector_search({
+        'query': query,
+        'labels': ['PDF_CHUNK', 'WEB_CHUNK', 'DB_SUMMARY'],
+        'propertyName': 'text',
+        'limit': limit,
+    })
 
 hits = search_all_sources('how does the pricing model work?')
 ```
@@ -383,7 +383,7 @@ You can also query a single source when you know which to target:
 
 ```js
 // Only search the PDF corpus
-const pdfHits = await db.ai.search({
+const pdfHits = await db.records.vectorSearch({
   query: 'annual revenue breakdown',
   labels: ['PDF_CHUNK'],
   propertyName: 'text',
@@ -391,7 +391,7 @@ const pdfHits = await db.ai.search({
 })
 
 // Only search web content
-const webHits = await db.ai.search({
+const webHits = await db.records.vectorSearch({
   query: 'quickstart guide',
   labels: ['WEB_CHUNK'],
   propertyName: 'text',
@@ -403,19 +403,19 @@ const webHits = await db.ai.search({
 <TabItem value="python" label="Python">
 
 ```python
-pdf_hits = db.ai.search(
-    query='annual revenue breakdown',
-    labels=['PDF_CHUNK'],
-    property_name='text',
-    limit=5
-)
+pdf_hits = db.records.vector_search({
+    'query': 'annual revenue breakdown',
+    'labels': ['PDF_CHUNK'],
+    'propertyName': 'text',
+    'limit': 5,
+})
 
-web_hits = db.ai.search(
-    query='quickstart guide',
-    labels=['WEB_CHUNK'],
-    property_name='text',
-    limit=5
-)
+web_hits = db.records.vector_search({
+    'query': 'quickstart guide',
+    'labels': ['WEB_CHUNK'],
+    'propertyName': 'text',
+    'limit': 5,
+})
 ```
 
 </TabItem>
@@ -651,7 +651,7 @@ ingestDbSummaries()→  DB_SUMMARY records
                          ↓
            db.embeddings.createIndex() × 3
                          ↓
-          db.ai.search(labels: all three)
+          db.records.vectorSearch(labels: all three)
                          ↓
            deduplicateChunks(hits)
                          ↓
@@ -669,7 +669,7 @@ ingestDbSummaries()→  DB_SUMMARY records
 - **Adjust chunk size per source type.** PDFs may need smaller chunks (400–500 chars) for precision; web pages can tolerate 800–1000 chars for better context.
 - **Filter by `sourceType` when the query implies a source.** If the user asks "show me in the docs…", restrict labels to `['WEB_CHUNK']` to reduce noise.
 - **Add a `retrievedAt` timestamp** to web chunks to detect stale content and trigger re-ingestion.
-- **Use `where` filters alongside** `ai.search` to scope by date, author, or any other metadata field.
+- **Use `where` filters alongside** `records.vectorSearch` to scope by date, author, or any other metadata field.
 
 ---
 

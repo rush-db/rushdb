@@ -15,7 +15,7 @@ Most user-facing search combines two things:
 - **Structured filtering** — only show results matching the user's explicit constraints (role, date range, status)
 - **Relevance ranking** — sort by how closely each result matches the user's intent in natural language
 
-RushDB provides both surfaces: `records.find()` for structured queries and `ai.search()` for semantic ranking. The patterns below show how to combine them, surface enough context for explainable results, and paginate reliably.
+RushDB provides both surfaces: `records.find()` for structured queries and `records.vectorSearch()` for semantic ranking. The patterns below show how to combine them, surface enough context for explainable results, and paginate reliably.
 
 ---
 
@@ -126,21 +126,21 @@ curl -s -X POST "https://api.rushdb.com/api/v1/records/search" \
 
 ## Pattern 2: Semantic search with structured post-filter
 
-Use `ai.search()` when the user types a free-text query. The `where` clause filters before semantic ranking, so only records matching all structural constraints are scored.
+Use `records.vectorSearch()` when the user types a free-text query. The `where` clause filters before semantic ranking, so only records matching all structural constraints are scored.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-interface SemanticSearchParams {
+interface VectorSearchParams {
   query: string
   category?: string
   publishedAfter?: string
   limit?: number
 }
 
-async function semanticArticleSearch(params: SemanticSearchParams) {
-  const searchParams: Parameters<typeof db.ai.search>[0] = {
+async function semanticArticleSearch(params: VectorSearchParams) {
+  const searchParams: Parameters<typeof db.records.vectorSearch>[0] = {
     query: params.query,
     propertyName: 'content',
     labels: ['ARTICLE'],
@@ -154,7 +154,7 @@ async function semanticArticleSearch(params: SemanticSearchParams) {
     searchParams.where = where
   }
 
-  const result = await db.ai.search(searchParams)
+  const result = await db.records.vectorSearch(searchParams)
 
   return result.data.map((a) => ({
     id: a.__id,
@@ -185,7 +185,7 @@ def semantic_article_search(params: dict) -> list[dict]:
     if len(where) > 1:
         search_params["where"] = where
 
-    result = db.ai.search(search_params)
+    result = db.records.vector_search(search_params)
 
     return [
         {"id": a.id, "title": a.get("title"), "score": a.score, "category": a.get("category")}
@@ -224,7 +224,7 @@ Raw records often lack display context. Enrich results with related data after r
 ```typescript
 async function enrichedSearch(userQuery: string) {
   // 1. Semantic ranking
-  const results = await db.ai.search({
+  const results = await db.records.vectorSearch({
     query: userQuery,
     propertyName: 'content',
     labels: ['ARTICLE'],
@@ -265,7 +265,7 @@ async function enrichedSearch(userQuery: string) {
 from concurrent.futures import ThreadPoolExecutor
 
 def enriched_search(user_query: str) -> list[dict]:
-    results = db.ai.search({
+    results = db.records.vector_search({
         "query": user_query,
         "propertyName": "content",
         "labels": ["ARTICLE"],
@@ -379,7 +379,7 @@ async function searchWithFallback(query: string, category: string) {
   }
 
   // Widen to semantic across all categories
-  const semantic = await db.ai.search({
+  const semantic = await db.records.vectorSearch({
     query,
     propertyName: 'content',
     labels: ['ARTICLE'],
@@ -405,7 +405,7 @@ def search_with_fallback(query: str, category: str) -> dict:
     if structured.total > 0:
         return {"results": structured.data, "mode": "exact"}
 
-    semantic = db.ai.search({
+    semantic = db.records.vector_search({
         "query": query,
         "propertyName": "content",
         "labels": ["ARTICLE"],
@@ -423,14 +423,14 @@ def search_with_fallback(query: str, category: str) -> dict:
 
 ## Choosing between structured and semantic search
 
-| Situation                           | Use                                                      |
-| ----------------------------------- | -------------------------------------------------------- |
-| User selects filters from UI facets | `records.find()` with `where`                            |
-| User types a free-text query box    | `ai.search()`                                            |
-| User types AND applies filters      | `ai.search()` with `where`                               |
-| Result count matters (pagination)   | `records.find()` — `ai.search()` does not return `total` |
-| Query is empty / filters only       | `records.find()` — skip semantic scoring                 |
-| Exact match required                | `records.find()`                                         |
+| Situation                           | Use                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| User selects filters from UI facets | `records.find()` with `where`                                       |
+| User types a free-text query box    | `records.vectorSearch()`                                            |
+| User types AND applies filters      | `records.vectorSearch()` with `where`                               |
+| Result count matters (pagination)   | `records.find()` — `records.vectorSearch()` does not return `total` |
+| Query is empty / filters only       | `records.find()` — skip semantic scoring                            |
+| Exact match required                | `records.find()`                                                    |
 
 ---
 

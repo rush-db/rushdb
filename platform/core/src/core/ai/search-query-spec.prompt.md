@@ -250,6 +250,7 @@ Rules:
 
 - Keep `max` as small as the request allows; deep undirected traversal is expensive. Omit `type` only when the user genuinely means "any relationship" — and keep `direction` if the schema gives one, since it prunes the search.
 - Always set `hops.max` (an integer as small as the request allows). Omitting `max` means unbounded traversal, which is rejected on shared cloud connections and only accepted on self-hosted/dedicated database setups; `hops.max` is capped per deployment (default 10).
+- For prompts like "find/list <records> N hops away from <named origin>", root on the records being returned, not on the named origin. Put the named origin filter inside the same-label traversal block and reverse the direction relative to travel from the origin: if the user means records reachable by following outgoing edges from the origin, the candidate root must have an incoming multihop path from that origin (`direction: "in"`). Example: "depots 1-2 hops away from Depot North" where `Depot North -> South -> East` returns South/East with root `DEPOT` and nested `DEPOT` filtered to Depot North using `direction: "in"`. Do not root on Depot North, because then `total` counts only the origin record.
 - Filters and aggregations on the endpoint (`$alias` + `select`) apply per **path**: `$count`/`$collect` deduplicate, but `$sum`/`$avg` over a multihop alias count one row per path — prefer counting to summing across multihop endpoints.
 - One hop is still the default: never add `hops` for a plain related-record condition.
 

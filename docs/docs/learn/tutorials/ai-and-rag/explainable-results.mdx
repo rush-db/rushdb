@@ -165,7 +165,7 @@ async function assembleEvidence(articleId: string): Promise<ExplainedResult['evi
 }
 
 async function explainedSemanticSearch(userQuery: string): Promise<ExplainedResult[]> {
-  const results = await db.ai.search({
+  const results = await db.records.vectorSearch({
     query: userQuery,
     propertyName: 'content',
     labels: ['ARTICLE'],
@@ -225,7 +225,7 @@ def assemble_evidence(article_id: str) -> dict:
     }
 
 def explained_semantic_search(user_query: str) -> list[dict]:
-    results = db.ai.search({
+    results = db.records.vector_search({
         "query": user_query,
         "propertyName": "content",
         "labels": ["ARTICLE"],
@@ -328,7 +328,7 @@ If you are building an agent or backend service without an SDK, assemble evidenc
 
 ```typescript
 // 1. Semantic search for the primary result
-const results = await db.ai.search({
+const results = await db.records.vectorSearch({
   query: 'reducing latency',
   propertyName: 'content',
   labels: ['ARTICLE'],
@@ -358,7 +358,7 @@ console.log(
 
 ```python
 # 1. Semantic search for the primary result
-results = db.ai.search({
+results = db.records.vector_search({
     "query": "reducing latency",
     "propertyName": "content",
     "labels": ["ARTICLE"],

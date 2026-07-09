@@ -337,6 +337,27 @@ if (!apiKey) {
       expect(titles).toEqual(CYCLE_MEMBER_TITLES)
     })
 
+    llmIt('hops-away intent roots on returned records, not the named origin', async () => {
+      const { status, searchQuery: query } = await generate('Find supply depots that are 1-2 hops away from Depot North')
+
+      expect(status).toBe(200)
+      expectNoCorrelatedRefs(query.where)
+      expect(query.labels).toEqual([L_DEPOT])
+
+      const traversal = whereEntries(query.where).find(([key]) => key === L_DEPOT)
+      expect(traversal).toBeDefined()
+      expect(JSON.stringify(traversal![1])).toContain('Depot North')
+      expect(traversal![1]?.$relation?.direction).toBe('in')
+      expect(traversal![1]?.$relation?.hops).toMatchObject({ min: 1, max: 2 })
+
+      const executed = await searchRecords(query)
+      expect(executed.status).toBe(200)
+      expect(executed.json.total).not.toBe(1)
+      const rows = (executed.json.data as any[]).filter((record) => JSON.stringify(record).includes(seedMark))
+      const titles = rows.map((record) => record.title).sort()
+      expect(titles).toEqual(['Depot East', 'Depot South'])
+    })
+
     llmIt('display-property filters land on the schema-listed property, not an assumed "name"', async () => {
       const { status, searchQuery: query } = await generate('Find the Monaco race')
 
@@ -350,6 +371,16 @@ if (!apiKey) {
       const executed = await searchRecords(query)
       expect(executed.status).toBe(200)
       const titles = (executed.json.data as any[]).map((record) => record.title)
+      expect(titles).toContain('Monaco Grand Prix')
+    })
+
+    llmIt('SDK db.ai.search(prompt) generates and executes a SearchQuery', async () => {
+      const result = await db.ai.search('Find the Monaco race')
+
+      expect(result.searchQuery).toBeDefined()
+      expect(Array.isArray(result.warnings)).toBe(true)
+      expect(result.data.length).toBeGreaterThan(0)
+      const titles = result.data.map((record) => record.data.title)
       expect(titles).toContain('Monaco Grand Prix')
     })
   })

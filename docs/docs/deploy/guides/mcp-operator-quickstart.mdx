@@ -165,7 +165,7 @@ For projects with embedding indexes:
 ```
 1. Call getSchemaMarkdown.
 2. Call findEmbeddingIndexes to confirm which labels have AI indexes.
-3. Call semanticSearch with query "cloud cost optimization",
+3. Call vectorSearch with query "cloud cost optimization",
    propertyName "description", labels ["TASK"], limit 10.
 ```
 
@@ -173,7 +173,7 @@ The underlying tool call for step 3:
 
 ```json
 {
-  "tool": "semanticSearch",
+  "tool": "vectorSearch",
   "input": {
     "query": "cloud cost optimization",
     "propertyName": "description",

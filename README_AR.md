@@ -89,7 +89,7 @@ await db.records.create({
 })
 
 // Recall by meaning — graph filter + semantic search in one call
-const memories = await db.ai.search({
+const memories = await db.records.vectorSearch({
   labels: ['MEMORY'],
   propertyName: 'output',
   query: 'what did we decide about Q4?',
@@ -314,7 +314,7 @@ const payroll = await db.records.find({
 
 | حالة الاستخدام            | ما يستبدله RushDB                            | واجهة API الأساسية                                            |
 | ------------------------- | -------------------------------------------- | ------------------------------------------------------------- |
-| **ذاكرة الوكيل**          | Redis + مخزن متجهات + قاعدة بيانات رسم بياني | `db.ai.search({ query, where: { agent_id } })`                |
+| **ذاكرة الوكيل**          | Redis + مخزن متجهات + قاعدة بيانات رسم بياني | `db.records.vectorSearch({ query, where: { agent_id } })`     |
 | **RAG مع السياق**         | مخزن متجهات مسطّح                            | `db.records.find({ where, labels })` + التنقل عبر العلاقات    |
 | **تطبيقات بلا مخطط**      | Postgres + ترحيلات + ETL                     | `db.records.importJson(nestedJson)`                           |
 | **منتجات بيانات مترابطة** | خدمات متعددة مدمجة                           | `db.records.find({ labels, where: { SOME_LABEL: { ... } } })` |

@@ -1,5 +1,5 @@
 /**
- * E2E tests for the semantic (vector) search flow via db.ai.search().
+ * E2E tests for the semantic (vector) search flow via db.records.vectorSearch().
  *
  * Prerequisites
  * ─────────────
@@ -19,7 +19,7 @@
  *
  * SEARCH QUERY SHAPE
  * ──────────────────
- * await db.ai.search({
+ * await db.records.vectorSearch({
  *   propertyName: 'description',  // which indexed property
  *   query:        'deep learning', // free-text — server embeds it
  *   labels:       ['Article'],     // required; first entry selects the index
@@ -179,7 +179,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
   // ── semantic ranking over project-scoped candidates ────────────────────────
 
   it('returns semantically similar results for an ML query', async () => {
-    const res = await db.ai.search({
+    const res = await db.records.vectorSearch({
       propertyName: PROPERTY,
       query: 'neural networks and artificial intelligence',
       labels: [LABEL],
@@ -206,7 +206,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
   })
 
   it('returns results ordered by score descending', async () => {
-    const res = await db.ai.search({
+    const res = await db.records.vectorSearch({
       propertyName: PROPERTY,
       query: 'graph database nodes edges',
       labels: [LABEL],
@@ -220,7 +220,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
   })
 
   it('respects limit and skip for pagination', async () => {
-    const page1 = await db.ai.search({
+    const page1 = await db.records.vectorSearch({
       propertyName: PROPERTY,
       query: 'data science algorithms',
       labels: [LABEL],
@@ -228,7 +228,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
       skip: 0
     })
 
-    const page2 = await db.ai.search({
+    const page2 = await db.records.vectorSearch({
       propertyName: PROPERTY,
       query: 'data science algorithms',
       labels: [LABEL],
@@ -247,7 +247,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
 
   it('where filter restricts candidates before cosine scoring', async () => {
     // 'French Cuisine' has published: false — must not appear when filtering published: true
-    const res = await db.ai.search({
+    const res = await db.records.vectorSearch({
       propertyName: PROPERTY,
       query: 'cooking and gastronomy',
       labels: [LABEL],
@@ -260,7 +260,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
   })
 
   it('where filter narrows the result set', async () => {
-    const res = await db.ai.search({
+    const res = await db.records.vectorSearch({
       propertyName: PROPERTY,
       query: 'quantum superposition qubits',
       labels: [LABEL],
@@ -278,7 +278,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
 
   it('multi-label search still uses exact prefiltering before ranking', async () => {
     // Two labels passed -> candidates are narrowed before similarity scoring.
-    const res = await db.ai.search({
+    const res = await db.records.vectorSearch({
       propertyName: PROPERTY,
       query: 'data and storage',
       labels: [LABEL, 'NonExistentLabel'],
@@ -293,7 +293,7 @@ describe('db.ai.search – semantic (vector) search (e2e)', () => {
 
   it('returns error when propertyName has no index', async () => {
     await expect(
-      db.ai.search({
+      db.records.vectorSearch({
         propertyName: '__nonexistent_prop__',
         query: 'anything',
         labels: ['NonExistentLabel'],
@@ -382,7 +382,7 @@ describe('db.ai – multi-label index isolation (e2e)', () => {
   })
 
   it('Scientist search does not return Chef records', async () => {
-    const res = await db.ai.search({
+    const res = await db.records.vectorSearch({
       propertyName: PROPERTY,
       query: 'physics and relativity',
       labels: [LABEL_A],
@@ -400,7 +400,7 @@ describe('db.ai – multi-label index isolation (e2e)', () => {
   })
 
   it('Chef search does not return Scientist records', async () => {
-    const res = await db.ai.search({
+    const res = await db.records.vectorSearch({
       propertyName: PROPERTY,
       query: 'cooking techniques and gastronomy',
       labels: [LABEL_B],

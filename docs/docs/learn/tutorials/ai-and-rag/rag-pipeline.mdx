@@ -224,7 +224,7 @@ Backfilling runs asynchronously. Poll `GET /api/v1/ai/indexes` (or `db.ai.indexe
 ```python
 query = "How does RushDB handle nested JSON objects?"
 
-result = db.ai.search({
+result = db.records.vector_search({
     "propertyName": "text",
     "query": query,
     "labels": ["CHUNK"],
@@ -244,7 +244,7 @@ for i, r in enumerate(result["data"]):
 ```typescript
 const query = 'How does RushDB handle nested JSON objects?'
 
-const { data: chunks } = await db.ai.search({
+const { data: chunks } = await db.records.vectorSearch({
   propertyName: 'text',
   query,
   labels: ['CHUNK'],
@@ -369,7 +369,7 @@ If you want to scope retrieval to a specific file, add a `where` clause:
 <TabItem value="python" label="Python" default>
 
 ```python
-result = db.ai.search({
+result = db.records.vector_search({
     "propertyName": "text",
     "query": "docker compose environment variables",
     "labels": ["CHUNK"],
@@ -382,7 +382,7 @@ result = db.ai.search({
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const { data } = await db.ai.search({
+const { data } = await db.records.vectorSearch({
   propertyName: 'text',
   query: 'docker compose environment variables',
   labels: ['CHUNK'],

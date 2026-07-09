@@ -77,7 +77,7 @@ await db.records.create({
 })
 
 // Recall by meaning — graph filter + semantic search in one call
-const memories = await db.ai.search({
+const memories = await db.records.vectorSearch({
   labels: ['MEMORY'],
   propertyName: 'output',
   query: 'what did we decide about Q4?',
@@ -266,7 +266,7 @@ Placez ceci dans la configuration MCP de votre Claude Desktop, Cursor ou Windsur
 
 | Cas d'usage                        | Ce que RushDB remplace                      | API clé                                                       |
 | ---------------------------------- | ------------------------------------------- | ------------------------------------------------------------- |
-| **Mémoire d'agent**                | Redis + stockage vectoriel + base en graphe | `db.ai.search({ query, where: { agent_id } })`                |
+| **Mémoire d'agent**                | Redis + stockage vectoriel + base en graphe | `db.records.vectorSearch({ query, where: { agent_id } })`     |
 | **RAG avec contexte**              | Stockage vectoriel plat                     | `db.records.find({ where, labels })` + parcours de relations  |
 | **Applications sans schéma**       | Postgres + migrations + ETL                 | `db.records.importJson(nestedJson)`                           |
 | **Produits de données connectées** | Plusieurs services joints                   | `db.records.find({ labels, where: { SOME_LABEL: { ... } } })` |

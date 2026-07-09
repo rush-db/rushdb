@@ -51,7 +51,9 @@ export type ToolName =
   | 'deleteEmbeddingIndex'
   | 'getEmbeddingIndexStats'
   | 'upsertEmbeddingVectors'
+  | 'vectorSearch'
   | 'semanticSearch'
+  | 'smartSearch'
 
 type SecurityScheme = { type: 'oauth2'; scopes: string[] } | { type: 'noauth' }
 
@@ -484,7 +486,19 @@ const outputSchemas = {
     required: ['stats'],
     additionalProperties: false
   },
-  semanticSearch: RECORDS_OUTPUT_SCHEMA
+  vectorSearch: RECORDS_OUTPUT_SCHEMA,
+  semanticSearch: RECORDS_OUTPUT_SCHEMA,
+  smartSearch: {
+    type: 'object',
+    properties: {
+      data: { type: 'array', items: RECORD_SCHEMA },
+      total: { type: 'number' },
+      searchQuery: { type: 'object', additionalProperties: true },
+      warnings: { type: 'array', items: { type: 'string' } }
+    },
+    required: ['data', 'total', 'searchQuery', 'warnings'],
+    additionalProperties: false
+  }
 } satisfies Record<ToolName, Schema>
 
 // Read-only tools advertise both noauth and oauth2 so ChatGPT can call them
@@ -1263,7 +1277,7 @@ export const tools: Tool[] = (
         'Create a new embedding index policy for a string property. ' +
         'For managed indexes (default), RushDB asynchronously embeds every existing value and keeps new values embedded on write. ' +
         'For external indexes (sourceType: "external"), the client supplies vectors via upsertEmbeddingVectors. ' +
-        'Once the index status becomes "ready" (check with getEmbeddingIndexStats), use semanticSearch to query.',
+        'Once the index status becomes "ready" (check with getEmbeddingIndexStats), use vectorSearch to query.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1359,11 +1373,11 @@ export const tools: Tool[] = (
       }
     },
     {
-      name: 'semanticSearch',
+      name: 'vectorSearch',
       annotations: READ_ONLY,
       securitySchemes: READ_SCHEMES,
       description:
-        'Perform semantic (vector) similarity search over records whose `propertyName` has been indexed with createEmbeddingIndex. ' +
+        'Perform direct vector similarity search over records whose `propertyName` has been indexed with createEmbeddingIndex. ' +
         'For managed indexes: provide a free-text `query` — RushDB embeds it and returns the most similar records ranked by similarity (__score). ' +
         'For external indexes: provide a `queryVector` (pre-computed number[]) instead of query text. ' +
         'Direct vector-index mode (fast, default): used when no `where` filter is supplied. ' +
@@ -1401,6 +1415,11 @@ export const tools: Tool[] = (
             enum: ['cosine', 'euclidean'],
             description: 'Disambiguates when multiple indexes share the same label+property+sourceType.'
           },
+          dimensions: {
+            type: 'number',
+            description:
+              'Disambiguates when multiple indexes share the same label+property. Inferred from queryVector length when queryVector is supplied.'
+          },
           where: {
             type: 'object',
             description: 'Optional filter applied before scoring (activates prefilter mode).'
@@ -1414,6 +1433,89 @@ export const tools: Tool[] = (
           skip: { type: 'number', description: 'Number of results to skip for pagination (default 0).' }
         },
         required: ['propertyName', 'labels']
+      }
+    },
+    {
+      name: 'semanticSearch',
+      annotations: READ_ONLY,
+      securitySchemes: READ_SCHEMES,
+      description:
+        'Deprecated alias for vectorSearch. Performs direct vector similarity search over records whose `propertyName` has been indexed with createEmbeddingIndex. ' +
+        'Prefer vectorSearch for new integrations. For natural-language schema-aware querying, use smartSearch.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          propertyName: { type: 'string', description: 'Name of the indexed property to search against.' },
+          query: {
+            type: 'string',
+            description:
+              'Free-text query to embed and compare against stored vectors (managed indexes only). Mutually exclusive with queryVector.'
+          },
+          queryVector: {
+            type: 'array',
+            items: { type: 'number' },
+            description:
+              'Pre-computed embedding vector to search with (external indexes). Mutually exclusive with query. Length must match index dimensions.'
+          },
+          labels: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'One or more record labels to scope the search. The first label is used to resolve the embedding index.'
+          },
+          sourceType: {
+            type: 'string',
+            enum: ['managed', 'external'],
+            description:
+              'Select which index type to search. Required when both managed and external indexes exist for the same label+property.'
+          },
+          similarityFunction: {
+            type: 'string',
+            enum: ['cosine', 'euclidean'],
+            description: 'Disambiguates when multiple indexes share the same label+property+sourceType.'
+          },
+          dimensions: {
+            type: 'number',
+            description:
+              'Disambiguates when multiple indexes share the same label+property. Inferred from queryVector length when queryVector is supplied.'
+          },
+          where: {
+            type: 'object',
+            description: 'Optional filter applied before scoring (activates prefilter mode).'
+          },
+          topK: {
+            type: 'number',
+            description:
+              'Max candidates to fetch from the vector index (default 20, direct vector-index mode only).'
+          },
+          limit: { type: 'number', description: 'Maximum number of results to return (default 20).' },
+          skip: { type: 'number', description: 'Number of results to skip for pagination (default 0).' }
+        },
+        required: ['propertyName', 'labels']
+      }
+    },
+    {
+      name: 'smartSearch',
+      annotations: READ_ONLY,
+      securitySchemes: READ_SCHEMES,
+      description:
+        'Convert a natural-language question into a RushDB SearchQuery using the project schema, execute it, and return matching records plus the generated query. ' +
+        'Use this for user-facing questions such as "Who are piloting Falcon?" or "Find planets 3-5 hops away from Tatooine". ' +
+        'For direct vector similarity over an embedding index, use vectorSearch instead.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          prompt: {
+            type: 'string',
+            description: 'Natural-language search request to convert into a SearchQuery and execute.'
+          },
+          currentQuery: {
+            type: 'object',
+            description: 'Optional current SearchQuery context from a dashboard/query-builder session.',
+            additionalProperties: true
+          }
+        },
+        required: ['prompt']
       }
     }
   ] as const satisfies Array<Omit<Tool, 'outputSchema'>>

@@ -200,7 +200,7 @@ Instead of `query: "text"` you pass `queryVector: number[]`. RushDB infers `dime
 ```typescript
 const queryVector = await embed('how do graph databases handle relationships?')
 
-const results = await db.ai.search({
+const results = await db.records.vectorSearch({
   propertyName: 'body',
   queryVector, // dimensions inferred from queryVector.length
   labels: ['ARTICLE'],
@@ -218,7 +218,7 @@ for (const article of results.data) {
 ```python
 query_vector = embed('how do graph databases handle relationships?')
 
-results = db.ai.search({
+results = db.records.vector_search({
     'propertyName': 'body',
     'queryVector': query_vector,   # dimensions inferred from vector length
     'labels': ['ARTICLE'],
@@ -260,7 +260,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/search \
 ```typescript
 const queryVector = await embed('reducing database latency')
 
-const results = await db.ai.search({
+const results = await db.records.vectorSearch({
   propertyName: 'body',
   queryVector,
   labels: ['ARTICLE'],
@@ -277,7 +277,7 @@ const results = await db.ai.search({
 <TabItem value="python" label="Python">
 
 ```python
-results = db.ai.search({
+results = db.records.vector_search({
     'propertyName': 'body',
     'queryVector': embed('reducing database latency'),
     'labels': ['ARTICLE'],

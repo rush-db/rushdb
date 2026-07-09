@@ -1,5 +1,5 @@
 import type { DBRecord } from '../sdk/record.js'
-import type { Schema, Where } from '../types/index.js'
+import type { Schema, SearchQuery, Where } from '../types/index.js'
 
 export type ApiResponse<T, E = Record<string, any>> = {
   data: T
@@ -77,8 +77,8 @@ export type EmbeddingIndexStats = {
   indexedRecords: number
 }
 
-/** Parameters for semantic (vector) search over an embedding index. */
-export type SemanticSearchParams = {
+/** Parameters for vector search over an embedding index. */
+export type VectorSearchParams = {
   /** Name of the indexed property to search against. */
   propertyName: string
   /** Free-text query that will be embedded and compared against indexed vectors. */
@@ -101,19 +101,40 @@ export type SemanticSearchParams = {
   where?: Record<string, unknown>
   /** Number of results to skip for pagination (default 0). */
   skip?: number
+  /** Max candidates to fetch from the vector index in direct vector-index mode. */
+  topK?: number
   /** Maximum number of results to return (default 20). */
   limit?: number
 }
 
 /**
- * A record returned by db.ai.search().
+ * A record returned by db.records.vectorSearch().
  * Identical to DBRecord but with __score guaranteed present — never optional.
  * __score is the cosine similarity between the query vector and this record's embedding (0–1,
  * higher = more similar). It is only injected by the semantic search path; regular
  * db.records.find() / db.records.search() results are plain DBRecord and never carry __score.
  */
-export type SemanticSearchResult<S extends Schema = Schema> = DBRecord<S> & {
+export type VectorSearchResult<S extends Schema = Schema> = DBRecord<S> & {
   readonly __score: number
+}
+
+/** @deprecated Use VectorSearchParams. */
+export type SemanticSearchParams = VectorSearchParams
+
+/** @deprecated Use VectorSearchResult. */
+export type SemanticSearchResult<S extends Schema = Schema> = VectorSearchResult<S>
+
+export type SmartSearchOptions<S extends Schema = Schema> = {
+  /**
+   * Optional current dashboard/query-builder state. The server may use it as context
+   * when converting the natural-language prompt into a SearchQuery.
+   */
+  currentQuery?: SearchQuery<S>
+}
+
+export type SmartSearchQueryResponse<S extends Schema = Schema> = {
+  searchQuery: SearchQuery<S>
+  warnings: string[]
 }
 
 export type RelationshipPatternStatus = 'suggested' | 'approved' | 'ignored' | 'error'

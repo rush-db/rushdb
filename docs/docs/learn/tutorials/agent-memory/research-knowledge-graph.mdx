@@ -417,7 +417,7 @@ while (!ready) {
 }
 
 // Semantic search — hybrid: conceptual query + structured year filter
-const results = await db.ai.search({
+const results = await db.records.vectorSearch({
   query: 'combining structured graphs with neural retrieval',
   propertyName: 'abstract',
   labels: ['PAPER'],
@@ -444,7 +444,7 @@ while True:
         break
     time.sleep(2)
 
-results = db.ai.search({
+results = db.records.vector_search({
     "query": "combining structured graphs with neural retrieval",
     "propertyName": "abstract",
     "labels": ["PAPER"],

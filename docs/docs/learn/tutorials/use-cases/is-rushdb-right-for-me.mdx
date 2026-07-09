@@ -61,7 +61,7 @@ Semantic search, relationship traversal, and faceted filtering are available on 
 ```typescript
 // Find recipes semantically similar to "quick weeknight dinner"
 // (after creating a managed index — one more call)
-const results = await db.ai.search({
+const results = await db.records.vectorSearch({
   label: 'RECIPE',
   propertyName: 'name',
   query: 'quick weeknight dinner',
@@ -88,12 +88,12 @@ npx skills add rush-db/rushdb --path packages/skills
 # or: npm install @rushdb/skills
 ```
 
-After that, describing what you want is enough. The assistant constructs the correct `importJson`, `find`, `attach`, and `ai.search` calls without you having to look anything up. The typical flow:
+After that, describing what you want is enough. The assistant constructs the correct `importJson`, `find`, `attach`, and `records.vectorSearch` calls without you having to look anything up. The typical flow:
 
 ```
 You:       "I want to build a recipe app with ingredient relationships
             and the ability to search by dietary preferences"
-Assistant: [writes importJson, creates embedding index, writes ai.search — all correct]
+Assistant: [writes importJson, creates embedding index, writes records.vectorSearch — all correct]
 You:       "Add a filter for prep time under 30 minutes"
 Assistant: [adds where: { prepTime: { $lte: 30 } } to the existing search call]
 ```
@@ -160,7 +160,7 @@ await db.ai.indexes.create({
 })
 
 // 3. Retrieve relevant chunks at query time — filtered + ranked by similarity
-const context = await db.ai.search({
+const context = await db.records.vectorSearch({
   label: 'CHUNK',
   propertyName: 'body',
   query: userQuestion,
