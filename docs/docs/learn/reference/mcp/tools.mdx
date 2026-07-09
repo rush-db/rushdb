@@ -71,16 +71,17 @@ An asterisk marks a required input.
 
 See [Suggested Relationship Patterns](/learn/relationships/suggested-patterns) for lifecycle details and REST and SDK examples.
 
-## Semantic Search
+## Vector Search
 
-| Tool                     | Level       | Main inputs                                                                                                                      | Purpose                                                              |
-| ------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `findEmbeddingIndexes`   | Read        | none                                                                                                                             | List embedding index policies configured for the project.            |
-| `createEmbeddingIndex`   | Write       | `label*`, `propertyName*`, `sourceType?`, `similarityFunction?`, `dimensions?`                                                   | Create a managed or external embedding index policy.                 |
-| `getEmbeddingIndexStats` | Read        | `indexId*`                                                                                                                       | Check indexing progress for an embedding index.                      |
-| `upsertEmbeddingVectors` | Write       | `indexId*`, `items*`                                                                                                             | Write pre-computed vectors to an external index.                     |
-| `deleteEmbeddingIndex`   | Destructive | `indexId*`                                                                                                                       | Delete an embedding index and its stored vectors.                    |
-| `semanticSearch`         | Read        | `propertyName*`, `labels*`, `query?`, `queryVector?`, `sourceType?`, `similarityFunction?`, `where?`, `topK?`, `limit?`, `skip?` | Rank records by vector similarity, optionally after exact filtering. |
+| Tool                     | Level       | Main inputs                                                                                                                                     | Purpose                                                              |
+| ------------------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `findEmbeddingIndexes`   | Read        | none                                                                                                                                            | List embedding index policies configured for the project.            |
+| `createEmbeddingIndex`   | Write       | `label*`, `propertyName*`, `sourceType?`, `similarityFunction?`, `dimensions?`                                                                  | Create a managed or external embedding index policy.                 |
+| `getEmbeddingIndexStats` | Read        | `indexId*`                                                                                                                                      | Check indexing progress for an embedding index.                      |
+| `upsertEmbeddingVectors` | Write       | `indexId*`, `items*`                                                                                                                            | Write pre-computed vectors to an external index.                     |
+| `deleteEmbeddingIndex`   | Destructive | `indexId*`                                                                                                                                      | Delete an embedding index and its stored vectors.                    |
+| `vectorSearch`           | Read        | `propertyName*`, `labels*`, `query?`, `queryVector?`, `sourceType?`, `similarityFunction?`, `dimensions?`, `where?`, `topK?`, `limit?`, `skip?` | Rank records by vector similarity, optionally after exact filtering. |
+| `semanticSearch`         | Read        | same as `vectorSearch`                                                                                                                          | Deprecated alias for `vectorSearch`.                                 |
 
 ## Utilities
 

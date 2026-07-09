@@ -181,7 +181,7 @@ async function searchJobs(userQuery: string, location?: string) {
   // Embed the query with the same model — consistency is critical
   const [queryVector] = await embedBatch([userQuery])
 
-  const results = await db.ai.search({
+  const results = await db.records.vectorSearch({
     label: 'Job',
     propertyName: 'description',
     queryVector, // pre-computed vector, not a text string

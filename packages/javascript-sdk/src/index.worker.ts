@@ -20,6 +20,8 @@ import {
   type UpsertEmbeddingVectorItem,
   type UpsertEmbeddingVectorsParams,
   type UpsertEmbeddingVectorsResult,
+  type VectorSearchParams,
+  type VectorSearchResult,
   RestAPI
 } from './api/index.js'
 
@@ -47,7 +49,9 @@ export {
   type SemanticSearchResult,
   type UpsertEmbeddingVectorItem,
   type UpsertEmbeddingVectorsParams,
-  type UpsertEmbeddingVectorsResult
+  type UpsertEmbeddingVectorsResult,
+  type VectorSearchParams,
+  type VectorSearchResult
 }
 export * from './types/index.js'
 export * from './sdk/index.js'

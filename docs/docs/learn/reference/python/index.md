@@ -45,11 +45,11 @@ db = RushDB(
 
 ## API Reference
 
-| Class                                                                  | Description                                                                       |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| [RushDB](/learn/reference/python/RushDB)                               | Main client — entry point for all operations                                      |
-| [Record](/learn/reference/python/record)                               | Typed record class with instance methods (`attach`, `detach`, `update`, `delete`) |
-| [Relationship Patterns](/learn/reference/python/relationship-patterns) | Review and apply AI-suggested relationships                                       |
-| [SearchQuery](/learn/reference/python/SearchQuery)                     | Query builder types and interfaces                                                |
-| [SearchResult](/learn/reference/python/search-result)                  | Paginated result wrapper returned by `find` and `ai.search`                       |
-| [Transaction](/learn/reference/python/transaction)                     | ACID transaction handle                                                           |
+| Class                                                                  | Description                                                                           |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [RushDB](/learn/reference/python/RushDB)                               | Main client — entry point for all operations                                          |
+| [Record](/learn/reference/python/record)                               | Typed record class with instance methods (`attach`, `detach`, `update`, `delete`)     |
+| [Relationship Patterns](/learn/reference/python/relationship-patterns) | Review and apply AI-suggested relationships                                           |
+| [SearchQuery](/learn/reference/python/SearchQuery)                     | Query builder types and interfaces                                                    |
+| [SearchResult](/learn/reference/python/search-result)                  | Paginated result wrapper returned by `find`, `records.vector_search`, and `ai.search` |
+| [Transaction](/learn/reference/python/transaction)                     | ACID transaction handle                                                               |

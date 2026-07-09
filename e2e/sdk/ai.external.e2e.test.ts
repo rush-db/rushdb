@@ -96,7 +96,7 @@ describe('db.ai External Vector flow (e2e)', () => {
     expect(indexId).toBeDefined()
     expect(recordIds.length).toBe(3)
 
-    const res = await db.ai.search({
+    const res = await db.records.vectorSearch({
       propertyName: PROPERTY,
       labels: [LABEL],
       sourceType: 'external',
@@ -117,7 +117,7 @@ describe('db.ai External Vector flow (e2e)', () => {
 
   it('rejects query text for external index', async () => {
     await expect(
-      db.ai.search({
+      db.records.vectorSearch({
         propertyName: PROPERTY,
         labels: [LABEL],
         sourceType: 'external',

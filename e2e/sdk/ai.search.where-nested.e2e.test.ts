@@ -1,5 +1,5 @@
 /**
- * E2E tests for db.ai.search() with nested `where` predicates (related-record traversal).
+ * E2E tests for db.records.vectorSearch() with nested `where` predicates (related-record traversal).
  *
  * This file complements ai.search.e2e.test.ts which covers flat `where` filters.
  * Here we exercise the case where the `where` contains label keys that resolve to
@@ -65,7 +65,7 @@ const apiKey = process.env.RUSHDB_API_KEY
 const apiUrl = process.env.RUSHDB_API_URL || 'http://localhost:3000'
 
 if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
-  describe('ai.search() – nested where prefilter (e2e)', () => {
+  describe('records.vectorSearch() – nested where prefilter (e2e)', () => {
     it('skips: no RUSHDB_API_KEY or server-side embeddings unavailable', () => expect(true).toBe(true))
   })
 } else {
@@ -144,13 +144,13 @@ if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
     if (indexId) await db.ai.indexes.delete(indexId).catch(() => {})
   })
 
-  describe('ai.search() – nested where prefilter (e2e)', () => {
+  describe('records.vectorSearch() – nested where prefilter (e2e)', () => {
     // ══════════════════════════════════════════════════════════════════════
     // 1. Flat where (baseline — verifies no regression in simple case)
     // ══════════════════════════════════════════════════════════════════════
     describe('baseline: flat where still works', () => {
       it('restricts candidates to published posts', async () => {
-        const res = await db.ai.search({
+        const res = await db.records.vectorSearch({
           propertyName: PROPERTY,
           query: 'cooking recipes and culinary arts',
           labels: [L_POST],
@@ -172,7 +172,7 @@ if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
     // ══════════════════════════════════════════════════════════════════════
     describe('nested where: filter by related author property', () => {
       it('returns only posts whose ASAuthor is Alice', async () => {
-        const res = await db.ai.search({
+        const res = await db.records.vectorSearch({
           propertyName: PROPERTY,
           query: 'data structures and algorithms',
           labels: [L_POST],
@@ -196,7 +196,7 @@ if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
       })
 
       it('returns only posts whose ASAuthor is Bob', async () => {
-        const res = await db.ai.search({
+        const res = await db.records.vectorSearch({
           propertyName: PROPERTY,
           query: 'cooking and gastronomy',
           labels: [L_POST],
@@ -223,7 +223,7 @@ if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
     // ══════════════════════════════════════════════════════════════════════
     describe('nested where: range predicate on related record', () => {
       it('returns only posts by senior authors (seniority >= 8)', async () => {
-        const res = await db.ai.search({
+        const res = await db.records.vectorSearch({
           propertyName: PROPERTY,
           query: 'machine learning neural networks',
           labels: [L_POST],
@@ -252,7 +252,7 @@ if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
     // ══════════════════════════════════════════════════════════════════════
     describe('mixed: root predicate + nested author predicate', () => {
       it('combines published=true with author name filter', async () => {
-        const res = await db.ai.search({
+        const res = await db.records.vectorSearch({
           propertyName: PROPERTY,
           query: 'graph nodes edges connected',
           labels: [L_POST],
@@ -276,7 +276,7 @@ if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
 
       it('returns empty when root predicate conflicts with nested predicate', async () => {
         // published=false AND ASAuthor.name="Alice"  — Alice has no drafted posts
-        const res = await db.ai.search({
+        const res = await db.records.vectorSearch({
           propertyName: PROPERTY,
           query: 'deep learning',
           labels: [L_POST],
@@ -300,7 +300,7 @@ if (!apiKey || process.env.RUSHDB_E2E_EMBEDDINGS === 'false') {
     // ══════════════════════════════════════════════════════════════════════
     describe('similarity ranking preserved after nested prefilter', () => {
       it('returns results in descending __score order when nested filter applies', async () => {
-        const res = await db.ai.search({
+        const res = await db.records.vectorSearch({
           propertyName: PROPERTY,
           query: 'data science and machine learning',
           labels: [L_POST],

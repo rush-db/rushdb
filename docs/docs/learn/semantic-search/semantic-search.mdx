@@ -8,9 +8,11 @@ import TabItem from '@theme/TabItem'
 
 # Semantic Search
 
-`db.ai.search()` / `POST /api/v1/ai/search` performs semantic vector search across records that have an associated embedding index. Candidates are narrowed by label and `where` filters first, then ranked by cosine or euclidean similarity.
+`db.records.vectorSearch()` / `POST /api/v1/ai/search` performs semantic vector search across records that have an associated embedding index. Candidates are narrowed by label and `where` filters first, then ranked by cosine or euclidean similarity.
 
 The property referenced by `propertyName` must have a `ready` embedding index. See [Manage Embedding Indexes](/learn/semantic-search/manage-indexes).
+
+If you want RushDB to convert a natural-language request into a `SearchQuery`, use [Smart Search](/learn/search-query/smart-search) with `db.ai.search(prompt)`.
 
 ---
 
@@ -22,7 +24,7 @@ For a **managed** index, pass a natural-language `query` string. The server embe
   <TabItem value="python" label="Python" default>
 
 ```python
-response = db.ai.search({
+response = db.records.vector_search({
     "propertyName": "description",
     "query": "machine learning for beginners",
     "labels": ["Article"],
@@ -37,7 +39,7 @@ for result in response.data:
   <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const { data: results } = await db.ai.search({
+const { data: results } = await db.records.vectorSearch({
   labels: ['Book'],
   propertyName: 'description',
   query: 'space exploration and interstellar travel',
@@ -81,7 +83,7 @@ For an **external** index, pass `queryVector` — a pre-computed embedding from 
 ```python
 vec = my_embedder.embed("machine learning for beginners")
 
-response = db.ai.search({
+response = db.records.vector_search({
     "propertyName": "body",
     "queryVector": vec,
     "labels": ["Article"],
@@ -96,7 +98,7 @@ response = db.ai.search({
 const myEmbedder = new MyEmbeddingModel()
 const vec = await myEmbedder.embed('space exploration')
 
-const { data: results } = await db.ai.search({
+const { data: results } = await db.records.vectorSearch({
   labels: ['Article'],
   propertyName: 'body',
   queryVector: vec,
@@ -136,7 +138,7 @@ The `where` clause acts as a **prefilter** — only records satisfying the filte
   <TabItem value="python" label="Python" default>
 
 ```python
-response = db.ai.search({
+response = db.records.vector_search({
     "propertyName": "description",
     "query": "wireless headphones",
     "labels": ["Product"],
@@ -153,7 +155,7 @@ response = db.ai.search({
   <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const { data: results } = await db.ai.search({
+const { data: results } = await db.records.vectorSearch({
   labels: ['Product'],
   propertyName: 'description',
   query: 'wireless headphones',
@@ -199,7 +201,7 @@ Search across multiple entity types simultaneously. All listed labels must have 
   <TabItem value="python" label="Python" default>
 
 ```python
-response = db.ai.search({
+response = db.records.vector_search({
     "propertyName": "body",
     "query": "machine learning trends",
     "labels": ["Article", "Post", "Comment"],
@@ -214,7 +216,7 @@ for result in response.data:
   <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const { data: results } = await db.ai.search({
+const { data: results } = await db.records.vectorSearch({
   labels: ['Article', 'Post', 'Comment'],
   propertyName: 'body',
   query: 'machine learning trends',
@@ -343,7 +345,7 @@ When two indexes exist for the same `(label, propertyName)`, specify `similarity
   <TabItem value="python" label="Python" default>
 
 ```python
-response = db.ai.search({
+response = db.records.vector_search({
     "labels": ["Product"],
     "propertyName": "embedding",
     "queryVector": vec,
@@ -355,7 +357,7 @@ response = db.ai.search({
   <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-await db.ai.search({
+await db.records.vectorSearch({
   labels: ['Product'],
   propertyName: 'embedding',
   queryVector: vec,
@@ -391,7 +393,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/search \
 ```python
 PAGE = 20
 
-page1 = db.ai.search({
+page1 = db.records.vector_search({
     "propertyName": "description",
     "query": "sustainable packaging",
     "labels": ["Product"],
@@ -399,7 +401,7 @@ page1 = db.ai.search({
     "skip": 0,
 })
 
-page2 = db.ai.search({
+page2 = db.records.vector_search({
     "propertyName": "description",
     "query": "sustainable packaging",
     "labels": ["Product"],
@@ -414,8 +416,8 @@ page2 = db.ai.search({
 ```typescript
 const PAGE = 20;
 
-const { data: page1 } = await db.ai.search({ ..., limit: PAGE, skip: 0 });
-const { data: page2 } = await db.ai.search({ ..., limit: PAGE, skip: PAGE });
+const { data: page1 } = await db.records.vectorSearch({ ..., limit: PAGE, skip: 0 });
+const { data: page2 } = await db.records.vectorSearch({ ..., limit: PAGE, skip: PAGE });
 ```
 
   </TabItem>
@@ -450,4 +452,5 @@ curl -X POST https://api.rushdb.com/api/v1/ai/search \
 - [Manage Embedding Indexes](/learn/semantic-search/manage-indexes) — create, list, delete, and monitor indexes
 - [Write Records with Vectors](/learn/semantic-search/write-with-vectors) — attach vectors when storing records
 - [Bring Your Own Vectors](/learn/semantic-search/bring-your-own-vectors) — use external embedding models
+- [Smart Search](/learn/search-query/smart-search) — generate and execute SearchQuery from natural language
 - [Find & Query](/learn/records-and-queries/find-and-query) — keyword / graph-only search without AI

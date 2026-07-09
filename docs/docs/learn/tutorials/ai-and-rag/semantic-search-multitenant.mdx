@@ -12,7 +12,7 @@ import TabItem from '@theme/TabItem'
 
 Vector search in multi-tenant products has one rule that trumps all others: a user in tenant A must never see results from tenant B, even if tenant B has a more semantically similar document.
 
-RushDB's semantic search enforces this at the storage layer. Every project is an isolated namespace. When you call `db.ai.search()`, the search is **always scoped to your project**. There is no global vector index, no shared ANN pool, no cross-project leakage.
+RushDB's semantic search enforces this at the storage layer. Every project is an isolated namespace. When you call `db.records.vectorSearch()`, the search is **always scoped to your project**. There is no global vector index, no shared ANN pool, no cross-project leakage.
 
 This tutorial shows you exactly how the scoping works, how to add structured filters on top of semantic ranking, and how to build a multi-tenant search endpoint that is correct by construction.
 
@@ -261,7 +261,7 @@ No `where` filter — returns the top matches across all ARTICLE records in this
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const results = await db.ai.search({
+const results = await db.records.vectorSearch({
   query: 'how to reduce cloud spending',
   propertyName: 'body',
   labels: ['ARTICLE'],
@@ -277,7 +277,7 @@ for (const result of results.data) {
 <TabItem value="python" label="Python">
 
 ```python
-results = db.ai.search({
+results = db.records.vector_search({
     "query": "how to reduce cloud spending",
     "propertyName": "body",
     "labels": ["ARTICLE"],
@@ -316,7 +316,7 @@ Add a `where` clause to narrow candidates before cosine ranking. This is the cor
 
 ```typescript
 // Only search articles written by a specific author
-const authorResults = await db.ai.search({
+const authorResults = await db.records.vectorSearch({
   query: 'automation and reliability',
   propertyName: 'body',
   labels: ['ARTICLE'],
@@ -327,7 +327,7 @@ const authorResults = await db.ai.search({
 })
 
 // Only search articles in a specific category
-const categoryResults = await db.ai.search({
+const categoryResults = await db.records.vectorSearch({
   query: 'database performance',
   propertyName: 'body',
   labels: ['ARTICLE'],
@@ -338,7 +338,7 @@ const categoryResults = await db.ai.search({
 })
 
 // Date-bounded search
-const recentResults = await db.ai.search({
+const recentResults = await db.records.vectorSearch({
   query: 'incident response',
   propertyName: 'body',
   labels: ['ARTICLE'],
@@ -356,7 +356,7 @@ const recentResults = await db.ai.search({
 
 ```python
 # Scoped to one author
-author_results = db.ai.search({
+author_results = db.records.vector_search({
     "query": "automation and reliability",
     "propertyName": "body",
     "labels": ["ARTICLE"],
@@ -365,7 +365,7 @@ author_results = db.ai.search({
 })
 
 # Scoped to categories
-category_results = db.ai.search({
+category_results = db.records.vector_search({
     "query": "database performance",
     "propertyName": "body",
     "labels": ["ARTICLE"],
@@ -374,7 +374,7 @@ category_results = db.ai.search({
 })
 
 # Date-bounded
-recent_results = db.ai.search({
+recent_results = db.records.vector_search({
     "query": "incident response",
     "propertyName": "body",
     "labels": ["ARTICLE"],
@@ -424,7 +424,7 @@ Use `skip` to page through ranked results.
 
 ```typescript
 async function searchPage(query: string, page: number, pageSize = 10) {
-  return db.ai.search({
+  return db.records.vectorSearch({
     query,
     propertyName: 'body',
     labels: ['ARTICLE'],
@@ -442,7 +442,7 @@ const page1 = await searchPage('cloud infrastructure', 1)
 
 ```python
 def search_page(query: str, page: int, page_size: int = 10):
-    return db.ai.search({
+    return db.records.vectorSearch({
         "query": query,
         "propertyName": "body",
         "labels": ["ARTICLE"],
@@ -510,7 +510,7 @@ await db.records.create({
 })
 
 // Search with an external query vector
-const vectorResults = await db.ai.search({
+const vectorResults = await db.records.vectorSearch({
   queryVector: [
     /* same 1536-dimension array */
   ],
@@ -551,7 +551,7 @@ db.records.create(
 )
 
 # Search with query vector
-results = db.ai.search({
+results = db.records.vector_search({
     "queryVector": [/* same 1536-dim array */],
     "propertyName": "body",
     "labels": ["ARTICLE"],
@@ -602,7 +602,7 @@ export async function searchHandler(req: Request): Promise<Response> {
   const where: Record<string, unknown> = {}
   if (category) where.category = category
 
-  const results = await db.ai.search({
+  const results = await db.records.vectorSearch({
     query,
     propertyName: 'body',
     labels: ['ARTICLE'],
@@ -637,7 +637,7 @@ def search_handler(tenant_api_key: str, query: str, category: str = None, page: 
     if category:
         where["category"] = category
 
-    results = db.ai.search({
+    results = db.records.vector_search({
         "query": query,
         "propertyName": "body",
         "labels": ["ARTICLE"],

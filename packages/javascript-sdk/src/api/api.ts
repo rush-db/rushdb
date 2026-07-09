@@ -34,11 +34,13 @@ import type {
   EmbeddingIndexStats,
   RelationshipPattern,
   RelationshipPatternListResponse,
-  SemanticSearchParams,
-  SemanticSearchResult,
+  SmartSearchOptions,
+  SmartSearchQueryResponse,
   UpsertEmbeddingVectorsParams,
   UpsertEmbeddingVectorsResult,
-  VectorEntry
+  VectorEntry,
+  VectorSearchParams,
+  VectorSearchResult
 } from './types.js'
 
 import {
@@ -592,6 +594,35 @@ export class RestAPI {
       })
 
       return new DBRecordsArrayInstance<S, Q>(dbRecordInstances, response.total, searchQueryWithEntryPoint)
+    },
+
+    /**
+     * Performs vector similarity search over records whose `propertyName` has an embedding index.
+     *
+     * RushDB narrows candidates by `labels` and optional `where` filters first, then ranks them by
+     * similarity. Pass either `query` for managed indexes or `queryVector` for external/custom vectors.
+     *
+     * @param params - Vector search parameters including the indexed property, labels, and query input
+     */
+    vectorSearch: async <S extends Schema = any>(
+      params: VectorSearchParams,
+      transaction?: Transaction | string
+    ): Promise<DBRecordsArrayInstance<S>> => {
+      const txId = pickTransactionId(transaction)
+      const path = `/ai/search`
+      const payload = {
+        method: 'POST',
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        requestData: params
+      }
+      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId, path, ...payload })
+
+      const response = await this.fetcher<ApiResponse<VectorSearchResult<S>[]>>(path, payload)
+      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+
+      const dbRecordInstances = (response.data ?? []).map((r) => new DBRecordInstance<S>(r as DBRecord<S>))
+      return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total ?? 0)
     },
 
     /**
@@ -1341,7 +1372,7 @@ export class RestAPI {
      * and cross-label relationships with direction.
      * Properties may include a `vectorIndexes` array when one or more embedding indexes
      * exist for that property — a non-empty array means the property is queryable with
-     * `db.ai.search()`. Each entry exposes: id, sourceType, similarityFunction, dimensions,
+     * `db.records.vectorSearch()`. Each entry exposes: id, sourceType, similarityFunction, dimensions,
      * status, and modelKey.
      * Use property `id` fields to pass to db.properties.values() for deeper drill-down.
      * @param params - Optional filter. `labels` scopes to specific labels only.
@@ -1497,26 +1528,69 @@ export class RestAPI {
     },
 
     /**
-     * Performs semantic (vector) search over records whose `propertyName` has been indexed.
+     * Performs AI-assisted smart search from natural language.
      *
-     * RushDB performs exact search: candidates are narrowed via MATCH/WHERE first,
-     * then ranked by similarity. You can pass either query text or queryVector.
+     * RushDB converts the prompt into a SearchQuery using the project schema, executes it,
+     * and returns matching records with the generated SearchQuery attached to the result.
      *
-     * @param params - Search parameters including the query text, property name, and optional filters
+     * Use `db.records.vectorSearch({ ... })` for direct vector similarity over embedding indexes.
+     *
+     * @param prompt - Natural-language search request to convert into a SearchQuery and execute
+     * @param options - Optional smart-search context and transaction
      */
     search: async <S extends Schema = any>(
-      params: SemanticSearchParams
+      prompt: string,
+      options?: SmartSearchOptions<S> & { transaction?: Transaction | string }
     ): Promise<DBRecordsArrayInstance<S>> => {
-      const path = `/ai/search`
-      const payload = { method: 'POST', headers: {}, requestData: params }
-      const requestId = typeof this.logger === 'function' ? generateRandomId() : ''
-      this.logger?.({ requestId, path, ...payload })
+      const txId = pickTransactionId(options?.transaction)
+      const generatePath = `/ai/search-query`
+      const generatePayload = {
+        method: 'POST',
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        requestData: {
+          prompt,
+          currentQuery: options?.currentQuery
+        }
+      }
+      const generateRequestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId: generateRequestId, path: generatePath, ...generatePayload })
 
-      const response = await this.fetcher<ApiResponse<SemanticSearchResult<S>[]>>(path, payload)
-      this.logger?.({ requestId, path, ...payload, responseData: response.data })
+      const generated = await this.fetcher<ApiResponse<SmartSearchQueryResponse<S>>>(
+        generatePath,
+        generatePayload
+      )
+      this.logger?.({
+        requestId: generateRequestId,
+        path: generatePath,
+        ...generatePayload,
+        responseData: generated.data
+      })
 
-      const dbRecordInstances = (response.data ?? []).map((r) => new DBRecordInstance<S>(r as DBRecord<S>))
-      return new DBRecordsArrayInstance<S>(dbRecordInstances, response.total ?? 0)
+      const searchQuery = generated.data.searchQuery
+      const searchPath = `/records/search`
+      const searchPayload = {
+        method: 'POST',
+        headers: Object.assign({}, buildTransactionHeader(txId)),
+        requestData: searchQuery ?? {}
+      }
+      const searchRequestId = typeof this.logger === 'function' ? generateRandomId() : ''
+      this.logger?.({ requestId: searchRequestId, path: searchPath, ...searchPayload })
+
+      const response = await this.fetcher<ApiResponse<Array<DBRecord<S>>>>(searchPath, searchPayload)
+      this.logger?.({
+        requestId: searchRequestId,
+        path: searchPath,
+        ...searchPayload,
+        responseData: response.data
+      })
+
+      const dbRecordInstances = (response.data ?? []).map((r) => new DBRecordInstance<S>(r))
+      return new DBRecordsArrayInstance<S>(
+        dbRecordInstances,
+        response.total ?? 0,
+        searchQuery,
+        generated.data.warnings
+      )
     }
   }
 }

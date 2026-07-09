@@ -82,6 +82,7 @@ Build query shape from intent:
 - `$collect.label` collects records directly related to the current root record or current `$self` record.
 - If the target records are reached through an intermediate relationship path, declare `$alias` on the target label in `where` and use `$collect.from`.
 - Do not combine `$collect.label` with an unrelated `where` path and expect the collect to use that path.
+- For "find/list <records> N hops away from <named origin>", the requested records are the root rows. Put the named origin as the related endpoint filter inside `where`, with `$relation.hops` and the direction reversed relative to walking from the origin. Do not root on the origin just because it owns the name filter; that returns one root row and `total` will be 1.
 
 Example pattern for a metric on a related label:
 

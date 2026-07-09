@@ -36,8 +36,8 @@ db.records.create(
     data={'agent_id': 'agent-42', 'topic': 'auth decision', 'output': summary_text},
 )
 
-# Recall semantically — just pass the query string
-memories = db.ai.search({
+# Recall semantically — vector search with structured filters
+memories = db.records.vector_search({
     'labels': ['MEMORY'],
     'propertyName': 'output',
     'query': 'what did we decide about auth?',
@@ -50,12 +50,12 @@ memories = db.ai.search({
 
 ## Repositories
 
-| Repo | What it is |
-|---|---|
-| [rushdb](https://github.com/rush-db/rushdb) | Platform — core API, dashboard, self-hosting |
-| [rushdb-python](https://github.com/rush-db/rushdb-python) | Python SDK |
-| [mcp-server](https://github.com/rush-db/mcp-server) | MCP server for Claude, Cursor, Windsurf |
-| [examples](https://github.com/rush-db/examples) | Code samples across frameworks and use cases |
+| Repo                                                      | What it is                                   |
+| --------------------------------------------------------- | -------------------------------------------- |
+| [rushdb](https://github.com/rush-db/rushdb)               | Platform — core API, dashboard, self-hosting |
+| [rushdb-python](https://github.com/rush-db/rushdb-python) | Python SDK                                   |
+| [mcp-server](https://github.com/rush-db/mcp-server)       | MCP server for Claude, Cursor, Windsurf      |
+| [examples](https://github.com/rush-db/examples)           | Code samples across frameworks and use cases |
 
 ---
 

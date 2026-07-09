@@ -267,7 +267,7 @@ interface ChunkWithContext {
 
 async function graphRagRetrieve(userQuery: string, k = 5): Promise<ChunkWithContext[]> {
   // 1. Semantic search for top-k chunks
-  const results = await db.ai.search({
+  const results = await db.records.vectorSearch({
     query: userQuery,
     propertyName: 'text',
     labels: ['CHUNK'],
@@ -358,7 +358,7 @@ console.log(prompt)
 from concurrent.futures import ThreadPoolExecutor
 
 def graph_rag_retrieve(user_query: str, k: int = 5) -> list[dict]:
-    results = db.ai.search({
+    results = db.records.vector_search({
         'query': user_query,
         'propertyName': 'text',
         'labels': ['CHUNK'],

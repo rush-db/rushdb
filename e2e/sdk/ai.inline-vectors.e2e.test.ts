@@ -7,7 +7,7 @@
  *   - records.set()       with vectors: [...]
  *   - records.createMany  with vectors: VectorEntry[][] (top-level, indexed)
  *   - ai.indexes.create() with external: true shorthand
- *   - ai.search()         with queryVector (no query text)
+ *   - records.vectorSearch()         with queryVector (no query text)
  *   - disambiguation: two indexes on same property, different similarityFunction
  *   - error paths: wrong dimensions, ambiguous match, no matching index
  *
@@ -160,7 +160,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
 
     // Vectorise the seed record so the index starts in 'ready' state.
     // The platform requires totalRecords === indexedRecords on the index before
-    // ai.search() is allowed; upsertVectors on the seed record satisfies that.
+    // records.vectorSearch() is allowed; upsertVectors on the seed record satisfies that.
     await db.ai.indexes.upsertVectors(sharedCosineIndexId, {
       items: [{ recordId: labelSeedRecord.id, vector: unitVec(0) }]
     })
@@ -239,7 +239,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       // Verify the vector was written: search with the same vector → should return this record
       await waitForIndexReady(db, indexId)
 
-      const res = await db.ai.search({
+      const res = await db.records.vectorSearch({
         propertyName: PROP,
         labels: [LABEL],
         sourceType: 'external',
@@ -271,7 +271,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
 
       await waitForIndexReady(db, indexId)
 
-      const res = await db.ai.search({
+      const res = await db.records.vectorSearch({
         propertyName: PROP,
         labels: [LABEL],
         sourceType: 'external',
@@ -314,7 +314,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       expect(record.id).toBeDefined()
       await waitForIndexReady(db, indexId)
 
-      const res = await db.ai.search({
+      const res = await db.records.vectorSearch({
         propertyName: PROP,
         labels: [LABEL],
         sourceType: 'external',
@@ -353,7 +353,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       await waitForIndexReady(db, indexId)
 
       // Search with slot-0 → should be the top result (score ≈ 1)
-      const res = await db.ai.search({
+      const res = await db.records.vectorSearch({
         propertyName: PROP,
         labels: [LABEL],
         sourceType: 'external',
@@ -403,7 +403,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
 
       await waitForIndexReady(db, indexId)
 
-      const res = await db.ai.search({
+      const res = await db.records.vectorSearch({
         propertyName: PROP,
         labels: [LABEL],
         sourceType: 'external',
@@ -450,7 +450,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       await waitForIndexReady(db, indexId)
 
       // Query close to slot 0 → Import Alpha should rank highest
-      const res = await db.ai.search({
+      const res = await db.records.vectorSearch({
         propertyName: PROP,
         labels: [LABEL],
         sourceType: 'external',
@@ -503,7 +503,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
   // 6. Semantic search: dimension auto-inference from queryVector.length
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe('ai.search() dimension inference', () => {
+  describe('records.vectorSearch() dimension inference', () => {
     let indexId: string
 
     beforeAll(async () => {
@@ -523,7 +523,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
       await waitForIndexReady(db, indexId)
 
       // No `dimensions` field — server must infer 3 from queryVector.length
-      const res = await db.ai.search({
+      const res = await db.records.vectorSearch({
         propertyName: PROP,
         labels: [LABEL],
         sourceType: 'external',
@@ -648,7 +648,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
 
       // Index [1,0,0] — should find row 0 at score ≈ 1
       await waitForIndexReady(db, indexId)
-      const { data: res } = await db.ai.search({
+      const { data: res } = await db.records.vectorSearch({
         labels: [LABEL],
         propertyName: PROP,
         sourceType: 'external',
@@ -738,7 +738,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
 
       // Vector [1,0,0] — row 0 should be closest
       await waitForIndexReady(db, indexId)
-      const { data: res } = await db.ai.search({
+      const { data: res } = await db.records.vectorSearch({
         labels: [LABEL],
         propertyName: PROP,
         sourceType: 'external',
@@ -826,7 +826,7 @@ describe('ai – inline vectors BYOV (e2e)', () => {
 
     it('rejects query text against an external index during search', async () => {
       await expect(
-        db.ai.search({
+        db.records.vectorSearch({
           propertyName: PROP,
           labels: [LABEL],
           sourceType: 'external',

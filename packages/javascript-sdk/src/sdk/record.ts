@@ -327,6 +327,8 @@ export class DBRecordsArrayInstance<S extends Schema = Schema, Q extends SearchQ
   total: number
   /** The search query that was used to retrieve these records */
   searchQuery?: SearchQuery<S>
+  /** Warnings returned by AI-assisted query generation, when applicable. */
+  warnings?: string[]
 
   /**
    * Creates a new DBRecordsArrayInstance.
@@ -336,10 +338,16 @@ export class DBRecordsArrayInstance<S extends Schema = Schema, Q extends SearchQ
    * @param total - The total number of records matching the query
    * @param searchQuery - The search query that was used to retrieve these records
    */
-  constructor(data: Array<DBRecordInstance<S, Q>> = [], total: number = 0, searchQuery?: SearchQuery<S>) {
+  constructor(
+    data: Array<DBRecordInstance<S, Q>> = [],
+    total: number = 0,
+    searchQuery?: SearchQuery<S>,
+    warnings?: string[]
+  ) {
     this.data = data
     this.total = total
     this.searchQuery = searchQuery
+    this.warnings = warnings
   }
 
   /**

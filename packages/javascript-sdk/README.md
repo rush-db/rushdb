@@ -71,7 +71,7 @@ await db.records.create({
 })
 
 // 3. Recall by meaning, scoped by graph
-const memories = await db.ai.search({
+const memories = await db.records.vectorSearch({
   labels: ['MEMORY'],
   propertyName: 'output',
   query: 'what did we decide about Q4?',

@@ -159,6 +159,7 @@ const sidebars: SidebarsConfig = {
           customProps: { icon: 'Filter' },
           link: { type: 'doc', id: 'learn/search-query/search-query' },
           items: [
+            'learn/search-query/smart-search',
             'learn/search-query/where-operators',
             'learn/search-query/select-expressions',
             'learn/search-query/group-by',

@@ -77,7 +77,7 @@ await db.records.create({
 })
 
 // Recall by meaning — graph filter + semantic search in one call
-const memories = await db.ai.search({
+const memories = await db.records.vectorSearch({
   labels: ['MEMORY'],
   propertyName: 'output',
   query: 'what did we decide about Q4?',
@@ -266,7 +266,7 @@ RushDB एक MCP server के साथ आता है। आपके ए�
 
 | उपयोग का मामला              | RushDB किसे बदलता है            | प्रमुख API                                                    |
 | --------------------------- | ------------------------------- | ------------------------------------------------------------- |
-| **Agent memory**            | Redis + vector store + graph DB | `db.ai.search({ query, where: { agent_id } })`                |
+| **Agent memory**            | Redis + vector store + graph DB | `db.records.vectorSearch({ query, where: { agent_id } })`     |
 | **Context के साथ RAG**      | Flat vector store               | `db.records.find({ where, labels })` + relationship traversal |
 | **Schema-free ऐप्स**        | Postgres + migrations + ETL     | `db.records.importJson(nestedJson)`                           |
 | **Connected data products** | कई joined services              | `db.records.find({ labels, where: { SOME_LABEL: { ... } } })` |

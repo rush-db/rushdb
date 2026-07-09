@@ -39,7 +39,7 @@ Every discrete piece of knowledge is a **Record**: a typed key-value object carr
 
 A subset of record properties carry dense vector representations (embeddings). A vector-indexed property is simultaneously a semantic index over every record it connects to. Embeddings can be supplied by the application (Bring Your Own Vector) or generated automatically by RushDB.
 
-→ [Manage Embedding Indexes](/learn/semantic-search/manage-indexes) · [Semantic Search](/learn/semantic-search)
+→ [Manage Embedding Indexes](/learn/semantic-search/manage-indexes) · [Semantic Search](/learn/semantic-search) · [Smart Search](/learn/search-query/smart-search)
 
 ### Structural Memory — Schema
 
@@ -73,11 +73,11 @@ Agent
 
 ## Retrieval Approach Comparison
 
-| Approach                               | When to use                                                      | Mechanism                           |
-| -------------------------------------- | ---------------------------------------------------------------- | ----------------------------------- |
-| **Structural only**                    | Known labels and property values                                 | `where` filter                      |
-| **Semantic with pre-filter**           | Meaning-based lookup, optionally scoped by structural conditions | `db.ai.search()` with `where`       |
-| **Structural + semantic in one query** | Full SearchQuery features alongside similarity scoring           | `where` + `$similarity` aggregation |
+| Approach                               | When to use                                                      | Mechanism                                |
+| -------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------- |
+| **Structural only**                    | Known labels and property values                                 | `where` filter                           |
+| **Semantic with pre-filter**           | Meaning-based lookup, optionally scoped by structural conditions | `db.records.vectorSearch()` with `where` |
+| **Structural + semantic in one query** | Full SearchQuery features alongside similarity scoring           | `where` + `$similarity` aggregation      |
 
 ---
 

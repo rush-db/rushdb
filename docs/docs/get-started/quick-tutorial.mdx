@@ -158,7 +158,7 @@ data: [{ content: 'RushDB stores structured memory for AI agents.' }]
 });
 
 // Query by meaning
-const { data: results } = await db.ai.search({
+const { data: results } = await db.records.vectorSearch({
 propertyName: 'content',
 query: 'how agents remember things',
 labels: ['MEMORY']
@@ -179,7 +179,7 @@ db.records.create_many(
 )
 
 # Query by meaning
-results = db.ai.search({
+results = db.records.vector_search({
     'propertyName': 'content',
     'query': 'how agents remember things',
     'labels': ['MEMORY']

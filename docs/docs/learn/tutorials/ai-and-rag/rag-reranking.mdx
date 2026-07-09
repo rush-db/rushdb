@@ -22,7 +22,7 @@ This tutorial covers two complementary techniques:
 ## Two-stage retrieval pattern
 
 ```
-Stage 1 (fast, broad):         db.ai.search  →  top-N candidates (N = 20–50)
+Stage 1 (fast, broad):         db.records.vectorSearch  →  top-N candidates (N = 20–50)
                                                     │
 Stage 2 (slow, precise):       reranker       →  top-k final results (k = 3–5)
                                                     │
@@ -49,7 +49,7 @@ const openai = new OpenAI()
 
 // Stage 1: over-fetch candidates
 async function retrieveCandidates(query, candidateCount = 25) {
-  return db.ai.search({
+  return db.records.vectorSearch({
     query,
     labels: ['DOC_CHUNK'],
     propertyName: 'text',
@@ -111,12 +111,12 @@ db = RushDB(os.environ['RUSHDB_API_KEY'])
 openai = OpenAI()
 
 def retrieve_candidates(query: str, candidate_count: int = 25) -> list:
-    return db.ai.search(
-        query=query,
-        labels=['DOC_CHUNK'],
-        property_name='text',
-        limit=candidate_count
-    )
+    return db.records.vector_search({
+        'query': query,
+        'labels': ['DOC_CHUNK'],
+        'propertyName': 'text',
+        'limit': candidate_count,
+    })
 
 def score_candidate(query: str, candidate) -> dict:
     prompt = f"""Rate how relevant the following passage is to the query on a scale of 0 to 10.
@@ -206,13 +206,13 @@ function rrfMerge(rankedLists, k = 60) {
 // Example: combine semantic search on body text with title-focused search
 async function hybridSearch(query, topK = 5) {
   const [bodyHits, titleHits] = await Promise.all([
-    db.ai.search({
+    db.records.vectorSearch({
       query,
       labels: ['DOC_CHUNK'],
       propertyName: 'text',
       limit: 20
     }),
-    db.ai.search({
+    db.records.vectorSearch({
       query,
       labels: ['DOC_CHUNK'],
       propertyName: 'title',
@@ -251,12 +251,12 @@ def rrf_merge(ranked_lists: list[list[str]], k: int = 60) -> list[str]:
 def hybrid_search(db, query: str, top_k: int = 5) -> list:
     with ThreadPoolExecutor(max_workers=2) as executor:
         body_future = executor.submit(
-            db.ai.search,
-            query=query, labels=['DOC_CHUNK'], property_name='text', limit=20
+            db.records.vector_search,
+            {'query': query, 'labels': ['DOC_CHUNK'], 'propertyName': 'text', 'limit': 20},
         )
         title_future = executor.submit(
-            db.ai.search,
-            query=query, labels=['DOC_CHUNK'], property_name='title', limit=20
+            db.records.vector_search,
+            {'query': query, 'labels': ['DOC_CHUNK'], 'propertyName': 'title', 'limit': 20},
         )
         body_hits  = body_future.result()
         title_hits = title_future.result()
@@ -285,7 +285,7 @@ For maximum precision, use RRF to merge multiple retrieval strategies, then LLM-
 ```js
 async function precisionPipeline(query, finalTopK = 5) {
   // Stage 1a: broad semantic search
-  const semanticHits = await db.ai.search({
+  const semanticHits = await db.records.vectorSearch({
     query,
     labels: ['DOC_CHUNK'],
     propertyName: 'text',
@@ -322,9 +322,12 @@ async function precisionPipeline(query, finalTopK = 5) {
 ```python
 def precision_pipeline(db, openai_client, query: str, final_top_k: int = 5) -> list:
     # Stage 1a: semantic search
-    semantic_hits = db.ai.search(
-        query=query, labels=['DOC_CHUNK'], property_name='text', limit=20
-    )
+    semantic_hits = db.records.vector_search({
+        'query': query,
+        'labels': ['DOC_CHUNK'],
+        'propertyName': 'text',
+        'limit': 20,
+    })
 
     # Stage 1b: keyword filter
     words = query.split()[:3]
@@ -434,7 +437,7 @@ def cached_rerank(query: str, candidates: list, top_k: int = 5) -> list:
 User query
     │
     ▼
-db.ai.search(limit=20..50)     ← Stage 1: fast broad retrieval
+db.records.vectorSearch(limit=20..50)     ← Stage 1: fast broad retrieval
     │
     ├── optional: db.records.find(keyword filter)
     │

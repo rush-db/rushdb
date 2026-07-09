@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem'
 
 # Manage Embedding Indexes
 
-An **embedding index** is a policy that tells RushDB to vectorize a specific string property for a label. Once `status` is `ready`, every record matching that label+property pair is searchable via [`db.ai.search()`](/learn/semantic-search).
+An **embedding index** is a policy that tells RushDB to vectorize a specific string property for a label. Once `status` is `ready`, every record matching that label+property pair is searchable via [`db.records.vectorSearch()`](/learn/semantic-search).
 
 Indexes are scoped to `(label, propertyName)` — `Book:description` and `Article:description` are completely independent with separate vector stores.
 
@@ -18,7 +18,7 @@ Indexes are scoped to `(label, propertyName)` — `Book:description` and `Articl
 
 Most databases store vectors directly on the record — polluting the schema with fields like `description_emb_v1_1536` alongside regular metadata. Agents retrieving records get back a mix of business fields and raw float arrays, making schemas noisy and hard to reason about.
 
-RushDB stores each vector on a dedicated **Property node**, connected to the Record via an internal edge. Your record metadata stays clean and uniform; the vector index lives separately and is only accessed when you explicitly call `db.ai.search()`.
+RushDB stores each vector on a dedicated **Property node**, connected to the Record via an internal edge. Your record metadata stays clean and uniform; the vector index lives separately and is only accessed when you explicitly call `db.records.vectorSearch()`.
 
 ```mermaid
 graph LR
@@ -358,7 +358,7 @@ def wait_for_index_ready(db, index_id, timeout_s=90):
 
 response = db.ai.indexes.create({"label": "Book", "propertyName": "description"})
 wait_for_index_ready(db, response.data["id"])
-# now safe to call db.ai.search(...)
+# now safe to call db.records.vectorSearch(...)
 ```
 
   </TabItem>
@@ -382,7 +382,7 @@ const { data: index } = await db.ai.indexes.create({
   propertyName: 'description'
 })
 await waitForIndexReady(db, index.id)
-// now safe to call db.ai.search(...)
+// now safe to call db.records.vectorSearch(...)
 ```
 
   </TabItem>
@@ -436,7 +436,7 @@ When searching or writing vectors against a property with multiple indexes, spec
 
 ```typescript
 // Two indexes: Product:description/cosine and Product:description/euclidean
-await db.ai.search({
+await db.records.vectorSearch({
   labels: ['Product'],
   propertyName: 'description',
   queryVector: vec,

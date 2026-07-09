@@ -83,14 +83,14 @@ print(record.date)  # datetime object
 
 ### score
 
-Relevance score from a vector/semantic search result. Returns `None` for records fetched outside of `ai.search()`.
+Relevance score from a vector/semantic search result. Returns `None` for records fetched outside of `records.vector_search()`.
 
 **Type:** `Optional[float]`
 
 **Example:**
 
 ```python
-results = db.ai.search({"query": "machine learning", "propertyName": "content", "labels": ["DOC"]})
+results = db.records.vector_search({"query": "machine learning", "propertyName": "content", "labels": ["DOC"]})
 for doc in results.data:
     print(f"{doc['title']} — score: {doc.score:.3f}")  # e.g. "Intro to ML — score: 0.921"
 

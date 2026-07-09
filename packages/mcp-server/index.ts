@@ -56,7 +56,9 @@ import { createEmbeddingIndex } from './tools/createEmbeddingIndex.js'
 import { deleteEmbeddingIndex } from './tools/deleteEmbeddingIndex.js'
 import { getEmbeddingIndexStats } from './tools/getEmbeddingIndexStats.js'
 import { upsertEmbeddingVectors } from './tools/upsertEmbeddingVectors.js'
+import { vectorSearch } from './tools/vectorSearch.js'
 import { semanticSearch } from './tools/semanticSearch.js'
+import { smartSearch } from './tools/smartSearch.js'
 import { getSchema } from './tools/getSchema.js'
 import { getSchemaMarkdown } from './tools/getSchemaMarkdown.js'
 import SYSTEM_PROMPT from './systemPrompt.js'
@@ -526,6 +528,28 @@ function createMcpServer(): Server {
             )
           }
 
+          case 'vectorSearch': {
+            const searchResults = await vectorSearch({
+              propertyName: args.propertyName as string,
+              query: args.query as string | undefined,
+              queryVector: args.queryVector as number[] | undefined,
+              labels: args.labels as string[],
+              sourceType: args.sourceType as 'managed' | 'external' | undefined,
+              similarityFunction: args.similarityFunction as 'cosine' | 'euclidean' | undefined,
+              dimensions: args.dimensions as number | undefined,
+              where: args.where as Record<string, unknown> | undefined,
+              topK: args.topK as number | undefined,
+              limit: args.limit as number | undefined,
+              skip: args.skip as number | undefined
+            })
+            return toolResult(
+              { data: searchResults ?? [], total: searchResults?.length ?? 0 },
+              searchResults && searchResults.length > 0 ?
+                JSON.stringify(searchResults, null, 2)
+              : 'No matching records found.'
+            )
+          }
+
           case 'semanticSearch': {
             const searchResults = await semanticSearch({
               propertyName: args.propertyName as string,
@@ -545,6 +569,19 @@ function createMcpServer(): Server {
               searchResults && searchResults.length > 0 ?
                 JSON.stringify(searchResults, null, 2)
               : 'No matching records found.'
+            )
+          }
+
+          case 'smartSearch': {
+            const searchResults = await smartSearch({
+              prompt: args.prompt as string,
+              currentQuery: args.currentQuery as Record<string, any> | undefined
+            })
+            return toolResult(
+              searchResults,
+              searchResults.data.length > 0 ?
+                JSON.stringify(searchResults, null, 2)
+              : `No matching records found.\n\nGenerated SearchQuery:\n${JSON.stringify(searchResults.searchQuery, null, 2)}`
             )
           }
 

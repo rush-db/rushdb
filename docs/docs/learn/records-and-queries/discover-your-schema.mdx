@@ -21,7 +21,7 @@ The schema is RushDB's always-current answer to "what does this project's data l
 | **Label inventory**             | All label names in the project, with record counts                                                      |
 | **Property manifest per label** | Property name, type, and either sample values (strings/booleans) or a min–max range (numbers/datetimes) |
 | **Relationship map**            | Which labels connect to which, via which relationship type, and in which direction                      |
-| **Semantic index status**       | Which properties have embedding indexes and whether they are ready for `db.ai.search()`                 |
+| **Semantic index status**       | Which properties have embedding indexes and whether they are ready for `db.records.vectorSearch()`      |
 
 Building an AI agent? [Schema Self-Awareness](/learn/agent-memory/schema-self-awareness) shows what the rendered output looks like and how to inject it into LLM context.
 
@@ -134,7 +134,7 @@ genres = db.properties.values(genre_prop["id"])
 
 # Identify semantically searchable properties
 indexed = [p for p in book_schema["properties"] if p.get("vectorIndexes")]
-# indexed[0]["vectorIndexes"][0]["status"] == "ready" → queryable with db.ai.search()
+# indexed[0]["vectorIndexes"][0]["status"] == "ready" → queryable with db.records.vector_search()
 
 # Bypass the 1-hour cache
 fresh_response = db.ai.get_schema({"force": True})
@@ -161,7 +161,7 @@ const { data: genres } = await db.properties.values({ id: genreProp.id })
 
 // Identify semantically-searchable properties
 const indexed = bookSchema.properties.filter((p) => p.vectorIndexes?.length)
-// indexed[0].vectorIndexes[0].status === 'ready' → queryable with db.ai.search()
+// indexed[0].vectorIndexes[0].status === 'ready' → queryable with db.records.vectorSearch()
 
 // Bypass the 1-hour cache
 const { data: fresh } = await db.ai.getSchema({ force: true })
@@ -207,7 +207,7 @@ type SchemaProperty = {
   values?: Array<string | number> // up to 10 samples (string/boolean only)
   min?: number | string // number/datetime only
   max?: number | string
-  /** Non-empty when embedding indexes exist — property is queryable with db.ai.search() */
+  /** Non-empty when embedding indexes exist — property is queryable with db.records.vectorSearch() */
   vectorIndexes?: SchemaVectorIndex[]
 }
 

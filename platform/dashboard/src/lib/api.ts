@@ -14,7 +14,7 @@ import type {
   PropertyDraft,
   DBRecordCreationOptions,
   OrderDirection,
-  SemanticSearchParams
+  VectorSearchParams
 } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
@@ -155,12 +155,12 @@ export const api = {
         },
         method: 'POST'
       })
-    },
-    async search(params: SemanticSearchParams) {
-      return rushDBInstance.ai.search(params)
     }
   },
   records: {
+    async vectorSearch(params: VectorSearchParams) {
+      return rushDBInstance.records.vectorSearch(params)
+    },
     async importJson({
       init,
       data,

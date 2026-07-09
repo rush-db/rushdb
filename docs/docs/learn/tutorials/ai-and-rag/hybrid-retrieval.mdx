@@ -12,13 +12,13 @@ import TabItem from '@theme/TabItem'
 
 Pure semantic search ranks by similarity to a query embedding. Pure keyword or filter search matches exact values. Hybrid retrieval combines both: narrowing the candidate set by business constraints first, then ranking by semantic relevance within that set.
 
-RushDB supports hybrid retrieval natively — `db.ai.search` accepts a `where` clause that is applied before the similarity ranking step.
+RushDB supports hybrid retrieval natively — `db.records.vectorSearch` accepts a `where` clause that is applied before the similarity ranking step.
 
 ---
 
 ## How it works
 
-`db.ai.search` runs structured filtering and semantic ranking in one call:
+`db.records.vectorSearch` runs structured filtering and semantic ranking in one call:
 
 1. The `where` clause restricts which records are eligible (tenant, date range, category, status, etc.)
 2. The `query` string (or `queryVector`, see below) is compared against embeddings on the specified `propertyName`
@@ -30,7 +30,7 @@ This means you get tenant isolation and time-scoping for free, without a separat
 
 ## Prerequisites
 
-Before calling `db.ai.search`, a managed embedding index must exist and be ready for the label and property you want to search. See [Semantic Search for Multi-Tenant Products](/learn/tutorials/ai-and-rag/semantic-search-multitenant) for setup instructions.
+Before calling `db.records.vectorSearch`, a managed embedding index must exist and be ready for the label and property you want to search. See [Semantic Search for Multi-Tenant Products](/learn/tutorials/ai-and-rag/semantic-search-multitenant) for setup instructions.
 
 ---
 
@@ -153,7 +153,7 @@ Start with pure semantic search to verify the index is working.
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const results = await db.ai.search({
+const results = await db.records.vectorSearch({
   query: 'stateful storage in container orchestration',
   propertyName: 'body',
   labels: ['ARTICLE']
@@ -168,7 +168,7 @@ for (const article of results.data) {
 <TabItem value="python" label="Python">
 
 ```python
-results = db.ai.search({
+results = db.records.vector_search({
     "query": "stateful storage in container orchestration",
     "propertyName": "body",
     "labels": ["ARTICLE"]
@@ -204,7 +204,7 @@ Narrow to published articles within a given tenant. The `where` clause runs befo
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const hybridResults = await db.ai.search({
+const hybridResults = await db.records.vectorSearch({
   query: 'stateful storage in container orchestration',
   propertyName: 'body',
   labels: ['ARTICLE'],
@@ -223,7 +223,7 @@ for (const article of hybridResults.data) {
 <TabItem value="python" label="Python">
 
 ```python
-hybrid_results = db.ai.search({
+hybrid_results = db.records.vector_search({
     "query": "stateful storage in container orchestration",
     "propertyName": "body",
     "labels": ["ARTICLE"],
@@ -269,7 +269,7 @@ Compound filters are plain `where` clauses. Combine them freely — the semantic
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const filtered = await db.ai.search({
+const filtered = await db.records.vectorSearch({
   query: 'handling operational failures',
   propertyName: 'body',
   labels: ['ARTICLE'],
@@ -287,7 +287,7 @@ const filtered = await db.ai.search({
 <TabItem value="python" label="Python">
 
 ```python
-filtered = db.ai.search({
+filtered = db.records.vector_search({
     "query": "handling operational failures",
     "propertyName": "body",
     "labels": ["ARTICLE"],
@@ -335,7 +335,7 @@ Use `skip` and `limit` for result pagination. Consistent ordering is guaranteed 
 
 ```typescript
 async function searchArticles(query: string, tenantId: string, page = 0, pageSize = 10) {
-  const results = await db.ai.search({
+  const results = await db.records.vectorSearch({
     query,
     propertyName: 'body',
     labels: ['ARTICLE'],
@@ -364,7 +364,7 @@ const page1 = await searchArticles('container storage performance', 'acme', 1)
 
 ```python
 def search_articles(query: str, tenant_id: str, page: int = 0, page_size: int = 10):
-    results = db.ai.search({
+    results = db.records.vector_search({
         "query": query,
         "propertyName": "body",
         "labels": ["ARTICLE"],
@@ -414,7 +414,7 @@ Combine semantic search with a graph traversal filter. Here, only articles tagge
 
 ```typescript
 // Only search articles tagged "kubernetes"
-const taggedResults = await db.ai.search({
+const taggedResults = await db.records.vectorSearch({
   query: 'storage class and persistent volumes',
   propertyName: 'body',
   labels: ['ARTICLE'],
@@ -433,7 +433,7 @@ const taggedResults = await db.ai.search({
 <TabItem value="python" label="Python">
 
 ```python
-tagged_results = db.ai.search({
+tagged_results = db.records.vector_search({
     "query": "storage class and persistent volumes",
     "propertyName": "body",
     "labels": ["ARTICLE"],
@@ -485,7 +485,7 @@ If you generate embeddings outside RushDB (e.g., with your own model), pass `que
 // queryVector must match the dimensions and similarity function of the index
 const externalEmbedding: number[] = await myEmbeddingModel.embed('container storage performance')
 
-const externalResults = await db.ai.search({
+const externalResults = await db.records.vectorSearch({
   queryVector: externalEmbedding,
   propertyName: 'body',
   labels: ['ARTICLE'],
@@ -499,7 +499,7 @@ const externalResults = await db.ai.search({
 ```python
 external_embedding = my_embedding_model.embed("container storage performance")
 
-external_results = db.ai.search({
+external_results = db.records.vector_search({
     "queryVector": external_embedding,
     "propertyName": "body",
     "labels": ["ARTICLE"],

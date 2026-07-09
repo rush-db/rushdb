@@ -246,7 +246,7 @@ RushDB always narrows candidates to the current project before ranking them by v
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const { data: results } = await db.ai.search({
+const { data: results } = await db.records.vectorSearch({
   propertyName: 'description',
   query: 'neural networks and deep learning',
   labels: ['Article'],
@@ -265,7 +265,7 @@ for (const result of results) {
 <TabItem value="python" label="Python" default>
 
 ```python
-response = db.ai.search({
+response = db.records.vector_search({
     "propertyName": "description",
     "query": "neural networks and deep learning",
     "labels": ["Article"],
@@ -337,7 +337,7 @@ Adding a `where` clause narrows the project-scoped candidate set further before 
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const { data: results } = await db.ai.search({
+const { data: results } = await db.records.vectorSearch({
   propertyName: 'description',
   query: 'renewable energy and climate',
   labels: ['Article'],
@@ -357,7 +357,7 @@ for (const result of results) {
 <TabItem value="python" label="Python" default>
 
 ```python
-response = db.ai.search({
+response = db.records.vector_search({
     "propertyName": "description",
     "query": "renewable energy and climate",
     "labels": ["Article"],
