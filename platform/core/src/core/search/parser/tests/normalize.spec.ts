@@ -1,24 +1,13 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
-import { BadRequestException } from '@nestjs/common'
-
+import { SelectExprMap } from '@/core/common/types'
 import { normalizeSelectExpr } from '@/core/search/parser/normalize'
 
 describe('normalizeSelectExpr', () => {
-  it('returns null when neither select nor aggregate is provided', () => {
+  it('returns null when select is omitted', () => {
     expect(normalizeSelectExpr({})).toBeNull()
-    expect(normalizeSelectExpr({ select: {}, aggregate: {} })).toBeNull()
-  })
-
-  it('returns null when aggregate is provided without select (falls back to legacy path)', () => {
-    const result = normalizeSelectExpr({
-      aggregate: { total: { fn: 'sum', field: 'amount', alias: '$record' } }
-    })
-    expect(result).toBeNull()
   })
 
   it('passes through a select map as-is', () => {
-    const selectMap = {
+    const selectMap: SelectExprMap = {
       total: { $sum: '$record.amount' },
       name: '$record.name'
     }
@@ -26,7 +15,7 @@ describe('normalizeSelectExpr', () => {
   })
 
   it('passes through complex select expressions', () => {
-    const selectMap = {
+    const selectMap: SelectExprMap = {
       revenue: { $sum: '$record.amount' },
       orders: { $count: '*' },
       avg: { $avg: '$record.value', $precision: 2 },
@@ -36,7 +25,7 @@ describe('normalizeSelectExpr', () => {
   })
 
   it('passes through $collect and $timeBucket expressions', () => {
-    const selectMap = {
+    const selectMap: SelectExprMap = {
       users: {
         $collect: {
           from: '$user',
@@ -51,32 +40,7 @@ describe('normalizeSelectExpr', () => {
     expect(normalizeSelectExpr({ select: selectMap })).toEqual(selectMap)
   })
 
-  it('throws when both select and aggregate are provided', () => {
-    expect(() =>
-      normalizeSelectExpr({
-        select: { total: { $sum: '$record.amount' } },
-        aggregate: { total: { fn: 'sum', field: 'amount', alias: '$record' } }
-      })
-    ).toThrow(BadRequestException)
-  })
-
-  it('throws with a clear message about mutual exclusivity', () => {
-    expect(() =>
-      normalizeSelectExpr({
-        select: { count: { $count: '*' } },
-        aggregate: { count: { fn: 'count' } }
-      })
-    ).toThrow(/select.*aggregate|aggregate.*select/i)
-  })
-
-  it('returns the select map even when aggregate is empty object', () => {
-    // Empty aggregate should NOT trigger the "both present" error
-    const selectMap = { name: '$record.name' }
-    expect(normalizeSelectExpr({ select: selectMap, aggregate: {} })).toEqual(selectMap)
-  })
-
   it('returns null when select is empty object', () => {
     expect(normalizeSelectExpr({ select: {} })).toBeNull()
-    expect(normalizeSelectExpr({ select: {}, aggregate: {} })).toBeNull()
   })
 })
