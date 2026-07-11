@@ -1,5 +1,11 @@
 # @rushdb/javascript-sdk
 
+## 2.10.1
+
+### Patch Changes
+
+- 0b1331c: Update stale unit tests
+
 ## 2.10.0
 
 ### Minor Changes
