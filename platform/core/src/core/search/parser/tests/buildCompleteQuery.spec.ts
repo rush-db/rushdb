@@ -14,14 +14,13 @@ const q0 = {
       }
     }
   },
-  aggregate: {
+  select: {
     employees: {
-      fn: 'collect',
-      orderBy: {
-        salary: 'desc'
-      },
-      alias: '$employee',
-      limit: 10
+      $collect: {
+        from: '$employee',
+        orderBy: { salary: 'desc' },
+        limit: 10
+      }
     }
   }
 }
@@ -55,26 +54,20 @@ const q1 = {
   skip: 0,
   limit: 100,
   labels: ['COMPANY'],
-  aggregate: {
+  select: {
     departments: {
-      fn: 'collect',
-      alias: '$department',
-      aggregate: {
-        projects: {
-          fn: 'collect',
-          alias: '$project',
-          orderBy: {
-            projectName: 'asc',
-            projectId: 'desc'
-          },
-          aggregate: {
-            employees: {
-              fn: 'collect',
-              orderBy: {
-                salary: 'desc'
-              },
-              alias: '$employee',
-              limit: 3
+      $collect: {
+        label: 'departments',
+        select: {
+          projects: {
+            $collect: {
+              label: 'projects',
+              orderBy: { projectName: 'asc', projectId: 'desc' },
+              select: {
+                employees: {
+                  $collect: { label: 'employees', orderBy: { salary: 'desc' }, limit: 3 }
+                }
+              }
             }
           }
         }
@@ -89,10 +82,13 @@ OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`departments\`)
 OPTIONAL MATCH (record1)--(record2:__RUSHDB__LABEL__RECORD__:\`projects\`)
 OPTIONAL MATCH (record2)--(record3:__RUSHDB__LABEL__RECORD__:\`employees\`) WHERE (any(value IN record3.\`salary\` WHERE value >= 499500))
 WITH record, record1, record2, record3 WHERE record IS NOT NULL AND (record1 IS NOT NULL AND (record2 IS NOT NULL AND record3 IS NOT NULL))
-WITH record, record1, record2, apoc.coll.sortMaps(collect(DISTINCT record3 {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record3) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "salary")[0..3] AS \`employees\`
-WITH record, record1, apoc.coll.sortMaps(collect(DISTINCT record2 {.*, \`employees\`, __RUSHDB__KEY__LABEL__: [label IN labels(record2) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "^projectName")[0..100] AS \`projects\`
-WITH record, apoc.coll.sortMaps(collect(DISTINCT record1 {.*, \`projects\`, __RUSHDB__KEY__LABEL__: [label IN labels(record1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "__RUSHDB__KEY__ID__")[0..100] AS \`departments\`
-RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departments\`} AS records`
+OPTIONAL MATCH (record)--(sel0:__RUSHDB__LABEL__RECORD__:\`departments\`)
+OPTIONAL MATCH (sel0)--(sel1:__RUSHDB__LABEL__RECORD__:\`projects\`)
+OPTIONAL MATCH (sel1)--(sel2:__RUSHDB__LABEL__RECORD__:\`employees\`)
+WITH record, sel0, sel1, apoc.coll.sortMaps(collect(DISTINCT sel2 {.*, __RUSHDB__KEY__LABEL__: [label IN labels(sel2) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "salary")[0..3] AS \`employees\`
+WITH record, sel0, apoc.coll.sortMaps(collect(DISTINCT sel1 {\`employees\`, __RUSHDB__KEY__LABEL__: [label IN labels(sel1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "^projectName")[0..100] AS \`projects\`
+WITH record, apoc.coll.sortMaps(collect(DISTINCT sel0 {\`projects\`, __RUSHDB__KEY__LABEL__: [label IN labels(sel0) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "__RUSHDB__KEY__ID__")[0..100] AS \`departments\`
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`departments\`} as records`
 
 const q2 = {
   where: {
@@ -116,18 +112,13 @@ const q2 = {
   skip: 0,
   limit: 100,
   labels: ['COMPANY'],
-  aggregate: {
+  select: {
     companyName: '$record.name',
-    employeesCount: { fn: 'count', unique: true, alias: '$employee' },
-    totalWage: { fn: 'sum', field: 'salary', alias: '$employee' },
-    avgSalary: {
-      fn: 'avg',
-      field: 'salary',
-      alias: '$employee',
-      precision: 0
-    },
-    minSalary: { fn: 'min', field: 'salary', alias: '$employee' },
-    maxSalary: { fn: 'max', field: 'salary', alias: '$employee' }
+    employeesCount: { $count: '$employee' },
+    totalWage: { $sum: '$employee.salary' },
+    avgSalary: { $avg: '$employee.salary', $precision: 0 },
+    minSalary: { $min: '$employee.salary' },
+    maxSalary: { $max: '$employee.salary' }
   }
 }
 
@@ -220,18 +211,13 @@ const q3 = {
   skip: 0,
   limit: 100,
   labels: ['COMPANY'],
-  aggregate: {
+  select: {
     companyName: '$record.name',
-    employeesCount: { fn: 'count', unique: true, alias: '$employee' },
-    totalWage: { fn: 'sum', field: 'salary', alias: '$employee' },
-    avgSalary: {
-      fn: 'avg',
-      field: 'salary',
-      alias: '$employee',
-      precision: 0
-    },
-    minSalary: { fn: 'min', field: 'salary', alias: '$employee' },
-    maxSalary: { fn: 'max', field: 'salary', alias: '$employee' }
+    employeesCount: { $count: '$employee' },
+    totalWage: { $sum: '$employee.salary' },
+    avgSalary: { $avg: '$employee.salary', $precision: 0 },
+    minSalary: { $min: '$employee.salary' },
+    maxSalary: { $max: '$employee.salary' }
   }
 }
 
@@ -302,11 +288,9 @@ const q7 = {
   skip: 0,
   limit: 100,
   labels: ['COMPANY'],
-  aggregate: {
+  select: {
     tags: {
-      fn: 'collect',
-      alias: '$department',
-      field: 'tags'
+      $collect: { from: '$department', select: { tags: '$department.tags' } }
     }
   }
 }
@@ -315,7 +299,7 @@ const r7 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`COMPANY\` { __RUSHDB__KEY_
 WHERE (any(value IN record.\`rating\` WHERE value >= 1)) ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 100
 OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`departments\`)
 WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
-WITH record, apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.\`tags\`))), ["__RUSHDB__VALUE__EMPTY__ARRAY__"]))[0..100] AS \`tags\`
+WITH record, apoc.coll.sortMaps(collect(DISTINCT record1 {tags: record1.\`tags\`, __RUSHDB__KEY__LABEL__: [label IN labels(record1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "__RUSHDB__KEY__ID__")[0..100] AS \`tags\`
 RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`tags\`} as records`
 
 const q8 = {
@@ -328,8 +312,8 @@ const q8 = {
   skip: 0,
   limit: 100,
   labels: ['COMPANY'],
-  aggregate: {
-    departmentId: `$department.__id`
+  select: {
+    departmentId: '$department.__id'
   }
 }
 
@@ -341,31 +325,14 @@ RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHE
 
 const q13 = {
   where: {},
-  aggregate: {
-    similarity: {
-      fn: 'vector.similarity.euclidean',
-      field: 'embedding',
-      query: [
-        0.0123, -0.4421, 0.9372, 0.1284, -0.3349, 0.7821, -0.2843, 0.1634, 0.4372, -0.219, 0.6612, 0.0841,
-        -0.3312, 0.9123, -0.1055, 0.0041, 0.4388, -0.7881, 0.5523, 0.0011, 0.7342, -0.2284, 0.1156, -0.5472,
-        0.3328, 0.9811, -0.1112, 0.0045, 0.6233, -0.7
-      ],
-      alias: '$record'
-    }
-  },
-  orderBy: { similarity: 'desc' },
+  select: { embedding: '$record.embedding' },
   skip: 0,
   limit: 1000
 }
 
 const r13 = `MATCH (record:__RUSHDB__LABEL__RECORD__ { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH record, CASE
-    WHEN \`record\`.\`embedding\` IS NOT NULL AND size(\`record\`.\`embedding\`) = size([0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
-    THEN vector.similarity.euclidean(\`record\`.\`embedding\`, [0.0123,-0.4421,0.9372,0.1284,-0.3349,0.7821,-0.2843,0.1634,0.4372,-0.219,0.6612,0.0841,-0.3312,0.9123,-0.1055,0.0041,0.4388,-0.7881,0.5523,0.0011,0.7342,-0.2284,0.1156,-0.5472,0.3328,0.9811,-0.1112,0.0045,0.6233,-0.7])
-    ELSE null
-  END AS \`similarity\`
-ORDER BY \`similarity\` DESC SKIP 0 LIMIT 1000
-RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`similarity\`} as records`
+ORDER BY record.\`__RUSHDB__KEY__ID__\` DESC SKIP 0 LIMIT 1000
+RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`embedding\`: record.\`embedding\`} as records`
 
 const q14 = {
   labels: ['COMPANY'],
@@ -374,11 +341,8 @@ const q14 = {
       $alias: '$employee'
     }
   },
-  aggregate: {
-    employeeCount: {
-      fn: 'count',
-      alias: '$employee'
-    }
+  select: {
+    employeeCount: { $count: '$employee' }
   },
   orderBy: {
     employeeCount: 'desc'
@@ -478,16 +442,9 @@ const q19 = {
       $alias: '$appointment'
     }
   },
-  aggregate: {
-    count: {
-      alias: '$record',
-      fn: 'count'
-    },
-    avgAmount: {
-      alias: '$record',
-      fn: 'avg',
-      field: 'amount'
-    }
+  select: {
+    count: { $count: '$record' },
+    avgAmount: { $avg: '$record.amount' }
   },
   groupBy: ['$record.dealstage'],
   orderBy: {
@@ -512,16 +469,9 @@ const q20 = {
       $alias: '$appointment'
     }
   },
-  aggregate: {
-    count: {
-      alias: '$record',
-      fn: 'count'
-    },
-    avgAmount: {
-      alias: '$record',
-      fn: 'sum',
-      field: 'amount'
-    }
+  select: {
+    count: { $count: '$record' },
+    avgAmount: { $sum: '$record.amount' }
   },
   groupBy: ['$appointment.hs_meeting_location'],
   orderBy: {
@@ -547,17 +497,9 @@ const q21 = {
       $alias: '$project'
     }
   },
-  aggregate: {
-    projects: {
-      fn: 'collect',
-      unique: true,
-      field: 'name',
-      alias: '$project'
-    },
-    projectsCount: {
-      fn: 'count',
-      alias: '$project'
-    }
+  select: {
+    projects: { $collect: { from: '$project', select: { name: '$project.name' } } },
+    projectsCount: { $count: '$project' }
   },
   groupBy: ['$record.name'],
   orderBy: {
@@ -570,17 +512,14 @@ const q21 = {
 const r21 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`DEPARTMENT\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
 OPTIONAL MATCH (record)--(record1:__RUSHDB__LABEL__RECORD__:\`PROJECT\`)
 WITH record, record1 WHERE record IS NOT NULL AND record1 IS NOT NULL
-WITH apoc.coll.toSet(apoc.coll.removeAll(apoc.coll.sort(apoc.coll.flatten(collect(DISTINCT record1.\`name\`))), ["__RUSHDB__VALUE__EMPTY__ARRAY__"]))[0..100] AS \`projects\`, count(DISTINCT record1) AS \`projectsCount\`, record.\`name\` AS \`name\`
+WITH apoc.coll.sortMaps(collect(DISTINCT record1 {name: record1.\`name\`, __RUSHDB__KEY__LABEL__: [label IN labels(record1) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0]}), "__RUSHDB__KEY__ID__")[0..100] AS \`projects\`, count(DISTINCT record1) AS \`projectsCount\`, record.\`name\` AS \`name\`
 ORDER BY \`projectsCount\` DESC SKIP 0 LIMIT 1000
 RETURN {\`projects\`:\`projects\`, \`projectsCount\`:\`projectsCount\`, \`name\`:\`name\`} as records`
 
 const q22 = {
   labels: ['PROJECT'],
-  aggregate: {
-    count: {
-      fn: 'count',
-      alias: '$record'
-    }
+  select: {
+    count: { $count: '$record' }
   },
   groupBy: ['$record.active'],
   orderBy: {
@@ -597,12 +536,8 @@ RETURN {\`count\`:\`count\`, \`active\`:\`active\`} as records`
 
 const q23 = {
   labels: ['HS_DEAL'],
-  aggregate: {
-    totalAmount: {
-      fn: 'sum',
-      field: 'amount',
-      alias: '$record'
-    }
+  select: {
+    totalAmount: { $sum: '$record.amount' }
   },
   groupBy: ['totalAmount']
 }
@@ -613,17 +548,9 @@ WITH sum(record.\`amount\`) AS \`totalAmount\`
 RETURN {\`totalAmount\`:\`totalAmount\`} as records`
 
 const q24 = {
-  aggregate: {
-    byYear: {
-      field: 'dob',
-      alias: '$record',
-      fn: 'timeBucket',
-      granularity: 'year'
-    },
-    count: {
-      fn: 'count',
-      alias: '$record'
-    }
+  select: {
+    byYear: { $timeBucket: { field: '$record.dob', unit: 'year' } },
+    count: { $count: '$record' }
   },
   groupBy: ['byYear'],
   orderBy: {
@@ -635,22 +562,14 @@ const q24 = {
 }
 
 const r24 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1, day: 1}) ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 100
-RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
+RETURN {\`count\`:\`count\`, \`byYear\`:\`byYear\`} as records`
 
 const q25 = {
-  aggregate: {
-    byYear: {
-      field: 'dob',
-      alias: '$record',
-      fn: 'timeBucket',
-      granularity: 'week'
-    },
-    count: {
-      fn: 'count',
-      alias: '$record'
-    }
+  select: {
+    byYear: { $timeBucket: { field: '$record.dob', unit: 'week' } },
+    count: { $count: '$record' }
   },
   groupBy: ['byYear'],
   orderBy: {
@@ -662,23 +581,14 @@ const q25 = {
 }
 
 const r25 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime.truncate('week', datetime(record.\`dob\`)) ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, week: record.\`dob\`.week}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
-RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
+RETURN {\`count\`:\`count\`, \`byYear\`:\`byYear\`} as records`
 
 const q26 = {
-  aggregate: {
-    byYear: {
-      field: 'dob',
-      alias: '$record',
-      fn: 'timeBucket',
-      granularity: 'months',
-      size: 6
-    },
-    count: {
-      fn: 'count',
-      alias: '$record'
-    }
+  select: {
+    byYear: { $timeBucket: { field: '$record.dob', unit: 'months', size: 6 } },
+    count: { $count: '$record' }
   },
   groupBy: ['byYear'],
   orderBy: {
@@ -690,22 +600,14 @@ const q26 = {
 }
 
 const r26 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1 + 6 * toInteger(floor((datetime(record.\`dob\`).month - 1)/6)), day: 1}) ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: (toInteger((record.\`dob\`.month - 1) / 6) * 6) + 1}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
-RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
+RETURN {\`count\`:\`count\`, \`byYear\`:\`byYear\`} as records`
 
 const q27 = {
-  aggregate: {
-    byYear: {
-      field: 'dob',
-      alias: '$record',
-      fn: 'timeBucket',
-      granularity: 'quarter'
-    },
-    count: {
-      fn: 'count',
-      alias: '$record'
-    }
+  select: {
+    byYear: { $timeBucket: { field: '$record.dob', unit: 'quarter' } },
+    count: { $count: '$record' }
   },
   groupBy: ['byYear'],
   orderBy: {
@@ -717,16 +619,16 @@ const q27 = {
 }
 
 const r27 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1 + 3 * toInteger(floor((datetime(record.\`dob\`).month - 1)/3)), day: 1}) ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: (toInteger((record.\`dob\`.month - 1) / 3) * 3) + 1}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
-RETURN {\`byYear\`:\`byYear\`, \`count\`:\`count\`} as records`
+RETURN {\`count\`:\`count\`, \`byYear\`:\`byYear\`} as records`
 
 const q28 = {
-  aggregate: {
-    byHour: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'hour' },
-    byMinute: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'minute' },
-    bySecond: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'second' },
-    count: { fn: 'count', alias: '$record' }
+  select: {
+    byHour: { $timeBucket: { field: '$record.dob', unit: 'hour' } },
+    byMinute: { $timeBucket: { field: '$record.dob', unit: 'minute' } },
+    bySecond: { $timeBucket: { field: '$record.dob', unit: 'second' } },
+    count: { $count: '$record' }
   },
   groupBy: ['byHour', 'byMinute', 'bySecond'],
   orderBy: { byHour: 'asc' },
@@ -736,16 +638,16 @@ const q28 = {
 }
 
 const r28 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour}) ELSE null END AS \`byHour\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: datetime(record.\`dob\`).minute}) ELSE null END AS \`byMinute\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: datetime(record.\`dob\`).minute, second: datetime(record.\`dob\`).second}) ELSE null END AS \`bySecond\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: record.\`dob\`.hour}).epochMillis ELSE null END AS \`byHour\`, CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: record.\`dob\`.hour, minute: record.\`dob\`.minute}).epochMillis ELSE null END AS \`byMinute\`, CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: record.\`dob\`.hour, minute: record.\`dob\`.minute, second: record.\`dob\`.second}).epochMillis ELSE null END AS \`bySecond\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byHour\` ASC SKIP 0 LIMIT 1000
-RETURN {\`byHour\`:\`byHour\`, \`byMinute\`:\`byMinute\`, \`bySecond\`:\`bySecond\`, \`count\`:\`count\`} as records`
+RETURN {\`count\`:\`count\`, \`byHour\`:\`byHour\`, \`byMinute\`:\`byMinute\`, \`bySecond\`:\`bySecond\`} as records`
 
 const q29 = {
-  aggregate: {
-    by6Hours: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'hours', size: 6 },
-    by15Min: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'minutes', size: 15 },
-    by30Sec: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'seconds', size: 30 },
-    count: { fn: 'count', alias: '$record' }
+  select: {
+    by6Hours: { $timeBucket: { field: '$record.dob', unit: 'hours', size: 6 } },
+    by15Min: { $timeBucket: { field: '$record.dob', unit: 'minutes', size: 15 } },
+    by30Sec: { $timeBucket: { field: '$record.dob', unit: 'seconds', size: 30 } },
+    count: { $count: '$record' }
   },
   groupBy: ['by6Hours', 'by15Min', 'by30Sec'],
   orderBy: { by6Hours: 'asc' },
@@ -755,14 +657,14 @@ const q29 = {
 }
 
 const r29 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: 6 * toInteger(floor(datetime(record.\`dob\`).hour / 6))}) ELSE null END AS \`by6Hours\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: 15 * toInteger(floor(datetime(record.\`dob\`).minute / 15))}) ELSE null END AS \`by15Min\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: datetime(record.\`dob\`).minute, second: 30 * toInteger(floor(datetime(record.\`dob\`).second / 30))}) ELSE null END AS \`by30Sec\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: (toInteger(record.\`dob\`.hour / 6) * 6)}).epochMillis ELSE null END AS \`by6Hours\`, CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: record.\`dob\`.hour, minute: (toInteger(record.\`dob\`.minute / 15) * 15)}).epochMillis ELSE null END AS \`by15Min\`, CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: record.\`dob\`.hour, minute: record.\`dob\`.minute, second: (toInteger(record.\`dob\`.second / 30) * 30)}).epochMillis ELSE null END AS \`by30Sec\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`by6Hours\` ASC SKIP 0 LIMIT 1000
-RETURN {\`by6Hours\`:\`by6Hours\`, \`by15Min\`:\`by15Min\`, \`by30Sec\`:\`by30Sec\`, \`count\`:\`count\`} as records`
+RETURN {\`count\`:\`count\`, \`by6Hours\`:\`by6Hours\`, \`by15Min\`:\`by15Min\`, \`by30Sec\`:\`by30Sec\`} as records`
 
 const q30 = {
-  aggregate: {
-    by5Years: { field: 'dob', alias: '$record', fn: 'timeBucket', granularity: 'years', size: 5 },
-    count: { fn: 'count', alias: '$record' }
+  select: {
+    by5Years: { $timeBucket: { field: '$record.dob', unit: 'years', size: 5 } },
+    count: { $count: '$record' }
   },
   groupBy: ['by5Years'],
   orderBy: { by5Years: 'asc' },
@@ -772,9 +674,9 @@ const q30 = {
 }
 
 const r30 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: 5 * toInteger(floor(datetime(record.\`dob\`).year / 5)), month: 1, day: 1}) ELSE null END AS \`by5Years\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: (toInteger(record.\`dob\`.year / 5) * 5)}).epochMillis ELSE null END AS \`by5Years\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`by5Years\` ASC SKIP 0 LIMIT 1000
-RETURN {\`by5Years\`:\`by5Years\`, \`count\`:\`count\`} as records`
+RETURN {\`count\`:\`count\`, \`by5Years\`:\`by5Years\`} as records`
 
 describe('build complete query', () => {
   let queryService: EntityQueryService
@@ -947,8 +849,7 @@ describe('build complete query', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // select expression API — new-style queries
-// Each test verifies the Cypher output of the `select` key against
-// the legacy `aggregate` equivalent where one exists, plus new features
+// Each test verifies the Cypher output of the `select` key, including
 // ($ref, $collect with projection, $timeBucket, math operators).
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1205,31 +1106,31 @@ describe('select expression API', () => {
     queryService = new EntityQueryService()
   })
 
-  it('31 - multi-aggregation + field ref, no groupBy (select ≡ aggregate)', () => {
+  it('31 - multi-aggregation + field ref, no groupBy', () => {
     expect(queryService.findRecords({ searchQuery: q31 })).toEqual(r31)
   })
 
-  it('32 - $count with sort by aggregated field (select ≡ aggregate)', () => {
+  it('32 - $count with sort by aggregated field', () => {
     expect(queryService.findRecords({ searchQuery: q32 })).toEqual(r32)
   })
 
-  it('33 - $collect full records (select ≡ aggregate)', () => {
+  it('33 - $collect full records', () => {
     expect(queryService.findRecords({ searchQuery: q33 })).toEqual(r33)
   })
 
-  it('34 - groupBy with root-record dimension field (select ≡ aggregate)', () => {
+  it('34 - groupBy with root-record dimension field', () => {
     expect(queryService.findRecords({ searchQuery: q34 })).toEqual(r34)
   })
 
-  it('35 - self-groupBy on aggregated key (select ≡ aggregate)', () => {
+  it('35 - self-groupBy on aggregated key', () => {
     expect(queryService.findRecords({ searchQuery: q35 })).toEqual(r35)
   })
 
-  it('36 - groupBy with root-record dimension, COUNT(*) + AVG (select ≡ aggregate)', () => {
+  it('36 - groupBy with root-record dimension, COUNT(*) + AVG', () => {
     expect(queryService.findRecords({ searchQuery: q36 })).toEqual(r36)
   })
 
-  it('37 - groupBy dimension from related alias, COUNT(*) + SUM (select ≡ aggregate)', () => {
+  it('37 - groupBy dimension from related alias, COUNT(*) + SUM', () => {
     expect(queryService.findRecords({ searchQuery: q37 })).toEqual(r37)
   })
 
@@ -1601,8 +1502,10 @@ describe('variable-length traversal and cycles (complete queries)', () => {
             salary: { $gte: 500_000 }
           }
         },
-        aggregate: {
-          employees: { fn: 'collect', orderBy: { salary: 'desc' }, alias: '$employee', limit: 10 }
+        select: {
+          employees: {
+            $collect: { from: '$employee', orderBy: { salary: 'desc' }, limit: 10 }
+          }
         }
       }
     })
