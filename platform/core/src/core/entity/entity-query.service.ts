@@ -187,8 +187,9 @@ export class EntityQueryService {
   importUpsertRecords({
     withResults = false,
     rewrite = false,
-    mergeBy
-  }: { withResults?: boolean; rewrite?: boolean; mergeBy?: string[] } = {}) {
+    mergeBy,
+    label: recordLabel
+  }: { withResults?: boolean; rewrite?: boolean; mergeBy?: string[]; label?: string } = {}) {
     const queryBuilder = new QueryBuilder()
 
     // When mergeBy is provided, inline the keys as static property accesses
@@ -199,6 +200,15 @@ export class EntityQueryService {
     // so escape backticks to keep user-supplied names from breaking out of the identifier.
     const staticMergeKeys = (mergeBy ?? []).filter((k) => typeof k === 'string' && k.trim().length > 0)
     const useStaticMergeKeys = staticMergeKeys.length > 0
+
+    // Callers group an upsert batch by business label before calling this method, so every
+    // row in $records shares `label` — inline it as a static pattern label (record:Record:`Label`)
+    // instead of matching every :Record in the project and filtering by r.label afterward. This
+    // scopes the match to one business label's node set rather than the whole project. Rows with
+    // no label (rare: an unlabeled root import) are called without `label` and fall back to the
+    // original untyped match + runtime label check.
+    const labelPart = recordLabel ? `:\`${recordLabel.replace(/`/g, '``')}\`` : ''
+    const labelGuard = labelPart ? '' : '(r.label IS NULL OR ANY(l IN labels(record) WHERE l = r.label)) AND '
 
     queryBuilder
       .append(`WITH $records as recordsToUpsert, datetime() as time, coalesce($mergeBy, []) as mergeBy`)
@@ -217,17 +227,13 @@ export class EntityQueryService {
         .join(' AND ')
 
       queryBuilder
-        .append(`OPTIONAL MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
-        .append(
-          `WHERE (r.label IS NULL OR ANY(l IN labels(record) WHERE l = r.label)) AND ${mergePredicates}`
-        )
+        .append(`OPTIONAL MATCH (record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
+        .append(`WHERE ${labelGuard}${mergePredicates}`)
     } else {
       queryBuilder
         .append(`WITH *, CASE WHEN size(mergeBy)=0 THEN keys(valuesMap) ELSE mergeBy END as keysToMatch`)
-        .append(`OPTIONAL MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`)
-        .append(
-          `WHERE (r.label IS NULL OR ANY(l IN labels(record) WHERE l = r.label)) AND ALL(k IN keysToMatch WHERE record[k] = valuesMap[k])`
-        )
+        .append(`OPTIONAL MATCH (record:${RUSHDB_LABEL_RECORD}${labelPart} { ${projectIdInline()} })`)
+        .append(`WHERE ${labelGuard}ALL(k IN keysToMatch WHERE record[k] = valuesMap[k])`)
     }
 
     queryBuilder
@@ -290,17 +296,7 @@ export class EntityQueryService {
       : { ...buildAggregation(searchQuery?.aggregate, aliasesMap, searchQuery?.groupBy ?? []), matchPart: '' }
 
     // convert a clause array to string
-    const normalizedQueryClauses = queryClauses
-      .map((clause, index) => {
-        if (!orderByAggregatedField && index === 0) {
-          return `${clause} ${sortParams} ${pagination}`.trim()
-        } else {
-          return clause
-        }
-      })
-      // @FYI: Keep it in this order
-      .filter(toBoolean)
-      .join(`\n`)
+    const normalizedQueryClauses = queryClauses.filter(toBoolean).join(`\n`)
 
     const queryBuilder = new QueryBuilder()
 
@@ -314,6 +310,15 @@ export class EntityQueryService {
       queryBuilder.append(`WITH ${parsedWhere.nodeAliases.join(', ')} ${wherePart}`.trim())
     }
 
+    // @FYI: Pagination/sort must be applied AFTER the traversal WITH...WHERE barrier
+    // above — otherwise SKIP/LIMIT truncates the root record scan before related-label
+    // matches are even evaluated, silently dropping rows that only appear once the
+    // traversal filter is applied. For the aggregated-order-by case, ORDER BY must
+    // additionally follow aggregateProjections since it sorts by the computed field.
+    if (!orderByAggregatedField) {
+      queryBuilder.append(`${sortParams} ${pagination}`.trim())
+    }
+
     if (matchPart) {
       queryBuilder.append(matchPart)
     }
@@ -321,7 +326,7 @@ export class EntityQueryService {
     queryBuilder.append(aggregateProjections)
 
     if (orderByAggregatedField) {
-      queryBuilder.append(`${sortParams} ${pagination}`)
+      queryBuilder.append(`${sortParams} ${pagination}`.trim())
     }
 
     queryBuilder.append(`RETURN ${returnPart}`)

@@ -65,7 +65,8 @@ jobs:
           STATUS=$(pnpm changeset status --no-color --verbose || true)
           VERSION=$(echo "$STATUS" | grep -E '@rushdb/(javascript-sdk|mcp-server)' | awk '{print $NF}' | sed 's/[^[:print:]]//g' | head -n1)
           if [ -z "$VERSION" ]; then
-            echo "No upcoming version detected for javascript-sdk or mcp-server; leaving empty"
+            VERSION=$(node -p "require('./packages/javascript-sdk/package.json').version")
+            echo "No upcoming changeset version; using checked-in SDK version ${VERSION}"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
@@ -298,3 +299,21 @@ jobs:
           service: ${{ env.ECS_SERVICE_MCP }}
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: false
+
+  notify-content:
+    name: Notify content control plane
+    needs: [release, docker, deploy]
+    if: needs.release.outputs.is_version_bump == 'true' && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Send signed release event
+        env:
+          CONTENT_WEBHOOK_URL: ${{ secrets.CONTENT_WEBHOOK_URL }}
+          CONTENT_WEBHOOK_SECRET: ${{ secrets.CONTENT_WEBHOOK_SECRET }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node .github/scripts/notify-content-release.mjs
