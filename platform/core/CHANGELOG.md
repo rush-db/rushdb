@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 2.10.2
+
+### Patch Changes
+
+- 3104b26: Import and querying stability improvements
+
 ## 2.10.1
 
 ### Patch Changes
