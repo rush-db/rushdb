@@ -1,5 +1,13 @@
 # @rushdb/mcp-server
 
+## 2.10.2
+
+### Patch Changes
+
+- 3104b26: Import and querying stability improvements
+- Updated dependencies [3104b26]
+  - @rushdb/javascript-sdk@2.10.2
+
 ## 2.10.1
 
 ### Patch Changes
