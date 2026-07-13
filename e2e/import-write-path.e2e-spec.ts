@@ -104,7 +104,9 @@ describe('record import write path (e2e)', () => {
       key: `r-${i}`,
       name: `Section ${i}`
     }))
+    const firstStartedAt = Date.now()
     await db.records.createMany({ label, data: first, options })
+    const firstElapsed = Date.now() - firstStartedAt
 
     const afterFirst = await db.records.find({ labels: [label], limit: 1 })
     expect(afterFirst.total).toBe(100)
@@ -114,7 +116,14 @@ describe('record import write path (e2e)', () => {
       key: `r-${i + 50}`,
       grade: 'III'
     }))
+    const secondStartedAt = Date.now()
     await db.records.createMany({ label, data: second, options })
+    const secondElapsed = Date.now() - secondStartedAt
+    // The reported bug was ~0.45s/merged row driven by an unindexed, project-wide (not
+    // label-scoped) match — a 100-row batch took 40+ seconds. Scoping the match to this
+    // label's node set must keep a 100-row merge on an idle local stack far below that.
+    expect(firstElapsed).toBeLessThan(20_000)
+    expect(secondElapsed).toBeLessThan(20_000)
 
     const afterSecond = await db.records.find({ labels: [label], limit: 1 })
     expect(afterSecond.total).toBe(150)

@@ -360,20 +360,14 @@ export class ImportService {
       })
 
       // Extract id map and results (if requested)
-      const idmap = data.records?.[0]?.get('idmap') ?? []
-      if (Array.isArray(idmap)) {
-        for (const item of idmap) {
-          if (item && item.draftId && item.persistedId) {
-            draftToPersistedId.set(item.draftId, item.persistedId)
-          }
+      for (const item of data.idmap) {
+        if (item && item.draftId && item.persistedId) {
+          draftToPersistedId.set(item.draftId, item.persistedId)
         }
       }
 
       if (shouldAccumulateResult) {
-        const chunkData = data.records?.[0]?.get('data')
-        if (Array.isArray(chunkData)) {
-          result = result.concat(chunkData)
-        }
+        result = result.concat(data.data)
       }
     }
 
@@ -457,30 +451,71 @@ export class ImportService {
     recordsChunk: WithId<CreateEntityDto>[]
     transaction: Transaction
     options: TImportOptions
-  }) {
+  }): Promise<{ idmap: Array<{ draftId: string; persistedId: string }>; data: unknown[] }> {
     // Upsert path if mergeStrategy or mergeBy provided (mergeStrategy defaults to 'append' behavior when omitted).
     const upsertRequested = typeof options.mergeStrategy !== 'undefined' || Array.isArray(options.mergeBy)
     if (upsertRequested) {
       const rewrite = options.mergeStrategy === 'rewrite'
-      return transaction.run(
-        this.entityQueryService.importUpsertRecords({
-          withResults: options.returnResult,
-          rewrite,
-          mergeBy: options.mergeBy
-        }),
-        {
-          records: recordsChunk,
-          projectId,
-          mergeBy: options.mergeBy,
-          rewrite
+
+      // Group rows by business label so each upsert query can match against just that
+      // label's node set (a static pattern label) instead of scanning every record in the
+      // project. Rows without a label (rare: an unlabeled root import) go in their own
+      // group and fall back to the untyped match inside importUpsertRecords.
+      const groups = new Map<string, WithId<CreateEntityDto>[]>()
+      for (const record of recordsChunk) {
+        const key = record.label ?? ''
+        const group = groups.get(key)
+        if (group) {
+          group.push(record)
+        } else {
+          groups.set(key, [record])
         }
-      )
+      }
+
+      const idmap: Array<{ draftId: string; persistedId: string }> = []
+      const data: unknown[] = []
+
+      for (const [recordLabel, records] of groups) {
+        const result = await transaction.run(
+          this.entityQueryService.importUpsertRecords({
+            withResults: options.returnResult,
+            rewrite,
+            mergeBy: options.mergeBy,
+            label: recordLabel || undefined
+          }),
+          {
+            records,
+            projectId,
+            mergeBy: options.mergeBy,
+            rewrite
+          }
+        )
+
+        const rowIdmap = result.records?.[0]?.get('idmap')
+        if (Array.isArray(rowIdmap)) {
+          idmap.push(...rowIdmap)
+        }
+
+        if (options.returnResult) {
+          const rowData = result.records?.[0]?.get('data')
+          if (Array.isArray(rowData)) {
+            data.push(...rowData)
+          }
+        }
+      }
+
+      return { idmap, data }
     }
 
-    return transaction.run(this.entityQueryService.importRecords(options.returnResult), {
+    const result = await transaction.run(this.entityQueryService.importRecords(options.returnResult), {
       records: recordsChunk,
       projectId
     })
+
+    return {
+      idmap: result.records?.[0]?.get('idmap') ?? [],
+      data: options.returnResult ? (result.records?.[0]?.get('data') ?? []) : []
+    }
   }
 
   async processRelationshipsChunk({
