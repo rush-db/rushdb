@@ -16,5 +16,8 @@ export type PlatformRequest = FastifyRequest & {
   externalSession?: Session
   externalTransaction?: Transaction
   userDefinedTransaction?: Transaction
+  // Drained by RequestCleanupInterceptor after the request transaction commits (see
+  // run-side-effect.interceptor.ts). Accessed via request.raw.* in the fastify context.
+  postCommitHooks?: Array<() => Promise<void> | void>
   // NOTE: In fastify context, interceptors and filters should access properties via request.raw.*
 }

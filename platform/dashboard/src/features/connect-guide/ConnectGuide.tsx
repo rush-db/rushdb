@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
 
 import { useStore } from '@nanostores/react'
-import { Bot, Brain, Cable, Code2, ExternalLink, Info, KeyRound, Terminal } from 'lucide-react'
+import { Bot, Brain, Cable, Check, Code2, ExternalLink, Info, KeyRound, Terminal, X } from 'lucide-react'
+import { useState } from 'react'
 
 import { Button, CopyButton } from '~/elements/Button'
 import { CodeEditorSnippet } from '~/elements/CodeEditorSnippet'
 import { CopyInput } from '~/elements/Input'
 import { Tab, Tabs, TabsContent, TabsList } from '~/elements/Tabs'
+import { toast } from '~/elements/Toast'
 import { $settings } from '~/features/auth/stores/settings'
 import { SelectSdkLanguage } from '~/features/onboarding/components/SelectSdkLanguage'
 import { docsUrls } from '~/features/onboarding/constants'
@@ -14,12 +16,14 @@ import type { AvailableSdkLanguage } from '~/features/onboarding/types'
 import { useProjectTokensQuery } from '~/features/projects/hooks/useProjectQueries'
 import type { Project } from '~/features/projects/types'
 import { useWorkspaceProjectsQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
+import { BASE_URL } from '~/config'
+import { useTimeout } from '~/hooks/useTimeout'
 import { getRoutePath } from '~/lib/router'
 import { cn } from '~/lib/utils'
 
 import { AGENT_SETUP_URL, HOSTED_MCP_URL, connectDocsUrls } from './constants'
 
-type ConnectPath = 'hosted-mcp' | 'local-mcp' | 'sdk-rest' | 'agent-skills'
+type ConnectPath = 'sdk' | 'mcp' | 'agent-skills'
 
 type ConnectGuideProps = {
   className?: string
@@ -31,22 +35,16 @@ const TOKEN_PLACEHOLDER = 'RUSHDB_API_KEY'
 
 const connectPaths: Array<{ description: string; icon: ReactNode; label: string; value: ConnectPath }> = [
   {
-    value: 'hosted-mcp',
-    label: 'Hosted MCP',
-    description: 'ChatGPT, Claude.ai',
-    icon: <Bot />
-  },
-  {
-    value: 'local-mcp',
-    label: 'Local MCP',
-    description: 'Cursor, Claude Desktop, VS Code',
-    icon: <Terminal />
-  },
-  {
-    value: 'sdk-rest',
+    value: 'sdk',
     label: 'SDK / REST',
     description: 'Application code',
     icon: <Code2 />
+  },
+  {
+    value: 'mcp',
+    label: 'MCP Server',
+    description: 'ChatGPT, Claude, Cursor, VS Code',
+    icon: <Bot />
   },
   {
     value: 'agent-skills',
@@ -80,12 +78,6 @@ const vscodeMcpConfig = (token: string) => `{
     }
   }
 }`
-
-const sdkLanguageLabels: Record<AvailableSdkLanguage, string> = {
-  python: 'Python SDK',
-  shell: 'REST API',
-  typescript: 'TypeScript SDK'
-}
 
 const getSdkInstallCommand = (language: AvailableSdkLanguage) =>
   ({
@@ -385,15 +377,23 @@ function HighlightedCode({ code, language }: { code: string; language: CodeLangu
   )
 }
 
-function StepList({ items }: { items: Array<ReactNode> }) {
+type GuideStep = { description?: ReactNode; title: ReactNode }
+
+function StepList({ items }: { items: Array<GuideStep> }) {
   return (
-    <ol className="grid gap-3">
+    <ol className="grid content-start gap-6">
       {items.map((item, index) => (
-        <li className="grid grid-cols-[2rem_1fr] gap-3" key={index}>
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-accent/20 text-sm font-medium text-content">
+        <li className="relative grid grid-cols-[2rem_1fr] gap-3" key={index}>
+          {index < items.length - 1 && (
+            <span aria-hidden className="absolute top-9 -bottom-5 left-4 w-px bg-stroke" />
+          )}
+          <span className="grid h-8 w-8 place-items-center rounded-full border bg-fill text-sm font-semibold text-content">
             {index + 1}
           </span>
-          <div className="min-w-0 pt-1 text-sm leading-6 text-content2">{item}</div>
+          <div className="min-w-0 pt-1">
+            <h4 className="text-sm leading-6 font-semibold text-content">{item.title}</h4>
+            {item.description && <p className="mt-1 text-sm leading-6 text-content2">{item.description}</p>}
+          </div>
         </li>
       ))}
     </ol>
@@ -501,61 +501,15 @@ function ProjectTokenNotice({ projectId, tokenReady }: { projectId: Project['id'
   )
 }
 
-function HostedMcpGuide() {
-  return (
-    <GuidePanel>
-      <GuideHeader
-        icon={<Bot />}
-        title="Connect a web assistant"
-        description="Use the hosted MCP connector for ChatGPT, Claude.ai, and other web assistants. No local install or API key is required."
-      >
-        <Button
-          as="a"
-          href={connectDocsUrls.mcp}
-          rel="noopener noreferrer"
-          size="small"
-          target="_blank"
-          variant="outline"
-        >
-          Docs
-          <ExternalLink />
-        </Button>
-      </GuideHeader>
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
-        <StepList
-          items={[
-            'Open the assistant connector or integration settings.',
-            'Add the RushDB MCP endpoint, then sign in with your RushDB account.',
-            'Choose the project to expose to the assistant.',
-            'Ask the assistant to call getSchemaMarkdown and show the project labels.'
-          ]}
-        />
-
-        <div className="grid content-start gap-3">
-          <div>
-            <p className="mb-2 text-sm font-medium text-content2">MCP endpoint</p>
-            <CopyInput value={HOSTED_MCP_URL} />
-          </div>
-          <CodeSnippet
-            title="Verification prompt"
-            code="Call getSchemaMarkdown and show me what labels exist in my RushDB project."
-          />
-        </div>
-      </div>
-    </GuidePanel>
-  )
-}
-
-function LocalMcpGuide({ projectId, token }: { projectId?: Project['id']; token: string | undefined }) {
+function McpGuide({ projectId, token }: { projectId?: Project['id']; token: string | undefined }) {
   const apiKey = token ?? TOKEN_PLACEHOLDER
 
   return (
     <GuidePanel>
       <GuideHeader
-        icon={<Terminal />}
-        title="Connect local coding tools"
-        description="Run the RushDB MCP server from Cursor, Claude Desktop, VS Code, or any MCP client that supports stdio servers."
+        icon={<Bot />}
+        title="Connect MCP clients"
+        description="Use the hosted connector for web assistants like ChatGPT and Claude.ai, or run the local MCP server from coding tools."
       >
         <Button
           as="a"
@@ -570,25 +524,148 @@ function LocalMcpGuide({ projectId, token }: { projectId?: Project['id']; token:
         </Button>
       </GuideHeader>
 
-      {projectId && <ProjectTokenNotice projectId={projectId} tokenReady={Boolean(token)} />}
+      <Tabs defaultValue="hosted" className="grid gap-5">
+        <TabsList>
+          <Tab value="hosted">
+            <Bot />
+            Hosted
+            <span className="text-sm font-normal text-content2">ChatGPT, Claude.ai</span>
+          </Tab>
+          <Tab value="local">
+            <Terminal />
+            Local
+            <span className="text-sm font-normal text-content2">Cursor, Claude Desktop, VS Code</span>
+          </Tab>
+        </TabsList>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <CodeSnippet title="Claude Desktop / Cursor" code={localMcpConfig(apiKey)} language="json" />
-        <CodeSnippet title="VS Code MCP" code={vscodeMcpConfig(apiKey)} language="json" />
-      </div>
+        <TabsContent className="grid gap-5" value="hosted">
+          <div className="grid gap-6 lg:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
+            <StepList
+              items={[
+                {
+                  title: 'Open connector settings',
+                  description: 'In the assistant, open the connector or integration settings.'
+                },
+                {
+                  title: 'Add the endpoint',
+                  description: 'Paste the RushDB MCP endpoint, then sign in with your RushDB account.'
+                },
+                {
+                  title: 'Pick this project',
+                  description: 'Choose the project to expose to the assistant. No API key is required.'
+                },
+                {
+                  title: 'Verify',
+                  description: 'Ask the assistant to call getSchemaMarkdown and show the project labels.'
+                }
+              ]}
+            />
 
-      <StepList
-        items={[
-          'Paste the matching block into your MCP client configuration.',
-          'Restart the client so the RushDB tools are discovered.',
-          'Verify with getSchemaMarkdown before asking the agent to query or mutate records.'
-        ]}
-      />
+            <div className="grid min-w-0 content-start gap-3">
+              <div>
+                <p className="mb-2 text-sm font-medium text-content2">MCP endpoint</p>
+                <CopyInput value={HOSTED_MCP_URL} />
+              </div>
+              <CodeSnippet
+                title="Verification prompt"
+                code="Call getSchemaMarkdown and show me what labels exist in my RushDB project."
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent className="grid gap-5" value="local">
+          {projectId && <ProjectTokenNotice projectId={projectId} tokenReady={Boolean(token)} />}
+
+          <div className="grid gap-6 lg:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
+            <StepList
+              items={[
+                {
+                  title: 'Paste the config',
+                  description: 'Add the matching block to your MCP client configuration.'
+                },
+                {
+                  title: 'Restart the client',
+                  description: 'Restart so the RushDB tools are discovered.'
+                },
+                {
+                  title: 'Verify',
+                  description: 'Call getSchemaMarkdown before asking the agent to query or mutate records.'
+                }
+              ]}
+            />
+
+            <div className="grid min-w-0 content-start gap-4">
+              <CodeSnippet title="Claude Desktop / Cursor" code={localMcpConfig(apiKey)} language="json" />
+              <CodeSnippet title="VS Code MCP" code={vscodeMcpConfig(apiKey)} language="json" />
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </GuidePanel>
   )
 }
 
-function SdkRestGuide({ projectId, token }: { projectId?: Project['id']; token: string | undefined }) {
+// Verifies the project API key against a lightweight token-authenticated endpoint,
+// the same call the SDK makes on connect.
+function TestConnectionButton({ token }: { token: string | undefined }) {
+  const [state, setState] = useState<'failed' | 'idle' | 'ok' | 'testing'>('idle')
+
+  useTimeout(() => setState('idle'), state === 'ok' || state === 'failed' ? 2500 : null)
+
+  const testConnection = async () => {
+    if (!token || state === 'testing') {
+      return
+    }
+    setState('testing')
+    try {
+      const response = await fetch(`${BASE_URL || ''}/api/v1/sdk/settings`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (response.ok) {
+        setState('ok')
+      } else {
+        setState('failed')
+        toast({
+          title: 'Connection failed',
+          description: `The API responded with status ${response.status}.`,
+          variant: 'danger'
+        })
+      }
+    } catch {
+      setState('failed')
+      toast({
+        title: 'Connection failed',
+        description: 'Could not reach the RushDB API.',
+        variant: 'danger'
+      })
+    }
+  }
+
+  return (
+    <Button
+      disabled={!token}
+      loading={state === 'testing'}
+      onClick={testConnection}
+      size="small"
+      title={token ? undefined : 'Create an API key first'}
+      variant="outline"
+    >
+      {state === 'ok' ?
+        <Check />
+      : state === 'failed' ?
+        <X />
+      : <Cable />}
+      {state === 'ok' ?
+        'Connected'
+      : state === 'failed' ?
+        'Failed'
+      : 'Test connection'}
+    </Button>
+  )
+}
+
+function SdkGuide({ projectId, token }: { projectId?: Project['id']; token: string | undefined }) {
   const apiKey = token ?? TOKEN_PLACEHOLDER
   const { sdkLanguage } = useStore($settings)
   const installCommand = getSdkInstallCommand(sdkLanguage)
@@ -616,34 +693,43 @@ function SdkRestGuide({ projectId, token }: { projectId?: Project['id']; token: 
 
       {projectId && <ProjectTokenNotice projectId={projectId} tokenReady={Boolean(token)} />}
 
-      <div className="grid gap-4">
-        <SelectSdkLanguage className="-ml-1" />
+      <div className="grid gap-6 lg:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
+        <StepList
+          items={[
+            {
+              title: 'Install',
+              description: 'Add the RushDB client for your language, or call the JSON API with plain HTTP.'
+            },
+            {
+              title: 'Connect',
+              description:
+                'Authenticate with a project API key — issue and rotate keys from the API Keys page.'
+            },
+            {
+              title: 'Push and recall',
+              description: 'Write JSON records, then query them by labels, properties, and relationships.'
+            }
+          ]}
+        />
 
-        {installCommand && (
-          <div>
-            <p className="mb-2 text-sm font-medium text-content2">Install core SDK</p>
-            <CopyInput value={installCommand} />
+        <div className="grid min-w-0 content-start gap-4">
+          <SelectSdkLanguage className="-ml-1" />
+
+          {installCommand && (
+            <div>
+              <p className="mb-2 text-sm font-medium text-content2">Install</p>
+              <CopyInput value={installCommand} />
+            </div>
+          )}
+
+          <CodeEditorSnippet title="Push and recall" code={code} language={sdkLanguage} />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <TestConnectionButton token={token} />
+            <span className="flex-1" />
           </div>
-        )}
-
-        <CodeEditorSnippet title={sdkLanguageLabels[sdkLanguage]} code={code} language={sdkLanguage} />
-      </div>
-
-      {projectId && (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            as="a"
-            href={getRoutePath('projectImportData', { id: projectId })}
-            size="small"
-            variant="secondary"
-          >
-            Import data
-          </Button>
-          <Button as="a" href={getRoutePath('project', { id: projectId })} size="small" variant="secondary">
-            Records
-          </Button>
         </div>
-      )}
+      </div>
     </GuidePanel>
   )
 }
@@ -669,30 +755,46 @@ function AgentSkillsGuide() {
         </Button>
       </GuideHeader>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <CodeSnippet
-          title="Install skills"
-          code="npx skills add rush-db/rushdb --path packages/skills"
-          language="shell"
+      <div className="grid gap-6 lg:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
+        <StepList
+          items={[
+            {
+              title: 'Install the skills',
+              description: 'Add the RushDB skills package to your coding agent.'
+            },
+            {
+              title: 'Start a fresh session',
+              description: 'Begin a new agent session so the installed skills are picked up.'
+            },
+            {
+              title: 'Discover, then query',
+              description: 'Ask the agent to call getSchemaMarkdown before any query.'
+            },
+            {
+              title: 'Bootstrap memory',
+              description:
+                'For persistent memory, give the agent the bootstrap prompt and let it validate recall.'
+            }
+          ]}
         />
-        <CodeSnippet
-          title="Bootstrap memory"
-          code={`Fetch ${AGENT_SETUP_URL} and follow the instructions exactly.`}
-        />
-      </div>
 
-      <StepList
-        items={[
-          'Start a fresh agent session after installing skills.',
-          'Ask the agent to call getSchemaMarkdown before any query.',
-          'For persistent memory, give the agent the bootstrap prompt and let it validate recall.'
-        ]}
-      />
+        <div className="grid min-w-0 content-start gap-4">
+          <CodeSnippet
+            title="Install skills"
+            code="npx skills add rush-db/rushdb --path packages/skills"
+            language="shell"
+          />
+          <CodeSnippet
+            title="Bootstrap memory"
+            code={`Fetch ${AGENT_SETUP_URL} and follow the instructions exactly.`}
+          />
+        </div>
+      </div>
     </GuidePanel>
   )
 }
 
-export function ConnectGuide({ className, defaultPath = 'hosted-mcp', projectId }: ConnectGuideProps) {
+export function ConnectGuide({ className, defaultPath = 'sdk', projectId }: ConnectGuideProps) {
   const { data: tokens, isPending } = useProjectTokensQuery()
   const { data: projects, isPending: projectsPending } = useWorkspaceProjectsQuery()
   const token = projectId ? tokens?.[0]?.value : undefined
@@ -701,27 +803,6 @@ export function ConnectGuide({ className, defaultPath = 'hosted-mcp', projectId 
   return (
     <section className={cn('grid gap-5', className)}>
       {showWorkspaceProjectNotice && <WorkspaceProjectNotice />}
-
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-content">Connect RushDB</h2>
-          <p className="mt-2 max-w-2xl leading-6 text-content2">
-            Start from the path that matches your workflow. Each setup gets to a working connection first,
-            then points to the next useful action.
-          </p>
-        </div>
-        <Button
-          as="a"
-          href={connectDocsUrls.overview}
-          rel="noopener noreferrer"
-          size="small"
-          target="_blank"
-          variant="outline"
-        >
-          Full guide
-          <ExternalLink />
-        </Button>
-      </div>
 
       <Tabs defaultValue={defaultPath} className="grid gap-4">
         <TabsList className="max-w-full" data-tour="project-getting-started-finish">
@@ -736,14 +817,11 @@ export function ConnectGuide({ className, defaultPath = 'hosted-mcp', projectId 
           ))}
         </TabsList>
 
-        <TabsContent value="hosted-mcp">
-          <HostedMcpGuide />
+        <TabsContent value="sdk">
+          <SdkGuide projectId={projectId} token={isPending ? undefined : token} />
         </TabsContent>
-        <TabsContent value="local-mcp">
-          <LocalMcpGuide projectId={projectId} token={isPending ? undefined : token} />
-        </TabsContent>
-        <TabsContent value="sdk-rest">
-          <SdkRestGuide projectId={projectId} token={isPending ? undefined : token} />
+        <TabsContent value="mcp">
+          <McpGuide projectId={projectId} token={isPending ? undefined : token} />
         </TabsContent>
         <TabsContent value="agent-skills">
           <AgentSkillsGuide />

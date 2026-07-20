@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import axios from 'axios'
-import { Transaction } from 'neo4j-driver'
 
 import { AiService } from '@/core/ai/ai.service'
 import { SchemaItem } from '@/core/ai/ai.types'
@@ -94,14 +93,12 @@ export class SearchQueryGeneratorService {
     prompt,
     currentQuery,
     projectId,
-    workspaceId,
-    transaction
+    workspaceId
   }: {
     prompt: string
     currentQuery?: SearchDto
     projectId: string
     workspaceId?: string
-    transaction: Transaction
   }): Promise<GeneratedSearchQuery> {
     if (!this.enabled()) {
       throw new ServiceUnavailableException(
@@ -114,7 +111,10 @@ export class SearchQueryGeneratorService {
       throw new BadRequestException('Prompt is required.')
     }
 
-    const schema = await this.aiService.getSchema({ projectId, workspaceId, transaction })
+    // allowStale: query generation is a hot interactive path — a slightly stale schema
+    // is fine for prompting the LLM, and a synchronous full-graph recompute here would
+    // stack on top of the LLM round-trip latency.
+    const schema = await this.aiService.getSchema({ projectId, workspaceId, allowStale: true })
     const schemaMarkdown = this.aiService.buildMdSchema(schema)
     const first = await this.callLlm({ prompt: trimmed, currentQuery, schemaMarkdown })
     this.logger.log(`[AI SearchQuery] generated raw query: ${JSON.stringify(first.searchQuery)}`)

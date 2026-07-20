@@ -96,20 +96,6 @@ function DashboardSidebar() {
         <SidebarNav collapsed={collapsed} />
       </nav>
 
-      {!collapsed && (
-        <a
-          className="mx-4 mb-4 flex flex-col gap-2 rounded-md border border-content/20 bg-fill p-4 transition hover:bg-fill2"
-          href="https://docs.rushdb.com"
-          rel="noreferrer"
-          target="_blank"
-        >
-          <span className="text-sm font-medium text-content">Need help getting started?</span>
-          <span className="inline-flex items-center gap-2 text-sm text-content2">
-            Check out our docs <ExternalLink className="h-3.5 w-3.5" />
-          </span>
-        </a>
-      )}
-
       <div className={cn('flex flex-col gap-3 border-t p-4', collapsed && 'items-center px-2')}>
         {!collapsed && <KuSidebarMeter />}
         <div className={cn('flex items-center gap-2', collapsed ? 'flex-col' : 'w-full')}>

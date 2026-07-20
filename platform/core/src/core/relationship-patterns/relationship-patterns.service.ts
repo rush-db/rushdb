@@ -62,7 +62,7 @@ export class RelationshipPatternsService {
     // on top of the analysis's own forced recompute, which refreshes the cache anyway.
     const [patterns, schema, analysis] = await Promise.all([
       this.repository.findByProjectId(projectId),
-      this.aiService.getSchema({ projectId, transaction, allowStale: true }),
+      this.aiService.getSchema({ projectId, allowStale: true }),
       this.repository.getQueue(projectId)
     ])
 
@@ -248,23 +248,11 @@ export class RelationshipPatternsService {
   }
 
   /**
-   * Forces an schema cache recompute on a dedicated session/transaction so the heavy
-   * full-graph scan never shares a write transaction's timeout budget.
+   * Forces a schema cache recompute. getSchema manages its own short-lived sessions,
+   * so the heavy scan never shares a write transaction's timeout budget.
    */
   private async recomputeSchemaInFreshTransaction(projectId: string): Promise<void> {
-    const session = this.neogmaService.createSession('relationship-pattern-schema')
-    const transaction = session.beginTransaction({ timeout: 60_000 })
-    try {
-      await this.aiService.getSchema({ projectId, force: true, transaction })
-      await transaction.commit()
-    } catch (error) {
-      if (transaction.isOpen()) {
-        await transaction.rollback()
-      }
-      throw error
-    } finally {
-      await this.neogmaService.closeSession(session, 'relationship-pattern-schema')
-    }
+    await this.aiService.getSchema({ projectId, force: true })
   }
 
   async ignore(projectId: string, id: string): Promise<RelationshipPatternDto | undefined> {
@@ -343,18 +331,13 @@ export class RelationshipPatternsService {
 
     await this.repository.updateQueue(projectId, { status: 'running', lastError: null })
 
-    const session = this.neogmaService.createSession('relationship-analysis')
-    const transaction = session.beginTransaction({ timeout: 60_000 })
-
     try {
       // No force: every write endpoint that triggers this analysis also runs the
       // RECALCULATE_SCHEMA_CACHE side effect first, so the cache is already fresh for
       // the data that queued us — forcing here recomputed the same schema twice in a row.
       // A stale/missing cache (TTL expired, old project) still recomputes.
       const tSchema = Date.now()
-      const schema = await this.aiService.getSchema({ projectId, transaction })
-      await transaction.commit()
-      await this.neogmaService.closeSession(session, 'relationship-analysis')
+      const schema = await this.aiService.getSchema({ projectId })
       this.logger.log(
         `[RelationshipAnalysis] project ${projectId} schema loaded in ${Date.now() - tSchema}ms`
       )
@@ -443,18 +426,6 @@ export class RelationshipPatternsService {
         lastRunAt: new Date().toISOString(),
         lastError: message
       })
-      try {
-        if (transaction.isOpen()) {
-          await transaction.rollback()
-        }
-      } catch {
-        /* empty */
-      }
-      try {
-        await this.neogmaService.closeSession(session, 'relationship-analysis')
-      } catch {
-        /* empty */
-      }
       throw error
     } finally {
       this.runningAnalysis.delete(projectId)
@@ -1346,11 +1317,6 @@ export class RelationshipPatternsService {
     const transaction = session.beginTransaction({ timeout: 60_000 })
     try {
       await this.deletePatternRelationships(pattern, transaction)
-      await this.aiService.getSchema({
-        projectId: pattern.projectId,
-        force: true,
-        transaction
-      })
       await transaction.commit()
     } catch (error) {
       if (transaction.isOpen()) {
@@ -1360,5 +1326,11 @@ export class RelationshipPatternsService {
     } finally {
       await this.neogmaService.closeSession(session, 'relationship-pattern-delete')
     }
+    // After the delete is committed: the recompute reads on its own sessions, so it
+    // must run post-commit to see the removed relationships.
+    await this.aiService.getSchema({
+      projectId: pattern.projectId,
+      force: true
+    })
   }
 }

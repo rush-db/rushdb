@@ -2,6 +2,7 @@ import type { VariantProps } from 'class-variance-authority'
 import type { ReactNode } from 'react'
 
 import { cva } from 'class-variance-authority'
+import { Copy, CopyCheck } from 'lucide-react'
 import { forwardRef, useState } from 'react'
 
 import { useTimeout } from '~/hooks/useTimeout'
@@ -119,9 +120,18 @@ export function CopyButton({
             } as Toast)
           )
       }}
-      variant={copied ? 'success' : variant}
+      variant={variant}
     >
-      {copied ? copiedText : children}
+      {copied ?
+        <>
+          <CopyCheck />
+          {copiedText}
+        </>
+      : <>
+          <Copy />
+          {children}
+        </>
+      }
     </Button>
   )
 }
