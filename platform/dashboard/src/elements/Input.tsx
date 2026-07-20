@@ -136,9 +136,9 @@ export const CopyInput = forwardRef<HTMLInputElement, InputProps>(({ className, 
     <Input
       ref={ref}
       onClick={copyToken}
-      suffix={justCopied ? <CopyCheck className="h-5 w-5 text-success" /> : <Copy className="h-5 w-5" />}
+      suffix={justCopied ? <CopyCheck className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
       readOnly
-      className={cn('border-transparent! ring-0!', { 'border-success!': justCopied }, className)}
+      className={cn('border-transparent! ring-0!', className)}
       value={value}
       {...props}
     />

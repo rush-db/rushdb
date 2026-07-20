@@ -16,6 +16,14 @@ export class RequestCleanupInterceptor implements NestInterceptor {
 
     const raw: any = (request as any).raw ?? request
 
+    // Post-commit hooks: work that must observe the request's committed writes (e.g. the
+    // side-effect runner recounting records / recomputing the schema). Registered by inner
+    // interceptors during the response phase and drained here, strictly AFTER the request
+    // transaction is committed — so no polling for the tx to close is needed.
+    if (!Array.isArray(raw.postCommitHooks)) {
+      raw.postCommitHooks = []
+    }
+
     // Snapshot references; these are set by middlewares prior to interceptors.
     const internalSession = raw.session ?? request.session
     const internalTransaction = raw.transaction ?? request.transaction
@@ -98,6 +106,19 @@ export class RequestCleanupInterceptor implements NestInterceptor {
         raw.externalTransaction = undefined
       } catch {
         /* empty */
+      }
+
+      // Drain post-commit hooks only on a successful request, now that the request
+      // transaction is committed and its writes are visible. Fire-and-forget: hooks
+      // must not delay the HTTP response (a schema recompute can take seconds).
+      if (success && Array.isArray(raw.postCommitHooks) && raw.postCommitHooks.length > 0) {
+        const hooks: Array<() => Promise<void> | void> = raw.postCommitHooks
+        raw.postCommitHooks = []
+        for (const hook of hooks) {
+          Promise.resolve()
+            .then(hook)
+            .catch((e) => Logger.error('[RequestCleanupInterceptor] post-commit hook error', e))
+        }
       }
     }
 

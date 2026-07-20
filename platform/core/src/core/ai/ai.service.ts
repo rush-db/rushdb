@@ -9,7 +9,7 @@ import {
   UnprocessableEntityException
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { int as neo4jInt, Transaction } from 'neo4j-driver'
+import { int as neo4jInt, Session, Transaction } from 'neo4j-driver'
 
 import { isDevMode } from '@/common/utils/isDevMode'
 import { AiQueryService } from '@/core/ai/ai-query.service'
@@ -30,7 +30,9 @@ import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { parseWhereClause } from '@/core/search/parser/buildQuery'
 import { ProjectRepository } from '@/dashboard/project/model/project.repository'
+import { dbContextStorage } from '@/database/db-context'
 import { NeogmaService } from '@/database/neogma/neogma.service'
+import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
 import { randomUUID } from 'crypto'
 
@@ -60,6 +62,29 @@ const SCHEMA_SAMPLE_SCAN_RECORDS = 100
 /** Max distinct sample values kept per string property in the schema. */
 const SCHEMA_SAMPLE_VALUES = 10
 
+/** Labels recalculated concurrently during a schema rebuild (each statement on its own session). */
+const SCHEMA_RECALC_LABEL_CONCURRENCY = 4
+
+/** Sample (label, propId) pairs sent per bounded-sampling statement. */
+const SCHEMA_SAMPLE_PAIRS_CHUNK = 500
+
+/** Produces a fresh short-lived session for one schema statement. */
+type SchemaSessionFactory = () => Session
+
+const mapWithConcurrency = async <T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> => {
+  let index = 0
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (index < items.length) {
+      await fn(items[index++])
+    }
+  })
+  await Promise.all(workers)
+}
+
 @Injectable()
 export class AiService {
   constructor(
@@ -77,6 +102,12 @@ export class AiService {
 
   /** Timestamps of last successful embedding-provider probe, keyed by `${modelKey}:${dimensions}`. */
   private readonly embeddingProbeCache = new Map<string, number>()
+
+  /** In-flight schema recalculations, keyed by projectId (single-flight guard). */
+  private readonly schemaRecalcInFlight = new Map<string, Promise<SchemaItem[]>>()
+
+  /** Coalesced follow-up runs queued by force callers behind an in-flight recalculation. */
+  private readonly schemaRecalcQueued = new Map<string, Promise<SchemaItem[]>>()
 
   private inferSchemaValueType(values: unknown[]): string {
     const nonNullValues = values.filter((value) => value !== null && value !== undefined)
@@ -147,16 +178,28 @@ export class AiService {
     return prop
   }
 
+  /**
+   * Returns the project's graph schema. Serving strategy:
+   *  - fresh cache → served directly
+   *  - stale cache → served immediately; a single-flight background recalculation
+   *    refreshes it (allowStale additionally treats any cache as fresh and never
+   *    triggers a refresh)
+   *  - no cache / force → awaits a full recalculation, joining one already in flight
+   *
+   * Recalculation never runs on the request-scoped transaction: it fans out small
+   * per-label statements on dedicated short-lived READ sessions (see
+   * recalculateSchema), so no single unit of work approaches the server-side
+   * transaction time budget regardless of project size.
+   */
   async getSchema({
     projectId,
     workspaceId,
     labels,
     force,
-    allowStale,
-    transaction
+    allowStale
   }: {
     projectId: string
-    /** When provided, a COMPUTE_OPERATION KU event is emitted on cache miss / recalculation. */
+    /** When provided, a COMPUTE_OPERATION KU event is emitted on recalculation. */
     workspaceId?: string
     labels?: string[]
     /** When true, bypasses the cache and forces a full recalculation. */
@@ -164,136 +207,167 @@ export class AiService {
     /**
      * When true, any persisted cache is served regardless of age and a recalculation is
      * never triggered (unless no cache exists at all). For hot read paths — e.g. the
-     * relationship-patterns list that the dashboard polls every few seconds — where a
-     * synchronous full-graph recompute inside the request transaction is unacceptable.
+     * relationship-patterns list that the dashboard polls every few seconds.
      */
     allowStale?: boolean
-    transaction: Transaction
   }): Promise<SchemaItem[]> {
     const tTotal = Date.now()
+
+    // Capture the connection source now: a background refresh outlives the request,
+    // and the AsyncLocalStorage db context is only guaranteed while it is alive.
+    const sessionFactory = this.resolveSchemaSessionFactory()
 
     // ── 1. Check persisted cache in SQL projects table ────────────────────────
     const projectRow = await this.projectRepository.findById(projectId)
     const cachedAt: string | null = projectRow?.schemaCachedAt ?? null
     const cacheJson: string | null = projectRow?.schemaCache ?? null
 
+    const filterByLabels = (schema: SchemaItem[]) =>
+      labels?.length ? schema.filter((item) => labels.includes(item.label)) : schema
+
     if (!force && cachedAt && cacheJson) {
       const ageMs = Date.now() - new Date(cachedAt).getTime()
-      if (ageMs < SCHEMA_CACHE_TTL_MS || allowStale) {
-        // Cache is fresh — deserialise, optionally filter, return immediately
-        const fullSchema: SchemaItem[] = JSON.parse(cacheJson)
-        const result = labels?.length ? fullSchema.filter((item) => labels.includes(item.label)) : fullSchema
+      const fullSchema: SchemaItem[] = JSON.parse(cacheJson)
+      const result = filterByLabels(fullSchema)
+      const fresh = ageMs < SCHEMA_CACHE_TTL_MS
 
-        isDevMode(() =>
-          Logger.debug(
-            `[AiService] schema: cache hit — age ${Math.round(ageMs / 1000)}s, ${result.length}/${fullSchema.length} labels, total ${Date.now() - tTotal}ms`
-          )
+      if (!fresh && !allowStale) {
+        // Stale: serve what we have and refresh in the background (single-flight) —
+        // callers are never blocked behind a full-graph recomputation.
+        this.recalculateSchemaSingleFlight({ projectId, workspaceId, sessionFactory }).catch((error) =>
+          Logger.error(`[AiService] background schema refresh failed for project ${projectId}`, error)
         )
-        return result
       }
+
+      isDevMode(() =>
+        Logger.debug(
+          `[AiService] schema: cache ${fresh ? 'hit' : 'stale-served'} — age ${Math.round(ageMs / 1000)}s, ${result.length}/${fullSchema.length} labels, total ${Date.now() - tTotal}ms`
+        )
+      )
+      return result
     }
 
-    // ── 2. Cache is stale/missing — recalculate the FULL schema ──────────
-    // Always run without a label filter so the persisted cache is complete.
-    // Label filtering (if requested) is applied in-memory after building.
+    // ── 2. force or no cache at all — the caller waits for the recalculation.
+    const schema = await this.recalculateSchemaSingleFlight({ projectId, workspaceId, sessionFactory, force })
+    const result = filterByLabels(schema)
+    isDevMode(() =>
+      Logger.debug(
+        `[AiService] schema: total ${Date.now() - tTotal}ms (${result.length}/${schema.length} labels returned)`
+      )
+    )
+    return result
+  }
+
+  /**
+   * One recalculation per project at a time; concurrent callers share the same run.
+   *
+   * force callers get read-your-writes semantics: a run already in flight may have
+   * started before the caller's writes committed, so instead of joining it a force
+   * caller queues exactly one follow-up run (coalesced across concurrent force
+   * callers) that starts after the current run settles.
+   */
+  private recalculateSchemaSingleFlight({
+    projectId,
+    workspaceId,
+    sessionFactory,
+    force
+  }: {
+    projectId: string
+    workspaceId?: string
+    sessionFactory: SchemaSessionFactory
+    force?: boolean
+  }): Promise<SchemaItem[]> {
+    const inFlight = this.schemaRecalcInFlight.get(projectId)
+    if (!inFlight) {
+      const run = this.recalculateSchema({ projectId, workspaceId, sessionFactory }).finally(() =>
+        this.schemaRecalcInFlight.delete(projectId)
+      )
+      this.schemaRecalcInFlight.set(projectId, run)
+      return run
+    }
+    if (!force) {
+      return inFlight
+    }
+    const queued = this.schemaRecalcQueued.get(projectId)
+    if (queued) {
+      return queued
+    }
+    const followUp = inFlight
+      .catch(() => {
+        /* the follow-up run reports its own outcome */
+      })
+      .then(() => {
+        this.schemaRecalcQueued.delete(projectId)
+        return this.recalculateSchemaSingleFlight({ projectId, workspaceId, sessionFactory, force: true })
+      })
+    this.schemaRecalcQueued.set(projectId, followUp)
+    return followUp
+  }
+
+  /**
+   * Schema statements run against the project's own database: the BYO external
+   * connection when the request targets one (resolved from the request-scoped
+   * AsyncLocalStorage db context), the default connection otherwise.
+   */
+  private resolveSchemaSessionFactory(): SchemaSessionFactory {
+    const externalDriver = dbContextStorage.getStore()?.externalConnection?.driver
+    if (externalDriver) {
+      return () => externalDriver.session({ defaultAccessMode: 'READ' }) as unknown as Session
+    }
+    return () => this.neogmaService.createSession('schema-recalc', 'READ')
+  }
+
+  /** Runs one statement as its own auto-commit transaction on a fresh session. */
+  private async runSchemaQuery(
+    sessionFactory: SchemaSessionFactory,
+    query: string,
+    params: Record<string, any>
+  ) {
+    const session = sessionFactory()
+    try {
+      return await session.run(query, params, { timeout: DEFAULT_TRANSACTION_TIMEOUT_MS })
+    } finally {
+      await session.close()
+    }
+  }
+
+  /**
+   * Full schema recalculation, labels-first: one cheap label inventory, then a
+   * per-label fan-out (bounded concurrency) of small single-purpose statements —
+   *  - property inventory via pure VALUE-edge counts (no value reads),
+   *  - exact streaming min/max + isArray for number/datetime properties only,
+   *  - relationship topology as a plain count(*),
+   *  - relationship-property summaries that only aggregate relationships carrying
+   *    custom properties,
+   * plus one bounded sampling pass for string/boolean properties (values + isArray
+   * over the sampled window). Persists the result to the SQL cache before returning.
+   */
+  private async recalculateSchema({
+    projectId,
+    workspaceId,
+    sessionFactory
+  }: {
+    projectId: string
+    workspaceId?: string
+    sessionFactory: SchemaSessionFactory
+  }): Promise<SchemaItem[]> {
+    const t0 = Date.now()
     const params: Record<string, any> = { projectId }
 
-    const t0 = Date.now()
-
-    // Note: statements issued on one transaction run sequentially on the server; the
-    // Promise.all only overlaps them with the SQL embedding-index fetch.
-    const [labelsResult, propertiesResult, relationshipsResult, allIndexes] = await Promise.all([
-      transaction.run(this.aiQueryService.getLabelsQuery(), params),
-      transaction.run(this.aiQueryService.getPropertiesWithValuesQuery(), params),
-      transaction.run(this.aiQueryService.getRelationshipsWithPropertiesQuery(), params),
+    const [labelsResult, allIndexes] = await Promise.all([
+      this.runSchemaQuery(sessionFactory, this.aiQueryService.getLabelsQuery(), params),
       this.embeddingIndexRepository.findByProjectId(projectId)
     ])
+
+    const toNumber = (value: any): number => value?.toNumber?.() ?? Number(value)
 
     // ---------- Build label → count map (Q1) ----------
     const labelCountMap = new Map<string, number>()
     for (const r of labelsResult.records) {
-      const label = r.get('label') as string
-      const count = (r.get('recordCount') as any)?.toNumber?.() ?? Number(r.get('recordCount'))
-      labelCountMap.set(label, count)
+      labelCountMap.set(r.get('label') as string, toNumber(r.get('recordCount')))
     }
 
-    // ---------- Build label → properties map (Q2) ----------
     const labelPropsMap = new Map<string, SchemaProperty[]>()
-    for (const r of propertiesResult.records) {
-      const label = r.get('label') as string
-      const prop: SchemaProperty = {
-        id: r.get('propId') as string,
-        name: r.get('propName') as string,
-        type: r.get('propType') as string
-      }
-
-      const sampleValues = r.get('sampleValues')
-      const minValue = r.get('minValue')
-      const maxValue = r.get('maxValue')
-      const recordsCount = r.get('recordsCount')
-      const isArray = r.get('isArray')
-
-      if (sampleValues != null) {
-        prop.values = sampleValues
-      }
-      if (isArray === true) {
-        prop.isArray = true
-      }
-      if (minValue != null) {
-        prop.min = typeof minValue === 'object' && minValue?.toNumber ? minValue.toNumber() : minValue
-      }
-      if (maxValue != null) {
-        prop.max = typeof maxValue === 'object' && maxValue?.toNumber ? maxValue.toNumber() : maxValue
-      }
-      if (recordsCount != null) {
-        prop.recordsCount = (recordsCount as any)?.toNumber?.() ?? Number(recordsCount)
-      }
-
-      if (!labelPropsMap.has(label)) {
-        labelPropsMap.set(label, [])
-      }
-      labelPropsMap.get(label)!.push(prop)
-    }
-
-    // ---------- Bounded sample values for string properties ----------
-    // Strings are sampled in a separate capped pass (see getPropertySampleValuesQuery)
-    // so the main aggregation never materializes full columns.
-    const samplePairs: Array<{ label: string; propId: string }> = []
-    for (const [label, props] of labelPropsMap) {
-      for (const prop of props) {
-        if (prop.type === 'string') {
-          samplePairs.push({ label, propId: prop.id })
-        }
-      }
-    }
-
-    if (samplePairs.length > 0) {
-      const samplesResult = await transaction.run(this.aiQueryService.getPropertySampleValuesQuery(), {
-        projectId,
-        pairs: samplePairs,
-        sampleScanLimit: neo4jInt(SCHEMA_SAMPLE_SCAN_RECORDS),
-        sampleValuesLimit: neo4jInt(SCHEMA_SAMPLE_VALUES)
-      })
-      const samplesByKey = new Map<string, unknown[]>()
-      for (const r of samplesResult.records) {
-        samplesByKey.set(`${r.get('label')}|${r.get('propId')}`, (r.get('samples') ?? []) as unknown[])
-      }
-      for (const [label, props] of labelPropsMap) {
-        for (const prop of props) {
-          if (prop.type !== 'string') {
-            continue
-          }
-          const samples = samplesByKey.get(`${label}|${prop.id}`)
-          if (samples?.length) {
-            prop.values = samples as SchemaProperty['values']
-          }
-        }
-      }
-    }
-
-    // ---------- Build relationship topology + property maps (single scan, Q3) ----------
-    // Rows with propName === null carry the exact per-triple relationship count;
-    // rows with a propName summarize one relationship property.
     const relationshipPropertiesMap = new Map<string, NonNullable<SchemaRelationship['properties']>>()
     const relCountRows: Array<{ fromLabel: string; relType: string; toLabel: string; relCount: number }> = []
     const toNullableNumber = (v: any): number | null =>
@@ -301,34 +375,145 @@ export class AiService {
       : typeof v?.toNumber === 'function' ? v.toNumber()
       : Number(v)
 
-    for (const r of relationshipsResult.records) {
-      const fromLabel = r.get('fromLabel') as string
-      const relType = r.get('relType') as string
-      const toLabel = r.get('toLabel') as string
-      const propName = r.get('propName') as string | null
-      const rawCount = r.get('relationshipsCount')
-      const relationshipsCount = rawCount?.toNumber?.() ?? Number(rawCount ?? 0)
-
-      if (propName == null) {
-        relCountRows.push({ fromLabel, relType, toLabel, relCount: relationshipsCount })
-        continue
+    // ---------- Per-label fan-out (Q2a/Q2b/Q3a/Q3b) ----------
+    // Workers mutate the shared maps; that is safe single-threaded, and each statement
+    // runs on its own session so labels genuinely execute in parallel on the server.
+    await mapWithConcurrency([...labelCountMap.keys()], SCHEMA_RECALC_LABEL_CONCURRENCY, async (label) => {
+      // Property inventory: pure VALUE-edge counts, no value reads (Q2a)
+      const countsResult = await this.runSchemaQuery(
+        sessionFactory,
+        this.aiQueryService.getLabelPropertyCountsQuery(label),
+        params
+      )
+      const props: SchemaProperty[] = countsResult.records.map((r) => {
+        const prop: SchemaProperty = {
+          id: r.get('propId') as string,
+          name: r.get('propName') as string,
+          type: r.get('propType') as string,
+          recordsCount: toNumber(r.get('recordsCount'))
+        }
+        if (prop.type === 'boolean') {
+          prop.values = ['true', 'false']
+        }
+        return prop
+      })
+      if (props.length) {
+        labelPropsMap.set(label, props)
       }
 
-      const values = (r.get('values') ?? []) as unknown[]
-      const key = `${fromLabel}|${relType}|${toLabel}`
-      const current = relationshipPropertiesMap.get(key) ?? []
-      current.push(
-        this.buildRelationshipPropertySummary({
-          name: propName,
-          values,
-          relationshipsCount,
-          minNumeric: toNullableNumber(r.get('minNumeric')),
-          maxNumeric: toNullableNumber(r.get('maxNumeric')),
-          minString: (r.get('minString') as string | null) ?? null,
-          maxString: (r.get('maxString') as string | null) ?? null
-        })
+      // Exact streaming min/max + isArray for number/datetime properties (Q2b)
+      const statsProps = props.filter((prop) => prop.type === 'number' || prop.type === 'datetime')
+      if (statsProps.length) {
+        const statsResult = await this.runSchemaQuery(
+          sessionFactory,
+          this.aiQueryService.getLabelPropertyStatsQuery(label),
+          { projectId, props: statsProps.map(({ id, name, type }) => ({ id, name, type })) }
+        )
+        const statsById = new Map(statsResult.records.map((r) => [r.get('propId') as string, r]))
+        for (const prop of statsProps) {
+          const row = statsById.get(prop.id)
+          if (!row) {
+            continue
+          }
+          const minValue = row.get('minValue')
+          const maxValue = row.get('maxValue')
+          if (row.get('isArray') === true) {
+            prop.isArray = true
+          }
+          if (minValue != null) {
+            prop.min = typeof minValue === 'object' && minValue?.toNumber ? minValue.toNumber() : minValue
+          }
+          if (maxValue != null) {
+            prop.max = typeof maxValue === 'object' && maxValue?.toNumber ? maxValue.toNumber() : maxValue
+          }
+        }
+      }
+
+      // Relationship topology: exact counts, no keys()/DISTINCT (Q3a)
+      const relCountsResult = await this.runSchemaQuery(
+        sessionFactory,
+        this.aiQueryService.getLabelRelationshipCountsQuery(label),
+        params
       )
-      relationshipPropertiesMap.set(key, current)
+      for (const r of relCountsResult.records) {
+        relCountRows.push({
+          fromLabel: label,
+          relType: r.get('relType') as string,
+          toLabel: r.get('toLabel') as string,
+          relCount: toNumber(r.get('relCount'))
+        })
+      }
+
+      // Relationship-property summaries (Q3b)
+      const relPropsResult = await this.runSchemaQuery(
+        sessionFactory,
+        this.aiQueryService.getLabelRelationshipPropertiesQuery(label),
+        params
+      )
+      for (const r of relPropsResult.records) {
+        const relType = r.get('relType') as string
+        const toLabel = r.get('toLabel') as string
+        const key = `${label}|${relType}|${toLabel}`
+        const current = relationshipPropertiesMap.get(key) ?? []
+        current.push(
+          this.buildRelationshipPropertySummary({
+            name: r.get('propName') as string,
+            values: (r.get('values') ?? []) as unknown[],
+            relationshipsCount: toNumber(r.get('relationshipsCount')),
+            minNumeric: toNullableNumber(r.get('minNumeric')),
+            maxNumeric: toNullableNumber(r.get('maxNumeric')),
+            minString: (r.get('minString') as string | null) ?? null,
+            maxString: (r.get('maxString') as string | null) ?? null
+          })
+        )
+        relationshipPropertiesMap.set(key, current)
+      }
+    })
+
+    // ---------- Bounded samples for string/boolean properties ----------
+    // Values for strings, isArray for both — detected over the sampled window
+    // (see getPropertySampleValuesQuery), never materializing full columns.
+    const samplePairs: Array<{ label: string; propId: string }> = []
+    for (const [label, props] of labelPropsMap) {
+      for (const prop of props) {
+        if (prop.type === 'string' || prop.type === 'boolean') {
+          samplePairs.push({ label, propId: prop.id })
+        }
+      }
+    }
+
+    for (let offset = 0; offset < samplePairs.length; offset += SCHEMA_SAMPLE_PAIRS_CHUNK) {
+      const chunk = samplePairs.slice(offset, offset + SCHEMA_SAMPLE_PAIRS_CHUNK)
+      const samplesResult = await this.runSchemaQuery(
+        sessionFactory,
+        this.aiQueryService.getPropertySampleValuesQuery(),
+        {
+          projectId,
+          pairs: chunk,
+          sampleScanLimit: neo4jInt(SCHEMA_SAMPLE_SCAN_RECORDS),
+          sampleValuesLimit: neo4jInt(SCHEMA_SAMPLE_VALUES)
+        }
+      )
+      const rowsByKey = new Map(samplesResult.records.map((r) => [`${r.get('label')}|${r.get('propId')}`, r]))
+      for (const { label, propId } of chunk) {
+        const row = rowsByKey.get(`${label}|${propId}`)
+        if (!row) {
+          continue
+        }
+        const prop = labelPropsMap.get(label)?.find((candidate) => candidate.id === propId)
+        if (!prop) {
+          continue
+        }
+        if (row.get('isArray') === true) {
+          prop.isArray = true
+        }
+        if (prop.type === 'string') {
+          const samples = (row.get('samples') ?? []) as unknown[]
+          if (samples.length) {
+            prop.values = samples as SchemaProperty['values']
+          }
+        }
+      }
     }
 
     // ---------- Build label → relationships map ----------
@@ -423,10 +608,11 @@ export class AiService {
     schema.sort((a, b) => b.count - a.count)
 
     const elapsed = Date.now() - t0
+    const propertiesCount = [...labelPropsMap.values()].reduce((sum, props) => sum + props.length, 0)
 
     isDevMode(() =>
       Logger.debug(
-        `[AiService] schema: recalculated in ${elapsed}ms (${schema.length} labels, ${propertiesResult.records.length} properties, ${relationshipsResult.records.length} relationships)`
+        `[AiService] schema: recalculated in ${elapsed}ms (${schema.length} labels, ${propertiesCount} properties, ${relCountRows.length} relationship triples)`
       )
     )
 
@@ -437,7 +623,7 @@ export class AiService {
       })
     }
 
-    // ── 3. Persist full schema to SQL projects table for subsequent cache hits ──
+    // ── Persist full schema to SQL projects table for subsequent cache hits ──
     const nowIso = new Date().toISOString()
     try {
       await this.projectRepository.update(projectId, {
@@ -449,14 +635,7 @@ export class AiService {
       console.warn('[AiService] failed to persist schema cache:', err)
     }
 
-    // ── 4. Return (apply in-memory label filter if requested) ─────────────────
-    const result = labels?.length ? schema.filter((item) => labels.includes(item.label)) : schema
-    isDevMode(() =>
-      Logger.debug(
-        `[AiService] schema: total ${Date.now() - tTotal}ms (recalc ${elapsed}ms, ${result.length}/${schema.length} labels returned)`
-      )
-    )
-    return result
+    return schema
   }
 
   buildMdSchema(schema: SchemaItem[]): string {

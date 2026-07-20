@@ -204,13 +204,11 @@ export function SearchQueryModal() {
 
   return (
     <Dialog className="sm:max-w-4xl" onOpenChange={$searchQueryModalOpen.set} open={open}>
-      <DialogTitle>Search Query</DialogTitle>
+      <DialogTitle className="mb-4">Search Query</DialogTitle>
       <Tabs value={activeTab} onValueChange={(nextValue) => setActiveTab(nextValue as typeof activeTab)}>
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mb-3">
           <TabsList>
             <Tab value="json">JSON</Tab>
-          </TabsList>
-          <TabsList>
             {(['typescript', 'python', 'shell'] as const).map((language) => {
               const { label, Icon } = SDK_LANGUAGE_CONFIG[language]
 
@@ -245,13 +243,13 @@ export function SearchQueryModal() {
           </div>
         </TabsContent>
         <TabsContent value="typescript">
-          <CodeEditorSnippet {...snippets.typescript} />
+          <CodeEditorSnippet {...snippets.typescript} height="420px" />
         </TabsContent>
         <TabsContent value="python">
-          <CodeEditorSnippet {...snippets.python} />
+          <CodeEditorSnippet {...snippets.python} height="420px" />
         </TabsContent>
         <TabsContent value="shell">
-          <CodeEditorSnippet {...snippets.shell} />
+          <CodeEditorSnippet {...snippets.shell} height="420px" />
         </TabsContent>
       </Tabs>
       {error ?

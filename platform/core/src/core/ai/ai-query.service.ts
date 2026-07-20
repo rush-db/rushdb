@@ -38,64 +38,73 @@ export class AiQueryService {
   }
 
   /**
-   * Q2: Returns { label, propId, propName, propType, sampleValues, minValue, maxValue }
-   * for all non-vector properties across all records in the project, in a single pass.
+   * Q2a: Per-label property inventory — { propId, propName, propType, recordsCount }
+   * for every property attached to records of one label.
    *
-   * min/max are EXACT — computed as streaming min()/max() aggregations over every value,
-   * with O(1) memory per (label, property) group. The previous implementation collected
-   * every distinct value into a list first (full column in heap) just to derive min/max
-   * and 10 samples from it; on high-cardinality properties that dominated schema
-   * recalculation time. String sample values now come from the separate bounded
-   * getPropertySampleValuesQuery instead.
+   * recordsCount is a pure VALUE-edge count: the LMPG model guarantees exactly one
+   * VALUE edge per (property, record) pair, so counting edges equals counting records
+   * — without reading `record[prop.name]` (a heap fetch per row), without UNWINDing
+   * values, and without DISTINCT tracking. This is what makes the pass cheap enough
+   * to run over every label: Neo4j expands and counts, never touching value storage.
+   *
+   * The label is inlined (sanitized) so the planner scopes the scan to one label via
+   * label-scan/index intersection instead of scanning the whole project per pass, and
+   * so the grouping key is a query constant rather than a per-row labels() computation.
    */
-  getPropertiesWithValuesQuery(filterLabels?: string[]) {
+  getLabelPropertyCountsQuery(label: string) {
     const qb = new QueryBuilder()
-
-    // Direction: property -[VALUE]-> record  (matches existing pattern in property-query.service.ts)
     qb.append(
-      `MATCH (record:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })<-[:${RUSHDB_RELATION_VALUE}]-(prop:${RUSHDB_LABEL_PROPERTY} { projectId: $projectId })`
+      `MATCH (record:${RUSHDB_LABEL_RECORD}:${this.quoteIdentifier(label)} { ${projectIdInline()} })<-[v:${RUSHDB_RELATION_VALUE}]-(prop:${RUSHDB_LABEL_PROPERTY} { projectId: $projectId })`
     )
-    qb.append(`WHERE record[prop.name] IS NOT NULL`)
-
-    // Extract the user-facing label from this record
-    qb.append(`WITH [l IN labels(record) WHERE l <> "${RUSHDB_LABEL_RECORD}"][0] AS label,`)
-    qb.append(`     prop.id AS propId, prop.name AS propName, prop.type AS propType,`)
-    qb.append(`     record[prop.name] AS rawVal, record AS rec`)
-
-    if (filterLabels && filterLabels.length > 0) {
-      qb.append(`WHERE label IN $filterLabels`)
-    }
-
-    // Normalize scalar/list values to a list; keep a [null] marker for empty lists so
-    // the record still counts toward recordsCount (min/max aggregations ignore nulls).
-    qb.append(`WITH label, propId, propName, propType, rec,`)
-    // NULL guard required: `null IS :: LIST<ANY>` is true (null inhabits every nullable type)
-    qb.append(`     rawVal IS NOT NULL AND rawVal IS :: LIST<ANY> AS isArrayValue,`)
-    qb.append(`     apoc.coll.flatten([rawVal]) AS items`)
-    qb.append(`UNWIND (CASE WHEN size(items) = 0 THEN [null] ELSE items END) AS v`)
-
-    qb.append(`WITH label, propId, propName, propType,`)
-    qb.append(`     count(DISTINCT rec) AS recordsCount,`)
-    qb.append(`     max(CASE WHEN isArrayValue THEN 1 ELSE 0 END) AS arrayValueCount,`)
-    qb.append(`     min(CASE propType WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS minAgg,`)
-    qb.append(`     max(CASE propType WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS maxAgg`)
-
-    qb.append(`RETURN`)
-    qb.append(`  label, propId, propName, propType, recordsCount,`)
-    qb.append(`  arrayValueCount > 0 AS isArray,`)
-    qb.append(`  CASE propType WHEN 'boolean' THEN ['true', 'false'] ELSE null END AS sampleValues,`)
-    qb.append(`  CASE propType WHEN 'datetime' THEN toString(minAgg) ELSE minAgg END AS minValue,`)
-    qb.append(`  CASE propType WHEN 'datetime' THEN toString(maxAgg) ELSE maxAgg END AS maxValue`)
-
+    qb.append(`RETURN prop.id AS propId, prop.name AS propName, prop.type AS propType,`)
+    qb.append(`       count(v) AS recordsCount`)
     return qb.getQuery()
   }
 
   /**
-   * Bounded sample-value lookup for string properties, run after the main schema
-   * aggregation. For each (label, propId) pair it scans at most $sampleScanLimit records
-   * reached from the property node and returns up to $sampleValuesLimit distinct values —
-   * never materializing a full column. Samples are representative, not exhaustive;
-   * exactness is only required for min/max, which the main query guarantees.
+   * Q2b: Exact streaming min/max (+ isArray) for the given number/datetime properties
+   * of one label. Only these types need a full value scan — strings get bounded
+   * sampling (getPropertySampleValuesQuery) and booleans are hardcoded — so the
+   * heaviest per-value pipeline (dynamic property read, flatten, UNWIND, cast) runs
+   * over the numeric/datetime subset only, anchored on the property node's unique id.
+   *
+   * Expects $props = [{ id, name, type }] and $projectId.
+   */
+  getLabelPropertyStatsQuery(label: string) {
+    const qb = new QueryBuilder()
+    qb.append(`UNWIND $props AS p`)
+    qb.append(
+      `MATCH (prop:${RUSHDB_LABEL_PROPERTY} { id: p.id })-[:${RUSHDB_RELATION_VALUE}]->(record:${RUSHDB_LABEL_RECORD}:${this.quoteIdentifier(label)} { ${projectIdInline()} })`
+    )
+    qb.append(`WITH p, record[p.name] AS rawVal`)
+    qb.append(`WHERE rawVal IS NOT NULL`)
+    // Keep a [null] marker for empty lists so isArray still sees the row
+    // (min/max aggregations ignore nulls).
+    qb.append(`WITH p, rawVal IS :: LIST<ANY> AS isArrayValue, apoc.coll.flatten([rawVal]) AS items`)
+    qb.append(`UNWIND (CASE WHEN size(items) = 0 THEN [null] ELSE items END) AS v`)
+    qb.append(`WITH p.id AS propId, p.type AS propType,`)
+    qb.append(`     max(CASE WHEN isArrayValue THEN 1 ELSE 0 END) AS arrayValueCount,`)
+    qb.append(`     min(CASE p.type WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS minAgg,`)
+    qb.append(`     max(CASE p.type WHEN 'datetime' THEN datetime(v) ELSE toFloatOrNull(v) END) AS maxAgg`)
+    qb.append(`RETURN propId,`)
+    qb.append(`  arrayValueCount > 0 AS isArray,`)
+    qb.append(`  CASE propType WHEN 'datetime' THEN toString(minAgg) ELSE minAgg END AS minValue,`)
+    qb.append(`  CASE propType WHEN 'datetime' THEN toString(maxAgg) ELSE maxAgg END AS maxValue`)
+    return qb.getQuery()
+  }
+
+  /**
+   * Bounded sample-value lookup for string/boolean properties, run after the main
+   * schema aggregation. For each (label, propId) pair it scans at most $sampleScanLimit
+   * records reached from the property node and returns up to $sampleValuesLimit distinct
+   * values — never materializing a full column. Samples are representative, not
+   * exhaustive; exactness is only required for min/max, which the stats query
+   * guarantees for number/datetime properties.
+   *
+   * isArray for these types is detected over the same sampled window (an array value
+   * beyond the window is missed — accepted trade-off: the flag is advisory and the
+   * alternative is a full value scan of every string column, which is exactly what
+   * this restructure removes).
    */
   getPropertySampleValuesQuery() {
     const qb = new QueryBuilder()
@@ -110,55 +119,65 @@ export class AiQueryService {
     qb.append(`  WITH record[prop.name] AS rawVal`)
     qb.append(`  LIMIT $sampleScanLimit`)
     qb.append(
-      `  RETURN apoc.coll.toSet(apoc.coll.flatten(collect(rawVal)))[0..$sampleValuesLimit] AS samples`
+      `  RETURN apoc.coll.toSet(apoc.coll.flatten(collect(rawVal)))[0..$sampleValuesLimit] AS samples,`
     )
+    qb.append(`         max(CASE WHEN rawVal IS :: LIST<ANY> THEN 1 ELSE 0 END) AS arrayValueCount`)
     qb.append(`}`)
-    qb.append(`RETURN pair.label AS label, pair.propId AS propId, samples`)
+    qb.append(`RETURN pair.label AS label, pair.propId AS propId, samples, arrayValueCount > 0 AS isArray`)
     return qb.getQuery()
   }
 
   /**
-   * Q3: Single relationship scan returning both the relationship topology and
-   * relationship-property summaries (the previous implementation scanned every
-   * record-to-record relationship twice — once for counts, once for properties).
+   * Q3a: Per-label relationship topology — exact { relType, toLabel, relCount } for all
+   * outgoing record-to-record relationships of one label, as a plain count(*).
    *
-   * Every relationship contributes one marker row with propName = null; for that row
-   * relationshipsCount is the EXACT total relationship count per (fromLabel, relType,
-   * toLabel). Rows with a non-null propName summarize one relationship property:
-   * exact streaming min/max (numeric and lexicographic — ISO datetimes sort
-   * chronologically) plus up to 10 distinct sample values.
+   * The previous combined query needed count(DISTINCT r) only because a keys(r)+[null]
+   * UNWIND multiplied rows; counting before any UNWIND removes both the DISTINCT
+   * tracking and the per-relationship keys() read.
    */
-  getRelationshipsWithPropertiesQuery(filterLabels?: string[]) {
+  getLabelRelationshipCountsQuery(label: string) {
     const qb = new QueryBuilder()
-    const reservedKeys = `[${RESERVED_RELATIONSHIP_PROPERTY_KEYS.map((key) => `'${key.replace(/'/g, '')}'`).join(', ')}]`
-
     qb.append(
-      `MATCH (a:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })-[r]->(b:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`
+      `MATCH (a:${RUSHDB_LABEL_RECORD}:${this.quoteIdentifier(label)} { ${projectIdInline()} })-[r]->(b:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`
     )
     // Exclude only RUSHDB_RELATION_VALUE which connects PROPERTY→RECORD nodes (not RECORD→RECORD).
     // RUSHDB_RELATION_DEFAULT is the type used for user-created record-to-record links — include it.
     qb.append(`WHERE type(r) <> '${RUSHDB_RELATION_VALUE}'`)
+    qb.append(`WITH type(r) AS relType, [l IN labels(b) WHERE l <> "${RUSHDB_LABEL_RECORD}"][0] AS toLabel`)
+    qb.append(`WHERE toLabel IS NOT NULL`)
+    qb.append(`RETURN relType, toLabel, count(*) AS relCount`)
+    return qb.getQuery()
+  }
 
-    qb.append(`WITH [l IN labels(a) WHERE l <> "${RUSHDB_LABEL_RECORD}"][0] AS fromLabel,`)
-    qb.append(`     type(r) AS relType,`)
-    qb.append(`     [l IN labels(b) WHERE l <> "${RUSHDB_LABEL_RECORD}"][0] AS toLabel,`)
-    qb.append(`     r`)
-    qb.append(`WHERE fromLabel IS NOT NULL AND toLabel IS NOT NULL`)
+  /**
+   * Q3b: Per-label relationship-property summaries. Relationships without custom
+   * properties produce zero rows after the keys(r) UNWIND and exit the pipeline
+   * immediately — only relationships that actually carry user properties reach the
+   * aggregation, so count(DISTINCT r) tracks a small set. Exact streaming min/max
+   * (numeric and lexicographic — ISO datetimes sort chronologically) plus up to
+   * 10 distinct sample values per property, matching the previous output.
+   */
+  getLabelRelationshipPropertiesQuery(label: string) {
+    const qb = new QueryBuilder()
+    const reservedKeys = `[${RESERVED_RELATIONSHIP_PROPERTY_KEYS.map((key) => `'${key.replace(/'/g, '')}'`).join(', ')}]`
 
-    if (filterLabels && filterLabels.length > 0) {
-      qb.append(`AND (fromLabel IN $filterLabels OR toLabel IN $filterLabels)`)
-    }
-
-    // The appended [null] marker row carries the per-triple relationship count.
     qb.append(
-      `UNWIND ([propKey IN keys(r) WHERE NOT propKey IN ${reservedKeys} AND NOT propKey STARTS WITH '__RUSHDB__'] + [null]) AS propName`
+      `MATCH (a:${RUSHDB_LABEL_RECORD}:${this.quoteIdentifier(label)} { ${projectIdInline()} })-[r]->(b:${RUSHDB_LABEL_RECORD} { ${projectIdInline()} })`
     )
-    qb.append(`WITH fromLabel, relType, toLabel, propName, r, r[propName] AS rawValue`)
+    qb.append(`WHERE type(r) <> '${RUSHDB_RELATION_VALUE}'`)
     qb.append(
-      `WITH fromLabel, relType, toLabel, propName, r, (CASE WHEN rawValue IS NULL THEN [null] ELSE apoc.coll.flatten([rawValue]) END) AS items`
+      `WITH type(r) AS relType, [l IN labels(b) WHERE l <> "${RUSHDB_LABEL_RECORD}"][0] AS toLabel, r`
+    )
+    qb.append(`WHERE toLabel IS NOT NULL`)
+    qb.append(
+      `UNWIND [propKey IN keys(r) WHERE NOT propKey IN ${reservedKeys} AND NOT propKey STARTS WITH '__RUSHDB__'] AS propName`
+    )
+    qb.append(`WITH relType, toLabel, propName, r, r[propName] AS rawValue`)
+    qb.append(
+      `WITH relType, toLabel, propName, r, (CASE WHEN rawValue IS NULL THEN [null] ELSE apoc.coll.flatten([rawValue]) END) AS items`
     )
     qb.append(`UNWIND items AS v`)
-    qb.append(`WITH fromLabel, relType, toLabel, propName,`)
+    qb.append(`WITH relType, toLabel, propName,`)
     qb.append(`     count(DISTINCT r) AS relationshipsCount,`)
     qb.append(`     collect(DISTINCT v)[0..10] AS values,`)
     qb.append(`     min(toFloatOrNull(v)) AS minNumeric,`)
@@ -166,7 +185,7 @@ export class AiQueryService {
     qb.append(`     min(toString(v)) AS minString,`)
     qb.append(`     max(toString(v)) AS maxString`)
     qb.append(
-      `RETURN fromLabel, relType, toLabel, propName, relationshipsCount, values, minNumeric, maxNumeric, minString, maxString`
+      `RETURN relType, toLabel, propName, relationshipsCount, values, minNumeric, maxNumeric, minString, maxString`
     )
 
     return qb.getQuery()

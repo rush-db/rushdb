@@ -33,6 +33,7 @@ import { PlanActiveGuard } from '@/dashboard/billing/guards/plan-active.guard'
 import { PlanLimitsGuard } from '@/dashboard/billing/guards/plan-limits.guard'
 import { DataInterceptor } from '@/database/interceptors/data.interceptor'
 import { PreferredTransactionDecorator } from '@/database/preferred-transaction.decorator'
+import { releaseRequestTransaction } from '@/database/release-request-transaction'
 
 class SchemaFilterDto {
   labels?: string[]
@@ -61,18 +62,16 @@ export class AiController {
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   @TokenReadAccess()
-  async getSchema(
-    @Body() body: SchemaFilterDto,
-    @PreferredTransactionDecorator() transaction: Transaction,
-    @Request() request: PlatformRequest
-  ): Promise<SchemaItem[]> {
+  async getSchema(@Body() body: SchemaFilterDto, @Request() request: PlatformRequest): Promise<SchemaItem[]> {
     const raw: any = (request as any).raw ?? request
+    // Schema reads/recalculations run on their own sessions; the idle request
+    // transaction would only tick down its time budget while a recalculation runs.
+    await releaseRequestTransaction(request)
     return this.aiService.getSchema({
       projectId: request.projectId,
       workspaceId: !raw.project?.customDb ? request.workspaceId : undefined,
       labels: body?.labels,
-      force: body?.force,
-      transaction
+      force: body?.force
     })
   }
 
@@ -88,16 +87,15 @@ export class AiController {
   @TokenReadAccess()
   async getSchemaMarkdown(
     @Body() body: SchemaFilterDto,
-    @PreferredTransactionDecorator() transaction: Transaction,
     @Request() request: PlatformRequest
   ): Promise<string> {
     const raw: any = (request as any).raw ?? request
+    await releaseRequestTransaction(request)
     const schema = await this.aiService.getSchema({
       projectId: request.projectId,
       workspaceId: !raw.project?.customDb ? request.workspaceId : undefined,
       labels: body?.labels,
-      force: body?.force,
-      transaction
+      force: body?.force
     })
     return this.aiService.buildMdSchema(schema)
   }
@@ -108,18 +106,17 @@ export class AiController {
   @AuthGuard('project')
   @HttpCode(HttpStatus.OK)
   @TokenReadAccess()
-  async generateSearchQuery(
-    @Body() body: GenerateSearchQueryDto,
-    @PreferredTransactionDecorator() transaction: Transaction,
-    @Request() request: PlatformRequest
-  ) {
+  async generateSearchQuery(@Body() body: GenerateSearchQueryDto, @Request() request: PlatformRequest) {
     const raw: any = (request as any).raw ?? request
+    // The LLM round-trip(s) can take longer than the transaction time budget; the
+    // request transaction is unused here (schema comes from cache / own sessions),
+    // so release it before the long wait instead of letting it expire while idle.
+    await releaseRequestTransaction(request)
     return this.searchQueryGeneratorService.generate({
       prompt: body?.prompt,
       currentQuery: body?.currentQuery,
       projectId: request.projectId,
-      workspaceId: !raw.project?.customDb ? request.workspaceId : undefined,
-      transaction
+      workspaceId: !raw.project?.customDb ? request.workspaceId : undefined
     })
   }
 

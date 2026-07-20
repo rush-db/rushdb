@@ -7,11 +7,14 @@ import { getNumberOfLines } from '~/lib/utils'
 export function CodeEditorSnippet({
   code,
   language,
-  title
+  title,
+  height
 }: {
   code: string
   language: string
   title: ReactNode
+  /** Fixed editor height; defaults to fitting the snippet's line count. */
+  height?: string
 }) {
   return (
     <div className="overflow-hidden rounded-md border bg-fill">
@@ -24,7 +27,7 @@ export function CodeEditorSnippet({
       <Editor
         key={language}
         value={code}
-        height={`${getNumberOfLines(code) * 1.2}em`}
+        height={height ?? `${getNumberOfLines(code) * 1.2}em`}
         defaultLanguage={language === 'shell' ? 'shell' : language}
         format={language !== 'shell'}
         readOnly
