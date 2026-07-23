@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { and, eq, inArray, or } from 'drizzle-orm'
+import { and, eq, inArray, ne, or } from 'drizzle-orm'
 
 import { SqlService } from '@/database/sql/sql.service'
 
@@ -71,6 +71,29 @@ export class EmbeddingIndexRepository {
   async updateStatus(id: string, status: string): Promise<void> {
     const now = new Date().toISOString()
     await this.db.update(this.table).set({ status, updatedAt: now }).where(eq(this.table.id, id))
+  }
+
+  /**
+   * Returns all enabled managed indexes whose stored modelKey differs from the target model.
+   * Used by scripts/migrate-embedding-model.ts when RUSHDB_EMBEDDING_MODEL changes.
+   */
+  async findManagedWithStaleModelKey(targetModelKey: string): Promise<EmbeddingIndexRow[]> {
+    return this.db
+      .select()
+      .from(this.table)
+      .where(
+        and(
+          eq(this.table.enabled, true),
+          eq(this.table.sourceType, 'managed' as EmbeddingIndexSourceType),
+          ne(this.table.modelKey, targetModelKey)
+        )
+      )
+  }
+
+  /** Re-keys an index to a new embedding model and resets its lifecycle status. */
+  async updateModelKeyAndStatus(id: string, modelKey: string, status: string): Promise<void> {
+    const now = new Date().toISOString()
+    await this.db.update(this.table).set({ modelKey, status, updatedAt: now }).where(eq(this.table.id, id))
   }
 
   /** Returns all enabled embedding index policies that are in 'pending' or 'indexing' status. */

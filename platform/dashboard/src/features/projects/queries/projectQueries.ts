@@ -156,14 +156,17 @@ export const filteredRecordsQueryOptions = (params: RecordQueryParams) =>
     queryFn: async ({ signal }) => {
       if (isSemanticSearchActive(params) && params.semanticSearch?.index) {
         const index = params.semanticSearch.index
-        return api.records.vectorSearch({
-          labels: [index.label],
-          propertyName: index.propertyName,
-          query: params.semanticSearch.query.trim(),
-          sourceType: index.sourceType,
-          skip: params.skip,
-          limit: params.limit
-        })
+        return api.records.vectorSearch(
+          {
+            labels: [index.label],
+            propertyName: index.propertyName,
+            query: params.semanticSearch.query.trim(),
+            sourceType: index.sourceType,
+            skip: params.skip,
+            limit: params.limit
+          },
+          { signal } as RequestInit
+        )
       }
 
       return api.records.find(buildRecordsSearchQuery(params), { signal } as RequestInit)

@@ -2,10 +2,26 @@ import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common
 import { ConfigService } from '@nestjs/config'
 import axios from 'axios'
 
-/** Hard cap on a single-text embedding call; without it axios waits forever on a stalled provider. */
-const EMBED_TIMEOUT_MS = 15_000
+/**
+ * Hard cap on a single-text embedding call; without it axios waits forever on a stalled
+ * provider. Sized to ride out degraded-provider spells (observed 15–30s single-embed
+ * latency on OpenRouter) while leaving the request transaction most of its 55s budget
+ * (DEFAULT_TRANSACTION_TIMEOUT_MS) for the actual graph query.
+ */
+const EMBED_TIMEOUT_MS = 30_000
 /** Batch calls carry up to RUSHDB_EMBEDDING_BATCH_SIZE texts, so they get a wider window. */
 const EMBED_BATCH_TIMEOUT_MS = 60_000
+
+/**
+ * axios `timeout` rides on the socket inactivity timer, so a provider that keeps
+ * trickling bytes (observed: 55–116s single-embed responses from OpenRouter) never
+ * trips it. An AbortSignal deadline is wall-clock and cannot be kept alive that way;
+ * both are passed so whichever fires first cancels the call.
+ */
+const withDeadline = (timeoutMs: number) => ({
+  signal: AbortSignal.timeout(timeoutMs),
+  timeout: timeoutMs
+})
 
 type EmbeddingApiUsage = {
   prompt_tokens?: number
@@ -45,6 +61,9 @@ function stringifyProviderErrorBody(body: unknown): string | undefined {
 
 function extractProviderErrorMessage(err: unknown): { body?: string; message: string; status?: number } {
   if (axios.isAxiosError(err)) {
+    if (err.code === 'ERR_CANCELED' || err.code === 'ECONNABORTED') {
+      return { message: 'request timed out' }
+    }
     const status = err.response?.status
     const body = stringifyProviderErrorBody(err.response?.data)
     const responseMessage =
@@ -142,7 +161,7 @@ export class EmbeddingProviderService {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
-          timeout: EMBED_TIMEOUT_MS
+          ...withDeadline(EMBED_TIMEOUT_MS)
         }
       )
 
@@ -195,7 +214,7 @@ export class EmbeddingProviderService {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
-          timeout: EMBED_BATCH_TIMEOUT_MS
+          ...withDeadline(EMBED_BATCH_TIMEOUT_MS)
         }
       )
 

@@ -68,14 +68,33 @@ See [PostgreSQL / SQLite](/deploy/infrastructure/postgresql-sqlite) for setup de
 
 Enables vector similarity search. All four variables must be set together; omit them entirely to disable embedding indexes.
 
-| Variable                          | Default                     | Description                                                                |
-| --------------------------------- | --------------------------- | -------------------------------------------------------------------------- |
-| `RUSHDB_EMBEDDING_BASE_URL`       | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible embeddings endpoint                       |
-| `RUSHDB_EMBEDDING_API_KEY`        | —                           | Bearer token for the embedding provider                                    |
-| `RUSHDB_EMBEDDING_MODEL`          | —                           | Model identifier, e.g. `text-embedding-3-small`, `qwen/qwen3-embedding-8b` |
-| `RUSHDB_EMBEDDING_DIMENSIONS`     | —                           | Number of dimensions the model outputs. Must match the model exactly.      |
-| `RUSHDB_EMBEDDING_BATCH_SIZE`     | `500`                       | Records per batch during index backfill                                    |
-| `RUSHDB_EMBEDDING_MAX_RUNTIME_MS` | `50000`                     | Max milliseconds the backfill scheduler runs per tick                      |
+| Variable                          | Default                     | Description                                                                                                     |
+| --------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `RUSHDB_EMBEDDING_BASE_URL`       | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible embeddings endpoint                                                            |
+| `RUSHDB_EMBEDDING_API_KEY`        | —                           | Bearer token for the embedding provider                                                                         |
+| `RUSHDB_EMBEDDING_MODEL`          | —                           | Model identifier, e.g. `text-embedding-3-small` (OpenAI direct) or `openai/text-embedding-3-small` (OpenRouter) |
+| `RUSHDB_EMBEDDING_DIMENSIONS`     | —                           | Number of dimensions the model outputs. Must match the model exactly.                                           |
+| `RUSHDB_EMBEDDING_BATCH_SIZE`     | `500`                       | Records per batch during index backfill                                                                         |
+| `RUSHDB_EMBEDDING_MAX_RUNTIME_MS` | `50000`                     | Max milliseconds the backfill scheduler runs per tick                                                           |
+
+:::caution Latency matters
+Semantic search embeds the user's query on the request path — pick a model/provider with consistent sub-second latency. Models served without capacity guarantees can take tens of seconds per embedding, which makes query-time search unusable regardless of index state.
+:::
+
+:::caution Changing the model requires re-embedding
+Vectors produced by different models are incompatible even at identical dimensions, so after `RUSHDB_EMBEDDING_MODEL` changes every managed index must be re-embedded.
+
+This happens **automatically**: on startup the server detects managed indexes keyed to a different model, strips their old vectors, and resets them to `pending` for the backfill scheduler to re-embed — so a normal deploy that changes the model needs no manual step. Search on affected indexes returns partial/empty results until re-embedding completes. Rolling deploys are safe: instances only backfill indexes keyed to their own configured model, so pods still running the old model cannot write stale vectors into re-keyed indexes.
+
+To preview the impact before deploying (or re-drive a failed startup run), use the script from `platform/core`:
+
+```bash
+pnpm embeddings:migrate-model --dry-run   # preview affected indexes
+pnpm embeddings:migrate-model             # strip old vectors, queue re-embedding
+```
+
+Changing `RUSHDB_EMBEDDING_DIMENSIONS` is not covered — indexes with a different dimension count must be deleted and recreated.
+:::
 
 ---
 
@@ -83,11 +102,11 @@ Enables vector similarity search. All four variables must be set together; omit 
 
 Powers automatic relationship candidate inference from your data schema.
 
-| Variable              | Default                     | Description                                                |
-| --------------------- | --------------------------- | ---------------------------------------------------------- |
-| `RUSHDB_LLM_BASE_URL` | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible chat completions endpoint |
-| `RUSHDB_LLM_API_KEY`  | —                           | Bearer token for the LLM provider                          |
-| `RUSHDB_LLM_MODEL`    | —                           | Model identifier, e.g. `gpt-4.1-mini`                      |
+| Variable              | Default                     | Description                                                                                 |
+| --------------------- | --------------------------- | ------------------------------------------------------------------------------------------- |
+| `RUSHDB_LLM_BASE_URL` | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible chat completions endpoint                                  |
+| `RUSHDB_LLM_API_KEY`  | —                           | Bearer token for the LLM provider                                                           |
+| `RUSHDB_LLM_MODEL`    | —                           | Model identifier, e.g. `gpt-5.6-luna` (OpenAI direct) or `openai/gpt-5.6-luna` (OpenRouter) |
 
 ---
 

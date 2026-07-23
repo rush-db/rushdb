@@ -38,7 +38,7 @@
 import RushDB from '../../packages/javascript-sdk/src/index.node'
 import type { EmbeddingIndex } from '../../packages/javascript-sdk/src/api/types'
 
-jest.setTimeout(120_000) // embedding backfill can take a while
+jest.setTimeout(240_000) // backfill cron ticks once a minute; a slow provider can add most of another
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -48,7 +48,7 @@ jest.setTimeout(120_000) // embedding backfill can take a while
 async function waitForIndexReady(
   db: RushDB,
   indexId: string,
-  timeoutMs = 90_000,
+  timeoutMs = 180_000,
   interval = 3_000
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs

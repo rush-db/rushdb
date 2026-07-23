@@ -267,6 +267,15 @@ export class AiQueryService {
   }
 
   /**
+   * Schema read: current state of a single index by name (no rows = index absent).
+   * SHOW INDEXES never takes the exclusive schema lock, so it is safe to await on
+   * the request path even while DDL/backfill writes are queued.
+   */
+  getVectorIndexStateQuery() {
+    return `SHOW INDEXES YIELD name, state WHERE name = $indexName RETURN state`
+  }
+
+  /**
    * Strips vector data from VALUE relationships for a given (projectId, label, propertyName).
    * Only removes the selected vector property from relationships whose __propKey matches exactly — this is critical
    * when another label's index shares the same property node (e.g. Book:title vs Task:title).

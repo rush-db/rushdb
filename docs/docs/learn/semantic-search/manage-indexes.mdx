@@ -145,17 +145,17 @@ curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
 
 > Attempting to create a duplicate `(label, propertyName, sourceType, similarityFunction, dimensions)` tuple returns `409 Conflict`.
 
-> **Model config is server-side.** The embedding model is set via `RUSHDB_EMBEDDING_MODEL` and `RUSHDB_EMBEDDING_DIMENSIONS` env vars.
+> **Model config is server-side.** The embedding model is set via `RUSHDB_EMBEDDING_MODEL` and `RUSHDB_EMBEDDING_DIMENSIONS` env vars. Each index remembers the model it was embedded with (`modelKey`). If the server's model changes, existing vectors become incompatible — the server detects this at startup and automatically strips old vectors and queues affected managed indexes for re-embedding.
 
 ### Index lifecycle
 
-| Status             | Description                                            |
-| ------------------ | ------------------------------------------------------ |
-| `pending`          | Policy created, waiting for backfill scheduler         |
-| `indexing`         | Backfill in progress                                   |
-| `awaiting_vectors` | External index — waiting for client to push vectors    |
-| `ready`            | All existing records have vectors; search is available |
-| `error`            | Backfill failed; check server logs for the cause       |
+| Status             | Description                                                                                                     |
+| ------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `pending`          | Policy created, waiting for backfill scheduler                                                                  |
+| `indexing`         | Backfill in progress                                                                                            |
+| `awaiting_vectors` | External index — waiting for client to push vectors                                                             |
+| `ready`            | All existing records have vectors; search is available                                                          |
+| `error`            | Backfill failed 3 runs in a row (transient failures are retried automatically); check server logs for the cause |
 
 ---
 
