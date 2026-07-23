@@ -110,7 +110,7 @@ services:
       # Relationship suggestions (optional — remove these 3 lines to disable AI relationship patterns)
       RUSHDB_LLM_BASE_URL: https://api.openai.com/v1
       RUSHDB_LLM_API_KEY: sk-...
-      RUSHDB_LLM_MODEL: gpt-4.1-mini
+      RUSHDB_LLM_MODEL: gpt-5.6-luna
 
 volumes:
   neo4j_data:
@@ -183,7 +183,7 @@ See [Connecting an Aura Instance](/deploy/guides/connect-aura) for the full BYOC
 | `RUSHDB_EMBEDDING_MAX_RUNTIME_MS` | `50000`                     | Max ms the backfill scheduler spends per index per tick                                           |
 | `RUSHDB_LLM_BASE_URL`             | `https://api.openai.com/v1` | Base URL of any OpenAI-compatible chat completions endpoint for relationship suggestions          |
 | `RUSHDB_LLM_API_KEY`              | —                           | Bearer token for the LLM provider. **Omit to disable relationship pattern suggestions**           |
-| `RUSHDB_LLM_MODEL`                | —                           | Chat model identifier (e.g. `gpt-4.1-mini`). **Omit to disable relationship pattern suggestions** |
+| `RUSHDB_LLM_MODEL`                | —                           | Chat model identifier (e.g. `gpt-5.6-luna`). **Omit to disable relationship pattern suggestions** |
 | `RUSHDB_PAGINATION_DEFAULT_LIMIT` | `100`                       | Default page size when `limit` is not specified in a search query                                 |
 | `RUSHDB_PAGINATION_MAX_LIMIT`     | `1000`                      | Maximum allowed `limit` value — requests above this are clamped                                   |
 | `RATE_LIMITER_REQUESTS_LIMIT`     | `100`                       | Max requests per time window                                                                      |
