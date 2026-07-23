@@ -6,6 +6,7 @@ import { AiService } from '@/core/ai/ai.service'
 import { EmbeddingBackfillScheduler } from '@/core/ai/embedding-backfill.scheduler'
 import { EmbeddingIndexDdlService } from '@/core/ai/embedding-index-ddl.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
+import { EmbeddingModelMigrationService } from '@/core/ai/embedding-model-migration.service'
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
 import { SearchQueryGeneratorService } from '@/core/ai/search-query-generator.service'
 import { BillingPolicyModule } from '@/core/billing-policy/billing-policy.module'
@@ -27,6 +28,7 @@ import { WorkspaceModule } from '@/dashboard/workspace/workspace.module'
     AiQueryService,
     EmbeddingIndexDdlService,
     EmbeddingIndexRepository,
+    EmbeddingModelMigrationService,
     EmbeddingProviderService,
     SearchQueryGeneratorService,
     EmbeddingBackfillScheduler

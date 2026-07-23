@@ -407,11 +407,13 @@ function SemanticSearchSurface({ labels }: { labels?: Record<string, number> }) 
       return
     }
 
+    // Each committed prompt costs an embedding call server-side, so wait until
+    // typing has actually ended (word pauses included) before searching.
     debounceTimeoutRef.current = window.setTimeout(() => {
       $semanticSearchPrompt.set(draftPrompt)
       $currentProjectRecordsSkip.set(0)
       debounceTimeoutRef.current = null
-    }, 400)
+    }, 800)
 
     return () => {
       if (debounceTimeoutRef.current != null) {

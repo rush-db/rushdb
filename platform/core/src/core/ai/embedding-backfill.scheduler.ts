@@ -20,10 +20,14 @@ import { ProjectRepository } from '@/dashboard/project/model/project.repository'
 import { NeogmaService } from '@/database/neogma/neogma.service'
 import { DEFAULT_TRANSACTION_TIMEOUT_MS } from '@/database/transaction.constants'
 
+/** Failed runs in a row before an index is parked in the terminal 'error' status. */
+const MAX_CONSECUTIVE_BACKFILL_FAILURES = 3
+
 @Injectable()
 export class EmbeddingBackfillScheduler {
   private readonly logger = new Logger(EmbeddingBackfillScheduler.name)
   private running = false
+  private readonly consecutiveFailures = new Map<string, number>()
 
   constructor(
     private readonly neogmaService: NeogmaService,
@@ -55,7 +59,24 @@ export class EmbeddingBackfillScheduler {
   }
 
   private async backfillPending(): Promise<void> {
-    const pending = await this.embeddingIndexRepository.findPending()
+    const allPending = await this.embeddingIndexRepository.findPending()
+
+    // Only embed indexes keyed to THIS instance's configured model. During a rolling
+    // deploy that changes RUSHDB_EMBEDDING_MODEL, instances still running the old env
+    // must not backfill indexes the new instances have re-keyed (see
+    // EmbeddingModelMigrationService) — mixing vectors from two models in one index
+    // silently corrupts similarity scores.
+    const configuredModel = this.configService.get<string>('RUSHDB_EMBEDDING_MODEL') ?? ''
+    const pending = allPending.filter((index) => {
+      if (index.sourceType !== 'managed' || index.modelKey === configuredModel) {
+        return true
+      }
+      this.logger.warn(
+        `[backfillPending] skipping index ${index.id} (${index.label}:${index.propertyName}): ` +
+          `keyed to model "${index.modelKey}" but this instance is configured with "${configuredModel}"`
+      )
+      return false
+    })
 
     isDevMode(() => this.logger.debug(`[backfillPending] pending indexes: ${pending.length}`))
 
@@ -261,9 +282,21 @@ export class EmbeddingBackfillScheduler {
       const finalStatus = remaining === 0 ? 'ready' : 'pending'
       this.logger.log(`[backfillIndex] id=${index.id} done remaining=${remaining} status=${finalStatus}`)
       await this.embeddingIndexRepository.updateStatus(index.id, finalStatus)
+      this.consecutiveFailures.delete(index.id)
     } catch (err) {
-      this.logger.error(`[EmbeddingBackfill] index ${index.id} failed: ${err}`)
-      await this.embeddingIndexRepository.updateStatus(index.id, 'error')
+      // 'error' is terminal (findPending never picks it up again), so a single transient
+      // provider timeout must not land there — requeue as 'pending' for the next tick and
+      // only give up after several failed runs in a row.
+      const failures = (this.consecutiveFailures.get(index.id) ?? 0) + 1
+      this.consecutiveFailures.set(index.id, failures)
+      const giveUp = failures >= MAX_CONSECUTIVE_BACKFILL_FAILURES
+      this.logger.error(
+        `[EmbeddingBackfill] index ${index.id} failed (attempt ${failures}/${MAX_CONSECUTIVE_BACKFILL_FAILURES}${giveUp ? ', giving up' : ', will retry'}): ${err}`
+      )
+      await this.embeddingIndexRepository.updateStatus(index.id, giveUp ? 'error' : 'pending')
+      if (giveUp) {
+        this.consecutiveFailures.delete(index.id)
+      }
     }
   }
 }

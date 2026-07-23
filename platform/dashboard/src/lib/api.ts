@@ -44,13 +44,15 @@ import type {
 import type { SsoConfig, SsoDiscoverResponse, UpsertSsoConfigPayload } from '~/features/sso/types'
 import type { GenericApiResponse, Override } from '~/types'
 
+import { DBRecordInstance, DBRecordsArrayInstance } from '@rushdb/javascript-sdk'
+
 import { rushDBInstance } from '~/lib/sdk.ts'
 import { $token } from '~/features/auth/stores/token.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
 import { $currentWorkspaceId } from '~/features/workspaces/stores/current.ts'
 import { BASE_URL } from '~/config.ts'
 
-import { fetcher } from './fetcher'
+import { FetchError, fetcher } from './fetcher'
 import { BillingErrorCodes } from '~/features/billing/constants.ts'
 import type { AcceptedUserInviteDto } from '~/features/workspaces/types'
 import { $limitReachModalOpen } from '~/components/billing/LimitReachedDialog.tsx'
@@ -158,8 +160,33 @@ export const api = {
     }
   },
   records: {
-    async vectorSearch(params: VectorSearchParams) {
-      return rushDBInstance.records.vectorSearch(params)
+    // Goes through the raw fetcher instead of the SDK client so the caller's
+    // AbortSignal reaches fetch — superseded semantic searches (prompt changed
+    // mid-flight) get aborted instead of piling up in parallel.
+    async vectorSearch(params: VectorSearchParams, init?: RequestInit) {
+      let response: { data?: Array<DBRecord>; total?: number }
+      try {
+        response = await fetcher(`/api/v1/ai/search`, {
+          ...init,
+          body: JSON.stringify(params),
+          method: 'POST',
+          transformResponse: false
+        })
+      } catch (error) {
+        // fetcher only carries statusText; surface the API's error message
+        // ("Embedding provider error: …", "No embedding index found …") like the SDK did.
+        if (error instanceof FetchError) {
+          const body = await error.response.json().catch(() => undefined)
+          const message =
+            typeof body?.message === 'string' && body.message ? body.message
+            : Array.isArray(body?.message) ? body.message.join(', ')
+            : error.message
+          throw new FetchError({ data: { message }, message, response: error.response })
+        }
+        throw error
+      }
+      const instances = (response.data ?? []).map((record) => new DBRecordInstance(record))
+      return new DBRecordsArrayInstance(instances, response.total ?? 0)
     },
     async importJson({
       init,

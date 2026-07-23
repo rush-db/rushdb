@@ -65,7 +65,7 @@
       "required": false
     },
     "RUSHDB_EMBEDDING_MODEL": {
-      "value": "qwen/qwen3-embedding-8b",
+      "value": "openai/text-embedding-3-small",
       "required": false
     },
     "RUSHDB_EMBEDDING_DIMENSIONS": {

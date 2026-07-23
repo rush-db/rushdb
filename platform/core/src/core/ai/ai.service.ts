@@ -1234,21 +1234,36 @@ export class AiService {
     let canUseVectorIndex = !hasWhere && !hasMultiLabels
 
     if (canUseVectorIndex) {
-      const tDdl = Date.now()
+      const vectorIndexSlot = {
+        sourceType: index.sourceType as EmbeddingIndexSourceType,
+        similarityFunction: index.similarityFunction as EmbeddingIndexSimilarityFunction,
+        dimensions: index.dimensions
+      }
+      const tProbe = Date.now()
       try {
-        await this.embeddingIndexDdlService.ensureVectorIndexExists({
-          sourceType: index.sourceType as EmbeddingIndexSourceType,
-          similarityFunction: index.similarityFunction as EmbeddingIndexSimilarityFunction,
-          dimensions: index.dimensions
-        })
+        // Never await CREATE INDEX here: it queues on the exclusive schema lock behind
+        // backfill batches/imports and would stall the request until the transaction
+        // budget kills it. Probe readiness lock-free; if the index isn't ONLINE yet,
+        // answer via exact search and leave creation to the fire-and-forget attempt
+        // below plus the backfill scheduler's durable retry.
+        canUseVectorIndex = await this.embeddingIndexDdlService.isVectorIndexOnline(vectorIndexSlot)
         isDevMode(() =>
-          Logger.debug(`[AiService] semanticSearch timing: ensureVectorIndex=${Date.now() - tDdl}ms`)
+          Logger.debug(
+            `[AiService] semanticSearch timing: vectorIndexProbe=${Date.now() - tProbe}ms online=${canUseVectorIndex}`
+          )
         )
+        if (!canUseVectorIndex) {
+          this.embeddingIndexDdlService.ensureVectorIndexExists(vectorIndexSlot).catch((err) => {
+            Logger.warn(
+              `[AiService] semanticSearch: background vector index DDL failed for ${index.vectorPropertyName} (scheduler will retry): ${err}`
+            )
+          })
+        }
       } catch (err) {
         canUseVectorIndex = false
         const reason = err instanceof Error ? err.message : String(err)
         Logger.warn(
-          `[AiService] semanticSearch: vector index unavailable for ${index.vectorPropertyName} after ${Date.now() - tDdl}ms; falling back to exact search: ${reason}`
+          `[AiService] semanticSearch: vector index probe failed for ${index.vectorPropertyName} after ${Date.now() - tProbe}ms; falling back to exact search: ${reason}`
         )
       }
     }

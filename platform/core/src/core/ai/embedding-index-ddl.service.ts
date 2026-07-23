@@ -31,6 +31,8 @@ export interface VectorIndexSlot {
 export class EmbeddingIndexDdlService {
   private readonly logger = new Logger(EmbeddingIndexDdlService.name)
   private readonly ensuredIndexNames = new Set<string>()
+  private readonly onlineIndexNames = new Set<string>()
+  private readonly inflightDdl = new Map<string, Promise<void>>()
 
   constructor(
     private readonly neogmaService: NeogmaService,
@@ -43,18 +45,61 @@ export class EmbeddingIndexDdlService {
       return
     }
 
+    // A CREATE queued on the schema lock can hold its session for minutes; concurrent
+    // callers (scheduler ticks, searches) share that one attempt instead of stacking
+    // more sessions into the same lock queue.
+    const inflight = this.inflightDdl.get(indexName)
+    if (inflight) {
+      return inflight
+    }
+
+    const attempt = (async () => {
+      const session = this.neogmaService.createSession('embedding-index-ddl')
+      try {
+        await session.run(
+          this.aiQueryService.getCreateVectorIndexQuery({
+            indexName,
+            vectorPropertyName: buildVectorPropertyName(slot),
+            similarityFunction: slot.similarityFunction
+          }),
+          { dimensions: neo4jInt(slot.dimensions) }
+        )
+        this.ensuredIndexNames.add(indexName)
+        this.logger.log(`vector index ensured: ${indexName}`)
+      } finally {
+        await session.close()
+      }
+    })()
+
+    this.inflightDdl.set(indexName, attempt)
+    try {
+      await attempt
+    } finally {
+      this.inflightDdl.delete(indexName)
+    }
+  }
+
+  /**
+   * Lock-free readiness probe for the request path: a SHOW INDEXES schema read that
+   * never queues behind the exclusive schema lock. Returns true only once the index
+   * is ONLINE — an existing-but-populating index cannot serve vector queries yet.
+   * ONLINE indexes are cached per process; dropVectorIndex() invalidates the cache.
+   */
+  async isVectorIndexOnline(slot: VectorIndexSlot): Promise<boolean> {
+    const indexName = buildVectorIndexName(slot)
+    if (this.onlineIndexNames.has(indexName)) {
+      return true
+    }
+
     const session = this.neogmaService.createSession('embedding-index-ddl')
     try {
-      await session.run(
-        this.aiQueryService.getCreateVectorIndexQuery({
-          indexName,
-          vectorPropertyName: buildVectorPropertyName(slot),
-          similarityFunction: slot.similarityFunction
-        }),
-        { dimensions: neo4jInt(slot.dimensions) }
-      )
-      this.ensuredIndexNames.add(indexName)
-      this.logger.log(`vector index ensured: ${indexName}`)
+      const result = await session.run(this.aiQueryService.getVectorIndexStateQuery(), { indexName })
+      const state = result.records[0]?.get('state')
+      if (state === 'ONLINE') {
+        this.onlineIndexNames.add(indexName)
+        return true
+      }
+      return false
     } finally {
       await session.close()
     }
@@ -62,6 +107,7 @@ export class EmbeddingIndexDdlService {
 
   async dropVectorIndex(indexName: string): Promise<void> {
     this.ensuredIndexNames.delete(indexName)
+    this.onlineIndexNames.delete(indexName)
 
     const session = this.neogmaService.createSession('embedding-index-ddl')
     try {

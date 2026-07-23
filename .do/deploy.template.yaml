@@ -55,7 +55,7 @@ spec:
           type: SECRET
           value: replace-with-openai-compatible-api-key
         - key: RUSHDB_EMBEDDING_MODEL
-          value: qwen/qwen3-embedding-8b
+          value: openai/text-embedding-3-small
         - key: RUSHDB_EMBEDDING_DIMENSIONS
           value: '1024'
   databases:
