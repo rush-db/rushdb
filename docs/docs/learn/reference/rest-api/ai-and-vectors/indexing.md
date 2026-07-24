@@ -68,7 +68,7 @@ Returns all embedding index policies for the project.
 
 `POST /api/v1/ai/indexes`
 
-Creates a new managed embedding index policy scoped to a label. The property must exist in the graph and have type `string` (scalar or list).
+Creates a new embedding index policy scoped to a label. If the property already exists in the graph, its type must be `string` (scalar or list). If no records with this property exist yet, the index is created without type validation — the property node will be established when the first record carrying it is written.
 
 ### Request Body
 
@@ -136,8 +136,7 @@ curl -X POST https://api.rushdb.com/api/v1/ai/indexes \
 
 | Status | When                                                                                                       |
 | ------ | ---------------------------------------------------------------------------------------------------------- |
-| `404`  | The property does not exist in the project graph                                                           |
-| `422`  | The property exists but is not `string` type                                                               |
+| `422`  | The property exists in the graph but is not `string` type                                                  |
 | `422`  | Embedding model is not configured on the server                                                            |
 | `409`  | An index for this `(label, propertyName, sourceType, similarityFunction, dimensions)` tuple already exists |
 
