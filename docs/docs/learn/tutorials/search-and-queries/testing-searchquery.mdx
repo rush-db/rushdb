@@ -149,7 +149,7 @@ describe('SearchQuery parity — PRODUCT', () => {
         body: JSON.stringify(query)
       }).then((r) => r.json())
     ])
-    expect(sdkResult.data[0].__id).toBe(restResponse.data[0].__id)
+    expect(sdkResult.data[0].id).toBe(restResponse.data[0].__id)
   })
 })
 ```

@@ -25,7 +25,12 @@ import {
 import { EmbeddingProviderService } from '@/core/ai/embedding-provider.service'
 import { estimateEmbeddingBatchKu, estimateTokens } from '@/core/ai/embedding.utils'
 import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/billing-policy.port'
-import { ISO_8601_REGEX, RUSHDB_KEY_LABEL_ALIAS, RUSHDB_LABEL_RECORD } from '@/core/common/constants'
+import {
+  DATE_ONLY_REGEX,
+  ISO_8601_REGEX,
+  RUSHDB_KEY_LABEL_ALIAS,
+  RUSHDB_LABEL_RECORD
+} from '@/core/common/constants'
 import { KuOperation } from '@/core/ku-events/ku-events.constants'
 import { KuEventsService } from '@/core/ku-events/ku-events.service'
 import { parseWhereClause } from '@/core/search/parser/buildQuery'
@@ -123,7 +128,9 @@ export class AiService {
     }
     if (
       nonNullValues.every((value) => typeof value === 'string') &&
-      nonNullValues.every((value) => ISO_8601_REGEX.test(String(value)))
+      nonNullValues.every(
+        (value) => ISO_8601_REGEX.test(String(value)) || DATE_ONLY_REGEX.test(String(value))
+      )
     ) {
       return 'datetime'
     }
@@ -829,15 +836,16 @@ export class AiService {
     const vectorPropertyName = buildVectorPropertyName({ sourceType, similarityFunction, dimensions })
     const vectorIndexName = buildVectorIndexName({ sourceType, similarityFunction, dimensions })
 
-    if (typeResult.records.length === 0) {
-      throw new NotFoundException(`Property "${dto.propertyName}" does not exist in this project`)
-    }
-
-    const propType = typeResult.records[0].get('propType') as string
-    if (propType !== 'string') {
-      throw new UnprocessableEntityException(
-        `Property "${dto.propertyName}" has type "${propType}" — only string (and List<String>) properties can be indexed`
-      )
+    if (typeResult.records.length > 0) {
+      // Property exists — validate it's a string type (only string properties can be indexed).
+      // If the property doesn't exist yet, skip validation — it will be created
+      // as a string property when the first record with it is written.
+      const propType = typeResult.records[0].get('propType') as string
+      if (propType !== 'string') {
+        throw new UnprocessableEntityException(
+          `Property "${dto.propertyName}" has type "${propType}" — only string (and List<String>) properties can be indexed`
+        )
+      }
     }
 
     const label = dto.label

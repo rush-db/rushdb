@@ -269,7 +269,7 @@ const results = await db.records.vectorSearch({
 })
 
 for (const result of results.data) {
-  console.log(`${result.__score.toFixed(3)}  ${result.title}`)
+  console.log(`${result.score.toFixed(3)}  ${result.title}`)
 }
 ```
 
@@ -613,9 +613,9 @@ export async function searchHandler(req: Request): Promise<Response> {
 
   return Response.json({
     results: results.data.map((r) => ({
-      id: r.__id,
+      id: r.id,
       title: r.title,
-      score: r.__score,
+      score: r.score,
       category: r.category
     })),
     total: results.total

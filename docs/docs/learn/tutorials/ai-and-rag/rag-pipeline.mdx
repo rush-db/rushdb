@@ -234,7 +234,7 @@ result = db.records.vector_search({
 context_chunks = [r["text"] for r in result["data"]]
 print(f"Retrieved {len(context_chunks)} chunks for: {query!r}")
 for i, r in enumerate(result["data"]):
-    print(f"\n[{i+1}] (score {r.get('__score', 0):.3f})")
+    print(f"\n[{i+1}] (score {r.score or 0:.3f})")
     print(r["text"][:200] + "…")
 ```
 
@@ -253,7 +253,7 @@ const { data: chunks } = await db.records.vectorSearch({
 
 console.log(`Retrieved ${chunks.length} chunks for: "${query}"`)
 chunks.forEach((chunk, i) => {
-  console.log(`\n[${i + 1}] score: ${chunk.__score.toFixed(3)}`)
+  console.log(`\n[${i + 1}] score: ${chunk.score.toFixed(3)}`)
   console.log(chunk.text.slice(0, 200) + '…')
 })
 ```

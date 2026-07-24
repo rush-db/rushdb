@@ -132,7 +132,7 @@ records_response = db.records.find({"where": {"__label": "Article"}})
 items = []
 for record in records_response.data:
     vector = my_embedder.embed(record["body"])
-    items.append({"recordId": record["__id"], "vector": vector})
+    items.append({"recordId": record.id, "vector": vector})
 
 db.ai.indexes.upsert_vectors(ext_index_id, {"items": items})
 ```
@@ -150,7 +150,7 @@ const { data: records } = await db.records.find({
 const myEmbedder = new MyEmbeddingModel()
 const items = await Promise.all(
   records.map(async (record) => ({
-    recordId: record.__id,
+    recordId: record.id,
     vector: await myEmbedder.embed(record.body)
   }))
 )
@@ -398,7 +398,7 @@ response = db.records.vector_search({
 })
 
 print(response.data[0].get("title"))    # "Alpha"
-print(response.data[0].get("__score")) # ~1.0
+print(response.data[0].score) # ~1.0
 ```
 
   </TabItem>
@@ -442,7 +442,7 @@ const { data: results } = await db.records.vectorSearch({
 })
 
 console.log(results[0].data.title) // "Alpha"
-console.log(results[0].data.__score) // ~1.0
+console.log(results[0].score) // ~1.0
 ```
 
   </TabItem>
@@ -475,10 +475,12 @@ curl -X POST https://api.rushdb.com/api/v1/ai/search \
 
 ## Batch Import with createMany
 
-For bulk seeding with flat rows, use `createMany` / `create_many` with the top-level indexed `vectors` parameter:
+For bulk seeding with flat rows, use `createMany` / `create_many` with the top-level indexed `vectors` parameter. You can pass either a flat list of vector entries (one per row, auto-wrapped) or the explicit nested list of lists:
 
 <Tabs groupId="programming-language">
   <TabItem value="python" label="Python" default>
+
+**Nested form** (explicit per-row lists):
 
 ```python
 db.records.create_many(
@@ -496,8 +498,28 @@ db.records.create_many(
 )
 ```
 
+**Flat form** (one entry per row, auto-wrapped):
+
+```python
+db.records.create_many(
+    label="Doc",
+    data=[
+        {"title": "Alpha", "content": "First article"},
+        {"title": "Beta",  "content": "Second article"},
+        {"title": "Gamma", "content": "Third article"},
+    ],
+    vectors=[
+        {"propertyName": "content", "vector": [1, 0, 0]},  # row 0
+        {"propertyName": "content", "vector": [0, 1, 0]},  # row 1
+        {"propertyName": "content", "vector": [0, 0, 1]},  # row 2
+    ],
+)
+```
+
   </TabItem>
   <TabItem value="typescript" label="TypeScript">
+
+**Nested form** (explicit per-row lists):
 
 ```typescript
 await db.records.createMany({
@@ -511,6 +533,24 @@ await db.records.createMany({
     [{ propertyName: 'content', vector: [1, 0, 0] }],
     [{ propertyName: 'content', vector: [0, 1, 0] }],
     [{ propertyName: 'content', vector: [0, 0, 1] }]
+  ]
+})
+```
+
+**Flat form** (one entry per row, auto-wrapped):
+
+```typescript
+await db.records.createMany({
+  label: 'Doc',
+  data: [
+    { title: 'Alpha', content: 'First article' },
+    { title: 'Beta', content: 'Second article' },
+    { title: 'Gamma', content: 'Third article' }
+  ],
+  vectors: [
+    { propertyName: 'content', vector: [1, 0, 0] },
+    { propertyName: 'content', vector: [0, 1, 0] },
+    { propertyName: 'content', vector: [0, 0, 1] }
   ]
 })
 ```

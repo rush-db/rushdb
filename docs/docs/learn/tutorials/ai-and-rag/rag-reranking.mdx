@@ -220,13 +220,14 @@ async function hybridSearch(query, topK = 5) {
     })
   ])
 
-  const bodyIds = bodyHits.map((h) => h.__id)
-  const titleIds = titleHits.map((h) => h.__id)
+  const bodyIds = bodyHits.data.map((h) => h.id)
+  const titleIds = titleHits.data.map((h) => h.id)
 
   const mergedIds = rrfMerge([bodyIds, titleIds]).slice(0, topK)
 
   // Hydrate with original records (preserve all fields)
-  const recordMap = Object.fromEntries([...bodyHits, ...titleHits].map((h) => [h.__id, h]))
+  const allHits = [...bodyHits.data, ...titleHits.data]
+  const recordMap = Object.fromEntries(allHits.map((h) => [h.id, h]))
   return mergedIds.map((id) => recordMap[id]).filter(Boolean)
 }
 
@@ -261,12 +262,12 @@ def hybrid_search(db, query: str, top_k: int = 5) -> list:
         body_hits  = body_future.result()
         title_hits = title_future.result()
 
-    body_ids  = [h.__id for h in body_hits]
-    title_ids = [h.__id for h in title_hits]
+    body_ids  = [h.id for h in body_hits]
+    title_ids = [h.id for h in title_hits]
 
     merged_ids = rrf_merge([body_ids, title_ids])[:top_k]
 
-    record_map = {h.__id: h for h in [*body_hits, *title_hits]}
+    record_map = {h.id: h for h in [*body_hits, *title_hits]}
     return [record_map[id_] for id_ in merged_ids if id_ in record_map]
 ```
 
@@ -302,13 +303,13 @@ async function precisionPipeline(query, finalTopK = 5) {
   })
 
   // Stage 2: RRF merge
-  const semanticIds = semanticHits.map((h) => h.__id)
-  const keywordIds = (keywordHits.data ?? []).map((h) => h.__id)
+  const semanticIds = semanticHits.data.map((h) => h.id)
+  const keywordIds = (keywordHits.data ?? []).map((h) => h.id)
   const mergedIds = rrfMerge([semanticIds, keywordIds]).slice(0, 25)
 
   // Hydrate merged
-  const allRecords = [...semanticHits, ...(keywordHits.data ?? [])]
-  const recordMap = Object.fromEntries(allRecords.map((r) => [r.__id, r]))
+  const allRecords = [...semanticHits.data, ...(keywordHits.data ?? [])]
+  const recordMap = Object.fromEntries(allRecords.map((r) => [r.id, r]))
   const merged = mergedIds.map((id) => recordMap[id]).filter(Boolean)
 
   // Stage 3: LLM rerank
@@ -339,12 +340,12 @@ def precision_pipeline(db, openai_client, query: str, final_top_k: int = 5) -> l
     keyword_hits = keyword_result.data if keyword_result else []
 
     # Stage 2: RRF merge
-    semantic_ids = [h.__id for h in semantic_hits]
-    keyword_ids  = [h.__id for h in keyword_hits]
+    semantic_ids = [h.id for h in semantic_hits]
+    keyword_ids  = [h.id for h in keyword_hits]
     merged_ids   = rrf_merge([semantic_ids, keyword_ids])[:25]
 
     all_records = [*semantic_hits, *keyword_hits]
-    record_map  = {r.__id: r for r in all_records}
+    record_map  = {r.id: r for r in all_records}
     merged      = [record_map[id_] for id_ in merged_ids if id_ in record_map]
 
     # Stage 3: LLM rerank
@@ -391,7 +392,7 @@ async function cachedRerank(query, candidates, topK = 5) {
     query +
     '|' +
     candidates
-      .map((c) => c.__id)
+      .map((c) => c.id)
       .sort()
       .join(',')
 
@@ -415,7 +416,7 @@ import hashlib, json
 _rerank_cache: dict[str, list] = {}
 
 def cached_rerank(query: str, candidates: list, top_k: int = 5) -> list:
-    ids_key = ','.join(sorted(c.__id for c in candidates))
+    ids_key = ','.join(sorted(c.id for c in candidates))
     cache_key = hashlib.md5(f'{query}|{ids_key}'.encode()).hexdigest()
 
     if cache_key in _rerank_cache:

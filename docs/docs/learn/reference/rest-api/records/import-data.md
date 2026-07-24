@@ -48,7 +48,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/import/json \
 
 | Option                          | Default                         | Description                                                                                                                                                         |
 | ------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `suggestTypes`                  | `true`                          | Infer property types automatically                                                                                                                                  |
+| `suggestTypes`                  | `true`                          | Infer property types automatically. Both ISO 8601 (`2026-07-23T12:00:00Z`) and date-only (`2026-07-23`) strings are detected as `datetime`.                         |
 | `convertNumericValuesToNumbers` | `false`                         | Convert string numbers to number type                                                                                                                               |
 | `capitalizeLabels`              | `false`                         | Uppercase all inferred label names                                                                                                                                  |
 | `skipEmptyValues`               | `false`                         | Treat empty strings (`""`) and empty arrays (`[]`) as unset — no property is created. `0` and `false` are kept.                                                     |

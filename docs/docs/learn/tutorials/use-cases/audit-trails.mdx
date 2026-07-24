@@ -59,7 +59,7 @@ async function createOrderWithAudit(orderData: Record<string, unknown>, actorId:
         data: {
           type: 'created',
           actorId,
-          entityId: order.__id,
+          entityId: order.id,
           occurredAt: new Date().toISOString(),
           snapshot: JSON.stringify(orderData)
         }
@@ -180,7 +180,7 @@ async function changeStatus(orderId: string, newStatus: string, actorId: string,
   // Read current state first (outside transaction — read-then-write pattern)
   const current = await db.records.find({
     labels: ['ORDER'],
-    where: { __id: orderId }
+    where: { $id: orderId }
   })
   const prevStatus = current.data[0]?.status
 
@@ -220,7 +220,7 @@ async function changeStatus(orderId: string, newStatus: string, actorId: string,
   }
 }
 
-await changeStatus(order.__id, 'shipped', 'service-fulfillment', 'Dispatched from warehouse')
+await changeStatus(order.id, 'shipped', 'service-fulfillment', 'Dispatched from warehouse')
 ```
 
 </TabItem>
@@ -228,7 +228,7 @@ await changeStatus(order.__id, 'shipped', 'service-fulfillment', 'Dispatched fro
 
 ```python
 def change_status(order_id: str, new_status: str, actor_id: str, reason: str | None = None):
-    current = db.records.find({"labels": ["ORDER"], "where": {"__id": order_id}})
+    current = db.records.find({"labels": ["ORDER"], "where": {"$id": order_id}})
     prev_status = current.data[0].get("status") if current.data else None
 
     tx = db.tx.begin()
@@ -307,7 +307,7 @@ const history = await db.records.find({
   where: {
     ORDER: {
       $relation: { type: 'HAS_EVENT', direction: 'in' },
-      __id: order.__id
+      $id: order.id
     }
   },
   orderBy: { occurredAt: 'asc' }
@@ -330,7 +330,7 @@ history = db.records.find({
     "where": {
         "ORDER": {
             "$relation": {"type": "HAS_EVENT", "direction": "in"},
-            "__id": order.id
+            "$id": order.id
         }
     },
     "orderBy": {"occurredAt": "asc"}
@@ -353,7 +353,7 @@ curl -s -X POST "$BASE/records/search" \
     \"where\": {
       \"ORDER\": {
         \"\$relation\": {\"type\": \"HAS_EVENT\", \"direction\": \"in\"},
-        \"__id\": \"$ORDER_ID\"
+        \"$id\": \"$ORDER_ID\"
       }
     },
     \"orderBy\": {\"occurredAt\": \"asc\"}

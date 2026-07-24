@@ -466,7 +466,7 @@ await Promise.all([
   db.records.attach({ source: user, target: newPlanFact, options: { type: 'HAS_FACT' } }),
   db.records.attach({ source: upgradeEpisode, target: newPlanFact, options: { type: 'LED_TO' } }),
   // Mark old fact as superseded (optional but enables temporal queries)
-  db.records.update(planFact.__id, { supersededAt: new Date().toISOString() })
+  db.records.update(planFact.id, { supersededAt: new Date().toISOString() })
 ])
 ```
 

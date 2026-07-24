@@ -105,7 +105,7 @@ const hits = await db.records.vectorSearch({
   limit: 10
 })
 
-hits.forEach((h) => console.log(h.__id, h.__score?.toFixed(3), h.text.slice(0, 80)))
+hits.data.forEach((h) => console.log(h.id, h.score?.toFixed(3), h.text.slice(0, 80)))
 // Manually note which IDs are relevant → add to evalDataset
 ```
 
@@ -126,7 +126,7 @@ hits = db.records.vector_search({
 })
 
 for h in hits:
-    print(h.__id, f'{h.__score:.3f}', h.text[:80])
+    print(h.id, f'{h.score:.3f}', h.text[:80])
 # Manually note which IDs are relevant → add to EVAL_DATASET
 ```
 
@@ -216,7 +216,7 @@ async function evaluate() {
       limit: K
     })
 
-    const retrievedIds = hits.map((h) => h.__id)
+    const retrievedIds = hits.data.map((h) => h.id)
     precisions.push(precisionAtK(retrievedIds, expectedIds, K))
     recalls.push(recallAtK(retrievedIds, expectedIds, K))
   }
@@ -267,7 +267,7 @@ def evaluate():
             'propertyName': 'text',
             'limit': K,
         })
-        retrieved_ids = [h.__id for h in hits]
+        retrieved_ids = [h.id for h in hits]
         precisions.append(precision_at_k(retrieved_ids, item['expected_ids'], K))
         recalls.append(recall_at_k(retrieved_ids, item['expected_ids'], K))
 
@@ -320,7 +320,7 @@ async function captureScoreSnapshot(db, queries) {
       propertyName: 'text',
       limit: 5
     })
-    snapshot[query] = hits.map((h) => ({ id: h.__id, score: h.__score }))
+    snapshot[query] = hits.data.map((h) => ({ id: h.id, score: h.score }))
   }
   fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify(snapshot, null, 2))
   console.log('Score snapshot saved.')
@@ -365,7 +365,7 @@ def capture_score_snapshot(db, queries: list[str]) -> dict:
             'propertyName': 'text',
             'limit': 5,
         })
-        snapshot[query] = [{'id': h.__id, 'score': h.__score} for h in hits]
+        snapshot[query] = [{'id': h.id, 'score': h.score} for h in hits]
 
     with open(SNAPSHOT_FILE, 'w') as f:
         json.dump(snapshot, f, indent=2)

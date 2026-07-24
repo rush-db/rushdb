@@ -60,7 +60,7 @@ async function startSession(taskDescription: string, agentId: string) {
 }
 
 const goal = await startSession('Research RushDB graph query patterns and summarize the top 5', 'agent-001')
-console.log('Session goal ID:', goal.__id)
+console.log('Session goal ID:', goal.id)
 ```
 
 </TabItem>
@@ -143,7 +143,7 @@ async function recordStep(goalId: string, stepType: string, action: string, inde
   // Fetch the goal record and link
   const goalResult = await db.records.find({
     labels: ['GOAL'],
-    where: { __id: goalId }
+    where: { $id: goalId }
   })
 
   await db.records.attach({
@@ -155,7 +155,7 @@ async function recordStep(goalId: string, stepType: string, action: string, inde
   return step
 }
 
-const step1 = await recordStep(goal.__id, 'tool_call', 'Search documentation: graph traversal patterns', 1)
+const step1 = await recordStep(goal.id, 'tool_call', 'Search documentation: graph traversal patterns', 1)
 ```
 
 </TabItem>
@@ -171,7 +171,7 @@ def record_step(goal_id: str, step_type: str, action: str, index: int):
         "startedAt": datetime.now(timezone.utc).isoformat()
     })
 
-    goal_result = db.records.find({"labels": ["GOAL"], "where": {"__id": goal_id}})
+    goal_result = db.records.find({"labels": ["GOAL"], "where": {"$id": goal_id}})
     db.records.attach(
         goal_result.data[0].id,
         step.id,
@@ -232,7 +232,7 @@ async function recordObservation(stepId: string, content: string, observationTyp
 
   const stepResult = await db.records.find({
     labels: ['STEP'],
-    where: { __id: stepId }
+    where: { $id: stepId }
   })
 
   await db.records.attach({
@@ -248,7 +248,7 @@ async function recordObservation(stepId: string, content: string, observationTyp
 }
 
 const obs1 = await recordObservation(
-  step1.__id,
+  step1.id,
   'Found 3 relevant tutorials: thinking-in-graphs, modeling-hierarchies, temporal-graphs',
   'search_result'
 )
@@ -265,7 +265,7 @@ def record_observation(step_id: str, content: str, obs_type: str):
         "recordedAt": datetime.now(timezone.utc).isoformat()
     })
 
-    step_result = db.records.find({"labels": ["STEP"], "where": {"__id": step_id}})
+    step_result = db.records.find({"labels": ["STEP"], "where": {"$id": step_id}})
     db.records.attach(
         step_result.data[0].id,
         obs.id,
@@ -325,7 +325,7 @@ async function resumeSession(goalId: string) {
   // Get the goal
   const goalResult = await db.records.find({
     labels: ['GOAL'],
-    where: { __id: goalId }
+    where: { $id: goalId }
   })
   const goal = goalResult.data[0]
 
@@ -335,7 +335,7 @@ async function resumeSession(goalId: string) {
     where: {
       GOAL: {
         $relation: { type: 'HAS_STEP', direction: 'in' },
-        __id: goalId
+        $id: goalId
       }
     },
     orderBy: { index: 'asc' }
@@ -349,7 +349,7 @@ async function resumeSession(goalId: string) {
         $relation: { type: 'PRODUCED', direction: 'in' },
         GOAL: {
           $relation: { type: 'HAS_STEP', direction: 'in' },
-          __id: goalId
+          $id: goalId
         }
       }
     }
@@ -363,7 +363,7 @@ async function resumeSession(goalId: string) {
   }
 }
 
-const context = await resumeSession(goal.__id)
+const context = await resumeSession(goal.id)
 console.log('Resumed context:', context)
 ```
 
@@ -372,7 +372,7 @@ console.log('Resumed context:', context)
 
 ```python
 def resume_session(goal_id: str) -> dict:
-    goal_result = db.records.find({"labels": ["GOAL"], "where": {"__id": goal_id}})
+    goal_result = db.records.find({"labels": ["GOAL"], "where": {"$id": goal_id}})
     goal_rec = goal_result.data[0]
 
     steps = db.records.find({
@@ -380,7 +380,7 @@ def resume_session(goal_id: str) -> dict:
         "where": {
             "GOAL": {
                 "$relation": {"type": "HAS_STEP", "direction": "in"},
-                "__id": goal_id
+                "$id": goal_id
             }
         },
         "orderBy": {"index": "asc"}
@@ -393,7 +393,7 @@ def resume_session(goal_id: str) -> dict:
                 "$relation": {"type": "PRODUCED", "direction": "in"},
                 "GOAL": {
                     "$relation": {"type": "HAS_STEP", "direction": "in"},
-                    "__id": goal_id
+                    "$id": goal_id
                 }
             }
         }
@@ -424,7 +424,7 @@ curl -s -X POST "$BASE/records/search" \
     \"where\": {
       \"GOAL\": {
         \"\$relation\": {\"type\": \"HAS_STEP\", \"direction\": \"in\"},
-        \"__id\": \"$GOAL_ID\"
+        \"$id\": \"$GOAL_ID\"
       }
     },
     \"orderBy\": {\"index\": \"asc\"}
@@ -444,7 +444,7 @@ When the task finishes, update the GOAL record with its outcome.
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-await db.records.update(goal.__id, {
+await db.records.update(goal.id, {
   status: 'completed',
   completedAt: new Date().toISOString(),
   summary: 'Identified 5 top query patterns: traversal, aggregation, temporal, hierarchical, semantic'

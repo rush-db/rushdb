@@ -141,7 +141,7 @@ const tx = await db.tx.begin()
 
 try {
   // Mark old state as no longer current
-  await db.records.update(state1.__id, { isCurrent: false }, tx)
+  await db.records.update(state1.id, { isCurrent: false }, tx)
 
   // Create new state node
   const state2 = await db.records.create(

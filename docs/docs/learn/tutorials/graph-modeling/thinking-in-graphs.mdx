@@ -383,7 +383,7 @@ const orderedIds = orderedResults.data.map((r: any) => r.id)
 const unorderedHighRated = await db.records.find({
   labels: ['PRODUCT'],
   where: {
-    __id: { $nin: orderedIds },
+    $id: { $nin: orderedIds },
     REVIEW: {
       $relation: { type: 'ABOUT', direction: 'in' },
       rating: 5
@@ -410,7 +410,7 @@ ordered_ids = [r["id"] for r in ordered.data]
 unordered_high = db.records.find({
     "labels": ["PRODUCT"],
     "where": {
-        "__id": {"$nin": ordered_ids},
+        "$id": {"$nin": ordered_ids},
         "REVIEW": {
             "$relation": {"type": "ABOUT", "direction": "in"},
             "rating": 5
@@ -435,7 +435,7 @@ curl -s -X POST "$BASE/records/search" \
   -d "{
     \"labels\": [\"PRODUCT\"],
     \"where\": {
-      \"__id\": {\"\$nin\": $ORDERED_IDS},
+      \"$id\": {\"\$nin\": $ORDERED_IDS},
       \"REVIEW\": {
         \"\$relation\": {\"type\": \"ABOUT\", \"direction\": \"in\"},
         \"rating\": 5

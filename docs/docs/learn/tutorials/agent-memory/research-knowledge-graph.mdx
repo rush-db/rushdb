@@ -386,7 +386,7 @@ AUTHOR_ID=$(curl -s -X POST "$BASE/records/search" \
 
 curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
-  -d "{\"labels\":[\"PAPER\"],\"where\":{\"AUTHOR\":{\"\$relation\":{\"type\":\"AUTHORED_BY\",\"direction\":\"out\"},\"__id\":\"$AUTHOR_ID\"}},\"orderBy\":{\"year\":\"desc\"}}"
+  -d "{\"labels\":[\"PAPER\"],\"where\":{\"AUTHOR\":{\"\$relation\":{\"type\":\"AUTHORED_BY\",\"direction\":\"out\"},\"$id\":\"$AUTHOR_ID\"}},\"orderBy\":{\"year\":\"desc\"}}"
 ```
 
 </TabItem>
@@ -426,7 +426,7 @@ const results = await db.records.vectorSearch({
 })
 
 for (const paper of results.data) {
-  console.log(`[${paper.year}] ${paper.title} — score: ${paper.__score.toFixed(3)}`)
+  console.log(`[${paper.year}] ${paper.title} — score: ${paper.score.toFixed(3)}`)
 }
 ```
 

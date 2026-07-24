@@ -46,14 +46,14 @@ const doc = await db.records.create({
 })
 
 // Update in place — history is overwritten
-await db.records.update(doc.__id, {
+await db.records.update(doc.id, {
   body: 'Revised content with better examples.',
   version: 2,
   updatedAt: new Date().toISOString()
 })
 
 // Full replace — use set() for PUT semantics
-await db.records.set(doc.__id, {
+await db.records.set(doc.id, {
   title: 'System Design Guide v2',
   body: 'Complete rewrite.',
   version: 3,
@@ -179,7 +179,7 @@ async function addVersion(docId: string, newBody: string, authorId: string) {
     where: {
       DOCUMENT: {
         $relation: { type: 'CURRENT_VERSION', direction: 'in' },
-        __id: docId
+        $id: docId
       },
       isCurrent: true
     }
@@ -189,10 +189,10 @@ async function addVersion(docId: string, newBody: string, authorId: string) {
   const tx = await db.tx.begin()
   try {
     // Demote old current
-    await db.records.update(current.__id, { isCurrent: false }, tx)
+    await db.records.update(current.id, { isCurrent: false }, tx)
 
     // Create new version
-    const docResult = await db.records.find({ labels: ['DOCUMENT'], where: { __id: docId } })
+    const docResult = await db.records.find({ labels: ['DOCUMENT'], where: { $id: docId } })
     const newVersion = await db.records.create(
       {
         label: 'VERSION',
@@ -241,7 +241,7 @@ async function addVersion(docId: string, newBody: string, authorId: string) {
 
 const { doc } = await createDocumentWithVersion('Architecture Overview', 'First draft.', 'user-5')
 
-const v2 = await addVersion(doc.__id, 'Improved with diagrams.', 'user-5')
+const v2 = await addVersion(doc.id, 'Improved with diagrams.', 'user-5')
 ```
 
 </TabItem>
@@ -273,7 +273,7 @@ def add_version(doc_id: str, new_body: str, author_id: str):
         "where": {
             "DOCUMENT": {
                 "$relation": {"type": "CURRENT_VERSION", "direction": "in"},
-                "__id": doc_id
+                "$id": doc_id
             },
             "isCurrent": True
         }
@@ -291,7 +291,7 @@ def add_version(doc_id: str, new_body: str, author_id: str):
             "isCurrent": True
         }, transaction=tx)
 
-        doc_result = db.records.find({"labels": ["DOCUMENT"], "where": {"__id": doc_id}})
+        doc_result = db.records.find({"labels": ["DOCUMENT"], "where": {"$id": doc_id}})
         db.records.detach(doc_result.data[0].id, current.id, {"type": "CURRENT_VERSION"}, transaction=tx)
         db.records.attach(doc_result.data[0].id, new_version.id, {"type": "CURRENT_VERSION", "direction": "out"}, transaction=tx)
         db.records.attach(new_version.id, current.id, {"type": "SUPERSEDED_BY", "direction": "out"}, transaction=tx)
@@ -315,7 +315,7 @@ curl -s -X POST "$BASE/records/search" \
     \"where\": {
       \"DOCUMENT\": {
         \"\$relation\": {\"type\": \"CURRENT_VERSION\", \"direction\": \"in\"},
-        \"__id\": \"$DOC_ID\"
+        \"$id\": \"$DOC_ID\"
       },
       \"isCurrent\": true
     }
@@ -329,7 +329,7 @@ curl -s -X POST "$BASE/records/search" \
     \"where\": {
       \"DOCUMENT\": {
         \"\$relation\": {\"type\": \"CURRENT_VERSION\", \"direction\": \"in\"},
-        \"__id\": \"$DOC_ID\"
+        \"$id\": \"$DOC_ID\"
       }
     },
     \"orderBy\": {\"versionNumber\": \"desc\"}

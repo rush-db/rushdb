@@ -62,7 +62,7 @@ const { data: record } = await db.records.create({
   vectors: [{ propertyName: 'body', vector: myEmbed('Attention is all you need ...') }]
 })
 
-console.log(record.__id) // record created AND vector written atomically
+console.log(record.id) // record created AND vector written atomically
 ```
 
   </TabItem>
@@ -116,7 +116,7 @@ r2 = db.records.upsert(
     options={"mergeBy": ["slug"], "mergeStrategy": "append"},
     vectors=[{"propertyName": "body", "vector": v2}],
 )
-# r1.__id == r2.__id
+# r1.id == r2.id
 ```
 
   </TabItem>
@@ -139,7 +139,7 @@ const { data: r2 } = await db.records.upsert({
   vectors: [{ propertyName: 'body', vector: v2 }]
 })
 
-console.log(r1.__id === r2.__id) // true — same record
+console.log(r1.id === r2.id) // true — same record
 ```
 
   </TabItem>
@@ -188,7 +188,7 @@ db.records.set(
 `db.records.set()`
 
 ```typescript
-await db.records.set(rec.__id, {
+await db.records.set(rec.id, {
   data: { name: 'Widget Pro', price: 19.99 },
   vectors: [{ propertyName: 'description', vector: newVec }]
 })
@@ -219,6 +219,8 @@ curl -X PUT https://api.rushdb.com/api/v1/records/rec_abc123 \
 
 `createMany` / `create_many` accepts a top-level `vectors` array **indexed by row position** — each entry is a list of vector entries for that row.
 
+For the common case of one vector per record, you can pass a flat `VectorEntry[]` instead of the nested `VectorEntry[][]` — the SDK auto-wraps it into per-row entries.
+
 <Tabs groupId="programming-language">
   <TabItem value="python" label="Python" default>
 
@@ -247,6 +249,16 @@ db.records.create_many(
     label="Product",
     data=[{"name": "Alpha"}, {"name": "Beta"}, {"name": "Gamma"}],
     vectors=[[{"propertyName": "description", "vector": my_vec}]],  # only row 0
+)
+```
+
+**Flat form** — one vector per record, auto-wraps to per-row entries:
+
+```python
+db.records.create_many(
+    label="Product",
+    data=[{"name": "Alpha"}, {"name": "Beta"}],
+    vectors=[{"propertyName": "description", "vector": [1, 0, 0]}],  # flat list
 )
 ```
 
@@ -287,6 +299,20 @@ The SDK throws synchronously if `vectors.length > data.length`:
 
 ```
 Error: vectors length (3) exceeds the number of data rows (2)
+```
+
+**Flat form** — one vector per record, auto-wraps to per-row entries:
+
+```typescript
+await db.records.createMany({
+  label: 'Product',
+  data: [
+    { name: 'Alpha', description: 'First product' },
+    { name: 'Beta', description: 'Second product' }
+  ],
+  vectors: [{ propertyName: 'description', vector: [1, 0, 0] }], // flat list
+  options: { returnResult: true }
+})
 ```
 
   </TabItem>

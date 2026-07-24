@@ -283,7 +283,7 @@ async function graphRagRetrieve(userQuery: string, k = 5): Promise<ChunkWithCont
           where: {
             CHUNK: {
               $relation: { type: 'HAS_CHUNK', direction: 'out' },
-              __id: chunk.__id
+              $id: chunk.id
             }
           }
         }),
@@ -292,7 +292,7 @@ async function graphRagRetrieve(userQuery: string, k = 5): Promise<ChunkWithCont
           where: {
             CHUNK: {
               $relation: { type: 'COVERS', direction: 'out' },
-              __id: chunk.__id
+              $id: chunk.id
             }
           }
         })
@@ -306,7 +306,7 @@ async function graphRagRetrieve(userQuery: string, k = 5): Promise<ChunkWithCont
             where: {
               SOURCE: {
                 $relation: { type: 'AUTHORED', direction: 'out' },
-                __id: source.__id
+                $id: source.id
               }
             }
           })
@@ -317,7 +317,7 @@ async function graphRagRetrieve(userQuery: string, k = 5): Promise<ChunkWithCont
         source: (source?.filename as string) ?? 'unknown',
         author: (authorResult.data[0]?.name as string) ?? null,
         topics: topicResult.data.map((t) => t.name as string),
-        score: chunk.__score as number
+        score: chunk.score as number
       }
     })
   )
@@ -370,11 +370,11 @@ def graph_rag_retrieve(user_query: str, k: int = 5) -> list[dict]:
 
         source_result = db.records.find({
             'labels': ['SOURCE'],
-            'where': {'CHUNK': {'$relation': {'type': 'HAS_CHUNK', 'direction': 'out'}, '__id': chunk_id}}
+            'where': {'CHUNK': {'$relation': {'type': 'HAS_CHUNK', 'direction': 'out'}, '$id': chunk_id}}
         })
         topic_result = db.records.find({
             'labels': ['TOPIC'],
-            'where': {'CHUNK': {'$relation': {'type': 'COVERS', 'direction': 'out'}, '__id': chunk_id}}
+            'where': {'CHUNK': {'$relation': {'type': 'COVERS', 'direction': 'out'}, '$id': chunk_id}}
         })
 
         source = source_result.data[0] if source_result.data else None
@@ -382,7 +382,7 @@ def graph_rag_retrieve(user_query: str, k: int = 5) -> list[dict]:
         if source:
             author_result = db.records.find({
                 'labels': ['AUTHOR'],
-                'where': {'SOURCE': {'$relation': {'type': 'AUTHORED', 'direction': 'out'}, '__id': source.id}}
+                'where': {'SOURCE': {'$relation': {'type': 'AUTHORED', 'direction': 'out'}, '$id': source.id}}
             })
             author_name = author_result.data[0].get('name') if author_result.data else None
 

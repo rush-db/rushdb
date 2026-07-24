@@ -32,7 +32,7 @@ response = db.records.vector_search({
 })
 
 for result in response.data:
-    print(f"[{result.get('__score'):.3f}] {result.get('title')}")
+    print(f"[{result.score:.3f}] {result.get('title')}")
 ```
 
   </TabItem>
@@ -47,7 +47,7 @@ const { data: results } = await db.records.vectorSearch({
 })
 
 results.forEach((r) => {
-  console.log(`[${r.data.__score!.toFixed(4)}] ${r.data.title}`)
+  console.log(`[${r.score!.toFixed(4)}] ${r.data.title}`)
 })
 ```
 
@@ -209,7 +209,7 @@ response = db.records.vector_search({
 })
 
 for result in response.data:
-    print(result.get("__label"), f"{result.get('__score'):.3f}", result.get("title") or result.get("text"))
+    print(result.get("__label"), f"{result.score:.3f}", result.get("title") or result.get("text"))
 ```
 
   </TabItem>
@@ -223,7 +223,7 @@ const { data: results } = await db.records.vectorSearch({
   limit: 10
 })
 
-results.forEach((r) => console.log(r.data.__label, r.data.__score, r.data.title ?? r.data.text))
+results.forEach((r) => console.log(r.data.__label, r.score, r.data.title ?? r.data.text))
 ```
 
   </TabItem>
@@ -267,7 +267,7 @@ Results are ordered by `__score` descending — closest match first.
 for result in response.data:
     result.id                  # "rec_abc123"  — RushDB record ID
     result.get("__label")      # "Product"     — record label
-    result.get("__score")      # 0.9214        — similarity score 0–1 (higher = more similar)
+    result.score      # 0.9214        — similarity score 0–1 (higher = more similar)
     result.get("name")         # your fields via .get()
     result["price"]            # or via [] — raises KeyError if missing
 ```
@@ -289,11 +289,12 @@ for result in response.data:
 // }
 
 results.forEach((r) => {
-  r.data.__id // "rec_abc123"  — RushDB record ID
+  r.data.id // "rec_abc123"  — RushDB record ID
   r.data.__label // "Product"     — record label
-  r.data.__score // 0.9214        — similarity score 0–1 (higher = more similar)
+  r.data.score // 0.9214        — similarity score 0–1 (higher = more similar)
   r.data.name // your properties directly on r.data
   r.data.price
+  r.score // same as r.data.score — convenience getter
 })
 ```
 

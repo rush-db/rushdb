@@ -278,12 +278,20 @@ RushDB provides specialized operators for filtering records based on datetime va
 
 #### ISO 8601 string
 
-You can match datetime values using ISO 8601 formatted strings:
+You can match datetime values using ISO 8601 formatted strings or date-only `YYYY-MM-DD` strings:
 
 ```typescript
 {
   where: {
-    created: '2023-01-01T00:00:00Z' // Exact datetime match
+    created: '2023-01-01T00:00:00Z' // Full datetime match
+  }
+}
+```
+
+```typescript
+{
+  where: {
+    created: '2023-01-01' // Date-only match (midnight UTC)
   }
 }
 ```

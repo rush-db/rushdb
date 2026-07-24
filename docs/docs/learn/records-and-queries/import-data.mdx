@@ -39,7 +39,7 @@ graph LR
 ### The ingestion pipeline
 
 1. **Parse** — BFS walk. Each nested object becomes a separate record.
-2. **Type inference** — Every value is classified as `string`, `number`, `boolean`, or `datetime`. A `null` value (or an all-`null` array) is treated as unset and is not stored.
+2. **Type inference** — Every value is classified as `string`, `number`, `boolean`, or `datetime`. Both ISO 8601 strings (`2026-07-23T12:00:00Z`) and date-only strings (`2026-07-23`) are inferred as `datetime`. A `null` value (or an all-`null` array) is treated as unset and is not stored.
 3. **Label assignment** — Top-level arrays and object records use the label you provide. Container objects can omit `label` when each top-level value is an object or an array of nested records; each top-level key becomes the label for its nested records. Nested objects derive their label from the parent key name (e.g., key `"engine"` → label `Engine`).
 4. **Relationship creation** — Parent → child records are linked with default relationships (`__RUSHDB__RELATION__DEFAULT__`).
 

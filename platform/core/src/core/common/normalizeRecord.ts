@@ -1,7 +1,7 @@
 import { uuidv7 } from 'uuidv7'
 
 import { isArray } from '@/common/utils/isArray'
-import { ISO_8601_REGEX } from '@/core/common/constants'
+import { DATE_ONLY_REGEX, ISO_8601_REGEX } from '@/core/common/constants'
 import { CreateEntityDtoSimple } from '@/core/entity/dto/create-entity.dto'
 import { TImportOptions } from '@/core/entity/import-export/import.types'
 import {
@@ -34,7 +34,9 @@ export const getValueParameters = (value: TPropertyValue) => {
 
 export const suggestPropertyType = (value: TPropertySingleValue): TPropertyType => {
   if (typeof value === PROPERTY_TYPE_STRING) {
-    return ISO_8601_REGEX.test(value as string) ? PROPERTY_TYPE_DATETIME : PROPERTY_TYPE_STRING
+    return ISO_8601_REGEX.test(value as string) || DATE_ONLY_REGEX.test(value as string) ?
+        PROPERTY_TYPE_DATETIME
+      : PROPERTY_TYPE_STRING
   } else if (typeof value === PROPERTY_TYPE_NUMBER) {
     return PROPERTY_TYPE_NUMBER
   } else if (typeof value === PROPERTY_TYPE_BOOLEAN) {

@@ -214,9 +214,19 @@ export class DBRecordInstance<S extends Schema = Schema, Q extends SearchQuery<S
       return idToTimestamp(this.id)
     } catch {
       throw new Error(
-        `DBRecordInstance: Unable to access 'timestamp'. The Record's \`data.__id\` is missing or incorrect.`
+        `DBRecordInstance: Unable to access 'timestamp'. The Record's \`data.__id\` is missing or invalid.`
       )
     }
+  }
+
+  /**
+   * The similarity score from the most recent vector search.
+   * Only present on records returned by `records.vectorSearch()`.
+   * Returns `undefined` for records from regular `find`/`search` queries.
+   * Equivalent to `data.__score`.
+   */
+  get score(): number | undefined {
+    return this.data.__score
   }
 
   /**
