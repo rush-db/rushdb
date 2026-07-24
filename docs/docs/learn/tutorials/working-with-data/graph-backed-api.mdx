@@ -101,12 +101,7 @@ export async function getArticles(req: Request): Promise<Response> {
 
   return Response.json({
     articles: result.data.map((r) => ({
-      id: r.__id,
-      title: r.title,
-      category: r.category,
-      publishedAt: r.publishedAt
-    })),
-    total: result.total,
+      id: r.id,
     page: params.page,
     pageSize: params.pageSize
   })
@@ -207,14 +202,14 @@ export async function getProjectDetail(projectId: string, tenantId: string) {
   const [projectResult, tasksResult, membersResult] = await Promise.all([
     db.records.find({
       labels: ['PROJECT'],
-      where: { __id: projectId, tenantId }
+      where: { $id: projectId, tenantId }
     }),
     db.records.find({
       labels: ['TASK'],
       where: {
         PROJECT: {
           $relation: { type: 'CONTAINS', direction: 'in' },
-          __id: projectId
+          $id: projectId
         },
         status: { $in: ['open', 'in_progress'] }
       },
@@ -226,7 +221,7 @@ export async function getProjectDetail(projectId: string, tenantId: string) {
       where: {
         PROJECT: {
           $relation: { type: 'ASSIGNED_TO', direction: 'out' },
-          __id: projectId
+          $id: projectId
         },
         isActive: true
       }
@@ -238,18 +233,18 @@ export async function getProjectDetail(projectId: string, tenantId: string) {
 
   return {
     project: {
-      id: project.__id,
+      id: project.id,
       name: project.name,
       status: project.status
     },
     openTasks: tasksResult.data.map((t) => ({
-      id: t.__id,
+      id: t.id,
       title: t.title,
       dueDate: t.dueDate,
       status: t.status
     })),
     members: membersResult.data.map((m) => ({
-      id: m.__id,
+      id: m.id,
       name: m.name,
       role: m.role
     }))
@@ -268,7 +263,7 @@ def get_project_detail(project_id: str, tenant_id: str):
     def fetch_project():
         return db.records.find({
             "labels": ["PROJECT"],
-            "where": {"__id": project_id, "tenantId": tenant_id}
+            "where": {"$id": project_id, "tenantId": tenant_id}
         })
 
     def fetch_tasks():
@@ -277,7 +272,7 @@ def get_project_detail(project_id: str, tenant_id: str):
             "where": {
                 "PROJECT": {
                     "$relation": {"type": "CONTAINS", "direction": "in"},
-                    "__id": project_id
+                    "$id": project_id
                 },
                 "status": {"$in": ["open", "in_progress"]}
             },
@@ -291,7 +286,7 @@ def get_project_detail(project_id: str, tenant_id: str):
             "where": {
                 "PROJECT": {
                     "$relation": {"type": "ASSIGNED_TO", "direction": "out"},
-                    "__id": project_id
+                    "$id": project_id
                 },
                 "isActive": True
             }
@@ -326,11 +321,11 @@ TENANT_ID="tenant-42"
 # Run concurrently with background processes
 curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
-  -d "{\"labels\":[\"PROJECT\"],\"where\":{\"__id\":\"$PROJECT_ID\",\"tenantId\":\"$TENANT_ID\"}}" &
+  -d "{\"labels\":[\"PROJECT\"],\"where\":{\"$id\":\"$PROJECT_ID\",\"tenantId\":\"$TENANT_ID\"}}" &
 
 curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
-  -d "{\"labels\":[\"TASK\"],\"where\":{\"PROJECT\":{\"__id\":\"$PROJECT_ID\"},\"status\":{\"\$in\":[\"open\",\"in_progress\"]}},\"limit\":10,\"orderBy\":{\"dueDate\":\"asc\"}}" &
+  -d "{\"labels\":[\"TASK\"],\"where\":{\"PROJECT\":{\"$id\":\"$PROJECT_ID\"},\"status\":{\"\$in\":[\"open\",\"in_progress\"]}},\"limit\":10,\"orderBy\":{\"dueDate\":\"asc\"}}" &
 
 wait
 ```
@@ -351,7 +346,7 @@ Expose KPI endpoints that return counts, sums, and distributions — not raw rec
 // GET /analytics/tasks-by-status?tenantId=...&projectId=...
 export async function getTaskStatusBreakdown(tenantId: string, projectId?: string) {
   const projectFilter =
-    projectId ? { PROJECT: { __id: projectId, $relation: { type: 'CONTAINS', direction: 'in' } } } : {}
+    projectId ? { PROJECT: { $id: projectId, $relation: { type: 'CONTAINS', direction: 'in' } } } : {}
 
   const result = await db.records.find({
     labels: ['TASK'],
@@ -382,7 +377,7 @@ def get_task_status_breakdown(tenant_id: str, project_id: str | None = None):
     where: dict = {"tenantId": tenant_id}
     if project_id:
         where["PROJECT"] = {
-            "__id": project_id,
+            "$id": project_id,
             "$relation": {"type": "CONTAINS", "direction": "in"}
         }
 

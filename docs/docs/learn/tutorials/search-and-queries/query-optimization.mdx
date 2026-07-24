@@ -163,7 +163,7 @@ const orders = await db.records.find({
   }
 })
 
-const orderIds = orders.data.map((o) => o.__id)
+const orderIds = orders.data.map((o) => o.id)
 
 const teams = await db.records.find({
   labels: ['TEAM'],
@@ -172,7 +172,7 @@ const teams = await db.records.find({
       $relation: { type: 'MEMBER_OF', direction: 'in' },
       ORDER: {
         $relation: { type: 'PLACED', direction: 'out' },
-        __id: { $in: orderIds }
+        $id: { $in: orderIds }
       }
     }
   }
@@ -202,7 +202,7 @@ teams = db.records.find({
             "$relation": {"type": "MEMBER_OF", "direction": "in"},
             "ORDER": {
                 "$relation": {"type": "PLACED", "direction": "out"},
-                "__id": {"$in": order_ids}
+                "$id": {"$in": order_ids}
             }
         }
     }

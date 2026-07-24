@@ -45,6 +45,28 @@ data?: DBRecordInferred<S, Q>
 
 The actual record data, which may include computed metric fields if the record was retrieved via a query with select/groupBy. The legacy aggregate clause is deprecated and only present for vector similarity until select supports it.
 
+### score
+
+```typescript
+get score(): number | undefined
+```
+
+Relevance score from a vector/semantic search result. Returns `undefined` for records fetched outside of `records.vectorSearch()`.
+
+**Example:**
+
+```typescript
+const results = await db.records.vectorSearch({
+  labels: ['DOC'],
+  propertyName: 'content',
+  query: 'machine learning',
+  limit: 10
+})
+results.forEach((r) => {
+  console.log(r.score) // e.g. 0.9214; undefined for non-vector results
+})
+```
+
 ## Methods
 
 ### exists()

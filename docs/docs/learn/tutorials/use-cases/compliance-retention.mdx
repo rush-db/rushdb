@@ -160,11 +160,11 @@ async function archiveExpiringRecords(label: string) {
   })
 
   for (const record of expiring.data) {
-    await db.records.update(record.__id, {
+    await db.records.update(record.id, {
       archived: true,
       archivedAt: new Date().toISOString()
     })
-    console.log(`Archived ${record.__id} (expires ${record.expiresAt})`)
+    console.log(`Archived ${record.id} (expires ${record.expiresAt})`)
   }
 
   return expiring.data.length
@@ -253,7 +253,7 @@ async function deleteExpiredRecords(label: string, graceDays = 30) {
     return 0
   }
 
-  const ids = expired.data.map((r) => r.__id)
+  const ids = expired.data.map((r) => r.id)
   await db.records.delete({ ids })
   console.log(`Deleted ${ids.length} expired ${label} records`)
   return ids.length
@@ -347,14 +347,14 @@ async function redactUser(userId: string) {
       where: {
         USER: {
           $relation: { type: 'SUBMITTED', direction: 'in' },
-          __id: userId
+          $id: userId
         }
       }
     })
 
     for (const order of orders.data) {
       const orderNulls = Object.fromEntries(PII_FIELDS_BY_LABEL['ORDER'].map((f) => [f, null]))
-      await db.records.update(order.__id, orderNulls, tx)
+      await db.records.update(order.id, orderNulls, tx)
     }
 
     await db.tx.commit(tx)
@@ -393,7 +393,7 @@ def redact_user(user_id: str):
             "where": {
                 "USER": {
                     "$relation": {"type": "SUBMITTED", "direction": "in"},
-                    "__id": user_id
+                    "$id": user_id
                 }
             }
         })

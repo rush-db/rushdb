@@ -433,7 +433,7 @@ Drop low-confidence results and remove near-duplicate chunks before sending to t
 ```js
 function deduplicateChunks(hits, scoreThreshold = 0.7, similarityThreshold = 0.95) {
   // Drop low-score results
-  const filtered = hits.filter((h) => (h.__score ?? 0) >= scoreThreshold)
+  const filtered = hits.filter((h) => (h.score ?? 0) >= scoreThreshold)
 
   // Remove near-duplicates: skip a chunk if its text is too similar to one already kept
   const kept = []

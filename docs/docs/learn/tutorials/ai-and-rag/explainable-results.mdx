@@ -53,8 +53,7 @@ async function searchWithExplanation(where: Record<string, unknown>) {
   const result = await db.records.find({ labels: ['ARTICLE'], where })
 
   return result.data.map((record) => ({
-    id: record.__id,
-    title: record.title,
+    id: record.id,
     matchedFields: explainMatch(record as Record<string, unknown>, where)
   }))
 }
@@ -129,7 +128,7 @@ async function assembleEvidence(articleId: string): Promise<ExplainedResult['evi
       where: {
         ARTICLE: {
           $relation: { type: 'AUTHORED_BY', direction: 'in' },
-          __id: articleId
+          $id: articleId
         }
       }
     }),
@@ -139,7 +138,7 @@ async function assembleEvidence(articleId: string): Promise<ExplainedResult['evi
       where: {
         ARTICLE: {
           $relation: { type: 'CITES', direction: 'out' },
-          __id: articleId
+          $id: articleId
         }
       }
     }),
@@ -148,7 +147,7 @@ async function assembleEvidence(articleId: string): Promise<ExplainedResult['evi
       where: {
         ARTICLE: {
           $relation: { type: 'COVERS', direction: 'in' },
-          __id: articleId
+          $id: articleId
         }
       }
     })
@@ -175,10 +174,10 @@ async function explainedSemanticSearch(userQuery: string): Promise<ExplainedResu
 
   return Promise.all(
     results.data.map(async (article) => ({
-      id: article.__id,
+      id: article.id,
       title: article.title as string,
-      score: article.__score as number,
-      evidence: await assembleEvidence(article.__id)
+      score: article.score as number,
+      evidence: await assembleEvidence(article.id)
     }))
   )
 }
@@ -194,7 +193,7 @@ def assemble_evidence(article_id: str) -> dict:
     def get_author():
         r = db.records.find({
             "labels": ["AUTHOR"],
-            "where": {"ARTICLE": {"$relation": {"type": "AUTHORED_BY", "direction": "in"}, "__id": article_id}}
+            "where": {"ARTICLE": {"$relation": {"type": "AUTHORED_BY", "direction": "in"}, "$id": article_id}}
         })
         return {"name": r.data[0].data.get("name")} if r.data else None
 
@@ -202,14 +201,14 @@ def assemble_evidence(article_id: str) -> dict:
         r = db.records.find({
             "labels": ["ARTICLE"],
             "select": {"count": {"$count": "*"}},
-            "where": {"ARTICLE": {"$relation": {"type": "CITES", "direction": "out"}, "__id": article_id}}
+            "where": {"ARTICLE": {"$relation": {"type": "CITES", "direction": "out"}, "$id": article_id}}
         })
         return r.data[0].data.get("count", 0) if r.data else 0
 
     def get_topics():
         r = db.records.find({
             "labels": ["TOPIC"],
-            "where": {"ARTICLE": {"$relation": {"type": "COVERS", "direction": "in"}, "__id": article_id}}
+            "where": {"ARTICLE": {"$relation": {"type": "COVERS", "direction": "in"}, "$id": article_id}}
         })
         return [t.data.get("name") for t in r.data]
 
@@ -342,14 +341,14 @@ const authorResult = await db.records.find({
   labels: ['AUTHOR'],
   where: {
     ARTICLE: {
-      __id: article.__id,
+      $id: article.id,
       $relation: { type: 'AUTHORED_BY', direction: 'in' }
     }
   }
 })
 
 console.log(
-  `Result: ${article.title} (score: ${article.__score}) — Author: ${authorResult.data[0]?.name ?? 'unknown'}`
+  `Result: ${article.title} (score: ${article.score}) — Author: ${authorResult.data[0]?.name ?? 'unknown'}`
 )
 ```
 
@@ -372,14 +371,14 @@ author_result = db.records.find({
     "labels": ["AUTHOR"],
     "where": {
         "ARTICLE": {
-            "__id": article.data["__id"],
+            "$id": article.id,
             "$relation": {"type": "AUTHORED_BY", "direction": "in"}
         }
     }
 })
 
 author_name = author_result.data[0].data.get("name", "unknown") if author_result.data else "unknown"
-print(f"Result: {article.data['title']} (score: {article.data['__score']}) — Author: {author_name}")
+print(f"Result: {article.data['title']} (score: {article.score}) — Author: {author_name}")
 ```
 
 </TabItem>
@@ -402,7 +401,7 @@ TITLE=$(echo "$RESULTS" | jq -r '.data[0].title')
 # 2. Fetch author evidence
 AUTHOR=$(curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
-  -d "{\"labels\":[\"AUTHOR\"],\"where\":{\"ARTICLE\":{\"__id\":\"$ARTICLE_ID\",\"\$relation\":{\"type\":\"AUTHORED_BY\",\"direction\":\"in\"}}}}" \
+  -d "{\"labels\":[\"AUTHOR\"],\"where\":{\"ARTICLE\":{\"$id\":\"$ARTICLE_ID\",\"\$relation\":{\"type\":\"AUTHORED_BY\",\"direction\":\"in\"}}}}" \
   | jq -r '.data[0].name // "unknown"')
 
 echo "Result: $TITLE (score: $SCORE) — Author: $AUTHOR"

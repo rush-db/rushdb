@@ -382,11 +382,11 @@ When a support ticket comes in, retrieve the full account context automatically 
 ```typescript
 async function getAccountContext(accountId: string) {
   const [accountResult, subscriptionResult, overdueInvoices, recentTickets] = await Promise.all([
-    db.records.find({ labels: ['ACCOUNT'], where: { __id: accountId } }),
+    db.records.find({ labels: ['ACCOUNT'], where: { $id: accountId } }),
     db.records.find({
       labels: ['SUBSCRIPTION'],
       where: {
-        ACCOUNT: { $relation: { type: 'HAS_SUBSCRIPTION', direction: 'in' }, __id: accountId },
+        ACCOUNT: { $relation: { type: 'HAS_SUBSCRIPTION', direction: 'in' }, $id: accountId },
         status: 'active'
       }
     }),
@@ -395,7 +395,7 @@ async function getAccountContext(accountId: string) {
       where: {
         SUBSCRIPTION: {
           $relation: { type: 'HAS_INVOICE', direction: 'in' },
-          ACCOUNT: { $relation: { type: 'HAS_SUBSCRIPTION', direction: 'in' }, __id: accountId }
+          ACCOUNT: { $relation: { type: 'HAS_SUBSCRIPTION', direction: 'in' }, $id: accountId }
         },
         status: 'overdue'
       }
@@ -405,7 +405,7 @@ async function getAccountContext(accountId: string) {
       where: {
         USER: {
           $relation: { type: 'CREATED', direction: 'in' },
-          ACCOUNT: { $relation: { type: 'BELONGS_TO', direction: 'in' }, __id: accountId }
+          ACCOUNT: { $relation: { type: 'BELONGS_TO', direction: 'in' }, $id: accountId }
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -431,10 +431,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 def get_account_context(account_id: str) -> dict:
     with ThreadPoolExecutor(max_workers=4) as executor:
-        fut_acct  = executor.submit(db.records.find, {"labels": ["ACCOUNT"], "where": {"__id": account_id}})
-        fut_sub   = executor.submit(db.records.find, {"labels": ["SUBSCRIPTION"], "where": {"ACCOUNT": {"$relation": {"type": "HAS_SUBSCRIPTION", "direction": "in"}, "__id": account_id}, "status": "active"}})
-        fut_inv   = executor.submit(db.records.find, {"labels": ["INVOICE"], "where": {"SUBSCRIPTION": {"$relation": {"type": "HAS_INVOICE", "direction": "in"}, "ACCOUNT": {"$relation": {"type": "HAS_SUBSCRIPTION", "direction": "in"}, "__id": account_id}}, "status": "overdue"}})
-        fut_tick  = executor.submit(db.records.find, {"labels": ["SUPPORT_TICKET"], "where": {"USER": {"$relation": {"type": "CREATED", "direction": "in"}, "ACCOUNT": {"$relation": {"type": "BELONGS_TO", "direction": "in"}, "__id": account_id}}}, "orderBy": {"createdAt": "desc"}, "limit": 5})
+        fut_acct  = executor.submit(db.records.find, {"labels": ["ACCOUNT"], "where": {"$id": account_id}})
+        fut_sub   = executor.submit(db.records.find, {"labels": ["SUBSCRIPTION"], "where": {"ACCOUNT": {"$relation": {"type": "HAS_SUBSCRIPTION", "direction": "in"}, "$id": account_id}, "status": "active"}})
+        fut_inv   = executor.submit(db.records.find, {"labels": ["INVOICE"], "where": {"SUBSCRIPTION": {"$relation": {"type": "HAS_INVOICE", "direction": "in"}, "ACCOUNT": {"$relation": {"type": "HAS_SUBSCRIPTION", "direction": "in"}, "$id": account_id}}, "status": "overdue"}})
+        fut_tick  = executor.submit(db.records.find, {"labels": ["SUPPORT_TICKET"], "where": {"USER": {"$relation": {"type": "CREATED", "direction": "in"}, "ACCOUNT": {"$relation": {"type": "BELONGS_TO", "direction": "in"}, "$id": account_id}}}, "orderBy": {"createdAt": "desc"}, "limit": 5})
 
     return {
         "account": fut_acct.result().data[0].data if fut_acct.result().data else None,
@@ -458,7 +458,7 @@ curl -s -X POST "$BASE/records/search" \
         \"\$relation\": {\"type\": \"HAS_INVOICE\", \"direction\": \"in\"},
         \"ACCOUNT\": {
           \"\$relation\": {\"type\": \"HAS_SUBSCRIPTION\", \"direction\": \"in\"},
-          \"__id\": \"$ACCOUNT_ID\"
+          \"$id\": \"$ACCOUNT_ID\"
         }
       },
       \"status\": \"overdue\"

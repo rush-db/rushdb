@@ -132,7 +132,7 @@ async function declareIncident({
     )
 
     await db.tx.commit(tx)
-    console.log(`Incident ${incident.__id} declared (${severity})`)
+    console.log(`Incident ${incident.id} declared (${severity})`)
     return incident
   } catch (err) {
     await db.tx.rollback(tx)
@@ -288,19 +288,19 @@ async function logIncidentEvent(incidentId: string, type: string, note: string, 
 }
 
 await logIncidentEvent(
-  incident.__id,
+  incident.id,
   'hypothesis',
   'Suspect database connection pool exhaustion on checkout-db',
   'oncall-eng-007'
 )
 await logIncidentEvent(
-  incident.__id,
+  incident.id,
   'action_taken',
   'Increased connection pool limit from 50 to 200 and restarted checkout service',
   'oncall-eng-007'
 )
 await logIncidentEvent(
-  incident.__id,
+  incident.id,
   'escalation',
   'Escalated to DBA team for root cause confirmation',
   'oncall-eng-007'
@@ -395,7 +395,7 @@ async function setRootCause(incidentId: string, rootCauseServiceId: string, note
 }
 
 await setRootCause(
-  incident.__id,
+  incident.id,
   'svc-checkout-db',
   'Root cause confirmed: connection pool exhaustion on checkout-db due to slow query backlog',
   'dba-lead'
@@ -409,7 +409,7 @@ const blastRadius = await db.records.find({
       $relation: { type: 'SERVES', direction: 'in' },
       INCIDENT: {
         $relation: { type: 'AFFECTS', direction: 'in' },
-        __id: incident.__id
+        $id: incident.id
       }
     }
   },
@@ -454,7 +454,7 @@ blast_radius = db.records.find({
             "$relation": {"type": "SERVES", "direction": "in"},
             "INCIDENT": {
                 "$relation": {"type": "AFFECTS", "direction": "in"},
-                "__id": incident.id
+                "$id": incident.id
             }
         }
     },
@@ -478,7 +478,7 @@ curl -s -X POST "$BASE/records/search" \
         \"\$relation\": {\"type\": \"SERVES\", \"direction\": \"in\"},
         \"INCIDENT\": {
           \"\$relation\": {\"type\": \"AFFECTS\", \"direction\": \"in\"},
-          \"__id\": \"$INC_ID\"
+          \"$id\": \"$INC_ID\"
         }
       }
     },
@@ -543,7 +543,7 @@ async function resolveIncident(
 }
 
 await resolveIncident(
-  incident.__id,
+  incident.id,
   {
     summary: 'Increased DB connection pool, optimised slow query, deployed fix',
     actionsTaken: ['Increased pool limit to 200', 'Killed blocking queries', 'Deployed query index'],
@@ -631,7 +631,7 @@ const timeline = await db.records.find({
   where: {
     INCIDENT: {
       $relation: { type: 'HAS_EVENT', direction: 'in' },
-      __id: incident.__id
+      $id: incident.id
     }
   },
   orderBy: { occurredAt: 'asc' }
@@ -645,7 +645,7 @@ for (const event of timeline.data) {
 // Time to resolve (TTR)
 const incidentRecord = await db.records.find({
   labels: ['INCIDENT'],
-  where: { __id: incident.__id }
+  where: { $id: incident.id }
 })
 const { declaredAt, resolvedAt } = incidentRecord.data[0]
 const ttrMinutes = (new Date(resolvedAt).getTime() - new Date(declaredAt).getTime()) / 60_000
@@ -661,7 +661,7 @@ timeline = db.records.find({
     "where": {
         "INCIDENT": {
             "$relation": {"type": "HAS_EVENT", "direction": "in"},
-            "__id": incident.id
+            "$id": incident.id
         }
     },
     "orderBy": {"occurredAt": "asc"}
@@ -683,7 +683,7 @@ curl -s -X POST "$BASE/records/search" \
     \"where\": {
       \"INCIDENT\": {
         \"\$relation\": {\"type\": \"HAS_EVENT\", \"direction\": \"in\"},
-        \"__id\": \"$INC_ID\"
+        \"$id\": \"$INC_ID\"
       }
     },
     \"orderBy\": {\"occurredAt\": \"asc\"}

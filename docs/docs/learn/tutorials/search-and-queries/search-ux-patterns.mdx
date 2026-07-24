@@ -57,7 +57,7 @@ async function searchArticles(params: ArticleSearchParams) {
 
   return {
     items: result.data.map((a) => ({
-      id: a.__id,
+      id: a.id,
       title: a.title,
       category: a.category,
       publishedAt: a.publishedAt
@@ -157,9 +157,9 @@ async function semanticArticleSearch(params: VectorSearchParams) {
   const result = await db.records.vectorSearch(searchParams)
 
   return result.data.map((a) => ({
-    id: a.__id,
+    id: a.id,
     title: a.title,
-    score: a.__score, // 0–1 cosine similarity
+    score: a.score, // 0–1 cosine similarity
     category: a.category
   }))
 }
@@ -239,15 +239,15 @@ async function enrichedSearch(userQuery: string) {
         where: {
           ARTICLE: {
             $relation: { type: 'AUTHORED_BY', direction: 'in' },
-            __id: article.__id
+            $id: article.id
           }
         }
       })
 
       return {
-        id: article.__id,
+        id: article.id,
         title: article.title,
-        score: article.__score,
+        score: article.score,
         author: authorResult.data[0]?.name ?? null,
         category: article.category
       }
@@ -278,7 +278,7 @@ def enriched_search(user_query: str) -> list[dict]:
             "where": {
                 "ARTICLE": {
                     "$relation": {"type": "AUTHORED_BY", "direction": "in"},
-                    "__id": article.id
+                    "$id": article.id
                 }
             }
         })
@@ -326,7 +326,7 @@ async function paginatedArticles(category: string, page: number, pageSize = 20):
   })
 
   return {
-    items: result.data.map((a) => ({ id: a.__id, title: a.title, publishedAt: a.publishedAt })),
+    items: result.data.map((a) => ({ id: a.id, title: a.title, publishedAt: a.publishedAt })),
     total: result.total,
     hasNext: (page + 1) * pageSize < result.total
   }

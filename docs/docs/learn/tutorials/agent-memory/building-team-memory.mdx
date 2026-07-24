@@ -353,7 +353,7 @@ const related = await db.records.vectorSearch({
 })
 
 for (const item of related.data) {
-  console.log(`[${item.__labels}] ${item.title} — score: ${item.__score.toFixed(3)}`)
+  console.log(`[${item.__labels}] ${item.title} — score: ${item.score.toFixed(3)}`)
 }
 ```
 
@@ -427,7 +427,7 @@ async function getTicketContext(externalId: string): Promise<string> {
     where: {
       TICKET: {
         $relation: { type: 'REFERENCES', direction: 'in' },
-        __id: ticket.__id
+        $id: ticket.id
       }
     }
   })
@@ -454,7 +454,7 @@ async function getTicketContext(externalId: string): Promise<string> {
   lines.push('')
   lines.push('### Similar Resolved Tickets')
   for (const t of similarTickets.data) {
-    lines.push(`- ${t.externalId}: ${t.title} (score: ${t.__score.toFixed(2)})`)
+    lines.push(`- ${t.externalId}: ${t.title} (score: ${t.score.toFixed(2)})`)
   }
 
   return lines.join('\n')
@@ -482,7 +482,7 @@ def get_ticket_context(external_id: str) -> str:
         "where": {
             "TICKET": {
                 "$relation": {"type": "REFERENCES", "direction": "in"},
-                "__id": ticket.id
+                "$id": ticket.id
             }
         }
     })
@@ -527,7 +527,7 @@ TICKET_ID=$(curl -s -X POST "$BASE/records/search" \
 # Get referenced docs
 curl -s -X POST "$BASE/records/search" \
   -H "$H" -H "Authorization: Bearer $TOKEN" \
-  -d "{\"labels\":[\"DOC\"],\"where\":{\"TICKET\":{\"\$relation\":{\"type\":\"REFERENCES\",\"direction\":\"in\"},\"__id\":\"$TICKET_ID\"}}}"
+  -d "{\"labels\":[\"DOC\"],\"where\":{\"TICKET\":{\"\$relation\":{\"type\":\"REFERENCES\",\"direction\":\"in\"},\"$id\":\"$TICKET_ID\"}}}"
 
 # Semantic similar
 curl -s -X POST "$BASE/ai/search" \

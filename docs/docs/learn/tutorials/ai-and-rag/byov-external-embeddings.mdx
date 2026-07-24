@@ -119,10 +119,17 @@ const articles = [
 ]
 
 // Option A: batch import with createMany
+// Nested form (explicit per-row lists):
 const vectors = await Promise.all(
   articles.map(async (a) => [{ propertyName: 'body', vector: await embed(a.body) }])
 )
 await db.records.createMany({ label: 'ARTICLE', data: articles, vectors })
+
+// Flat form (auto-wrapped):
+const flatVectors = await Promise.all(
+  articles.map(async (a) => ({ propertyName: 'body', vector: await embed(a.body) }))
+)
+await db.records.createMany({ label: 'ARTICLE', data: articles, vectors: flatVectors })
 
 // Option B: one record at a time
 for (const article of articles) {
@@ -153,7 +160,12 @@ articles = [
 ]
 
 # Option A: batch import with create_many
+# Nested form (explicit per-row lists):
 vectors = [[{'propertyName': 'body', 'vector': embed(a['body'])}] for a in articles]
+db.records.create_many(label='ARTICLE', data=articles, vectors=vectors)
+
+# Flat form (auto-wrapped):
+vectors = [{'propertyName': 'body', 'vector': embed(a['body'])} for a in articles]
 db.records.create_many(label='ARTICLE', data=articles, vectors=vectors)
 
 # Option B: one record at a time
@@ -208,7 +220,7 @@ const results = await db.records.vectorSearch({
 })
 
 for (const article of results.data) {
-  console.log(`${article.title} — score: ${article.__score.toFixed(3)}`)
+  console.log(`${article.title} — score: ${article.score.toFixed(3)}`)
 }
 ```
 

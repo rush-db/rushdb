@@ -160,7 +160,7 @@ const results = await db.records.vectorSearch({
 })
 
 for (const article of results.data) {
-  console.log(`${article.title} — score: ${article.__score.toFixed(3)}`)
+  console.log(`${article.title} — score: ${article.score.toFixed(3)}`)
 }
 ```
 
@@ -175,7 +175,7 @@ results = db.records.vector_search({
 })
 
 for article in results.data:
-    print(f"{article.data.get('title')} — score: {article.__score:.3f}")
+    print(f"{article.data.get('title')} — score: {article.score:.3f}")
 ```
 
 </TabItem>
@@ -215,7 +215,7 @@ const hybridResults = await db.records.vectorSearch({
 })
 
 for (const article of hybridResults.data) {
-  console.log(`[${article.category}] ${article.title} — score: ${article.__score.toFixed(3)}`)
+  console.log(`[${article.category}] ${article.title} — score: ${article.score.toFixed(3)}`)
 }
 ```
 
@@ -234,7 +234,7 @@ hybrid_results = db.records.vector_search({
 })
 
 for article in hybrid_results.data:
-    print(f"[{article.data.get('category')}] {article.data.get('title')} — score: {article.__score:.3f}")
+    print(f"[{article.data.get('category')}] {article.data.get('title')} — score: {article.score:.3f}")
 ```
 
 </TabItem>
@@ -346,9 +346,9 @@ async function searchArticles(query: string, tenantId: string, page = 0, pageSiz
 
   return {
     results: results.data.map((r) => ({
-      id: r.__id,
+      id: r.id,
       title: r.title,
-      score: r.__score
+      score: r.score
     })),
     page,
     pageSize
@@ -374,7 +374,7 @@ def search_articles(query: str, tenant_id: str, page: int = 0, page_size: int = 
     })
     return {
         "results": [
-            {"id": r.id, "title": r.data.get("title"), "score": r.__score}
+            {"id": r.id, "title": r.data.get("title"), "score": r.score}
             for r in results.data
         ],
         "page": page,

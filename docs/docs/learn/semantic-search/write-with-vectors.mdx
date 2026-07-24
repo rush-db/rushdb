@@ -62,7 +62,7 @@ const { data: record } = await db.records.create({
   vectors: [{ propertyName: 'body', vector: myEmbed('Attention is all you need ...') }]
 })
 
-console.log(record.__id) // record created AND vector written atomically
+console.log(record.id) // record created AND vector written atomically
 ```
 
   </TabItem>
@@ -116,7 +116,7 @@ r2 = db.records.upsert(
     options={"mergeBy": ["slug"], "mergeStrategy": "append"},
     vectors=[{"propertyName": "body", "vector": v2}],
 )
-# r1.__id == r2.__id
+# r1.id == r2.id
 ```
 
   </TabItem>
@@ -139,7 +139,7 @@ const { data: r2 } = await db.records.upsert({
   vectors: [{ propertyName: 'body', vector: v2 }]
 })
 
-console.log(r1.__id === r2.__id) // true — same record
+console.log(r1.id === r2.id) // true — same record
 ```
 
   </TabItem>
@@ -188,7 +188,7 @@ db.records.set(
 `db.records.set()`
 
 ```typescript
-await db.records.set(rec.__id, {
+await db.records.set(rec.id, {
   data: { name: 'Widget Pro', price: 19.99 },
   vectors: [{ propertyName: 'description', vector: newVec }]
 })

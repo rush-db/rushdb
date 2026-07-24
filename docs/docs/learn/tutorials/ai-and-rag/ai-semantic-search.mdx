@@ -254,7 +254,7 @@ const { data: results } = await db.records.vectorSearch({
 })
 
 for (const result of results) {
-  console.log(`[${result.__score.toFixed(3)}] ${result.title}`)
+  console.log(`[${result.score.toFixed(3)}] ${result.title}`)
 }
 // [0.921] Intro to Machine Learning
 // [0.743] Graph Databases Explained
@@ -348,7 +348,7 @@ const { data: results } = await db.records.vectorSearch({
 })
 
 for (const result of results) {
-  console.log(`[${result.__score.toFixed(3)}] ${result.title}`)
+  console.log(`[${result.score.toFixed(3)}] ${result.title}`)
 }
 // Only Articles with tags science or climate are considered
 ```

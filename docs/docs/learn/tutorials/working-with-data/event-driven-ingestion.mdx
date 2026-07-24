@@ -64,12 +64,11 @@ async function upsertOrder(event: OrderEvent): Promise<string> {
 
     if (existing.data.length > 0) {
       // Already exists — update mutable fields only
-      await db.records.update(existing.data[0].__id, { status: event.status }, tx)
-      orderId = existing.data[0].__id
+      await db.records.update(existing.data[0].id, { status: event.status }, tx)
+      orderId = existing.data[0].id
     } else {
-      // First delivery — create
       const record = await db.records.create({ label: 'ORDER', data: event }, tx)
-      orderId = record.__id
+      orderId = record.id
     }
 
     await db.tx.commit(tx)
@@ -177,10 +176,10 @@ async function handleCheckout(event: CheckoutEvent): Promise<void> {
       where: { orderId: event.orderId }
     })
 
-    let order: { __id: string; [key: string]: unknown }
+    let order: { id: string; [key: string]: unknown }
     if (existingOrders.data.length > 0) {
       order = existingOrders.data[0]
-      await db.records.update(order.__id, { status: event.status }, tx)
+      await db.records.update(order.id, { status: event.status }, tx)
     } else {
       order = await db.records.create(
         {
@@ -379,7 +378,7 @@ async function applyOrderStatus(orderId: string, newStatus: string, eventAt: str
     return
   }
 
-  await db.records.update(existing.__id, { status: newStatus, lastEventAt: eventAt })
+  await db.records.update(existing.id, { status: newStatus, lastEventAt: eventAt })
 }
 ```
 
