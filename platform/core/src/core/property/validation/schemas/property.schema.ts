@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { ISO_8601_REGEX, NUMERIC_REGEX } from '@/core/common/constants'
+import { DATE_ONLY_REGEX, ISO_8601_REGEX, NUMERIC_REGEX } from '@/core/common/constants'
 import {
   PROPERTY_TYPE_BOOLEAN,
   PROPERTY_TYPE_DATETIME,
@@ -10,14 +10,16 @@ import {
 
 const nonEmptyStringSchema = z.string().min(1)
 
+const dateOnlySchema = z.string().regex(DATE_ONLY_REGEX, 'fails to match YYYY-MM-DD Date')
 const datetimeSchema = z.string().regex(ISO_8601_REGEX, 'fails to match ISO8601 DateTime')
+const dateOrDatetimeSchema = z.union([datetimeSchema, dateOnlySchema])
 
 export const numericStringSchema = z.string().regex(NUMERIC_REGEX, 'is not a numeric value')
 
-export const fieldValueSchema = z.union([numericStringSchema, datetimeSchema])
+export const fieldValueSchema = z.union([numericStringSchema, dateOrDatetimeSchema])
 
 export const stringArraySchema = z.array(nonEmptyStringSchema)
-export const datetimeArraySchema = z.array(datetimeSchema)
+export const datetimeArraySchema = z.array(dateOrDatetimeSchema)
 export const numberArraySchema = z.array(z.number())
 export const nullArraySchema = z.array(z.null())
 export const booleanArraySchema = z.array(z.boolean())
@@ -27,7 +29,7 @@ export const emptyArraySchema = z.array(z.any()).max(0)
 // validated here so the request is accepted, then dropped during normalization (null === field unset).
 export const nullValueSchema = z.union([z.null(), nullArraySchema, emptyArraySchema])
 export const booleanValueSchema = z.union([z.boolean(), booleanArraySchema, emptyArraySchema])
-export const datetimeValueSchema = z.union([datetimeSchema, datetimeArraySchema, emptyArraySchema])
+export const datetimeValueSchema = z.union([dateOrDatetimeSchema, datetimeArraySchema, emptyArraySchema])
 export const numberValueSchema = z.union([z.number(), numberArraySchema, emptyArraySchema])
 export const stringValueSchema = z.union([z.string(), stringArraySchema, emptyArraySchema])
 
@@ -38,7 +40,7 @@ const valueSchemaFor = (property: { type?: string; valueSeparator?: string }): z
     case PROPERTY_TYPE_BOOLEAN:
       return booleanValueSchema
     case PROPERTY_TYPE_DATETIME:
-      return hasSeparator ? datetimeSchema : datetimeValueSchema
+      return hasSeparator ? dateOrDatetimeSchema : datetimeValueSchema
     case PROPERTY_TYPE_STRING:
       return hasSeparator ? nonEmptyStringSchema : stringValueSchema
     case PROPERTY_TYPE_NUMBER:

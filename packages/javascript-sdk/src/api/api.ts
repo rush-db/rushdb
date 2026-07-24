@@ -302,9 +302,13 @@ export class RestAPI {
         options?: DBRecordCreationOptions
         /**
          * Per-row inline vectors for external embedding indexes.
-         * `vectors[i]` is applied to `data[i]`. Its length must not exceed `data.length`.
+         * Accepts either:
+         * - `VectorEntry[][]` — outer array indexed per record, inner array per vector property on that record.
+         *   `vectors[i]` is applied to `data[i]`. Its length must not exceed `data.length`.
+         * - `VectorEntry[]` — a flat list applied to the first record (single-record batches).
+         *   Auto-wrapped into `[[entry1, entry2, …]]` so callers don't need the double nesting.
          */
-        vectors?: VectorEntry[][]
+        vectors?: VectorEntry[][] | VectorEntry[]
       },
       transaction?: Transaction | string
     ): Promise<DBRecordsArrayInstance<S>> => {
@@ -317,16 +321,23 @@ export class RestAPI {
         )
       }
 
-      if (data.vectors && data.vectors.length > items.length) {
+      // Normalize flat VectorEntry[] to per-record VectorEntry[][]
+      const vectors =
+        data.vectors ?
+          isArray(data.vectors[0]) ? (data.vectors as VectorEntry[][])
+          : [data.vectors as VectorEntry[]]
+        : undefined
+
+      if (vectors && vectors.length > items.length) {
         throw new Error(
-          `records.createMany: vectors length (${data.vectors.length}) exceeds the number of data rows (${items.length}).`
+          `records.createMany: vectors length (${vectors.length}) exceeds the number of data rows (${items.length}).`
         )
       }
 
       // Inject per-row vectors as $vectors on each item so the backend BFS handles them
       const itemsWithVectors =
-        data.vectors?.length ?
-          items.map((item, i) => (data.vectors![i]?.length ? { ...item, $vectors: data.vectors![i] } : item))
+        vectors?.length ?
+          items.map((item, i) => (vectors[i]?.length ? { ...item, $vectors: vectors[i] } : item))
         : items
 
       const txId = pickTransactionId(transaction)

@@ -4,7 +4,7 @@ import { isArray } from '@/common/utils/isArray'
 import { isObject } from '@/common/utils/isObject'
 import { isPrimitive } from '@/common/utils/isPrimitive'
 import { toBoolean } from '@/common/utils/toBolean'
-import { RUSHDB_KEY_PROPERTIES_META, ISO_8601_REGEX } from '@/core/common/constants'
+import { DATE_ONLY_REGEX, ISO_8601_REGEX, RUSHDB_KEY_PROPERTIES_META } from '@/core/common/constants'
 import { PropertyExpression } from '@/core/common/types'
 import { DatetimeObject } from '@/core/property/property.types'
 import { QueryCriteriaParsingError } from '@/core/search/parser/errors'
@@ -34,7 +34,7 @@ const datetimeConditionQueryPrefix = (field: string, options: TSearchQueryBuilde
 }
 
 const formatDateTimeForQuery = (value: string | DatetimeObject) => {
-  if (typeof value === 'string' && ISO_8601_REGEX.test(value)) {
+  if (typeof value === 'string' && (ISO_8601_REGEX.test(value) || DATE_ONLY_REGEX.test(value))) {
     return `datetime("${value}")`
   } else if (isObject(value) && '$year' in value) {
     const datetimeParts = []

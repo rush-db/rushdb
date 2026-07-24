@@ -622,6 +622,7 @@ export function ImportRecords() {
       setLastDetectedType(null)
       setUploadError(null)
       setIsDraggingFile(false)
+      $label.set('')
     }
   }, [step])
 
@@ -640,6 +641,8 @@ export function ImportRecords() {
 
         setUploadError(null)
         setLastDetectedType(detectedType.toUpperCase())
+
+        $label.set('')
 
         if (detectedType === 'csv') {
           $csvData.set(content)
@@ -812,6 +815,7 @@ export function ImportRecords() {
                 onClick={() => {
                   $mode.set('csv')
                   $csvData.set('')
+                  $label.set('')
                   $step.set('editor')
                 }}
                 title="Start with CSV editor"
