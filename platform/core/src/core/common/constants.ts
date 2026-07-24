@@ -43,7 +43,13 @@ export const RUSHDB_INTERNALS_ALIASES = {
 
 export const ISO_8601_REGEX =
   /^(?:\d{4}-(?:(?:0[1-9]|1[0-2])-(?:0[1-9]|1\d|2[0-8])|(?:0[13-9]|1[0-2])-(?:29|30)|(?:0[13578]|1[02])-31)|(?:\d{2}(?:[02468][048]|[13579][26])-02-29))T(0[0-9]|1[0-9]|2[0-3]):(0[0-9]|[1-5][0-9]):(0[0-9]|[1-5][0-9])?(?:\.([0-9]{1,9}))?([zZ]?|([\+-])(((([0][0-9])|([1][0-3])):?(([03][0])|([14][5])))|14:00)?)$/
-export const DATE_ONLY_REGEX = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/
+// Mirrors the date-validation logic from ISO_8601_REGEX (above) without the time portion:
+//   - Days 01-28 for all months
+//   - Days 29-30 for months that have at least 30 days (all except February)
+//   - Day 31 for 31-day months (01,03,05,07,08,10,12)
+//   - February 29 on leap years (last 2 digits divisible by 4)
+export const DATE_ONLY_REGEX =
+  /^(?:\d{4}-(?:(?:0[1-9]|1[0-2])-(?:0[1-9]|1\d|2[0-8])|(?:0[13-9]|1[0-2])-(?:29|30)|(?:0[13578]|1[02])-31)|(?:\d{2}(?:[02468][048]|[13579][26])-02-29))$/
 export const NUMERIC_REGEX = /^\d+\.\d+$|^\d+$/
 
 export const ROOT_RECORD_ALIAS = 'record'
