@@ -77,18 +77,19 @@ RUN npm install -g pnpm@10.1.0
 # pulled in by @nestjs-modules/mailer, and better-sqlite3). Excluding optionals
 # makes the app crash at boot with MODULE_NOT_FOUND.
 # better-sqlite3 has no Alpine/musl prebuilt binary, so it must be compiled
-# from source. We do NOT load it here (`node -e "require('better-sqlite3')"`):
-# under cross-platform buildx emulation, loading the freshly-compiled native
-# addon crashes QEMU with SIGILL (exit 132). The compile itself works under
-# emulation, and the binary loads fine on a real target CPU at runtime — the
-# build-time load was only a verification step and is the sole emulation
-# casualty, so it is removed.
+# from source. Both architectures are built on native runners
+# (.github/workflows/docker-image.yml), so this compiles and loads on a real
+# CPU — the load check below is safe. It was previously removed because under
+# buildx QEMU emulation this whole step died with SIGILL (exit 132); do not
+# reintroduce emulated arm64 builds.
 RUN apk add --no-cache --virtual .build-deps python3 make g++ \
     && pnpm install --prod --frozen-lockfile --ignore-scripts \
     && cd platform/core \
     && sqlite_pkg_dir="$(dirname "$(node -p "require.resolve('better-sqlite3/package.json')")")" \
     && cd "$sqlite_pkg_dir" \
     && npm rebuild --build-from-source \
+    && cd /app/platform/core \
+    && node -e "require('better-sqlite3')" \
     && cd /app \
     && apk del .build-deps
 

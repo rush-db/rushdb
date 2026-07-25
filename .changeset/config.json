@@ -2,9 +2,9 @@
   "$schema": "https://unpkg.com/@changesets/config@3.0.4/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [],
-  "linked": [],
-  "access": "restricted",
+  "fixed": [["rushdb-core", "rushdb-dashboard"]],
+  "linked": [["@rushdb/javascript-sdk", "@rushdb/mcp-server", "@rushdb/skills", "rushdb-docs"]],
+  "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "ignore": []

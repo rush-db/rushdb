@@ -15,7 +15,7 @@
     "test": "echo \"No test specified\" && exit 0",
     "test:e2e": "jest --config e2e/jest.config.js --runInBand",
     "test:watch": "jest --watch",
-    "version": "changeset version",
+    "version": "changeset version && node scripts/sync-chart-version.mjs",
     "release": "changeset publish",
     "version:dev": "changeset version --snapshot dev",
     "release:dev": "changeset publish --tag dev",

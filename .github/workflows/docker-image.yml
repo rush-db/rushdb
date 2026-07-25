@@ -1,0 +1,148 @@
+name: Build multi-arch image
+
+# Reusable multi-arch image build.
+#
+# Each architecture is built on a runner of that architecture — amd64 on
+# ubuntu-latest, arm64 on ubuntu-24.04-arm (free for public repos) — and the two
+# results are stitched into one manifest list by digest.
+#
+# There is deliberately no QEMU here. Emulating aarch64 to run Node/pnpm and to
+# compile better-sqlite3 from source was both slow and unreliable: qemu-user
+# raised SIGILL (exit 132) at nondeterministic points inside pnpm install, which
+# is what broke the 2.10.x platform releases.
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: 'Docker Hub repository, e.g. rushdb/platform'
+        required: true
+        type: string
+      slug:
+        description: 'Short identifier used for artifact and cache names'
+        required: true
+        type: string
+      dockerfile:
+        description: 'Path to the Dockerfile, relative to the repo root'
+        required: true
+        type: string
+      version:
+        description: 'Semver tag to publish'
+        required: true
+        type: string
+      latest:
+        description: 'Also move the :latest tag'
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      image:
+        description: 'Fully qualified image reference that was published'
+        value: ${{ jobs.merge.outputs.image }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ inputs.slug }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+
+      # Pushed without a tag: the manifest list in the merge job is what gets
+      # tagged, so a half-finished build never claims :latest.
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          provenance: false
+          cache-from: type=gha,scope=${{ inputs.slug }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.slug }}-${{ matrix.arch }}
+          outputs: type=image,name=${{ inputs.image }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/digests
+          digest='${{ steps.build.outputs.digest }}'
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ inputs.slug }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: ${{ inputs.slug }} manifest
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.merge.outputs.image }}
+
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ inputs.slug }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+
+      - name: Create manifest list
+        id: merge
+        working-directory: /tmp/digests
+        env:
+          IMAGE: ${{ inputs.image }}
+          VERSION: ${{ inputs.version }}
+          LATEST: ${{ inputs.latest }}
+        run: |
+          set -euo pipefail
+          # Refuse to publish a partial manifest: one digest per architecture.
+          count=$(ls -1 | wc -l)
+          if [ "${count}" -ne 2 ]; then
+            echo "::error::expected 2 digests (amd64 + arm64), found ${count}"
+            exit 1
+          fi
+          tags=(-t "${IMAGE}:${VERSION}" -t "${IMAGE}:sha-${GITHUB_SHA::7}")
+          if [ "${LATEST}" = "true" ]; then tags+=(-t "${IMAGE}:latest"); fi
+          docker buildx imagetools create "${tags[@]}" $(printf "${IMAGE}@sha256:%s " *)
+          echo "image=${IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect
+        run: docker buildx imagetools inspect "${{ inputs.image }}:${{ inputs.version }}"

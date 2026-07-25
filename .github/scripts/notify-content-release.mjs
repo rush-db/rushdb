@@ -7,17 +7,34 @@ const required = (name) => {
 }
 
 const version = required('RELEASE_VERSION')
+
+// Packages no longer move in lockstep on patch releases, so report what was
+// actually published. PUBLISHED_PACKAGES is changesets' `publishedPackages`
+// output ([{ name, version }]) and is empty for a core-only release.
+const parsePublished = () => {
+  try {
+    const parsed = JSON.parse(process.env.PUBLISHED_PACKAGES || '[]')
+    if (Array.isArray(parsed) && parsed.length) {
+      return parsed.map(({ name, version }) => ({ name, version }))
+    }
+  } catch {
+    /* fall through to the version-derived list */
+  }
+  return [
+    { name: '@rushdb/javascript-sdk', version },
+    { name: '@rushdb/mcp-server', version }
+  ]
+}
+
 const body = JSON.stringify({
   event: 'release.completed',
   repository: process.env.GITHUB_REPOSITORY ?? 'rush-db/rushdb',
   version,
   tag: `v${version}`,
+  platformVersion: process.env.PLATFORM_VERSION || version,
   sha: required('RELEASE_SHA'),
   workflowUrl: required('RELEASE_RUN_URL'),
-  packages: [
-    { name: '@rushdb/javascript-sdk', version },
-    { name: '@rushdb/mcp-server', version }
-  ],
+  packages: parsePublished(),
   occurredAt: new Date().toISOString()
 })
 const timestamp = String(Math.floor(Date.now() / 1000))

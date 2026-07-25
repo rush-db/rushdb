@@ -2,8 +2,8 @@ apiVersion: v2
 name: rushdb
 description: RushDB — developer-friendly graph database platform
 type: application
-version: 2.2.0
-appVersion: '2.2.0'
+version: 2.10.4
+appVersion: '2.10.4'
 keywords:
   - rushdb
   - graph
