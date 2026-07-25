@@ -2,7 +2,7 @@
 '@rushdb/javascript-sdk': minor
 'rushdb-core': patch
 'rushdb-dashboard': patch
-'@rushdb/docs': patch
+'rushdb-docs': patch
 ---
 
 **Embedding index cold-start** (`rushdb-core`): `POST /ai/indexes` no longer requires the indexed property to exist in Neo4j before creating the index policy. When no property node exists (no records with that property have been created yet), type validation is skipped — the property will be created naturally when the first record carrying it is written. Previously the server threw `NotFoundException`.
