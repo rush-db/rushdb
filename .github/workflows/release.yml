@@ -1,15 +1,45 @@
 name: Release and Deploy
 
+# Nothing ships when a feature/fix branch lands on main. Shipping is triggered by
+# merging the changesets "version packages" PR, which is the only commit that
+# changes package.json versions — see .github/scripts/detect-version-bumps.mjs.
+#
+# Each artifact is versioned and shipped on its own:
+#   rushdb/platform    ← rushdb-core's version, rebuilt when core or dashboard bumps
+#   rushdb/mcp-server  ← @rushdb/mcp-server's version, rebuilt when it bumps
+#   npm packages       ← published by changesets when a public package bumps
+#
+# So a core-only patch redeploys the platform without touching npm, and an
+# sdk-only patch flows into both images via the dependent bumps changesets makes
+# (updateInternalDependencies: patch). Minor releases land on one shared version
+# for everything they touch (`linked` in .changeset/config.json).
+
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      force_platform:
+        description: 'Rebuild and redeploy rushdb/platform at its current version'
+        type: boolean
+        default: false
+      force_mcp:
+        description: 'Rebuild and redeploy rushdb/mcp-server at its current version'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
   issues: write
   pull-requests: write
   id-token: write
+
+# Releases must not overlap; a second push waits rather than cancelling a
+# half-finished publish/deploy.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   ECS_SERVICE_NEST: 'rushdb-ecs-service'
@@ -21,15 +51,31 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.determine-version.outputs.version }}
-      has_tag: ${{ steps.check-tag.outputs.has_tag }}
-      is_version_bump: ${{ steps.check-commit.outputs.is_version_bump }}
+      platform_changed: ${{ steps.bumps.outputs.platform_changed }}
+      platform_version: ${{ steps.bumps.outputs.platform_version }}
+      mcp_changed: ${{ steps.bumps.outputs.mcp_image_changed }}
+      mcp_version: ${{ steps.bumps.outputs.mcp_version }}
+      sdk_version: ${{ steps.bumps.outputs.sdk_version }}
+      any_changed: ${{ steps.bumps.outputs.any_changed }}
+      published: ${{ steps.changesets.outputs.published }}
+      published_packages: ${{ steps.changesets.outputs.publishedPackages }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # Runs before changesets so the working tree it may rewrite cannot affect
+      # the comparison (the script reads git objects, not the tree, either way).
+      - name: Detect version bumps
+        id: bumps
+        run: node .github/scripts/detect-version-bumps.mjs
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          FORCE_PLATFORM: ${{ inputs.force_platform }}
+          FORCE_MCP: ${{ inputs.force_mcp }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -44,11 +90,10 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install Dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: |
-          pnpm --filter ./packages/javascript-sdk... --filter ./packages/mcp-server... build
+        run: pnpm --filter ./packages/javascript-sdk... --filter ./packages/mcp-server... build
 
       - name: Setup .npmrc
         run: |
@@ -59,99 +104,52 @@ jobs:
           always-auth=true
           EOF
 
-      - name: Determine Upcoming Version
-        id: determine-version
-        run: |
-          STATUS=$(pnpm changeset status --no-color --verbose || true)
-          VERSION=$(echo "$STATUS" | grep -E '@rushdb/(javascript-sdk|mcp-server)' | awk '{print $NF}' | sed 's/[^[:print:]]//g' | head -n1)
-          if [ -z "$VERSION" ]; then
-            VERSION=$(node -p "require('./packages/javascript-sdk/package.json').version")
-            echo "No upcoming changeset version; using checked-in SDK version ${VERSION}"
-          fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-
+      # Opens/updates the "version packages" PR when changesets are pending,
+      # publishes to npm when the versioned commit lands. `changeset publish`
+      # covers every public workspace package (sdk, mcp-server, skills).
       - name: Create Release PR or Publish
         id: changesets
+        if: github.event_name == 'push'
         uses: changesets/action@v1
         with:
-          version: pnpm changeset version
-          publish: pnpm release --filter ./packages/javascript-sdk... --filter ./packages/mcp-server...
-          commit: 'chore(release): version packages v${{ steps.determine-version.outputs.version }}'
-          title: 'chore(release): version packages v${{ steps.determine-version.outputs.version }}'
+          version: pnpm run version
+          publish: pnpm run release
+          commit: 'chore(release): version packages'
+          title: 'chore(release): version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Check Commit Type
-        id: check-commit
-        run: |
-          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          EXPECTED_MESSAGE="chore(release): version packages v${{ steps.determine-version.outputs.version }}"
-          if [ "$COMMIT_MESSAGE" = "$EXPECTED_MESSAGE" ]; then
-            echo "is_version_bump=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_version_bump=false" >> $GITHUB_OUTPUT
-          fi
-
-  docker:
+  platform-image:
+    name: Platform image
     needs: release
-    if: needs.release.outputs.is_version_bump == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.set-image.outputs.image }}
-      version: ${{ needs.release.outputs.version }}
+    if: needs.release.outputs.platform_changed == 'true'
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      image: rushdb/platform
+      slug: platform
+      dockerfile: platform/Dockerfile
+      version: ${{ needs.release.outputs.platform_version }}
+    secrets: inherit
 
-    steps:
-      - run: echo '${{ toJSON(needs.release.outputs) }}'
+  mcp-image:
+    name: MCP image
+    needs: release
+    if: needs.release.outputs.mcp_changed == 'true'
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      image: rushdb/mcp-server
+      slug: mcp-server
+      dockerfile: packages/mcp-server/Dockerfile
+      version: ${{ needs.release.outputs.mcp_version }}
+    secrets: inherit
 
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ vars.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
-
-      - name: Build and push platform
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: platform/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            rushdb/platform:latest
-            rushdb/platform:${{ needs.release.outputs.version }}
-
-      - name: Build and push MCP server
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: packages/mcp-server/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            rushdb/mcp-server:latest
-            rushdb/mcp-server:${{ needs.release.outputs.version }}
-
-      - name: Set image output
-        id: set-image
-        run: echo "image=rushdb/platform:${{ needs.release.outputs.version }}" >> $GITHUB_OUTPUT
-
-  deploy:
-    needs: [release, docker]
-    if: needs.release.outputs.is_version_bump == 'true'
-    name: Deploy to ECS
+  deploy-platform:
+    name: Deploy platform to ECS
+    needs: [release, platform-image]
     runs-on: ubuntu-22.04
-    environment: ${{ github.event.inputs.environment || 'production' }}
+    environment: production
 
     steps:
       - name: Configure AWS credentials
@@ -162,17 +160,16 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Render task definition
-        id: render-task
         run: |
           cat <<EOF > task-definition.json
           {
             "containerDefinitions": [
               {
                 "name": "rushdb",
-                "image": "${{ needs.docker.outputs.image }}",
+                "image": "${{ needs.platform-image.outputs.image }}",
                 "cpu": 1024,
                 "memory": 2048,
                 "portMappings": [
@@ -247,6 +244,23 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: false
 
+  deploy-mcp:
+    name: Deploy MCP server to ECS
+    needs: [release, mcp-image]
+    runs-on: ubuntu-22.04
+    environment: production
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Render MCP task definition
         run: |
           cat <<EOF > mcp-task-definition.json
@@ -254,7 +268,7 @@ jobs:
             "containerDefinitions": [
               {
                 "name": "rushdb-mcp",
-                "image": "rushdb/mcp-server:${{ needs.release.outputs.version }}",
+                "image": "${{ needs.mcp-image.outputs.image }}",
                 "cpu": 512,
                 "memory": 1024,
                 "portMappings": [
@@ -302,8 +316,17 @@ jobs:
 
   notify-content:
     name: Notify content control plane
-    needs: [release, docker, deploy]
-    if: needs.release.outputs.is_version_bump == 'true' && needs.deploy.result == 'success'
+    needs: [release, platform-image, mcp-image, deploy-platform, deploy-mcp]
+    # Fires once the release has fully landed. A skipped artifact is fine (it had
+    # no version bump); a failed or cancelled one is not — and a failed image
+    # build must not slip through on the strength of its deploy being skipped.
+    if: |
+      always() &&
+      needs.release.outputs.any_changed == 'true' &&
+      !contains(fromJSON('["failure", "cancelled"]'), needs.platform-image.result) &&
+      !contains(fromJSON('["failure", "cancelled"]'), needs.mcp-image.result) &&
+      !contains(fromJSON('["failure", "cancelled"]'), needs.deploy-platform.result) &&
+      !contains(fromJSON('["failure", "cancelled"]'), needs.deploy-mcp.result)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -313,7 +336,9 @@ jobs:
         env:
           CONTENT_WEBHOOK_URL: ${{ secrets.CONTENT_WEBHOOK_URL }}
           CONTENT_WEBHOOK_SECRET: ${{ secrets.CONTENT_WEBHOOK_SECRET }}
-          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+          RELEASE_VERSION: ${{ needs.release.outputs.sdk_version || needs.release.outputs.platform_version }}
+          PLATFORM_VERSION: ${{ needs.release.outputs.platform_version }}
+          PUBLISHED_PACKAGES: ${{ needs.release.outputs.published_packages }}
           RELEASE_SHA: ${{ github.sha }}
           RELEASE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node .github/scripts/notify-content-release.mjs
