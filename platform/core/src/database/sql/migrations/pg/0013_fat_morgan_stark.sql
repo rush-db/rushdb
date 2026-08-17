@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "connector_rejections_connector_code_hash_uniq" ON "connector_rejections" USING btree ("connector_id","code","source_id_hash");

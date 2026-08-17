@@ -1,0 +1,18 @@
+{
+  "batchId": "b_0050",
+  "status": "rejected",
+  "accepted": 0,
+  "rejected": 1,
+  "duplicate": false,
+  "checkpointAccepted": false,
+  "schemaVersion": "1",
+  "errors": [
+    {
+      "operationIndex": 0,
+      "sourceIdHash": "361ead9afbc3fb0fbc4b2ff615890d5bcc84183df40c480ccd4b3878050fd119",
+      "code": "MALFORMED_OPERATION",
+      "message": "upsert operation is missing required field 'data'",
+      "retryable": false
+    }
+  ]
+}

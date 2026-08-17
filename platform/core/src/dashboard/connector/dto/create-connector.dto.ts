@@ -1,7 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
-import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator'
-
-import { CONNECTOR_TYPES, ConnectorType } from '@/dashboard/connector/connector.types'
+import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator'
 
 export class CreateConnectorDto {
   @IsNotEmpty()
@@ -9,9 +7,15 @@ export class CreateConnectorDto {
   @ApiProperty({ example: 'Production PostgreSQL' })
   name: string
 
-  @IsIn(CONNECTOR_TYPES)
-  @ApiProperty({ enum: CONNECTOR_TYPES })
-  type: ConnectorType
+  /**
+   * Database types plus any worker-registered spec id. Validation against the
+   * registered catalog happens in ConnectorService (Core never hardcodes the
+   * connector union), so this is intentionally not an `IsIn` over a fixed list.
+   */
+  @IsNotEmpty()
+  @IsString()
+  @ApiProperty({ example: 'hubspot' })
+  type: string
 
   @IsObject()
   @ApiProperty({

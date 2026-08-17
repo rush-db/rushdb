@@ -94,7 +94,7 @@ async function retrieveAndRerank(query, topK = 5) {
   return reranked
 }
 
-const topChunks = await retrieveAndRerank('how does billing work for BYOC projects?')
+const topChunks = await retrieveAndRerank('how does billing work for External Database projects?')
 topChunks.forEach((c) => console.log(`[${c.rerankScore}/10] ${c.text.slice(0, 80)}...`))
 ```
 
@@ -152,7 +152,7 @@ def retrieve_and_rerank(query: str, top_k: int = 5) -> list:
     candidates = retrieve_candidates(query, 25)
     return rerank_with_llm(query, candidates, top_k)
 
-top_chunks = retrieve_and_rerank('how does billing work for BYOC projects?')
+top_chunks = retrieve_and_rerank('how does billing work for External Database projects?')
 for chunk in top_chunks:
     print(f'{chunk.text[:80]}...')
 ```

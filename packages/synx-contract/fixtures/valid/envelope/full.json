@@ -1,0 +1,67 @@
+{
+  "version": "1",
+  "source": {
+    "bindingId": "bind_01HZ2X",
+    "connectionId": "conn_01HZ2W",
+    "connectorType": "hubspot",
+    "instance": "prod-1"
+  },
+  "stream": {
+    "id": "stm_01HZ2Y",
+    "name": "crm.contacts",
+    "namespace": "hubspot",
+    "sourceSchemaVersion": "v1.4.2"
+  },
+  "batch": {
+    "id": "b_0042",
+    "sequence": 42,
+    "emittedAt": "2026-08-02T09:15:00.000Z",
+    "cursorHash": "a0e5e4faa91d2783b9ad40d74a125ccf8d8f3c40f69df85d090ea0ea913440ed",
+    "mode": "incremental"
+  },
+  "mapping": {
+    "targetLabel": "CONTACT",
+    "identityFields": ["id"],
+    "deletionMode": "soft_delete",
+    "mappingVersion": 3
+  },
+  "operations": [
+    {
+      "type": "upsert",
+      "sourceId": "5b1c2d3e",
+      "sourceCreatedAt": "2024-01-15T10:00:00.000Z",
+      "sourceUpdatedAt": "2026-08-02T09:14:59.000Z",
+      "data": {
+        "id": "5b1c2d3e",
+        "email": "ada@example.com",
+        "properties": {
+          "firstname": "Ada",
+          "company": "Acme"
+        }
+      },
+      "relations": [
+        {
+          "type": "WORKS_AT",
+          "to": {
+            "streamId": "stm_01HZ2A",
+            "sourceId": "company_9"
+          }
+        }
+      ]
+    },
+    {
+      "type": "delete",
+      "sourceId": "9f8e7d6c",
+      "sourceDeletedAt": "2026-08-02T09:14:58.000Z"
+    },
+    {
+      "type": "upsert",
+      "sourceId": "deadbeef",
+      "sourceUpdatedAt": "2026-08-02T09:14:57.000Z",
+      "data": {
+        "id": "deadbeef",
+        "email": "grace@example.com"
+      }
+    }
+  ]
+}

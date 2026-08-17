@@ -1,0 +1,33 @@
+{
+  "version": "1",
+  "source": {
+    "bindingId": "bind_01HZ2X",
+    "connectionId": "conn_01HZ2W",
+    "connectorType": "postgres"
+  },
+  "stream": {
+    "id": "stm_01HZ2Y",
+    "name": "public.orders"
+  },
+  "batch": {
+    "id": "b_0001",
+    "sequence": 1,
+    "emittedAt": "2026-08-02T09:15:00.000Z",
+    "mode": "snapshot"
+  },
+  "mapping": {
+    "targetLabel": "ORDER",
+    "identityFields": ["id"],
+    "deletionMode": "nuke",
+    "mappingVersion": 1
+  },
+  "operations": [
+    {
+      "type": "upsert",
+      "sourceId": "42",
+      "data": {
+        "id": 42
+      }
+    }
+  ]
+}

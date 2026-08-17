@@ -6,7 +6,7 @@ sidebar_position: 3
 
 # Licensing & Third-Party Services
 
-RushDB Cloud combines RushDB software with storage infrastructure and optional integrations. The exact service boundary depends on whether you use managed cloud, BYOC, or self-hosted deployment.
+RushDB Cloud combines RushDB software with storage infrastructure and optional integrations. The exact service boundary depends on whether you use managed cloud, an External Database, or a self-hosted deployment.
 
 This page is an engineering reference, not legal advice. Review each applicable license and provider agreement before production use.
 
@@ -24,7 +24,7 @@ This page is an engineering reference, not legal advice. Review each applicable 
 
 | Service                                         | When it participates                                                                                                                                                                                    | Configuration or reference                                      |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| **Neo4j and APOC Core**                         | Required graph backend. Use the bundled deployment, an existing Neo4j instance, or Aura through BYOC.                                                                                                   | [Neo4j & Aura](/deploy/infrastructure/neo4j-and-aura)           |
+| **Neo4j and APOC Core**                         | Required graph backend. Use the bundled deployment, an existing Neo4j instance, or Aura as an External Neo4j Database.                                                                                  | [Neo4j & Aura](/deploy/infrastructure/neo4j-and-aura)           |
 | **SQLite or PostgreSQL**                        | Required SQL metadata store for users, workspaces, projects, tokens, OAuth sessions, and access grants. SQLite is the zero-config self-hosted default; PostgreSQL is appropriate for cloud deployments. | [PostgreSQL / SQLite](/deploy/infrastructure/postgresql-sqlite) |
 | **OpenAI-compatible embedding endpoint**        | Optional managed embeddings for semantic search. The configured provider receives text selected for embedding.                                                                                          | `RUSHDB_EMBEDDING_BASE_URL`, `RUSHDB_EMBEDDING_MODEL`           |
 | **OpenAI-compatible chat completions endpoint** | Optional relationship suggestions. The configured provider receives a compact schema containing labels, properties, sampled values, and existing relationship patterns.                                 | `RUSHDB_LLM_BASE_URL`, `RUSHDB_LLM_MODEL`                       |
@@ -52,12 +52,12 @@ Omit the embedding variables to disable managed embedding indexes. Omit the LLM 
 
 ## Responsibility by Operating Model
 
-| Concern                                | RushDB Cloud        | Cloud with BYOC     | Self-hosted                |
-| -------------------------------------- | ------------------- | ------------------- | -------------------------- |
-| RushDB API and dashboard operations    | RushDB              | RushDB              | Your team                  |
-| Neo4j account and graph infrastructure | RushDB              | Your team           | Your team                  |
-| SQL metadata infrastructure            | RushDB              | RushDB              | Your team                  |
-| Optional model endpoint selection      | Cloud configuration | Cloud configuration | Your environment variables |
-| Third-party provider terms             | Apply where enabled | Apply where enabled | Apply where enabled        |
+| Concern                                | RushDB Cloud        | Cloud + External Database | Self-hosted                |
+| -------------------------------------- | ------------------- | ------------------------- | -------------------------- |
+| RushDB API and dashboard operations    | RushDB              | RushDB                    | Your team                  |
+| Neo4j account and graph infrastructure | RushDB              | Your team                 | Your team                  |
+| SQL metadata infrastructure            | RushDB              | RushDB                    | Your team                  |
+| Optional model endpoint selection      | Cloud configuration | Cloud configuration       | Your environment variables |
+| Third-party provider terms             | Apply where enabled | Apply where enabled       | Apply where enabled        |
 
 See [Environment Variables](/deploy/configuration/environment-variables) for the complete self-hosted configuration surface.

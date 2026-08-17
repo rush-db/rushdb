@@ -1,0 +1,1 @@
+CREATE INDEX "connectors_status_idx" ON "connectors" USING btree ("status");

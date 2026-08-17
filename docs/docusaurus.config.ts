@@ -260,6 +260,10 @@ const config: Config = {
           // Moved deployment tutorials.
           { from: '/tutorials/configuring-dashboard', to: '/deploy/configuration/get-api-key' },
           { from: '/tutorials/connect-aura-instance', to: '/deploy/guides/connect-aura' },
+          {
+            from: '/learn/tutorials/use-cases/byoc-vs-managed',
+            to: '/learn/tutorials/use-cases/external-database-vs-managed'
+          },
           { from: '/tutorials/deployment', to: '/deploy/remote-hosting/self-hosting-rushdb' },
           { from: '/deploy/remote-hosting/digital-ocean', to: '/deploy/remote-hosting/templates' },
           { from: '/tutorials/local-setup', to: '/deploy/local-hosting/docker' },

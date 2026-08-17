@@ -1,16 +1,18 @@
 ---
 sidebar_position: 34
-title: 'Connecting a Neo4j Aura Instance (BYOC)'
-description: Use your own Neo4j or Aura database as the RushDB data store — keep data in your cloud account while using the full RushDB API.
-tags: [Deployment, BYOC, Neo4j, Aura]
+title: 'Connecting an External Neo4j Aura Database'
+description: Connect your own Neo4j Aura database to RushDB Cloud while continuing to use the full RushDB API.
+tags: [Deployment, External Database, Neo4j, Aura]
 ---
 
 import Tabs from '@site/src/components/LanguageTabs'
 import TabItem from '@theme/TabItem'
 
-# Connecting a Neo4j Aura Instance (BYOC)
+# Connecting an External Neo4j Aura Database
 
-**BYOC** (Bring Your Own Cloud) means RushDB's API and query layer runs on RushDB infrastructure while your Neo4j or Aura instance is the actual data store. Your graph data never leaves your cloud account.
+An **External Database** project uses RushDB's hosted API and query layer with a Neo4j or Aura instance that you operate separately. Graph records, relationships, and vectors are stored in that database; the RushDB runtime still runs on RushDB infrastructure.
+
+This is not a BYOC deployment. The term **BYOC** is reserved for the future model where the RushDB runtime itself runs in the customer's cloud account.
 
 This is available on every plan including Free.
 
@@ -41,13 +43,13 @@ RushDB stores:
    ```
 3. Note the **username** (typically `neo4j`) and the **password** you set when creating the instance.
 
-:::tip Free Aura tier
-Neo4j AuraDB Free (1 GB) is sufficient for development and small production workloads. Create one at [console.neo4j.io](https://console.neo4j.io) if you do not already have an account.
+:::tip Aura tier compatibility
+Aura capabilities vary by tier and version. Choose a tier that exposes all [required APOC procedures](/deploy/infrastructure/neo4j-and-aura#apoc-core-procedures-used) and passes RushDB's connection verification.
 :::
 
 ---
 
-## Step 2: Create a BYOC project in the RushDB dashboard
+## Step 2: Create an External Database project in the RushDB dashboard
 
 1. Sign in to [app.rushdb.com](https://app.rushdb.com) (or your self-hosted dashboard).
 2. Click **New Project**.
@@ -123,7 +125,7 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 
 ## Step 5: Validate with a raw Cypher query (optional)
 
-BYOC and self-hosted projects have access to `POST /api/v1/query/raw`. Use it to confirm data is landing in Aura directly.
+External Database and self-hosted projects have access to `POST /api/v1/query/raw`. Use it to confirm data is landing in Aura directly.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
@@ -164,7 +166,7 @@ You can also open the Aura console's built-in Browser and run the same Cypher qu
 
 ---
 
-## BYOC with a self-hosted RushDB instance
+## External Aura with a self-hosted RushDB instance
 
 If you are running RushDB on your own infrastructure and want to point it at an Aura instance, set the Neo4j env vars in your `docker-compose.yml` to your Aura URI instead of `bolt://neo4j:7687`:
 
@@ -179,22 +181,22 @@ See [Self-Hosting RushDB](/deploy/remote-hosting/self-hosting-rushdb) for the co
 
 ---
 
-## What changes with BYOC vs managed
+## What changes with an External Database vs managed
 
-|                   | Managed (default)    | BYOC                              |
-| ----------------- | -------------------- | --------------------------------- |
-| Data location     | RushDB-managed Neo4j | Your Aura / Neo4j                 |
-| Raw Cypher access | No                   | Yes — `POST /query/raw`           |
-| Billing           | KU-based             | KU-based (same)                   |
-| Wipe / restore    | Via RushDB dashboard | Full Neo4j backup tools available |
-| SLA for the graph | RushDB SLA           | Your Neo4j Aura SLA               |
+|                   | Managed (default)    | External Database                     |
+| ----------------- | -------------------- | ------------------------------------- |
+| Data location     | RushDB-managed Neo4j | Your separately operated Aura / Neo4j |
+| Raw Cypher access | No                   | Yes — `POST /query/raw`               |
+| Billing           | KU-based             | KU-based; database costs are separate |
+| Wipe / restore    | Via RushDB dashboard | Use your Neo4j/Aura backup tools      |
+| SLA for the graph | RushDB SLA           | Your Neo4j/Aura service terms         |
 
-See [BYOC vs Managed vs Self-Hosted](/learn/tutorials/use-cases/byoc-vs-managed) for a full comparison.
+See [External Database vs Managed vs Self-Hosted](/learn/tutorials/use-cases/external-database-vs-managed) for a full comparison.
 
 ---
 
 ## Next steps
 
-- [BYOC vs Managed vs Self-Hosted](/learn/tutorials/use-cases/byoc-vs-managed) — choose the right topology
+- [External Database vs Managed vs Self-Hosted](/learn/tutorials/use-cases/external-database-vs-managed) — choose the right topology
 - [Self-Hosting RushDB](/deploy/remote-hosting/self-hosting-rushdb) — run both RushDB and the graph on your own infra
 - [Project Setup After Deployment](/deploy/guides/self-hosted-project-setup) — configure embedding models and team access per project

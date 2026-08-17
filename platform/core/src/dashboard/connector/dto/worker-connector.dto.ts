@@ -1,5 +1,15 @@
 import { Allow, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString } from 'class-validator'
 
+export class ConnectorCommandResultDto {
+  @IsOptional()
+  @IsObject()
+  result?: Record<string, unknown>
+
+  @IsOptional()
+  @IsString()
+  errorMessage?: string
+}
+
 export class ConnectorStatusDto {
   @IsNotEmpty()
   @IsString()

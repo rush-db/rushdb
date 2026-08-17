@@ -19,7 +19,15 @@ import type {
 
 import type { GetUserResponse, User } from '~/features/auth/types'
 import type { BillingData, BillingInquiryPayload } from '~/features/billing/types'
-import type { Connector, ConnectorEvent, CreateConnectorInput } from '~/features/connectors/types'
+import type {
+  Connector,
+  ConnectorCommand,
+  ConnectorEvent,
+  ConnectorRejection,
+  ConnectorRun,
+  CreateConnectorInput,
+  SynxConnectorCatalog
+} from '~/features/connectors/types'
 import type { CreateSavedQueryInput, SavedQuery } from '~/features/saved-queries/types'
 import type {
   EmbeddingIndex,
@@ -573,6 +581,14 @@ export const api = {
     }
   },
   connectors: {
+    async catalog({ init }: WithInit = {}) {
+      return fetcher<SynxConnectorCatalog>(`/api/v1/connectors/catalog`, {
+        ...init,
+        headers: {
+          'x-workspace-id': $currentWorkspaceId.get() ?? ''
+        }
+      })
+    },
     async list({ projectId, init }: WithProjectID & WithInit) {
       return fetcher<Connector[]>(`/api/v1/connectors`, {
         ...init,
@@ -607,6 +623,20 @@ export const api = {
         }
       })
     },
+    async runs({ projectId, id }: WithProjectID & { id: string }) {
+      return fetcher<ConnectorRun[]>(`/api/v1/connectors/${id}/runs`, {
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async rejections({ projectId, id }: WithProjectID & { id: string }) {
+      return fetcher<ConnectorRejection[]>(`/api/v1/connectors/${id}/rejections`, {
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
     async create({ projectId, init, ...body }: WithProjectID & WithInit & CreateConnectorInput) {
       return fetcher<Connector>(`/api/v1/connectors`, {
         ...init,
@@ -617,15 +647,76 @@ export const api = {
         }
       })
     },
+    async update({
+      projectId,
+      id,
+      init,
+      ...body
+    }: WithProjectID & WithInit & { id: string } & Partial<CreateConnectorInput>) {
+      return fetcher<Connector>(`/api/v1/connectors/${id}`, {
+        ...init,
+        method: 'PATCH',
+        body: JSON.stringify(body),
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async remove({
+      projectId,
+      id,
+      init,
+      deleteRecords = false
+    }: WithProjectID & WithInit & { id: string; deleteRecords?: boolean }) {
+      const query = deleteRecords ? '?deleteRecords=true' : ''
+      return fetcher<{ ok: boolean }>(`/api/v1/connectors/${id}${query}`, {
+        ...init,
+        method: 'DELETE',
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
     async action({
       projectId,
       id,
       action,
       init
-    }: WithProjectID & WithInit & { id: string; action: 'pause' | 'resume' | 'resnapshot' | 'test' }) {
+    }: WithProjectID &
+      WithInit & {
+        id: string
+        action: 'pause' | 'resume' | 'resnapshot' | 'start' | 'replay' | 'cancel' | 'test'
+      }) {
       return fetcher<Connector | { ok: boolean; message: string }>(`/api/v1/connectors/${id}/${action}`, {
         ...init,
         method: 'POST',
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async discover({ projectId, id, init }: WithProjectID & WithInit & { id: string }) {
+      return fetcher<{ commandId: string; status: string }>(`/api/v1/connectors/${id}/discover`, {
+        ...init,
+        method: 'POST',
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async databases({ projectId, id, init }: WithProjectID & WithInit & { id: string }) {
+      return fetcher<{ commandId: string; status: string }>(`/api/v1/connectors/${id}/databases`, {
+        ...init,
+        method: 'POST',
+        headers: {
+          'x-project-id': projectId
+        }
+      })
+    },
+    async commands({ projectId, id, init }: WithProjectID & WithInit & { id: string; commandId?: string }) {
+      const path = `${id}/commands`
+      return fetcher<ConnectorCommand[]>(`/api/v1/connectors/${path}`, {
+        ...init,
         headers: {
           'x-project-id': projectId
         }

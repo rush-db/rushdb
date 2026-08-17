@@ -1,35 +1,79 @@
-import { Cable, Database, ExternalLink, Pause, Play, RotateCcw, TestTube2 } from 'lucide-react'
+import { Cable, Database, ExternalLink, Lock, Pause, Play, RotateCcw, TestTube2 } from 'lucide-react'
 
 import { Button } from '~/elements/Button'
-import { useConnectorActionMutation, useProjectConnectorsQuery } from '~/features/connectors/hooks'
+import { DeleteConnectorDialog } from '~/features/connectors/components/DeleteConnectorDialog'
+import {
+  useConnectorActionMutation,
+  useConnectorCatalogQuery,
+  useDeleteConnectorMutation,
+  useProjectConnectorsQuery
+} from '~/features/connectors/hooks'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
-import type { ConnectorType } from '~/features/connectors/types'
+import type { ConnectorHealth } from '~/features/connectors/types'
 import { getRoutePath, openRoute } from '~/lib/router'
 import { useStore } from '@nanostores/react'
 import { $currentProjectId } from '~/features/projects/stores/id'
 
 function SourceTile({
   description,
+  icon,
   onClick,
-  title
+  title,
+  locked = false
 }: {
   description: string
-  onClick: () => void
+  icon?: string
+  onClick?: () => void
   title: string
+  locked?: boolean
 }) {
   return (
     <button
-      className="flex w-full items-start gap-4 rounded-lg border bg-secondary px-5 py-4 text-start ring-accent-ring transition-all hover:border-accent-hover hover:bg-secondary-hover focus-visible:border-accent-focus focus-visible:ring"
+      className={`flex w-full items-start gap-4 rounded-lg border bg-secondary px-5 py-4 text-start ring-accent-ring transition-all ${
+        locked ?
+          'cursor-not-allowed opacity-70 grayscale'
+        : 'hover:border-accent-hover hover:bg-secondary-hover focus-visible:border-accent-focus focus-visible:ring'
+      }`}
+      disabled={locked}
       onClick={onClick}
     >
-      <div className="mt-1 flex items-center justify-center text-accent">
-        <Database size={20} />
+      <div
+        className={`mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-md border bg-fill3 text-accent ${
+          locked ? 'grayscale' : ''
+        }`}
+      >
+        {icon ?
+          <span className="[&_svg]:size-6 [&_svg]:stroke-[1.8]" dangerouslySetInnerHTML={{ __html: icon }} />
+        : <Database size={20} />}
       </div>
       <div className="min-w-0">
         <h3 className="font-bold">{title}</h3>
         <p className="text-content2">{description}</p>
       </div>
+      {locked && (
+        <div className="mt-1 ml-auto flex items-center gap-1 text-xs text-content2">
+          <Lock size={14} />
+          Upgrade
+        </div>
+      )}
     </button>
+  )
+}
+
+function HealthBadge({ health }: { health?: ConnectorHealth }) {
+  if (!health) return null
+  const styles: Record<ConnectorHealth['level'], string> = {
+    healthy: 'bg-emerald-500/10 text-emerald-500',
+    degraded: 'bg-amber-500/10 text-amber-500',
+    critical: 'bg-red-500/10 text-red-500'
+  }
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${styles[health.level]}`}
+      title={health.reasons.join(', ') || health.level}
+    >
+      {health.score}
+    </span>
   )
 }
 
@@ -37,16 +81,21 @@ export function ConnectionsPanel() {
   const projectId = useStore($currentProjectId)
   const { data: platformSettings, isPending: settingsPending } = usePlatformSettings()
   const { data: connectors = [], isPending } = useProjectConnectorsQuery()
+  const { data: catalog } = useConnectorCatalogQuery()
   const { mutateAsync: runAction, isPending: actionPending } = useConnectorActionMutation()
+  const { mutateAsync: deleteConnector, isPending: deletePending } = useDeleteConnectorMutation()
 
   if (!settingsPending && !platformSettings?.synxEnabled) {
     return null
   }
 
-  const openSetup = (sourceType: ConnectorType) => {
+  const openSetup = (sourceType: string) => {
     if (!projectId) return
     openRoute('projectNewConnection', { id: projectId, sourceType })
   }
+
+  const entitled = catalog?.connectors ?? []
+  const locked = catalog?.unavailable ?? []
 
   return (
     <section className="mt-5">
@@ -64,16 +113,25 @@ export function ConnectionsPanel() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <SourceTile
-          description="Stream tables with logical replication."
-          onClick={() => openSetup('postgres')}
-          title="Connect PostgreSQL"
-        />
-        <SourceTile
-          description="Stream collections with change streams."
-          onClick={() => openSetup('mongodb')}
-          title="Connect MongoDB"
-        />
+        {entitled.map((descriptor) => (
+          <SourceTile
+            key={descriptor.id}
+            description={descriptor.description ?? `Stream ${descriptor.name} changes.`}
+            icon={descriptor.icon}
+            onClick={() => openSetup(descriptor.id)}
+            title={`Connect ${descriptor.name}`}
+          />
+        ))}
+        {locked.map((entry) => (
+          <SourceTile
+            key={entry.id}
+            description={entry.reason}
+            icon={entry.icon}
+            onClick={undefined}
+            title={`Connect ${entry.name}`}
+            locked
+          />
+        ))}
       </div>
 
       {connectors.length > 0 && (
@@ -85,8 +143,9 @@ export function ConnectionsPanel() {
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{connector.name}</p>
-                <p className="text-xs text-content2">
+                <p className="flex items-center gap-2 text-xs text-content2">
                   {connector.type} · {connector.status}
+                  <HealthBadge health={connector.health} />
                   {connector.lastError ? ` · ${connector.lastError}` : ''}
                 </p>
               </div>
@@ -136,6 +195,38 @@ export function ConnectionsPanel() {
                   <RotateCcw size={14} />
                   Resnapshot
                 </Button>
+                <Button
+                  disabled={actionPending}
+                  onClick={() => runAction({ id: connector.id, action: 'start' })}
+                  size="xsmall"
+                  variant="outline"
+                >
+                  <Play size={14} />
+                  Start
+                </Button>
+                <Button
+                  disabled={actionPending}
+                  onClick={() => runAction({ id: connector.id, action: 'replay' })}
+                  size="xsmall"
+                  variant="outline"
+                >
+                  <RotateCcw size={14} />
+                  Replay
+                </Button>
+                <Button
+                  disabled={actionPending}
+                  onClick={() => runAction({ id: connector.id, action: 'cancel' })}
+                  size="xsmall"
+                  variant="outline"
+                >
+                  <Pause size={14} />
+                  Cancel
+                </Button>
+                <DeleteConnectorDialog
+                  connectorName={connector.name}
+                  loading={deletePending}
+                  onDelete={(deleteRecords) => deleteConnector({ id: connector.id, deleteRecords })}
+                />
               </div>
             </div>
           ))}

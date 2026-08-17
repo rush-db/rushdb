@@ -121,7 +121,9 @@ export const logInSso = action(
 
 export const logInGitHub = action($user, 'logInGitHub', (store, searchParams: SearchParams) => {
   const query = new URLSearchParams(searchParams).toString()
-  return fetcher<GetUserResponse['data']>(`/api/v1/auth/github/callback?${query}`).then((user) => {
+  return fetcher<GetUserResponse['data']>(`/api/v1/auth/github/callback?${query}`, {
+    credentials: 'include'
+  }).then((user) => {
     $user.set({ ...user, isLoggedIn: true })
   })
 })

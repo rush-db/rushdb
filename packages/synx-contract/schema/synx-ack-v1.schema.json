@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rushdb.com/schemas/synx/acknowledgement-v1.json",
+  "title": "SynxAcknowledgementV1",
+  "description": "Destination acknowledgement (v1). Synx advances the source checkpoint only when status is committed and checkpointAccepted is true.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "batchId",
+    "status",
+    "accepted",
+    "rejected",
+    "duplicate",
+    "checkpointAccepted",
+    "schemaVersion",
+    "errors"
+  ],
+  "properties": {
+    "batchId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "title": "SynxAckStatusV1",
+      "enum": ["committed", "rejected", "duplicate"]
+    },
+    "accepted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rejected": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "duplicate": {
+      "type": "boolean"
+    },
+    "checkpointAccepted": {
+      "type": "boolean"
+    },
+    "schemaVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "committedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nextExpectedSequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SynxAckErrorV1"
+      }
+    }
+  },
+  "$defs": {
+    "SynxAckErrorV1": {
+      "title": "SynxAckErrorV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "operationIndex": {
+          "type": "integer"
+        },
+        "sourceIdHash": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

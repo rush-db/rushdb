@@ -10,23 +10,23 @@ RushDB Cloud is the managed way to run RushDB. It provides projects, API keys, t
 
 ## Choose an Operating Model
 
-| Model               | Graph backend                                    | RushDB operations    | Best fit                                               |
-| ------------------- | ------------------------------------------------ | -------------------- | ------------------------------------------------------ |
-| **RushDB Cloud**    | RushDB-managed Neo4j                             | Managed by RushDB    | Fastest path from API key to production                |
-| **Cloud with BYOC** | Your Neo4j or Aura instance                      | Managed by RushDB    | Keep graph data in your own cloud account              |
-| **Self-hosted**     | Your Neo4j, PostgreSQL, or SQLite infrastructure | Managed by your team | Full deployment control and no cloud quota enforcement |
+| Model                         | Graph backend                                    | RushDB operations    | Best fit                                                |
+| ----------------------------- | ------------------------------------------------ | -------------------- | ------------------------------------------------------- |
+| **RushDB Cloud**              | RushDB-managed Neo4j                             | Managed by RushDB    | Fastest path from API key to production                 |
+| **Cloud + External Database** | Your Neo4j or Aura instance                      | Managed by RushDB    | Use RushDB Cloud with a separately operated graph store |
+| **Self-hosted**               | Your Neo4j, PostgreSQL, or SQLite infrastructure | Managed by your team | Full deployment control and no cloud quota enforcement  |
 
 ## Cloud Reference
 
-| Page                                                                     | What it explains                                                                   |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| [Billing Model](/rushdb-cloud/billing-model)                             | Monthly plans, usage limits, and the KU-based billing model                        |
-| [Multitenancy & Project Isolation](/rushdb-cloud/project-isolation)      | How `{projectId}` scopes reads, writes, metadata, and BYOC connections             |
-| [Licensing & Third-Party Services](/rushdb-cloud/licensing-and-services) | RushDB software licenses and the runtime services involved in each operating model |
-| [Knowledge Units (KU)](/rushdb-cloud/knowledge-units)                    | What generates KU and how to estimate usage                                        |
+| Page                                                                     | What it explains                                                                    |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| [Billing Model](/rushdb-cloud/billing-model)                             | Monthly plans, usage limits, and the KU-based billing model                         |
+| [Multitenancy & Project Isolation](/rushdb-cloud/project-isolation)      | How `{projectId}` scopes reads, writes, metadata, and external database connections |
+| [Licensing & Third-Party Services](/rushdb-cloud/licensing-and-services) | RushDB software licenses and the runtime services involved in each operating model  |
+| [Knowledge Units (KU)](/rushdb-cloud/knowledge-units)                    | What generates KU and how to estimate usage                                         |
 
 ## Start Using RushDB Cloud
 
 1. [Get an API key](/deploy/configuration/get-api-key).
 2. [Connect through an SDK, MCP, or REST](/connect/).
-3. Use [BYOC with Neo4j or Aura](/deploy/infrastructure/neo4j-and-aura) when graph data must remain in your own cloud account.
+3. [Connect an External Neo4j or Aura database](/deploy/infrastructure/neo4j-and-aura) when you want to operate the graph store separately from RushDB Cloud.

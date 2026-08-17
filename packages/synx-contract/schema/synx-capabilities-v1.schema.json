@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rushdb.com/schemas/synx/capabilities-v1.json",
+  "title": "SynxCapabilitiesV1",
+  "description": "Service capability negotiation payload (v1), served by GET /api/v1/_internal/synx/capabilities. Used during health/claim so services agree on a contract version and limits before emitting batches.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "schemaHash",
+    "serviceName",
+    "limits",
+    "supportedDeletionModes",
+    "supportedBatchModes"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "1"
+    },
+    "schemaHash": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64
+    },
+    "serviceName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "limits": {
+      "$ref": "#/$defs/SynxContractLimitsV1"
+    },
+    "supportedDeletionModes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "title": "SynxDeletionModeV1",
+        "enum": ["ignore", "soft_delete", "hard_delete"]
+      }
+    },
+    "supportedBatchModes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "title": "SynxBatchModeV1",
+        "enum": ["snapshot", "incremental", "replay"]
+      }
+    }
+  },
+  "$defs": {
+    "SynxContractLimitsV1": {
+      "title": "SynxContractLimitsV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxOperationsPerBatch", "maxBytesPerBatch"],
+      "properties": {
+        "maxOperationsPerBatch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxBytesPerBatch": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

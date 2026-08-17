@@ -47,7 +47,7 @@ export class GoogleOAuthController {
 
     const params = queryString.stringify({
       client_id: this.configService.get('GOOGLE_CLIENT_ID'),
-      redirect_uri: `${this.configService.get('RUSHDB_DASHBOARD_URL')}/auth/google`,
+      redirect_uri: this.googleOAuthService.getRedirectUri(),
       scope: [
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile'
@@ -116,9 +116,14 @@ export class GoogleOAuthController {
         ...(workspaceId && { workspaceId })
       }
     } catch (e) {
-      isDevMode(() => Logger.log(`[Google OAUTH ERROR]: `, e))
+      const message = e instanceof Error ? e.message : 'Unknown Google OAuth error'
+      isDevMode(() => Logger.warn(`[Google OAuth] ${message}`))
 
-      throw new UnauthorizedException(e)
+      if (e instanceof UnauthorizedException) {
+        throw e
+      }
+
+      throw new UnauthorizedException('Google authentication failed')
     }
   }
 }

@@ -293,7 +293,7 @@ const sidebars: SidebarsConfig = {
                 'learn/tutorials/use-cases/compliance-retention',
                 'learn/tutorials/use-cases/incident-response',
                 'learn/tutorials/use-cases/supply-chain-traceability',
-                'learn/tutorials/use-cases/byoc-vs-managed',
+                'learn/tutorials/use-cases/external-database-vs-managed',
                 'learn/tutorials/use-cases/is-rushdb-right-for-me'
               ]
             }

@@ -1,0 +1,37 @@
+{
+  "version": "1",
+  "source": {
+    "bindingId": "bind_01HZ2X",
+    "connectionId": "conn_01HZ2W",
+    "connectorType": "mongodb"
+  },
+  "stream": {
+    "id": "stm_01HZ2Y",
+    "name": "inventory.items"
+  },
+  "batch": {
+    "id": "b_rp1",
+    "sequence": 18,
+    "emittedAt": "2026-08-02T08:00:00.000Z",
+    "cursorHash": "361ead9afbc3fb0fbc4b2ff615890d5bcc84183df40c480ccd4b3878050fd119",
+    "mode": "replay"
+  },
+  "mapping": {
+    "targetLabel": "INVENTORY_ITEM",
+    "identityFields": ["_id"],
+    "deletionMode": "hard_delete",
+    "mappingVersion": 1
+  },
+  "operations": [
+    {
+      "type": "delete",
+      "sourceId": "507f1f77bcf86cd799439011",
+      "sourceDeletedAt": "2026-08-02T07:59:59.000Z"
+    },
+    {
+      "type": "delete",
+      "sourceId": "507f191e810c19729de860ea",
+      "sourceDeletedAt": "2026-08-02T07:59:58.000Z"
+    }
+  ]
+}

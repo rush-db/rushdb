@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   UseInterceptors
 } from '@nestjs/common'
@@ -22,6 +23,7 @@ import { ChangeCorsInterceptor } from '@/dashboard/common/interceptors/change-co
 import { ConnectorService } from '@/dashboard/connector/connector.service'
 import { CreateConnectorDto, UpdateConnectorDto } from '@/dashboard/connector/dto/create-connector.dto'
 import {
+  ConnectorCommandResultDto,
   ConnectorHeartbeatDto,
   ConnectorOffsetDto,
   ConnectorStatusDto
@@ -84,6 +86,23 @@ export class ConnectorController {
     return this.connectorService.commitOffset(connectorId, dto, token, workerId)
   }
 
+  @Post('connectors/_internal/commands/claim')
+  claimCommand(
+    @Headers('x-synx-worker-id') workerId = 'synx-worker',
+    @Headers('x-synx-control-token') token?: string
+  ) {
+    return this.connectorService.claimCommand(workerId, token)
+  }
+
+  @Post('connectors/_internal/commands/:commandId/result')
+  completeCommand(
+    @Param('commandId') commandId: string,
+    @Body() dto: ConnectorCommandResultDto,
+    @Headers('x-synx-control-token') token?: string
+  ) {
+    return this.connectorService.completeCommand(commandId, dto.result ?? {}, dto.errorMessage, token)
+  }
+
   @Post('connectors')
   @ApiTags('Connectors')
   @ApiBearerAuth()
@@ -103,6 +122,14 @@ export class ConnectorController {
   @AuthGuard('project')
   list(@Request() request: PlatformRequest) {
     return this.connectorService.list(request.projectId)
+  }
+
+  @Get('connectors/catalog')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('workspace')
+  catalog(@Request() request: PlatformRequest) {
+    return this.connectorService.catalog(request.workspaceId)
   }
 
   @Get('connectors/:connectorId')
@@ -129,16 +156,64 @@ export class ConnectorController {
   @ApiTags('Connectors')
   @ApiBearerAuth()
   @AuthGuard('project')
-  delete(@Param('connectorId') connectorId: string, @Request() request: PlatformRequest) {
-    return this.connectorService.delete(connectorId, request.projectId)
+  delete(
+    @Param('connectorId') connectorId: string,
+    @Query('deleteRecords') deleteRecords: string,
+    @Request() request: PlatformRequest
+  ) {
+    return this.connectorService.delete(connectorId, request.projectId, deleteRecords === 'true')
   }
 
   @Post('connectors/:connectorId/test')
   @ApiTags('Connectors')
   @ApiBearerAuth()
   @AuthGuard('project')
-  test(@Param('connectorId') connectorId: string, @Request() request: PlatformRequest) {
-    return this.connectorService.test(connectorId, request.projectId)
+  test(
+    @Param('connectorId') connectorId: string,
+    @Request() request: PlatformRequest,
+    @AuthUser() user: IUserClaims
+  ) {
+    return this.connectorService.test(connectorId, request.projectId, user?.id)
+  }
+
+  @Post('connectors/:connectorId/discover')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  discover(
+    @Param('connectorId') connectorId: string,
+    @Request() request: PlatformRequest,
+    @AuthUser() user: IUserClaims
+  ) {
+    return this.connectorService.discover(connectorId, request.projectId, user?.id)
+  }
+
+  @Post('connectors/:connectorId/databases')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  databases(
+    @Param('connectorId') connectorId: string,
+    @Request() request: PlatformRequest,
+    @AuthUser() user: IUserClaims
+  ) {
+    return this.connectorService.databases(connectorId, request.projectId, user?.id)
+  }
+
+  @Get('connectors/:connectorId/commands')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  listCommands(@Param('connectorId') connectorId: string, @Request() request: PlatformRequest) {
+    return this.connectorService.listCommands(connectorId, request.projectId)
+  }
+
+  @Get('connectors/commands/:commandId')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  getCommand(@Param('commandId') commandId: string, @Request() request: PlatformRequest) {
+    return this.connectorService.getCommand(commandId, request.projectId)
   }
 
   @Post('connectors/:connectorId/pause')
@@ -165,11 +240,59 @@ export class ConnectorController {
     return this.connectorService.resnapshot(connectorId, request.projectId)
   }
 
+  @Post('connectors/:connectorId/start')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  start(@Param('connectorId') connectorId: string, @Request() request: PlatformRequest) {
+    return this.connectorService.start(connectorId, request.projectId)
+  }
+
+  @Post('connectors/:connectorId/replay')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  replay(@Param('connectorId') connectorId: string, @Request() request: PlatformRequest) {
+    return this.connectorService.replay(connectorId, request.projectId)
+  }
+
+  @Post('connectors/:connectorId/cancel')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  cancel(@Param('connectorId') connectorId: string, @Request() request: PlatformRequest) {
+    return this.connectorService.cancel(connectorId, request.projectId)
+  }
+
   @Get('connectors/:connectorId/events')
   @ApiTags('Connectors')
   @ApiBearerAuth()
   @AuthGuard('project')
   events(@Param('connectorId') connectorId: string, @Request() request: PlatformRequest) {
     return this.connectorService.events(connectorId, request.projectId)
+  }
+
+  @Get('connectors/:connectorId/runs')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  runs(@Param('connectorId') connectorId: string, @Request() request: PlatformRequest) {
+    return this.connectorService.listRuns(connectorId, request.projectId)
+  }
+
+  @Get('connectors/:connectorId/rejections')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  rejections(@Param('connectorId') connectorId: string, @Request() request: PlatformRequest) {
+    return this.connectorService.listRejections(connectorId, request.projectId)
+  }
+
+  @Post('connectors/:connectorId/rejections/resolve')
+  @ApiTags('Connectors')
+  @ApiBearerAuth()
+  @AuthGuard('project')
+  resolveRejections(@Param('connectorId') connectorId: string, @Request() request: PlatformRequest) {
+    return this.connectorService.resolveRejections(connectorId, request.projectId)
   }
 }

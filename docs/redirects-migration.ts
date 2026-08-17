@@ -471,7 +471,7 @@ const slugMigrationRedirects: Array<{ from: string; to: string }> = [
   },
   {
     "from": "/tutorials/byoc-vs-managed",
-    "to": "/learn/tutorials/use-cases/byoc-vs-managed"
+    "to": "/learn/tutorials/use-cases/external-database-vs-managed"
   },
   {
     "from": "/tutorials/compliance-retention",

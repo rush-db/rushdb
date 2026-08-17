@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rushdb.com/schemas/synx/envelope-v1.json",
+  "title": "SynxEnvelopeV1",
+  "description": "Private Cloud destination envelope (v1). One envelope targets one source binding and stream. Rejected by Core unless it is exactly the next committed sequence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "source", "stream", "batch", "mapping", "operations"],
+  "properties": {
+    "version": {
+      "const": "1"
+    },
+    "source": {
+      "$ref": "#/$defs/SynxSourceV1"
+    },
+    "stream": {
+      "$ref": "#/$defs/SynxStreamV1"
+    },
+    "batch": {
+      "$ref": "#/$defs/SynxBatchV1"
+    },
+    "mapping": {
+      "$ref": "#/$defs/SynxMappingV1"
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "$ref": "#/$defs/SynxOperationV1"
+      }
+    }
+  },
+  "$defs": {
+    "SynxSourceV1": {
+      "title": "SynxSourceV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bindingId", "connectionId", "connectorType"],
+      "properties": {
+        "bindingId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "connectorType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instance": {
+          "type": "string"
+        }
+      }
+    },
+    "SynxStreamV1": {
+      "title": "SynxStreamV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "sourceSchemaVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "SynxBatchV1": {
+      "title": "SynxBatchV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sequence", "emittedAt", "mode"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "emittedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cursorHash": {
+          "type": "string"
+        },
+        "mode": {
+          "title": "SynxBatchModeV1",
+          "enum": ["snapshot", "incremental", "replay"]
+        }
+      }
+    },
+    "SynxMappingV1": {
+      "title": "SynxMappingV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetLabel", "identityFields", "deletionMode", "mappingVersion"],
+      "properties": {
+        "targetLabel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identityFields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletionMode": {
+          "title": "SynxDeletionModeV1",
+          "enum": ["ignore", "soft_delete", "hard_delete"]
+        },
+        "mappingVersion": {
+          "type": "integer"
+        }
+      }
+    },
+    "SynxOperationV1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SynxUpsertOperationV1"
+        },
+        {
+          "$ref": "#/$defs/SynxDeleteOperationV1"
+        }
+      ]
+    },
+    "SynxUpsertOperationV1": {
+      "title": "SynxUpsertOperationV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "sourceId", "data"],
+      "properties": {
+        "type": {
+          "const": "upsert"
+        },
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceCreatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sourceUpdatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "data": {
+          "type": "object"
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SynxSourceRelationReferenceV1"
+          }
+        }
+      }
+    },
+    "SynxDeleteOperationV1": {
+      "title": "SynxDeleteOperationV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "sourceId"],
+      "properties": {
+        "type": {
+          "const": "delete"
+        },
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceDeletedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "SynxSourceRelationReferenceV1": {
+      "title": "SynxSourceRelationReferenceV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "to"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to": {
+          "$ref": "#/$defs/SynxRelationTargetV1"
+        }
+      }
+    },
+    "SynxRelationTargetV1": {
+      "title": "SynxRelationTargetV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["streamId", "sourceId"],
+      "properties": {
+        "streamId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

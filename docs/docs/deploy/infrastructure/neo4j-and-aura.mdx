@@ -1,9 +1,9 @@
 ---
 title: Neo4j & Aura
-description: Configure RushDB's graph backend — bundled Neo4j via Docker Compose, an existing Neo4j instance, or Neo4j Aura (BYOC).
+description: Configure RushDB's graph backend — bundled Neo4j via Docker Compose, an existing Neo4j instance, or Neo4j Aura as an External Database.
 sidebar_position: 1
 displayed_sidebar: docs
-tags: [Infrastructure, Neo4j, Aura, BYOC, Self-Hosted]
+tags: [Infrastructure, Neo4j, Aura, External Database, Self-Hosted]
 ---
 
 import Tabs from '@theme/Tabs'
@@ -13,11 +13,11 @@ import TabItem from '@theme/TabItem'
 
 RushDB uses Neo4j as its graph backend. There are three ways to provide a Neo4j instance:
 
-| Option                       | When to use                                                          |
-| ---------------------------- | -------------------------------------------------------------------- |
-| **Bundled** (Docker Compose) | Quickest path — Neo4j runs in the same Compose stack                 |
-| **Existing instance**        | You already run Neo4j on your infrastructure                         |
-| **Neo4j Aura (BYOC)**        | Keep graph data in your own cloud account; use RushDB API layer only |
+| Option                       | When to use                                                     |
+| ---------------------------- | --------------------------------------------------------------- |
+| **Bundled** (Docker Compose) | Quickest path — Neo4j runs in the same Compose stack            |
+| **Existing instance**        | You already run Neo4j on your infrastructure                    |
+| **External Neo4j Aura**      | Use a customer-operated Aura database with the RushDB API layer |
 
 ## Requirements
 
@@ -107,18 +107,18 @@ This requires internet access from the Neo4j container on first start. The versi
 The APOC jar version must match the Neo4j server version. Mismatched versions cause startup errors. If you upgrade Neo4j, replace the APOC jar with the matching release.
 :::
 
-## Option C — Neo4j Aura (BYOC)
+## Option C — External Neo4j Aura Database
 
-Bring Your Own Cloud: keep your graph data in a Neo4j Aura account while RushDB provides the API layer.
+Connect a Neo4j Aura instance that you operate separately while RushDB provides the API layer. In RushDB Cloud, the RushDB runtime still runs on RushDB infrastructure, so this connection mode is called **External Database**, not BYOC.
 
-**Why BYOC?**
+**Why use an External Database?**
 
-- Graph data never leaves your cloud account
+- Graph data is stored in your Neo4j Aura tenancy
+- Keep control of the Aura subscription, region, credentials, backups, and capacity
 - Use Neo4j's managed backups, monitoring, and scaling
-- AuraDB Free tier (1 GB) is sufficient for development
 
 :::info APOC on Aura
-Neo4j AuraDB Professional and Enterprise tiers include APOC Core. APOC is **not available** on AuraDB Free. For production BYOC, use AuraDB Professional or higher.
+APOC availability varies by Aura tier and Neo4j version. RushDB requires the procedures listed above, so use an Aura configuration that passes **Verify Connection**. Do not choose a tier based only on its name.
 :::
 
 **Setup:**
@@ -133,10 +133,10 @@ NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your-aura-password
 ```
 
-4. When creating a project in the RushDB dashboard, select **BYOC** and enter the same credentials
+4. When creating a project in the RushDB dashboard, enable **Use my own Neo4j instance** and enter the same credentials
 
 :::info
-BYOC projects unlock raw Cypher access via `POST /api/v1/db/{projectId}/query/raw` — useful for advanced graph traversals outside the standard RushDB query model.
+External Database projects unlock raw Cypher access via `POST /api/v1/db/{projectId}/query/raw` — useful for advanced graph traversals outside the standard RushDB query model.
 :::
 
 ## Verify Connection

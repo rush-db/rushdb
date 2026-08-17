@@ -17,6 +17,8 @@ type TWorkspaceProperties = {
   edited?: string
   pendingInvites?: string
   stats?: string
+  /** Billing plan id (free/pro/scale/enterprise); present after billing enrichment. */
+  planId?: string
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

@@ -1,0 +1,1 @@
+ALTER TABLE "connectors" ADD COLUMN "generation" integer DEFAULT 0 NOT NULL;

@@ -1,0 +1,15 @@
+{
+  "id": "postgres",
+  "type": "database",
+  "name": "PostgreSQL",
+  "version": "0.4.0",
+  "schemaVersion": "1",
+  "fields": [
+    {
+      "key": "host",
+      "label": "Host",
+      "type": "string",
+      "required": true
+    }
+  ]
+}

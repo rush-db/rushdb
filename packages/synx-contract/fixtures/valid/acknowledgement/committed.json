@@ -1,0 +1,12 @@
+{
+  "batchId": "b_0042",
+  "status": "committed",
+  "accepted": 3,
+  "rejected": 0,
+  "duplicate": false,
+  "checkpointAccepted": true,
+  "schemaVersion": "1",
+  "committedAt": "2026-08-02T09:15:01.000Z",
+  "nextExpectedSequence": 43,
+  "errors": []
+}

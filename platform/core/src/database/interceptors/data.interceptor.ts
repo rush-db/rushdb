@@ -17,7 +17,8 @@ import { map } from 'rxjs/operators'
 import {
   RUSHDB_KEY_PROJECT_ID,
   RUSHDB_KEY_PROPERTIES_META,
-  RUSHDB_INTERNALS_ALIASES
+  RUSHDB_INTERNALS_ALIASES,
+  RESERVED_PROVENANCE_KEYS
 } from '@/core/common/constants'
 
 export const toNative = (
@@ -145,18 +146,23 @@ export const toNative = (
   // Object
   else if (typeof value === 'object') {
     return Object.fromEntries(
-      Object.keys(value).map((key) => {
-        if (key === RUSHDB_KEY_PROJECT_ID) {
-          return []
-        } else if (key === RUSHDB_KEY_PROPERTIES_META) {
-          return [
-            RUSHDB_INTERNALS_ALIASES[key],
-            JSON.parse(toNative(value[key], showLabelsOrType, showIdentity))
-          ]
-        } else {
-          return [RUSHDB_INTERNALS_ALIASES[key] ?? key, toNative(value[key], showLabelsOrType, showIdentity)]
-        }
-      })
+      Object.keys(value)
+        .filter((key) => !RESERVED_PROVENANCE_KEYS.includes(key as (typeof RESERVED_PROVENANCE_KEYS)[number]))
+        .map((key) => {
+          if (key === RUSHDB_KEY_PROJECT_ID) {
+            return []
+          } else if (key === RUSHDB_KEY_PROPERTIES_META) {
+            return [
+              RUSHDB_INTERNALS_ALIASES[key],
+              JSON.parse(toNative(value[key], showLabelsOrType, showIdentity))
+            ]
+          } else {
+            return [
+              RUSHDB_INTERNALS_ALIASES[key] ?? key,
+              toNative(value[key], showLabelsOrType, showIdentity)
+            ]
+          }
+        })
     )
   } else if (RUSHDB_INTERNALS_ALIASES[value]) {
     return RUSHDB_INTERNALS_ALIASES[value]

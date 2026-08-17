@@ -1,0 +1,34 @@
+{
+  "id": "postgres",
+  "type": "database",
+  "name": "PostgreSQL",
+  "version": "0.4.0",
+  "schemaVersion": "1",
+  "capabilities": {
+    "batchModes": ["snapshot", "incremental", "replay"],
+    "deletionModes": ["hard_delete", "soft_delete"],
+    "relationEvidence": true
+  },
+  "fields": [
+    {
+      "key": "host",
+      "label": "Host",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "port",
+      "label": "Port",
+      "type": "integer",
+      "required": false,
+      "placeholder": "5432"
+    },
+    {
+      "key": "password",
+      "label": "Password",
+      "type": "string",
+      "required": true,
+      "secret": true
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import { getCurrentISO } from '@/common/utils/getCurrentISO'
 import { isArray } from '@/common/utils/isArray'
 import { AiService } from '@/core/ai/ai.service'
 import { EmbeddingIndexRepository } from '@/core/ai/embedding-index.repository'
+import { RESERVED_PROVENANCE_KEYS } from '@/core/common/constants'
 import { Where } from '@/core/common/types'
 import { EntityQueryService } from '@/core/entity/entity-query.service'
 import {
@@ -321,7 +322,11 @@ export class EntityService {
         .run(query, { projectId })
         .then((result) => result.records[0].get('fields')) as unknown as string[]
     ])
-    return allProjectProperties.filter((property) => filteredFields.includes(property.name))
+    return allProjectProperties.filter(
+      (property) =>
+        filteredFields.includes(property.name) &&
+        !RESERVED_PROVENANCE_KEYS.includes(property.name as (typeof RESERVED_PROVENANCE_KEYS)[number])
+    )
   }
 
   async findRelations({

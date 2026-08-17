@@ -1,12 +1,12 @@
 ---
 title: Multitenancy & Project Isolation
-description: How RushDB scopes graph data, metadata, API tokens, and BYOC connections with projectId.
+description: How RushDB scopes graph data, metadata, API tokens, and external database connections with projectId.
 sidebar_position: 2
 ---
 
 # Multitenancy & Project Isolation
 
-`{projectId}` is the data boundary for a RushDB project. RushDB resolves it from authenticated request context and applies it to graph operations, project metadata, usage events, and optional BYOC database connections.
+`{projectId}` is the data boundary for a RushDB project. RushDB resolves it from authenticated request context and applies it to graph operations, project metadata, usage events, and optional External Database connections.
 
 ## Graph Data Is Scoped by `projectId`
 
@@ -30,12 +30,12 @@ The dashboard passes `x-project-id` while navigating project-level screens. MCP 
 
 The default shared-cloud connection uses **logical isolation**: projects can share a Neo4j database while mandatory `projectId` predicates prevent cross-project reads and writes.
 
-When you need a dedicated graph boundary, use **BYOC** to connect a project to your own Neo4j or Aura instance. For the strongest physical separation in self-hosted environments, run separate RushDB and Neo4j instances per tenant.
+When you need a dedicated graph boundary, use an **External Database** project connected to your own Neo4j or Aura instance. RushDB's API still runs in RushDB Cloud; this is not a customer-cloud RushDB deployment. For the strongest physical separation, run separate self-hosted RushDB and Neo4j instances per tenant.
 
 | Requirement                         | Recommended model                |
 | ----------------------------------- | -------------------------------- |
 | Fastest managed setup               | RushDB Cloud                     |
-| Graph data in your cloud account    | Cloud with BYOC                  |
+| Separately operated graph database  | Cloud + External Database        |
 | Dedicated infrastructure per tenant | Separate self-hosted deployments |
 
 ## Operational Guidance
@@ -44,4 +44,4 @@ When you need a dedicated graph boundary, use **BYOC** to connect a project to y
 - Issue project-scoped API keys with the minimum required access level.
 - Keep Neo4j Bolt ports private and route application access through RushDB.
 - Review the [Security](/deploy/configuration/security) guide before production deployment.
-- Read [Neo4j & Aura](/deploy/infrastructure/neo4j-and-aura) when configuring BYOC.
+- Read [Neo4j & Aura](/deploy/infrastructure/neo4j-and-aura) when configuring an External Database.

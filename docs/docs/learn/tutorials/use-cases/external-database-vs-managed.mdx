@@ -1,14 +1,14 @@
 ---
 sidebar_position: 38
-title: 'BYOC vs Managed vs Self-Hosted'
-description: Compare RushDB's three deployment models — Managed, BYOC (Bring Your Own Cloud), and Self-Hosted — with a feature matrix, decision guide, and step-by-step migration path.
-tags: [Deployment, BYOC, Neo4j, Self-Hosted]
+title: 'External Database vs Managed vs Self-Hosted'
+description: Compare RushDB's Managed, External Database, and Self-Hosted operating models with a feature matrix, decision guide, and migration path.
+tags: [Deployment, External Database, Neo4j, Self-Hosted]
 ---
 
 import Tabs from '@site/src/components/LanguageTabs'
 import TabItem from '@theme/TabItem'
 
-# BYOC vs Managed vs Self-Hosted
+# External Database vs Managed vs Self-Hosted
 
 RushDB offers three deployment models. This page explains the trade-offs so you can pick the right architecture from the start — or understand what's involved in moving between them.
 
@@ -16,19 +16,19 @@ RushDB offers three deployment models. This page explains the trade-offs so you 
 
 ## Three deployment models
 
-|                               | **Managed**           | **BYOC**                   | **Self-Hosted**           |
-| ----------------------------- | --------------------- | -------------------------- | ------------------------- |
-| **Who runs RushDB**           | RushDB Cloud          | RushDB Cloud               | You                       |
-| **Your Neo4j instance**       | RushDB-managed        | Yours (Aura or local)      | Yours                     |
-| **Data residency**            | RushDB infrastructure | Your chosen region         | Your infrastructure       |
-| **Setup time**                | < 1 minute            | ~15 minutes                | 30–60 minutes             |
-| **Ops burden**                | None                  | Minimal                    | Full                      |
-| **Raw Cypher access**         | ✗                     | ✓                          | ✓                         |
-| **Custom embedding endpoint** | ✗                     | ✗                          | ✓                         |
-| **Managed billing**           | RushDB plans          | RushDB plans + Neo4j costs | Infrastructure costs only |
-| **Backups**                   | Automatic             | Your responsibility        | Your responsibility       |
-| **SLA / uptime**              | RushDB SLA            | RushDB SLA (RushDB layer)  | DIY                       |
-| **Compliance (SOC 2, HIPAA)** | Contact sales         | Achievable                 | Achievable                |
+|                               | **Managed**           | **External Database**        | **Self-Hosted**           |
+| ----------------------------- | --------------------- | ---------------------------- | ------------------------- |
+| **Who runs RushDB**           | RushDB Cloud          | RushDB Cloud                 | You                       |
+| **Your Neo4j instance**       | RushDB-managed        | Yours (Aura or local)        | Yours                     |
+| **Data residency**            | RushDB infrastructure | Your Neo4j/Aura location     | Your infrastructure       |
+| **Setup time**                | < 1 minute            | ~15 minutes                  | 30–60 minutes             |
+| **Ops burden**                | None                  | Minimal                      | Full                      |
+| **Raw Cypher access**         | ✗                     | ✓                            | ✓                         |
+| **Custom embedding endpoint** | ✗                     | ✗                            | ✓                         |
+| **Managed billing**           | RushDB plans          | RushDB plan + database costs | Infrastructure costs only |
+| **Backups**                   | Automatic             | Your responsibility          | Your responsibility       |
+| **SLA / uptime**              | RushDB SLA            | RushDB SLA (RushDB layer)    | DIY                       |
+| **Compliance (SOC 2, HIPAA)** | Contact sales         | Achievable                   | Achievable                |
 
 ---
 
@@ -77,24 +77,24 @@ curl -X POST https://api.rushdb.com/api/v1/records/search \
 
 ---
 
-### BYOC — bring your own Neo4j
+### External Database — connect your Neo4j
 
-**Choose BYOC when:**
+**Choose External Database when:**
 
 - You already have a Neo4j Aura instance (or plan to).
 - You need raw Cypher access for reporting or migrations.
 - You want your graph data to stay within your cloud account or region.
 - You want RushDB's API layer managed for you but want control over the graph store.
 
-BYOC gives you a RushDB project that connects to your Neo4j credentials. See [Connect an Aura Instance](/deploy/guides/connect-aura) for the full setup guide.
+An External Database project connects RushDB Cloud to credentials for a Neo4j or Aura database you operate separately. RushDB's API remains hosted by RushDB; this is not a customer-cloud RushDB deployment. See [Connect an Aura Instance](/deploy/guides/connect-aura) for the full setup guide.
 
 <Tabs groupId="programming-language">
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-// Same SDK interface — BYOC is transparent to application code
+// Same SDK interface — the External Database is transparent to application code
 import RushDB from '@rushdb/javascript-sdk'
-const db = new RushDB('rbk_your_byoc_project_key')
+const db = new RushDB('rbk_your_external_db_project_key')
 ```
 
 </TabItem>
@@ -103,7 +103,7 @@ const db = new RushDB('rbk_your_byoc_project_key')
 ```python
 from rushdb import RushDB
 
-db = RushDB("rbk_your_byoc_project_key")
+db = RushDB("rbk_your_external_db_project_key")
 ```
 
 </TabItem>
@@ -132,7 +132,7 @@ print(result)
 
 ```bash
 curl -X POST https://api.rushdb.com/api/v1/query/raw \
-  -H "Authorization: Bearer rbk_your_byoc_project_key" \
+  -H "Authorization: Bearer rbk_your_external_db_project_key" \
   -H "Content-Type: application/json" \
   -d '{"query": "MATCH (n) RETURN count(n) AS total"}'
 ```
@@ -200,22 +200,22 @@ curl -X POST "$BASE/records/search" \
 
 The following features are gated by deployment model:
 
-| Feature                               | Managed | BYOC | Self-Hosted |
-| ------------------------------------- | ------- | ---- | ----------- |
-| `POST /api/v1/query/raw` (raw Cypher) | ✗       | ✓    | ✓           |
-| Custom embedding base URL             | ✗       | ✗    | ✓           |
-| External embedding indexes (BYOV)     | ✓       | ✓    | ✓           |
-| Dashboard access                      | ✓       | ✓    | ✓           |
-| API key management                    | ✓       | ✓    | ✓           |
-| Rate limiter configuration            | ✗       | ✗    | ✓           |
+| Feature                               | Managed | External Database | Self-Hosted |
+| ------------------------------------- | ------- | ----------------- | ----------- |
+| `POST /api/v1/query/raw` (raw Cypher) | ✗       | ✓                 | ✓           |
+| Custom embedding base URL             | ✗       | ✗                 | ✓           |
+| External embedding indexes (BYOV)     | ✓       | ✓                 | ✓           |
+| Dashboard access                      | ✓       | ✓                 | ✓           |
+| API key management                    | ✓       | ✓                 | ✓           |
+| Rate limiter configuration            | ✗       | ✗                 | ✓           |
 
 ---
 
 ## Migrating between models
 
-### Managed → BYOC
+### Managed → External Database
 
-Managed and BYOC share the same RushDB API layer. There is no direct data export between Neo4j instances since BYOC uses _your_ Neo4j that you provision separately. The migration flow is:
+Managed and External Database projects share the same RushDB API layer. There is no direct data export between Neo4j instances because the target uses a Neo4j database that you operate separately. The migration flow is:
 
 **1. Document your data shape**
 
@@ -315,11 +315,11 @@ done
 </TabItem>
 </Tabs>
 
-**3. Create a BYOC project**
+**3. Create an External Database project**
 
-In the [RushDB Dashboard](https://app.rushdb.com), create a new project using "Use my own Neo4j instance" and follow the [BYOC setup guide](/deploy/guides/connect-aura).
+In the [RushDB Dashboard](https://app.rushdb.com), create a new project using **Use my own Neo4j instance** and follow the [External Aura setup guide](/deploy/guides/connect-aura).
 
-**4. Re-import into the BYOC project**
+**4. Re-import into the External Database project**
 
 Point your SDK at the new API key and re-ingest:
 
@@ -327,9 +327,9 @@ Point your SDK at the new API key and re-ingest:
 <TabItem value="typescript" label="TypeScript">
 
 ```typescript
-const byocDb = new RushDB('rbk_byoc_project_key')
+const externalDb = new RushDB('rbk_external_db_project_key')
 
-await byocDb.records.importJson({
+await externalDb.records.importJson({
   label: 'Product',
   data: payload
 })
@@ -339,9 +339,9 @@ await byocDb.records.importJson({
 <TabItem value="python" label="Python">
 
 ```python
-byoc_db = RushDB('rbk_byoc_project_key')
+external_db = RushDB('rbk_external_db_project_key')
 
-byoc_db.records.import_json(
+external_db.records.import_json(
     label='Product',
     data=payload
 )
@@ -351,10 +351,10 @@ byoc_db.records.import_json(
 <TabItem value="shell" label="Shell">
 
 ```bash
-BYOC_TOKEN="rbk_byoc_project_key"
+EXTERNAL_DB_TOKEN="rbk_external_db_project_key"
 
 curl -s -X POST "$BASE/records/import" \
-  -H "$H" -H "Authorization: Bearer $BYOC_TOKEN" \
+  -H "$H" -H "Authorization: Bearer $EXTERNAL_DB_TOKEN" \
   -d '{"label":"Product","data":[...]}'
 ```
 
@@ -363,7 +363,7 @@ curl -s -X POST "$BASE/records/import" \
 
 ---
 
-### BYOC / Managed → Self-Hosted
+### External Database / Managed → Self-Hosted
 
 Self-hosted uses the same REST API surface as the cloud. The migration steps are:
 
@@ -425,7 +425,7 @@ Do you need data to stay on your own infrastructure?
   └─ Yes → Self-Hosted
 
 Do you already have a Neo4j instance, or need raw Cypher?
-  └─ Yes → BYOC
+  └─ Yes → External Database
 
 Starting fresh with no ops requirements?
   └─ Yes → Managed
@@ -436,6 +436,6 @@ Starting fresh with no ops requirements?
 ## Next steps
 
 - **Get started with Managed** — [Quickstart](/get-started/quick-tutorial)
-- **Set up BYOC** — [Connect an Aura Instance](/deploy/guides/connect-aura)
+- **Connect an External Database** — [Connect an Aura Instance](/deploy/guides/connect-aura)
 - **Deploy self-hosted** — [Deployment](/deploy/remote-hosting/self-hosting-rushdb)
 - **Manage projects post-deploy** — [Self-Hosted Project Setup](/deploy/guides/self-hosted-project-setup)

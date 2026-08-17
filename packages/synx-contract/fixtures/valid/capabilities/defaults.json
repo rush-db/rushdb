@@ -1,0 +1,11 @@
+{
+  "contractVersion": "1",
+  "schemaHash": "056f6681c9c4c8082b8221ac8553361231efaeff9f7ec7fbc919ff120c4590fe",
+  "serviceName": "rushdb-core",
+  "limits": {
+    "maxOperationsPerBatch": 500,
+    "maxBytesPerBatch": 5242880
+  },
+  "supportedDeletionModes": ["ignore", "soft_delete", "hard_delete"],
+  "supportedBatchModes": ["snapshot", "incremental", "replay"]
+}

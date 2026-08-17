@@ -1,0 +1,39 @@
+{
+  "id": "intercom",
+  "type": "crm",
+  "name": "Intercom",
+  "description": "Sync Intercom contacts, conversations and companies.",
+  "version": "1.2.0",
+  "schemaVersion": "1",
+  "capabilities": {
+    "batchModes": ["incremental", "snapshot"],
+    "deletionModes": ["soft_delete", "ignore"],
+    "relationEvidence": true
+  },
+  "fields": [
+    {
+      "key": "accessToken",
+      "label": "Access token",
+      "type": "string",
+      "required": true,
+      "secret": true,
+      "placeholder": "Enter your Intercom bearer token"
+    },
+    {
+      "key": "appId",
+      "label": "App ID",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "syncPlan",
+      "label": "Sync plan",
+      "type": "select",
+      "required": false,
+      "options": [
+        { "value": "free", "label": "Free" },
+        { "value": "pro", "label": "Pro" }
+      ]
+    }
+  ]
+}

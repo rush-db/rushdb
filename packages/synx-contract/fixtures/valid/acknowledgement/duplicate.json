@@ -1,0 +1,10 @@
+{
+  "batchId": "b_0042",
+  "status": "duplicate",
+  "accepted": 0,
+  "rejected": 0,
+  "duplicate": true,
+  "checkpointAccepted": true,
+  "schemaVersion": "1",
+  "errors": []
+}

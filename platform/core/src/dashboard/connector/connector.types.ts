@@ -1,8 +1,14 @@
-export const CONNECTOR_TYPES = ['postgres', 'mongodb'] as const
+export const CONNECTOR_TYPES = ['postgres', 'mysql', 'mongodb'] as const
 export type ConnectorType = (typeof CONNECTOR_TYPES)[number]
 
 export const CONNECTOR_STATUSES = ['paused', 'running', 'error', 'testing', 'deleted'] as const
 export type ConnectorStatus = (typeof CONNECTOR_STATUSES)[number]
+
+export const CONNECTOR_COMMAND_TYPES = ['test', 'discover', 'databases', 'start', 'replay', 'cancel'] as const
+export type ConnectorCommandType = (typeof CONNECTOR_COMMAND_TYPES)[number]
+
+export const CONNECTOR_COMMAND_STATUSES = ['pending', 'claimed', 'completed', 'failed'] as const
+export type ConnectorCommandStatus = (typeof CONNECTOR_COMMAND_STATUSES)[number]
 
 export type ConnectorTransform = {
   labels?: Record<string, string>

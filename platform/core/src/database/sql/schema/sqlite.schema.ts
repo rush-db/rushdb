@@ -1,4 +1,4 @@
-import { integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -276,23 +276,32 @@ export const relationshipAnalysisQueue = sqliteTable('relationship_analysis_queu
   updatedAt: text('updated_at').notNull()
 })
 
-export const connectors = sqliteTable('connectors', {
-  id: text('id').primaryKey(),
-  projectId: text('project_id')
-    .notNull()
-    .references(() => projects.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  type: text('type').notNull(),
-  config: text('config').notNull(),
-  transform: text('transform').notNull(),
-  status: text('status').notNull().default('paused'),
-  lastError: text('last_error'),
-  lagMs: integer('lag_ms'),
-  stats: text('stats'),
-  createdBy: text('created_by'),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull()
-})
+export const connectors = sqliteTable(
+  'connectors',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    type: text('type').notNull(),
+    config: text('config').notNull(),
+    transform: text('transform').notNull(),
+    status: text('status').notNull().default('paused'),
+    lastError: text('last_error'),
+    lagMs: integer('lag_ms'),
+    stats: text('stats'),
+    generation: integer('generation').notNull().default(0),
+    createdBy: text('created_by'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (t) => [
+    // Worker claims filter on status='running' over many connectors; index it so
+    // the atomic claim SELECT stays cheap at scale.
+    index('connectors_status_idx').on(t.status)
+  ]
+)
 
 export const connectorSecrets = sqliteTable('connector_secrets', {
   connectorId: text('connector_id')
@@ -344,6 +353,74 @@ export const connectorLeases = sqliteTable('connector_leases', {
   updatedAt: text('updated_at').notNull()
 })
 
+export const connectorCommands = sqliteTable('connector_commands', {
+  id: text('id').primaryKey(),
+  connectorId: text('connector_id')
+    .notNull()
+    .references(() => connectors.id, { onDelete: 'cascade' }),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  status: text('status').notNull().default('pending'),
+  payload: text('payload'),
+  result: text('result'),
+  errorMessage: text('error_message'),
+  requestedBy: text('requested_by'),
+  claimedBy: text('claimed_by'),
+  createdAt: text('created_at').notNull(),
+  claimedAt: text('claimed_at'),
+  completedAt: text('completed_at')
+})
+
+export const connectorRuns = sqliteTable('connector_runs', {
+  id: text('id').primaryKey(),
+  connectorId: text('connector_id')
+    .notNull()
+    .references(() => connectors.id, { onDelete: 'cascade' }),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  workerId: text('worker_id').notNull(),
+  trigger: text('trigger').notNull().default('user'),
+  status: text('status').notNull().default('running'),
+  phase: text('phase').notNull().default('starting'),
+  recordsRead: integer('records_read').notNull().default(0),
+  recordsWritten: integer('records_written').notNull().default(0),
+  recordsRejected: integer('records_rejected').notNull().default(0),
+  errorMessage: text('error_message'),
+  startedAt: text('started_at').notNull(),
+  completedAt: text('completed_at'),
+  heartbeatAt: text('heartbeat_at').notNull()
+})
+
+export const connectorRejections = sqliteTable(
+  'connector_rejections',
+  {
+    id: text('id').primaryKey(),
+    connectorId: text('connector_id')
+      .notNull()
+      .references(() => connectors.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    batchId: text('batch_id').notNull(),
+    operationIndex: integer('operation_index'),
+    sourceIdHash: text('source_id_hash'),
+    code: text('code').notNull(),
+    message: text('message').notNull(),
+    retryable: integer('retryable').notNull().default(0),
+    occurrenceCount: integer('occurrence_count').notNull().default(1),
+    firstSeenAt: text('first_seen_at').notNull(),
+    lastSeenAt: text('last_seen_at').notNull(),
+    resolved: integer('resolved').notNull().default(0),
+    createdAt: text('created_at').notNull()
+  },
+  (t) => [
+    uniqueIndex('connector_rejections_connector_code_hash_uniq').on(t.connectorId, t.code, t.sourceIdHash)
+  ]
+)
+
 export const savedQueries = sqliteTable('saved_queries', {
   id: text('id').primaryKey(),
   projectId: text('project_id')
@@ -356,6 +433,19 @@ export const savedQueries = sqliteTable('saved_queries', {
   semanticIndexId: text('semantic_index_id'),
   createdBy: text('created_by'),
   createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+})
+
+/**
+ * Runtime-registered connector descriptors, reported by synx workers. Core
+ * stores these opaque rows and never hardcodes the connector union — adding a
+ * connector is just a worker registering its spec, no rushdb restart.
+ */
+export const connectorDefinitions = sqliteTable('connector_definitions', {
+  id: text('id').primaryKey(),
+  descriptor: text('descriptor').notNull(),
+  version: text('version').notNull().default('1'),
+  registeredBy: text('registered_by'),
   updatedAt: text('updated_at').notNull()
 })
 
@@ -381,6 +471,10 @@ export const sqliteSchema = {
   connectorOffsets,
   connectorEvents,
   connectorLeases,
+  connectorCommands,
+  connectorRuns,
+  connectorRejections,
+  connectorDefinitions,
   savedQueries
 }
 

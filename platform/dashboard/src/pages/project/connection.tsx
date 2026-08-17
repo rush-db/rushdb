@@ -9,6 +9,8 @@ import { Spinner } from '~/elements/Spinner'
 import {
   useConnectorActionMutation,
   useConnectorEventsQuery,
+  useConnectorRejectionsQuery,
+  useConnectorRunsQuery,
   useProjectConnectorQuery
 } from '~/features/connectors/hooks'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
@@ -43,6 +45,8 @@ export function ProjectConnection({ projectId }: { projectId: Project['id'] }) {
   const connectionId = page?.route === 'projectConnection' ? page.params.connectionId : undefined
   const { data: connector, isPending } = useProjectConnectorQuery(connectionId)
   const { data: events = [], isPending: eventsPending } = useConnectorEventsQuery(connectionId)
+  const { data: runs = [] } = useConnectorRunsQuery(connectionId)
+  const { data: rejections = [] } = useConnectorRejectionsQuery(connectionId)
   const { mutateAsync: runAction, isPending: actionPending } = useConnectorActionMutation()
 
   if (!settingsPending && !platformSettings?.synxEnabled) {
@@ -224,6 +228,57 @@ export function ProjectConnection({ projectId }: { projectId: Project['id'] }) {
                 </div>
               ))
             : <p className="p-4 text-sm text-content2">No events have been recorded for this connection.</p>}
+          </div>
+        </section>
+
+        <section className="rounded-md border">
+          <div className="border-b p-4">
+            <h2 className="font-semibold">Run history</h2>
+          </div>
+          <div className="divide-y">
+            {runs.length ?
+              runs.map((run) => (
+                <div
+                  className="grid grid-cols-2 gap-2 p-4 text-sm lg:grid-cols-[180px_90px_90px_1fr_1fr_1fr]"
+                  key={run.id}
+                >
+                  <span className="text-content2">{formatDate(run.startedAt)}</span>
+                  <span className="font-medium">{run.status}</span>
+                  <span>{run.phase}</span>
+                  <span>written {run.recordsWritten}</span>
+                  <span>read {run.recordsRead}</span>
+                  <span className="truncate text-content2">{run.workerId}</span>
+                  {run.errorMessage && (
+                    <p className="col-span-full break-words text-red-400">{run.errorMessage}</p>
+                  )}
+                </div>
+              ))
+            : <p className="p-4 text-sm text-content2">No runs recorded yet.</p>}
+          </div>
+        </section>
+
+        <section className="rounded-md border">
+          <div className="border-b p-4">
+            <h2 className="font-semibold">Rejection ledger</h2>
+          </div>
+          <div className="divide-y">
+            {rejections.length ?
+              rejections.map((rejection) => (
+                <div
+                  className="grid grid-cols-1 gap-2 p-4 text-sm lg:grid-cols-[180px_120px_1fr]"
+                  key={rejection.id}
+                >
+                  <span className="text-content2">{formatDate(rejection.lastSeenAt)}</span>
+                  <span className="font-medium">
+                    {rejection.code} ×{rejection.occurrenceCount}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="break-words">{rejection.message}</p>
+                    <p className="text-xs text-content2">source id {rejection.sourceIdHash}</p>
+                  </div>
+                </div>
+              ))
+            : <p className="p-4 text-sm text-content2">No rejected records — the ledger is empty.</p>}
           </div>
         </section>
       </PageContent>

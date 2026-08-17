@@ -2,25 +2,27 @@ import { ArrowLeft, Cable } from 'lucide-react'
 import { useStore } from '@nanostores/react'
 
 import type { Project } from '~/features/projects/types'
-import type { ConnectorType } from '~/features/connectors/types'
 
 import { Button } from '~/elements/Button'
 import { PageContent, PageHeader, PageTitle } from '~/elements/PageHeader'
 import { ConnectorSetupWizard } from '~/features/connectors/components/ConnectorSetupWizard'
+import { useConnectorCatalogQuery } from '~/features/connectors/hooks'
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
 import { $router, getRoutePath, redirectRoute } from '~/lib/router'
 
-function parseSourceType(value?: string): ConnectorType | null {
-  if (value === 'postgres' || value === 'mongodb') return value
-  return null
-}
+const DB_TYPES = ['postgres', 'mysql', 'mongodb']
 
 export function ProjectNewConnection({ projectId }: { projectId: Project['id'] }) {
   const page = useStore($router)
   const { data: platformSettings, isPending: settingsPending } = usePlatformSettings()
-  const sourceType = parseSourceType(
-    page?.route === 'projectNewConnection' ? page.params.sourceType : undefined
-  )
+  const { data: catalog } = useConnectorCatalogQuery()
+  const rawType =
+    page?.route === 'projectNewConnection' ? (page.params.sourceType as string | undefined) : undefined
+
+  // Accept database types always, plus any connector the registered catalog
+  // declares (spec connectors like hubspot/salesforce are never hardcoded).
+  const catalogTypes = new Set([...DB_TYPES, ...(catalog?.connectors.map((c) => c.id) ?? [])])
+  const sourceType: string | null = rawType && catalogTypes.has(rawType) ? rawType : null
 
   if (!settingsPending && !platformSettings?.synxEnabled) {
     redirectRoute('projectImportData', { id: projectId })
@@ -37,7 +39,9 @@ export function ProjectNewConnection({ projectId }: { projectId: Project['id'] }
       <PageHeader contained>
         <div className="flex items-center gap-3">
           <Cable />
-          <PageTitle>Connect {sourceType === 'postgres' ? 'PostgreSQL' : 'MongoDB'}</PageTitle>
+          <PageTitle>
+            Connect {DB_TYPES.includes(sourceType) ? sourceType : sourceType.toUpperCase()}
+          </PageTitle>
         </div>
         <Button
           as="a"

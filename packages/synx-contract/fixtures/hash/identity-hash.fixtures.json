@@ -1,0 +1,48 @@
+{
+  "canonicalJson": [
+    {
+      "input": {
+        "b": 1,
+        "a": [
+          3,
+          2,
+          {
+            "d": "x",
+            "c": true
+          }
+        ]
+      },
+      "expected": "{\"a\":[3,2,{\"c\":true,\"d\":\"x\"}],\"b\":1}"
+    },
+    {
+      "input": {
+        "z": "last",
+        "a": "first",
+        "m": {
+          "k2": null,
+          "k1": "v"
+        }
+      },
+      "expected": "{\"a\":\"first\",\"m\":{\"k1\":\"v\",\"k2\":null},\"z\":\"last\"}"
+    }
+  ],
+  "sourceIdentityHash": [
+    {
+      "parts": ["order", "public", "orders", 42],
+      "expected": "361ead9afbc3fb0fbc4b2ff615890d5bcc84183df40c480ccd4b3878050fd119"
+    },
+    {
+      "parts": [
+        {
+          "id": 7,
+          "tenant": "acme"
+        }
+      ],
+      "expected": "f337f95b5568df00b306f87f686e68632f2510593fae2ebed6474b05a77312fa"
+    },
+    {
+      "parts": ["contacts", "crm", "contact", "5b1c2d3e"],
+      "expected": "a0e5e4faa91d2783b9ad40d74a125ccf8d8f3c40f69df85d090ea0ea913440ed"
+    }
+  ]
+}

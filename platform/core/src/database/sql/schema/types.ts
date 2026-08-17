@@ -68,5 +68,17 @@ export type InsertConnectorEventRow = typeof sqliteSchema.connectorEvents.$infer
 export type ConnectorLeaseRow = typeof sqliteSchema.connectorLeases.$inferSelect
 export type InsertConnectorLeaseRow = typeof sqliteSchema.connectorLeases.$inferInsert
 
+export type ConnectorCommandRow = typeof sqliteSchema.connectorCommands.$inferSelect
+export type InsertConnectorCommandRow = typeof sqliteSchema.connectorCommands.$inferInsert
+
+export type ConnectorRunRow = typeof sqliteSchema.connectorRuns.$inferSelect
+export type InsertConnectorRunRow = typeof sqliteSchema.connectorRuns.$inferInsert
+
+export type ConnectorRejectionRow = typeof sqliteSchema.connectorRejections.$inferSelect
+export type InsertConnectorRejectionRow = typeof sqliteSchema.connectorRejections.$inferInsert
+
 export type SavedQueryRow = typeof sqliteSchema.savedQueries.$inferSelect
+
+export type ConnectorDefinitionRow = typeof sqliteSchema.connectorDefinitions.$inferSelect
+export type InsertConnectorDefinitionRow = typeof sqliteSchema.connectorDefinitions.$inferInsert
 export type InsertSavedQueryRow = typeof sqliteSchema.savedQueries.$inferInsert

@@ -28,6 +28,7 @@ import { BILLING_POLICY_PORT, BillingPolicyPort } from '@/core/billing-policy/bi
 import {
   DATE_ONLY_REGEX,
   ISO_8601_REGEX,
+  RESERVED_PROVENANCE_KEYS,
   RUSHDB_KEY_LABEL_ALIAS,
   RUSHDB_LABEL_RECORD
 } from '@/core/common/constants'
@@ -392,18 +393,23 @@ export class AiService {
         this.aiQueryService.getLabelPropertyCountsQuery(label),
         params
       )
-      const props: SchemaProperty[] = countsResult.records.map((r) => {
-        const prop: SchemaProperty = {
-          id: r.get('propId') as string,
-          name: r.get('propName') as string,
-          type: r.get('propType') as string,
-          recordsCount: toNumber(r.get('recordsCount'))
-        }
-        if (prop.type === 'boolean') {
-          prop.values = ['true', 'false']
-        }
-        return prop
-      })
+      const props: SchemaProperty[] = countsResult.records
+        .map((r) => {
+          const prop: SchemaProperty = {
+            id: r.get('propId') as string,
+            name: r.get('propName') as string,
+            type: r.get('propType') as string,
+            recordsCount: toNumber(r.get('recordsCount'))
+          }
+          if (prop.type === 'boolean') {
+            prop.values = ['true', 'false']
+          }
+          return prop
+        })
+        // Reserved sync provenance keys are internal metadata, not user schema.
+        .filter(
+          (prop) => !RESERVED_PROVENANCE_KEYS.includes(prop.name as (typeof RESERVED_PROVENANCE_KEYS)[number])
+        )
       if (props.length) {
         labelPropsMap.set(label, props)
       }

@@ -64,6 +64,55 @@
       "when": 1782752466983,
       "tag": "0008_sloppy_tattoo",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1785703733327,
+      "tag": "0009_short_rictor",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1785832242445,
+      "tag": "0010_jittery_sabra",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1785840703702,
+      "tag": "0011_amusing_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1785841244610,
+      "tag": "0012_glorious_squadron_sinister",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1785841394414,
+      "tag": "0013_burly_felicia_hardy",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1785847665289,
+      "tag": "0014_outgoing_beyonder",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1785917191876,
+      "tag": "0015_rich_carmella_unuscione",
+      "breakpoints": true
     }
   ]
 }

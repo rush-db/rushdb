@@ -37,7 +37,9 @@ export class AppSettingsController {
     const selfHosted = this.configService.get('RUSHDB_SELF_HOSTED')
     const dashboardUrl = this.configService.get('RUSHDB_DASHBOARD_URL')
     const googleAuthClientId = this.configService.get('GOOGLE_CLIENT_ID')
+    const googleAuthClientSecret = this.configService.get('GOOGLE_SECRET')
     const githubAuthClientId = this.configService.get('GH_CLIENT_ID')
+    const githubAuthClientSecret = this.configService.get('GH_SECRET')
     const embeddingModel = this.configService.get('RUSHDB_EMBEDDING_MODEL')
     const embeddingApiKey = this.configService.get('RUSHDB_EMBEDDING_API_KEY')
     const embeddingDimensions = this.configService.get('RUSHDB_EMBEDDING_DIMENSIONS')
@@ -47,8 +49,10 @@ export class AppSettingsController {
     return {
       selfHosted: toBoolean(selfHosted),
       dashboardUrl: dashboardUrl,
-      googleOAuthEnabled: toBoolean(googleAuthClientId),
-      githubOAuthEnabled: toBoolean(githubAuthClientId),
+      googleOAuthEnabled:
+        isPresent(googleAuthClientId) && isPresent(googleAuthClientSecret) && isPresent(dashboardUrl),
+      githubOAuthEnabled:
+        isPresent(githubAuthClientId) && isPresent(githubAuthClientSecret) && isPresent(dashboardUrl),
       embeddingEnabled:
         isPresent(embeddingApiKey) && isPresent(embeddingModel) && isPositiveInteger(embeddingDimensions),
       llmEnabled: isPresent(llmApiKey) && isPresent(llmModel),

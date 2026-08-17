@@ -31,7 +31,7 @@ const BORDER_CLASS = 'border-[var(--ifm-color-emphasis-200)]'
 
 // ── Badge config ───────────────────────────────────────────────────────────────
 
-type BadgeVariant = 'beginner' | 'intermediate' | 'advanced' | 'cloud' | 'self-hosted' | 'byoc' | 'required'
+type BadgeVariant = 'beginner' | 'intermediate' | 'advanced' | 'cloud' | 'self-hosted' | 'external-db' | 'required'
 
 const BADGE_STYLES: Record<BadgeVariant, { label: string; bg: string; color: string }> = {
   beginner: { label: 'Beginner', bg: '#16a34a', color: '#fff' },
@@ -39,7 +39,7 @@ const BADGE_STYLES: Record<BadgeVariant, { label: string; bg: string; color: str
   advanced: { label: 'Advanced', bg: '#dc2626', color: '#fff' },
   cloud: { label: 'Cloud', bg: '#3f81ff', color: '#fff' },
   'self-hosted': { label: 'Self-Hosted', bg: '#7c3aed', color: '#fff' },
-  byoc: { label: 'BYOC', bg: '#0891b2', color: '#fff' },
+  'external-db': { label: 'External DB', bg: '#0891b2', color: '#fff' },
   required: { label: 'Required', bg: '#475569', color: '#fff' }
 }
 

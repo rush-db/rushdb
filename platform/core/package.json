@@ -56,6 +56,7 @@
     "@nestjs/serve-static": "5.0.5",
     "@nestjs/swagger": "11.4.4",
     "@nestjs/throttler": "6.5.0",
+    "@rushdb/synx-contract": "workspace:*",
     "@nestlab/google-recaptcha": "3.11.2",
     "@node-saml/node-saml": "5.1.0",
     "@types/stream-json": "^1.7.8",

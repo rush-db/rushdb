@@ -7,6 +7,14 @@ export const RUSHDB_KEY_SIMILARITY = '__RUSHDB__KEY__RUSHDB_KEY_SIMILARITY__' as
 
 export const RUSHDB_KEY_PROPERTIES_META = '__RUSHDB__KEY__PROPERTIES__META__' as const
 
+// Sync provenance keys stamped on synced records. Namespaced under __RUSHDB__
+// so they can never collide with user-defined fields; hidden from ordinary
+// record reads, exports, and ontology. The identity key stays available to
+// the internal sync contract for idempotent merges/deletes.
+export const RUSHDB_KEY_SYNC_ID = '__RUSHDB__KEY__SYNC__ID__' as const
+export const RUSHDB_KEY_SYNCED_AT = '__RUSHDB__KEY__SYNCED__AT__' as const
+export const RUSHDB_KEY_SYNC_DELETED_AT = '__RUSHDB__KEY__SYNC__DELETED__AT__' as const
+
 // Internal property values
 export const RUSHDB_VALUE_NULL = '__RUSHDB__VALUE__NULL__' as const
 // LEGACY: empty arrays used to be persisted as this sentinel string. New writes store a
@@ -19,6 +27,16 @@ export const RUSHDB_VALUE_EMPTY_ARRAY = '__RUSHDB__VALUE__EMPTY__ARRAY__' as con
 // Built-in relation labels
 export const RUSHDB_RELATION_DEFAULT = '__RUSHDB__RELATION__DEFAULT__' as const
 export const RUSHDB_RELATION_VALUE = '__RUSHDB__RELATION__VALUE__' as const
+
+// Reserved provenance keys stamped on synced records. Namespaced under
+// `__RUSHDB__` so they never collide with user-defined fields; hidden from
+// ordinary record reads, exports, and ontology while the identity key stays
+// available to the internal sync contract.
+export const RESERVED_PROVENANCE_KEYS = [
+  RUSHDB_KEY_SYNC_ID,
+  RUSHDB_KEY_SYNCED_AT,
+  RUSHDB_KEY_SYNC_DELETED_AT
+] as const
 
 // RushDB core labels
 export const RUSHDB_LABEL_RECORD = '__RUSHDB__LABEL__RECORD__' as const

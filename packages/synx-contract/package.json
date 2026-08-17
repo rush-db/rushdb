@@ -1,0 +1,25 @@
+{
+  "name": "@rushdb/synx-contract",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Private RushDB Cloud Core <-> Synx destination contract (v1). Never published; not part of the public SDK.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "types:check": "tsc --noEmit",
+    "test": "tsx scripts/conformance.ts",
+    "generate:rust": "tsx scripts/generate-rust.ts",
+    "generate:rust:check": "tsx scripts/generate-rust.ts --check"
+  },
+  "devDependencies": {
+    "@types/node": "^18.15.11",
+    "ajv": "^8.17.1",
+    "tsx": "^4.19.2",
+    "typescript": "5.7.2"
+  },
+  "sideEffects": false
+}

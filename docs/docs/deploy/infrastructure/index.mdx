@@ -27,13 +27,13 @@ RushDB is made up of three layers: the **NestJS platform** (the API + dashboard 
   />
   <DeployMethodRow
     title="Neo4j & Aura"
-    description="Set up the graph backend — bundled via Docker Compose, an existing Neo4j instance, or Neo4j Aura (BYOC) to keep graph data in your own cloud account."
+    description="Set up the graph backend — bundled via Docker Compose, an existing Neo4j instance, or Neo4j Aura as an External Database."
     badge="self-hosted"
     time="~10 min"
     icon="Globe"
     prerequisites={['Docker Compose or existing Neo4j 2026.x']}
     commands={['NEO4J_URL=bolt://...', 'NEO4J_PASSWORD=...']}
-    tags={['Neo4j', 'Aura', 'BYOC']}
+    tags={['Neo4j', 'Aura', 'External Database']}
     href="/deploy/infrastructure/neo4j-and-aura"
   />
   <DeployMethodRow
