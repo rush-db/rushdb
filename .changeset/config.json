@@ -3,7 +3,7 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [["rushdb-core", "rushdb-dashboard"]],
-  "linked": [["@rushdb/javascript-sdk", "@rushdb/mcp-server", "@rushdb/skills", "rushdb-docs"]],
+  "linked": [["@rushdb/javascript-sdk", "@rushdb/mcp-server", "@rushdb/skills"]],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",

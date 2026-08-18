@@ -5,6 +5,7 @@ import { toBoolean } from '@/common/utils/toBolean'
 import {
   RUSHDB_KEY_ID,
   RUSHDB_KEY_ID_ALIAS,
+  RUSHDB_KEY_PROPERTIES_META,
   RUSHDB_LABEL_RECORD,
   ROOT_RECORD_ALIAS
 } from '@/core/common/constants'
@@ -323,6 +324,18 @@ function compileNestedCollect(
 function compileTimeBucket(tbExpr: TimeBucketExpr, returnAlias: string, aliasesMap: AliasesMap): string {
   const fieldRef = resolveRef(tbExpr.field, aliasesMap)
   const { unit, size } = tbExpr
+  const dotIndex = tbExpr.field.indexOf('.')
+
+  if (dotIndex === -1) {
+    throw new BadRequestException(
+      `$timeBucket field reference "${tbExpr.field}" must include a property name.`
+    )
+  }
+
+  const aliasKey = tbExpr.field.substring(0, dotIndex)
+  const fieldRaw = tbExpr.field.substring(dotIndex + 1)
+  const variable = aliasesMap[aliasKey]
+  const fieldName = fieldRaw === RUSHDB_KEY_ID_ALIAS ? RUSHDB_KEY_ID : fieldRaw
 
   // Validate size requirement for plural units
   const pluralUnits = ['months', 'hours', 'minutes', 'seconds', 'years']
@@ -334,50 +347,55 @@ function compileTimeBucket(tbExpr: TimeBucketExpr, returnAlias: string, aliasesM
     }
   }
 
-  const datetimeMetaCheck = `any(t IN ['datetime', 'date'] WHERE ${fieldRef} IS NOT NULL)`
+  // RushDB persists datetime property values as validated ISO strings and records their
+  // logical type in the per-record metadata map. Guard on that metadata, then convert the
+  // value before reading temporal components. Accessing `.year`/`.month` on the stored string
+  // raises a Neo4j type error even though the property is logically a datetime.
+  const datetimeMetaCheck = `apoc.convert.fromJsonMap(${variable}.\`${RUSHDB_KEY_PROPERTIES_META}\`).\`${fieldName}\` = "datetime"`
+  const datetimeRef = `datetime(${fieldRef})`
 
   let bucketStartExpr: string
   switch (unit) {
     case 'day':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, month: ${fieldRef}.month, day: ${fieldRef}.day}).epochMillis`
+      bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: ${datetimeRef}.month, day: ${datetimeRef}.day}).epochMillis`
       break
     case 'week':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, week: ${fieldRef}.week}).epochMillis`
+      bucketStartExpr = `datetime.truncate('week', ${datetimeRef}).epochMillis`
       break
     case 'month':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, month: ${fieldRef}.month}).epochMillis`
+      bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: ${datetimeRef}.month, day: 1}).epochMillis`
       break
     case 'quarter':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, month: (toInteger((${fieldRef}.month - 1) / 3) * 3) + 1}).epochMillis`
+      bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: (toInteger((${datetimeRef}.month - 1) / 3) * 3) + 1, day: 1}).epochMillis`
       break
     case 'year':
     case 'years':
       if (unit === 'years') {
-        bucketStartExpr = `datetime({year: (toInteger(${fieldRef}.year / ${size}) * ${size})}).epochMillis`
+        bucketStartExpr = `datetime({year: (toInteger(${datetimeRef}.year / ${size}) * ${size}), month: 1, day: 1}).epochMillis`
       } else {
-        bucketStartExpr = `datetime({year: ${fieldRef}.year}).epochMillis`
+        bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: 1, day: 1}).epochMillis`
       }
       break
     case 'hour':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, month: ${fieldRef}.month, day: ${fieldRef}.day, hour: ${fieldRef}.hour}).epochMillis`
+      bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: ${datetimeRef}.month, day: ${datetimeRef}.day, hour: ${datetimeRef}.hour}).epochMillis`
       break
     case 'hours':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, month: ${fieldRef}.month, day: ${fieldRef}.day, hour: (toInteger(${fieldRef}.hour / ${size}) * ${size})}).epochMillis`
+      bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: ${datetimeRef}.month, day: ${datetimeRef}.day, hour: (toInteger(${datetimeRef}.hour / ${size}) * ${size})}).epochMillis`
       break
     case 'minute':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, month: ${fieldRef}.month, day: ${fieldRef}.day, hour: ${fieldRef}.hour, minute: ${fieldRef}.minute}).epochMillis`
+      bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: ${datetimeRef}.month, day: ${datetimeRef}.day, hour: ${datetimeRef}.hour, minute: ${datetimeRef}.minute}).epochMillis`
       break
     case 'minutes':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, month: ${fieldRef}.month, day: ${fieldRef}.day, hour: ${fieldRef}.hour, minute: (toInteger(${fieldRef}.minute / ${size}) * ${size})}).epochMillis`
+      bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: ${datetimeRef}.month, day: ${datetimeRef}.day, hour: ${datetimeRef}.hour, minute: (toInteger(${datetimeRef}.minute / ${size}) * ${size})}).epochMillis`
       break
     case 'second':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, month: ${fieldRef}.month, day: ${fieldRef}.day, hour: ${fieldRef}.hour, minute: ${fieldRef}.minute, second: ${fieldRef}.second}).epochMillis`
+      bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: ${datetimeRef}.month, day: ${datetimeRef}.day, hour: ${datetimeRef}.hour, minute: ${datetimeRef}.minute, second: ${datetimeRef}.second}).epochMillis`
       break
     case 'seconds':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, month: ${fieldRef}.month, day: ${fieldRef}.day, hour: ${fieldRef}.hour, minute: ${fieldRef}.minute, second: (toInteger(${fieldRef}.second / ${size}) * ${size})}).epochMillis`
+      bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: ${datetimeRef}.month, day: ${datetimeRef}.day, hour: ${datetimeRef}.hour, minute: ${datetimeRef}.minute, second: (toInteger(${datetimeRef}.second / ${size}) * ${size})}).epochMillis`
       break
     case 'months':
-      bucketStartExpr = `datetime({year: ${fieldRef}.year, month: (toInteger((${fieldRef}.month - 1) / ${size}) * ${size}) + 1}).epochMillis`
+      bucketStartExpr = `datetime({year: ${datetimeRef}.year, month: (toInteger((${datetimeRef}.month - 1) / ${size}) * ${size}) + 1, day: 1}).epochMillis`
       break
     default:
       throw new BadRequestException(`$timeBucket: unsupported unit "${unit}"`)

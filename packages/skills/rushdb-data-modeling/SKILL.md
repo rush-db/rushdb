@@ -1,7 +1,6 @@
 ---
 name: rushdb-data-modeling
-description: Model data in RushDB's property-centric LMPG graph. Use this skill when designing a schema, choosing label names, planning property structure, defining relationships, importing nested JSON data, or evolving an existing schema. Also use when the user asks how RushDB stores data, how relationships work, or how to structure records for a new use case.
-homepage: https://rushdb.com
+description: Model data in RushDB's property-centric LMPG graph. Use when designing or evolving schemas, choosing labels and properties, defining relationships, importing nested JSON, structuring a new use case, or modeling agent memory with EPISODE, MEMORY_FACT, domain records, scope fields, semantic properties, and fact supersession.
 ---
 
 # RushDB Data Modeling
@@ -29,7 +28,7 @@ Records are schema-free: two `USER` records can have different property sets. Pr
 
 ### Naming Rules
 
-- **Always UPPER_CASE** — RushDB is case-sensitive. `User` ≠ `USER`. Stick to `USER`.
+- Prefer **UPPER_CASE** as the RushDB convention. Labels are case-sensitive, so `User` and `USER` are distinct; copy existing labels exactly.
 - Singular noun: `USER` not `USERS`, `ORDER` not `ORDERS`
 - No spaces or special characters — use underscores: `BLOG_POST`
 
@@ -240,11 +239,36 @@ Start creating records with the new label — it appears in `getSchemaMarkdown` 
 
 ---
 
+## Agent Memory Model
+
+Separate lifecycle projections from domain knowledge:
+
+| Label                                    | Purpose                                             | Semantic property |
+| ---------------------------------------- | --------------------------------------------------- | ----------------- |
+| `EPISODE`                                | One bounded completed turn or lifecycle observation | `summary`         |
+| `MEMORY_FACT`                            | Curated, versioned fact, preference, or rule        | `text`            |
+| `SESSION`                                | Optional graph-visible work/conversation boundary   | Optional          |
+| `DECISION`, `TASK`, `ENTITY`, `ARTIFACT` | Explicit domain knowledge                           | Domain-specific   |
+
+Every canonical episode and fact must carry `agentId`, `profileId`, `privacyScope`, `participantScopeHash`, and `sandboxEligible`. These properties form an authorization scope and must have consistent types across both labels.
+
+Use deterministic `eventId` for episodes and `factId` for facts. Configure managed embedding indexes for `EPISODE.summary` and `MEMORY_FACT.text`; do not index raw complete transcripts.
+
+Model fact changes as history:
+
+1. Create the replacement `MEMORY_FACT` with a new deterministic `factId`, `active: true`, and `supersedesFactId` referencing the prior fact.
+2. Mark the prior fact `active: false`.
+3. Recall with `active: true`; query both versions only for audit/history.
+
+Keep explicit graph labels separate from automatically captured episodes. A native runtime provider owns turn capture; MCP/application logic may add structured decisions or tasks without duplicating the turn.
+
+---
+
 ## Common Modeling Mistakes
 
 | Mistake                                   | Correct approach                                                         |
 | ----------------------------------------- | ------------------------------------------------------------------------ |
-| Label as lowercase: `user`, `order`       | Always UPPER_CASE: `USER`, `ORDER`                                       |
+| Changing existing label casing            | Copy the exact case returned by `getSchemaMarkdown`                      |
 | Storing state in the label: `ACTIVE_USER` | Store state as `status: "active"` on `USER`                              |
 | One giant label with all fields           | Split into focused labels linked by relationships                        |
 | Guessing property names                   | Call `getSchemaMarkdown` or `findProperties` first                       |

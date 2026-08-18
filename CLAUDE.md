@@ -21,7 +21,7 @@ RushDB: a property-centric graph database platform built on Neo4j ("Labeled Meta
 
 Internal deps use `workspace:*`. Releases via changesets (`pnpm version` / `pnpm release`). Commits follow conventional-commits (commitlint + husky + lint-staged).
 
-Versioning is per-artifact, not globally locked: `rushdb-core` + `rushdb-dashboard` are a `fixed` pair (one number — they ship as the single `rushdb/platform` image), and `@rushdb/javascript-sdk` + `@rushdb/mcp-server` + `@rushdb/skills` + `rushdb-docs` are `linked` (each bumps only when it changes, but everything bumped in one release lands on the same version). So patch releases can diverge across the two groups while feature releases converge.
+Versioning is per-artifact, not globally locked: `rushdb-core` + `rushdb-dashboard` are a `fixed` pair (one number — they ship as the single `rushdb/platform` image), and `@rushdb/javascript-sdk` + `@rushdb/mcp-server` + `@rushdb/skills` are `linked` (each bumps only when it changes, but everything bumped in one release lands on the same version). So patch releases can diverge across the two groups while feature releases converge.
 
 Nothing is built, published, or deployed when a feature branch merges to `main`. Merging the changesets "version packages" PR is the release trigger: `.github/scripts/detect-version-bumps.mjs` diffs the package.json versions that push introduced, and only the artifacts whose version moved get rebuilt and redeployed. Images are built on native runners per architecture (`.github/workflows/docker-image.yml`) — never under QEMU emulation.
 

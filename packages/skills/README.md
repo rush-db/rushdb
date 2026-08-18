@@ -25,7 +25,8 @@ npm install @rushdb/skills
 | Skill                                               | What it teaches                                                                                                              |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | [`rushdb-query-builder`](#rushdb-query-builder)     | Discovery-first workflow, SearchQuery syntax, aggregation, relationship traversal                                            |
-| [`rushdb-agent-memory`](#rushdb-agent-memory)       | Using RushDB as persistent structured memory for AI agents                                                                   |
+| [`rushdb-agent-memory`](#rushdb-agent-memory)       | Route memory across native providers, MCP, and custom harnesses without duplicate writes                                     |
+| [`rushdb-memory-adapter`](#rushdb-memory-adapter)   | Build and validate lifecycle-aware RushDB integrations for agent runtimes                                                    |
 | [`rushdb-data-modeling`](#rushdb-data-modeling)     | LMPG model, label/property/relationship design, nested JSON import                                                           |
 | [`rushdb-faceted-search`](#rushdb-faceted-search)   | Build faceted filter UIs — discover properties, enumerate values, map to widgets, assemble `where`                           |
 | [`rushdb-domain-template`](#rushdb-domain-template) | Design a tailored schema for any domain through guided conversation — interview → labels + relationships + bootstrap payload |
@@ -50,9 +51,9 @@ Includes a bundled reference file (`references/search-query-spec.md`) with the c
 
 ### `rushdb-agent-memory`
 
-Teaches how to use RushDB as a drop-in persistent memory layer for AI agents — replacing separate vector DB, key-value store, and graph systems with a single ACID-safe, semantically searchable graph.
+Teaches how to select and operate the correct RushDB memory layer: native OpenClaw/Hermes lifecycle integration, native + MCP, MCP only, or a custom harness. It routes each read and write to one owner, enforces canonical scope boundaries, and prevents duplicate turn persistence.
 
-Includes a reference file (`references/memory-patterns.md`) with example JSON structures for sessions, decisions, and entities.
+Includes references for integration-mode selection, AgentMemoryEvent v1, host capabilities, and operational/domain memory patterns.
 
 **Triggers when an agent needs to:**
 
@@ -61,6 +62,20 @@ Includes a reference file (`references/memory-patterns.md`) with example JSON st
 - Build an entity graph that survives across sessions
 - Search memory by meaning (semantic recall)
 - Associate memories via relationships
+
+---
+
+### `rushdb-memory-adapter`
+
+Guides contributors through building native RushDB memory support for another agent runtime: inspect exact lifecycle hooks, derive trusted authorization scope, reuse AgentMemoryEvent v1, implement fail-open recall and durable outbox delivery, and validate lifecycle conformance.
+
+**Triggers when an agent needs to:**
+
+- Implement or review an agent memory plugin/provider
+- Map prompt, turn, compaction, session, and shutdown hooks
+- Enforce participant, profile, sandbox, and subagent isolation
+- Add deterministic idempotency, retries, replay, and recent-write fallback
+- Validate a runtime adapter against the shared contract
 
 ---
 
@@ -114,8 +129,9 @@ Each skill follows the [Agent Skills](https://agentskills.io) format:
 ```
 skills/<skill-name>/
 ├── SKILL.md          # Required: YAML frontmatter + instructions
-├── references/       # Optional: large reference docs loaded on demand
-└── scripts/          # Optional: executable helpers (not used here)
+├── agents/           # Optional product-facing metadata
+├── references/       # Optional detailed guidance loaded on demand
+└── scripts/          # Optional deterministic helpers
 ```
 
 ---

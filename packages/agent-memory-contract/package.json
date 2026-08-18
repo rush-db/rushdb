@@ -1,0 +1,40 @@
+{
+  "name": "@rushdb/agent-memory-contract",
+  "version": "0.0.0",
+  "description": "Provider-neutral RushDB agent-memory event contract and client primitives",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema": "./schema/agent-memory-event.v1.schema.json",
+    "./fixtures": "./fixtures/conformance.v1.json"
+  },
+  "files": [
+    "dist",
+    "schema",
+    "fixtures"
+  ],
+  "scripts": {
+    "build": "rimraf dist && tsc",
+    "types:check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@rushdb/javascript-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.23",
+    "rimraf": "^6.0.1",
+    "typescript": "5.7.2",
+    "vitest": "^1.6.1"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  }
+}

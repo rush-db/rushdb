@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rushdb.com/schemas/agent-memory-event.v1.schema.json",
+  "title": "RushDB AgentMemoryEvent v1",
+  "oneOf": [{ "$ref": "#/$defs/episode" }, { "$ref": "#/$defs/fact" }],
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "required": ["agentId", "profileId", "privacyScope", "participantScopeHash", "sandboxEligible"],
+      "properties": {
+        "agentId": { "type": "string", "minLength": 1 },
+        "profileId": { "type": "string", "minLength": 1 },
+        "privacyScope": { "enum": ["private", "shared"] },
+        "participantScopeHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "sandboxEligible": { "type": "boolean" }
+      }
+    },
+    "episode": {
+      "allOf": [
+        { "$ref": "#/$defs/scope" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schemaVersion",
+            "eventType",
+            "eventId",
+            "runtime",
+            "externalSessionId",
+            "turnIndex",
+            "userText",
+            "assistantText",
+            "summary",
+            "conversationKind",
+            "visibility",
+            "trustClass",
+            "originClass",
+            "observedAt",
+            "provenance"
+          ],
+          "properties": {
+            "schemaVersion": { "const": 1 },
+            "eventType": { "const": "episode" },
+            "eventId": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "runtime": { "enum": ["openclaw", "hermes", "custom"] },
+            "agentId": { "type": "string" },
+            "profileId": { "type": "string" },
+            "privacyScope": { "enum": ["private", "shared"] },
+            "participantScopeHash": { "type": "string" },
+            "sandboxEligible": { "type": "boolean" },
+            "externalSessionId": { "type": "string", "minLength": 1 },
+            "sourceEventId": { "type": "string" },
+            "turnIndex": { "type": "integer", "minimum": 0 },
+            "userText": { "type": "string" },
+            "assistantText": { "type": "string" },
+            "summary": { "type": "string", "minLength": 1 },
+            "conversationKind": { "enum": ["direct", "local", "shared"] },
+            "channelIdHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "visibility": { "enum": ["participant", "profile", "shared"] },
+            "trustClass": { "enum": ["trusted", "mixed", "untrusted"] },
+            "originClass": { "type": "string" },
+            "observedAt": { "type": "string", "format": "date-time" },
+            "provenance": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "fact": {
+      "allOf": [
+        { "$ref": "#/$defs/scope" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schemaVersion",
+            "eventType",
+            "factId",
+            "runtime",
+            "text",
+            "kind",
+            "subjectKey",
+            "confidence",
+            "active",
+            "sourceEventId",
+            "validFrom",
+            "visibility",
+            "trustClass",
+            "provenance"
+          ],
+          "properties": {
+            "schemaVersion": { "const": 1 },
+            "eventType": { "const": "fact" },
+            "factId": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "runtime": { "enum": ["openclaw", "hermes", "custom"] },
+            "agentId": { "type": "string" },
+            "profileId": { "type": "string" },
+            "privacyScope": { "enum": ["private", "shared"] },
+            "participantScopeHash": { "type": "string" },
+            "sandboxEligible": { "type": "boolean" },
+            "text": { "type": "string", "minLength": 1 },
+            "kind": { "type": "string", "minLength": 1 },
+            "subjectKey": { "type": "string", "minLength": 1 },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+            "active": { "type": "boolean" },
+            "sourceEventId": { "type": "string", "minLength": 1 },
+            "supersedesFactId": { "type": "string" },
+            "validFrom": { "type": "string", "format": "date-time" },
+            "validUntil": { "type": "string", "format": "date-time" },
+            "visibility": { "enum": ["participant", "profile", "shared"] },
+            "trustClass": { "enum": ["trusted", "mixed", "untrusted"] },
+            "provenance": { "type": "string" }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -171,6 +171,40 @@ describe('compileSelectMap', () => {
     expect(withPart).toContain('count(DISTINCT record) AS `count`')
   })
 
+  it('converts string-backed datetime fields before compiling a monthly $timeBucket', () => {
+    const { withPart } = compileSelectMap(
+      { month: { $timeBucket: { field: '$record.occurredAt', unit: 'month' } } },
+      aliasesMap,
+      ['month']
+    )
+
+    expect(withPart).toContain(
+      'apoc.convert.fromJsonMap(record.`__RUSHDB__KEY__PROPERTIES__META__`).`occurredAt` = "datetime"'
+    )
+    expect(withPart).toContain('year: datetime(record.`occurredAt`).year')
+    expect(withPart).toContain('month: datetime(record.`occurredAt`).month')
+    expect(withPart).not.toContain('record.`occurredAt`.year')
+  })
+
+  it('checks $timeBucket metadata on the referenced related alias', () => {
+    const { withPart } = compileSelectMap(
+      { month: { $timeBucket: { field: '$employee.startedAt', unit: 'month' } } },
+      aliasesMap,
+      ['month']
+    )
+
+    expect(withPart).toContain(
+      'apoc.convert.fromJsonMap(record1.`__RUSHDB__KEY__PROPERTIES__META__`).`startedAt` = "datetime"'
+    )
+    expect(withPart).toContain('datetime(record1.`startedAt`).month')
+  })
+
+  it('rejects alias-only $timeBucket field references', () => {
+    expect(() =>
+      compileSelectMap({ month: { $timeBucket: { field: '$record', unit: 'month' } } }, aliasesMap, ['month'])
+    ).toThrow(/must include a property name/)
+  })
+
   it('compiles mixed field refs and aggregations', () => {
     const { withPart, returnPart } = compileSelectMap(
       {

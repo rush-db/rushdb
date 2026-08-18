@@ -574,7 +574,7 @@ const q24 = {
 }
 
 const r24 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1, day: 1}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 100
 RETURN {\`count\`:\`count\`, \`byYear\`:\`byYear\`} as records`
 
@@ -593,7 +593,7 @@ const q25 = {
 }
 
 const r25 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, week: record.\`dob\`.week}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime.truncate('week', datetime(record.\`dob\`)).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
 RETURN {\`count\`:\`count\`, \`byYear\`:\`byYear\`} as records`
 
@@ -612,7 +612,7 @@ const q26 = {
 }
 
 const r26 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: (toInteger((record.\`dob\`.month - 1) / 6) * 6) + 1}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: (toInteger((datetime(record.\`dob\`).month - 1) / 6) * 6) + 1, day: 1}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
 RETURN {\`count\`:\`count\`, \`byYear\`:\`byYear\`} as records`
 
@@ -631,7 +631,7 @@ const q27 = {
 }
 
 const r27 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: (toInteger((record.\`dob\`.month - 1) / 3) * 3) + 1}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: (toInteger((datetime(record.\`dob\`).month - 1) / 3) * 3) + 1, day: 1}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 1000
 RETURN {\`count\`:\`count\`, \`byYear\`:\`byYear\`} as records`
 
@@ -650,7 +650,7 @@ const q28 = {
 }
 
 const r28 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: record.\`dob\`.hour}).epochMillis ELSE null END AS \`byHour\`, CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: record.\`dob\`.hour, minute: record.\`dob\`.minute}).epochMillis ELSE null END AS \`byMinute\`, CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: record.\`dob\`.hour, minute: record.\`dob\`.minute, second: record.\`dob\`.second}).epochMillis ELSE null END AS \`bySecond\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour}).epochMillis ELSE null END AS \`byHour\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: datetime(record.\`dob\`).minute}).epochMillis ELSE null END AS \`byMinute\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: datetime(record.\`dob\`).minute, second: datetime(record.\`dob\`).second}).epochMillis ELSE null END AS \`bySecond\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byHour\` ASC SKIP 0 LIMIT 1000
 RETURN {\`count\`:\`count\`, \`byHour\`:\`byHour\`, \`byMinute\`:\`byMinute\`, \`bySecond\`:\`bySecond\`} as records`
 
@@ -669,7 +669,7 @@ const q29 = {
 }
 
 const r29 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: (toInteger(record.\`dob\`.hour / 6) * 6)}).epochMillis ELSE null END AS \`by6Hours\`, CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: record.\`dob\`.hour, minute: (toInteger(record.\`dob\`.minute / 15) * 15)}).epochMillis ELSE null END AS \`by15Min\`, CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year, month: record.\`dob\`.month, day: record.\`dob\`.day, hour: record.\`dob\`.hour, minute: record.\`dob\`.minute, second: (toInteger(record.\`dob\`.second / 30) * 30)}).epochMillis ELSE null END AS \`by30Sec\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: (toInteger(datetime(record.\`dob\`).hour / 6) * 6)}).epochMillis ELSE null END AS \`by6Hours\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: (toInteger(datetime(record.\`dob\`).minute / 15) * 15)}).epochMillis ELSE null END AS \`by15Min\`, CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: datetime(record.\`dob\`).month, day: datetime(record.\`dob\`).day, hour: datetime(record.\`dob\`).hour, minute: datetime(record.\`dob\`).minute, second: (toInteger(datetime(record.\`dob\`).second / 30) * 30)}).epochMillis ELSE null END AS \`by30Sec\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`by6Hours\` ASC SKIP 0 LIMIT 1000
 RETURN {\`count\`:\`count\`, \`by6Hours\`:\`by6Hours\`, \`by15Min\`:\`by15Min\`, \`by30Sec\`:\`by30Sec\`} as records`
 
@@ -686,7 +686,7 @@ const q30 = {
 }
 
 const r30 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: (toInteger(record.\`dob\`.year / 5) * 5)}).epochMillis ELSE null END AS \`by5Years\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: (toInteger(datetime(record.\`dob\`).year / 5) * 5), month: 1, day: 1}).epochMillis ELSE null END AS \`by5Years\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`by5Years\` ASC SKIP 0 LIMIT 1000
 RETURN {\`count\`:\`count\`, \`by5Years\`:\`by5Years\`} as records`
 
@@ -1085,12 +1085,12 @@ WITH record, apoc.coll.sortMaps(collect(DISTINCT record1 {name: record1.\`name\`
 RETURN DISTINCT record {.*, __RUSHDB__KEY__LABEL__: [label IN labels(record) WHERE label <> "__RUSHDB__LABEL__RECORD__"][0], \`companyName\`: record.\`name\`, \`employees\`} as records`
 
 const r40 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`EMPLOYEE\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`dob\` IS NOT NULL) THEN datetime({year: record.\`dob\`.year}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`dob\` = "datetime" THEN datetime({year: datetime(record.\`dob\`).year, month: 1, day: 1}).epochMillis ELSE null END AS \`byYear\`, count(DISTINCT record) AS \`count\`
 ORDER BY \`byYear\` ASC SKIP 0 LIMIT 100
 RETURN {\`count\`:\`count\`, \`byYear\`:\`byYear\`} as records`
 
 const r41 = `MATCH (record:__RUSHDB__LABEL__RECORD__:\`ORDER\` { __RUSHDB__KEY__PROJECT__ID__: $projectId })
-WITH CASE WHEN any(t IN ['datetime', 'date'] WHERE record.\`issuedAt\` IS NOT NULL) THEN datetime({year: record.\`issuedAt\`.year, month: record.\`issuedAt\`.month}).epochMillis ELSE null END AS \`month\`, sum(record.\`amount\`) AS \`revenue\`
+WITH CASE WHEN apoc.convert.fromJsonMap(record.\`__RUSHDB__KEY__PROPERTIES__META__\`).\`issuedAt\` = "datetime" THEN datetime({year: datetime(record.\`issuedAt\`).year, month: datetime(record.\`issuedAt\`).month, day: 1}).epochMillis ELSE null END AS \`month\`, sum(record.\`amount\`) AS \`revenue\`
 ORDER BY \`month\` ASC SKIP 0 LIMIT 100
 RETURN {\`revenue\`:\`revenue\`, \`month\`:\`month\`} as records`
 

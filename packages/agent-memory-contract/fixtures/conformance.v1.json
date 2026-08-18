@@ -1,0 +1,23 @@
+{
+  "episodeInput": {
+    "runtime": "hermes",
+    "agentId": "coder",
+    "profileId": "default",
+    "externalSessionId": "session-42",
+    "sourceEventId": "turn-7",
+    "turnIndex": 7,
+    "userText": "Prefer TypeScript for this service.",
+    "assistantText": "I will use TypeScript.",
+    "summary": "The user prefers TypeScript for this service.",
+    "conversationKind": "direct",
+    "privacyScope": "private",
+    "participantScopeHash": "70d7d3055a5516bf40e00201f44b962aad2c964ab7877b7a314e3ee6f1c673a8",
+    "sandboxEligible": false,
+    "visibility": "participant",
+    "trustClass": "mixed",
+    "originClass": "conversation",
+    "observedAt": "2026-08-18T00:00:00Z",
+    "provenance": "hermes:sync_turn"
+  },
+  "expectedEventId": "67103226fb448be7129cf2cf27a2e2f779fef17bece5c516722ed3b910e96945"
+}

@@ -42,8 +42,8 @@ describe('Date-only YYYY-MM-DD type inference (e2e)', () => {
     const result = await db.records.importJson({
       label: 'DateInfJson',
       data: [
-        { event: 'start', date: '2026-07-23', tenantId },
-        { event: 'end', date: '2026-12-31', tenantId }
+        { event: 'start', status: 'confirmed', date: '2026-07-23', tenantId },
+        { event: 'end', status: 'confirmed', date: '2026-12-31', tenantId }
       ],
       options: { suggestTypes: true, returnResult: true }
     })
@@ -67,6 +67,29 @@ describe('Date-only YYYY-MM-DD type inference (e2e)', () => {
       where: { tenantId, date: { $type: 'datetime' } }
     })
     expect(typed.data.length).toBe(2)
+  })
+
+  it('groups string-backed datetime values with select.$timeBucket', async () => {
+    const result = await raw('/records/search', {
+      labels: ['DateInfJson'],
+      where: {
+        tenantId,
+        status: 'confirmed',
+        date: { $exists: true }
+      },
+      select: {
+        periodStart: { $timeBucket: { field: '$record.date', unit: 'month' } },
+        transactions: { $count: '*' }
+      },
+      groupBy: ['periodStart'],
+      orderBy: { periodStart: 'asc' }
+    })
+
+    expect(result.status).toBe(200)
+    expect(result.json.data).toEqual([
+      { periodStart: Date.UTC(2026, 6, 1), transactions: 1 },
+      { periodStart: Date.UTC(2026, 11, 1), transactions: 1 }
+    ])
   })
 
   it('importJson with YYYY-MM-DD stores datetime in __proptypes', async () => {
@@ -193,6 +216,4 @@ describe('Date-only YYYY-MM-DD type inference (e2e)', () => {
     expect((sorted.data[0] as any).data.date).toBe('2026-12-31')
     expect((sorted.data[1] as any).data.date).toBe('2026-07-23')
   })
-
-
 })
