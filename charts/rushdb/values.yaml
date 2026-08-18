@@ -5,7 +5,7 @@
 rushdb:
   image:
     repository: rushdb/platform
-    tag: '2.11.1'
+    tag: '2.11.2'
     pullPolicy: IfNotPresent
 
   ## Required — must be exactly 32 characters.

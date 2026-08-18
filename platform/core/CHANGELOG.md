@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 2.11.2
+
+### Patch Changes
+
+- bc7c03e: Fix orderBy dashboard issue
+
 ## 2.11.1
 
 ### Patch Changes
