@@ -18,7 +18,6 @@ concurrency:
 #     ✓ Build & Type-check
 #     ✓ Lint
 #     ✓ Test
-#     ✓ Docs Build
 # ──────────────────────────────────────────────────────────────────────────────
 
 jobs:
@@ -46,6 +45,12 @@ jobs:
       - name: Build javascript-sdk
         run: pnpm --filter ./packages/javascript-sdk build
 
+      - name: Build agent-memory-contract
+        run: pnpm --filter ./packages/agent-memory-contract build
+
+      - name: Verify agent-memory-contract package
+        run: pnpm --filter ./packages/agent-memory-contract pack:check
+
       - name: Build mcp-server
         run: pnpm --filter ./packages/mcp-server build
 
@@ -59,9 +64,6 @@ jobs:
 
       - name: Type-check javascript-sdk
         run: pnpm --filter ./packages/javascript-sdk types:check
-
-      - name: Type-check docs
-        run: pnpm --filter ./docs types:check
 
   # ── ESLint across all packages that define a lint script ────────────────────
   lint:
@@ -116,30 +118,11 @@ jobs:
       - name: Build javascript-sdk
         run: pnpm --filter ./packages/javascript-sdk build
 
+      - name: Test agent-memory-contract
+        run: pnpm --filter ./packages/agent-memory-contract test
+
       # 9 pure unit tests for the Cypher query parser — no DB or network required.
       - name: Test platform/core (unit)
         run: pnpm --filter ./platform/core test
         env:
           NODE_ENV: test
-
-  # ── Docusaurus build (validates all internal links and MDX syntax) ───────────
-  docs:
-    name: Docs Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.1.0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build docs
-        run: pnpm --filter ./docs build

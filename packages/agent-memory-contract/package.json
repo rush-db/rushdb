@@ -15,12 +15,15 @@
     "./fixtures": "./fixtures/conformance.v1.json"
   },
   "files": [
+    "README.md",
     "dist",
     "schema",
     "fixtures"
   ],
   "scripts": {
     "build": "rimraf dist && tsc",
+    "pack:check": "node scripts/verify-package.mjs",
+    "prepack": "pnpm build",
     "types:check": "tsc --noEmit",
     "test": "vitest run"
   },

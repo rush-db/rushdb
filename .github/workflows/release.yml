@@ -93,7 +93,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: pnpm --filter ./packages/javascript-sdk... --filter ./packages/mcp-server... build
+        run: pnpm --filter ./packages/javascript-sdk... --filter ./packages/agent-memory-contract... --filter ./packages/mcp-server... build
+
+      - name: Verify agent-memory-contract package
+        run: pnpm --filter ./packages/agent-memory-contract pack:check
 
       - name: Setup .npmrc
         run: |
@@ -106,7 +109,7 @@ jobs:
 
       # Opens/updates the "version packages" PR when changesets are pending,
       # publishes to npm when the versioned commit lands. `changeset publish`
-      # covers every public workspace package (sdk, mcp-server, skills).
+      # covers every public workspace package (sdk, memory contract, mcp-server, skills).
       - name: Create Release PR or Publish
         id: changesets
         if: github.event_name == 'push'
