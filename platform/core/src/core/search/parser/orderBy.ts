@@ -1,5 +1,5 @@
 import { toBoolean } from '@/common/utils/toBolean'
-import { RUSHDB_KEY_ID, ROOT_RECORD_ALIAS } from '@/core/common/constants'
+import { RUSHDB_KEY_ID, RUSHDB_KEY_ID_ALIAS, ROOT_RECORD_ALIAS } from '@/core/common/constants'
 
 import { SORT_DESC, SORT_ASC } from '../search.constants'
 import { TSearchSort, TSearchSortMap } from '../search.types'
@@ -12,7 +12,12 @@ export const buildSortCriteria = (orderBy: TSearchSort) => {
   } else if (typeof orderBy === 'string' && (orderBy === SORT_ASC || orderBy === SORT_DESC)) {
     sortCriteria = { [RUSHDB_KEY_ID]: orderBy }
   } else {
-    sortCriteria = orderBy
+    sortCriteria = Object.fromEntries(
+      Object.entries(orderBy).map(([property, direction]) => [
+        property === RUSHDB_KEY_ID_ALIAS ? RUSHDB_KEY_ID : property,
+        direction
+      ])
+    )
   }
 
   return sortCriteria
