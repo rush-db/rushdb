@@ -1,6 +1,6 @@
 {
   "name": "@rushdb/agent-memory-contract",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Provider-neutral RushDB agent-memory event contract and client primitives",
   "license": "Apache-2.0",
   "type": "module",
