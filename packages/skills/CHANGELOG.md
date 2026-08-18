@@ -1,5 +1,13 @@
 # @rushdb/skills
 
+## Unreleased
+
+### Minor Changes
+
+- Make `rushdb-agent-memory` integration-mode aware across native OpenClaw/Hermes providers, MCP, and custom harnesses; add canonical scope, event-contract, host-capability, and memory-ownership guidance.
+- Add `rushdb-memory-adapter` for implementing and validating secure lifecycle-aware adapters with deterministic events, fail-open recall, durable outboxes, and conformance tests.
+- Add canonical memory recall and supersession guidance to `rushdb-query-builder` and `rushdb-data-modeling`.
+
 ## 2.11.0
 
 ### Minor Changes
@@ -186,12 +194,6 @@
 ### Minor Changes
 
 - 5de0ef8: Stability improvements
-
-## Unreleased
-
-### Patch Changes
-
-- Sync `rushdb-query-builder` guidance with production AI SearchQuery tuning: root-label selection, related-label traversal, alias-backed related counts, comparative related-count ordering, alias-safe `groupBy`, ontology array metadata, and fuzzy named-reference matching.
 
 ## 2.3.3
 

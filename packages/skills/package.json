@@ -20,6 +20,7 @@
   "files": [
     "rushdb-query-builder",
     "rushdb-agent-memory",
+    "rushdb-memory-adapter",
     "rushdb-data-modeling",
     "rushdb-faceted-search",
     "rushdb-domain-template",

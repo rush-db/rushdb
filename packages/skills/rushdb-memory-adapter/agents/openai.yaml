@@ -1,0 +1,4 @@
+interface:
+  display_name: 'RushDB Memory Adapter'
+  short_description: 'Build secure lifecycle-aware RushDB adapters'
+  default_prompt: 'Use $rushdb-memory-adapter to design and validate a native RushDB memory adapter for this agent runtime.'

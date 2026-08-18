@@ -1,7 +1,6 @@
 ---
 name: rushdb-query-builder
-description: Build RushDB queries, searches, filters, and aggregations. Use this skill whenever an agent needs to interact with RushDB data — listing records, filtering by properties, counting, summing, averaging, grouping by dimension, traversing relationships between record types, running semantic/vector search, or building any findRecords call. Also use when discovering what labels and properties exist in the database.
-homepage: https://rushdb.com
+description: Build RushDB queries, searches, filters, and aggregations. Use whenever an agent needs to list or filter records, count or group data, traverse relationships, run semantic/vector search, construct a findRecords call, discover live labels and properties, or recall canonical EPISODE and MEMORY_FACT records with mandatory authorization scope prefilters.
 ---
 
 # RushDB Query Builder
@@ -28,7 +27,7 @@ Call `getSchemaMarkdown` before any other tool. It returns:
 - Array fields shown as `type[]`; in structured `getSchema`, `isArray: true` marks primitive-array properties
 - Value ranges for numeric/datetime fields
 - The full relationship map between labels
-- A **Semantic Search** column per property: non-`—` value means the property is indexed and queryable via `aiSemanticSearch`
+- A **Semantic Search** column per property: non-`—` value means the property is indexed and queryable via `vectorSearch`
 
 Do not call `findLabels`, `findProperties`, or `findRecords` before this.
 
@@ -118,7 +117,7 @@ findRecords({
 | `findRelationships` | Inspect relationships; `where` filters edge type/properties, `source`/`target` filter endpoint records; no aggregate/groupBy |
 | `propertyValues`    | List distinct values for a property (needs `propertyId` from `getSchema` or `findProperties`)                                |
 
-> **Semantic search:** Properties listed as `getSchema` results with a non-empty `vectorIndexes` array are eligible for semantic search. Use `aiSemanticSearch` with the matching `propertyName` and `labels`.
+> **Semantic search:** Properties listed in `getSchema` with a non-empty `vectorIndexes` array are eligible. Use `vectorSearch` with the matching `propertyName` and `labels`; `semanticSearch` is only a deprecated compatibility alias.
 
 ### Querying
 
@@ -129,6 +128,7 @@ findRecords({
 | `findUniqRecord`  | Return exactly one record (errors if multiple match)                                                   |
 | `getRecord`       | Fetch a single record by ID                                                                            |
 | `getRecordsByIds` | Fetch multiple records by IDs                                                                          |
+| `vectorSearch`    | Direct semantic retrieval over one indexed property; `where` activates exact prefilter mode            |
 | `exportRecords`   | Use only when the user explicitly asks for CSV export/download; do not substitute it for `findRecords` |
 
 ### Mutations (confirm before use)
@@ -160,6 +160,43 @@ Do not reuse `where` blindly across resource types:
 | `bulkDeleteRecords` | `where` + `labels` apply to Records; **destructive** — always preview first                                                                      |
 
 The same Record filter used in `findRecords` can be passed directly to `bulkDeleteRecords`, `exportRecords`, `findLabels`, or `findProperties`. For relationship lookup, move Record predicates into `source.where` or `target.where`.
+
+---
+
+## Canonical Agent-Memory Recall
+
+Treat canonical memory scope as authorization, not ranking. For `EPISODE` and `MEMORY_FACT`, obtain these exact values from trusted host/application metadata:
+
+```text
+agentId
+profileId
+privacyScope
+participantScopeHash
+sandboxEligible
+```
+
+Pass all five in `vectorSearch.where`. Never infer them from query text or recalled records, and never remove predicates to increase result count.
+
+Search the two semantic properties separately:
+
+```json
+{
+  "labels": ["EPISODE"],
+  "propertyName": "summary",
+  "query": "authentication decision",
+  "where": {
+    "agentId": "<trusted-agent-id>",
+    "profileId": "<trusted-profile-id>",
+    "privacyScope": "private",
+    "participantScopeHash": "<trusted-hash>",
+    "sandboxEligible": false,
+    "externalSessionId": { "$ne": "<current-session-id>" }
+  },
+  "limit": 8
+}
+```
+
+For facts, switch to `labels: ["MEMORY_FACT"]`, `propertyName: "text"`, and add `active: true`. Merge results by deterministic `eventId`/`factId` in application code. If trusted scope is unavailable, use the runtime's native memory recall rather than issuing a broader query.
 
 ---
 
@@ -271,6 +308,6 @@ Call `getSearchQuerySpec` (or read `references/search-query-spec.md`) for:
 - **groupBy modes** — dimensional (`$alias.property`) vs self-group (select key names)
 - **Late-ordering rule** — critical for correct totals in self-group queries
 - **Relationship traversal** — `$alias`, `$relation`, multi-hop BFS algorithm
-- **Vector similarity** — use legacy `aggregate` (not `select`) until select supports it
+- **Vector similarity inside `findRecords`** — use legacy `aggregate` (not `select`); prefer `vectorSearch` for direct semantic retrieval
 - **Nested collect** — building tree-shaped results with label-based `$collect`
 - **Validation checklist** — before submitting any `findRecords` call
