@@ -1,5 +1,11 @@
 # rushdb-core
 
+## 2.11.1
+
+### Patch Changes
+
+- abeb65c: Fix `select.$timeBucket` queries by converting RushDB's string-backed datetime values before reading calendar components and by checking datetime metadata on the referenced record alias.
+
 ## 2.11.0
 
 ### Minor Changes

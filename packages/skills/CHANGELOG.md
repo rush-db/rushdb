@@ -1,5 +1,11 @@
 # @rushdb/skills
 
+## 2.12.0
+
+### Minor Changes
+
+- abeb65c: Update skills for agent memory and add memory contract packages for further integrations.
+
 ## Unreleased
 
 ### Minor Changes
