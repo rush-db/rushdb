@@ -18,6 +18,7 @@ import { IDecodedResetToken } from '@/dashboard/auth/auth.types'
 import { ResetPasswordAuthDto } from '@/dashboard/auth/dto/reset-password-auth.dto'
 import { EncryptionService } from '@/dashboard/auth/encryption/encryption.service'
 import { ProjectService } from '@/dashboard/project/project.service'
+import { TokenService } from '@/dashboard/token/token.service'
 import { ICreatedUserData } from '@/dashboard/user/interfaces/authenticated-user.interface'
 import { AcceptWorkspaceInvitationParams } from '@/dashboard/user/interfaces/user-properties.interface'
 import {
@@ -37,6 +38,10 @@ import { User } from './user.entity'
 
 import type { UserRow } from '@/database/sql/schema/types'
 
+const INITIAL_PROJECT_NAME = 'My first project'
+const INITIAL_TOKEN_NAME = 'Initial'
+const INITIAL_TOKEN_DESCRIPTION = 'Initial API Key to get you started quickly.'
+
 @Injectable()
 export class UserService {
   constructor(
@@ -46,7 +51,9 @@ export class UserService {
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
     @Inject(forwardRef(() => ProjectService))
-    private readonly projectService: ProjectService
+    private readonly projectService: ProjectService,
+    @Inject(forwardRef(() => TokenService))
+    private readonly tokenService: TokenService
   ) {}
 
   normalize(row?: UserRow): User | undefined {
@@ -90,12 +97,46 @@ export class UserService {
 
     if (allowedLogins.length === 0 || allowedLogins.includes(properties.login)) {
       const userRow = await this.createUserNode(properties, transaction)
-      await this.workspaceService.createWorkspace({ name: 'Default Workspace' }, userRow.id, transaction)
+      const workspace = await this.workspaceService.createWorkspace(
+        { name: 'Default Workspace' },
+        userRow.id,
+        transaction
+      )
+      await this.createInitialProjectResources(userRow.id, workspace.toJson().id, transaction)
 
-      return { userData: this.normalize(userRow) }
+      return { userData: this.normalize(userRow), workspaceId: workspace.toJson().id }
     } else {
       throw new BadRequestException('Provided login is not allowed')
     }
+  }
+
+  /**
+   * First-time setup only: every freshly registered user gets a starter project
+   * and an API key so they can reach the SDK in one click. This runs once at
+   * signup — deleting all projects later does NOT recreate them, because a user
+   * who already went through onboarding is no longer "fresh".
+   */
+  private async createInitialProjectResources(
+    userId: string,
+    workspaceId: string,
+    transaction?: Transaction
+  ): Promise<void> {
+    const project = await this.projectService.createProject(
+      { name: INITIAL_PROJECT_NAME },
+      workspaceId,
+      userId,
+      transaction
+    )
+
+    await this.tokenService.createToken(
+      {
+        name: INITIAL_TOKEN_NAME,
+        description: INITIAL_TOKEN_DESCRIPTION,
+        expiration: '*'
+      },
+      project.toJson().id,
+      transaction
+    )
   }
 
   /**

@@ -521,6 +521,11 @@ function isNDJSONorJSON(input: string): 'NDJSON' | 'JSON' | 'Unknown' {
   }
 }
 
+function labelFromFileName(fileName: string): string {
+  const base = fileName.replace(/\.[^.]+$/, '').replace(/s$/i, '')
+  return base.toUpperCase()
+}
+
 type SupportedImportFileType = 'json' | 'jsonl' | 'ndjson' | 'csv' | 'unknown'
 
 function parseJsonLines(input: string): string {
@@ -642,7 +647,7 @@ export function ImportRecords() {
         setUploadError(null)
         setLastDetectedType(detectedType.toUpperCase())
 
-        $label.set('')
+        $label.set(labelFromFileName(file.name))
 
         if (detectedType === 'csv') {
           $csvData.set(content)

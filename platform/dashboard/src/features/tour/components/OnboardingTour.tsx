@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import type { CallBackProps } from 'react-joyride'
 import Joyride, { EVENTS, STATUS } from 'react-joyride'
 import { useStore } from '@nanostores/react'
+import { useQuery } from '@tanstack/react-query'
 import { useUpdateUserMutation } from '~/features/auth/hooks/useAuthMutations'
 import type { routes } from '~/lib/router'
 import { $router, openRoute, projectRoutes } from '~/lib/router'
@@ -18,6 +19,8 @@ import { $currentProjectId } from '~/features/projects/stores/id'
 import { useWaitForSelectorStable } from '~/features/tour/hooks/useWaitForSelector'
 import type { TourStepKey } from '~/features/tour/types'
 import type * as ConfettiModule from '@tsparticles/confetti'
+import { workspaceProjectsQueryOptions } from '~/features/workspaces/queries/workspaceQueries'
+import { $currentWorkspaceId } from '~/features/workspaces/stores/current'
 
 type TourStepData = {
   key: TourStepKey
@@ -81,6 +84,12 @@ export function OnboardingTour() {
   const run = useStore($tourEffective)
   const { mutateAsync: updateSettings } = useUpdateUserMutation()
   const isAllowed = useStore($tourAllowed)
+  const workspaceId = useStore($currentWorkspaceId)
+  const { data: projects } = useQuery({
+    ...workspaceProjectsQueryOptions(workspaceId),
+    enabled: isAllowed && Boolean(workspaceId)
+  })
+  const fallbackProjectId = projects?.[0]?.id
 
   const currentStep = steps.find((step) => getStepData(step)?.key === currentKey)
   const targetSelector = typeof currentStep?.target === 'string' ? currentStep.target : ''
@@ -129,8 +138,14 @@ export function OnboardingTour() {
         const nextKey = keys[index + 1]
         if (data.redirectTo) {
           const route = data.redirectTo
-          if (isProjectRouteName(route) && projectId) {
-            openRoute(route, { id: projectId })
+          if (isProjectRouteName(route)) {
+            const targetProjectId = projectId ?? fallbackProjectId
+            if (targetProjectId) {
+              openRoute(route, { id: targetProjectId })
+            }
+            // No project to land on (e.g. a returning user with all projects
+            // deleted): skip the redirect; the tour stays paused until the
+            // user opens a project page.
           } else {
             openRoute(route)
           }

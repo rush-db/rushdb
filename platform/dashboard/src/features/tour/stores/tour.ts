@@ -5,10 +5,6 @@ import type { TourStepKey } from '../types'
 
 export const keys: TourStepKey[] = [
   'welcome',
-  'homeNewProject',
-  'newProjectName',
-  'newProjectCustomDb',
-  'newProjectCreate',
   'projectSdkTokenOverview',
   'projectSdkTokenTabInfo',
   'projectImportDataTab',

@@ -20,16 +20,21 @@ const maskToken = (value: string) => `${value.slice(0, 8)}${'•'.repeat(14)}`
 function ConnectionRow({
   actions,
   children,
+  dataTour,
   icon,
   label
 }: {
   actions?: ReactNode
   children: ReactNode
+  dataTour?: string
   icon: ReactNode
   label: string
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:flex-nowrap">
+    <div
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:flex-nowrap"
+      data-tour={dataTour}
+    >
       <span className="flex w-28 shrink-0 items-center gap-2 text-sm text-content2 [&>svg]:h-4 [&>svg]:w-4">
         {icon}
         {label}
@@ -69,6 +74,7 @@ export function ProjectConnectionPanel({ loading, project }: { loading?: boolean
 
       <div className="flex flex-col divide-y">
         <ConnectionRow
+          dataTour="project-help-sdk-input"
           actions={
             tokenValue ?
               <>

@@ -10,14 +10,6 @@ import { trackProjectCreated, trackApiKeyGenerated } from '~/lib/analytics'
 import { $currentWorkspaceId } from '~/features/workspaces/stores/current'
 import { $currentProjectId } from '~/features/projects/stores/id'
 import { $router, isProjectPage, redirectRoute } from '~/lib/router'
-import { $tourAllowed, $tourStep, setTourStep } from '~/features/tour/stores/tour'
-
-const onboardingProjectCreationSteps = new Set([
-  'homeNewProject',
-  'newProjectName',
-  'newProjectCustomDb',
-  'newProjectCreate'
-])
 
 export const useCreateProjectMutation = () => {
   const queryClient = useQueryClient()
@@ -50,12 +42,7 @@ export const useCreateProjectMutation = () => {
       }
       const projectIsInactive = project.status === 'pending' || project.status === 'provisioning'
       if (!projectIsInactive) {
-        if ($tourAllowed.get() && onboardingProjectCreationSteps.has($tourStep.get())) {
-          setTourStep('projectImportRadio', true)
-          redirectRoute('projectImportData', { id: project.id })
-        } else {
-          redirectRoute('projectHelp', { id: project.id })
-        }
+        redirectRoute('projectHelp', { id: project.id })
       } else {
         redirectRoute('projectSettings', { id: project.id })
       }
