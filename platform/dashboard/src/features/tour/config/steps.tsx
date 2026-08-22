@@ -10,89 +10,15 @@ export const stepDefinitions: Record<TourStepKey, Step> = {
       <div className="space-y-4">
         <h2 className="text-2xl font-bold text-content">Welcome to RushDB!</h2>
         <p className="text-content2">
-          Congratulations on creating your account and first workspace. Let’s walk through the key features.
+          Congratulations on creating your account. We've already created your first project and API key —
+          let's walk through the key features.
         </p>
       </div>
     ),
     data: {
       route: 'home',
+      redirectTo: 'projectHelp',
       key: 'welcome'
-    }
-  },
-  homeNewProject: {
-    target: '[data-tour="new-project-btn"]',
-    placement: 'bottom',
-    content: (
-      <div className="space-y-4">
-        <h3 className="text-lg font-bold text-content">Create a Project</h3>
-        <p className="font-bold text-content2">Projects help you separate and manage your data.</p>
-        <p className="text-content2">
-          Each project acts as its own data space — perfect for staging vs. production, or isolated tenants.
-          Click to create your first one — we’ll guide you from there. See{' '}
-          <a
-            className="ml-1 text-accent underline"
-            href="https://docs.rushdb.com/get-started/quick-tutorial"
-            target="_blank"
-            rel="noreferrer"
-          >
-            our Quick Tutorial{' '}
-          </a>
-          to get started faster.
-        </p>
-      </div>
-    ),
-    data: {
-      route: 'home',
-      redirectTo: 'newProject',
-      key: 'homeNewProject'
-    }
-  },
-  newProjectName: {
-    target: '[data-tour="project-name-input"]',
-    placement: 'right',
-    content: (
-      <div className="space-y-4">
-        <h3 className="text-lg font-bold text-content">Enter Project Name</h3>
-        <p className="text-content2">Give your project a descriptive name so you can find it later.</p>
-      </div>
-    ),
-    data: {
-      route: 'newProject',
-      key: 'newProjectName'
-    }
-  },
-  newProjectCustomDb: {
-    target: '[data-tour="custom-neo4j-container"]',
-    placement: 'right',
-    content: (
-      <div className="space-y-4">
-        <h3 className="text-lg font-bold text-content">Connect Custom Neo4j</h3>
-        <p className="text-content2">
-          You can attach your own Neo4j instance (Aura or self-hosted) for full data isolation and control
-          over your infrastructure.
-        </p>
-      </div>
-    ),
-    data: {
-      route: 'newProject',
-      key: 'newProjectCustomDb'
-    }
-  },
-  newProjectCreate: {
-    target: '[data-tour="create-project-btn"]',
-    placement: 'right',
-    content: (
-      <div className="space-y-4">
-        <h3 className="text-lg font-bold text-content">Create Your Project</h3>
-        <p className="text-content2">Everything’s set—click “Create project” to finish the setup.</p>
-      </div>
-    ),
-    data: {
-      route: 'newProject',
-      key: 'newProjectCreate',
-      noNext: true,
-      nextShouldBeManuallySet: true,
-      waitForManualAction: true
     }
   },
   projectSdkTokenOverview: {

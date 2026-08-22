@@ -1,9 +1,5 @@
 export type TourStepKey =
   | 'welcome'
-  | 'homeNewProject'
-  | 'newProjectName'
-  | 'newProjectCustomDb'
-  | 'newProjectCreate'
   | 'projectSdkTokenOverview'
   | 'projectSdkTokenTabInfo'
   | 'projectImportDataTab'

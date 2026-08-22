@@ -46,7 +46,7 @@ export class ProjectService {
   }
 
   async createProject(
-    properties: CreateProjectDto,
+    properties: Partial<CreateProjectDto>,
     workspaceId: string,
     userId: string,
     _transaction?: Transaction

@@ -11,18 +11,7 @@ import { useCurrentWorkspaceQuery } from '~/features/workspaces/hooks/useWorkspa
 import { useWorkspaceProjectsQuery } from '~/features/workspaces/hooks/useWorkspaceQueries'
 
 import { usePlatformSettings } from '~/features/auth/hooks/useAuthQueries'
-import { setTourStep } from '~/features/tour/stores/tour.ts'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useStore } from '@nanostores/react'
-import { $tourAllowed, $tourStep } from '~/features/tour/stores/tour.ts'
-
-const DEFAULT_ONBOARDING_PROJECT_NAME = 'My First RushDB Project'
-const onboardingProjectSteps = new Set([
-  'homeNewProject',
-  'newProjectName',
-  'newProjectCustomDb',
-  'newProjectCreate'
-])
 
 // Type for form values
 type ProjectFormValues = {
@@ -57,9 +46,6 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
   const { data: workspace } = useCurrentWorkspaceQuery()
   const { data: platformSettings } = usePlatformSettings()
   const { data: projects, isFetching: isProjectsFetching } = useWorkspaceProjectsQuery()
-  const tourAllowed = useStore($tourAllowed)
-  const tourStep = useStore($tourStep)
-  const isOnboardingProjectCreation = tourAllowed && onboardingProjectSteps.has(tourStep)
   const maxProjects = workspace?.projectLimit ?? null
   const showUpgradeButton = useMemo(() => {
     if (isProjectsFetching) {
@@ -72,10 +58,6 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
   }, [platformSettings, maxProjects, projects, isProjectsFetching])
 
   const [selectedTab, setSelectedTab] = useState<'shared' | 'custom'>('shared')
-
-  useEffect(() => {
-    setTourStep('newProjectName', false)
-  }, [])
 
   // Use the appropriate schema based on selected tab
   const getSchema = () => {
@@ -92,7 +74,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
   const getDefaultValues = useCallback((): Partial<ProjectFormValues> => {
     const base = {
       description: '',
-      name: isOnboardingProjectCreation ? DEFAULT_ONBOARDING_PROJECT_NAME : '',
+      name: '',
       dataSource: selectedTab as ProjectFormValues['dataSource']
     }
 
@@ -102,7 +84,7 @@ function CreateProjectForm({ className, ...props }: TPolymorphicComponentProps<'
       default:
         return base
     }
-  }, [isOnboardingProjectCreation, selectedTab])
+  }, [selectedTab])
 
   const {
     formState: { errors, isSubmitting },
