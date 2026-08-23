@@ -144,6 +144,48 @@ export class BillingController {
   }
 
   /**
+   * Get the v3 usage summary (context facts / agent query credits) for the
+   * authenticated workspace.
+   *
+   * GET /api/v1/billing/payment/usage-v3
+   */
+  @ApiBearerAuth()
+  @AuthGuard('workspace')
+  @Get('usage-v3')
+  @HttpCode(HttpStatus.OK)
+  async getUsageV3(@Req() request: any) {
+    try {
+      const workspaceId = request.workspaceId
+
+      if (!workspaceId) {
+        throw new ServiceUnavailableException('Workspace ID not found in request')
+      }
+
+      const usage = await this.billingClientService.getUsageV3(workspaceId)
+
+      // Billing service disabled (self-hosted / OSS) — return a null-safe default
+      if (!usage) {
+        return {
+          plan: 'self-hosted',
+          contextFactsConsumed: 0,
+          agentQueryCreditsConsumed: 0,
+          contextFactsIncluded: null,
+          agentQueryCreditsIncluded: null,
+          contextFactsRemaining: null,
+          agentQueryCreditsRemaining: null,
+          projectedOverageUsd: 0,
+          billingPeriodStart: new Date().toISOString(),
+          eventCount: 0
+        }
+      }
+
+      return usage
+    } catch (error: any) {
+      throw new ServiceUnavailableException(`Failed to get usage-v3: ${error.message}`)
+    }
+  }
+
+  /**
    * Get the pricing catalog.
    * Proxies the billing service so its host is never exposed to the browser.
    *

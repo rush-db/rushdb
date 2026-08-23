@@ -66,3 +66,17 @@ export type BillingInquiryPayload = {
   workspaceName?: string
   currentPlan?: string
 }
+
+/** v3 usage summary (context facts / agent query credits), served by the billing service. */
+export type UsageV3 = {
+  plan: string
+  contextFactsConsumed: number
+  agentQueryCreditsConsumed: number
+  contextFactsIncluded: number | null
+  agentQueryCreditsIncluded: number | null
+  contextFactsRemaining: number | null
+  agentQueryCreditsRemaining: number | null
+  projectedOverageUsd: number
+  billingPeriodStart: string
+  eventCount: number
+}

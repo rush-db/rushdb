@@ -41,6 +41,22 @@ export interface UsageResponse {
 }
 
 /**
+ * v3 usage summary returned by GET /api/customers/:workspaceId/usage-v3.
+ */
+export interface UsageV3Response {
+  plan: string
+  contextFactsConsumed: number
+  agentQueryCreditsConsumed: number
+  contextFactsIncluded: number | null
+  agentQueryCreditsIncluded: number | null
+  contextFactsRemaining: number | null
+  agentQueryCreditsRemaining: number | null
+  projectedOverageUsd: number
+  billingPeriodStart: string
+  eventCount: number
+}
+
+/**
  * Customer record from billing service.
  */
 export interface Customer {

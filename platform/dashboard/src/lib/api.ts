@@ -18,7 +18,7 @@ import type {
 } from '@rushdb/javascript-sdk'
 
 import type { GetUserResponse, User } from '~/features/auth/types'
-import type { BillingData, BillingInquiryPayload } from '~/features/billing/types'
+import type { BillingData, BillingInquiryPayload, UsageV3 } from '~/features/billing/types'
 import type { Connector, ConnectorEvent, CreateConnectorInput } from '~/features/connectors/types'
 import type { CreateSavedQueryInput, SavedQuery } from '~/features/saved-queries/types'
 import type {
@@ -900,6 +900,12 @@ export const api = {
         billingModel: 'fixed' | 'overage' | 'usage'
         billingPeriodStart: string
       }>(`/api/v1/billing/payment/usage`, {
+        ...init,
+        method: 'GET'
+      })
+    },
+    async getUsageV3(init?: RequestInit) {
+      return fetcher<UsageV3>(`/api/v1/billing/payment/usage-v3`, {
         ...init,
         method: 'GET'
       })

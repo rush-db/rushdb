@@ -5,7 +5,13 @@ import { firstValueFrom } from 'rxjs'
 
 import { toBoolean } from '@/common/utils/toBolean'
 
-import { BillingInquiryPayload, CheckLimitsResponse, Customer, UsageResponse } from './billing-client.types'
+import {
+  BillingInquiryPayload,
+  CheckLimitsResponse,
+  Customer,
+  UsageResponse,
+  UsageV3Response
+} from './billing-client.types'
 
 /**
  * BillingClientService — communicates with the external billing service API.
@@ -323,6 +329,32 @@ export class BillingClientService {
       return response.data
     } catch (error: any) {
       this.logger.error(`Failed to get usage for workspace ${workspaceId}: ${error.message}`)
+      return null
+    }
+  }
+
+  /**
+   * Get the v3 usage summary (context facts / agent query credits) for a workspace.
+   *
+   * @param workspaceId - Workspace ID
+   * @returns Usage summary or null when billing service is disabled
+   */
+  async getUsageV3(workspaceId: string): Promise<UsageV3Response | null> {
+    if (!this.enabled) {
+      return null
+    }
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get<UsageV3Response>(`${this.billingUrl}/api/customers/${workspaceId}/usage-v3`, {
+          headers: this.secret ? { 'x-rushdb-billing-secret': this.secret } : {},
+          timeout: 5000
+        })
+      )
+
+      return response.data
+    } catch (error: any) {
+      this.logger.error(`Failed to get usage-v3 for workspace ${workspaceId}: ${error.message}`)
       return null
     }
   }

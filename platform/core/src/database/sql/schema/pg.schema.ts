@@ -1,4 +1,4 @@
-import { bigint, boolean, integer, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
+import { bigint, boolean, index, integer, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -353,6 +353,35 @@ export const savedQueries = pgTable('saved_queries', {
   updatedAt: text('updated_at').notNull()
 })
 
+/**
+ * Durable outbox for usage events v3. Events are persisted before delivery
+ * to the external billing service and retried with exponential backoff until
+ * acknowledged; billing-service downtime never loses or fails a successful
+ * operation. No foreign keys on purpose — events are an immutable,
+ * replayable ledger and must survive project/workspace deletion.
+ */
+export const usageEventOutbox = pgTable(
+  'usage_event_outbox',
+  {
+    id: text('id').primaryKey(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    workspaceId: text('workspace_id').notNull(),
+    projectId: text('project_id'),
+    operationClass: text('operation_class').notNull(),
+    payload: text('payload').notNull(),
+    status: text('status').notNull().default('pending'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    nextAttemptAt: text('next_attempt_at').notNull(),
+    lastError: text('last_error'),
+    createdAt: text('created_at').notNull(),
+    acknowledgedAt: text('acknowledged_at')
+  },
+  (t) => [
+    uniqueIndex('usage_event_outbox_idempotency_key_idx').on(t.idempotencyKey),
+    index('usage_event_outbox_delivery_idx').on(t.status, t.nextAttemptAt)
+  ]
+)
+
 export const pgSchema = {
   users,
   workspaces,
@@ -375,7 +404,8 @@ export const pgSchema = {
   connectorOffsets,
   connectorEvents,
   connectorLeases,
-  savedQueries
+  savedQueries,
+  usageEventOutbox
 }
 
 export type PgSchema = typeof pgSchema

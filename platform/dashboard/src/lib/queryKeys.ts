@@ -81,6 +81,7 @@ export const queryKeys = {
   billing: {
     data: () => ['billing', 'data'] as const,
     usage: (workspaceId: string) => ['billing', 'usage', workspaceId] as const,
+    usageV3: (workspaceId: string) => ['billing', 'usage-v3', workspaceId] as const,
     kuHistory: (
       workspaceId: string,
       params: {

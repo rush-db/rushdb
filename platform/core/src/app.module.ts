@@ -14,6 +14,7 @@ import { ExcludeNullInterceptor } from '@/common/interceptors/exclude-null-respo
 import { toBoolean } from '@/common/utils/toBolean'
 import { CoreModule } from '@/core/core.module'
 import { KuEventsModule } from '@/core/ku-events/ku-events.module'
+import { UsageEventsModule } from '@/core/usage-events/usage-events.module'
 import { DashboardModule } from '@/dashboard/dashboard.module'
 import { ThrottleService } from '@/dashboard/throttle/throttle.service'
 import { DatabaseModule } from '@/database/database.module'
@@ -31,6 +32,7 @@ import { join } from 'path'
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
     KuEventsModule,
+    UsageEventsModule,
     CoreModule,
     DashboardModule,
     ...(toBoolean(process.env.RUSHDB_SERVE_STATIC) ?

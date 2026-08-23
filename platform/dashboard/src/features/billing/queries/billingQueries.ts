@@ -11,6 +11,17 @@ export const pricingDataQueryOptions = (selfHosted: boolean | undefined) =>
     staleTime: 10 * 60 * 1000
   })
 
+export const usageV3QueryOptions = (params: {
+  workspaceId: string | undefined
+  selfHosted: boolean | undefined
+}) =>
+  queryOptions({
+    queryKey: queryKeys.billing.usageV3(params.workspaceId!),
+    queryFn: () => api.billing.getUsageV3(),
+    enabled: !!params.workspaceId && params.selfHosted === false,
+    staleTime: 30 * 1000
+  })
+
 export const workspaceUsageQueryOptions = (params: {
   workspaceId: string | undefined
   selfHosted: boolean | undefined

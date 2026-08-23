@@ -10,6 +10,7 @@ import { FREE_PLAN } from '~/features/billing/constants'
 import { isFreePlan } from '~/features/billing/utils'
 import {
   pricingDataQueryOptions,
+  usageV3QueryOptions,
   workspaceUsageQueryOptions,
   kuHistoryQueryOptions
 } from '../queries/billingQueries'
@@ -18,6 +19,12 @@ import type { DisplayPlan } from '../types'
 export const usePricingDataQuery = () => {
   const { data: settings } = usePlatformSettings()
   return useQuery(pricingDataQueryOptions(settings?.selfHosted))
+}
+
+export const useWorkspaceUsageV3Query = () => {
+  const workspaceId = useStore($currentWorkspaceId)
+  const { data: settings } = usePlatformSettings()
+  return useQuery(usageV3QueryOptions({ workspaceId, selfHosted: settings?.selfHosted }))
 }
 
 export const useWorkspaceUsageQuery = () => {
