@@ -4,6 +4,7 @@ import { AiModule } from '@/core/ai/ai.module'
 import { BillingPolicyModule } from '@/core/billing-policy/billing-policy.module'
 import { EntityModule } from '@/core/entity/entity.module'
 import { ImportExportModule } from '@/core/entity/import-export/import-export.module'
+import { ImportRunsModule } from '@/core/import-runs/import-runs.module'
 import { PropertyModule } from '@/core/property/property.module'
 import { QueryModule } from '@/core/query/query.module'
 import { RelationshipPatternsModule } from '@/core/relationship-patterns/relationship-patterns.module'
@@ -24,6 +25,7 @@ import { SessionAndTransactionAttachMiddleware } from '@/database/session-and-tr
     ImportExportModule,
     TransactionModule,
     QueryModule,
+    ImportRunsModule,
     forwardRef(() => TokenModule),
     forwardRef(() => DbConnectionModule)
   ],
