@@ -22,6 +22,22 @@ import {
   type UpsertEmbeddingVectorsResult,
   type VectorSearchParams,
   type VectorSearchResult,
+  type CompleteUploadParams,
+  type CreateImportRunParams,
+  type CreateImportRunResponse,
+  type ImportFileFormat,
+  type ImportFileManifest,
+  type ImportFileRole,
+  type ImportLinkEndpoint,
+  type ImportLinkSpec,
+  type ImportRun,
+  type ImportRunDetail,
+  type ImportRunEvent,
+  type ImportRunFile,
+  type InitiateImportUploadResponse,
+  type SignPartParams,
+  type SignPartResponse,
+  type UploadProgress,
   RestAPI
 } from './api/index.js'
 
@@ -51,7 +67,23 @@ export {
   type UpsertEmbeddingVectorsParams,
   type UpsertEmbeddingVectorsResult,
   type VectorSearchParams,
-  type VectorSearchResult
+  type VectorSearchResult,
+  type CompleteUploadParams,
+  type CreateImportRunParams,
+  type CreateImportRunResponse,
+  type ImportFileFormat,
+  type ImportFileManifest,
+  type ImportFileRole,
+  type ImportLinkEndpoint,
+  type ImportLinkSpec,
+  type ImportRun,
+  type ImportRunDetail,
+  type ImportRunEvent,
+  type ImportRunFile,
+  type InitiateImportUploadResponse,
+  type SignPartParams,
+  type SignPartResponse,
+  type UploadProgress
 }
 export * from './types/index.js'
 export * from './sdk/index.js'

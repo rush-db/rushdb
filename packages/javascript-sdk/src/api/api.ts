@@ -28,7 +28,17 @@ import type {
 } from '../types/index.js'
 import type { ApiResponse } from './types.js'
 import type {
+  CompleteUploadParams,
   CreateEmbeddingIndexParams,
+  CreateImportRunParams,
+  CreateImportRunResponse,
+  ImportFileManifest,
+  ImportRun,
+  ImportRunDetail,
+  InitiateImportUploadResponse,
+  SignPartParams,
+  SignPartResponse,
+  UploadProgress,
   DeleteRelationshipPatternOptions,
   EmbeddingIndex,
   EmbeddingIndexStats,
@@ -71,8 +81,16 @@ export class RestAPI {
   public options: SDKConfig['options']
   public logger: SDKConfig['logger']
 
+  /** Base URL and token retained for raw-body requests (import source uploads). */
+  private baseUrl: string = ''
+  private authToken?: string
+  /** Injectable provider of extra headers for raw fetches (e.g. project scoping). */
+  private rawHeadersProvider?: () => Record<string, string>
+
   constructor(token?: string, config?: SDKConfig & { httpClient: HttpClient }) {
     this.fetcher = null as unknown as ReturnType<typeof createFetcher>
+    this.baseUrl = config ? buildUrl(config) : ''
+    this.authToken = token
 
     if (config?.httpClient) {
       const url = buildUrl(config)
@@ -1603,5 +1621,230 @@ export class RestAPI {
         generated.data.warnings
       )
     }
+  }
+
+  /**
+   * API methods for asynchronous multi-file import runs.
+   */
+  public imports = {
+    create: async (params: CreateImportRunParams, idempotencyKey?: string) => {
+      const path = `/imports`
+      const payload = {
+        method: 'POST',
+        headers: (idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}) as Record<string, string>,
+        requestData: params
+      }
+      const response = await this.fetcher<ApiResponse<CreateImportRunResponse>>(path, payload)
+      return response.data
+    },
+
+    list: async () => {
+      const response = await this.fetcher<ApiResponse<Array<ImportRun>>>(`/imports`, { method: 'GET' })
+      return (response.data ?? []) as Array<ImportRun>
+    },
+
+    get: async (runId: string) => {
+      const response = await this.fetcher<ApiResponse<ImportRunDetail>>(`/imports/${runId}`, {
+        method: 'GET'
+      })
+      return response.data as ImportRunDetail | undefined
+    },
+
+    start: async (runId: string) => {
+      await this.fetcher<ApiResponse<{ status: string }>>(`/imports/${runId}/start`, { method: 'POST' })
+    },
+
+    cancel: async (runId: string) => {
+      await this.fetcher<ApiResponse<{ status: string }>>(`/imports/${runId}/cancel`, { method: 'POST' })
+    },
+
+    retry: async (runId: string) => {
+      await this.fetcher<ApiResponse<{ status: string }>>(`/imports/${runId}/retry`, { method: 'POST' })
+    },
+
+    remove: async (runId: string) => {
+      await this.fetcher<ApiResponse<void>>(`/imports/${runId}`, { method: 'DELETE' })
+    },
+
+    uploads: {
+      initiate: async (runId: string, fileId: string): Promise<InitiateImportUploadResponse | undefined> => {
+        const response = await this.fetcher<ApiResponse<InitiateImportUploadResponse>>(
+          `/imports/${runId}/files/${fileId}/upload/initiate`,
+          { method: 'POST' }
+        )
+        return response.data
+      },
+
+      signPart: async ({
+        runId,
+        fileId,
+        partNumber,
+        uploadId
+      }: SignPartParams): Promise<SignPartResponse | undefined> => {
+        const response = await this.fetcher<ApiResponse<SignPartResponse>>(
+          `/imports/${runId}/files/${fileId}/upload/parts/${partNumber}/sign`,
+          { method: 'POST', requestData: { uploadId } }
+        )
+        return response.data
+      },
+
+      complete: async ({ runId, fileId, uploadId, expectedSizeBytes }: CompleteUploadParams) => {
+        const response = await this.fetcher<ApiResponse<{ status: string }>>(
+          `/imports/${runId}/files/${fileId}/upload/complete`,
+          {
+            method: 'POST',
+            requestData: { uploadId, ...(expectedSizeBytes !== undefined && { expectedSizeBytes }) }
+          }
+        )
+        return response.data
+      },
+
+      abort: async (runId: string, fileId: string, uploadId: string) => {
+        await this.fetcher<ApiResponse<void>>(`/imports/${runId}/files/${fileId}/upload/abort`, {
+          method: 'POST',
+          requestData: { uploadId }
+        })
+      }
+    },
+
+    /**
+     * High-level upload helper. Sends source bytes through the API content
+     * endpoint (works for every storage backend). For direct-to-S3 multipart,
+     * use `uploadFileDirect`.
+     */
+    uploadContent: async (
+      runId: string,
+      manifest: ImportFileManifest & { fileId: string },
+      source: ArrayBuffer | Uint8Array | Buffer | Blob | File
+    ) => {
+      let body: BodyInit
+      if (typeof Blob !== 'undefined' && source instanceof Blob) {
+        body = source
+      } else {
+        const bytes = source as Uint8Array | ArrayBuffer
+        body =
+          bytes instanceof Uint8Array ?
+            (bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer)
+          : (bytes as ArrayBuffer)
+      }
+
+      const url = `${this.baseUrl}/imports/${runId}/files/${manifest.fileId}/content`
+      const response = await globalThis.fetch(url, {
+        method: 'POST',
+        body,
+        headers: Object.assign(
+          { 'Content-Type': 'application/octet-stream' },
+          this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {},
+          this.rawHeadersProvider?.() ?? {}
+        )
+      })
+      if (!response.ok) {
+        throw new Error(`upload failed: ${response.status} ${await safeErrorText(response)}`)
+      }
+      return (await response.json()) as { data: { status: string; storageKey: string } }
+    },
+
+    /**
+     * Direct-to-storage multipart upload for browser File/Blob or Node Buffer.
+     * Uses presigned part URLs; reports progress via onProgress.
+     */
+    uploadFileDirect: async (
+      runId: string,
+      manifest: ImportFileManifest & { fileId: string },
+      source: Blob | Uint8Array | Buffer,
+      options?: {
+        partSizeBytes?: number
+        concurrency?: number
+        onProgress?: (progress: UploadProgress) => void
+      }
+    ) => {
+      const partSizeBytes = Math.max(5 * 1024 * 1024, options?.partSizeBytes ?? 16 * 1024 * 1024)
+
+      const initiated = await this.imports.uploads.initiate(runId, manifest.fileId)
+      if (!initiated) {
+        throw new Error('upload initiation failed')
+      }
+
+      const totalBytes =
+        typeof Blob !== 'undefined' && source instanceof Blob ?
+          source.size
+        : (source as Uint8Array).byteLength
+
+      const parts: Array<{ partNumber: number; blob: Blob | Uint8Array }> = []
+      for (let offset = 0; parts.length === 0 || offset < totalBytes; offset += partSizeBytes) {
+        if (typeof Blob !== 'undefined' && source instanceof Blob) {
+          parts.push({ partNumber: parts.length + 1, blob: source.slice(offset, offset + partSizeBytes) })
+        } else {
+          const bytes = source as Uint8Array
+          parts.push({
+            partNumber: parts.length + 1,
+            blob: bytes.subarray(offset, Math.min(offset + partSizeBytes, totalBytes))
+          })
+        }
+        if (offset + partSizeBytes >= totalBytes) break
+      }
+
+      const totalParts = parts.length
+      let completedParts = 0
+      try {
+        const workers = Array.from({ length: Math.min(options?.concurrency ?? 3, totalParts) }, async () => {
+          while (parts.length > 0) {
+            const part = parts.shift()
+            if (!part) return
+            const signed = await this.imports.uploads.signPart({
+              runId,
+              fileId: manifest.fileId,
+              partNumber: part.partNumber,
+              uploadId: initiated.uploadId
+            })
+            if (!signed) throw new Error(`failed to sign part ${part.partNumber}`)
+
+            const putResponse = await globalThis.fetch(signed.url, {
+              method: signed.method,
+              body: part.blob as BodyInit,
+              headers: signed.headers
+            })
+            if (!putResponse.ok) {
+              throw new Error(`part ${part.partNumber} upload failed: ${putResponse.status}`)
+            }
+
+            completedParts += 1
+            options?.onProgress?.({
+              bytesUploaded: Math.min(completedParts * partSizeBytes, totalBytes),
+              totalBytes,
+              partsCompleted: completedParts,
+              totalParts
+            })
+          }
+        })
+        await Promise.all(workers)
+      } catch (error) {
+        await this.imports.uploads.abort(runId, manifest.fileId, initiated.uploadId).catch(() => undefined)
+        throw error
+      }
+
+      return this.imports.uploads.complete({
+        runId,
+        fileId: manifest.fileId,
+        uploadId: initiated.uploadId,
+        expectedSizeBytes: totalBytes
+      })
+    }
+  }
+
+  /**
+   * Provides extra headers (e.g. x-project-id) used by raw fetch calls that
+   * bypass the JSON fetcher.
+   */
+  setRawHeadersProvider(provider: () => Record<string, string>): void {
+    this.rawHeadersProvider = provider
+  }
+}
+
+async function safeErrorText(response: Response): Promise<string> {
+  try {
+    return await response.text()
+  } catch {
+    return ''
   }
 }
