@@ -2,6 +2,7 @@ import {
   Book,
   Bookmark,
   Database,
+  FileText,
   FlaskConical,
   Key,
   Network,
@@ -101,8 +102,13 @@ export function ProjectTabs({
 
     const dataManagementTabs: ProjectTab[] = [
       {
-        href: getRoutePath('projectImportData', { id: project.id }),
+        href: getRoutePath('projectImports', { id: project.id }),
         icon: <UploadIcon />,
+        label: 'Imports'
+      },
+      {
+        href: getRoutePath('projectImportData', { id: project.id }),
+        icon: <FileText />,
         label: 'Import Data',
         dataTour: 'project-import-data-chip'
       },

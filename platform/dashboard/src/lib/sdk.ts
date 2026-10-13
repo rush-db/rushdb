@@ -80,3 +80,17 @@ export const rushDBInstance = new RushDB(undefined, {
   url: BASE_URL || document.URL,
   httpClient: new CustomHttpClient()
 })
+
+// Raw-body fetches (import source uploads bypass the JSON fetcher) need the same
+// auth + project/workspace scoping headers as regular API calls.
+rushDBInstance.setRawHeadersProvider(() => {
+  const token = $token.get()
+  const currentWorkspaceId = $currentWorkspaceId.get()
+  const currentProjectId = $currentProjectId.get()
+
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(currentWorkspaceId ? { 'x-workspace-id': currentWorkspaceId } : {}),
+    ...(currentProjectId ? { 'x-project-id': currentProjectId } : {})
+  }
+})

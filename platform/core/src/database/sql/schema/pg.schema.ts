@@ -353,6 +353,141 @@ export const savedQueries = pgTable('saved_queries', {
   updatedAt: text('updated_at').notNull()
 })
 
+// JSON snapshots in text columns: link_spec, parse_options, import_options, checkpoint, metadata
+export const importRuns = pgTable(
+  'import_runs',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id'),
+    createdByType: text('created_by_type').notNull().default('user'),
+    createdById: text('created_by_id'),
+    name: text('name'),
+    idempotencyKeyHash: text('idempotency_key_hash'),
+    status: text('status').notNull().default('draft'),
+    failurePolicy: text('failure_policy').notNull().default('continue'),
+    manifestVersion: integer('manifest_version').notNull().default(0),
+    totalFiles: integer('total_files').notNull().default(0),
+    totalBytes: bigint('total_bytes', { mode: 'number' }).notNull().default(0),
+    uploadedBytes: bigint('uploaded_bytes', { mode: 'number' }).notNull().default(0),
+    parsedUnits: integer('parsed_units').notNull().default(0),
+    recordsCommitted: integer('records_committed').notNull().default(0),
+    relationshipsCommitted: integer('relationships_committed').notNull().default(0),
+    skippedUnits: integer('skipped_units').notNull().default(0),
+    failedFiles: integer('failed_files').notNull().default(0),
+    cancelRequestedAt: text('cancel_requested_at'),
+    startedAt: text('started_at'),
+    finalizedAt: text('finalized_at'),
+    retentionUntil: text('retention_until'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (t) => [uniqueIndex('import_run_idempotency_uniq').on(t.projectId, t.idempotencyKeyHash)]
+)
+
+export const importRunFiles = pgTable(
+  'import_run_files',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => importRuns.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id'),
+    ordinal: integer('ordinal').notNull(),
+    clientFileId: text('client_file_id').notNull(),
+    fileName: text('file_name').notNull(),
+    declaredSizeBytes: bigint('declared_size_bytes', { mode: 'number' }).notNull().default(0),
+    format: text('format').notNull(),
+    jsonShape: text('json_shape'),
+    role: text('role').notNull().default('records'),
+    rootLabel: text('root_label'),
+    linkSpec: text('link_spec'),
+    parseOptions: text('parse_options'),
+    importOptions: text('import_options'),
+    sourceGeneration: integer('source_generation').notNull().default(1),
+    storageProvider: text('storage_provider').notNull().default('memory'),
+    storageKey: text('storage_key'),
+    storageUploadId: text('storage_upload_id'),
+    objectSizeBytes: bigint('object_size_bytes', { mode: 'number' }),
+    checksumAlgorithm: text('checksum_algorithm'),
+    checksumValue: text('checksum_value'),
+    status: text('status').notNull().default('awaiting_upload'),
+    stage: text('stage').notNull().default('upload'),
+    processedBytes: bigint('processed_bytes', { mode: 'number' }).notNull().default(0),
+    parsedUnits: integer('parsed_units').notNull().default(0),
+    committedUnits: integer('committed_units').notNull().default(0),
+    recordsCommitted: integer('records_committed').notNull().default(0),
+    relationshipsCommitted: integer('relationships_committed').notNull().default(0),
+    linksResolved: integer('links_resolved').notNull().default(0),
+    linksUnresolved: integer('links_unresolved').notNull().default(0),
+    skippedUnits: integer('skipped_units').notNull().default(0),
+    currentBatch: integer('current_batch').notNull().default(0),
+    checkpoint: text('checkpoint'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(3),
+    notBefore: text('not_before'),
+    leaseOwner: text('lease_owner'),
+    leaseGeneration: integer('lease_generation').notNull().default(0),
+    leaseUntil: text('lease_until'),
+    heartbeatAt: text('heartbeat_at'),
+    cancelRequestedAt: text('cancel_requested_at'),
+    lastErrorCode: text('last_error_code'),
+    lastErrorMessage: text('last_error_message'),
+    startedAt: text('started_at'),
+    finishedAt: text('finished_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (t) => [
+    uniqueIndex('import_file_client_id_uniq').on(t.runId, t.clientFileId),
+    uniqueIndex('import_file_ordinal_uniq').on(t.runId, t.ordinal)
+  ]
+)
+
+export const importRunEvents = pgTable('import_run_events', {
+  id: text('id').primaryKey(),
+  runId: text('run_id')
+    .notNull()
+    .references(() => importRuns.id, { onDelete: 'cascade' }),
+  fileId: text('file_id'),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  fromStatus: text('from_status'),
+  toStatus: text('to_status'),
+  code: text('code'),
+  message: text('message'),
+  attempt: integer('attempt'),
+  leaseGeneration: integer('lease_generation'),
+  metadata: text('metadata'),
+  createdAt: text('created_at').notNull()
+})
+
+export const importErrorSamples = pgTable('import_error_samples', {
+  id: text('id').primaryKey(),
+  runId: text('run_id')
+    .notNull()
+    .references(() => importRuns.id, { onDelete: 'cascade' }),
+  fileId: text('file_id')
+    .notNull()
+    .references(() => importRunFiles.id, { onDelete: 'cascade' }),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  sourceUnit: integer('source_unit'),
+  lineNumber: integer('line_number'),
+  columnNumber: integer('column_number'),
+  code: text('code').notNull(),
+  message: text('message'),
+  createdAt: text('created_at').notNull()
+})
+
 export const pgSchema = {
   users,
   workspaces,
@@ -375,7 +510,11 @@ export const pgSchema = {
   connectorOffsets,
   connectorEvents,
   connectorLeases,
-  savedQueries
+  savedQueries,
+  importRuns,
+  importRunFiles,
+  importRunEvents,
+  importErrorSamples
 }
 
 export type PgSchema = typeof pgSchema

@@ -13,6 +13,9 @@ import { $router, getRoutePath, isProjectPage, redirectRoute } from '~/lib/route
 
 import { ProjectConnectedApps, ProjectSettings } from '~/pages/project/settings'
 import { ProjectTokens } from '~/pages/project/tokens'
+import { ProjectImports } from '~/pages/project/imports'
+import { ProjectImportsNew } from '~/pages/project/imports-new'
+import { ProjectImportsRun } from '~/pages/project/imports-run'
 import { ProjectIndexes } from '~/pages/project/indexes'
 import { ProjectLiveSchema } from '~/pages/project/live-schema'
 import { ProjectQueryLab } from '~/pages/project/query-lab'
@@ -49,6 +52,12 @@ function ProjectRoutes({ project }: { project: Project }) {
       return <ProjectConnectedApps projectId={project.id} />
     case 'projectImportData':
       return <ImportRecords />
+    case 'projectImports':
+      return <ProjectImports />
+    case 'projectImportsNew':
+      return <ProjectImportsNew />
+    case 'projectImportsRun':
+      return <ProjectImportsRun />
     case 'projectNewConnection':
       return <ProjectNewConnection projectId={project.id} />
     case 'projectConnection':
@@ -71,6 +80,9 @@ const PROJECT_TAB_TITLES: Record<string, string> = {
   projectRelationships: 'Relationships',
   projectSuggestedRelationships: 'Suggested Relationships',
   projectImportData: 'Import',
+  projectImports: 'Imports',
+  projectImportsNew: 'New Import',
+  projectImportsRun: 'Import Run',
   projectLiveSchema: 'Live Schema',
   projectNewConnection: 'New Connection',
   projectConnection: 'Connection',

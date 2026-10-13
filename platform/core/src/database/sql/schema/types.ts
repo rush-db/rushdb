@@ -70,3 +70,15 @@ export type InsertConnectorLeaseRow = typeof sqliteSchema.connectorLeases.$infer
 
 export type SavedQueryRow = typeof sqliteSchema.savedQueries.$inferSelect
 export type InsertSavedQueryRow = typeof sqliteSchema.savedQueries.$inferInsert
+
+export type ImportRunRow = typeof sqliteSchema.importRuns.$inferSelect
+export type InsertImportRunRow = typeof sqliteSchema.importRuns.$inferInsert
+
+export type ImportRunFileRow = typeof sqliteSchema.importRunFiles.$inferSelect
+export type InsertImportRunFileRow = typeof sqliteSchema.importRunFiles.$inferInsert
+
+export type ImportRunEventRow = typeof sqliteSchema.importRunEvents.$inferSelect
+export type InsertImportRunEventRow = typeof sqliteSchema.importRunEvents.$inferInsert
+
+export type ImportErrorSampleRow = typeof sqliteSchema.importErrorSamples.$inferSelect
+export type InsertImportErrorSampleRow = typeof sqliteSchema.importErrorSamples.$inferInsert
