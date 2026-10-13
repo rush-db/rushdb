@@ -42,9 +42,9 @@ concurrency:
   cancel-in-progress: false
 
 # Deploy target is Cobalt on the VM (zero-downtime blue/green).
-# Requires GitHub secrets: COBALT_URL (daemon base URL) and COBALT_API_KEY.
-# Runtime env for core/mcp no longer ships with the release — it lives in
-# Cobalt (`cobalt env set --project core …`).
+# Runtime env for core/mcp lives in AWS SSM (/rushdb/prod/{ci,core,mcp}); the
+# deploy jobs assume a read-only role via GitHub OIDC and fetch it at deploy time
+# (no static secrets in GitHub). See infra/docs/runbooks/secrets-ssm.md.
 
 jobs:
   release:
@@ -159,89 +159,38 @@ jobs:
     environment: production
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4 # the local composite action is used below
 
-      # GitHub is the source of truth for runtime env: sync secrets/vars to
-      # Cobalt on every deploy (upsert). Values are stored encrypted in Cobalt's
-      # rqlite and injected at runtime. `secrets.X || vars.X` reads either
-      # classification; defaults cover the constants.
-      - name: Sync runtime env to Cobalt
-        env:
-          COBALT_URL: ${{ secrets.COBALT_URL }}
-          COBALT_API_KEY: ${{ secrets.COBALT_API_KEY }}
-          NODE_ENV: ${{ secrets.NODE_ENV || vars.NODE_ENV || 'production' }}
-          LOG_LEVEL: ${{ secrets.LOG_LEVEL || vars.LOG_LEVEL || 'info' }}
-          RUSHDB_SELF_HOSTED: ${{ secrets.RUSHDB_SELF_HOSTED || vars.RUSHDB_SELF_HOSTED || 'false' }}
-          RUSHDB_SERVE_STATIC: ${{ secrets.RUSHDB_SERVE_STATIC || vars.RUSHDB_SERVE_STATIC || 'true' }}
-          SQL_DB_TYPE: ${{ secrets.SQL_DB_TYPE || vars.SQL_DB_TYPE || 'postgres' }}
-          SQL_DB_URL: ${{ secrets.SQL_DB_URL || vars.SQL_DB_URL }}
-          NEO4J_URL: ${{ secrets.NEO4J_URL || vars.NEO4J_URL }}
-          NEO4J_USERNAME: ${{ secrets.NEO4J_USERNAME || vars.NEO4J_USERNAME }}
-          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD || vars.NEO4J_PASSWORD }}
-          RUSHDB_AES_256_ENCRYPTION_KEY: ${{ secrets.RUSHDB_AES_256_ENCRYPTION_KEY || vars.RUSHDB_AES_256_ENCRYPTION_KEY }}
-          RUSHDB_JWT_PRIVATE_KEY_BASE64: ${{ secrets.RUSHDB_JWT_PRIVATE_KEY_BASE64 || vars.RUSHDB_JWT_PRIVATE_KEY_BASE64 }}
-          RUSHDB_JWT_PUBLIC_KEY_BASE64: ${{ secrets.RUSHDB_JWT_PUBLIC_KEY_BASE64 || vars.RUSHDB_JWT_PUBLIC_KEY_BASE64 }}
-          RUSHDB_JWT_KID: ${{ secrets.RUSHDB_JWT_KID || vars.RUSHDB_JWT_KID }}
-          RUSHDB_DASHBOARD_URL: ${{ secrets.RUSHDB_DASHBOARD_URL || vars.RUSHDB_DASHBOARD_URL }}
-          RUSHDB_PUBLIC_URL: ${{ secrets.RUSHDB_PUBLIC_URL || vars.RUSHDB_PUBLIC_URL }}
-          RUSHDB_OAUTH_ISSUER: ${{ secrets.RUSHDB_OAUTH_ISSUER || vars.RUSHDB_OAUTH_ISSUER || vars.RUSHDB_PUBLIC_URL }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID || vars.GOOGLE_CLIENT_ID }}
-          GOOGLE_SECRET: ${{ secrets.GOOGLE_SECRET || vars.GOOGLE_SECRET }}
-          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID || vars.GH_CLIENT_ID }}
-          GH_SECRET: ${{ secrets.GH_SECRET || vars.GH_SECRET }}
-          MAIL_HOST: ${{ secrets.MAIL_HOST || vars.MAIL_HOST }}
-          MAIL_USER: ${{ secrets.MAIL_USER || vars.MAIL_USER }}
-          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD || vars.MAIL_PASSWORD }}
-          MAIL_FROM: ${{ secrets.MAIL_FROM || vars.MAIL_FROM }}
-          SERVICE_CAPTCHA_KEY: ${{ secrets.SERVICE_CAPTCHA_KEY || vars.SERVICE_CAPTCHA_KEY }}
-          BILLING_SERVICE_URL: ${{ secrets.BILLING_SERVICE_URL || vars.BILLING_SERVICE_URL }}
-          RUSHDB_BILLING_SECRET: ${{ secrets.RUSHDB_BILLING_SECRET || vars.RUSHDB_BILLING_SECRET }}
-          RUSHDB_EMBEDDING_BASE_URL: ${{ secrets.RUSHDB_EMBEDDING_BASE_URL || vars.RUSHDB_EMBEDDING_BASE_URL }}
-          RUSHDB_EMBEDDING_API_KEY: ${{ secrets.RUSHDB_EMBEDDING_API_KEY || vars.RUSHDB_EMBEDDING_API_KEY }}
-          RUSHDB_EMBEDDING_MODEL: ${{ secrets.RUSHDB_EMBEDDING_MODEL || vars.RUSHDB_EMBEDDING_MODEL }}
-          RUSHDB_EMBEDDING_DIMENSIONS: ${{ secrets.RUSHDB_EMBEDDING_DIMENSIONS || vars.RUSHDB_EMBEDDING_DIMENSIONS }}
-          RUSHDB_LLM_BASE_URL: ${{ secrets.RUSHDB_LLM_BASE_URL || vars.RUSHDB_LLM_BASE_URL }}
-          RUSHDB_LLM_API_KEY: ${{ secrets.RUSHDB_LLM_API_KEY || vars.RUSHDB_LLM_API_KEY }}
-          RUSHDB_LLM_MODEL: ${{ secrets.RUSHDB_LLM_MODEL || vars.RUSHDB_LLM_MODEL }}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - id: ssm
+        name: Load config from SSM
         run: |
           set -euo pipefail
-          vars_json=$(jq -nc \
-            --arg NODE_ENV "$NODE_ENV" \
-            --arg LOG_LEVEL "$LOG_LEVEL" \
-            --arg RUSHDB_SELF_HOSTED "$RUSHDB_SELF_HOSTED" \
-            --arg RUSHDB_SERVE_STATIC "$RUSHDB_SERVE_STATIC" \
-            --arg SQL_DB_TYPE "$SQL_DB_TYPE" \
-            --arg SQL_DB_URL "$SQL_DB_URL" \
-            --arg NEO4J_URL "$NEO4J_URL" \
-            --arg NEO4J_USERNAME "$NEO4J_USERNAME" \
-            --arg NEO4J_PASSWORD "$NEO4J_PASSWORD" \
-            --arg RUSHDB_AES_256_ENCRYPTION_KEY "$RUSHDB_AES_256_ENCRYPTION_KEY" \
-            --arg RUSHDB_JWT_PRIVATE_KEY_BASE64 "$RUSHDB_JWT_PRIVATE_KEY_BASE64" \
-            --arg RUSHDB_JWT_PUBLIC_KEY_BASE64 "$RUSHDB_JWT_PUBLIC_KEY_BASE64" \
-            --arg RUSHDB_JWT_KID "$RUSHDB_JWT_KID" \
-            --arg RUSHDB_DASHBOARD_URL "$RUSHDB_DASHBOARD_URL" \
-            --arg RUSHDB_PUBLIC_URL "$RUSHDB_PUBLIC_URL" \
-            --arg RUSHDB_OAUTH_ISSUER "$RUSHDB_OAUTH_ISSUER" \
-            --arg GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID" \
-            --arg GOOGLE_SECRET "$GOOGLE_SECRET" \
-            --arg GH_CLIENT_ID "$GH_CLIENT_ID" \
-            --arg GH_SECRET "$GH_SECRET" \
-            --arg MAIL_HOST "$MAIL_HOST" \
-            --arg MAIL_USER "$MAIL_USER" \
-            --arg MAIL_PASSWORD "$MAIL_PASSWORD" \
-            --arg MAIL_FROM "$MAIL_FROM" \
-            --arg SERVICE_CAPTCHA_KEY "$SERVICE_CAPTCHA_KEY" \
-            --arg BILLING_SERVICE_URL "$BILLING_SERVICE_URL" \
-            --arg RUSHDB_BILLING_SECRET "$RUSHDB_BILLING_SECRET" \
-            --arg RUSHDB_EMBEDDING_BASE_URL "$RUSHDB_EMBEDDING_BASE_URL" \
-            --arg RUSHDB_EMBEDDING_API_KEY "$RUSHDB_EMBEDDING_API_KEY" \
-            --arg RUSHDB_EMBEDDING_MODEL "$RUSHDB_EMBEDDING_MODEL" \
-            --arg RUSHDB_EMBEDDING_DIMENSIONS "$RUSHDB_EMBEDDING_DIMENSIONS" \
-            --arg RUSHDB_LLM_BASE_URL "$RUSHDB_LLM_BASE_URL" \
-            --arg RUSHDB_LLM_API_KEY "$RUSHDB_LLM_API_KEY" \
-            --arg RUSHDB_LLM_MODEL "$RUSHDB_LLM_MODEL" \
-            '{NODE_ENV:$NODE_ENV,LOG_LEVEL:$LOG_LEVEL,RUSHDB_SELF_HOSTED:$RUSHDB_SELF_HOSTED,RUSHDB_SERVE_STATIC:$RUSHDB_SERVE_STATIC,SQL_DB_TYPE:$SQL_DB_TYPE,SQL_DB_URL:$SQL_DB_URL,NEO4J_URL:$NEO4J_URL,NEO4J_USERNAME:$NEO4J_USERNAME,NEO4J_PASSWORD:$NEO4J_PASSWORD,RUSHDB_AES_256_ENCRYPTION_KEY:$RUSHDB_AES_256_ENCRYPTION_KEY,RUSHDB_JWT_PRIVATE_KEY_BASE64:$RUSHDB_JWT_PRIVATE_KEY_BASE64,RUSHDB_JWT_PUBLIC_KEY_BASE64:$RUSHDB_JWT_PUBLIC_KEY_BASE64,RUSHDB_JWT_KID:$RUSHDB_JWT_KID,RUSHDB_DASHBOARD_URL:$RUSHDB_DASHBOARD_URL,RUSHDB_PUBLIC_URL:$RUSHDB_PUBLIC_URL,RUSHDB_OAUTH_ISSUER:$RUSHDB_OAUTH_ISSUER,GOOGLE_CLIENT_ID:$GOOGLE_CLIENT_ID,GOOGLE_SECRET:$GOOGLE_SECRET,GH_CLIENT_ID:$GH_CLIENT_ID,GH_SECRET:$GH_SECRET,MAIL_HOST:$MAIL_HOST,MAIL_USER:$MAIL_USER,MAIL_PASSWORD:$MAIL_PASSWORD,MAIL_FROM:$MAIL_FROM,SERVICE_CAPTCHA_KEY:$SERVICE_CAPTCHA_KEY,BILLING_SERVICE_URL:$BILLING_SERVICE_URL,RUSHDB_BILLING_SECRET:$RUSHDB_BILLING_SECRET,RUSHDB_EMBEDDING_BASE_URL:$RUSHDB_EMBEDDING_BASE_URL,RUSHDB_EMBEDDING_API_KEY:$RUSHDB_EMBEDDING_API_KEY,RUSHDB_EMBEDDING_MODEL:$RUSHDB_EMBEDDING_MODEL,RUSHDB_EMBEDDING_DIMENSIONS:$RUSHDB_EMBEDDING_DIMENSIONS,RUSHDB_LLM_BASE_URL:$RUSHDB_LLM_BASE_URL,RUSHDB_LLM_API_KEY:$RUSHDB_LLM_API_KEY,RUSHDB_LLM_MODEL:$RUSHDB_LLM_MODEL}')
-          body=$(jq -nc --argjson vars "$vars_json" '{vars:$vars,redeploy:false}')
+          get(){ aws ssm get-parameters-by-path --with-decryption --recursive \
+                   --path "$1" --query 'Parameters[].[Name,Value]' --output text; }
+          while IFS=$'\t' read -r n v; do echo "${n##*/}=$v" >> "$GITHUB_OUTPUT"; done < <(get /rushdb/prod/ci)
+          jq -Rn '[inputs|split("\t")|{key:(.[0]|split("/")|last),value:.[1]}]|from_entries' < <(get /rushdb/prod/core) > core-env.json
+
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_SECRET }}
+          tags: ${{ steps.ssm.outputs.TS_OAUTH_TAGS }}
+
+      - name: Point the deploy endpoint at the tailnet
+        run: echo "${{ steps.ssm.outputs.DEPLOY_HOSTS_ENTRY }}" | sudo tee -a /etc/hosts >/dev/null
+
+      - name: Sync runtime env to Cobalt
+        env:
+          COBALT_URL: ${{ steps.ssm.outputs.COBALT_URL }}
+          COBALT_API_KEY: ${{ steps.ssm.outputs.COBALT_API_KEY }}
+        run: |
+          set -euo pipefail
+          body=$(jq -nc --argjson vars "$(cat core-env.json)" '{vars:$vars,redeploy:false}')
           curl -fsS -X POST "$COBALT_URL/api/projects/core/env" \
             -H "Authorization: Bearer $COBALT_API_KEY" \
             -H 'Content-Type: application/json' \
@@ -251,8 +200,8 @@ jobs:
       - name: Deploy core (zero-downtime blue/green)
         uses: ./.github/actions/cobalt-deploy
         with:
-          cobalt-url: ${{ secrets.COBALT_URL }}
-          cobalt-api-key: ${{ secrets.COBALT_API_KEY }}
+          cobalt-url: ${{ steps.ssm.outputs.COBALT_URL }}
+          cobalt-api-key: ${{ steps.ssm.outputs.COBALT_API_KEY }}
           project: core
           image: ${{ needs.platform-image.outputs.image }}
           port: 3000
@@ -266,25 +215,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sync runtime env to Cobalt
-        env:
-          COBALT_URL: ${{ secrets.COBALT_URL }}
-          COBALT_API_KEY: ${{ secrets.COBALT_API_KEY }}
-          MCP_TRANSPORT: ${{ secrets.MCP_TRANSPORT || vars.MCP_TRANSPORT || 'http' }}
-          PORT: ${{ secrets.PORT || vars.PORT || '3001' }}
-          RUSHDB_API_URL: ${{ secrets.RUSHDB_API_URL || vars.RUSHDB_API_URL || 'https://api.rushdb.com/api/v1' }}
-          MCP_RESOURCE_URL: ${{ secrets.MCP_RESOURCE_URL || vars.MCP_RESOURCE_URL || 'https://mcp.rushdb.com' }}
-          RUSHDB_OAUTH_ISSUER: ${{ secrets.RUSHDB_OAUTH_ISSUER || vars.RUSHDB_OAUTH_ISSUER || vars.RUSHDB_PUBLIC_URL }}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - id: ssm
+        name: Load config from SSM
         run: |
           set -euo pipefail
-          vars_json=$(jq -nc \
-            --arg MCP_TRANSPORT "$MCP_TRANSPORT" \
-            --arg PORT "$PORT" \
-            --arg RUSHDB_API_URL "$RUSHDB_API_URL" \
-            --arg MCP_RESOURCE_URL "$MCP_RESOURCE_URL" \
-            --arg RUSHDB_OAUTH_ISSUER "$RUSHDB_OAUTH_ISSUER" \
-            '{MCP_TRANSPORT:$MCP_TRANSPORT,PORT:$PORT,RUSHDB_API_URL:$RUSHDB_API_URL,MCP_RESOURCE_URL:$MCP_RESOURCE_URL,RUSHDB_OAUTH_ISSUER:$RUSHDB_OAUTH_ISSUER}')
-          body=$(jq -nc --argjson vars "$vars_json" '{vars:$vars,redeploy:false}')
+          get(){ aws ssm get-parameters-by-path --with-decryption --recursive \
+                   --path "$1" --query 'Parameters[].[Name,Value]' --output text; }
+          while IFS=$'\t' read -r n v; do echo "${n##*/}=$v" >> "$GITHUB_OUTPUT"; done < <(get /rushdb/prod/ci)
+          jq -Rn '[inputs|split("\t")|{key:(.[0]|split("/")|last),value:.[1]}]|from_entries' < <(get /rushdb/prod/mcp) > mcp-env.json
+
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_SECRET }}
+          tags: ${{ steps.ssm.outputs.TS_OAUTH_TAGS }}
+
+      - name: Point the deploy endpoint at the tailnet
+        run: echo "${{ steps.ssm.outputs.DEPLOY_HOSTS_ENTRY }}" | sudo tee -a /etc/hosts >/dev/null
+
+      - name: Sync runtime env to Cobalt
+        env:
+          COBALT_URL: ${{ steps.ssm.outputs.COBALT_URL }}
+          COBALT_API_KEY: ${{ steps.ssm.outputs.COBALT_API_KEY }}
+        run: |
+          set -euo pipefail
+          body=$(jq -nc --argjson vars "$(cat mcp-env.json)" '{vars:$vars,redeploy:false}')
           curl -fsS -X POST "$COBALT_URL/api/projects/mcp/env" \
             -H "Authorization: Bearer $COBALT_API_KEY" \
             -H 'Content-Type: application/json' \
@@ -294,8 +254,8 @@ jobs:
       - name: Deploy mcp (zero-downtime blue/green)
         uses: ./.github/actions/cobalt-deploy
         with:
-          cobalt-url: ${{ secrets.COBALT_URL }}
-          cobalt-api-key: ${{ secrets.COBALT_API_KEY }}
+          cobalt-url: ${{ steps.ssm.outputs.COBALT_URL }}
+          cobalt-api-key: ${{ steps.ssm.outputs.COBALT_API_KEY }}
           project: mcp
           image: ${{ needs.mcp-image.outputs.image }}
           port: 3001
