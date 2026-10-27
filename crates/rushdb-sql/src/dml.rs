@@ -15,8 +15,8 @@ use std::sync::Arc;
 
 use datafusion::sql::parser::{DFParser, Statement as DFStatement};
 use datafusion::sql::sqlparser::ast::{
-    AssignmentTarget, FromTable, Ident, ObjectName, Statement, TableFactor, TableObject,
-    UpdateTableFromKind,
+    AssignmentTarget, Expr, FromTable, Ident, ObjectName, SetExpr, Statement, TableFactor,
+    TableObject, UpdateTableFromKind, Value,
 };
 use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use futures::StreamExt;
@@ -59,6 +59,20 @@ pub(crate) struct DmlPlan {
     /// `UPDATE`: the assigned properties, in assignment order. `INSERT`: the
     /// listed target columns (empty: the table's columns, in order).
     pub(crate) columns: Vec<String>,
+    /// Bare placeholders bound directly to a target column, in placeholder
+    /// order. `Describe` uses this to give the client the column's type when
+    /// the rewritten read (a `VALUES` source or an assignment expression)
+    /// cannot infer it on its own.
+    pub(crate) parameter_columns: Vec<(u64, ParameterTarget)>,
+}
+
+/// Where a bare `$n` parameter's value lands in the target table.
+#[derive(Debug, Clone)]
+pub(crate) enum ParameterTarget {
+    /// The column named by the statement's column list or assignment target.
+    Column(String),
+    /// The table's column at this position (an `INSERT` without a list).
+    Position(usize),
 }
 
 fn unsupported(message: impl Into<String>) -> SqlError {
@@ -140,16 +154,47 @@ pub(crate) fn plan(sql: &str) -> Result<DmlPlan, SqlError> {
                 .source
                 .as_ref()
                 .ok_or_else(|| unsupported("INSERT needs VALUES or a SELECT"))?;
-            let columns = insert
+            let columns: Vec<String> = insert
                 .columns
                 .iter()
                 .map(|name| last_ident(name).map(column_name))
                 .collect::<Result<_, _>>()?;
+            let mut parameter_columns = Vec::new();
+            if let SetExpr::Values(values) = source.body.as_ref() {
+                for row in &values.rows {
+                    for (index, expression) in row.iter().enumerate() {
+                        let Expr::Value(value) = expression else {
+                            continue;
+                        };
+                        let Value::Placeholder(placeholder) = &value.value else {
+                            continue;
+                        };
+                        let Some(position) = placeholder
+                            .strip_prefix('$')
+                            .and_then(|value| value.parse::<u64>().ok())
+                        else {
+                            continue;
+                        };
+                        let target = if columns.is_empty() {
+                            Some(ParameterTarget::Position(index))
+                        } else {
+                            columns
+                                .get(index)
+                                .map(|column| ParameterTarget::Column(column.clone()))
+                        };
+                        let Some(target) = target else { continue };
+                        if !parameter_columns.iter().any(|(seen, _)| *seen == position) {
+                            parameter_columns.push((position, target));
+                        }
+                    }
+                }
+            }
             Ok(DmlPlan {
                 kind: DmlKind::Insert,
                 target,
                 query: source.to_string(),
                 columns,
+                parameter_columns,
             })
         }
         Statement::Update(update) => {
@@ -171,6 +216,7 @@ pub(crate) fn plan(sql: &str) -> Result<DmlPlan, SqlError> {
             let q = qualifier(relation);
             let mut select = vec![format!("{q}.\"{ID_FIELD}\" AS \"{ROW_ID}\"")];
             let mut columns = Vec::new();
+            let mut parameter_columns = Vec::new();
             for (i, assignment) in update.assignments.iter().enumerate() {
                 let AssignmentTarget::ColumnName(name) = &assignment.target else {
                     return Err(unsupported("tuple assignments are unsupported"));
@@ -181,6 +227,17 @@ pub(crate) fn plan(sql: &str) -> Result<DmlPlan, SqlError> {
                     return Err(SqlError::InvalidIdentity(
                         "UPDATE cannot change the stable __id column".into(),
                     ));
+                }
+                if let Expr::Value(value) = &assignment.value {
+                    if let Value::Placeholder(placeholder) = &value.value {
+                        if let Some(position) = placeholder
+                            .strip_prefix('$')
+                            .and_then(|value| value.parse::<u64>().ok())
+                        {
+                            parameter_columns
+                                .push((position, ParameterTarget::Column(column.clone())));
+                        }
+                    }
                 }
                 select.push(format!("{q}.{ident} AS \"{OLD}{i}\""));
                 select.push(format!("({}) AS \"{NEW}{i}\"", assignment.value));
@@ -205,6 +262,7 @@ pub(crate) fn plan(sql: &str) -> Result<DmlPlan, SqlError> {
                 target,
                 query,
                 columns,
+                parameter_columns,
             })
         }
         Statement::Delete(delete) => {
@@ -236,6 +294,7 @@ pub(crate) fn plan(sql: &str) -> Result<DmlPlan, SqlError> {
                 target,
                 query,
                 columns: Vec::new(),
+                parameter_columns: Vec::new(),
             })
         }
         _ => Err(unsupported(

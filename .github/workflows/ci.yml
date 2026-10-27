@@ -174,7 +174,9 @@ jobs:
         run: |
           cargo build --release -p rushdb-server --bin rushdb
           cargo build --release -p rushdb-language --example grafeo_reference
-          ./target/release/rushdb serve --port 3217 --pgwire-port 0 --grpc-port 0 --bolt-port 0 --languages cypher --token local-token --request-timeout-ms 20000 > "$RUNNER_TEMP/tck.log" 2>&1 &
+          # The corpus is a correctness test, not a disk-safety test: the
+          # runner's build tree can leave less than the production 10% free.
+          ./target/release/rushdb serve --port 3217 --pgwire-port 0 --grpc-port 0 --bolt-port 0 --languages cypher --token local-token --request-timeout-ms 20000 --disk-space-threshold-percent 0 > "$RUNNER_TEMP/tck.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/tck.pid"
           curl --fail --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:3217/ready
       - name: Run every TCK scenario, attribute failures on plain Grafeo, compare with the ledger
@@ -220,7 +222,10 @@ jobs:
           path: ${{ runner.temp }}/gql-ldbc-snb-ledger.json
 
   standalone-smoke:
-    runs-on: ubuntu-latest
+    # Build on the oldest glibc the installer is meant to support: a binary
+    # built on `ubuntu-latest` (26.04) does not run on the 24.04 container the
+    # smoke test installs into.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
@@ -237,7 +242,9 @@ jobs:
           path: ${{ runner.temp }}/capabilities.json
       - name: Start through the one-command CLI
         run: |
-          ./target/release/rushdb up --data-dir "$RUNNER_TEMP/rushdb-smoke" > "$RUNNER_TEMP/rushdb-smoke.log" 2>&1 &
+          # The runner's build tree can leave less than the production 10%
+          # free; this smoke test exercises the process, not the disk guard.
+          ./target/release/rushdb up --data-dir "$RUNNER_TEMP/rushdb-smoke" --disk-space-threshold-percent 0 > "$RUNNER_TEMP/rushdb-smoke.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/rushdb-smoke.pid"
           curl --fail --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/health
           ./target/release/rushdb health

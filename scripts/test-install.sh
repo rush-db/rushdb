@@ -62,6 +62,10 @@ grep -q '# rushdb' /root/.bashrc
 PATH="/root/.rushdb/bin:$PATH"
 rushdb --version
 port=$((20000 + $$ % 10000))
+# The container shares the CI runner's disk, where the build tree can leave
+# less than the production 10% free. This probe tests installation, not the
+# disk guard.
+export RUSHDB_DISK_SPACE_THRESHOLD_PERCENT=0
 rushdb up --data-dir /tmp/db --port "$port" --pgwire-port 0 >/tmp/up.log 2>&1 &
 for _ in $(seq 1 100); do rushdb health --url "http://127.0.0.1:$port" >/dev/null 2>&1 && break; sleep 0.1; done
 rushdb health --url "http://127.0.0.1:$port"

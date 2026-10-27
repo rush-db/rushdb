@@ -882,6 +882,32 @@ pub async fn describe_sql_mutation_async(
         })
         .collect::<Vec<_>>();
     parameters.sort_by(|(left, _), (right, _)| parameter_order(left).cmp(&parameter_order(right)));
+    // The rewritten read carries only values (`VALUES ($1, $2)`), so a bare
+    // parameter has no type of its own. Resolve it from the target column, as
+    // PostgreSQL does for INSERT/UPDATE.
+    if !plan.parameter_columns.is_empty() {
+        if let Ok(provider) = context.context.table_provider(&plan.target).await {
+            let schema = provider.schema();
+            for (index, target) in &plan.parameter_columns {
+                let field = match target {
+                    dml::ParameterTarget::Column(name) => schema.field_with_name(name).ok(),
+                    dml::ParameterTarget::Position(position) => schema
+                        .fields()
+                        .get(*position)
+                        .map(std::convert::AsRef::as_ref),
+                };
+                let Some(field) = field else { continue };
+                let Some((_, data_type)) = parameters.iter_mut().find(|(name, _)| {
+                    name.strip_prefix('$')
+                        .and_then(|value| value.parse::<u64>().ok())
+                        == Some(*index)
+                }) else {
+                    continue;
+                };
+                *data_type = sql_type_from_arrow(field.data_type());
+            }
+        }
+    }
     Ok(SqlDescription {
         parameters,
         columns: Vec::new(),

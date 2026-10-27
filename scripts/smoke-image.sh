@@ -30,8 +30,10 @@ execute() {
     -H 'Content-Type: application/json' --data "$1"
 }
 
+# The container shares the CI runner's disk; this smoke tests the image, not
+# the production free-disk guard.
 docker run -d --name "$NAME" "${PLATFORM_ARGS[@]}" -p "127.0.0.1:$PORT:3000" \
-  -e RUSHDB_TOKEN=smoke "$IMAGE" >/dev/null
+  -e RUSHDB_TOKEN=smoke -e RUSHDB_DISK_SPACE_THRESHOLD_PERCENT=0 "$IMAGE" >/dev/null
 wait_healthy
 execute '{"protocolVersion":1,"operation":{"kind":"mutate","mutation":{"kind":"putRecord","mode":"create","label":"SMOKE","properties":{"ok":true}}}}' >/dev/null
 docker restart -t 60 "$NAME" >/dev/null

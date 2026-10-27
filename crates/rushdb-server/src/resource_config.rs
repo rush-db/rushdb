@@ -271,6 +271,7 @@ pub struct ResourceConfig {
         env = "RUSHDB_DISK_SPACE_THRESHOLD_PERCENT",
         default_value_t = 10
     )]
+    #[serde(default = "default_disk_space_threshold_percent")]
     pub disk_space_threshold_percent: u8,
     /// Request-scheduler and HTTP runtime worker threads; 0 = the host's
     /// available parallelism.
@@ -349,6 +350,14 @@ pub enum DurabilityArg {
     Memory,
 }
 
+/// `config.yml` default for the free-disk guard. A config file that omits the
+/// key gets the production fail-safe (10%); only an explicit `0` disables it.
+/// The library `Default` below is 0 for tests and embedders, so the two are
+/// intentionally separate.
+fn default_disk_space_threshold_percent() -> u8 {
+    10
+}
+
 impl Default for ResourceConfig {
     fn default() -> Self {
         let storage = rushdb_storage::resources::StorageResources::default();
@@ -395,7 +404,11 @@ impl Default for ResourceConfig {
             tenant_bulk_concurrency: 2,
             metrics_prefix: None,
             metrics_filter: None,
-            disk_space_threshold_percent: 10,
+            // The library default leaves the guard off: `ServerConfig::default()`
+            // backs in-process tests and embedders, which must not depend on the
+            // host's free space. The production defaults (CLI flag and config
+            // file) are 10 — see `default_disk_space_threshold_percent`.
+            disk_space_threshold_percent: 0,
             threads: 0,
             retention_consumer_lease_seconds: 86_400,
             http_inflight_body_bytes: ByteSize(256 * 1024 * 1024),
@@ -723,6 +736,16 @@ mod tests {
             );
         }
         assert!(serde_yml::from_str::<TransactionConfig>("max-operation: 1").is_err());
+    }
+
+    #[test]
+    fn disk_guard_defaults_are_off_for_the_library_and_on_for_config_files() {
+        // `ServerConfig::default()` backs tests and embedders; the host's free
+        // space must not decide whether their writes succeed.
+        assert_eq!(ResourceConfig::default().disk_space_threshold_percent, 0);
+        // A config file that omits the key keeps the production fail-safe.
+        let parsed: ResourceConfig = serde_yml::from_str("shards: 1").unwrap();
+        assert_eq!(parsed.disk_space_threshold_percent, 10);
     }
 
     #[test]

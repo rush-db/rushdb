@@ -335,6 +335,48 @@ def tck_value(text: str):
     return ValueParser(text).parse()
 
 
+# The engine emits protocol record shapes (`__id`, `__label`, `__type`,
+# `__source_id`, `__target_id`); the Grafeo reference emits the harness shapes
+# (`_id`, `__labels`, `type`, `source`, `target`). Normalise both to the TCK
+# value model, where entity ids are not part of a result.
+NODE_ID_KEYS = {"_id", "__id"}
+NODE_LABEL_KEYS = {"__label", "__labels"}
+REL_ENTITY_KEYS = {
+    "_id",
+    "__id",
+    "type",
+    "__type",
+    "source",
+    "__source_id",
+    "target",
+    "__target_id",
+}
+
+
+def entity_id(entity: dict):
+    return entity.get("__id", entity.get("_id"))
+
+
+def entity_labels(entity: dict) -> list:
+    if "__labels" in entity:
+        return list(entity["__labels"])
+    label = entity.get("__label")
+    return [label] if label else []
+
+
+def is_node(entity: dict) -> bool:
+    return entity_id(entity) is not None and any(key in entity for key in NODE_LABEL_KEYS)
+
+
+def is_relationship(entity: dict) -> bool:
+    return (
+        entity_id(entity) is not None
+        and ("type" in entity or "__type" in entity)
+        and ("source" in entity or "__source_id" in entity)
+        and ("target" in entity or "__target_id" in entity)
+    )
+
+
 def from_json(value):
     """A Protocol v1 JSON value in the TCK value model."""
     if value is None or isinstance(value, bool):
@@ -348,14 +390,21 @@ def from_json(value):
     if isinstance(value, list):
         return ("list", tuple(from_json(v) for v in value))
     if isinstance(value, dict):
-        if ("__label" in value or "__labels" in value) and "_id" in value:
-            props = tuple(sorted((k, from_json(v)) for k, v in value.items() if k not in {"_id", "__label", "__labels"}))
-            names = value.get("__labels", [value.get("__label")])
-            labels = tuple(sorted(label for label in names if label))
+        if is_node(value):
+            props = tuple(
+                sorted(
+                    (k, from_json(v))
+                    for k, v in value.items()
+                    if k not in NODE_ID_KEYS | NODE_LABEL_KEYS
+                )
+            )
+            labels = tuple(sorted(label for label in entity_labels(value) if label))
             return ("node", labels, props)
-        if {"_id", "type", "source", "target"} <= value.keys():
-            props = tuple(sorted((k, from_json(v)) for k, v in value.items() if k not in {"_id", "type", "source", "target"}))
-            return ("rel", value["type"], props)
+        if is_relationship(value):
+            props = tuple(
+                sorted((k, from_json(v)) for k, v in value.items() if k not in REL_ENTITY_KEYS)
+            )
+            return ("rel", value.get("type", value.get("__type")), props)
         if set(value.keys()) == {"nodes", "edges"} and isinstance(value["nodes"], list):
             nodes = [from_json(n) for n in value["nodes"]]
             edges = [from_json(e) for e in value["edges"]]
@@ -365,7 +414,8 @@ def from_json(value):
                 raw = value["edges"][index]
                 raw_nodes = value["nodes"]
                 if isinstance(raw, dict) and isinstance(raw_nodes[index], dict):
-                    backwards = raw.get("source") != raw_nodes[index].get("_id")
+                    source = raw.get("source", raw.get("__source_id"))
+                    backwards = source != entity_id(raw_nodes[index])
                 parts.append((edge, backwards))
                 parts.append(nodes[index + 1] if index + 1 < len(nodes) else None)
             return ("path", tuple(parts))
@@ -457,18 +507,19 @@ class Server:
         state = {"nodes": set(), "relationships": set(), "labels": set(), "properties": set()}
         for row in nodes:
             node = row["n"]
-            state["nodes"].add(node["_id"])
-            if node.get("__label"):
-                state["labels"].add(node["__label"])
+            node_id = entity_id(node)
+            state["nodes"].add(node_id)
+            state["labels"].update(label for label in entity_labels(node) if label)
             for key, value in node.items():
-                if key not in {"_id", "__label"}:
-                    state["properties"].add((node["_id"], key, json.dumps(value, sort_keys=True)))
+                if key not in NODE_ID_KEYS | NODE_LABEL_KEYS:
+                    state["properties"].add((node_id, key, json.dumps(value, sort_keys=True)))
         for row in rels:
             rel = row["r"]
-            state["relationships"].add(rel["_id"])
+            rel_id = entity_id(rel)
+            state["relationships"].add(rel_id)
             for key, value in rel.items():
-                if key not in {"_id", "type", "source", "target"}:
-                    state["properties"].add((rel["_id"], key, json.dumps(value, sort_keys=True)))
+                if key not in REL_ENTITY_KEYS:
+                    state["properties"].add((rel_id, key, json.dumps(value, sort_keys=True)))
         return state
 
 

@@ -170,6 +170,13 @@ fn on_language_stack<T: Send>(
             .join()
             .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
         if tripped {
+            // A text search records its failure and cancels the view to stop
+            // further reads. The poll above can observe that cancellation
+            // before the worker returns, so the recorded text error is the
+            // real outcome and wins over the cancellation it caused.
+            if let Err(LanguageError::TextSearch(_)) = &result {
+                return result;
+            }
             return Err(LanguageError::Cancelled);
         }
         result
