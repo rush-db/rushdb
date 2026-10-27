@@ -309,6 +309,10 @@ impl RequestScope<'_> {
     /// [`Self::value_domain_from_index_in_view`] over the property's
     /// definitions of `types` only (all when empty): one entry of a type
     /// split reads its own values, not the whole property's.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one linear catalog scan; splitting would scatter the shared read-view borrows"
+    )]
     pub(crate) fn value_domain_of_types_in_view(
         &self,
         view: &rushdb_storage::ReadView,
@@ -780,6 +784,10 @@ impl RequestScope<'_> {
     /// is matched, at most `LONG_VALUE_WALK` records; past that the values
     /// are left out and the count stays. `None` when the property has no
     /// text definition.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one linear digest walk; splitting would scatter the shared read-view borrows"
+    )]
     pub(crate) fn long_text_values_in_view(
         &self,
         view: &rushdb_storage::ReadView,

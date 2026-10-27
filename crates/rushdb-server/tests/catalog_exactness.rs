@@ -530,8 +530,8 @@ fn unfiltered_values_and_ranges_read_the_dictionary_as_the_scan_would() {
     // dictionary; a predicate every record matches forces the match-set scan.
     // Both must agree on numbers, datetimes (each in its own rendering),
     // text, a type split, two labels and a value over the dictionary's size.
-    let handler = node(256 * 1024 * 1024);
     const CODES: [&str; 4] = ["a", "b", "c", "b"];
+    let handler = node(256 * 1024 * 1024);
     let long = "x".repeat(200);
     let docs: Vec<Value> = (0..40)
         .map(|i| {
