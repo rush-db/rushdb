@@ -546,10 +546,18 @@ fn unfiltered_values_and_ranges_read_the_dictionary_as_the_scan_would() {
         })
         .collect();
     ingest(&handler, "t", &docs);
-    ingest(&handler, "u", &[json!({ "day": "2021-01-01", "code": "z", "n": 99 })]);
+    ingest(
+        &handler,
+        "u",
+        &[json!({ "day": "2021-01-01", "code": "z", "n": 99 })],
+    );
     // Explicit nulls (one property seen only as null) are not dictionary
     // entries: reads that would include them keep scanning.
-    ingest(&handler, "v", &[json!({ "code": null, "gone": null, "n": 5 })]);
+    ingest(
+        &handler,
+        "v",
+        &[json!({ "code": null, "gone": null, "n": 5 })],
+    );
     let read = |labels: &[&str], property: &str, mode: &str, filtered: bool, limit: Value| {
         let mut q = json!({ "labels": labels });
         if filtered {
@@ -565,7 +573,11 @@ fn unfiltered_values_and_ranges_read_the_dictionary_as_the_scan_would() {
     };
     for property in ["n", "day", "at", "code", "mixed", "note", "gone"] {
         for labels in [&["t"][..], &["t", "u"][..], &["v"][..], &[][..]] {
-            for (mode, limit) in [("values", json!(null)), ("values", json!(3)), ("range", json!(null))] {
+            for (mode, limit) in [
+                ("values", json!(null)),
+                ("values", json!(3)),
+                ("range", json!(null)),
+            ] {
                 let fast = read(labels, property, mode, false, limit.clone());
                 let scan = read(labels, property, mode, true, limit);
                 assert_eq!(fast, scan, "{property} {labels:?} {mode}");
@@ -573,7 +585,11 @@ fn unfiltered_values_and_ranges_read_the_dictionary_as_the_scan_would() {
         }
     }
     let day = read(&["t"], "day", "range", false, json!(null));
-    assert_eq!((day["min"].clone(), day["max"].clone()), (json!("2019-01-10"), json!("2019-09-18")), "{day}");
+    assert_eq!(
+        (day["min"].clone(), day["max"].clone()),
+        (json!("2019-01-10"), json!("2019-09-18")),
+        "{day}"
+    );
 }
 
 #[test]
@@ -588,7 +604,11 @@ fn unique_columns_are_described_and_listed_within_the_working_set() {
         .collect();
     ingest(&handler, "trans", &documents);
     let id = property(&properties(&handler, "trans"), "id").clone();
-    assert_eq!((id["min"].clone(), id["max"].clone()), (json!(7), json!(7 + 3 * 19_999)), "{id}");
+    assert_eq!(
+        (id["min"].clone(), id["max"].clone()),
+        (json!(7), json!(7 + 3 * 19_999)),
+        "{id}"
+    );
     let values = |property: &str, mode: &str| {
         call(
             &handler,
@@ -598,15 +618,25 @@ fn unique_columns_are_described_and_listed_within_the_working_set() {
     };
     assert_eq!(values("id", "count")["distinctCount"], json!(20_000));
     let range = values("id", "range");
-    assert_eq!((range["min"].clone(), range["max"].clone()), (json!(7), json!(60_004)));
+    assert_eq!(
+        (range["min"].clone(), range["max"].clone()),
+        (json!(7), json!(60_004))
+    );
     let top = values("id", "topK");
     // All counts tie at 1: ties by the value's JSON text.
     assert_eq!(top["values"], json!([10, 100, 1000]), "{top}");
     let list = values("id", "values");
-    assert_eq!((list["values"].clone(), list["truncated"].clone()), (json!([10, 100, 1000]), json!(true)));
+    assert_eq!(
+        (list["values"].clone(), list["truncated"].clone()),
+        (json!([10, 100, 1000]), json!(true))
+    );
     assert_eq!(list["distinctCount"], json!(20_000));
     let score = values("score", "range");
-    assert_eq!((score["min"].clone(), score["max"].clone()), (json!(-3.0), json!(9.25)), "{score}");
+    assert_eq!(
+        (score["min"].clone(), score["max"].clone()),
+        (json!(-3.0), json!(9.25)),
+        "{score}"
+    );
 }
 
 #[test]
@@ -623,7 +653,12 @@ fn one_label_reads_agree_with_the_dictionary_walk() {
     ingest(&handler, "t", &docs);
     ingest(&handler, "w", &[json!({ "other": 1 })]);
     for property in ["n", "f", "code", "day"] {
-        for (mode, limit) in [("count", json!(null)), ("range", json!(null)), ("topK", json!(5)), ("values", json!(7))] {
+        for (mode, limit) in [
+            ("count", json!(null)),
+            ("range", json!(null)),
+            ("topK", json!(5)),
+            ("values", json!(7)),
+        ] {
             let read = |labels: Value| {
                 let mut r = call(
                     &handler,
@@ -633,7 +668,11 @@ fn one_label_reads_agree_with_the_dictionary_walk() {
                 r.as_object_mut().map(|o| o.remove("kind"));
                 r
             };
-            assert_eq!(read(json!(["t"])), read(json!(["t", "w"])), "{property} {mode}");
+            assert_eq!(
+                read(json!(["t"])),
+                read(json!(["t", "w"])),
+                "{property} {mode}"
+            );
         }
     }
 }

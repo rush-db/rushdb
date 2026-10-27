@@ -57,8 +57,17 @@ fn last_key_matches_a_scan() {
         }
         let map = Map(map);
         for prefix in [vec![], vec![0x00], vec![0x01], vec![0x7F], vec![0x00, 0xFF]] {
-            let want = map.0.keys().filter(|k| k.starts_with(&prefix)).max().cloned();
-            assert_eq!(last_key(&map, &prefix).unwrap(), want, "round {round} prefix {prefix:?}");
+            let want = map
+                .0
+                .keys()
+                .filter(|k| k.starts_with(&prefix))
+                .max()
+                .cloned();
+            assert_eq!(
+                last_key(&map, &prefix).unwrap(),
+                want,
+                "round {round} prefix {prefix:?}"
+            );
         }
     }
 }
