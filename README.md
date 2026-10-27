@@ -24,6 +24,11 @@ No pipeline. No separate stores. No schema to design.
 
 ---
 
+> [!IMPORTANT]
+> **This is the `2.x` maintenance branch.** The 3.x line is a standalone Rust engine and lives on [`main`](https://github.com/rush-db/rushdb). This branch receives fixes and security updates only, for **12 months after the 3.0.0 release**; it does not receive new features. npm packages and container images for 3.x are the supported versions for new deployments.
+
+---
+
 ## The problem
 
 Your agent needs memory. The standard answer is three databases: Redis for key-value, a vector store for semantic search, a graph DB for relationships — plus glue code to keep them in sync.

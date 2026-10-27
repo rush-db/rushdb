@@ -1,13 +1,10 @@
 name: Publish Helm Chart
 
+# The chart OCI repository (ghcr.io/rush-db/charts/rushdb) is shared with the
+# 3.x engine chart, which the engine repository's release pipeline publishes.
+# 2.x no longer publishes automatically: run this workflow manually only when a
+# 2.x chart fix must ship, and never claim a 3.x chart version.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'charts/**'
-      - '.github/workflows/helm-publish.yml'
-  # Also allow manual runs
   workflow_dispatch:
 
 permissions:

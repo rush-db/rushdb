@@ -1,64 +1,57 @@
-name: Release and Deploy
+name: Release 2.x images
 
-# Nothing ships when a feature/fix branch lands on main. Shipping is triggered by
-# merging the changesets "version packages" PR, which is the only commit that
-# changes package.json versions — see .github/scripts/detect-version-bumps.mjs.
+# 2.x maintenance releases only. This branch is the Neo4j-backed 2.x line,
+# supported for 12 months after the 3.0.0 release; `main` carries the 3.x Rust
+# engine, which has its own release pipeline.
 #
-# Each artifact is versioned and shipped on its own:
+# Shipping is triggered by a push that changes package versions — see
+# .github/scripts/detect-version-bumps.mjs. 2.x publishes container images only:
 #   rushdb/platform    ← rushdb-core's version, rebuilt when core or dashboard bumps
 #   rushdb/mcp-server  ← @rushdb/mcp-server's version, rebuilt when it bumps
-#   npm packages       ← published by changesets when a public package bumps
 #
-# So a core-only patch redeploys the platform without touching npm, and an
-# sdk-only patch flows into both images via the dependent bumps changesets makes
-# (updateInternalDependencies: patch). Minor releases land on one shared version
-# for everything they touch (`linked` in .changeset/config.json).
+# There is deliberately no npm publish here: npm `latest` belongs to 3.x, and a
+# 2.x changesets publish would move it backwards. There is also no deploy: the
+# 2.x platform deploys from its own repository, behind its deploy gate.
+#
+# Version bumps on this branch are manual patch/minor bumps in a PR (no
+# changesets action), so an LTS fix lands exactly when it is merged.
 
 on:
   push:
     branches:
-      - main
+      - 2.x
   workflow_dispatch:
     inputs:
       force_platform:
-        description: 'Rebuild and redeploy rushdb/platform at its current version'
+        description: 'Rebuild and publish rushdb/platform at its current version'
         type: boolean
         default: false
       force_mcp:
-        description: 'Rebuild and redeploy rushdb/mcp-server at its current version'
+        description: 'Rebuild and publish rushdb/mcp-server at its current version'
         type: boolean
         default: false
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  id-token: write
+  contents: read
 
 # Releases must not overlap; a second push waits rather than cancelling a
-# half-finished publish/deploy.
+# half-finished publish.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-# Deploy target is Cobalt on the VM (zero-downtime blue/green).
-# Runtime env for core/mcp lives in AWS SSM (/rushdb/prod/{ci,core,mcp}); the
-# deploy jobs assume a read-only role via GitHub OIDC and fetch it at deploy time
-# (no static secrets in GitHub). See infra/docs/runbooks/secrets-ssm.md.
+# Deploy is not part of this workflow: 2.x images are built and published here,
+# and the platform repository owns deployment of the 2.x line.
 
 jobs:
   release:
-    name: Release
+    name: Detect version bumps
     runs-on: ubuntu-latest
     outputs:
       platform_changed: ${{ steps.bumps.outputs.platform_changed }}
       platform_version: ${{ steps.bumps.outputs.platform_version }}
       mcp_changed: ${{ steps.bumps.outputs.mcp_image_changed }}
       mcp_version: ${{ steps.bumps.outputs.mcp_version }}
-      sdk_version: ${{ steps.bumps.outputs.sdk_version }}
-      any_changed: ${{ steps.bumps.outputs.any_changed }}
-      published: ${{ steps.changesets.outputs.published }}
-      published_packages: ${{ steps.changesets.outputs.publishedPackages }}
 
     steps:
       - name: Checkout
@@ -66,8 +59,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Runs before changesets so the working tree it may rewrite cannot affect
-      # the comparison (the script reads git objects, not the tree, either way).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Detect version bumps
         id: bumps
         run: node .github/scripts/detect-version-bumps.mjs
@@ -76,53 +71,6 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
           FORCE_PLATFORM: ${{ inputs.force_platform }}
           FORCE_MCP: ${{ inputs.force_mcp }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build packages
-        run: pnpm --filter ./packages/javascript-sdk... --filter ./packages/agent-memory-contract... --filter ./packages/mcp-server... build
-
-      - name: Verify agent-memory-contract package
-        run: pnpm --filter ./packages/agent-memory-contract pack:check
-
-      - name: Setup .npmrc
-        run: |
-          cat << EOF > ~/.npmrc
-          registry=https://registry.npmjs.org/
-          //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
-          access=public
-          always-auth=true
-          EOF
-
-      # Opens/updates the "version packages" PR when changesets are pending,
-      # publishes to npm when the versioned commit lands. `changeset publish`
-      # covers every public workspace package (sdk, memory contract, mcp-server, skills).
-      - name: Create Release PR or Publish
-        id: changesets
-        if: github.event_name == 'push'
-        uses: changesets/action@v1
-        with:
-          version: pnpm run version
-          publish: pnpm run release
-          commit: 'chore(release): version packages'
-          title: 'chore(release): version packages'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   platform-image:
     name: Platform image
@@ -152,139 +100,3 @@ jobs:
       version: ${{ needs.release.outputs.mcp_version }}
     secrets: inherit
 
-  deploy-core:
-    name: Deploy core to Cobalt
-    needs: [release, platform-image]
-    runs-on: ubuntu-latest
-    environment: production
-
-    steps:
-      - uses: actions/checkout@v4 # the local composite action is used below
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - id: ssm
-        name: Load config from SSM
-        run: |
-          set -euo pipefail
-          get(){ aws ssm get-parameters-by-path --with-decryption --recursive \
-                   --path "$1" --query 'Parameters[].[Name,Value]' --output text; }
-          while IFS=$'\t' read -r n v; do echo "${n##*/}=$v" >> "$GITHUB_OUTPUT"; done < <(get /rushdb/prod/ci)
-          jq -Rn '[inputs|split("\t")|{key:(.[0]|split("/")|last),value:.[1]}]|from_entries' < <(get /rushdb/prod/core) > core-env.json
-
-      - uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_SECRET }}
-          tags: ${{ steps.ssm.outputs.TS_OAUTH_TAGS }}
-
-      - name: Point the deploy endpoint at the tailnet
-        run: echo "${{ steps.ssm.outputs.DEPLOY_HOSTS_ENTRY }}" | sudo tee -a /etc/hosts >/dev/null
-
-      - name: Sync runtime env to Cobalt
-        env:
-          COBALT_URL: ${{ steps.ssm.outputs.COBALT_URL }}
-          COBALT_API_KEY: ${{ steps.ssm.outputs.COBALT_API_KEY }}
-        run: |
-          set -euo pipefail
-          body=$(jq -nc --argjson vars "$(cat core-env.json)" '{vars:$vars,redeploy:false}')
-          curl -fsS -X POST "$COBALT_URL/api/projects/core/env" \
-            -H "Authorization: Bearer $COBALT_API_KEY" \
-            -H 'Content-Type: application/json' \
-            -d "$body"
-          echo "runtime env synced to Cobalt (core)"
-
-      - name: Deploy core (zero-downtime blue/green)
-        uses: ./.github/actions/cobalt-deploy
-        with:
-          cobalt-url: ${{ steps.ssm.outputs.COBALT_URL }}
-          cobalt-api-key: ${{ steps.ssm.outputs.COBALT_API_KEY }}
-          project: core
-          image: ${{ needs.platform-image.outputs.image }}
-          port: 3000
-
-  deploy-mcp:
-    name: Deploy MCP server to Cobalt
-    needs: [release, mcp-image]
-    runs-on: ubuntu-latest
-    environment: production
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - id: ssm
-        name: Load config from SSM
-        run: |
-          set -euo pipefail
-          get(){ aws ssm get-parameters-by-path --with-decryption --recursive \
-                   --path "$1" --query 'Parameters[].[Name,Value]' --output text; }
-          while IFS=$'\t' read -r n v; do echo "${n##*/}=$v" >> "$GITHUB_OUTPUT"; done < <(get /rushdb/prod/ci)
-          jq -Rn '[inputs|split("\t")|{key:(.[0]|split("/")|last),value:.[1]}]|from_entries' < <(get /rushdb/prod/mcp) > mcp-env.json
-
-      - uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_SECRET }}
-          tags: ${{ steps.ssm.outputs.TS_OAUTH_TAGS }}
-
-      - name: Point the deploy endpoint at the tailnet
-        run: echo "${{ steps.ssm.outputs.DEPLOY_HOSTS_ENTRY }}" | sudo tee -a /etc/hosts >/dev/null
-
-      - name: Sync runtime env to Cobalt
-        env:
-          COBALT_URL: ${{ steps.ssm.outputs.COBALT_URL }}
-          COBALT_API_KEY: ${{ steps.ssm.outputs.COBALT_API_KEY }}
-        run: |
-          set -euo pipefail
-          body=$(jq -nc --argjson vars "$(cat mcp-env.json)" '{vars:$vars,redeploy:false}')
-          curl -fsS -X POST "$COBALT_URL/api/projects/mcp/env" \
-            -H "Authorization: Bearer $COBALT_API_KEY" \
-            -H 'Content-Type: application/json' \
-            -d "$body"
-          echo "runtime env synced to Cobalt (mcp)"
-
-      - name: Deploy mcp (zero-downtime blue/green)
-        uses: ./.github/actions/cobalt-deploy
-        with:
-          cobalt-url: ${{ steps.ssm.outputs.COBALT_URL }}
-          cobalt-api-key: ${{ steps.ssm.outputs.COBALT_API_KEY }}
-          project: mcp
-          image: ${{ needs.mcp-image.outputs.image }}
-          port: 3001
-
-  notify-content:
-    name: Notify content control plane
-    needs: [release, platform-image, mcp-image, deploy-core, deploy-mcp]
-    # Fires once the release has fully landed. A skipped artifact is fine (it had
-    # no version bump); a failed or cancelled one is not — and a failed image
-    # build must not slip through on the strength of its deploy being skipped.
-    if: |
-      always() &&
-      needs.release.outputs.any_changed == 'true' &&
-      !contains(fromJSON('["failure", "cancelled"]'), needs.platform-image.result) &&
-      !contains(fromJSON('["failure", "cancelled"]'), needs.mcp-image.result) &&
-      !contains(fromJSON('["failure", "cancelled"]'), needs.deploy-core.result) &&
-      !contains(fromJSON('["failure", "cancelled"]'), needs.deploy-mcp.result)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Send signed release event
-        env:
-          CONTENT_WEBHOOK_URL: ${{ secrets.CONTENT_WEBHOOK_URL }}
-          CONTENT_WEBHOOK_SECRET: ${{ secrets.CONTENT_WEBHOOK_SECRET }}
-          RELEASE_VERSION: ${{ needs.release.outputs.sdk_version || needs.release.outputs.platform_version }}
-          PLATFORM_VERSION: ${{ needs.release.outputs.platform_version }}
-          PUBLISHED_PACKAGES: ${{ needs.release.outputs.published_packages }}
-          RELEASE_SHA: ${{ github.sha }}
-          RELEASE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node .github/scripts/notify-content-release.mjs

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [2.x]
   pull_request:
-    branches: [main]
+    branches: [2.x]
     types: [opened, synchronize, reopened]
 
 # Cancel in-flight runs for the same branch when a new commit arrives.
@@ -14,7 +14,7 @@ concurrency:
 
 # ── Branch protection ──────────────────────────────────────────────────────────
 # Require the following status checks before merging:
-#   Settings → Branches → main → Require status checks to pass before merging
+#   Settings → Branches → 2.x → Require status checks to pass before merging
 #     ✓ Build & Type-check
 #     ✓ Lint
 #     ✓ Test
