@@ -1,0 +1,8 @@
+[advisories]
+# RUSTSEC-2026-0333: noyalib 0.0.5 (via serde_yml 0.0.13, the latest release)
+# does not enforce its parser resource budgets on the typed deserialization
+# path. Default document-length/depth/alias caps still apply, and
+# rushdb-server only deserializes trusted, operator-provided config files.
+# serde_yml pins noyalib ^0.0.5, so the fixed >=0.0.53 cannot be selected
+# without replacing serde_yml. Remove this ignore once serde_yml updates.
+ignore = ["RUSTSEC-2026-0333"]
