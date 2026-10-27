@@ -116,6 +116,8 @@ jobs:
         with:
           toolchain: 1.98.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Build the crash harness
+        run: cargo build -p rushdb-storage-integration --example crash_child --locked
       - name: Verify acknowledged commits survive a crash
         run: cargo test -p rushdb-storage-integration --test p00_baseline --locked
       - name: Verify memory and durable replay agree
