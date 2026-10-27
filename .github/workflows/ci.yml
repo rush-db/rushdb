@@ -94,8 +94,10 @@ jobs:
       # to the clean consumer. Keep this as a real verification gate; --no-
       # verify would only test archive creation. A synchronized release must
       # publish/version the full internal crate set before this can pass.
+      # Each package gets its own target directory, so a cold cache recompiles
+      # the dependency tree per crate; 15 minutes is not enough for all 20.
       - name: Package and verify every workspace crate
-        run: timeout 900s cargo package --workspace --locked
+        run: timeout 1800s cargo package --workspace --locked
 
   test:
     runs-on: ubuntu-latest
