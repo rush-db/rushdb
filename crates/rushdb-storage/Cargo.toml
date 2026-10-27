@@ -18,7 +18,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
 redb = "4.2.0"
-zstd = "0.13"
+zstd = "0.14"
 crc32fast = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]

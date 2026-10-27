@@ -1,8 +1,22 @@
 [advisories]
-# RUSTSEC-2026-0333: noyalib 0.0.5 (via serde_yml 0.0.13, the latest release)
-# does not enforce its parser resource budgets on the typed deserialization
-# path. Default document-length/depth/alias caps still apply, and
-# rushdb-server only deserializes trusted, operator-provided config files.
-# serde_yml pins noyalib ^0.0.5, so the fixed >=0.0.53 cannot be selected
-# without replacing serde_yml. Remove this ignore once serde_yml updates.
-ignore = ["RUSTSEC-2026-0333"]
+ignore = [
+  # noyalib 0.0.5 (via serde_yml 0.0.13, the latest release) does not enforce
+  # its parser resource budgets on the typed deserialization path. Default
+  # document-length/depth/alias caps still apply, and rushdb-server only
+  # deserializes trusted, operator-provided config files. serde_yml pins
+  # noyalib ^0.0.5, so the fixed >=0.0.53 cannot be selected without
+  # replacing serde_yml. Remove when serde_yml updates.
+  "RUSTSEC-2026-0333",
+
+  # zstd 0.13.3 is only present through arrow-ipc: arrow 60 moved to
+  # zstd ^0.14 but datafusion 55 still requires arrow ^59. rushdb-storage
+  # itself uses zstd 0.14.3 (bulk compress + decode_all). The advisories
+  # affect raw-context reuse, seekable APIs, the write-side streaming
+  # decoder for legacy frames, and the wasm32 allocator — none are used by
+  # the direct code or by Arrow IPC's per-batch compression. Remove when
+  # datafusion moves to arrow 60.
+  "RUSTSEC-2026-0391",
+  "RUSTSEC-2026-0398",
+  "RUSTSEC-2026-0403",
+  "RUSTSEC-2026-0410",
+]
