@@ -1,0 +1,17 @@
+name: Bug report
+description: Report a reproducible engine, protocol, or CLI defect.
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: Minimal reproduction
+      description: Include commands, request envelope, data shape, and expected versus actual result.
+    validations: { required: true }
+  - type: input
+    attributes: { label: RushDB version }
+    validations: { required: true }
+  - type: textarea
+    attributes:
+      label: Environment
+      description: OS, architecture, Rust version, storage mode, and transport.
+    validations: { required: true }

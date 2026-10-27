@@ -1,0 +1,27 @@
+[package]
+name = "rushdb-grpc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Internal component of the RushDB server: gRPC transport. No stable API; install rushdb-server instead."
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+rushdb-protocol = { workspace = true }
+serde_json = { workspace = true }
+tonic = { version = "0.12", features = ["transport", "codegen", "prost"] }
+prost = { version = "0.13", features = ["prost-derive"] }
+bytes = "1"
+tower = "0.5"
+http = "1"
+http-body-util = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+
+[lints]
+workspace = true

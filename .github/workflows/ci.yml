@@ -1,128 +1,308 @@
 name: CI
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened]
 
-# Cancel in-flight runs for the same branch when a new commit arrives.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
-# ── Branch protection ──────────────────────────────────────────────────────────
-# Require the following status checks before merging:
-#   Settings → Branches → main → Require status checks to pass before merging
-#     ✓ Build & Type-check
-#     ✓ Lint
-#     ✓ Test
-# ──────────────────────────────────────────────────────────────────────────────
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  # ── Build all packages + type-check ─────────────────────────────────────────
-  build:
-    name: Build & Type-check
+  # Lint/format run on the pinned current toolchain (rust-toolchain.toml), so
+  # the pedantic/missing_docs gate is deterministic and matches local dev.
+  quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:
-          version: 10.1.0
+          toolchain: 1.98.1
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo fmt --all --check
+      - run: bash scripts/check-quality-bar.sh
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo check --workspace --all-targets --locked
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # SDK must be built first — other packages resolve @rushdb/javascript-sdk
-      # from the workspace dist/ directory.
-      - name: Build javascript-sdk
-        run: pnpm --filter ./packages/javascript-sdk build
-
-      - name: Build agent-memory-contract
-        run: pnpm --filter ./packages/agent-memory-contract build
-
-      - name: Verify agent-memory-contract package
-        run: pnpm --filter ./packages/agent-memory-contract pack:check
-
-      - name: Build mcp-server
-        run: pnpm --filter ./packages/mcp-server build
-
-      - name: Build platform/core
-        run: pnpm --filter ./platform/core build
-
-      # Dashboard: type-check only — the full Vite production build requires
-      # NODE_OPTIONS=--max-old-space-size=8192 and is covered by the release job.
-      - name: Type-check platform/dashboard
-        run: pnpm --filter ./platform/dashboard types:check
-
-      - name: Type-check javascript-sdk
-        run: pnpm --filter ./packages/javascript-sdk types:check
-
-  # ── ESLint across all packages that define a lint script ────────────────────
-  lint:
-    name: Lint
+  # The files around the engine: deploy/ and charts/ parse and render, the
+  # systemd unit matches the manual, and the translated READMEs carry the
+  # English README's commands and links.
+  repo-files:
     runs-on: ubuntu-latest
-    # Both platform/core (.eslintrc.js) and platform/dashboard (.eslintrc) use
-    # legacy config format. ESLint 9 defaults to flat config, so opt back into
-    # legacy mode for the entire job.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+      - run: scripts/check-deploy-templates.sh
+      - run: scripts/check-readme-translations.py
+
+  # The declared MSRV (Cargo.toml `rust-version`) is guaranteed to still
+  # compile, independent of the current-stable lint policy above. `check` only:
+  # clippy/fmt are intentionally not run on the MSRV toolchain.
+  msrv:
+    name: MSRV (1.91)
+    runs-on: ubuntu-latest
     env:
-      ESLINT_USE_FLAT_CONFIG: 'false'
+      # Overrides rust-toolchain.toml so cargo uses the declared MSRV.
+      RUSTUP_TOOLCHAIN: "1.91"
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.91
         with:
-          version: 10.1.0
+          toolchain: 1.91
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo check --workspace --all-targets --locked
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # Type-aware lint rules in platform/core require the SDK types to be present.
-      - name: Build javascript-sdk
-        run: pnpm --filter ./packages/javascript-sdk build
-
-      - name: Lint platform/core
-        run: pnpm --filter ./platform/core lint
-
-  # ── Unit tests (no external services required) ──────────────────────────────
-  test:
-    name: Test
+  feature-matrix:
+    name: Optional feature matrix
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:
-          version: 10.1.0
+          toolchain: 1.98.1
+          components: clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Check server without default features
+        run: cargo check -p rushdb-server --no-default-features --all-targets --locked
+      - name: Check vector with all features
+        run: cargo check -p rushdb-vector --all-features --all-targets --locked
+      # `turbovec` is otherwise untested by the `quality`/`test` jobs above,
+      # which only run with default features — this is the gate that catches
+      # it diverging (it previously did: a pre-existing compile bug and a set
+      # of pedantic clippy failures both went unnoticed until checked by hand).
+      - name: Lint vector with the turbovec feature
+        run: cargo clippy -p rushdb-vector --features turbovec --all-targets --locked -- -D warnings
+      - name: Test vector with the turbovec feature
+        run: cargo test -p rushdb-vector --features turbovec --locked
 
-      - uses: actions/setup-node@v4
+  packaged-consumer:
+    name: Packaged consumer verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:
-          node-version: 22
-          cache: pnpm
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      # Cargo verifies each archive against the dependency versions available
+      # to the clean consumer. Keep this as a real verification gate; --no-
+      # verify would only test archive creation. A synchronized release must
+      # publish/version the full internal crate set before this can pass.
+      - name: Package and verify every workspace crate
+        run: timeout 900s cargo package --workspace --locked
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo test --workspace --no-fail-fast --locked
 
-      - name: Build javascript-sdk
-        run: pnpm --filter ./packages/javascript-sdk build
+  fault-matrix:
+    name: Crash/reopen and memory-disk matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Verify acknowledged commits survive a crash
+        run: cargo test -p rushdb-storage-integration --test p00_baseline --locked
+      - name: Verify memory and durable replay agree
+        run: cargo test -p rushdb-server --test memory_disk_differential --locked
+      - name: Exercise the authenticated Bolt wire contract
+        run: cargo test -p rushdb-server --test bolt --locked
 
-      - name: Test agent-memory-contract
-        run: pnpm --filter ./packages/agent-memory-contract test
+  semantic-oracles:
+    name: Query and server semantic oracles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Run planner differential oracle
+        run: cargo test -p rushdb-query --test planner_differential --locked
+      - name: Run randomized server differential oracle
+        run: cargo test -p rushdb-server --test randomized_differential --locked
 
-      # 9 pure unit tests for the Cypher query parser — no DB or network required.
-      - name: Test platform/core (unit)
-        run: pnpm --filter ./platform/core test
-        env:
-          NODE_ENV: test
+  engine-contracts:
+    name: Engine recovery and execution contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      # Keep the engine's Rust contracts visible as a named gate. The broad
+      # workspace job remains useful, but this job makes recovery, LMPG
+      # reconstruction, and embedded execution failures easy to localize.
+      - name: Run storage recovery and writer contracts
+        run: cargo test -p rushdb-storage --lib --no-fail-fast --locked
+      - name: Run LMPG recovery and reconstruction contracts
+        run: cargo test -p rushdb-lmpg --lib --tests --no-fail-fast --locked
+      - name: Run embedded engine contracts
+        run: cargo test -p rushdb-engine --lib --tests --no-fail-fast --locked
+
+  opencypher-tck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Fetch the pinned openCypher TCK
+        run: |
+          git clone --depth 1 --branch 2024.2 https://github.com/opencypher/openCypher.git "$RUNNER_TEMP/openCypher"
+          test "$(git -C "$RUNNER_TEMP/openCypher" rev-parse HEAD)" = "59edf2e1c17b845bf97c334ed06b2eb780950c13"
+      - name: Build and start a Cypher-enabled Protocol v1 server
+        run: |
+          cargo build --release -p rushdb-server --bin rushdb
+          cargo build --release -p rushdb-language --example grafeo_reference
+          ./target/release/rushdb serve --port 3217 --pgwire-port 0 --grpc-port 0 --bolt-port 0 --languages cypher --token local-token --request-timeout-ms 20000 > "$RUNNER_TEMP/tck.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/tck.pid"
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:3217/ready
+      - name: Run every TCK scenario, attribute failures on plain Grafeo, compare with the ledger
+        run: python3 -I scripts/run-opencypher-tck.py --source "$RUNNER_TEMP/openCypher" --endpoint http://127.0.0.1:3217/protocol/v1/execute --output "$RUNNER_TEMP/opencypher-tck.json" --reference ./target/release/examples/grafeo_reference
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: opencypher-tck
+          path: |
+            ${{ runner.temp }}/opencypher-tck.json
+            ${{ runner.temp }}/tck.log
+      - name: Stop the TCK server
+        if: always()
+        run: |
+          pid="$(cat "$RUNNER_TEMP/tck.pid" 2>/dev/null || true)"
+          if [ -n "$pid" ]; then kill "$pid" || true; fi
+
+  gremlin-grammar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Check the Gremlin profile against the official TinkerPop grammar
+        run: scripts/validate-gremlin-grammar.sh "$RUNNER_TEMP/gremlin-grammar"
+
+  gql-ldbc-profile-input:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Fetch the pinned LDBC SNB Cypher workload input
+        run: |
+          git clone --depth 1 https://github.com/ldbc/ldbc_snb_interactive_v1_impls.git "$RUNNER_TEMP/ldbc-snb"
+          git -C "$RUNNER_TEMP/ldbc-snb" fetch --depth 1 origin 11db98cc2ba14c33492f6c0c34e68c8be7e22e5f
+          git -C "$RUNNER_TEMP/ldbc-snb" checkout --detach 11db98cc2ba14c33492f6c0c34e68c8be7e22e5f
+      - name: Classify every pinned workload query
+        run: python3 scripts/classify-gql-ldbc-snb.py --source "$RUNNER_TEMP/ldbc-snb" --output "$RUNNER_TEMP/gql-ldbc-snb-ledger.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gql-ldbc-snb-profile-ledger
+          path: ${{ runner.temp }}/gql-ldbc-snb-ledger.json
+
+  standalone-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo build --release -p rushdb-server --bins
+      - run: ./target/release/rushdb --help
+      - run: ./target/release/rushdb serve --help
+      - run: ./scripts/capture-capabilities.sh ./target/release/rushdb "$RUNNER_TEMP/capabilities.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: capabilities-snapshot
+          path: ${{ runner.temp }}/capabilities.json
+      - name: Start through the one-command CLI
+        run: |
+          ./target/release/rushdb up --data-dir "$RUNNER_TEMP/rushdb-smoke" > "$RUNNER_TEMP/rushdb-smoke.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/rushdb-smoke.pid"
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/health
+          ./target/release/rushdb health
+      - name: Stop one-command smoke node
+        if: always()
+        run: |
+          pid="$(cat "$RUNNER_TEMP/rushdb-smoke.pid" 2>/dev/null || true)"
+          if [ -n "$pid" ]; then
+            pkill -TERM -P "$pid" || true
+            kill "$pid" || true
+          fi
+
+      - name: Install through the one-line installer
+        run: |
+          release="$RUNNER_TEMP/release"
+          mkdir -p "$release/pkg"
+          cp target/release/rushdb README.md LICENSE "$release/pkg/"
+          tar -C "$release/pkg" -czf "$release/rushdb-x86_64-unknown-linux-gnu.tar.gz" rushdb README.md LICENSE
+          (cd "$release" && sha256sum rushdb-x86_64-unknown-linux-gnu.tar.gz > rushdb-x86_64-unknown-linux-gnu.tar.gz.sha256)
+          # This build links the runner's glibc; release.yml covers older
+          # distributions with the manylinux binaries.
+          ./scripts/test-install.sh "$release" ubuntu:24.04 alpine:3 centos:7
+
+  distribution-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Shellcheck the installer and release scripts
+        run: |
+          shellcheck -s sh install.sh
+          shellcheck scripts/test-install.sh scripts/smoke-image.sh scripts/homebrew-formula.sh
+      - name: Render the Homebrew formula
+        run: |
+          mkdir -p "$RUNNER_TEMP/sums"
+          for target in aarch64-apple-darwin x86_64-apple-darwin aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu; do
+            echo "$(printf '%064d' 0)  rushdb-$target.tar.gz" > "$RUNNER_TEMP/sums/rushdb-$target.tar.gz.sha256"
+          done
+          ./scripts/homebrew-formula.sh v0.0.0 "$RUNNER_TEMP/sums" > "$RUNNER_TEMP/rushdb.rb"
+          ruby -c "$RUNNER_TEMP/rushdb.rb"
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the image from source
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: rushdb:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - run: ./scripts/smoke-image.sh rushdb:ci
+
+  benchmark-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo build --release -p rushdb-capacity-bench -p rushdb-physopt-bench
+      - name: Run the fixed-live-set capacity soak
+        run: timeout 180s ./target/release/rushdb-capacity-bench --out "$RUNNER_TEMP/rushdb-capacity-ci.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: capacity-fixed-live-set-soak
+          path: ${{ runner.temp }}/rushdb-capacity-ci.json

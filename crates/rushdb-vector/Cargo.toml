@@ -1,0 +1,43 @@
+[package]
+name = "rushdb-vector"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Internal component of the RushDB server: vector indexes. No stable API; install rushdb-server instead."
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+rushdb-types = { workspace = true }
+rushdb-storage = { workspace = true }
+rushdb-lmpg = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+blake3 = { workspace = true }
+thiserror = { workspace = true }
+# Opt-in per-search phase timings (`rushdb_vector::search` debug target).
+tracing = "0.1"
+# Default ANN provider.
+usearch = "2.26.3"
+# `segment::SegmentSet`'s lock-free per-space snapshot (the live path for the
+# default, non-turbovec case).
+arc-swap = "1.7"
+# Persistent live map of `segment::SegmentSet` (O(1) fork per absorb).
+im = { version = "15.1.0", default-features = false }
+turbovec = { version = "1.0", optional = true }
+
+[features]
+default = []
+turbovec = ["dep:turbovec"]
+
+[dev-dependencies]
+uuid = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

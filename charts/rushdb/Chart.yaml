@@ -1,14 +1,16 @@
 apiVersion: v2
 name: rushdb
-description: RushDB — developer-friendly graph database platform
+description: RushDB, the LMPG database engine, as a single-node StatefulSet with a persistent volume.
 type: application
-version: 2.13.1
-appVersion: '2.13.1'
+# Released together with the engine; publish.yml sets both from the release tag.
+version: 3.0.0
+appVersion: '3.0.0'
 keywords:
   - rushdb
-  - graph
   - database
-  - neo4j
+  - graph
+  - vector-search
+  - full-text-search
 home: https://rushdb.com
 sources:
   - https://github.com/rush-db/rushdb

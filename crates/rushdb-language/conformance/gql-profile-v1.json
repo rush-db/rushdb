@@ -1,0 +1,67 @@
+{
+ "profileId": "rushdb-gql-property-graph-v1",
+ "language": "ISO/IEC 39075 GQL",
+ "status": "release_candidate",
+ "scope": "Property-graph statements accepted by the Grafeo frontend and committed through RushDB's tenant-scoped LMPG mutation boundary.",
+ "acceptedFeatures": [
+  "match",
+  "filter",
+  "projection",
+  "parameters",
+  "optionalMatch",
+  "aggregation",
+  "unwind",
+  "order",
+  "pagination",
+  "createNode",
+  "updateProperties",
+  "deleteNode",
+  "createRelationship",
+  "deleteRelationship",
+  "atomicStatementCommit"
+ ],
+ "excludedFeatures": [
+  "multipleLabelsPerRecord",
+  "statementLabelMutation",
+  "fullIsoGqlConformance",
+  "matchAfterWithPipeline",
+  "nextComposition",
+  "orderByInWith",
+  "shortestPath",
+  "patternPredicates",
+  "listAndPatternComprehensions",
+  "labelAlternation",
+  "createAfterWithUnwind",
+  "caseInPropertyMap"
+ ],
+ "sources": [
+  {
+   "kind": "standard",
+   "name": "ISO/IEC 39075:2024 Graph Query Language",
+   "url": "https://www.iso.org/standard/76120.html"
+  },
+  {
+   "kind": "public-workload-input",
+   "name": "LDBC SNB Interactive v1 reference implementations",
+   "url": "https://github.com/ldbc/ldbc_snb_interactive_v1_impls",
+   "commit": "11db98cc2ba14c33492f6c0c34e68c8be7e22e5f",
+   "qualification": "Not an audited LDBC result. Every reference query of this pinned source is classified by the mapping manifest."
+  }
+ ],
+ "evidence": [
+  "crates/rushdb-language/tests/language_conformance.rs",
+  "crates/rushdb-server/tests/query_languages.rs",
+  "crates/rushdb-server/tests/tenant_isolation.rs",
+  "crates/rushdb-language/tests/gql_ldbc_profile_mapping.rs"
+ ],
+ "externalCorpusGate": "passed",
+ "externalCorpus": {
+  "name": "LDBC SNB Interactive v1 reference Cypher queries (pinned)",
+  "mapping": "crates/rushdb-language/conformance/gql-ldbc-snb-v1-mapping.json",
+  "queries": 29,
+  "acceptedAndExecutable": 15,
+  "excludedByProfile": 14,
+  "unclassified": 0,
+  "qualification": "Each excluded query uses a construct in excludedFeatures (with the reason recorded per query); the excluded constructs are deviations of the embedded Grafeo engine or the one-label LMPG model, to be re-admitted when fixed."
+ }
+}

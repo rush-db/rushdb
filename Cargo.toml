@@ -1,0 +1,110 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/rushdb-types",
+    "crates/rushdb-storage",
+    "crates/rushdb-lmpg",
+    "crates/rushdb-tx",
+    "crates/rushdb-query",
+    "crates/rushdb-engine",
+    "crates/rushdb-server",
+    "crates/rushdb-backup",
+    "crates/rushdb-raft",
+    "crates/rushdb-authz",
+    "crates/rushdb-sql",
+    "crates/rushdb-textsearch",
+    "crates/rushdb-vector",
+    "crates/rushdb-protocol",
+    "crates/rushdb-language",
+    "crates/rushdb-mongodb",
+    "crates/rushdb-grpc",
+    "crates/rushdb-bolt",
+    "crates/rushdb-storage-integration",
+    "crates/rushdb-authz-integration",
+]
+
+[workspace.package]
+version = "3.0.0"
+edition = "2021"
+rust-version = "1.91"
+license = "Apache-2.0"
+homepage = "https://rushdb.com"
+repository = "https://github.com/rush-db/rushdb"
+documentation = "https://github.com/rush-db/rushdb/tree/main/docs/manual"
+keywords = ["database", "graph", "vector-search", "lmpg", "rust"]
+categories = ["database"]
+
+# Opt-in via `[lints] workspace = true` in each crate. Keep the high-signal
+# lints on so regressions fail the build rather than accumulating.
+# `missing_docs` and `pedantic` are enforced workspace-wide (rust-best-practices
+# ch. 2 and 8); `result_large_err` is intentionally allowed (see below).
+[workspace.lints.rust]
+missing_docs = "deny"
+
+[workspace.lints.clippy]
+pedantic = { level = "deny", priority = 1 }
+perf = { level = "deny", priority = 2 }
+redundant_clone = { level = "deny", priority = 3 }
+needless_collect = { level = "deny", priority = 3 }
+# Large error enums are matched by value at the protocol/type boundary and are
+# never boxed; boxing would add an allocation to every error path.
+result_large_err = { level = "allow", priority = 4 }
+
+[workspace.dependencies]
+roaring = "0.11"
+rushdb-types = { path = "crates/rushdb-types", version = "=3.0.0" }
+rushdb-storage = { path = "crates/rushdb-storage", version = "=3.0.0" }
+rushdb-lmpg = { path = "crates/rushdb-lmpg", version = "=3.0.0" }
+rushdb-tx = { path = "crates/rushdb-tx", version = "=3.0.0" }
+rushdb-query = { path = "crates/rushdb-query", version = "=3.0.0" }
+rushdb-engine = { path = "crates/rushdb-engine", version = "=3.0.0" }
+rushdb-backup = { path = "crates/rushdb-backup", version = "=3.0.0" }
+rushdb-raft = { path = "crates/rushdb-raft", version = "=3.0.0" }
+rushdb-server = { path = "crates/rushdb-server", version = "=3.0.0" }
+rushdb-authz = { path = "crates/rushdb-authz", version = "=3.0.0" }
+rushdb-sql = { path = "crates/rushdb-sql", version = "=3.0.0" }
+rushdb-textsearch = { path = "crates/rushdb-textsearch", version = "=3.0.0" }
+rushdb-vector = { path = "crates/rushdb-vector", version = "=3.0.0" }
+rushdb-protocol = { path = "crates/rushdb-protocol", version = "=3.0.0" }
+rushdb-language = { path = "crates/rushdb-language", version = "=3.0.0" }
+rushdb-mongodb = { path = "crates/rushdb-mongodb", version = "=3.0.0" }
+rushdb-grpc = { path = "crates/rushdb-grpc", version = "=3.0.0" }
+rushdb-bolt = { path = "crates/rushdb-bolt", version = "=3.0.0" }
+
+grafeo-common = { version = "=0.5.42", default-features = false }
+grafeo-core = { version = "=0.5.42", default-features = false, features = ["lpg", "regex", "text-index"] }
+grafeo-engine = { version = "=0.5.42", default-features = false, features = ["lpg", "gql", "cypher", "gremlin", "sql-pgq", "regex", "text-index"] }
+datafusion = { version = "=54.1.0", default-features = false, features = ["sql", "nested_expressions", "datetime_expressions", "encoding_expressions", "regex_expressions", "string_expressions", "unicode_expressions", "math_expressions", "crypto_expressions", "recursive_protection"] }
+arrow = { version = "=58.4.0", default-features = false }
+arrow-json = "=58.4.0"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+# WAL command codec (FIT-7): specified varint/length-prefixed wire format.
+postcard = { version = "=1.1.3", default-features = false, features = ["use-std"] }
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+thiserror = "2"
+crc32fast = "1.5"
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+blake3 = "1.8"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+clap = { version = "4.6", features = ["derive", "env"] }
+futures = "0.3"
+async-trait = "0.1"
+tempfile = "3"
+tonic = "0.12"
+prost = "0.13"
+
+[profile.dev]
+opt-level = 1
+
+# DIST-2 (measured 2026-10-19, same host, A/B): thin LTO with one codegen
+# unit shrinks the `rushdb` archive 56 → 40 MB (binary 204 → 130 MB), raises
+# 32-client filtered reads ~11% (p50 14.0 → 12.5 ms) and leaves ingest
+# unchanged within noise; the build takes ~10% longer. Symbols are kept for
+# readable backtraces and profiling (stripping saves ~6 MB more compressed).
+[profile.release]
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,30 @@
+[package]
+name = "rushdb-language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Internal component of the RushDB server: GQL, openCypher, Gremlin and SQL/PGQ frontends. No stable API; install rushdb-server instead."
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+rushdb-types = { workspace = true }
+rushdb-storage = { workspace = true }
+rushdb-lmpg = { workspace = true }
+rushdb-textsearch = { workspace = true }
+grafeo-common = { workspace = true }
+grafeo-core = { workspace = true }
+grafeo-engine = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+
+[lints]
+workspace = true

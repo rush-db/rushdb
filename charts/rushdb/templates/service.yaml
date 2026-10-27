@@ -4,12 +4,46 @@ metadata:
   name: {{ include "rushdb.fullname" . }}
   labels:
     {{- include "rushdb.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  type: {{ .Values.rushdb.service.type }}
-  ports:
-    - port: {{ .Values.rushdb.service.port }}
-      targetPort: http
-      protocol: TCP
-      name: http
+  type: {{ .Values.service.type }}
   selector:
     {{- include "rushdb.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.server.httpPort }}
+      targetPort: http
+    {{- if .Values.server.pgwirePort }}
+    - name: pgwire
+      port: {{ .Values.server.pgwirePort }}
+      targetPort: pgwire
+    {{- end }}
+    {{- if .Values.server.grpcPort }}
+    - name: grpc
+      port: {{ .Values.server.grpcPort }}
+      targetPort: grpc
+    {{- end }}
+    {{- if .Values.server.boltPort }}
+    - name: bolt
+      port: {{ .Values.server.boltPort }}
+      targetPort: bolt
+    {{- end }}
+---
+# Stable network identity for the StatefulSet's pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rushdb.fullname" . }}-headless
+  labels:
+    {{- include "rushdb.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "rushdb.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.server.httpPort }}
+      targetPort: http

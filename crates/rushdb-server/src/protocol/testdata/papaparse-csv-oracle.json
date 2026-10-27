@@ -1,0 +1,887 @@
+{
+ "basic": {
+  "input": {
+   "data": "name,age\nAda,36\nAlan,41\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "name": "Ada",
+    "age": "36"
+   },
+   {
+    "name": "Alan",
+    "age": "41"
+   }
+  ]
+ },
+ "typed": {
+  "input": {
+   "data": "name,age,active,score,when,empty\nAda,36,true,1.50,2024-01-02T03:04:05Z,\nBob,007,FALSE,-2e3,2024-01-02,x\n",
+   "options": {
+    "suggestTypes": true
+   },
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "name": "Ada",
+    "age": 36,
+    "active": true,
+    "score": 1.5,
+    "when": "2024-01-02T03:04:05.000Z"
+   },
+   {
+    "name": "Bob",
+    "age": 7,
+    "active": false,
+    "score": -2000,
+    "when": "2024-01-02",
+    "empty": "x"
+   }
+  ]
+ },
+ "typed-edge": {
+  "input": {
+   "data": "a,b,c,d,e\n 12 ,1e400,.5,5.,9007199254740993\nTrue,tRuE,null,NaN,0x10\n",
+   "options": {},
+   "parseConfig": {
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "a": 12,
+    "b": "1e400",
+    "c": 0.5,
+    "d": 5,
+    "e": "9007199254740993"
+   },
+   {
+    "a": "True",
+    "b": "tRuE",
+    "c": "null",
+    "d": "NaN",
+    "e": "0x10"
+   }
+  ]
+ },
+ "dates": {
+  "input": {
+   "data": "a,b,c\n2024-13-01T00:00:00Z,2024-01-02T03:04:05.123+02:00,2024-01-02T03:04Z\n",
+   "options": {},
+   "parseConfig": {
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "a": null,
+    "b": "2024-01-02T01:04:05.123Z",
+    "c": "2024-01-02T03:04:00.000Z"
+   }
+  ]
+ },
+ "quoted": {
+  "input": {
+   "data": "name,note\n\"Smith, J\",\"He said \"\"hi\"\"\"\n\"multi\nline\",x\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "name": "Smith, J",
+    "note": "He said \"hi\""
+   },
+   {
+    "name": "multi\nline",
+    "note": "x"
+   }
+  ]
+ },
+ "crlf": {
+  "input": {
+   "data": "a,b\r\n1,2\r\n3,4\r\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   },
+   {
+    "a": "3",
+    "b": "4"
+   }
+  ]
+ },
+ "cr": {
+  "input": {
+   "data": "a,b\r1,2\r3,4",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   },
+   {
+    "a": "3",
+    "b": "4"
+   }
+  ]
+ },
+ "semicolon": {
+  "input": {
+   "data": "a;b\n1;2\n",
+   "options": {},
+   "parseConfig": {
+    "delimiter": ";"
+   }
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   }
+  ]
+ },
+ "multichar-delim": {
+  "input": {
+   "data": "a||b\n1||2\n",
+   "options": {},
+   "parseConfig": {
+    "delimiter": "||"
+   }
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   }
+  ]
+ },
+ "tab": {
+  "input": {
+   "data": "a\tb\n1\t2\n",
+   "options": {},
+   "parseConfig": {
+    "delimiter": "\t"
+   }
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   }
+  ]
+ },
+ "headers": {
+  "input": {
+   "data": " first name ,,9lives,a\u0000b,first_name,name,name\n1,2,3,4,5,6,7\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "first_name": "1",
+    "_9lives": "3",
+    "ab": "4",
+    "first_name_2": "5",
+    "name": "6",
+    "name_1": "7"
+   }
+  ]
+ },
+ "empty-values": {
+  "input": {
+   "data": "a,b,c\n1,,3\n,,\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "",
+    "c": "3"
+   },
+   {
+    "a": "",
+    "b": "",
+    "c": ""
+   }
+  ]
+ },
+ "empty-values-typed": {
+  "input": {
+   "data": "a,b,c\n1,,3\n",
+   "options": {},
+   "parseConfig": {
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "a": 1,
+    "c": 3
+   }
+  ]
+ },
+ "blank-lines": {
+  "input": {
+   "data": "a,b\n\n1,2\n\n\n3,4\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   },
+   {
+    "a": "3",
+    "b": "4"
+   }
+  ]
+ },
+ "blank-lines-off": {
+  "input": {
+   "data": "a,b\n1,2\n\n3,4\n",
+   "options": {},
+   "parseConfig": {
+    "skipEmptyLines": false
+   }
+  },
+  "error": "CSV parse error: Too few fields: expected 2 fields but parsed 1"
+ },
+ "greedy": {
+  "input": {
+   "data": "a,b\n1,2\n , \n3,4\n",
+   "options": {},
+   "parseConfig": {
+    "skipEmptyLines": "greedy"
+   }
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   },
+   {
+    "a": "3",
+    "b": "4"
+   }
+  ]
+ },
+ "greedy-off-ws": {
+  "input": {
+   "data": "a,b\n1,2\n , \n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   },
+   {
+    "a": " ",
+    "b": " "
+   }
+  ]
+ },
+ "too-few": {
+  "input": {
+   "data": "a,b,c\n1,2\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "error": "CSV parse error: Too few fields: expected 3 fields but parsed 2"
+ },
+ "too-many": {
+  "input": {
+   "data": "a,b\n1,2,3\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "error": "CSV parse error: Too many fields: expected 2 fields but parsed 3"
+ },
+ "no-header": {
+  "input": {
+   "data": "1,2\n3,4\n",
+   "options": {},
+   "parseConfig": {
+    "header": false
+   }
+  },
+  "rows": [
+   {
+    "column_1": "1",
+    "column_2": "2"
+   },
+   {
+    "column_1": "3",
+    "column_2": "4"
+   }
+  ]
+ },
+ "no-header-typed": {
+  "input": {
+   "data": "1,,x\n",
+   "options": {},
+   "parseConfig": {
+    "header": false,
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "column_1": 1,
+    "column_2": null,
+    "column_3": "x"
+   }
+  ]
+ },
+ "quote-char": {
+  "input": {
+   "data": "a,b\n'x,y',z\n",
+   "options": {},
+   "parseConfig": {
+    "quoteChar": "'"
+   }
+  },
+  "rows": [
+   {
+    "a": "x,y",
+    "b": "z"
+   }
+  ]
+ },
+ "escape-char": {
+  "input": {
+   "data": "a,b\n\"x\\\"y\",z\n",
+   "options": {},
+   "parseConfig": {
+    "escapeChar": "\\"
+   }
+  },
+  "rows": [
+   {
+    "a": "x\"y",
+    "b": "z"
+   }
+  ]
+ },
+ "newline-explicit": {
+  "input": {
+   "data": "a,b|1,2|3,4",
+   "options": {},
+   "parseConfig": {
+    "newline": "|"
+   }
+  },
+  "rows": []
+ },
+ "header-only": {
+  "input": {
+   "data": "a,b\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": []
+ },
+ "empty": {
+  "input": {
+   "data": "",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": []
+ },
+ "trailing-no-newline": {
+  "input": {
+   "data": "a,b\n1,2",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   }
+  ]
+ },
+ "unterminated-quote": {
+  "input": {
+   "data": "a,b\n\"1,2\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "error": "CSV parse error: Quoted field unterminated"
+ },
+ "bom": {
+  "input": {
+   "data": "﻿a,b\n1,2\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   }
+  ]
+ },
+ "spaces": {
+  "input": {
+   "data": "a,b\n x , y \n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": " x ",
+    "b": " y "
+   }
+  ]
+ },
+ "dup-header": {
+  "input": {
+   "data": "a,a,a_1\n1,2,3\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "a_1": "2",
+    "a_1_0": "3"
+   }
+  ]
+ },
+ "quote-mid-field": {
+  "input": {
+   "data": "a,b\nx\"y,z\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "x\"y",
+    "b": "z"
+   }
+  ]
+ },
+ "quoted-then-text": {
+  "input": {
+   "data": "a,b\n\"x\"y,z\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "error": "CSV parse error: Trailing quote on quoted field is malformed"
+ },
+ "trailing-newline-noskip": {
+  "input": {
+   "data": "a,b\n1,2\n",
+   "options": {},
+   "parseConfig": {
+    "skipEmptyLines": false
+   }
+  },
+  "error": "CSV parse error: Too few fields: expected 2 fields but parsed 1"
+ },
+ "greedy-commas": {
+  "input": {
+   "data": "a,b\n1,2\n,\n",
+   "options": {},
+   "parseConfig": {
+    "skipEmptyLines": "greedy"
+   }
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   }
+  ]
+ },
+ "commas-default": {
+  "input": {
+   "data": "a,b\n1,2\n,\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   },
+   {
+    "a": "",
+    "b": ""
+   }
+  ]
+ },
+ "leading-blank": {
+  "input": {
+   "data": "\n\na,b\n1,2\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "b": "2"
+   }
+  ]
+ },
+ "no-header-blank": {
+  "input": {
+   "data": "1,2\n\n3\n",
+   "options": {},
+   "parseConfig": {
+    "header": false
+   }
+  },
+  "rows": [
+   {
+    "column_1": "1",
+    "column_2": "2"
+   },
+   {
+    "column_1": "3"
+   }
+  ]
+ },
+ "no-header-noskip": {
+  "input": {
+   "data": "1,2\n\n3\n",
+   "options": {},
+   "parseConfig": {
+    "header": false,
+    "skipEmptyLines": false
+   }
+  },
+  "rows": [
+   {
+    "column_1": "1",
+    "column_2": "2"
+   },
+   {
+    "column_1": ""
+   },
+   {
+    "column_1": "3"
+   },
+   {
+    "column_1": ""
+   }
+  ]
+ },
+ "quote-space-delim": {
+  "input": {
+   "data": "a,b\n\"x\" ,y\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "x",
+    "b": "y"
+   }
+  ]
+ },
+ "space-before-quote": {
+  "input": {
+   "data": "a,b\n \"x\",y\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": " \"x\"",
+    "b": "y"
+   }
+  ]
+ },
+ "escape-custom-doubled": {
+  "input": {
+   "data": "a,b\n\"x\"\"y\",z\n",
+   "options": {},
+   "parseConfig": {
+    "escapeChar": "\\"
+   }
+  },
+  "error": "CSV parse error: Trailing quote on quoted field is malformed"
+ },
+ "quoted-header": {
+  "input": {
+   "data": "\"a,1\",b\n1,2\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a,1": "1",
+    "b": "2"
+   }
+  ]
+ },
+ "quoted-empty": {
+  "input": {
+   "data": "a,b\n\"\",x\n",
+   "options": {},
+   "parseConfig": {
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "b": "x"
+   }
+  ]
+ },
+ "typed-neg-zero": {
+  "input": {
+   "data": "a,b,c,d\n-0,-.5,1E3,+1\n",
+   "options": {},
+   "parseConfig": {
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "a": 0,
+    "b": -0.5,
+    "c": 1000,
+    "d": "+1"
+   }
+  ]
+ },
+ "typed-ws-bool": {
+  "input": {
+   "data": "a,b\n true,TRUE\n",
+   "options": {},
+   "parseConfig": {
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "a": " true",
+    "b": true
+   }
+  ]
+ },
+ "typed-quoted-number": {
+  "input": {
+   "data": "a\n\"42\"\n",
+   "options": {},
+   "parseConfig": {
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "a": 42
+   }
+  ]
+ },
+ "mixed-newlines": {
+  "input": {
+   "data": "a,b\r\n1,2\n3,4\r\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "error": "CSV parse error: Too many fields: expected 2 fields but parsed 3"
+ },
+ "cr-in-quotes": {
+  "input": {
+   "data": "a,b\n\"x\ry\",z\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "x\ry",
+    "b": "z"
+   }
+  ]
+ },
+ "unicode": {
+  "input": {
+   "data": "имя,年齢\nАда,三十\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "_имя": "Ада",
+    "_年齢": "三十"
+   }
+  ]
+ },
+ "unicode-header-prefix": {
+  "input": {
+   "data": "é,1a\nx,y\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "_é": "x",
+    "_1a": "y"
+   }
+  ]
+ },
+ "empty-header-cell": {
+  "input": {
+   "data": "a,,c\n1,2,3\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "c": "3"
+   }
+  ]
+ },
+ "only-newlines": {
+  "input": {
+   "data": "\n\n\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": []
+ },
+ "delim-in-unquoted-header-dup": {
+  "input": {
+   "data": "x,x,x\n1,2,3\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "x": "1",
+    "x_1": "2",
+    "x_2": "3"
+   }
+  ]
+ },
+ "many-dups": {
+  "input": {
+   "data": "a,a,a,a_2\n1,2,3,4\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a": "1",
+    "a_1": "2",
+    "a_2": "3",
+    "a_2_0": "4"
+   }
+  ]
+ },
+ "ws-header": {
+  "input": {
+   "data": "a b\tc,d\n1,2\n",
+   "options": {},
+   "parseConfig": {}
+  },
+  "rows": [
+   {
+    "a_b_c": "1",
+    "d": "2"
+   }
+  ]
+ },
+ "dates-edge": {
+  "input": {
+   "data": "a,b,c,d,e,f,g,h\n2024-02-30T00:00:00Z,2024-01-01T24:00:00Z,2024-01-01T24:00:01Z,2024-01-01T23:59:59+29:59,2024-01-01T00:00:00.123456Z,0000-01-01T00:00:00Z,2024-04-31T10:00+05:30,2024-01-01T00:00:00.9Z\n",
+   "options": {},
+   "parseConfig": {
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "a": "2024-03-01T00:00:00.000Z",
+    "b": "2024-01-02T00:00:00.000Z",
+    "c": null,
+    "d": null,
+    "e": "2024-01-01T00:00:00.123Z",
+    "f": "0000-01-01T00:00:00.000Z",
+    "g": "2024-05-01T04:30:00.000Z",
+    "h": "2024-01-01T00:00:00.900Z"
+   }
+  ]
+ },
+ "typed-range": {
+  "input": {
+   "data": "a,b,c,d\n9007199254740991,-9007199254740991,9007199254740992,1.7976931348623157e308\n",
+   "options": {},
+   "parseConfig": {
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "a": 9007199254740991,
+    "b": -9007199254740991,
+    "c": "9007199254740992",
+    "d": "1.7976931348623157e308"
+   }
+  ]
+ },
+ "typed-floats": {
+  "input": {
+   "data": "a,b,c,d\n0.1,1e-7,123456789.123,3.0e0\n",
+   "options": {},
+   "parseConfig": {
+    "dynamicTyping": true
+   }
+  },
+  "rows": [
+   {
+    "a": 0.1,
+    "b": 1e-7,
+    "c": 123456789.123,
+    "d": 3
+   }
+  ]
+ },
+ "__export": {
+  "rows": [
+   {
+    "__id": "id-1",
+    "__label": "Book",
+    "title": "Dune, part 1",
+    "pages": 412,
+    "tags": [
+     "a",
+     "b"
+    ],
+    "rating": 4.5,
+    "big": 1e+21,
+    "small": 1e-7,
+    "active": true,
+    "note": " padded ",
+    "quote": "say \"hi\"",
+    "nl": "two\nlines"
+   },
+   {
+    "__id": "id-2",
+    "__label": "Book",
+    "title": "Plain",
+    "extra": null
+   }
+  ],
+  "csv": "__id,__label,active,big,extra,nl,note,pages,quote,rating,small,tags,title\r\nid-1,Book,true,1e+21,,\"two\nlines\",\" padded \",412,\"say \"\"hi\"\"\",4.5,1e-7,\"a,b\",\"Dune, part 1\"\r\nid-2,Book,,,,,,,,,,,Plain",
+  "empty": ""
+ }
+}

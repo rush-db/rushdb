@@ -1,0 +1,36 @@
+[package]
+name = "rushdb-sql"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Internal component of the RushDB server: SQL frontend over Apache DataFusion. No stable API; install rushdb-server instead."
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+rushdb-storage = { workspace = true }
+rushdb-lmpg = { workspace = true }
+rushdb-query = { workspace = true }
+rushdb-types = { workspace = true }
+rushdb-textsearch = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+datafusion = { workspace = true }
+datafusion-expr = "=54.1.0"
+datafusion-common = "=54.1.0"
+arrow = { workspace = true }
+arrow-json = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+blake3 = { workspace = true }
+uuid = { workspace = true }
+tokio = { version = "1", features = ["rt"] }
+
+[dev-dependencies]
+
+[lints]
+workspace = true

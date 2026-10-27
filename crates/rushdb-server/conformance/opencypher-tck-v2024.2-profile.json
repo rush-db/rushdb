@@ -1,0 +1,140 @@
+{
+ "schemaVersion": 2,
+ "description": "The supported openCypher profile (v1) and why each openCypher TCK 2024.2 scenario that does not pass fails. `scripts/run-opencypher-tck.py` assigns every failure the first matching rule's category; a failure no rule matches keeps a runner category that is not listed here, which fails the run. An `exclusion` is a feature outside the supported profile, reported by capability discovery (its `limitations`). A `defect` is a wrong result of the Grafeo openCypher implementation RushDB embeds; RushDB does not patch Grafeo, and CI reruns every defect on plain Grafeo so a failure RushDB causes cannot hide here. Cypher stays release candidate while any defect remains.",
+ "categories": {
+  "lmpg-single-label": {
+   "kind": "exclusion",
+   "limitations": [
+    "singlePrimaryLabelPerRecord",
+    "statementLabelMutationUnavailable"
+   ],
+   "description": "LMPG records carry exactly one primary label: nodes without a label or with several, and statement label changes other than no-ops (SET n:L, REMOVE n:L), are refused. Change a record's label with the native retypeRecord mutation."
+  },
+  "procedures": {
+   "kind": "exclusion",
+   "limitations": [
+    "noProcedures"
+   ],
+   "description": "CALL procedures: the embedded engine is built without its procedure (algos) feature, and the TCK's test procedures are not registered."
+  },
+  "temporal": {
+   "kind": "exclusion",
+   "limitations": [
+    "limitedTemporalTypes"
+   ],
+   "description": "The openCypher temporal type system: the local/zoned distinction, named time zones, nanosecond precision, week/ordinal/quarter constructors and the truncate/between/inSeconds functions. date(), time(), datetime() and duration() from ISO 8601 text work and return ISO 8601 text."
+  },
+  "grafeo-error-detection": {
+   "kind": "defect",
+   "description": "The TCK expects a compile-time or runtime error Grafeo does not raise (it accepts the statement)."
+  },
+  "grafeo-syntax": {
+   "kind": "defect",
+   "description": "openCypher syntax Grafeo's parser does not accept."
+  },
+  "grafeo-semantic": {
+   "kind": "defect",
+   "description": "Grafeo's binder refuses a valid statement (scope of variables, OPTIONAL MATCH without input, DELETE of expressions)."
+  },
+  "grafeo-internal": {
+   "kind": "defect",
+   "description": "Grafeo fails the statement with an internal error."
+  },
+  "grafeo-write-column-names": {
+   "kind": "defect",
+   "description": "Write statements name projected aggregates and functions differently from the expression text (count(...) for count(*))."
+  },
+  "grafeo-lazy-writes": {
+   "kind": "defect",
+   "description": "A LIMIT or SKIP after an updating clause also limits the updates (writes are not eager)."
+  },
+  "grafeo-quantifiers": {
+   "kind": "defect",
+   "description": "all/any/none/single quantifier results differ."
+  },
+  "grafeo-precedence": {
+   "kind": "defect",
+   "description": "Operator precedence differs."
+  },
+  "grafeo-result": {
+   "kind": "defect",
+   "description": "Grafeo returns a different result (rows, order, values or null handling)."
+  },
+  "grafeo-nontermination": {
+   "kind": "defect",
+   "description": "The statement does not finish (a variable-length match around a cycle); the server cancels it at the request deadline."
+  }
+ },
+ "rules": [
+  {
+   "category": "grafeo-result",
+   "key": "Match5\\.feature::\\[1[123]\\]",
+   "confirmed": "Grafeo expands an empty variable-length interval (*2..1, *..0). Plain Grafeo returns the same rows for a single MATCH; it passes the TCK's two-MATCH form only through a different join plan."
+  },
+  {
+   "category": "lmpg-single-label",
+   "pattern": "require exactly one label|one primary label|label mutation is unavailable"
+  },
+  {
+   "category": "procedures",
+   "when": "procedures"
+  },
+  {
+   "category": "procedures",
+   "pattern": "CALL procedures require"
+  },
+  {
+   "category": "temporal",
+   "key": "/expressions/temporal/"
+  },
+  {
+   "category": "temporal",
+   "pattern": "\\b(datetime|localdatetime|date|time|localtime|duration)\\.(truncate|between|inSeconds|inMonths|inDays|transaction|statement|realtime|fromepoch)"
+  },
+  {
+   "category": "temporal",
+   "when": "result-mismatch",
+   "key": "(?i)(local )?(date|time|duration)"
+  },
+  {
+   "category": "grafeo-error-detection",
+   "when": "error-not-raised"
+  },
+  {
+   "category": "grafeo-syntax",
+   "pattern": "syntax error"
+  },
+  {
+   "category": "grafeo-semantic",
+   "pattern": "semantic error"
+  },
+  {
+   "category": "grafeo-internal",
+   "pattern": "internal execution error|GRAFEO-X"
+  },
+  {
+   "category": "grafeo-write-column-names",
+   "when": "result-columns"
+  },
+  {
+   "category": "grafeo-lazy-writes",
+   "when": "side-effects-mismatch"
+  },
+  {
+   "category": "grafeo-quantifiers",
+   "key": "/expressions/quantifier/"
+  },
+  {
+   "category": "grafeo-precedence",
+   "key": "/expressions/precedence/"
+  },
+  {
+   "category": "grafeo-nontermination",
+   "pattern": "query execution cancelled"
+  },
+  {
+   "category": "grafeo-result",
+   "when": "result-mismatch"
+  }
+ ]
+}

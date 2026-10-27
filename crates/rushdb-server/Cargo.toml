@@ -1,0 +1,97 @@
+[package]
+name = "rushdb-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "RushDB property graph database: the `rushdb` server and CLI"
+readme = "../../README.md"
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "rushdb"
+path = "src/bin/rushdb/main.rs"
+
+[features]
+default = ["jemalloc"]
+# jemalloc global allocator with background purge threads: idle heap pages
+# decay back to the OS instead of being retained in per-thread arenas.
+# Disable (`--no-default-features`) to fall back to the system allocator.
+jemalloc = ["dep:tikv-jemallocator", "dep:tikv-jemalloc-ctl"]
+# Benchmark builds: count cumulative allocated bytes (churn per record).
+alloc-accounting = ["jemalloc"]
+
+[dependencies]
+roaring = { workspace = true }
+tikv-jemallocator = { version = "0.6", optional = true, features = ["background_threads", "stats"] }
+tikv-jemalloc-ctl = { version = "0.6", optional = true, features = ["stats"] }
+rushdb-types = { workspace = true }
+rushdb-storage = { workspace = true }
+rushdb-lmpg = { workspace = true }
+rushdb-tx = { workspace = true }
+rushdb-raft = { workspace = true }
+rushdb-query = { workspace = true }
+rushdb-authz = { workspace = true }
+rushdb-textsearch = { workspace = true }
+rushdb-vector = { workspace = true }
+rushdb-sql = { workspace = true }
+rushdb-engine = { workspace = true }
+rushdb-protocol = { workspace = true }
+rushdb-grpc = { workspace = true }
+rushdb-bolt = { workspace = true }
+rushdb-language = { workspace = true }
+rushdb-mongodb = { workspace = true }
+rushdb-backup = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+base64 = { workspace = true }
+clap = { workspace = true }
+thiserror = { workspace = true }
+crc32fast = { workspace = true }
+axum = "0.8"
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+# Streaming replication follower: polls a leader's internal
+# WAL-tail endpoint. `rustls-tls` matches `axum-server`'s existing TLS stack
+# choice; default-tls/native-tls are disabled to avoid a second TLS library.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rustls-pemfile = "2"
+hex = "0.4"
+tower-http = { version = "0.6", features = ["trace", "limit"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+prometheus = "0.14"
+uuid = { workspace = true }
+async-trait = "0.1"
+futures = "0.3"
+pgwire = { version = "0.40.7", default-features = false, features = ["server-api", "pg-type-chrono", "pg-type-serde-json"] }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+serde_yml = "0.0.13"
+chrono = { workspace = true }
+libc = "0.2"
+tempfile = { workspace = true }
+
+[dev-dependencies]
+redb = "4.2.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"] }
+tokio-postgres = "0.7"
+tonic = { version = "0.12", features = ["transport", "codegen", "prost"] }
+rcgen = "0.13"
+native-tls = "0.2"
+rustls = { version = "0.23", features = ["ring"] }
+
+[lints]
+workspace = true
+
+# `cargo binstall rushdb-server` downloads the release archive instead of
+# compiling.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/rushdb-{ target }.tar.gz"
+bin-dir = "{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
