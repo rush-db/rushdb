@@ -4,19 +4,16 @@
 
 # RushDB
 
-### AIエージェントとアプリのためのメモリレイヤー。
+### レコードとその関係、そしてその上での検索を、ひとつのデータベースで。
 
-任意のJSONをプッシュするだけ。エージェントは、ライブでクエリ可能なスキーマ、グラフのリレーションシップ、セマンティック検索を取得できます — すべて自動的に推論されます。
-パイプライン不要。別々のストア不要。設計するスキーマも不要。
+JSON を書き込むだけ。RushDB が型を推論し、ネストしたオブジェクトをグラフとしてつなぎ、独自の JSON クエリ言語、SQL、Cypher、Gremlin、Mongo 形式のドキュメントで問い合わせられるようにします。ベクトル検索、全文検索、ハイブリッド検索にも対応。Rust のバイナリひとつ、データディレクトリひとつ、Apache-2.0。
 
+[![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?branch=main&label=CI)](https://github.com/rush-db/rushdb/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
-[![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
-[![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
-[![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
+[![Follow on X](https://img.shields.io/twitter/follow/RushDatabase?style=social)](https://x.com/RushDatabase)
 
-[🌐 ウェブサイト](https://rushdb.com) • [📖 ドキュメント](https://docs.rushdb.com) • [☁️ クラウド](https://app.rushdb.com) • [🔍 サンプル](https://github.com/rush-db/examples)
+[ウェブサイト](https://rushdb.com) • [ドキュメント](https://docs.rushdb.com) • [マニュアル](docs/manual/README.md) • [RushDB Cloud](https://app.rushdb.com) • [デプロイ](deploy/README.md)
 
 [English](README.md) • [中文](README_ZH.md) • **日本語** • [한국어](README_KO.md) • [Deutsch](README_DE.md) • [Français](README_FR.md) • [Português](README_PT.md) • [Español](README_ES.md) • [हिन्दी](README_HI.md) • [العربية](README_AR.md) • [Bahasa Indonesia](README_ID.md) • [ไทย](README_TH.md)
 
@@ -24,411 +21,160 @@
 
 ---
 
-## 課題
-
-エージェントにはメモリが必要です。標準的な解決策は3つのデータベースを使うことです。キーバリュー用のRedis、セマンティック検索用のベクトルストア、リレーションシップ用のグラフDB — さらに、それらを同期し続けるためのグルーコードも必要です。
-
-RushDBはこの3つすべてを置き換えます。JSONを一度プッシュするだけ。グラフトラバーサル、セマンティック検索、またはその両方を1回の呼び出しでクエリできます。
-
-| RushDBなしの場合                               | RushDBありの場合                   |
-| ---------------------------------------------- | ---------------------------------- |
-| Redis + Pinecone + Neo4j + グルーコード        | 1つのAPI                           |
-| スキーマ設計 → マイグレーション作成 → 繰り返し | 任意の形状をプッシュ、スキーマ不要 |
-| 別個の埋め込みパイプライン                     | サーバーサイドのマネージド埋め込み |
-| リレーションシップのエッジを手作業で作成       | データ構造から自動検出             |
-
----
-
 ## クイックスタート
 
-セットアップに応じて2つの方法があります。
-
-- **クラウド** — マネージド、無料枠あり、30秒で稼働。[APIキーを取得 →](https://app.rushdb.com)
-- **セルフホスト** — Docker + 自前のNeo4jインスタンス。[セルフホスティングへ →](#self-hosting)
-
-### クラウドの方法
-
 ```bash
-npm install @rushdb/javascript-sdk
-# or
-pip install rushdb
+curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh | sh
+rushdb up
 ```
 
-### エージェントメモリの保存と呼び出し
+インストールスクリプトはリリースのチェックサムを確認し（`cosign` があれば Sigstore 署名も確認）、`rushdb` バイナリを `~/.rushdb/bin` に入れます。`rushdb up` は `http://127.0.0.1:3000` で永続ノードを起動し、データを `./.rushdb` に保存します。ローカル用トークンは `local-token` です。
+
+ネストした JSON ドキュメントを書き込みます。ネストしたオブジェクトはそれぞれ独立したレコードになり、親とつながります：
+
+```bash
+export RUSHDB_TOKEN=local-token
+curl -s http://127.0.0.1:3000/protocol/v1/execute \
+  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"protocolVersion":1,"operation":{"kind":"ingest","ingest":{"kind":"documents","label":"COMPANY",
+       "documents":{"name":"Acme","DEPARTMENT":[
+         {"name":"Engineering","headcount":12,"EMPLOYEE":[{"name":"Ada","role":"Staff Engineer"},{"name":"Linus","role":"Engineer"}]},
+         {"name":"Sales","headcount":4,"EMPLOYEE":[{"name":"Grace","role":"Account Executive"}]}]}}}}'
+```
+
+次に Acme のエンジニアを探します。関連するラベルを書くだけで、フィルターが関係をたどります：
+
+```bash
+curl -s http://127.0.0.1:3000/protocol/v1/execute \
+  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"protocolVersion":1,"operation":{"kind":"query","query":{"kind":"records","query":{
+       "labels":["EMPLOYEE"],
+       "predicate":{"role":{"$contains":"Engineer"},"DEPARTMENT":{"COMPANY":{"name":"Acme"}}}}}}}'
+```
+
+続きは[クイックスタート](docs/manual/getting-started/quickstart.md)へ。
+
+## 好きな方法で問い合わせる
+
+同じレコードに、どのインターフェースからでもアクセスできます。
+
+**SQL**：PostgreSQL ワイヤプロトコル経由で、`psql` や任意の PostgreSQL ドライバーから。ラベルがテーブルになります：
+
+```bash
+PGPASSWORD=$RUSHDB_TOKEN psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+  -c "SELECT name, headcount FROM department ORDER BY headcount DESC"
+```
+
+**Cypher**：HTTP 経由、または Neo4j ドライバーで Bolt 経由（`rushdb up --languages sql,cypher --bolt-port 7687`）：
+
+```cypher
+MATCH (d:DEPARTMENT)-->(e:EMPLOYEE)
+RETURN d.name AS department, count(e) AS people ORDER BY people DESC
+```
+
+**SDK** のダイレクトモード（`npm install @rushdb/javascript-sdk`）：
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('RUSHDB_API_KEY')
+const db = new RushDB(process.env.RUSHDB_TOKEN, { direct: true, engineUrl: 'http://127.0.0.1:3000' })
 
-// One-time: tell RushDB to auto-embed 'output' on every write
-await db.ai.indexes.create({ label: 'MEMORY', propertyName: 'output' })
-
-// Store an agent action — no embedder, no vectors array
-await db.records.create({
-  label: 'MEMORY',
-  data: {
-    agent_id: 'agent-42',
-    session_id: 'sess-001',
-    action: 'summarized',
-    topic: 'Q4 results',
-    output: summaryText
-  }
-})
-
-// Recall by meaning — graph filter + semantic search in one call
-const memories = await db.records.vectorSearch({
-  labels: ['MEMORY'],
-  propertyName: 'output',
-  query: 'what did we decide about Q4?',
-  where: { agent_id: 'agent-42' },
-  limit: 10
-})
-```
-
-```python
-from rushdb import RushDB
-
-db = RushDB('RUSHDB_API_KEY')
-
-# Store — graph links sessions, actions, and context automatically
-db.records.create(
-    label='MEMORY',
-    data={
-        'agent_id': 'agent-42',
-        'action': 'summarized',
-        'topic': 'Q4 results',
-        'output': summary_text,
-    },
-)
-
-# Recall — traverse relationships and filter by meaning
-results = db.records.find({
-    'labels': ['MEMORY'],
-    'where': {
-        'agent_id': 'agent-42',
-        'topic': {'$contains': 'Q4'},
-    },
-    'limit': 10,
-})
-```
-
----
-
-## データの操作
-
-### ネストされたJSONのインポート
-
-任意のJSON形状をプッシュできます。ネストされたオブジェクトやオブジェクトの配列はリンクされたレコードになります — ラベル、型、リレーションシップは書き込み時に推論されます。スキーマもマイグレーションステップも不要です。
-
-```typescript
-await db.records.importJson({
-  label: 'COMPANY',
-  data: {
-    name: 'Acme Corp',
-    DEPARTMENT: [
-      {
-        name: 'Engineering',
-        budget: 2_000_000,
-        EMPLOYEE: [
-          { name: 'Alice', role: 'Staff Engineer', salary: 210_000 },
-          { name: 'Bob', role: 'Engineer', salary: 160_000 }
-        ]
-      }
-    ]
-  }
-})
-```
-
-ネストされた各キー（`DEPARTMENT`、`EMPLOYEE`）はラベルになり、各オブジェクトはレコードに、包含関係はリレーションシップになります — すべて自動的に作成されます。
-
-### CSVのインポート
-
-```typescript
-const csv = `name,email,department
-Alice,alice@acme.co,Engineering
-Bob,bob@acme.co,Sales`
-
-await db.records.importCsv({
-  label: 'EMPLOYEE',
-  data: csv,
-  options: { suggestTypes: true, skipEmptyValues: true },
-  parseConfig: { header: true }
-})
-```
-
-`suggestTypes`は文字列から数値、ブール値、日付を推論します。`skipEmptyValues`は空のセルを空の値として保存する代わりに未設定として扱います（`0`と`false`は保持されます）。
-
-### グラフのトラバーサル
-
-ルートレコードを、その*関連*レコードに対する条件でフィルタリングできます — 任意の深さまで — 単一のクエリで。関連ラベルは`labels`ではなく`where`の**内側**に置きます。
-
-```typescript
-// Engineers in Acme's Engineering department
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
-  where: {
-    role: { $contains: 'Engineer' },
-    DEPARTMENT: {
-      name: 'Engineering',
-      COMPANY: { name: 'Acme Corp' }
-    }
-  }
+  where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
+  orderBy: { name: 'asc' }
 })
+console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
 ```
 
-### 分析クエリ（集計とグループ化）
+Gremlin、SQL/PGQ `GRAPH_TABLE`、Mongo 形式のドキュメント、ISO GQL も同じ HTTP エンドポイントを使います。詳しくは[クエリ言語](docs/manual/languages/README.md)を参照してください。
 
-`select`は集計（`$sum`、`$avg`、`$count`、`$min`、`$max`）で出力を整形します。`groupBy`はディメンションを制御します。集計に`limit`を追加しないでください — 最初のN件のレコードのみをスキャンし、合計が歪んでしまいます。
+## できること
 
-```typescript
-// Portfolio KPIs across ALL projects → one row
-const kpis = await db.records.find({
-  labels: ['PROJECT'],
-  select: {
-    totalBudget: { $sum: '$record.budget' },
-    avgBudget: { $avg: '$record.budget', $precision: 2 },
-    projectCount: { $count: '*' }
-  },
-  groupBy: ['totalBudget', 'avgBudget', 'projectCount'],
-  orderBy: { totalBudget: 'asc' } // late-ordering → aggregates the full dataset
-})
-// → [{ totalBudget: 18_750_000, avgBudget: 568181.82, projectCount: 33 }]
+| 機能 | 内容 |
+|---|---|
+| **スキーマ設計が不要** | どんな形の JSON でも書き込めます。型は値ごとに推論され、ネストしたオブジェクトはつながったレコードになり、エンジンはラベル・プロパティ・関係の正確なカタログを保持し、それを問い合わせられます。 |
+| **プロパティが第一級** | Labeled Meta-Property Graph（LMPG）は、各プロパティを、それを使うレコード間で共有される型付きの定義として保存します。そのため、スキーマの発見、値の範囲、ファセットはストレージのレイアウトそのものから得られます。 |
+| **多様なクエリ言語** | ネイティブの JSON クエリ言語、SQL、Gremlin、SQL/PGQ、Mongo 形式のドキュメント、リリース候補の openCypher と ISO GQL。 |
+| **検索** | 指定したベクトルに対するベクトルインデックス（厳密検索と HNSW）、BM25 全文インデックス、両者を融合するハイブリッド検索。 |
+| **耐久性とトランザクション** | ログ先行書き込み、MVCC スナップショット、複数ステートメントのトランザクション、ポイントインタイムリストア付きのバックアップ、読み取り専用フォロワーへのストリーミングレプリケーション。 |
+| **標準プロトコル** | HTTP、PostgreSQL ワイヤプロトコル、gRPC、Bolt をひとつのプロセスで提供。 |
+| **マルチテナンシー** | オプションのフェイルクローズ型テナント。テナントごとに独立したキー空間を持ちます。 |
+| **バイナリひとつ** | `rushdb serve` がサーバーを、`rushdb up` がローカルノードを起動します。運用すべき別サービスはありません。 |
 
-// Breakdown by dimension → one row per status
-const byStatus = await db.records.find({
-  labels: ['PROJECT'],
-  select: { count: { $count: '*' }, avgBudget: { $avg: '$record.budget', $precision: 2 } },
-  groupBy: ['$record.status'],
-  orderBy: { count: 'desc' }
-})
-// → [{ status: 'active', count: 18, avgBudget: 612000 }, { status: 'paused', count: 9, ... }]
-```
+## デプロイ
 
-集計はトラバーサルと組み合わせられます — 例えば部門ごとの人員数と給与総額：
+| 環境 | 方法 |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb` |
+| Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/)。Caddy による HTTPS 版もあります |
+| Kubernetes | [Helm チャート](charts/rushdb/)：`helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
+| Linux VM | DigitalOcean、Hetzner、AWS、GCP、Azure 向けの [cloud-init](deploy/templates/cloud-init/)、[systemd ユニット](deploy/templates/systemd/) |
+| プラットフォーム | [Fly.io](deploy/templates/fly/)、[Render](deploy/templates/render/)、[Coolify](deploy/templates/coolify/)、[Dokploy](deploy/templates/dokploy/) |
 
-```typescript
-const payroll = await db.records.find({
-  labels: ['DEPARTMENT'],
-  where: { EMPLOYEE: { $alias: '$emp' } }, // alias the related node for use in select
-  select: {
-    headcount: { $count: '*' },
-    payroll: { $sum: '$emp.salary' }
-  },
-  groupBy: ['$record.name'],
-  orderBy: { payroll: 'desc' }
-})
-// → [{ name: 'Engineering', headcount: 2, payroll: 370000 }, ...]
-```
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
 
----
+### その他のインストール方法
 
-## Claude、Cursor、または任意のMCPクライアントへの接続
+| 方法 | コマンド | 備考 |
+|---|---|---|
+| インストールスクリプト | `curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh \| sh` | Linux（glibc 2.28 以上）と macOS、x86-64 と arm64。`sh -s -- --version v3.0.0` でバージョンを固定できます。 |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS と Linux。`brew services start rushdb` でバックグラウンド実行します。 |
+| Docker | `rushdb/rushdb` | `linux/amd64` と `linux/arm64`。`ghcr.io/rush-db/rushdb` でも配布しています。 |
+| Cargo | `cargo binstall rushdb-server` または `cargo install rushdb-server --locked` | `binstall` はリリース済みバイナリを取得し、`install` はソースからビルドします（C++ コンパイラが必要）。 |
+| リリースアーカイブ | [GitHub releases](https://github.com/rush-db/rushdb/releases) | SHA-256 チェックサム、SBOM、Sigstore 署名付きのアーカイブ。 |
+| ソース | `cargo build --release -p rushdb-server --bin rushdb` | [インストール](docs/manual/getting-started/installation.md)を参照。 |
 
-RushDBはMCPサーバーを同梱しています。エージェントは永続的で構造化されたメモリを — そのまま利用できます。
+Windows はネイティブでは未対応です。WSL 2 か Docker を使ってください。ノードをループバック外に公開する前に[セキュリティ](docs/manual/operations/security.md)を読んでください。
 
-```json
-{
-  "mcpServers": {
-    "rushdb": {
-      "command": "npx",
-      "args": ["@rushdb/mcp-server"],
-      "env": {
-        "RUSHDB_API_KEY": "your-api-key-here"
-      }
-    }
-  }
-}
-```
+## ステータス
 
-これをClaude Desktop、Cursor、またはWindsurfのMCP設定に配置してください。これでエージェントは、レコードの作成、意味による検索、リレーションシップのトラバーサル、スキーマのイントロスペクションが可能になります — すべて自然言語で行えます。
+| 領域 | ステータス |
+|---|---|
+| ネイティブプロトコル、SQL、Gremlin テキストトラバーサル、Mongo 形式のドキュメント | 安定版 |
+| SQL/PGQ `GRAPH_TABLE` | 安定版、読み取り専用 |
+| openCypher、ISO GQL、Bolt | リリース候補、明示的に有効化：外部の適合性テストスイートはすべては通過していません（[詳細](docs/manual/languages/README.md)） |
+| PostgreSQL ワイヤプロトコル | SQL の読み取りと単一ステートメントの書き込み。`psql`、node-postgres、psycopg、`tokio-postgres` で確認済み。すべてのクライアントや ORM ではありません |
+| レプリケーション | 読み取り専用フォロワーへの非同期ストリーミング。昇格は手動で、自動フェイルオーバーはありません |
+| Raft、ストレージシャーディング | プレビュー、本番利用不可：Raft は単一プロセス内でメモリ上の状態で動作し、複数シャードにまたがるコミットはクラッシュに対してアトミックではありません |
 
----
+各インターフェースの正確な制限は[マニュアル](docs/manual/README.md)に記載しています。
 
-## 同梱されているもの
+## 接続
 
-| 機能                           | その意味                                                                                                                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **マネージド埋め込み**         | 任意の文字列プロパティを一度インデックス化すれば — すべての書き込みがサーバーサイドで自動的に埋め込まれます                                                               |
-| **1クエリでグラフ + ベクトル** | セマンティックな類似性とリレーションシップのトラバーサルを1回の呼び出しで組み合わせられます                                                                               |
-| **ゼロスキーマ**               | 任意のJSON形状をプッシュ。RushDBが型を推論し、プロパティを作成し、レコードをリンクします                                                                                  |
-| **推論されたスキーマ**         | プロパティがファーストクラスのノードになります — 型、ラベル、リレーションシップが書き込み時に発見されるため、データが到着するにつれクエリ可能なスキーマが自ら構築されます |
-| **ACIDトランザクション**       | 同時実行のエージェントが共有メモリを破損させません。内部ではNeo4jを使用しています                                                                                         |
-| **自己記述的**                 | エージェントは推論されたスキーマ — ラベル、プロパティ、値の範囲 — をイントロスペクトして、安全にクエリできる内容を把握します                                              |
-| **MCPネイティブ**              | ディスカバリーファーストのクエリプロンプトを組み込んだ完全なMCPサーバー                                                                                                   |
-| **エージェントスキル**         | インストール可能な`@rushdb/skills`パッケージ — スキル対応の任意のエージェントに、RushDBでのクエリ、モデリング、記憶を1コマンドで教えられます                              |
-| **統一クエリAPI**              | グラフ、ベクトル、集計、イントロスペクションを1つのJSON形状で                                                                                                             |
-| **セルフホストまたはクラウド** | Docker + 自前のNeo4j、またはマネージドクラウド。完全なデータ所有権                                                                                                        |
+| インターフェース | デフォルト | 有効化 |
+|---|---|---|
+| HTTP ネイティブプロトコル | `127.0.0.1:3000`、`POST /protocol/v1/execute` | 常に有効 |
+| PostgreSQL ワイヤプロトコル | `127.0.0.1:5432` | `sql` 有効時（デフォルト） |
+| gRPC（`rushdb.v1.Database/Execute`） | 無効 | `--grpc-port` |
+| Bolt 5.0 | 無効 | `--bolt-port` と `cypher` |
 
----
+[JavaScript](https://www.npmjs.com/package/@rushdb/javascript-sdk) と [Python](https://pypi.org/project/rushdb/) の SDK、[MCP サーバー](https://www.npmjs.com/package/@rushdb/mcp-server)、[エージェントスキル](https://github.com/rush-db/skills)は、ダイレクトモードでセルフホストのエンジンと連携します。
 
-## ユースケース
+## セルフホストのエンジンと RushDB Cloud
 
-| ユースケース               | RushDBが置き換えるもの            | 主要API                                                               |
-| -------------------------- | --------------------------------- | --------------------------------------------------------------------- |
-| **エージェントメモリ**     | Redis + ベクトルストア + グラフDB | `db.records.vectorSearch({ query, where: { agent_id } })`             |
-| **コンテキスト付きRAG**    | フラットなベクトルストア          | `db.records.find({ where, labels })` + リレーションシップトラバーサル |
-| **スキーマフリーアプリ**   | Postgres + マイグレーション + ETL | `db.records.importJson(nestedJson)`                                   |
-| **コネクテッドデータ製品** | 複数の結合されたサービス          | `db.records.find({ labels, where: { SOME_LABEL: { ... } } })`         |
-
----
-
-## セルフホスティング
-
-> **セルフホストの方法** — 自前のインフラでRushDBを実行します。APOCプラグイン付きのNeo4j 2026.01.4以降が必要です。
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  rushdb:
-    image: rushdb/platform
-    ports:
-      - '3000:3000'
-    environment:
-      - NEO4J_URL=neo4j+s://your-instance.neo4j.io
-      - NEO4J_USERNAME=neo4j
-      - NEO4J_PASSWORD=password
-      - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
-      - RUSHDB_LOGIN=admin
-      - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
-```
-
-<details>
-<summary>環境変数の一覧</summary>
-
-| 名前                              | 説明                                               | 必須       | デフォルト |
-| --------------------------------- | -------------------------------------------------- | ---------- | ---------- |
-| `NEO4J_URL`                       | Neo4j接続URL                                       | はい       | —          |
-| `NEO4J_USERNAME`                  | Neo4jユーザー名                                    | はい       | neo4j      |
-| `NEO4J_PASSWORD`                  | Neo4jパスワード                                    | はい       | —          |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | APIトークン暗号化用の32文字キー                    | はい(本番) | —          |
-| `RUSHDB_PORT`                     | HTTPポート                                         | いいえ     | 3000       |
-| `RUSHDB_LOGIN`                    | 管理者ログイン                                     | いいえ     | admin      |
-| `RUSHDB_PASSWORD`                 | 管理者パスワード                                   | いいえ     | password   |
-| `RUSHDB_BASE_URL`                 | synx割り当て用のパブリック/ベースAPI URL           | いいえ     | —          |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | マネージドsynxワーカー用の内部トークン             | いいえ     | —          |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | synxデスティネーション書き込み用の内部書き込みキー | いいえ     | —          |
-
-マネージドsynxワーカーはデーモンとして実行されます。実行可能なコネクタをポーリングし、コネクタのリースを更新し、グレースフルシャットダウン時にリースを解放し、クラッシュ後にplatform/coreが期限切れのリースを回収できるようにします。
-
-</details>
-
-<details>
-<summary>ローカル開発（バンドルされたNeo4j）</summary>
-
-```yaml
-version: '3.8'
-services:
-  rushdb:
-    image: rushdb/platform
-    depends_on:
-      neo4j:
-        condition: service_healthy
-    ports:
-      - '3000:3000'
-    environment:
-      - NEO4J_URL=bolt://neo4j
-      - NEO4J_USERNAME=neo4j
-      - NEO4J_PASSWORD=password
-  neo4j:
-    image: neo4j:2026.01.4
-    healthcheck:
-      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider localhost:7474 || exit 1']
-      interval: 5s
-      retries: 30
-      start_period: 10s
-    ports:
-      - '7474:7474'
-      - '7687:7687'
-    environment:
-      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
-      - NEO4J_AUTH=neo4j/password
-    volumes:
-      - ./neo4j-plugins:/var/lib/neo4j/plugins
-```
-
-</details>
-
-```bash
-# Manage users via CLI
-rushdb create-user admin@example.com securepassword123
-rushdb update-password admin@example.com newsecurepassword456
-```
-
-<details>
-<summary>アーキテクチャ：RushDBはどのようにデータを構造化するか（LMPG）</summary>
-
-RushDBは**Labeled Meta Property Graph (LMPG)** モデルを使用します。プロパティはファーストクラスのグラフノード（「HyperProperties」）に昇格されます — レコードに付随する単なるキーバリューペアではありません。
-
-これが意味すること：
-
-- **事前設計なしのスキーマ** — プロパティがグラフノードであるため、スキーマは*設計されるのではなく、データから推論されます*。ラベル、型、値の範囲、リレーションシップのトポロジーが書き込み時に発見され、即座にクエリ可能になります — 手作業のスキーマモデリングも、RDF/OWLツールチェーンも不要です
-- **自動検出されるリレーションシップ** — プロパティを共有するレコードは、エッジを手作りすることなくリンクされます
-- **スキーマイントロスペクション** — エージェントは、ラベル、プロパティ型、値の範囲、リレーションシップのトポロジーを1つのクエリで列挙できます
-- **ソフト制約** — 厳格な事前スキーマなしでの型凝集度スコアリング、カーディナリティ追跡、ベクトル次元の強制
-- **統一クエリサーフェス** — 同じフィルタ式が、レコード、ラベル、プロパティ、リレーションシップにわたって機能します
-
-1つのSearchQueryで複数の視点を同時に取得できます（レコード + プロパティ統計 + 集計）。これにより、別々のシステムアーキテクチャでよく見られるN+1の検査パターンを回避できます。
-
-[LMPGアーキテクチャの記事全文を読む →](https://rushdb.com/blog/labeled-meta-property-graphs-rushdb-s-revolutionary-approach-to-graph-database-architecture)
-
-</details>
-
----
+このエンジンは RushDB のうちセルフホストできる部分です。埋め込みの生成、ダッシュボードの提供、ユーザー管理は行いません。それらは [RushDB Cloud](https://app.rushdb.com) が提供します。RushDB Cloud はこのエンジンを運用するマネージドサービスで、ダッシュボード、マネージド埋め込み、AI 機能（自然言語検索、関係パターンの提案）を加えます。SDK と MCP サーバーはどちらとも使えます。RushDB Cloud の API キーを渡すか、エンジンに直接向けてください（`direct: true`、`engineUrl`）。その場合 Cloud 専用機能以外はすべて使え、Cloud 専用機能は `CloudOnlyError` で拒否されます。
 
 ## ドキュメント
 
-| トピック                      | リンク                                                         |
-| ----------------------------- | -------------------------------------------------------------- |
-| クイックチュートリアル        | https://docs.rushdb.com/get-started/quick-tutorial             |
-| ベクトル / セマンティック検索 | https://docs.rushdb.com/concepts/search/where#vector-operators |
-| フィルタリングとトラバーサル  | https://docs.rushdb.com/concepts/search/where                  |
-| グループ化と集計              | https://docs.rushdb.com/concepts/search/group-by               |
-| TypeScript SDK                | https://docs.rushdb.com/typescript-sdk/introduction            |
-| Python SDK                    | https://docs.rushdb.com/python-sdk/introduction                |
-| REST API                      | https://docs.rushdb.com/rest-api/introduction                  |
-| MCPサーバー                   | packages/mcp-server/README.md                                  |
-| エージェントスキル            | packages/skills/README.md                                      |
+- [マニュアル](docs/manual/README.md)：はじめに、データモデル、クエリ、言語、検索、運用、リファレンス。
+- [docs.rushdb.com](https://docs.rushdb.com)：チュートリアル、SDK、MCP サーバー。
+- [RushDB 2.x からのアップグレード](docs/manual/operations/upgrading-from-2x.md)：2.x は Neo4j ベースの構成で、このリポジトリの `v2` タグに残っています。
 
----
+## コントリビュート
 
-## RushDBを使うべきでない場合
-
-- 非常に高い書き込みスループットでサブミリ秒のレイテンシが必要な場合 — RushDBはNeo4j上に構築されており、生の書き込み速度よりも一貫性とクエリの表現力を優先します。
-- リレーションシップやセマンティック検索のないフラットなキーバリューストレージだけが必要な場合 — よりシンプルなストアのほうが軽量です。
-- データベースレベルで強制される厳格なリレーショナルスキーマが必要な場合 — RushDBは意図的にスキーマフリーです。
-
----
-
-## コントリビューション
+[CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。品質ゲート：
 
 ```bash
-git clone https://github.com/rush-db/rushdb.git
-cd rushdb
-pnpm install
-pnpm test
+cargo test --workspace --no-fail-fast --locked
+cargo clippy --workspace --all-targets --locked
+cargo fmt --all -- --check
+scripts/check-quality-bar.sh
 ```
 
-完全なガイドラインについては[CONTRIBUTING.md](CONTRIBUTING.md)を参照してください。IssueやPRを歓迎します。
+- [セキュリティポリシー](SECURITY.md)
+- [リリース手順](RELEASING.md)
+- [行動規範](CODE_OF_CONDUCT.md)
+- [変更履歴](CHANGELOG.md)
 
----
-
-## ライセンス
-
-| パス                    | ライセンス          |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
-
----
-
-まだサポートされていない機能が必要ですか？Issueを開いてください — 設計に関する議論を歓迎します。
+[Apache-2.0](LICENSE) ライセンスで提供しています。

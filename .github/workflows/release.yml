@@ -1,290 +1,160 @@
-name: Release and Deploy
-
-# Nothing ships when a feature/fix branch lands on main. Shipping is triggered by
-# merging the changesets "version packages" PR, which is the only commit that
-# changes package.json versions — see .github/scripts/detect-version-bumps.mjs.
-#
-# Each artifact is versioned and shipped on its own:
-#   rushdb/platform    ← rushdb-core's version, rebuilt when core or dashboard bumps
-#   rushdb/mcp-server  ← @rushdb/mcp-server's version, rebuilt when it bumps
-#   npm packages       ← published by changesets when a public package bumps
-#
-# So a core-only patch redeploys the platform without touching npm, and an
-# sdk-only patch flows into both images via the dependent bumps changesets makes
-# (updateInternalDependencies: patch). Minor releases land on one shared version
-# for everything they touch (`linked` in .changeset/config.json).
+name: Release
 
 on:
   push:
-    branches:
-      - main
+    tags: ["v3.*"]
   workflow_dispatch:
     inputs:
-      force_platform:
-        description: 'Rebuild and redeploy rushdb/platform at its current version'
-        type: boolean
-        default: false
-      force_mcp:
-        description: 'Rebuild and redeploy rushdb/mcp-server at its current version'
+      tag:
+        description: "Existing v3.x.y tag to release"
+        required: true
+      publish:
+        description: "Publish crates after all dry runs pass"
         type: boolean
         default: false
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
   id-token: write
 
-# Releases must not overlap; a second push waits rather than cancelling a
-# half-finished publish/deploy.
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
-
-# Deploy target is Cobalt on the VM (zero-downtime blue/green).
-# Runtime env for core/mcp lives in AWS SSM (/rushdb/prod/{ci,core,mcp}); the
-# deploy jobs assume a read-only role via GitHub OIDC and fetch it at deploy time
-# (no static secrets in GitHub). See infra/docs/runbooks/secrets-ssm.md.
-
 jobs:
-  release:
-    name: Release
-    runs-on: ubuntu-latest
-    outputs:
-      platform_changed: ${{ steps.bumps.outputs.platform_changed }}
-      platform_version: ${{ steps.bumps.outputs.platform_version }}
-      mcp_changed: ${{ steps.bumps.outputs.mcp_image_changed }}
-      mcp_version: ${{ steps.bumps.outputs.mcp_version }}
-      sdk_version: ${{ steps.bumps.outputs.sdk_version }}
-      any_changed: ${{ steps.bumps.outputs.any_changed }}
-      published: ${{ steps.changesets.outputs.published }}
-      published_packages: ${{ steps.changesets.outputs.publishedPackages }}
-
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux binaries are built inside manylinux_2_28, so they run on
+          # glibc 2.28+ (RHEL 8, Debian 10, Ubuntu 18.10 and later).
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            manylinux: quay.io/pypa/manylinux_2_28_x86_64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            manylinux: quay.io/pypa/manylinux_2_28_aarch64
+          - os: macos-14
+            target: aarch64-apple-darwin
+          # The last Intel macOS runner image (supported until August 2027).
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    env:
+      ARCHIVE: rushdb-${{ matrix.target }}.tar.gz
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
-
-      # Runs before changesets so the working tree it may rewrite cannot affect
-      # the comparison (the script reads git objects, not the tree, either way).
-      - name: Detect version bumps
-        id: bumps
-        run: node .github/scripts/detect-version-bumps.mjs
-        env:
-          BASE_SHA: ${{ github.event.before }}
-          HEAD_SHA: ${{ github.sha }}
-          FORCE_PLATFORM: ${{ inputs.force_platform }}
-          FORCE_MCP: ${{ inputs.force_mcp }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+          ref: ${{ inputs.tag || github.ref }}
+      - run: mkdir -p dist
+      - name: Generate source dependency SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
-          version: 10.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build packages
-        run: pnpm --filter ./packages/javascript-sdk... --filter ./packages/agent-memory-contract... --filter ./packages/mcp-server... build
-
-      - name: Verify agent-memory-contract package
-        run: pnpm --filter ./packages/agent-memory-contract pack:check
-
-      - name: Setup .npmrc
+          path: .
+          format: spdx-json
+          output-file: dist/rushdb-${{ matrix.target }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Build (manylinux_2_28)
+        if: matrix.manylinux
         run: |
-          cat << EOF > ~/.npmrc
-          registry=https://registry.npmjs.org/
-          //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
-          access=public
-          always-auth=true
-          EOF
-
-      # Opens/updates the "version packages" PR when changesets are pending,
-      # publishes to npm when the versioned commit lands. `changeset publish`
-      # covers every public workspace package (sdk, memory contract, mcp-server, skills).
-      - name: Create Release PR or Publish
-        id: changesets
-        if: github.event_name == 'push'
-        uses: changesets/action@v1
+          docker run --rm -v "$PWD":/src -w /src "${{ matrix.manylinux }}" bash -euc '
+            curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            . "$HOME/.cargo/env"
+            cargo build --release --locked --target ${{ matrix.target }} -p rushdb-server --bins'
+          sudo chown -R "$(id -u):$(id -g)" target
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+        if: ${{ !matrix.manylinux }}
         with:
-          version: pnpm run version
-          publish: pnpm run release
-          commit: 'chore(release): version packages'
-          title: 'chore(release): version packages'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          toolchain: 1.98.1
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        if: ${{ !matrix.manylinux }}
+      - name: Build (macOS)
+        if: ${{ !matrix.manylinux }}
+        run: cargo build --release --locked --target ${{ matrix.target }} -p rushdb-server --bins
+      - name: Package
+        run: |
+          mkdir -p pkg out
+          cp target/${{ matrix.target }}/release/rushdb README.md LICENSE pkg/
+          tar -C pkg -czf "out/$ARCHIVE" rushdb README.md LICENSE
+          (cd out && shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256")
+          mv dist/rushdb-${{ matrix.target }}.spdx.json out/
+          ./scripts/capture-capabilities.sh target/${{ matrix.target }}/release/rushdb out/capabilities-${{ matrix.target }}.json
+      - name: Verify packaged release artifact
+        run: ./scripts/verify-release-artifact.sh "out/$ARCHIVE" "out/$ARCHIVE.sha256" "out/capabilities-${{ matrix.target }}.json"
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+      - name: Sign release evidence with GitHub OIDC
+        run: |
+          for artifact in \
+            "out/$ARCHIVE" \
+            "out/$ARCHIVE.sha256" \
+            "out/capabilities-${{ matrix.target }}.json" \
+            "out/rushdb-${{ matrix.target }}.spdx.json"; do
+            cosign sign-blob --yes --bundle "${artifact}.sigstore.json" "$artifact"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.target }}
+          path: out/*
 
-  platform-image:
-    name: Platform image
-    needs: release
-    if: needs.release.outputs.platform_changed == 'true'
-    uses: ./.github/workflows/docker-image.yml
-    with:
-      image: rushdb/platform
-      slug: platform
-      dockerfile: platform/Dockerfile
-      version: ${{ needs.release.outputs.platform_version }}
-      # Dashboard UI is served by core (RUSHDB_SERVE_STATIC=true); point its API
-      # calls at the API origin so app.rushdb.com calls api.rushdb.com.
-      build_args: |
-        VITE_BACKEND_BASE_URL=https://api.rushdb.com
-    secrets: inherit
-
-  mcp-image:
-    name: MCP image
-    needs: release
-    if: needs.release.outputs.mcp_changed == 'true'
-    uses: ./.github/workflows/docker-image.yml
-    with:
-      image: rushdb/mcp-server
-      slug: mcp-server
-      dockerfile: packages/mcp-server/Dockerfile
-      version: ${{ needs.release.outputs.mcp_version }}
-    secrets: inherit
-
-  deploy-core:
-    name: Deploy core to Cobalt
-    needs: [release, platform-image]
-    runs-on: ubuntu-latest
-    environment: production
-
+  # The one-line installer, run as users run it, on clean distributions.
+  install-test:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            images: debian:12 ubuntu:20.04 rockylinux:8 amazonlinux:2023 alpine:3 centos:7
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            images: debian:12 rockylinux:8 alpine:3
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4 # the local composite action is used below
-
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - id: ssm
-        name: Load config from SSM
-        run: |
-          set -euo pipefail
-          get(){ aws ssm get-parameters-by-path --with-decryption --recursive \
-                   --path "$1" --query 'Parameters[].[Name,Value]' --output text; }
-          while IFS=$'\t' read -r n v; do echo "${n##*/}=$v" >> "$GITHUB_OUTPUT"; done < <(get /rushdb/prod/ci)
-          jq -Rn '[inputs|split("\t")|{key:(.[0]|split("/")|last),value:.[1]}]|from_entries' < <(get /rushdb/prod/core) > core-env.json
-
-      - uses: tailscale/github-action@v4
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          oauth-client-id: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_SECRET }}
-          tags: ${{ steps.ssm.outputs.TS_OAUTH_TAGS }}
+          name: ${{ matrix.target }}
+          path: release
+      - run: ./scripts/test-install.sh release ${{ matrix.images }}
 
-      - name: Point the deploy endpoint at the tailnet
-        run: echo "${{ steps.ssm.outputs.DEPLOY_HOSTS_ENTRY }}" | sudo tee -a /etc/hosts >/dev/null
-
-      - name: Sync runtime env to Cobalt
-        env:
-          COBALT_URL: ${{ steps.ssm.outputs.COBALT_URL }}
-          COBALT_API_KEY: ${{ steps.ssm.outputs.COBALT_API_KEY }}
-        run: |
-          set -euo pipefail
-          body=$(jq -nc --argjson vars "$(cat core-env.json)" '{vars:$vars,redeploy:false}')
-          curl -fsS -X POST "$COBALT_URL/api/projects/core/env" \
-            -H "Authorization: Bearer $COBALT_API_KEY" \
-            -H 'Content-Type: application/json' \
-            -d "$body"
-          echo "runtime env synced to Cobalt (core)"
-
-      - name: Deploy core (zero-downtime blue/green)
-        uses: ./.github/actions/cobalt-deploy
-        with:
-          cobalt-url: ${{ steps.ssm.outputs.COBALT_URL }}
-          cobalt-api-key: ${{ steps.ssm.outputs.COBALT_API_KEY }}
-          project: core
-          image: ${{ needs.platform-image.outputs.image }}
-          port: 3000
-
-  deploy-mcp:
-    name: Deploy MCP server to Cobalt
-    needs: [release, mcp-image]
-    runs-on: ubuntu-latest
-    environment: production
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - id: ssm
-        name: Load config from SSM
-        run: |
-          set -euo pipefail
-          get(){ aws ssm get-parameters-by-path --with-decryption --recursive \
-                   --path "$1" --query 'Parameters[].[Name,Value]' --output text; }
-          while IFS=$'\t' read -r n v; do echo "${n##*/}=$v" >> "$GITHUB_OUTPUT"; done < <(get /rushdb/prod/ci)
-          jq -Rn '[inputs|split("\t")|{key:(.[0]|split("/")|last),value:.[1]}]|from_entries' < <(get /rushdb/prod/mcp) > mcp-env.json
-
-      - uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ steps.ssm.outputs.TS_OAUTH_CLIENT_SECRET }}
-          tags: ${{ steps.ssm.outputs.TS_OAUTH_TAGS }}
-
-      - name: Point the deploy endpoint at the tailnet
-        run: echo "${{ steps.ssm.outputs.DEPLOY_HOSTS_ENTRY }}" | sudo tee -a /etc/hosts >/dev/null
-
-      - name: Sync runtime env to Cobalt
-        env:
-          COBALT_URL: ${{ steps.ssm.outputs.COBALT_URL }}
-          COBALT_API_KEY: ${{ steps.ssm.outputs.COBALT_API_KEY }}
-        run: |
-          set -euo pipefail
-          body=$(jq -nc --argjson vars "$(cat mcp-env.json)" '{vars:$vars,redeploy:false}')
-          curl -fsS -X POST "$COBALT_URL/api/projects/mcp/env" \
-            -H "Authorization: Bearer $COBALT_API_KEY" \
-            -H 'Content-Type: application/json' \
-            -d "$body"
-          echo "runtime env synced to Cobalt (mcp)"
-
-      - name: Deploy mcp (zero-downtime blue/green)
-        uses: ./.github/actions/cobalt-deploy
-        with:
-          cobalt-url: ${{ steps.ssm.outputs.COBALT_URL }}
-          cobalt-api-key: ${{ steps.ssm.outputs.COBALT_API_KEY }}
-          project: mcp
-          image: ${{ needs.mcp-image.outputs.image }}
-          port: 3001
-
-  notify-content:
-    name: Notify content control plane
-    needs: [release, platform-image, mcp-image, deploy-core, deploy-mcp]
-    # Fires once the release has fully landed. A skipped artifact is fine (it had
-    # no version bump); a failed or cancelled one is not — and a failed image
-    # build must not slip through on the strength of its deploy being skipped.
-    if: |
-      always() &&
-      needs.release.outputs.any_changed == 'true' &&
-      !contains(fromJSON('["failure", "cancelled"]'), needs.platform-image.result) &&
-      !contains(fromJSON('["failure", "cancelled"]'), needs.mcp-image.result) &&
-      !contains(fromJSON('["failure", "cancelled"]'), needs.deploy-core.result) &&
-      !contains(fromJSON('["failure", "cancelled"]'), needs.deploy-mcp.result)
+  github-release:
+    needs: [package, install-test]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          merge-multiple: true
+      # A copy of the installer as of this release, next to its archives.
+      - run: cp install.sh dist/
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          draft: true
+          make_latest: "true"
+          generate_release_notes: true
+          files: dist/*
 
-      - name: Send signed release event
+  crates-dry-run:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+        with:
+          toolchain: 1.98.1
+      - run: ./scripts/publish-crates.sh --dry-run
+      - name: Publish verified library crates
+        if: inputs.publish
         env:
-          CONTENT_WEBHOOK_URL: ${{ secrets.CONTENT_WEBHOOK_URL }}
-          CONTENT_WEBHOOK_SECRET: ${{ secrets.CONTENT_WEBHOOK_SECRET }}
-          RELEASE_VERSION: ${{ needs.release.outputs.sdk_version || needs.release.outputs.platform_version }}
-          PLATFORM_VERSION: ${{ needs.release.outputs.platform_version }}
-          PUBLISHED_PACKAGES: ${{ needs.release.outputs.published_packages }}
-          RELEASE_SHA: ${{ github.sha }}
-          RELEASE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node .github/scripts/notify-content-release.mjs
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: ./scripts/publish-crates.sh --publish

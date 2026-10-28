@@ -1,64 +1,63 @@
-# RushDB Helm Chart
+# RushDB Helm chart
 
-[RushDB](https://rushdb.com) is a developer-friendly graph database platform built on Neo4j.
+Runs the RushDB engine as a single-node StatefulSet with a persistent volume,
+a Service for the HTTP and PostgreSQL wire listeners, and an optional Ingress
+for the HTTP API.
 
-## TL;DR
+## Install
 
 ```bash
 helm install rushdb oci://ghcr.io/rush-db/charts/rushdb \
-  --set rushdb.encryptionKey="$(openssl rand -hex 16)"
+  --set auth.token="$(openssl rand -hex 32)"
 ```
 
-## Prerequisites
-
-- Kubernetes 1.27+
-- Helm 3.12+
-
-## Installing the chart
+From a checkout of this repository:
 
 ```bash
-# With bundled Neo4j (default)
-helm install rushdb oci://ghcr.io/rush-db/charts/rushdb \
-  --set rushdb.encryptionKey="32SymbolStringHere00000000000000" \
-  --set rushdb.adminLogin=admin \
-  --set rushdb.adminPassword=changeme
-
-# Against an existing Neo4j
-helm install rushdb oci://ghcr.io/rush-db/charts/rushdb \
-  --set rushdb.encryptionKey="32SymbolStringHere00000000000000" \
-  --set neo4j.enabled=false \
-  --set rushdb.neo4jUrl=bolt://my-neo4j:7687 \
-  --set rushdb.neo4jPassword=password
+helm install rushdb ./charts/rushdb --set auth.token="$(openssl rand -hex 32)"
 ```
 
-## Configuration
-
-See [values.yaml](./values.yaml) for the full reference.
-
-| Key                       | Description                                 | Default         |
-| ------------------------- | ------------------------------------------- | --------------- |
-| `rushdb.encryptionKey`    | **Required.** AES-256 key, exactly 32 chars | `""`            |
-| `rushdb.adminLogin`       | Admin username                              | `admin`         |
-| `rushdb.adminPassword`    | Admin password                              | `changeme`      |
-| `rushdb.sqlDbType`        | `sqlite` or `postgres`                      | `sqlite`        |
-| `rushdb.sqlDbUrl`         | PostgreSQL DSN (when `sqlDbType=postgres`)  | `""`            |
-| `rushdb.replicaCount`     | Pod replicas (use 1 with sqlite)            | `1`             |
-| `rushdb.ingress.enabled`  | Create an Ingress resource                  | `false`         |
-| `neo4j.enabled`           | Deploy bundled Neo4j                        | `true`          |
-| `neo4j.password`          | Neo4j password                              | `neo4jpassword` |
-| `neo4j.persistence.size`  | Neo4j data PVC size                         | `10Gi`          |
-| `rushdb.persistence.size` | SQLite data PVC size                        | `1Gi`           |
-
-## Upgrading
+Check it:
 
 ```bash
-helm upgrade rushdb oci://ghcr.io/rush-db/charts/rushdb -f values.yaml
+kubectl port-forward svc/rushdb 3000:3000
+curl http://127.0.0.1:3000/ready
 ```
 
-## Uninstalling
+Applications in the cluster reach `http://rushdb.<namespace>.svc:3000`, and
+PostgreSQL clients `rushdb.<namespace>.svc:5432` with the token as the
+password.
 
-```bash
-helm uninstall rushdb
-# PVCs are retained; delete them manually if desired:
-kubectl delete pvc -l app.kubernetes.io/instance=rushdb
-```
+## Values
+
+| Key | Default | Description |
+|---|---|---|
+| `auth.token` | `''` | Bootstrap token. Required unless `auth.existingSecret` is set. |
+| `auth.existingSecret` | `''` | Name of an existing Secret holding the token. |
+| `auth.existingSecretKey` | `token` | Key of the token in that Secret. |
+| `image.repository` | `rushdb/rushdb` | Image. |
+| `image.tag` | chart `appVersion` | Image tag. |
+| `server.languages` | `[]` | Enabled languages; empty keeps the default set (`sql`, `gremlin`, `sql-pgq`, `mongodb`). |
+| `server.multitenant` | `false` | Multitenant mode. Needs `pgwirePort`, `grpcPort` and `boltPort` set to `0`. |
+| `server.httpPort` | `3000` | HTTP port. |
+| `server.pgwirePort` | `5432` | PostgreSQL wire port; `0` turns it off. |
+| `server.grpcPort` | `0` | gRPC port; `0` is off. |
+| `server.boltPort` | `0` | Bolt port; `0` is off. Needs `cypher` in `server.languages`. |
+| `server.extraArgs` | `[]` | Further `rushdb serve` flags. |
+| `server.extraEnv` | `[]` | Further environment variables. |
+| `persistence.size` | `10Gi` | Volume size. |
+| `persistence.storageClass` | `''` | Storage class; empty uses the cluster default. |
+| `ingress.enabled` | `false` | Ingress for the HTTP API. |
+| `resources` | 250m / 512Mi requests, 4Gi memory limit | Container resources. |
+| `terminationGracePeriodSeconds` | `90` | Time for a clean stop. |
+
+## Notes
+
+- **One replica.** One node owns one data directory. For read replicas, see
+  [Replication](../../docs/manual/operations/replication.md).
+- **Settings live in the volume.** On first start the engine writes
+  `config.yml` into `/data`; afterwards a flag that disagrees with it is a
+  startup error. Change stored settings by editing that file.
+- **Plaintext listeners.** PostgreSQL wire, gRPC and Bolt have no TLS. Keep
+  them inside the cluster; the Ingress exposes HTTP only.
+- The pod runs as uid 65532 with a read-only root filesystem.

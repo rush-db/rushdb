@@ -1,150 +1,27 @@
-{{/*
-Expand the name of the chart.
-*/}}
-{{- define "rushdb.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this.
-*/}}
 {{- define "rushdb.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
-{{- end }}
-
-{{/*
-Fully qualified name for bundled Neo4j resources.
-*/}}
-{{- define "rushdb.neo4j.fullname" -}}
-{{- printf "%s-neo4j" (include "rushdb.fullname" .) | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{/*
-Create chart label.
-*/}}
-{{- define "rushdb.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{/*
-Common labels — RushDB platform.
-*/}}
-{{- define "rushdb.labels" -}}
-helm.sh/chart: {{ include "rushdb.chart" . }}
-{{ include "rushdb.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end }}
-
-{{/*
-Selector labels — RushDB platform.
-*/}}
-{{- define "rushdb.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "rushdb.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-Common labels — bundled Neo4j.
-*/}}
-{{- define "rushdb.neo4j.labels" -}}
-helm.sh/chart: {{ include "rushdb.chart" . }}
-{{ include "rushdb.neo4j.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end }}
-
-{{/*
-Selector labels — bundled Neo4j.
-*/}}
-{{- define "rushdb.neo4j.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "rushdb.neo4j.fullname" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-Fully qualified name for synx worker resources.
-*/}}
-{{- define "rushdb.synx.fullname" -}}
-{{- printf "%s-synx" (include "rushdb.fullname" .) | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{/*
-Common labels — synx worker.
-*/}}
-{{- define "rushdb.synx.labels" -}}
-helm.sh/chart: {{ include "rushdb.chart" . }}
-{{ include "rushdb.synx.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end }}
-
-{{/*
-Selector labels — synx worker.
-*/}}
-{{- define "rushdb.synx.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "rushdb.synx.fullname" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-Resolve the in-cluster platform/core URL used by synx managed mode.
-*/}}
-{{- define "rushdb.synx.coreUrl" -}}
-{{- if .Values.synx.coreUrl }}
-{{- .Values.synx.coreUrl }}
-{{- else }}
-{{- printf "http://%s:%d" (include "rushdb.fullname" .) (int .Values.rushdb.service.port) }}
-{{- end }}
-{{- end }}
-
-{{/*
-Resolve the Neo4j bolt URL for RushDB.
-When the bundled Neo4j is enabled, auto-wire the service DNS.
-Otherwise, use the user-supplied URL.
-*/}}
-{{- define "rushdb.neo4jUrl" -}}
-{{- if .Values.neo4j.enabled }}
-{{- printf "bolt://%s:%d" (include "rushdb.neo4j.fullname" .) (int .Values.neo4j.service.boltPort) }}
-{{- else }}
-{{- required "rushdb.neo4jUrl is required when neo4j.enabled=false" .Values.rushdb.neo4jUrl }}
-{{- end }}
-{{- end }}
-
-{{/*
-Resolve the Neo4j password for RushDB.
-*/}}
-{{- define "rushdb.neo4jPassword" -}}
-{{- if .Values.neo4j.enabled }}
-{{- .Values.neo4j.password }}
-{{- else }}
-{{- .Values.rushdb.neo4jPassword }}
-{{- end }}
-{{- end }}
-
-{{/*
-Resolve the Neo4j username for RushDB.
-*/}}
-{{- define "rushdb.neo4jUsername" -}}
-{{- if .Values.neo4j.enabled -}}
-neo4j
+{{- if contains .Chart.Name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
-{{- default "neo4j" .Values.rushdb.neo4jUsername }}
+{{- printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
-{{- end }}
+{{- end -}}
+
+{{- define "rushdb.selectorLabels" -}}
+app.kubernetes.io/name: {{ .Chart.Name }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{- define "rushdb.labels" -}}
+{{ include "rushdb.selectorLabels" . }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
+{{- end -}}
+
+{{- define "rushdb.secretName" -}}
+{{- if .Values.auth.existingSecret -}}
+{{- .Values.auth.existingSecret -}}
+{{- else -}}
+{{- include "rushdb.fullname" . -}}
+{{- end -}}
+{{- end -}}

@@ -1,0 +1,7 @@
+# Single source of truth for the toolchain used by local development and by
+# the lint/test/release CI jobs. Bump deliberately; the MSRV job in
+# `.github/workflows/ci.yml` separately checks the declared `rust-version`
+# (see `[workspace.package]` in Cargo.toml) with a `cargo check`.
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]

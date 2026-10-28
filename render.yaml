@@ -1,0 +1,21 @@
+# RushDB on Render: a web service from the published image with a persistent
+# disk. Render generates RUSHDB_TOKEN; read it in the service's Environment tab.
+# It sits at the repository root so the "Deploy to Render" button finds it.
+services:
+  - type: web
+    name: rushdb
+    runtime: image
+    image:
+      url: docker.io/rushdb/rushdb:3
+    # Disks need a paid instance type.
+    plan: starter
+    healthCheckPath: /ready
+    envVars:
+      - key: RUSHDB_TOKEN
+        generateValue: true
+      - key: PORT
+        value: '3000'
+    disk:
+      name: rushdb-data
+      mountPath: /data
+      sizeGB: 10

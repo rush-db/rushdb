@@ -1,0 +1,159 @@
+name: Publish
+
+# Runs when a draft release from release.yml is published: packages the
+# release's verified Linux binaries as the container image, publishes the Helm
+# chart, and updates the Homebrew tap. Nothing here rebuilds the engine.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published v3.x.y release to (re)publish"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    env:
+      DOCKERHUB_USERNAME: ${{ vars.DOCKER_HUB_USERNAME }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: Download and check the Linux archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir release \
+            --pattern 'rushdb-*-unknown-linux-gnu.tar.gz' --pattern 'rushdb-*-unknown-linux-gnu.tar.gz.sha256'
+          (cd release && sha256sum -c ./*.sha256)
+          for pair in amd64:x86_64 arm64:aarch64; do
+            mkdir -p "image/bin/${pair%%:*}"
+            tar -xzf "release/rushdb-${pair##*:}-unknown-linux-gnu.tar.gz" -C "image/bin/${pair%%:*}" rushdb
+          done
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        if: env.DOCKERHUB_USERNAME != ''
+        with:
+          username: ${{ vars.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: |
+            ghcr.io/${{ github.repository_owner }}/rushdb
+            name=rushdb/rushdb,enable=${{ env.DOCKERHUB_USERNAME != '' }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.TAG }}
+            type=semver,pattern={{major}},value=${{ env.TAG }}
+          labels: |
+            org.opencontainers.image.title=rushdb
+            org.opencontainers.image.description=RushDB property graph database server
+            org.opencontainers.image.licenses=Apache-2.0
+      # Smoke-test both architectures before anything is pushed.
+      - name: Build for testing
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: image
+          file: Dockerfile
+          build-args: BINARIES=prebuilt
+          platforms: linux/amd64
+          load: true
+          tags: rushdb:test
+      - run: ./scripts/smoke-image.sh rushdb:test
+      - name: Build arm64 for testing
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: image
+          file: Dockerfile
+          build-args: BINARIES=prebuilt
+          platforms: linux/arm64
+          load: true
+          tags: rushdb:test-arm64
+      - name: Run the arm64 binaries (emulated)
+        run: |
+          docker run --rm --platform linux/arm64 --entrypoint /usr/local/bin/rushdb rushdb:test-arm64 --version
+          docker run --rm --platform linux/arm64 rushdb:test-arm64 --version
+      - id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: image
+          file: Dockerfile
+          build-args: BINARIES=prebuilt
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+      - name: Sign the image
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          for image in $(printf '%s\n' "$TAGS" | sed 's/:[^:]*$//' | sort -u); do
+            cosign sign --yes "$image@$DIGEST"
+          done
+
+  # The chart is versioned with the engine: version and appVersion come from
+  # the tag, so `helm install` pulls the image of the same release.
+  chart:
+    needs: image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+      - name: Package and push to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${TAG#v}"
+          helm package charts/rushdb --version "$version" --app-version "$version" --destination chart
+          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+          helm push "chart/rushdb-$version.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
+
+  homebrew:
+    runs-on: ubuntu-24.04
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        with:
+          ref: ${{ env.TAG }}
+      - name: Update the tap
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir checksums --pattern '*.tar.gz.sha256'
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${{ github.repository_owner }}/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          ./scripts/homebrew-formula.sh "$TAG" checksums > tap/Formula/rushdb.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/rushdb.rb
+          git diff --cached --quiet || git commit -m "rushdb ${TAG#v}"
+          git push

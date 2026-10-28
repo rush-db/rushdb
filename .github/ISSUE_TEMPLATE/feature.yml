@@ -1,0 +1,13 @@
+name: Engine feature
+description: Propose a database capability with concrete semantics.
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: Problem and proposed behavior
+      description: Include data-model, protocol, query, durability, tenancy, and compatibility implications where relevant.
+    validations: { required: true }
+  - type: textarea
+    attributes:
+      label: Alternatives considered
+    validations: { required: false }

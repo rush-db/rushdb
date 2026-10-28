@@ -1,0 +1,29 @@
+#cloud-config
+# RushDB on a fresh Linux VM: paste this file as "user data" when you create
+# the machine (DigitalOcean Droplet, Hetzner Cloud, AWS EC2, Google Compute
+# Engine, Azure, Vultr, Linode, ...) running Ubuntu or Debian.
+#
+# It installs the `rushdb` binary, creates a `rushdb` system user and
+# /var/lib/rushdb, writes /etc/rushdb/rushdb.env with a random token, and runs
+# the server under systemd (deploy/templates/systemd/rushdb.service).
+#
+# The node listens on 127.0.0.1 only. Reach it through an SSH tunnel
+# (ssh -L 3000:127.0.0.1:3000 you@host) or put a TLS proxy in front; see
+# docs/manual/operations/security.md before binding a public address.
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - openssl
+
+runcmd:
+  - [sh, -c, 'curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh | sh -s -- --dir /usr/local/bin --no-modify-path']
+  - [sh, -c, 'id -u rushdb >/dev/null 2>&1 || useradd --system --home /var/lib/rushdb --shell /usr/sbin/nologin rushdb']
+  - [install, -d, -o, rushdb, -g, rushdb, -m, '0750', /var/lib/rushdb]
+  - [install, -d, -m, '0750', /etc/rushdb]
+  - [sh, -c, 'test -f /etc/rushdb/rushdb.env || (umask 077 && printf "RUSHDB_TOKEN=%s\nRUSHDB_DATA_DIR=/var/lib/rushdb\n" "$(openssl rand -hex 32)" > /etc/rushdb/rushdb.env)']
+  - [curl, -fsSL, -o, /etc/systemd/system/rushdb.service, 'https://raw.githubusercontent.com/rush-db/rushdb/main/deploy/templates/systemd/rushdb.service']
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, rushdb]
+
+final_message: 'RushDB is running on 127.0.0.1:3000 (rushdb health). The token is in /etc/rushdb/rushdb.env; logs: journalctl -u rushdb.'

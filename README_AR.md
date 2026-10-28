@@ -1,22 +1,19 @@
-<div align="center">
+<div align="center" dir="rtl">
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
 # RushDB
 
-### طبقة الذاكرة لوكلاء وتطبيقات الذكاء الاصطناعي.
+### قاعدة بيانات واحدة لسجلاتك وعلاقاتها والبحث فيها.
 
-ادفع أي JSON. يحصل وكيلك على مخطط حيّ قابل للاستعلام، وعلاقات رسم بياني، وبحث دلالي — يُستنتج تلقائيًا.
-لا خطوط معالجة. لا مخازن منفصلة. لا مخطط لتصميمه.
+اكتب JSON. يستنتج RushDB الأنواع، ويربط الكائنات المتداخلة في رسم بياني، ويتيح لك الاستعلام عنه بلغة الاستعلام JSON الخاصة به أو SQL أو Cypher أو Gremlin أو مستندات بنمط Mongo، إلى جانب البحث المتجهي والنصي الكامل والهجين. ملف تنفيذي واحد مكتوب بلغة Rust، ومجلد بيانات واحد، وترخيص Apache-2.0.
 
+[![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?branch=main&label=CI)](https://github.com/rush-db/rushdb/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
-[![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
-[![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
-[![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
+[![Follow on X](https://img.shields.io/twitter/follow/RushDatabase?style=social)](https://x.com/RushDatabase)
 
-[🌐 Website](https://rushdb.com) • [📖 Documentation](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 Examples](https://github.com/rush-db/examples)
+[الموقع](https://rushdb.com) • [التوثيق](https://docs.rushdb.com) • [الدليل](docs/manual/README.md) • [RushDB Cloud](https://app.rushdb.com) • [النشر](deploy/README.md)
 
 [English](README.md) • [中文](README_ZH.md) • [日本語](README_JA.md) • [한국어](README_KO.md) • [Deutsch](README_DE.md) • [Français](README_FR.md) • [Português](README_PT.md) • [Español](README_ES.md) • [हिन्दी](README_HI.md) • **العربية** • [Bahasa Indonesia](README_ID.md) • [ไทย](README_TH.md)
 
@@ -26,477 +23,194 @@
 
 <div dir="rtl">
 
-## المشكلة
-
-يحتاج وكيلك إلى ذاكرة. الإجابة المعتادة هي ثلاث قواعد بيانات: Redis للمفتاح-القيمة، ومخزن متجهات للبحث الدلالي، وقاعدة بيانات رسم بياني للعلاقات — بالإضافة إلى شيفرة ربط للحفاظ على تزامنها.
-
-يستبدل RushDB الثلاثة جميعًا. ادفع JSON مرة واحدة. استعلم عنه بالتنقل في الرسم البياني، أو البحث الدلالي، أو كليهما — في استدعاء واحد.
-
-</div>
-
-| بدون RushDB                              | مع RushDB                        |
-| ---------------------------------------- | -------------------------------- |
-| Redis + Pinecone + Neo4j + شيفرة ربط     | واجهة برمجة تطبيقات واحدة        |
-| تصميم المخطط ← كتابة الترحيلات ← التكرار | ادفع أي شكل، دون الحاجة إلى مخطط |
-| خط معالجة تضمين منفصل                    | تضمينات مُدارة، على جانب الخادم  |
-| صياغة حواف العلاقات يدويًا               | اكتشاف تلقائي من بنية بياناتك    |
-
----
-
-<div dir="rtl">
-
-## بداية سريعة
-
-مساران حسب إعدادك:
-
-- **السحابة (Cloud)** — مُدارة، طبقة مجانية، تعمل خلال 30 ثانية. [احصل على مفتاح API ←](https://app.rushdb.com)
-- **الاستضافة الذاتية** — Docker + نسخة Neo4j الخاصة بك. [انتقل إلى الاستضافة الذاتية ←](#self-hosting)
-
-### مسار السحابة
+## البدء السريع
 
 </div>
 
 ```bash
-npm install @rushdb/javascript-sdk
-# or
-pip install rushdb
+curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh | sh
+rushdb up
 ```
 
 <div dir="rtl">
 
-### تخزين واسترجاع ذاكرة الوكيل
+يتحقق السكربت من المجموع الاختباري للإصدار (ومن توقيع Sigstore إذا كان `cosign` مثبتًا)، ثم يثبّت الملف التنفيذي `rushdb` في `~/.rushdb/bin`. يشغّل الأمر `rushdb up` عقدة دائمة على `http://127.0.0.1:3000`، وتُحفظ بياناتها في `./.rushdb`، والرمز المحلي هو `local-token`.
+
+اكتب مستند JSON متداخلًا. يصبح كل كائن متداخل سجلًا مستقلًا مرتبطًا بأصله:
+
+</div>
+
+```bash
+export RUSHDB_TOKEN=local-token
+curl -s http://127.0.0.1:3000/protocol/v1/execute \
+  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"protocolVersion":1,"operation":{"kind":"ingest","ingest":{"kind":"documents","label":"COMPANY",
+       "documents":{"name":"Acme","DEPARTMENT":[
+         {"name":"Engineering","headcount":12,"EMPLOYEE":[{"name":"Ada","role":"Staff Engineer"},{"name":"Linus","role":"Engineer"}]},
+         {"name":"Sales","headcount":4,"EMPLOYEE":[{"name":"Grace","role":"Account Executive"}]}]}}}}'
+```
+
+<div dir="rtl">
+
+ثم ابحث عن مهندسي Acme. يعبر المرشّح العلاقات بذكر أسماء التسميات المرتبطة:
+
+</div>
+
+```bash
+curl -s http://127.0.0.1:3000/protocol/v1/execute \
+  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"protocolVersion":1,"operation":{"kind":"query","query":{"kind":"records","query":{
+       "labels":["EMPLOYEE"],
+       "predicate":{"role":{"$contains":"Engineer"},"DEPARTMENT":{"COMPANY":{"name":"Acme"}}}}}}}'
+```
+
+<div dir="rtl">
+
+تابع مع [دليل البدء السريع](docs/manual/getting-started/quickstart.md).
+
+## استعلم بالطريقة التي تناسبك
+
+السجلات نفسها متاحة عبر كل واجهة.
+
+**SQL** عبر بروتوكول PostgreSQL، باستخدام `psql` أو أي برنامج تشغيل لـ PostgreSQL. التسميات هي الجداول:
+
+</div>
+
+```bash
+PGPASSWORD=$RUSHDB_TOKEN psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+  -c "SELECT name, headcount FROM department ORDER BY headcount DESC"
+```
+
+<div dir="rtl">
+
+**Cypher** عبر HTTP، أو عبر Bolt باستخدام برامج تشغيل Neo4j (`rushdb up --languages sql,cypher --bolt-port 7687`):
+
+</div>
+
+```cypher
+MATCH (d:DEPARTMENT)-->(e:EMPLOYEE)
+RETURN d.name AS department, count(e) AS people ORDER BY people DESC
+```
+
+<div dir="rtl">
+
+**حزم SDK** في الوضع المباشر (`npm install @rushdb/javascript-sdk`):
 
 </div>
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('RUSHDB_API_KEY')
+const db = new RushDB(process.env.RUSHDB_TOKEN, { direct: true, engineUrl: 'http://127.0.0.1:3000' })
 
-// One-time: tell RushDB to auto-embed 'output' on every write
-await db.ai.indexes.create({ label: 'MEMORY', propertyName: 'output' })
-
-// Store an agent action — no embedder, no vectors array
-await db.records.create({
-  label: 'MEMORY',
-  data: {
-    agent_id: 'agent-42',
-    session_id: 'sess-001',
-    action: 'summarized',
-    topic: 'Q4 results',
-    output: summaryText
-  }
-})
-
-// Recall by meaning — graph filter + semantic search in one call
-const memories = await db.records.vectorSearch({
-  labels: ['MEMORY'],
-  propertyName: 'output',
-  query: 'what did we decide about Q4?',
-  where: { agent_id: 'agent-42' },
-  limit: 10
-})
-```
-
-```python
-from rushdb import RushDB
-
-db = RushDB('RUSHDB_API_KEY')
-
-# Store — graph links sessions, actions, and context automatically
-db.records.create(
-    label='MEMORY',
-    data={
-        'agent_id': 'agent-42',
-        'action': 'summarized',
-        'topic': 'Q4 results',
-        'output': summary_text,
-    },
-)
-
-# Recall — traverse relationships and filter by meaning
-results = db.records.find({
-    'labels': ['MEMORY'],
-    'where': {
-        'agent_id': 'agent-42',
-        'topic': {'$contains': 'Q4'},
-    },
-    'limit': 10,
-})
-```
-
----
-
-<div dir="rtl">
-
-## التعامل مع بياناتك
-
-### استيراد JSON المتداخل
-
-ادفع أي شكل من JSON. تتحوّل الكائنات المتداخلة ومصفوفات الكائنات إلى سجلات مرتبطة — تُستنتج التسميات والأنواع والعلاقات عند الكتابة. لا مخطط، لا خطوة ترحيل.
-
-</div>
-
-```typescript
-await db.records.importJson({
-  label: 'COMPANY',
-  data: {
-    name: 'Acme Corp',
-    DEPARTMENT: [
-      {
-        name: 'Engineering',
-        budget: 2_000_000,
-        EMPLOYEE: [
-          { name: 'Alice', role: 'Staff Engineer', salary: 210_000 },
-          { name: 'Bob', role: 'Engineer', salary: 160_000 }
-        ]
-      }
-    ]
-  }
-})
-```
-
-<div dir="rtl">
-
-يصبح كل مفتاح متداخل (`DEPARTMENT`، `EMPLOYEE`) تسمية، وكل كائن سجلًا، ويصبح الاحتواء علاقة — كلها تُنشأ تلقائيًا.
-
-### استيراد CSV
-
-</div>
-
-```typescript
-const csv = `name,email,department
-Alice,alice@acme.co,Engineering
-Bob,bob@acme.co,Sales`
-
-await db.records.importCsv({
-  label: 'EMPLOYEE',
-  data: csv,
-  options: { suggestTypes: true, skipEmptyValues: true },
-  parseConfig: { header: true }
-})
-```
-
-<div dir="rtl">
-
-يستنتج `suggestTypes` الأرقام والقيم المنطقية والتواريخ من السلاسل النصية؛ ويعامل `skipEmptyValues` الخلايا الفارغة على أنها غير محدّدة بدلًا من تخزين قيم فارغة (تُحفظ `0` و`false`).
-
-### التنقل في الرسم البياني
-
-رشّح السجلات الجذرية بشروط على سجلاتها _المرتبطة_ — بأي عمق كان — في استعلام واحد. توضع التسميات المرتبطة **داخل** `where`، وليس في `labels`:
-
-</div>
-
-```typescript
-// Engineers in Acme's Engineering department
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
-  where: {
-    role: { $contains: 'Engineer' },
-    DEPARTMENT: {
-      name: 'Engineering',
-      COMPANY: { name: 'Acme Corp' }
-    }
-  }
+  where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
+  orderBy: { name: 'asc' }
 })
+console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
 ```
 
 <div dir="rtl">
 
-### الاستعلامات التحليلية (التجميع والتجميع حسب)
+تستخدم Gremlin و SQL/PGQ `GRAPH_TABLE` والمستندات بنمط Mongo و ISO GQL نقطة HTTP نفسها. راجع [لغات الاستعلام](docs/manual/languages/README.md).
 
-يشكّل `select` المخرجات بعمليات التجميع (`$sum`، `$avg`، `$count`، `$min`، `$max`)؛ ويتحكم `groupBy` في الأبعاد. لا تُضِف `limit` إلى عملية تجميع — فهي ستفحص أول N سجلات فقط وتشوّه الإجماليات.
+## ماذا يقدّم
 
-</div>
+| الإمكانية | المعنى |
+|---|---|
+| **لا مخطط لتصميمه** | اكتب JSON بأي شكل. تُستنتج الأنواع لكل قيمة، وتصبح الكائنات المتداخلة سجلات مترابطة، ويحتفظ المحرك بفهرس دقيق قابل للاستعلام للتسميات والخصائص والعلاقات. |
+| **الخصائص عناصر من الدرجة الأولى** | يخزّن Labeled Meta-Property Graph (LMPG) كل خاصية كتعريف ذي نوع تتشاركه السجلات التي تستخدمها، لذا يأتي اكتشاف المخطط ونطاقات القيم والتصنيفات من بنية التخزين نفسها. |
+| **لغات استعلام متعددة** | لغة استعلام JSON أصلية، و SQL، و Gremlin، و SQL/PGQ، ومستندات بنمط Mongo، و openCypher و ISO GQL كإصدارات مرشحة. |
+| **البحث** | فهارس متجهية (دقيقة و HNSW) على المتجهات التي تقدّمها، وفهارس نصية كاملة BM25، وبحث هجين يجمع بينهما. |
+| **دائم ويدعم المعاملات** | سجل كتابة مسبقة، ولقطات MVCC، ومعاملات متعددة الجمل، ونسخ احتياطية مع الاستعادة إلى نقطة زمنية، ونسخ متدفق إلى تابعين للقراءة فقط. |
+| **بروتوكولات قياسية** | HTTP وبروتوكول PostgreSQL و gRPC و Bolt من عملية واحدة. |
+| **تعدد المستأجرين** | مستأجرون اختياريون بنمط الإغلاق عند الفشل، لكل منهم مساحة مفاتيح خاصة. |
+| **ملف تنفيذي واحد** | يشغّل `rushdb serve` الخادم، ويشغّل `rushdb up` عقدة محلية. لا خدمة أخرى لتشغيلها. |
 
-```typescript
-// Portfolio KPIs across ALL projects → one row
-const kpis = await db.records.find({
-  labels: ['PROJECT'],
-  select: {
-    totalBudget: { $sum: '$record.budget' },
-    avgBudget: { $avg: '$record.budget', $precision: 2 },
-    projectCount: { $count: '*' }
-  },
-  groupBy: ['totalBudget', 'avgBudget', 'projectCount'],
-  orderBy: { totalBudget: 'asc' } // late-ordering → aggregates the full dataset
-})
-// → [{ totalBudget: 18_750_000, avgBudget: 568181.82, projectCount: 33 }]
+## النشر
 
-// Breakdown by dimension → one row per status
-const byStatus = await db.records.find({
-  labels: ['PROJECT'],
-  select: { count: { $count: '*' }, avgBudget: { $avg: '$record.budget', $precision: 2 } },
-  groupBy: ['$record.status'],
-  orderBy: { count: 'desc' }
-})
-// → [{ status: 'active', count: 18, avgBudget: 612000 }, { status: 'paused', count: 9, ... }]
-```
-
-<div dir="rtl">
-
-تتكامل عمليات التجميع مع التنقل — مثلًا عدد الموظفين وكشف الرواتب لكل قسم:
+| أين | كيف |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb` |
+| Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/)، مع نسخة HTTPS خلف Caddy |
+| Kubernetes | [Helm chart](charts/rushdb/): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
+| آلة Linux افتراضية | [cloud-init](deploy/templates/cloud-init/) لـ DigitalOcean و Hetzner و AWS و GCP و Azure؛ [وحدة systemd](deploy/templates/systemd/) |
+| المنصات | [Fly.io](deploy/templates/fly/)، [Render](deploy/templates/render/)، [Coolify](deploy/templates/coolify/)، [Dokploy](deploy/templates/dokploy/) |
 
 </div>
 
-```typescript
-const payroll = await db.records.find({
-  labels: ['DEPARTMENT'],
-  where: { EMPLOYEE: { $alias: '$emp' } }, // alias the related node for use in select
-  select: {
-    headcount: { $count: '*' },
-    payroll: { $sum: '$emp.salary' }
-  },
-  groupBy: ['$record.name'],
-  orderBy: { payroll: 'desc' }
-})
-// → [{ name: 'Engineering', headcount: 2, payroll: 370000 }, ...]
-```
-
----
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
 
 <div dir="rtl">
 
-## الاتصال بـ Claude أو Cursor أو أي عميل MCP
+### طرق أخرى للتثبيت
 
-يأتي RushDB مع خادم MCP. يحصل وكيلك على ذاكرة دائمة ومنظّمة — جاهزة فور الاستخدام.
+| الطريقة | الأمر | ملاحظات |
+|---|---|---|
+| سكربت التثبيت | `curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh \| sh` | Linux (glibc 2.28+) و macOS، x86-64 و arm64. يثبّت `sh -s -- --version v3.0.0` إصدارًا محددًا. |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS و Linux. يشغّله `brew services start rushdb` في الخلفية. |
+| Docker | `rushdb/rushdb` | `linux/amd64` و `linux/arm64`؛ وأيضًا `ghcr.io/rush-db/rushdb`. |
+| Cargo | `cargo binstall rushdb-server` أو `cargo install rushdb-server --locked` | يجلب `binstall` الملف التنفيذي المنشور؛ ويبني `install` من المصدر (يحتاج مترجم C++). |
+| أرشيف الإصدار | [GitHub releases](https://github.com/rush-db/rushdb/releases) | أرشيفات مع مجاميع SHA-256 الاختبارية و SBOM وتواقيع Sigstore. |
+| المصدر | `cargo build --release -p rushdb-server --bin rushdb` | راجع [التثبيت](docs/manual/getting-started/installation.md). |
 
-</div>
+لا يُدعم Windows بشكل أصلي؛ استخدم WSL 2 أو Docker. اقرأ [الأمان](docs/manual/operations/security.md) قبل كشف عقدة خارج الواجهة المحلية.
 
-```json
-{
-  "mcpServers": {
-    "rushdb": {
-      "command": "npx",
-      "args": ["@rushdb/mcp-server"],
-      "env": {
-        "RUSHDB_API_KEY": "your-api-key-here"
-      }
-    }
-  }
-}
-```
+## الحالة
 
-<div dir="rtl">
+| المجال | الحالة |
+|---|---|
+| البروتوكول الأصلي، SQL، اجتيازات Gremlin النصية، المستندات بنمط Mongo | مستقر |
+| SQL/PGQ `GRAPH_TABLE` | مستقر، للقراءة فقط |
+| openCypher و ISO GQL و Bolt | إصدار مرشح، يُفعَّل يدويًا: لا تنجح مجموعات اختبار المطابقة الخارجية بالكامل ([التفاصيل](docs/manual/languages/README.md)) |
+| بروتوكول PostgreSQL | قراءات SQL وكتابات بجملة واحدة؛ جرى التحقق باستخدام `psql` و node-postgres و psycopg و `tokio-postgres`، وليس مع كل عميل أو ORM |
+| النسخ المتماثل | تدفق غير متزامن إلى تابعين للقراءة فقط؛ الترقية يدوية بلا تجاوز فشل تلقائي |
+| Raft وتجزئة التخزين | معاينة، ليست للإنتاج: يعمل Raft في عملية واحدة بحالة في الذاكرة؛ والإيداعات متعددة الأجزاء ليست ذرية عند الانهيار |
 
-ضع هذا في إعداد MCP الخاص بـ Claude Desktop أو Cursor أو Windsurf. يصبح بإمكان الوكيل الآن إنشاء السجلات، والبحث بالمعنى، والتنقل عبر العلاقات، واستبطان المخطط — كل ذلك عبر اللغة الطبيعية.
+يوثّق [الدليل](docs/manual/README.md) الحدود الدقيقة لكل واجهة.
 
-</div>
+## الاتصال
 
----
+| الواجهة | الافتراضي | التفعيل |
+|---|---|---|
+| بروتوكول HTTP الأصلي | `127.0.0.1:3000`، `POST /protocol/v1/execute` | مفعّل دائمًا |
+| بروتوكول PostgreSQL | `127.0.0.1:5432` | مفعّل مع `sql` (افتراضيًا) |
+| gRPC (`rushdb.v1.Database/Execute`) | معطّل | `--grpc-port` |
+| Bolt 5.0 | معطّل | `--bolt-port` مع `cypher` |
 
-<div dir="rtl">
+تعمل حزم SDK لـ [JavaScript](https://www.npmjs.com/package/@rushdb/javascript-sdk) و [Python](https://pypi.org/project/rushdb/) و[خادم MCP](https://www.npmjs.com/package/@rushdb/mcp-server) و[مهارات الوكلاء](https://github.com/rush-db/skills) مع محرك مستضاف ذاتيًا في الوضع المباشر.
 
-## ما الذي تحتويه العلبة
+## المحرك المستضاف ذاتيًا و RushDB Cloud
 
-</div>
-
-| القدرة                               | ماذا تعني                                                                                                                                   |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **تضمينات مُدارة**                   | فهرس أي خاصية نصية مرة واحدة — وتُضمَّن كل عملية كتابة تلقائيًا على جانب الخادم                                                             |
-| **رسم بياني + متجه في استعلام واحد** | يتكامل التشابه الدلالي والتنقل عبر العلاقات في استدعاء واحد                                                                                 |
-| **بلا مخطط**                         | ادفع أي شكل من JSON. يستنتج RushDB الأنواع، وينشئ الخصائص، ويربط السجلات                                                                    |
-| **مخطط مُستنتَج**                    | تصبح الخصائص عقدًا من الدرجة الأولى — تُكتشف الأنواع والتسميات والعلاقات عند الكتابة، فيبني مخطط قابل للاستعلام نفسه بنفسه مع وصول البيانات |
-| **معاملات ACID**                     | لا يُفسد الوكلاء المتزامنون الذاكرة المشتركة. Neo4j تحت الغطاء                                                                              |
-| **ذاتي الوصف**                       | يستبطن الوكلاء المخطط المُستنتَج — التسميات والخصائص ونطاقات القيم — لمعرفة ما يمكنهم الاستعلام عنه بأمان                                   |
-| **أصيل في MCP**                      | خادم MCP كامل مع موجّه استعلام مبني على مبدأ الاكتشاف أولًا                                                                                 |
-| **مهارات الوكيل (Agent Skills)**     | حزمة `@rushdb/skills` قابلة للتثبيت — علّم أي وكيل متوافق مع المهارات أن يستعلم وينمذج ويتذكر باستخدام RushDB بأمر واحد                     |
-| **واجهة استعلام موحّدة**             | شكل JSON واحد للرسم البياني والمتجه والتجميع والاستبطان                                                                                     |
-| **استضافة ذاتية أو سحابة**           | Docker + Neo4j الخاص بك، أو سحابة مُدارة. ملكية كاملة للبيانات                                                                              |
-
----
-
-<div dir="rtl">
-
-## حالات الاستخدام
-
-</div>
-
-| حالة الاستخدام            | ما يستبدله RushDB                            | واجهة API الأساسية                                            |
-| ------------------------- | -------------------------------------------- | ------------------------------------------------------------- |
-| **ذاكرة الوكيل**          | Redis + مخزن متجهات + قاعدة بيانات رسم بياني | `db.records.vectorSearch({ query, where: { agent_id } })`     |
-| **RAG مع السياق**         | مخزن متجهات مسطّح                            | `db.records.find({ where, labels })` + التنقل عبر العلاقات    |
-| **تطبيقات بلا مخطط**      | Postgres + ترحيلات + ETL                     | `db.records.importJson(nestedJson)`                           |
-| **منتجات بيانات مترابطة** | خدمات متعددة مدمجة                           | `db.records.find({ labels, where: { SOME_LABEL: { ... } } })` |
-
----
-
-<div dir="rtl">
-
-## الاستضافة الذاتية
-
-> **مسار الاستضافة الذاتية** — شغّل RushDB على بنيتك التحتية الخاصة. يتطلب Neo4j 2026.01.4+ مع إضافة APOC.
-
-</div>
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  rushdb:
-    image: rushdb/platform
-    ports:
-      - '3000:3000'
-    environment:
-      - NEO4J_URL=neo4j+s://your-instance.neo4j.io
-      - NEO4J_USERNAME=neo4j
-      - NEO4J_PASSWORD=password
-      - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
-      - RUSHDB_LOGIN=admin
-      - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
-```
-
-<details>
-<summary>متغيرات البيئة الكاملة</summary>
-
-| الاسم                             | الوصف                                           | مطلوب       | الافتراضي |
-| --------------------------------- | ----------------------------------------------- | ----------- | --------- |
-| `NEO4J_URL`                       | عنوان اتصال Neo4j                               | نعم         | —         |
-| `NEO4J_USERNAME`                  | اسم مستخدم Neo4j                                | نعم         | neo4j     |
-| `NEO4J_PASSWORD`                  | كلمة مرور Neo4j                                 | نعم         | —         |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | مفتاح من 32 حرفًا لتشفير رموز API               | نعم (إنتاج) | —         |
-| `RUSHDB_PORT`                     | منفذ HTTP                                       | لا          | 3000      |
-| `RUSHDB_LOGIN`                    | تسجيل دخول المسؤول                              | لا          | admin     |
-| `RUSHDB_PASSWORD`                 | كلمة مرور المسؤول                               | لا          | password  |
-| `RUSHDB_BASE_URL`                 | عنوان API العام/الأساسي لتعيينات synx           | لا          | —         |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | رمز داخلي لعمّال synx المُدارين                 | لا          | —         |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | مفتاح كتابة داخلي لعمليات الكتابة إلى وجهة synx | لا          | —         |
-
-تعمل عمّال synx المُدارة كخدمات خفية (daemons). تستقصي عن الموصّلات القابلة للتشغيل، وتجدّد عقود إيجار الموصّلات، وتحرّر العقود عند الإيقاف السلس، وتتيح لـ platform/core استعادة العقود المنتهية بعد الأعطال.
-
-</details>
-
-<details>
-<summary>التطوير المحلي (Neo4j مضمّن)</summary>
-
-```yaml
-version: '3.8'
-services:
-  rushdb:
-    image: rushdb/platform
-    depends_on:
-      neo4j:
-        condition: service_healthy
-    ports:
-      - '3000:3000'
-    environment:
-      - NEO4J_URL=bolt://neo4j
-      - NEO4J_USERNAME=neo4j
-      - NEO4J_PASSWORD=password
-  neo4j:
-    image: neo4j:2026.01.4
-    healthcheck:
-      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider localhost:7474 || exit 1']
-      interval: 5s
-      retries: 30
-      start_period: 10s
-    ports:
-      - '7474:7474'
-      - '7687:7687'
-    environment:
-      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
-      - NEO4J_AUTH=neo4j/password
-    volumes:
-      - ./neo4j-plugins:/var/lib/neo4j/plugins
-```
-
-</details>
-
-```bash
-# Manage users via CLI
-rushdb create-user admin@example.com securepassword123
-rushdb update-password admin@example.com newsecurepassword456
-```
-
-<details>
-<summary>البنية المعمارية: كيف يهيكل RushDB البيانات (LMPG)</summary>
-
-<div dir="rtl">
-
-يستخدم RushDB نموذج **الرسم البياني الفائق للخصائص المُسمّى (Labeled Meta Property Graph - LMPG)**. تُرفَّع الخصائص لتصبح عقدًا من الدرجة الأولى في الرسم البياني ("HyperProperties") — وليست مجرد أزواج مفتاح-قيمة مرتبطة بالسجلات.
-
-هذا يعني:
-
-- **مخطط دون تصميم مسبق** — لأن الخصائص عقد في الرسم البياني، فإن المخطط _يُستنتج من بياناتك، ولا يُصمّم_: تُكتشف التسميات والأنواع ونطاقات القيم وطوبولوجيا العلاقات عند الكتابة وتكون قابلة للاستعلام فورًا — دون نمذجة مخطط يدوية، ودون سلسلة أدوات RDF/OWL
-- **علاقات مكتشفة تلقائيًا** — تُربط السجلات التي تتشارك خصائص دون صياغة حواف يدويًا
-- **استبطان المخطط** — يمكن للوكلاء تعداد التسميات وأنواع الخصائص ونطاقات القيم وطوبولوجيا العلاقات في استعلام واحد
-- **قيود مرنة** — تقييم تماسك الأنواع، وتتبّع التعدّدية (cardinality)، وفرض أبعاد المتجهات دون مخططات صارمة مسبقة
-- **سطح استعلام موحّد** — يعمل تعبير الترشيح نفسه عبر السجلات والتسميات والخصائص والعلاقات
-
-يسترجع SearchQuery واحد عدة منظورات في آن واحد (السجلات + إحصاءات الخصائص + عمليات التجميع)، متجنّبًا نمط الفحص N+1 الشائع في معماريات الأنظمة المنفصلة.
-
-[اقرأ منشور بنية LMPG الكامل ←](https://rushdb.com/blog/labeled-meta-property-graphs-rushdb-s-revolutionary-approach-to-graph-database-architecture)
-
-</div>
-
-</details>
-
----
-
-<div dir="rtl">
+هذا المحرك هو الجزء من RushDB الذي تستضيفه بنفسك. لا يولّد التضمينات، ولا يستضيف لوحة تحكم، ولا يدير المستخدمين: تأتي هذه مع [RushDB Cloud](https://app.rushdb.com)، الخدمة المُدارة التي تشغّل هذا المحرك وتضيف لوحة التحكم والتضمينات المُدارة وميزات الذكاء الاصطناعي (البحث باللغة الطبيعية، واقتراحات أنماط العلاقات). تعمل حزم SDK وخادم MCP مع أي منهما: أعطها مفتاح API من RushDB Cloud، أو وجّهها مباشرة إلى محركك (`direct: true`، `engineUrl`) لكل شيء ما عدا ميزات Cloud، التي ترفضها بالخطأ `CloudOnlyError`.
 
 ## التوثيق
 
-</div>
-
-| الموضوع                  | الرابط                                                         |
-| ------------------------ | -------------------------------------------------------------- |
-| البرنامج التعليمي السريع | https://docs.rushdb.com/get-started/quick-tutorial             |
-| البحث المتجهي / الدلالي  | https://docs.rushdb.com/concepts/search/where#vector-operators |
-| الترشيح والتنقل          | https://docs.rushdb.com/concepts/search/where                  |
-| التجميع وعمليات التجميع  | https://docs.rushdb.com/concepts/search/group-by               |
-| TypeScript SDK           | https://docs.rushdb.com/typescript-sdk/introduction            |
-| Python SDK               | https://docs.rushdb.com/python-sdk/introduction                |
-| REST API                 | https://docs.rushdb.com/rest-api/introduction                  |
-| خادم MCP                 | packages/mcp-server/README.md                                  |
-| مهارات الوكيل            | packages/skills/README.md                                      |
-
----
-
-<div dir="rtl">
-
-## متى لا تستخدم RushDB
-
-- تحتاج إلى زمن استجابة دون المليّ ثانية عند معدّل كتابة عالٍ جدًا — بُني RushDB على Neo4j الذي يعطي الأولوية للاتساق وقدرة التعبير في الاستعلام على حساب سرعة الكتابة الخام.
-- تحتاج فقط إلى تخزين مفتاح-قيمة مسطّح دون علاقات أو بحث دلالي — سيكون مخزن أبسط أخف.
-- تحتاج إلى مخطط علائقي صارم مفروض على مستوى قاعدة البيانات — صُمّم RushDB عمدًا ليكون بلا مخطط.
+- [الدليل](docs/manual/README.md): البدء، ونموذج البيانات، والاستعلامات، واللغات، والبحث، والتشغيل، والجداول المرجعية.
+- [docs.rushdb.com](https://docs.rushdb.com): دروس، وحزم SDK، وخادم MCP.
+- [الترقية من RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): كان الإصدار 2.x هو الحزمة المبنية على Neo4j، وهو محفوظ عند الوسم `v2` في هذا المستودع.
 
 ## المساهمة
+
+راجع [CONTRIBUTING.md](CONTRIBUTING.md). بوابة الجودة:
 
 </div>
 
 ```bash
-git clone https://github.com/rush-db/rushdb.git
-cd rushdb
-pnpm install
-pnpm test
+cargo test --workspace --no-fail-fast --locked
+cargo clippy --workspace --all-targets --locked
+cargo fmt --all -- --check
+scripts/check-quality-bar.sh
 ```
 
 <div dir="rtl">
 
-راجع [CONTRIBUTING.md](CONTRIBUTING.md) للاطلاع على الإرشادات الكاملة. المشكلات وطلبات السحب (PRs) مرحّب بها.
+- [سياسة الأمان](SECURITY.md)
+- [عملية الإصدار](RELEASING.md)
+- [مدونة السلوك](CODE_OF_CONDUCT.md)
+- [سجل التغييرات](CHANGELOG.md)
 
-## الترخيص
-
-</div>
-
-| المسار                  | الترخيص             |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
-
----
-
-<div dir="rtl">
-
-هل تحتاج إلى شيء غير مدعوم بعد؟ افتح مشكلة (issue) — مناقشات التصميم مرحّب بها.
+مرخّص بموجب [Apache-2.0](LICENSE).
 
 </div>

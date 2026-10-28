@@ -1,0 +1,19 @@
+[package]
+name = "rushdb-authz-integration"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+rushdb-authz = { workspace = true }
+rushdb-lmpg = { workspace = true }
+rushdb-query = { workspace = true }
+rushdb-storage = { workspace = true }
+rushdb-tx = { workspace = true }
+rushdb-types = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

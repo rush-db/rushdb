@@ -1,0 +1,38 @@
+# RushDB behind Caddy, which obtains and renews a TLS certificate for your
+# domain. Only the HTTPS API is public; the PostgreSQL wire port stays on
+# 127.0.0.1.
+#
+# Point the domain's DNS A/AAAA record at this host and open ports 80 and 443.
+#
+#   cp .env.example .env        # set RUSHDB_TOKEN and RUSHDB_DOMAIN
+#   docker compose -f compose.https.yaml up -d
+#   curl https://$RUSHDB_DOMAIN/health
+services:
+  rushdb:
+    image: rushdb/rushdb:${RUSHDB_IMAGE_TAG:-3}
+    restart: unless-stopped
+    environment:
+      RUSHDB_TOKEN: ${RUSHDB_TOKEN:?set RUSHDB_TOKEN, e.g. openssl rand -hex 32}
+    ports:
+      - '127.0.0.1:${RUSHDB_PGWIRE_PORT:-5432}:5432'
+    volumes:
+      - rushdb-data:/data
+    stop_grace_period: 90s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    command: ['caddy', 'reverse-proxy', '--from', '${RUSHDB_DOMAIN:?set RUSHDB_DOMAIN}', '--to', 'rushdb:3000']
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - caddy-data:/data
+    depends_on:
+      rushdb:
+        condition: service_healthy
+
+volumes:
+  rushdb-data:
+  caddy-data:

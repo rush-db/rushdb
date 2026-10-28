@@ -1,0 +1,29 @@
+[package]
+name = "rushdb-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Internal component of the RushDB server: value model, identifiers and encodings. No stable API; install rushdb-server instead."
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+# Exact float parsing: without it serde_json may round the last digit of a
+# parsed f64 (18.916268423199654 read as 18.916268423199657), so stored
+# numbers would differ from what clients wrote. Features unify across the
+# workspace, so every crate parses floats exactly.
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+postcard = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+sha2 = { workspace = true }
+blake3 = { workspace = true }
+chrono = { workspace = true }
+
+[lints]
+workspace = true

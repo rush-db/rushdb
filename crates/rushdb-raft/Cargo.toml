@@ -1,0 +1,27 @@
+[package]
+name = "rushdb-raft"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Internal component of the RushDB server: consensus integration. No stable API; install rushdb-server instead."
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+rushdb-types = { workspace = true }
+rushdb-storage = { workspace = true }
+rushdb-lmpg = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+serde = { workspace = true }
+openraft = { version = "0.9.25", features = ["serde"] }
+openraft-memstore = "0.9.25"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+
+[lints]
+workspace = true
