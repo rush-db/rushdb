@@ -13,7 +13,7 @@
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 Website](https://rushdb.com) • [📖 Documentation](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 Examples](https://github.com/rush-db/examples)
@@ -344,29 +344,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>متغيرات البيئة الكاملة</summary>
 
-| الاسم                             | الوصف                                           | مطلوب       | الافتراضي |
-| --------------------------------- | ----------------------------------------------- | ----------- | --------- |
-| `NEO4J_URL`                       | عنوان اتصال Neo4j                               | نعم         | —         |
-| `NEO4J_USERNAME`                  | اسم مستخدم Neo4j                                | نعم         | neo4j     |
-| `NEO4J_PASSWORD`                  | كلمة مرور Neo4j                                 | نعم         | —         |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | مفتاح من 32 حرفًا لتشفير رموز API               | نعم (إنتاج) | —         |
-| `RUSHDB_PORT`                     | منفذ HTTP                                       | لا          | 3000      |
-| `RUSHDB_LOGIN`                    | تسجيل دخول المسؤول                              | لا          | admin     |
-| `RUSHDB_PASSWORD`                 | كلمة مرور المسؤول                               | لا          | password  |
-| `RUSHDB_BASE_URL`                 | عنوان API العام/الأساسي لتعيينات synx           | لا          | —         |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | رمز داخلي لعمّال synx المُدارين                 | لا          | —         |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | مفتاح كتابة داخلي لعمليات الكتابة إلى وجهة synx | لا          | —         |
-
-تعمل عمّال synx المُدارة كخدمات خفية (daemons). تستقصي عن الموصّلات القابلة للتشغيل، وتجدّد عقود إيجار الموصّلات، وتحرّر العقود عند الإيقاف السلس، وتتيح لـ platform/core استعادة العقود المنتهية بعد الأعطال.
+| الاسم                           | الوصف                             | مطلوب       | الافتراضي |
+| ------------------------------- | --------------------------------- | ----------- | --------- |
+| `NEO4J_URL`                     | عنوان اتصال Neo4j                 | نعم         | —         |
+| `NEO4J_USERNAME`                | اسم مستخدم Neo4j                  | نعم         | neo4j     |
+| `NEO4J_PASSWORD`                | كلمة مرور Neo4j                   | نعم         | —         |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | مفتاح من 32 حرفًا لتشفير رموز API | نعم (إنتاج) | —         |
+| `RUSHDB_PORT`                   | منفذ HTTP                         | لا          | 3000      |
+| `RUSHDB_LOGIN`                  | تسجيل دخول المسؤول                | لا          | admin     |
+| `RUSHDB_PASSWORD`               | كلمة مرور المسؤول                 | لا          | password  |
 
 </details>
 
@@ -452,8 +443,8 @@ rushdb update-password admin@example.com newsecurepassword456
 | TypeScript SDK           | https://docs.rushdb.com/typescript-sdk/introduction            |
 | Python SDK               | https://docs.rushdb.com/python-sdk/introduction                |
 | REST API                 | https://docs.rushdb.com/rest-api/introduction                  |
-| خادم MCP                 | packages/mcp-server/README.md                                  |
-| مهارات الوكيل            | packages/skills/README.md                                      |
+| خادم MCP                 | https://github.com/rush-db/mcp-server#readme                   |
+| مهارات الوكيل            | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -484,14 +475,12 @@ pnpm test
 
 </div>
 
-| المسار                  | الترخيص             |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| المسار                                                              | الترخيص             |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

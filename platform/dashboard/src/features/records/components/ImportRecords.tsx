@@ -15,7 +15,6 @@ import { $router, getRoutePath } from '~/lib/router.ts'
 import { $currentProjectId } from '~/features/projects/stores/id.ts'
 import { PageHeader, PageTitle } from '~/elements/PageHeader.tsx'
 import { $tourAllowed, $tourStep, setTourStep } from '~/features/tour/stores/tour.ts'
-import { ConnectionsPanel } from '~/features/connectors/components/ConnectionsPanel.tsx'
 
 function RadioButton({
   title,
@@ -826,8 +825,6 @@ export function ImportRecords() {
                 title="Start with CSV editor"
               />
             </div>
-
-            <ConnectionsPanel />
           </div>
         )}
 

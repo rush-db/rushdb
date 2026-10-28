@@ -40,34 +40,6 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
-  synx:
-    image: ${SYNX_IMAGE:-rushdb/synx:latest}
-    profiles:
-      - synx
-    command:
-      - managed
-      - --control-url
-      - ${RUSHDB_CORE_INTERNAL_URL:-http://host.docker.internal:3000}
-      - --token-env
-      - RUSHDB_SYNX_CONTROL_TOKEN
-      - --worker-id
-      - local-synx
-      - --claim-interval-ms
-      - ${SYNX_CLAIM_INTERVAL_MS:-5000}
-      - --heartbeat-interval-ms
-      - ${SYNX_HEARTBEAT_INTERVAL_MS:-20000}
-      - --lease-ttl-ms
-      - ${SYNX_LEASE_TTL_MS:-60000}
-    environment:
-      - RUSHDB_SYNX_CONTROL_TOKEN=${RUSHDB_SYNX_CONTROL_TOKEN:-}
-      - RUSHDB_CORE_INTERNAL_URL=${RUSHDB_CORE_INTERNAL_URL:-http://host.docker.internal:3000}
-      - SYNX_CLAIM_INTERVAL_MS=${SYNX_CLAIM_INTERVAL_MS:-5000}
-      - SYNX_HEARTBEAT_INTERVAL_MS=${SYNX_HEARTBEAT_INTERVAL_MS:-20000}
-      - SYNX_LEASE_TTL_MS=${SYNX_LEASE_TTL_MS:-60000}
-      - RUST_LOG=${RUST_LOG:-info}
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
-
 volumes:
   neo4j-data:
   neo4j-logs:

@@ -21,8 +21,6 @@ import { ProjectRelationships } from '~/pages/project/relationships'
 import { ProjectSuggestedRelationships } from '~/pages/project/suggested-relationships'
 import { ProjectRecordsPage } from '~/pages/project/records'
 import { ProjectHelpPage } from '~/pages/project/help'
-import { ProjectConnection } from '~/pages/project/connection'
-import { ProjectNewConnection } from '~/pages/project/new-connection'
 import { ImportRecords } from '~/features/records/components/ImportRecords.tsx'
 
 function ProjectRoutes({ project }: { project: Project }) {
@@ -49,10 +47,6 @@ function ProjectRoutes({ project }: { project: Project }) {
       return <ProjectConnectedApps projectId={project.id} />
     case 'projectImportData':
       return <ImportRecords />
-    case 'projectNewConnection':
-      return <ProjectNewConnection projectId={project.id} />
-    case 'projectConnection':
-      return <ProjectConnection projectId={project.id} />
     case 'projectHelp':
       return <ProjectHelpPage />
     default:
@@ -72,8 +66,6 @@ const PROJECT_TAB_TITLES: Record<string, string> = {
   projectSuggestedRelationships: 'Suggested Relationships',
   projectImportData: 'Import',
   projectLiveSchema: 'Live Schema',
-  projectNewConnection: 'New Connection',
-  projectConnection: 'Connection',
   projectUsers: 'Users',
   projectHelp: 'Getting Started',
   projectBilling: 'Billing'

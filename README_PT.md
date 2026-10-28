@@ -13,7 +13,7 @@ Sem pipeline. Sem armazenamentos separados. Sem schema para projetar.
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 Website](https://rushdb.com) • [📖 Documentation](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 Examples](https://github.com/rush-db/examples)
@@ -292,29 +292,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>Variáveis de ambiente completas</summary>
 
-| Nome                              | Descrição                                                  | Obrigatório | Padrão   |
-| --------------------------------- | ---------------------------------------------------------- | ----------- | -------- |
-| `NEO4J_URL`                       | URL de conexão do Neo4j                                    | sim         | —        |
-| `NEO4J_USERNAME`                  | Usuário do Neo4j                                           | sim         | neo4j    |
-| `NEO4J_PASSWORD`                  | Senha do Neo4j                                             | sim         | —        |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | Chave de 32 caracteres para criptografia do token de API   | sim (prod)  | —        |
-| `RUSHDB_PORT`                     | Porta HTTP                                                 | não         | 3000     |
-| `RUSHDB_LOGIN`                    | Login de administrador                                     | não         | admin    |
-| `RUSHDB_PASSWORD`                 | Senha de administrador                                     | não         | password |
-| `RUSHDB_BASE_URL`                 | URL pública/base da API para atribuições do synx           | não         | —        |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | Token interno para workers synx gerenciados                | não         | —        |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | Chave de escrita interna para gravações de destino do synx | não         | —        |
-
-Os workers synx gerenciados rodam como daemons. Eles fazem polling em busca de conectores executáveis, renovam os leases dos conectores, liberam os leases em desligamentos graciosos e permitem que o platform/core reivindique leases expirados após falhas.
+| Nome                            | Descrição                                                | Obrigatório | Padrão   |
+| ------------------------------- | -------------------------------------------------------- | ----------- | -------- |
+| `NEO4J_URL`                     | URL de conexão do Neo4j                                  | sim         | —        |
+| `NEO4J_USERNAME`                | Usuário do Neo4j                                         | sim         | neo4j    |
+| `NEO4J_PASSWORD`                | Senha do Neo4j                                           | sim         | —        |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | Chave de 32 caracteres para criptografia do token de API | sim (prod)  | —        |
+| `RUSHDB_PORT`                   | Porta HTTP                                               | não         | 3000     |
+| `RUSHDB_LOGIN`                  | Login de administrador                                   | não         | admin    |
+| `RUSHDB_PASSWORD`               | Senha de administrador                                   | não         | password |
 
 </details>
 
@@ -392,8 +383,8 @@ Uma única SearchQuery recupera múltiplas perspectivas simultaneamente (registr
 | SDK TypeScript             | https://docs.rushdb.com/typescript-sdk/introduction            |
 | SDK Python                 | https://docs.rushdb.com/python-sdk/introduction                |
 | API REST                   | https://docs.rushdb.com/rest-api/introduction                  |
-| Servidor MCP               | packages/mcp-server/README.md                                  |
-| Agent Skills               | packages/skills/README.md                                      |
+| Servidor MCP               | https://github.com/rush-db/mcp-server#readme                   |
+| Agent Skills               | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -420,14 +411,12 @@ Veja [CONTRIBUTING.md](CONTRIBUTING.md) para as diretrizes completas. Issues e P
 
 ## Licença
 
-| Caminho                 | Licença             |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| Caminho                                                             | Licença             |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

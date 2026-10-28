@@ -13,7 +13,7 @@ Tanpa pipeline. Tanpa penyimpanan terpisah. Tanpa skema yang perlu dirancang.
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 Situs Web](https://rushdb.com) • [📖 Dokumentasi](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 Contoh](https://github.com/rush-db/examples)
@@ -292,29 +292,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>Variabel lingkungan lengkap</summary>
 
-| Nama                              | Deskripsi                                        | Wajib     | Default  |
-| --------------------------------- | ------------------------------------------------ | --------- | -------- |
-| `NEO4J_URL`                       | URL koneksi Neo4j                                | ya        | —        |
-| `NEO4J_USERNAME`                  | Nama pengguna Neo4j                              | ya        | neo4j    |
-| `NEO4J_PASSWORD`                  | Kata sandi Neo4j                                 | ya        | —        |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | Kunci 32 karakter untuk enkripsi token API       | ya (prod) | —        |
-| `RUSHDB_PORT`                     | Port HTTP                                        | tidak     | 3000     |
-| `RUSHDB_LOGIN`                    | Login admin                                      | tidak     | admin    |
-| `RUSHDB_PASSWORD`                 | Kata sandi admin                                 | tidak     | password |
-| `RUSHDB_BASE_URL`                 | URL API publik/dasar untuk penugasan synx        | tidak     | —        |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | Token internal untuk worker synx terkelola       | tidak     | —        |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | Kunci tulis internal untuk penulisan tujuan synx | tidak     | —        |
-
-Worker synx terkelola berjalan sebagai daemon. Mereka melakukan polling untuk konektor yang dapat dijalankan, memperbarui lease konektor, melepaskan lease saat shutdown yang anggun, dan membiarkan platform/core merebut kembali lease yang kedaluwarsa setelah crash.
+| Nama                            | Deskripsi                                  | Wajib     | Default  |
+| ------------------------------- | ------------------------------------------ | --------- | -------- |
+| `NEO4J_URL`                     | URL koneksi Neo4j                          | ya        | —        |
+| `NEO4J_USERNAME`                | Nama pengguna Neo4j                        | ya        | neo4j    |
+| `NEO4J_PASSWORD`                | Kata sandi Neo4j                           | ya        | —        |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | Kunci 32 karakter untuk enkripsi token API | ya (prod) | —        |
+| `RUSHDB_PORT`                   | Port HTTP                                  | tidak     | 3000     |
+| `RUSHDB_LOGIN`                  | Login admin                                | tidak     | admin    |
+| `RUSHDB_PASSWORD`               | Kata sandi admin                           | tidak     | password |
 
 </details>
 
@@ -392,8 +383,8 @@ Satu SearchQuery mengambil beberapa perspektif secara bersamaan (record + statis
 | TypeScript SDK              | https://docs.rushdb.com/typescript-sdk/introduction            |
 | Python SDK                  | https://docs.rushdb.com/python-sdk/introduction                |
 | REST API                    | https://docs.rushdb.com/rest-api/introduction                  |
-| MCP Server                  | packages/mcp-server/README.md                                  |
-| Agent Skills                | packages/skills/README.md                                      |
+| MCP Server                  | https://github.com/rush-db/mcp-server#readme                   |
+| Agent Skills                | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -420,14 +411,12 @@ Lihat [CONTRIBUTING.md](CONTRIBUTING.md) untuk panduan lengkap. Issue dan PR dip
 
 ## Lisensi
 
-| Path                    | Lisensi             |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| Path                                                                | Lisensi             |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

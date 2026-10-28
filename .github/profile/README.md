@@ -66,7 +66,7 @@ memories = db.records.vector_search({
   "mcpServers": {
     "rushdb": {
       "command": "npx",
-      "args": ["@rushdb/mcp-server"],
+      "args": ["@rushdb/mcp-server@2.13.0"],
       "env": { "RUSHDB_API_KEY": "your-api-key-here" }
     }
   }

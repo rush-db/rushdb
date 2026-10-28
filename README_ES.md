@@ -13,7 +13,7 @@ Sin pipeline. Sin almacenes separados. Sin esquema que diseñar.
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 Sitio web](https://rushdb.com) • [📖 Documentación](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 Ejemplos](https://github.com/rush-db/examples)
@@ -292,29 +292,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>Variables de entorno completas</summary>
 
-| Nombre                            | Descripción                                                   | Requerido | Predeterminado |
-| --------------------------------- | ------------------------------------------------------------- | --------- | -------------- |
-| `NEO4J_URL`                       | URL de conexión a Neo4j                                       | sí        | —              |
-| `NEO4J_USERNAME`                  | Usuario de Neo4j                                              | sí        | neo4j          |
-| `NEO4J_PASSWORD`                  | Contraseña de Neo4j                                           | sí        | —              |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | Clave de 32 caracteres para cifrar tokens de API              | sí (prod) | —              |
-| `RUSHDB_PORT`                     | Puerto HTTP                                                   | no        | 3000           |
-| `RUSHDB_LOGIN`                    | Login de administrador                                        | no        | admin          |
-| `RUSHDB_PASSWORD`                 | Contraseña de administrador                                   | no        | password       |
-| `RUSHDB_BASE_URL`                 | URL de API pública/base para asignaciones de synx             | no        | —              |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | Token interno para workers de synx gestionados                | no        | —              |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | Clave de escritura interna para escrituras de destino de synx | no        | —              |
-
-Los workers de synx gestionados se ejecutan como demonios. Sondean en busca de conectores ejecutables, renuevan los arrendamientos (leases) de los conectores, liberan los arrendamientos al apagarse de forma controlada y permiten que platform/core recupere los arrendamientos expirados tras una caída.
+| Nombre                          | Descripción                                      | Requerido | Predeterminado |
+| ------------------------------- | ------------------------------------------------ | --------- | -------------- |
+| `NEO4J_URL`                     | URL de conexión a Neo4j                          | sí        | —              |
+| `NEO4J_USERNAME`                | Usuario de Neo4j                                 | sí        | neo4j          |
+| `NEO4J_PASSWORD`                | Contraseña de Neo4j                              | sí        | —              |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | Clave de 32 caracteres para cifrar tokens de API | sí (prod) | —              |
+| `RUSHDB_PORT`                   | Puerto HTTP                                      | no        | 3000           |
+| `RUSHDB_LOGIN`                  | Login de administrador                           | no        | admin          |
+| `RUSHDB_PASSWORD`               | Contraseña de administrador                      | no        | password       |
 
 </details>
 
@@ -392,8 +383,8 @@ Una sola SearchQuery recupera múltiples perspectivas simultáneamente (registro
 | SDK de TypeScript              | https://docs.rushdb.com/typescript-sdk/introduction            |
 | SDK de Python                  | https://docs.rushdb.com/python-sdk/introduction                |
 | API REST                       | https://docs.rushdb.com/rest-api/introduction                  |
-| Servidor MCP                   | packages/mcp-server/README.md                                  |
-| Agent Skills                   | packages/skills/README.md                                      |
+| Servidor MCP                   | https://github.com/rush-db/mcp-server#readme                   |
+| Agent Skills                   | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -420,14 +411,12 @@ Consulta [CONTRIBUTING.md](CONTRIBUTING.md) para ver las directrices completas. 
 
 ## Licencia
 
-| Ruta                    | Licencia            |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| Ruta                                                                | Licencia            |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

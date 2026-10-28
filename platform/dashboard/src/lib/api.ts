@@ -19,7 +19,6 @@ import type {
 
 import type { GetUserResponse, User } from '~/features/auth/types'
 import type { BillingData, BillingInquiryPayload } from '~/features/billing/types'
-import type { Connector, ConnectorEvent, CreateConnectorInput } from '~/features/connectors/types'
 import type { CreateSavedQueryInput, SavedQuery } from '~/features/saved-queries/types'
 import type {
   EmbeddingIndex,
@@ -572,66 +571,6 @@ export const api = {
       })
     }
   },
-  connectors: {
-    async list({ projectId, init }: WithProjectID & WithInit) {
-      return fetcher<Connector[]>(`/api/v1/connectors`, {
-        ...init,
-        headers: {
-          'x-project-id': projectId
-        }
-      })
-    },
-    async get({ projectId, id, init }: WithProjectID & WithInit & { id: string }) {
-      return fetcher<Connector>(`/api/v1/connectors/${id}`, {
-        ...init,
-        headers: {
-          'x-project-id': projectId
-        }
-      })
-    },
-    async events({ projectId, id, init }: WithProjectID & WithInit & { id: string }) {
-      const events = await fetcher<ConnectorEvent[]>(`/api/v1/connectors/${id}/events`, {
-        ...init,
-        headers: {
-          'x-project-id': projectId
-        }
-      })
-
-      return events.map((event) => {
-        if (!event.metadata || typeof event.metadata !== 'string') return event
-
-        try {
-          return { ...event, metadata: JSON.parse(event.metadata) as Record<string, unknown> }
-        } catch {
-          return event
-        }
-      })
-    },
-    async create({ projectId, init, ...body }: WithProjectID & WithInit & CreateConnectorInput) {
-      return fetcher<Connector>(`/api/v1/connectors`, {
-        ...init,
-        method: 'POST',
-        body: JSON.stringify(body),
-        headers: {
-          'x-project-id': projectId
-        }
-      })
-    },
-    async action({
-      projectId,
-      id,
-      action,
-      init
-    }: WithProjectID & WithInit & { id: string; action: 'pause' | 'resume' | 'resnapshot' | 'test' }) {
-      return fetcher<Connector | { ok: boolean; message: string }>(`/api/v1/connectors/${id}/${action}`, {
-        ...init,
-        method: 'POST',
-        headers: {
-          'x-project-id': projectId
-        }
-      })
-    }
-  },
   savedQueries: {
     async list({ projectId, init }: WithProjectID & WithInit) {
       return fetcher<SavedQuery[]>(`/api/v1/saved-queries`, {
@@ -921,7 +860,6 @@ export const api = {
         githubOAuthEnabled: boolean
         embeddingEnabled: boolean
         llmEnabled: boolean
-        synxEnabled: boolean
       }>(`/api/v1/settings`, {
         ...init,
         method: 'GET'

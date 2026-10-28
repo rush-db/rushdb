@@ -13,7 +13,7 @@ Keine Pipeline. Keine separaten Speicher. Kein Schema, das entworfen werden muss
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 Website](https://rushdb.com) • [📖 Dokumentation](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 Beispiele](https://github.com/rush-db/examples)
@@ -292,29 +292,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>Vollständige Umgebungsvariablen</summary>
 
-| Name                              | Beschreibung                                           | Erforderlich | Standard |
-| --------------------------------- | ------------------------------------------------------ | ------------ | -------- |
-| `NEO4J_URL`                       | Neo4j-Verbindungs-URL                                  | ja           | —        |
-| `NEO4J_USERNAME`                  | Neo4j-Benutzername                                     | ja           | neo4j    |
-| `NEO4J_PASSWORD`                  | Neo4j-Passwort                                         | ja           | —        |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | 32-Zeichen-Schlüssel für API-Token-Verschlüsselung     | ja (prod)    | —        |
-| `RUSHDB_PORT`                     | HTTP-Port                                              | nein         | 3000     |
-| `RUSHDB_LOGIN`                    | Admin-Login                                            | nein         | admin    |
-| `RUSHDB_PASSWORD`                 | Admin-Passwort                                         | nein         | password |
-| `RUSHDB_BASE_URL`                 | Öffentliche/Basis-API-URL für synx-Zuweisungen         | nein         | —        |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | Internes Token für verwaltete synx-Worker              | nein         | —        |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | Interner Schreibschlüssel für synx-Zielschreibvorgänge | nein         | —        |
-
-Verwaltete synx-Worker laufen als Daemons. Sie pollen nach ausführbaren Connectors, erneuern Connector-Leases, geben Leases bei einem ordnungsgemäßen Herunterfahren frei und ermöglichen platform/core, abgelaufene Leases nach Abstürzen zurückzufordern.
+| Name                            | Beschreibung                                       | Erforderlich | Standard |
+| ------------------------------- | -------------------------------------------------- | ------------ | -------- |
+| `NEO4J_URL`                     | Neo4j-Verbindungs-URL                              | ja           | —        |
+| `NEO4J_USERNAME`                | Neo4j-Benutzername                                 | ja           | neo4j    |
+| `NEO4J_PASSWORD`                | Neo4j-Passwort                                     | ja           | —        |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | 32-Zeichen-Schlüssel für API-Token-Verschlüsselung | ja (prod)    | —        |
+| `RUSHDB_PORT`                   | HTTP-Port                                          | nein         | 3000     |
+| `RUSHDB_LOGIN`                  | Admin-Login                                        | nein         | admin    |
+| `RUSHDB_PASSWORD`               | Admin-Passwort                                     | nein         | password |
 
 </details>
 
@@ -392,8 +383,8 @@ Eine SearchQuery ruft mehrere Perspektiven gleichzeitig ab (Records + Eigenschaf
 | TypeScript SDK              | https://docs.rushdb.com/typescript-sdk/introduction            |
 | Python SDK                  | https://docs.rushdb.com/python-sdk/introduction                |
 | REST API                    | https://docs.rushdb.com/rest-api/introduction                  |
-| MCP-Server                  | packages/mcp-server/README.md                                  |
-| Agent Skills                | packages/skills/README.md                                      |
+| MCP-Server                  | https://github.com/rush-db/mcp-server#readme                   |
+| Agent Skills                | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -420,14 +411,12 @@ Siehe [CONTRIBUTING.md](CONTRIBUTING.md) für die vollständigen Richtlinien. Is
 
 ## Lizenz
 
-| Pfad                    | Lizenz              |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| Pfad                                                                | Lizenz              |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

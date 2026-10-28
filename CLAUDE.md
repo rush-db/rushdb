@@ -9,21 +9,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-RushDB: a property-centric graph database platform built on Neo4j ("Labeled Meta Property Graph" — properties are first-class nodes in the graph; canonical explainer at `docs/docs/learn/records-and-queries/labeled-meta-property-graph.mdx`). pnpm monorepo (`pnpm@10.1.0`, node 18–26) with workspaces `platform/*`, `packages/*`, `docs`.
+RushDB 2.x: the Neo4j-backed platform, in a pnpm workspace (`pnpm@10.1.0`, node 18–26) containing only `platform/*`.
 
 - `platform/core` — NestJS 11 backend on Fastify (Elastic License 2.0)
-- `platform/dashboard` — React SPA (Vite)
-- `packages/javascript-sdk` — `@rushdb/javascript-sdk`, the REST client (Apache-2.0)
-- `packages/mcp-server` — MCP server exposing RushDB tools, built on the SDK
-- `packages/skills` — agent skills, markdown only, no build
-- `docs` — Docusaurus 3 site
-- `e2e` — root black-box suite driving the full platform via the real SDK
+- `platform/dashboard` — React SPA (Vite), consuming the published `@rushdb/javascript-sdk@2.11.0`
 
-Internal deps use `workspace:*`. Releases via changesets (`pnpm version` / `pnpm release`). Commits follow conventional-commits (commitlint + husky + lint-staged).
+The SDK, MCP server, skills and memory contract are standalone packages in `rush-db/javascript-sdk`, `rush-db/mcp-server`, `rush-db/skills` and `rush-db/agent-memory-contract`; the 2.x platform consumes the 2.x-compatible lines. They are installed from npm, not linked from this repo. Commits follow conventional-commits (commitlint + husky + lint-staged).
 
-Versioning is per-artifact, not globally locked: `rushdb-core` + `rushdb-dashboard` are a `fixed` pair (one number — they ship as the single `rushdb/platform` image), and `@rushdb/javascript-sdk` + `@rushdb/mcp-server` + `@rushdb/skills` are `linked` (each bumps only when it changes, but everything bumped in one release lands on the same version). So patch releases can diverge across the two groups while feature releases converge.
+The platform ships as one image tagged with `rushdb-core`'s version. `rushdb-core` and `rushdb-dashboard` are bumped together; there are no changesets on the 2.x LTS branch. Bump both package.json versions and run `pnpm version:chart` to move the Helm chart, then commit.
 
-Nothing is built, published, or deployed when a feature branch merges to `main`. Merging the changesets "version packages" PR is the release trigger: `.github/scripts/detect-version-bumps.mjs` diffs the package.json versions that push introduced, and only the artifacts whose version moved get rebuilt and redeployed. Images are built on native runners per architecture (`.github/workflows/docker-image.yml`) — never under QEMU emulation.
+Nothing is built or published when a feature branch merges to `2.x`. A push that changes `platform/core/package.json` or `platform/dashboard/package.json` is the only event that rebuilds/publishes `rushdb/platform`; `.github/scripts/detect-version-bumps.mjs` performs that check. Images are built on native runners per architecture (`.github/workflows/docker-image.yml`) — never under QEMU emulation.
 
 ## Commands
 
@@ -31,21 +26,16 @@ Root:
 
 ```bash
 pnpm dev              # full local stack: Neo4j+Postgres (docker), core (watch), dashboard (vite), drizzle studio
-pnpm build            # recursive build of all packages
-pnpm types:check      # recursive tsc --noEmit
+pnpm build            # build platform/core and platform/dashboard
+pnpm types:check      # recursive tsc --noEmit across platform/*
 pnpm lint / lint:fix  # eslint (core uses ESLINT_USE_FLAT_CONFIG=false)
-pnpm test:e2e         # root e2e suite (jest --config e2e/jest.config.js --runInBand)
+pnpm version:chart    # sync the Helm chart to the platform version
 ```
 
 Per package (run inside the package dir, or `pnpm --filter <name> run <script>`):
 
 - **core**: `start:dev` (nest watch), `test` (unit, `*.spec.ts` under `src/`), `test:e2e` (`test/jest-e2e.json`), `openapi:dump`, drizzle scripts `db:generate:pg|sqlite`, `db:push:pg|sqlite`, `db:studio:pg|sqlite`. Single unit test: `pnpm test -- path/to/file.spec.ts` from `platform/core`.
 - **dashboard**: `dev`, `build` (runs `types:check` first), `preview`.
-- **javascript-sdk**: `build` (esbuild + type emit), `types:check`, `docs:reference` (typedoc).
-- **mcp-server**: `build`, `test` (vitest), `inspector` (MCP inspector against `build/index.js`).
-- **docs**: `start`, `build`.
-
-E2E specifics: `e2e/docker-compose.yml` auto-provisions Neo4j 2026.01.4 (port 7688, **APOC required** — the record write path uses `apoc.create.addLabels`) and Postgres 16 (port 5434). Set `E2E_BASE_URL` to target an already-running stack instead. Platform specs are `*.e2e-spec.ts`; SDK suites in `e2e/sdk/` are `*.e2e.test.ts`.
 
 Local env: core reads `platform/core/.env` (see `.env.example` for the full documented list — `NEO4J_URL`, `SQL_DB_TYPE` sqlite|postgres, `RUSHDB_AES_256_ENCRYPTION_KEY` must be exactly 32 chars, embedding/LLM vars, OAuth, billing). Local dev runs against Postgres via docker-compose; sqlite is the self-hosted default. Default ports (7474/7687/5432/3000) may already be taken by a running stack.
 
@@ -56,7 +46,7 @@ Local env: core reads `platform/core/.env` (see `.env.example` for the full docu
 Two route planes, both behind the middleware chain `AuthMiddleware → DbContextMiddleware → SessionAndTransactionAttachMiddleware`:
 
 - `core/` — data plane: `entity/` (records), `property/`, `search/`, `relationships/`, `relationship-patterns/` (LLM-suggested relationship automation), `labels/`, `transactions/`, `ai/` (embedding indexes, semantic search, NL→query), `billing-policy/`.
-- `dashboard/` — control plane: `auth/` (Google/GitHub OAuth, SAML/OIDC SSO), `project/`, `workspace/`, `token/`, `billing/` (Stripe), `mcp-oauth/`, `connector/`.
+- `dashboard/` — control plane: `auth/` (Google/GitHub OAuth, SAML/OIDC SSO), `project/`, `workspace/`, `token/`, `billing/` (Stripe), `mcp-oauth/`.
 
 Two databases:
 
@@ -69,16 +59,16 @@ Two databases:
 
 The search query language (`where` with `$and/$or/$not/$nor/$xor`, comparison operators, `Related` traversal with `$alias`/`$relation`, aggregations, `groupBy`) has **multiple parallel definitions of one contract**:
 
-1. TS types: `packages/javascript-sdk/src/types/{query,expressions}.ts`
+1. TS types: `rush-db/javascript-sdk/src/types/{query,expressions}.ts`
 2. Cypher compiler: `platform/core/src/core/search/parser/` (`buildQuery.ts`, `buildWhereClause.ts`, `parseComparison.ts`, `aggregate.ts`, …)
 3. LLM prompt spec: `platform/core/src/core/ai/search-query-spec.prompt.md`
-4. MCP mirror: `packages/mcp-server/src/searchQuerySpec.ts`
+4. MCP mirror: `rush-db/mcp-server/src/searchQuerySpec.ts`
 
 A change to the DSL touches all four.
 
 ### Dependency flow
 
-`core REST API ← javascript-sdk ← dashboard` and `← mcp-server`. The dashboard does not call the API directly — it consumes the SDK (`workspace:*`). REST changes ripple: core controller → SDK `src/api/` (`RestAPI`) → dashboard/mcp-server. SDK has dual entry points (`index.node.ts` / `index.worker.ts`) that inject Node-http vs fetch HTTP clients; the public tx wrapper is `db.tx` (SDK `src/sdk/transaction.ts`).
+`core REST API ← @rushdb/javascript-sdk@2.11.0 ← dashboard`. The dashboard does not call the API directly; it consumes the published SDK. REST changes ripple into the standalone SDK repository, and from there into the dashboard and MCP server releases. The SDK has dual entry points (`index.node.ts` / `index.worker.ts`) that inject Node-http vs fetch HTTP clients; the public tx wrapper is `db.tx`.
 
 ### dashboard (`platform/dashboard/src/`)
 

@@ -13,7 +13,7 @@
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 ウェブサイト](https://rushdb.com) • [📖 ドキュメント](https://docs.rushdb.com) • [☁️ クラウド](https://app.rushdb.com) • [🔍 サンプル](https://github.com/rush-db/examples)
@@ -292,29 +292,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>環境変数の一覧</summary>
 
-| 名前                              | 説明                                               | 必須       | デフォルト |
-| --------------------------------- | -------------------------------------------------- | ---------- | ---------- |
-| `NEO4J_URL`                       | Neo4j接続URL                                       | はい       | —          |
-| `NEO4J_USERNAME`                  | Neo4jユーザー名                                    | はい       | neo4j      |
-| `NEO4J_PASSWORD`                  | Neo4jパスワード                                    | はい       | —          |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | APIトークン暗号化用の32文字キー                    | はい(本番) | —          |
-| `RUSHDB_PORT`                     | HTTPポート                                         | いいえ     | 3000       |
-| `RUSHDB_LOGIN`                    | 管理者ログイン                                     | いいえ     | admin      |
-| `RUSHDB_PASSWORD`                 | 管理者パスワード                                   | いいえ     | password   |
-| `RUSHDB_BASE_URL`                 | synx割り当て用のパブリック/ベースAPI URL           | いいえ     | —          |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | マネージドsynxワーカー用の内部トークン             | いいえ     | —          |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | synxデスティネーション書き込み用の内部書き込みキー | いいえ     | —          |
-
-マネージドsynxワーカーはデーモンとして実行されます。実行可能なコネクタをポーリングし、コネクタのリースを更新し、グレースフルシャットダウン時にリースを解放し、クラッシュ後にplatform/coreが期限切れのリースを回収できるようにします。
+| 名前                            | 説明                            | 必須       | デフォルト |
+| ------------------------------- | ------------------------------- | ---------- | ---------- |
+| `NEO4J_URL`                     | Neo4j接続URL                    | はい       | —          |
+| `NEO4J_USERNAME`                | Neo4jユーザー名                 | はい       | neo4j      |
+| `NEO4J_PASSWORD`                | Neo4jパスワード                 | はい       | —          |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | APIトークン暗号化用の32文字キー | はい(本番) | —          |
+| `RUSHDB_PORT`                   | HTTPポート                      | いいえ     | 3000       |
+| `RUSHDB_LOGIN`                  | 管理者ログイン                  | いいえ     | admin      |
+| `RUSHDB_PASSWORD`               | 管理者パスワード                | いいえ     | password   |
 
 </details>
 
@@ -392,8 +383,8 @@ RushDBは**Labeled Meta Property Graph (LMPG)** モデルを使用します。�
 | TypeScript SDK                | https://docs.rushdb.com/typescript-sdk/introduction            |
 | Python SDK                    | https://docs.rushdb.com/python-sdk/introduction                |
 | REST API                      | https://docs.rushdb.com/rest-api/introduction                  |
-| MCPサーバー                   | packages/mcp-server/README.md                                  |
-| エージェントスキル            | packages/skills/README.md                                      |
+| MCPサーバー                   | https://github.com/rush-db/mcp-server#readme                   |
+| エージェントスキル            | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -420,14 +411,12 @@ pnpm test
 
 ## ライセンス
 
-| パス                    | ライセンス          |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| パス                                                                | ライセンス          |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

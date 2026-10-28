@@ -13,7 +13,7 @@
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 เว็บไซต์](https://rushdb.com) • [📖 เอกสารประกอบ](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 ตัวอย่าง](https://github.com/rush-db/examples)
@@ -292,29 +292,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>ตัวแปรสภาพแวดล้อมทั้งหมด</summary>
 
-| ชื่อ                              | คำอธิบาย                                       | จำเป็น     | ค่าเริ่มต้น |
-| --------------------------------- | ---------------------------------------------- | ---------- | ----------- |
-| `NEO4J_URL`                       | URL การเชื่อมต่อ Neo4j                         | ใช่        | —           |
-| `NEO4J_USERNAME`                  | ชื่อผู้ใช้ Neo4j                               | ใช่        | neo4j       |
-| `NEO4J_PASSWORD`                  | รหัสผ่าน Neo4j                                 | ใช่        | —           |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | คีย์ 32 อักขระสำหรับเข้ารหัส API token         | ใช่ (prod) | —           |
-| `RUSHDB_PORT`                     | พอร์ต HTTP                                     | ไม่        | 3000        |
-| `RUSHDB_LOGIN`                    | ล็อกอินของผู้ดูแลระบบ                          | ไม่        | admin       |
-| `RUSHDB_PASSWORD`                 | รหัสผ่านของผู้ดูแลระบบ                         | ไม่        | password    |
-| `RUSHDB_BASE_URL`                 | URL API สาธารณะ/ฐานสำหรับการมอบหมายงาน synx    | ไม่        | —           |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | token ภายในสำหรับ synx worker แบบจัดการให้     | ไม่        | —           |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | คีย์การเขียนภายในสำหรับการเขียนปลายทางของ synx | ไม่        | —           |
-
-synx worker แบบจัดการให้ทำงานเป็น daemon มันจะคอยตรวจสอบ connector ที่รันได้, ต่ออายุการเช่า connector (connector leases), ปล่อยการเช่าเมื่อปิดระบบอย่างนุ่มนวล และให้ platform/core เรียกคืนการเช่าที่หมดอายุหลังจากเกิด crash
+| ชื่อ                            | คำอธิบาย                               | จำเป็น     | ค่าเริ่มต้น |
+| ------------------------------- | -------------------------------------- | ---------- | ----------- |
+| `NEO4J_URL`                     | URL การเชื่อมต่อ Neo4j                 | ใช่        | —           |
+| `NEO4J_USERNAME`                | ชื่อผู้ใช้ Neo4j                       | ใช่        | neo4j       |
+| `NEO4J_PASSWORD`                | รหัสผ่าน Neo4j                         | ใช่        | —           |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | คีย์ 32 อักขระสำหรับเข้ารหัส API token | ใช่ (prod) | —           |
+| `RUSHDB_PORT`                   | พอร์ต HTTP                             | ไม่        | 3000        |
+| `RUSHDB_LOGIN`                  | ล็อกอินของผู้ดูแลระบบ                  | ไม่        | admin       |
+| `RUSHDB_PASSWORD`               | รหัสผ่านของผู้ดูแลระบบ                 | ไม่        | password    |
 
 </details>
 
@@ -392,8 +383,8 @@ SearchQuery เดียวดึงมุมมองหลายมุมพ�
 | TypeScript SDK                  | https://docs.rushdb.com/typescript-sdk/introduction            |
 | Python SDK                      | https://docs.rushdb.com/python-sdk/introduction                |
 | REST API                        | https://docs.rushdb.com/rest-api/introduction                  |
-| MCP Server                      | packages/mcp-server/README.md                                  |
-| Agent Skills                    | packages/skills/README.md                                      |
+| MCP Server                      | https://github.com/rush-db/mcp-server#readme                   |
+| Agent Skills                    | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -420,14 +411,12 @@ pnpm test
 
 ## สัญญาอนุญาต (License)
 
-| เส้นทาง                 | สัญญาอนุญาต         |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| เส้นทาง                                                             | สัญญาอนุญาต         |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

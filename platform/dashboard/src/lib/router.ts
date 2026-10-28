@@ -28,8 +28,6 @@ export const projectRoutes = {
   projectConnectedApps: '/projects/:id/settings/connected-apps',
   projectImportData: '/projects/:id/import',
   projectLiveSchema: '/projects/:id/live-schema',
-  projectNewConnection: '/projects/:id/connections/new/:sourceType',
-  projectConnection: '/projects/:id/connections/:connectionId',
   projectTokens: '/projects/:id/tokens',
   projectIndexes: '/projects/:id/indexes',
   projectQueryLab: '/projects/:id/query-lab',

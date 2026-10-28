@@ -40,7 +40,6 @@ export const queryKeys = {
     suggestedFields: (projectId: string, params: { labels: string[]; filters: Filter[] }) =>
       ['projects', projectId, 'suggested-fields', params] as const,
     indexes: (projectId: string) => ['projects', projectId, 'indexes'] as const,
-    connectors: (projectId: string) => ['projects', projectId, 'connectors'] as const,
     savedQueries: (projectId: string) => ['projects', projectId, 'saved-queries'] as const,
     schema: (projectId: string) => ['projects', projectId, 'schema'] as const,
     schemaMarkdown: (projectId: string) => ['projects', projectId, 'schema-md'] as const,

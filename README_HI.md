@@ -13,7 +13,7 @@
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 वेबसाइट](https://rushdb.com) • [📖 दस्तावेज़ीकरण](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 उदाहरण](https://github.com/rush-db/examples)
@@ -292,29 +292,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>पूर्ण environment variables</summary>
 
-| नाम                               | विवरण                                             | आवश्यक     | Default  |
-| --------------------------------- | ------------------------------------------------- | ---------- | -------- |
-| `NEO4J_URL`                       | Neo4j connection URL                              | हाँ        | —        |
-| `NEO4J_USERNAME`                  | Neo4j username                                    | हाँ        | neo4j    |
-| `NEO4J_PASSWORD`                  | Neo4j password                                    | हाँ        | —        |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | API token encryption के लिए 32-char key           | हाँ (prod) | —        |
-| `RUSHDB_PORT`                     | HTTP port                                         | नहीं       | 3000     |
-| `RUSHDB_LOGIN`                    | Admin login                                       | नहीं       | admin    |
-| `RUSHDB_PASSWORD`                 | Admin password                                    | नहीं       | password |
-| `RUSHDB_BASE_URL`                 | synx assignments के लिए Public/base API URL       | नहीं       | —        |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | Managed synx workers के लिए internal token        | नहीं       | —        |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | synx destination writes के लिए internal write key | नहीं       | —        |
-
-Managed synx workers daemons के रूप में चलते हैं। वे runnable connectors के लिए poll करते हैं, connector leases को renew करते हैं, graceful shutdown पर leases release करते हैं, और platform/core को crashes के बाद expired leases reclaim करने देते हैं।
+| नाम                             | विवरण                                   | आवश्यक     | Default  |
+| ------------------------------- | --------------------------------------- | ---------- | -------- |
+| `NEO4J_URL`                     | Neo4j connection URL                    | हाँ        | —        |
+| `NEO4J_USERNAME`                | Neo4j username                          | हाँ        | neo4j    |
+| `NEO4J_PASSWORD`                | Neo4j password                          | हाँ        | —        |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | API token encryption के लिए 32-char key | हाँ (prod) | —        |
+| `RUSHDB_PORT`                   | HTTP port                               | नहीं       | 3000     |
+| `RUSHDB_LOGIN`                  | Admin login                             | नहीं       | admin    |
+| `RUSHDB_PASSWORD`               | Admin password                          | नहीं       | password |
 
 </details>
 
@@ -392,8 +383,8 @@ RushDB एक **Labeled Meta Property Graph (LMPG)** model का उपयो�
 | TypeScript SDK           | https://docs.rushdb.com/typescript-sdk/introduction            |
 | Python SDK               | https://docs.rushdb.com/python-sdk/introduction                |
 | REST API                 | https://docs.rushdb.com/rest-api/introduction                  |
-| MCP Server               | packages/mcp-server/README.md                                  |
-| Agent Skills             | packages/skills/README.md                                      |
+| MCP Server               | https://github.com/rush-db/mcp-server#readme                   |
+| Agent Skills             | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -420,14 +411,12 @@ pnpm test
 
 ## License
 
-| Path                    | License             |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| Path                                                                | License             |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

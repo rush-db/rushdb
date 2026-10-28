@@ -13,7 +13,7 @@
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 官网](https://rushdb.com) • [📖 文档](https://docs.rushdb.com) • [☁️ 云服务](https://app.rushdb.com) • [🔍 示例](https://github.com/rush-db/examples)
@@ -292,29 +292,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>完整环境变量</summary>
 
-| 名称                              | 描述                              | 是否必需       | 默认值   |
-| --------------------------------- | --------------------------------- | -------------- | -------- |
-| `NEO4J_URL`                       | Neo4j 连接 URL                    | 是             | —        |
-| `NEO4J_USERNAME`                  | Neo4j 用户名                      | 是             | neo4j    |
-| `NEO4J_PASSWORD`                  | Neo4j 密码                        | 是             | —        |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | 用于 API 令牌加密的 32 字符密钥   | 是（生产环境） | —        |
-| `RUSHDB_PORT`                     | HTTP 端口                         | 否             | 3000     |
-| `RUSHDB_LOGIN`                    | 管理员登录名                      | 否             | admin    |
-| `RUSHDB_PASSWORD`                 | 管理员密码                        | 否             | password |
-| `RUSHDB_BASE_URL`                 | 用于 synx 分配的公开/基础 API URL | 否             | —        |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | 用于托管 synx worker 的内部令牌   | 否             | —        |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | 用于 synx 目标写入的内部写入密钥  | 否             | —        |
-
-托管的 synx worker 以守护进程方式运行。它们轮询可运行的连接器、续期连接器租约、在优雅关闭时释放租约，并让 platform/core 在崩溃后回收过期租约。
+| 名称                            | 描述                            | 是否必需       | 默认值   |
+| ------------------------------- | ------------------------------- | -------------- | -------- |
+| `NEO4J_URL`                     | Neo4j 连接 URL                  | 是             | —        |
+| `NEO4J_USERNAME`                | Neo4j 用户名                    | 是             | neo4j    |
+| `NEO4J_PASSWORD`                | Neo4j 密码                      | 是             | —        |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | 用于 API 令牌加密的 32 字符密钥 | 是（生产环境） | —        |
+| `RUSHDB_PORT`                   | HTTP 端口                       | 否             | 3000     |
+| `RUSHDB_LOGIN`                  | 管理员登录名                    | 否             | admin    |
+| `RUSHDB_PASSWORD`               | 管理员密码                      | 否             | password |
 
 </details>
 
@@ -392,8 +383,8 @@ RushDB 采用**带标签的元属性图（Labeled Meta Property Graph，LMPG）*
 | TypeScript SDK  | https://docs.rushdb.com/typescript-sdk/introduction            |
 | Python SDK      | https://docs.rushdb.com/python-sdk/introduction                |
 | REST API        | https://docs.rushdb.com/rest-api/introduction                  |
-| MCP 服务器      | packages/mcp-server/README.md                                  |
-| 智能体技能      | packages/skills/README.md                                      |
+| MCP 服务器      | https://github.com/rush-db/mcp-server#readme                   |
+| 智能体技能      | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -420,14 +411,12 @@ pnpm test
 
 ## 许可证
 
-| 路径                    | 许可证              |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| 路径                                                                | 许可证              |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

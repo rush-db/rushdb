@@ -4,10 +4,12 @@ name: Release 2.x images
 # supported for 12 months after the 3.0.0 release; `main` carries the 3.x Rust
 # engine, which has its own release pipeline.
 #
-# Shipping is triggered by a push that changes package versions — see
-# .github/scripts/detect-version-bumps.mjs. 2.x publishes container images only:
+# Shipping is triggered by a push that changes the platform version — see
+# .github/scripts/detect-version-bumps.mjs. 2.x publishes one container image:
 #   rushdb/platform    ← rushdb-core's version, rebuilt when core or dashboard bumps
-#   rushdb/mcp-server  ← @rushdb/mcp-server's version, rebuilt when it bumps
+#
+# The SDK, MCP server, skills and memory contract are standalone packages on
+# their own release lines, with their own repositories and pipelines.
 #
 # There is deliberately no npm publish here: npm `latest` belongs to 3.x, and a
 # 2.x changesets publish would move it backwards. There is also no deploy: the
@@ -24,10 +26,6 @@ on:
     inputs:
       force_platform:
         description: 'Rebuild and publish rushdb/platform at its current version'
-        type: boolean
-        default: false
-      force_mcp:
-        description: 'Rebuild and publish rushdb/mcp-server at its current version'
         type: boolean
         default: false
 
@@ -50,8 +48,6 @@ jobs:
     outputs:
       platform_changed: ${{ steps.bumps.outputs.platform_changed }}
       platform_version: ${{ steps.bumps.outputs.platform_version }}
-      mcp_changed: ${{ steps.bumps.outputs.mcp_image_changed }}
-      mcp_version: ${{ steps.bumps.outputs.mcp_version }}
 
     steps:
       - name: Checkout
@@ -70,7 +66,6 @@ jobs:
           BASE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
           FORCE_PLATFORM: ${{ inputs.force_platform }}
-          FORCE_MCP: ${{ inputs.force_mcp }}
 
   platform-image:
     name: Platform image
@@ -87,16 +82,3 @@ jobs:
       build_args: |
         VITE_BACKEND_BASE_URL=https://api.rushdb.com
     secrets: inherit
-
-  mcp-image:
-    name: MCP image
-    needs: release
-    if: needs.release.outputs.mcp_changed == 'true'
-    uses: ./.github/workflows/docker-image.yml
-    with:
-      image: rushdb/mcp-server
-      slug: mcp-server
-      dockerfile: packages/mcp-server/Dockerfile
-      version: ${{ needs.release.outputs.mcp_version }}
-    secrets: inherit
-

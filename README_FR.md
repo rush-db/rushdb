@@ -13,7 +13,7 @@ Pas de pipeline. Pas de stockages séparés. Aucun schéma à concevoir.
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 Site web](https://rushdb.com) • [📖 Documentation](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 Exemples](https://github.com/rush-db/examples)
@@ -292,29 +292,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>Variables d'environnement complètes</summary>
 
-| Nom                               | Description                                                   | Requis     | Défaut   |
-| --------------------------------- | ------------------------------------------------------------- | ---------- | -------- |
-| `NEO4J_URL`                       | URL de connexion Neo4j                                        | oui        | —        |
-| `NEO4J_USERNAME`                  | Nom d'utilisateur Neo4j                                       | oui        | neo4j    |
-| `NEO4J_PASSWORD`                  | Mot de passe Neo4j                                            | oui        | —        |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | Clé de 32 caractères pour le chiffrement des jetons API       | oui (prod) | —        |
-| `RUSHDB_PORT`                     | Port HTTP                                                     | non        | 3000     |
-| `RUSHDB_LOGIN`                    | Identifiant administrateur                                    | non        | admin    |
-| `RUSHDB_PASSWORD`                 | Mot de passe administrateur                                   | non        | password |
-| `RUSHDB_BASE_URL`                 | URL API publique/de base pour les affectations synx           | non        | —        |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | Jeton interne pour les workers synx gérés                     | non        | —        |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | Clé d'écriture interne pour les écritures de destination synx | non        | —        |
-
-Les workers synx gérés s'exécutent en tant que daemons. Ils interrogent les connecteurs exécutables, renouvellent les baux de connecteur, libèrent les baux lors d'un arrêt gracieux, et permettent à platform/core de récupérer les baux expirés après un crash.
+| Nom                             | Description                                             | Requis     | Défaut   |
+| ------------------------------- | ------------------------------------------------------- | ---------- | -------- |
+| `NEO4J_URL`                     | URL de connexion Neo4j                                  | oui        | —        |
+| `NEO4J_USERNAME`                | Nom d'utilisateur Neo4j                                 | oui        | neo4j    |
+| `NEO4J_PASSWORD`                | Mot de passe Neo4j                                      | oui        | —        |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | Clé de 32 caractères pour le chiffrement des jetons API | oui (prod) | —        |
+| `RUSHDB_PORT`                   | Port HTTP                                               | non        | 3000     |
+| `RUSHDB_LOGIN`                  | Identifiant administrateur                              | non        | admin    |
+| `RUSHDB_PASSWORD`               | Mot de passe administrateur                             | non        | password |
 
 </details>
 
@@ -392,8 +383,8 @@ Une seule SearchQuery récupère plusieurs perspectives simultanément (enregist
 | SDK TypeScript                     | https://docs.rushdb.com/typescript-sdk/introduction            |
 | SDK Python                         | https://docs.rushdb.com/python-sdk/introduction                |
 | API REST                           | https://docs.rushdb.com/rest-api/introduction                  |
-| Serveur MCP                        | packages/mcp-server/README.md                                  |
-| Agent Skills                       | packages/skills/README.md                                      |
+| Serveur MCP                        | https://github.com/rush-db/mcp-server#readme                   |
+| Agent Skills                       | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -420,14 +411,12 @@ Consultez [CONTRIBUTING.md](CONTRIBUTING.md) pour les directives complètes. Les
 
 ## Licence
 
-| Chemin                  | Licence             |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| Chemin                                                              | Licence             |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

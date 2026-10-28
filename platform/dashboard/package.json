@@ -1,6 +1,6 @@
 {
   "name": "rushdb-dashboard",
-  "version": "2.13.1",
+  "version": "2.13.2",
   "description": "RushDB Dashboard",
   "type": "module",
   "private": true,
@@ -34,7 +34,7 @@
     "@radix-ui/react-tabs": "^1.1.2",
     "@radix-ui/react-toast": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.2",
-    "@rushdb/javascript-sdk": "workspace:*",
+    "@rushdb/javascript-sdk": "2.11.0",
     "@sentry/react": "7.74.0",
     "@stripe/stripe-js": "^2.4.0",
     "@tanstack/react-query": "^5.84.1",

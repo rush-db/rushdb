@@ -21,7 +21,7 @@ concurrency:
 # ──────────────────────────────────────────────────────────────────────────────
 
 jobs:
-  # ── Build all packages + type-check ─────────────────────────────────────────
+  # ── Build the platform + type-check ─────────────────────────────────────────
   build:
     name: Build & Type-check
     runs-on: ubuntu-latest
@@ -40,20 +40,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # SDK must be built first — other packages resolve @rushdb/javascript-sdk
-      # from the workspace dist/ directory.
-      - name: Build javascript-sdk
-        run: pnpm --filter ./packages/javascript-sdk build
-
-      - name: Build agent-memory-contract
-        run: pnpm --filter ./packages/agent-memory-contract build
-
-      - name: Verify agent-memory-contract package
-        run: pnpm --filter ./packages/agent-memory-contract pack:check
-
-      - name: Build mcp-server
-        run: pnpm --filter ./packages/mcp-server build
-
       - name: Build platform/core
         run: pnpm --filter ./platform/core build
 
@@ -62,10 +48,7 @@ jobs:
       - name: Type-check platform/dashboard
         run: pnpm --filter ./platform/dashboard types:check
 
-      - name: Type-check javascript-sdk
-        run: pnpm --filter ./packages/javascript-sdk types:check
-
-  # ── ESLint across all packages that define a lint script ────────────────────
+  # ── ESLint for the platform ─────────────────────────────────────────────────
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -89,10 +72,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Type-aware lint rules in platform/core require the SDK types to be present.
-      - name: Build javascript-sdk
-        run: pnpm --filter ./packages/javascript-sdk build
-
       - name: Lint platform/core
         run: pnpm --filter ./platform/core lint
 
@@ -115,13 +94,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build javascript-sdk
-        run: pnpm --filter ./packages/javascript-sdk build
-
-      - name: Test agent-memory-contract
-        run: pnpm --filter ./packages/agent-memory-contract test
-
-      # 9 pure unit tests for the Cypher query parser — no DB or network required.
+      # Unit tests — no DB or network required.
       - name: Test platform/core (unit)
         run: pnpm --filter ./platform/core test
         env:

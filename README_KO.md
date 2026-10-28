@@ -13,7 +13,7 @@ JSON을 그대로 보내세요. 에이전트는 자동으로 추론된 살아있
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 웹사이트](https://rushdb.com) • [📖 문서](https://docs.rushdb.com) • [☁️ 클라우드](https://app.rushdb.com) • [🔍 예제](https://github.com/rush-db/examples)
@@ -292,29 +292,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>전체 환경 변수</summary>
 
-| 이름                              | 설명                               | 필수          | 기본값   |
-| --------------------------------- | ---------------------------------- | ------------- | -------- |
-| `NEO4J_URL`                       | Neo4j 연결 URL                     | 예            | —        |
-| `NEO4J_USERNAME`                  | Neo4j 사용자 이름                  | 예            | neo4j    |
-| `NEO4J_PASSWORD`                  | Neo4j 비밀번호                     | 예            | —        |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | API 토큰 암호화를 위한 32자 키     | 예 (프로덕션) | —        |
-| `RUSHDB_PORT`                     | HTTP 포트                          | 아니오        | 3000     |
-| `RUSHDB_LOGIN`                    | 관리자 로그인                      | 아니오        | admin    |
-| `RUSHDB_PASSWORD`                 | 관리자 비밀번호                    | 아니오        | password |
-| `RUSHDB_BASE_URL`                 | synx 할당을 위한 공개/기본 API URL | 아니오        | —        |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | 관리형 synx 워커를 위한 내부 토큰  | 아니오        | —        |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | synx 대상 쓰기를 위한 내부 쓰기 키 | 아니오        | —        |
-
-관리형 synx 워커는 데몬으로 실행됩니다. 실행 가능한 커넥터를 폴링하고, 커넥터 리스를 갱신하고, 정상 종료 시 리스를 해제하며, 크래시 후 platform/core가 만료된 리스를 회수하도록 합니다.
+| 이름                            | 설명                           | 필수          | 기본값   |
+| ------------------------------- | ------------------------------ | ------------- | -------- |
+| `NEO4J_URL`                     | Neo4j 연결 URL                 | 예            | —        |
+| `NEO4J_USERNAME`                | Neo4j 사용자 이름              | 예            | neo4j    |
+| `NEO4J_PASSWORD`                | Neo4j 비밀번호                 | 예            | —        |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | API 토큰 암호화를 위한 32자 키 | 예 (프로덕션) | —        |
+| `RUSHDB_PORT`                   | HTTP 포트                      | 아니오        | 3000     |
+| `RUSHDB_LOGIN`                  | 관리자 로그인                  | 아니오        | admin    |
+| `RUSHDB_PASSWORD`               | 관리자 비밀번호                | 아니오        | password |
 
 </details>
 
@@ -392,8 +383,8 @@ RushDB는 **레이블이 지정된 메타 속성 그래프(Labeled Meta Property
 | TypeScript SDK     | https://docs.rushdb.com/typescript-sdk/introduction            |
 | Python SDK         | https://docs.rushdb.com/python-sdk/introduction                |
 | REST API           | https://docs.rushdb.com/rest-api/introduction                  |
-| MCP 서버           | packages/mcp-server/README.md                                  |
-| 에이전트 스킬      | packages/skills/README.md                                      |
+| MCP 서버           | https://github.com/rush-db/mcp-server#readme                   |
+| 에이전트 스킬      | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -420,14 +411,12 @@ pnpm test
 
 ## 라이선스
 
-| 경로                    | 라이선스            |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| 경로                                                                | 라이선스            |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

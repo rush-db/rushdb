@@ -3,7 +3,6 @@ import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/comm
 import { AuthModule } from '@/dashboard/auth/auth.module'
 import { AuthMiddleware } from '@/dashboard/auth/middlewares/auth.middleware'
 import { BillingModule } from '@/dashboard/billing/billing.module'
-import { ConnectorModule } from '@/dashboard/connector/connector.module'
 import { MailModule } from '@/dashboard/mail/mail.module'
 import { McpOauthModule } from '@/dashboard/mcp-oauth/mcp-oauth.module'
 import { ProjectModule } from '@/dashboard/project/project.module'
@@ -24,21 +23,11 @@ import { SessionAndTransactionAttachMiddleware } from '@/database/session-and-tr
     MailModule,
     UserModule,
     BillingModule,
-    ConnectorModule,
     SavedQueryModule,
     McpOauthModule,
     forwardRef(() => DbConnectionModule)
   ],
-  exports: [
-    WorkspaceModule,
-    ProjectModule,
-    TokenModule,
-    AuthModule,
-    MailModule,
-    UserModule,
-    BillingModule,
-    ConnectorModule
-  ]
+  exports: [WorkspaceModule, ProjectModule, TokenModule, AuthModule, MailModule, UserModule, BillingModule]
 })
 export class DashboardModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

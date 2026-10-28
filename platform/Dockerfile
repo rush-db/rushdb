@@ -11,16 +11,14 @@ WORKDIR /app
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Copy package files
-COPY ../../package.json ../../pnpm-lock.yaml ../../pnpm-workspace.yaml ./
+COPY ./package.json ./pnpm-lock.yaml ./pnpm-workspace.yaml ./
 COPY ./platform/dashboard/package.json ./platform/dashboard/package.json
 COPY ./platform/core/package.json ./platform/core/package.json
-COPY ./packages/javascript-sdk/package.json ./packages/javascript-sdk/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile --shamefully-hoist
 
 # Copy source files excluding node_modules
-COPY ./packages/javascript-sdk ./packages/javascript-sdk
 COPY ./platform/dashboard/src ./platform/dashboard/src
 COPY ./platform/dashboard/config ./platform/dashboard/config
 COPY ./platform/dashboard/public ./platform/dashboard/public
@@ -34,9 +32,6 @@ COPY ./platform/core/src ./platform/core/src
 COPY ./platform/core/tsconfig.json ./platform/core/
 COPY ./platform/core/tsconfig.build.json ./platform/core/
 COPY ./platform/core/nest-cli.json ./platform/core/
-
-# Build javascript-sdk first
-RUN cd packages/javascript-sdk && pnpm build
 
 # Build dashboard. VITE_BACKEND_BASE_URL tells the dashboard where the API
 # lives: empty = same-origin (self-host default); hosted builds pass an
@@ -69,7 +64,7 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 # Copy package files
-COPY ../../package.json ../../pnpm-lock.yaml ../../pnpm-workspace.yaml ./
+COPY ./package.json ./pnpm-lock.yaml ./pnpm-workspace.yaml ./
 COPY ./platform/core/package.json ./platform/core/package.json
 
 # Install pnpm and production dependencies.

@@ -13,7 +13,7 @@ No pipeline. No separate stores. No schema to design.
 [![Follow on X](https://img.shields.io/twitter/follow/rushdb?style=social)](https://x.com/RushDatabase)
 [![NPM Version](https://img.shields.io/npm/v/%40rushdb%2Fjavascript-sdk?label=npm)](https://www.npmjs.com/package/@rushdb/javascript-sdk)
 [![PyPI Version](https://img.shields.io/pypi/v/rushdb?label=pypi)](https://pypi.org/project/rushdb/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](packages/javascript-sdk/LICENSE)
+[![License](https://img.shields.io/badge/license-Elastic%202.0-blue)](platform/core/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?label=tests)](https://github.com/rush-db/rushdb/actions)
 
 [🌐 Website](https://rushdb.com) • [📖 Documentation](https://docs.rushdb.com) • [☁️ Cloud](https://app.rushdb.com) • [🔍 Examples](https://github.com/rush-db/examples)
@@ -24,8 +24,7 @@ No pipeline. No separate stores. No schema to design.
 
 ---
 
-> [!IMPORTANT]
-> **This is the `2.x` maintenance branch.** The 3.x line is a standalone Rust engine and lives on [`main`](https://github.com/rush-db/rushdb). This branch receives fixes and security updates only, for **12 months after the 3.0.0 release**; it does not receive new features. npm packages and container images for 3.x are the supported versions for new deployments.
+> [!IMPORTANT] > **This is the `2.x` maintenance branch.** The 3.x line is a standalone Rust engine and lives on [`main`](https://github.com/rush-db/rushdb). This branch receives fixes and security updates only, for **12 months after the 3.0.0 release**; it does not receive new features. npm packages and container images for 3.x are the supported versions for new deployments.
 
 ---
 
@@ -297,29 +296,20 @@ services:
       - RUSHDB_AES_256_ENCRYPTION_KEY=32-char-key-here
       - RUSHDB_LOGIN=admin
       - RUSHDB_PASSWORD=secure-password
-      # Optional: managed continuous-sync connectors via synx
-      - RUSHDB_BASE_URL=https://rushdb.example.com
-      - RUSHDB_SYNX_CONTROL_TOKEN=long-random-shared-token
-      - RUSHDB_SYNX_DESTINATION_API_KEY=internal-write-api-key
 ```
 
 <details>
 <summary>Full environment variables</summary>
 
-| Name                              | Description                                    | Required   | Default  |
-| --------------------------------- | ---------------------------------------------- | ---------- | -------- |
-| `NEO4J_URL`                       | Neo4j connection URL                           | yes        | —        |
-| `NEO4J_USERNAME`                  | Neo4j username                                 | yes        | neo4j    |
-| `NEO4J_PASSWORD`                  | Neo4j password                                 | yes        | —        |
-| `RUSHDB_AES_256_ENCRYPTION_KEY`   | 32-char key for API token encryption           | yes (prod) | —        |
-| `RUSHDB_PORT`                     | HTTP port                                      | no         | 3000     |
-| `RUSHDB_LOGIN`                    | Admin login                                    | no         | admin    |
-| `RUSHDB_PASSWORD`                 | Admin password                                 | no         | password |
-| `RUSHDB_BASE_URL`                 | Public/base API URL for synx assignments       | no         | —        |
-| `RUSHDB_SYNX_CONTROL_TOKEN`       | Internal token for managed synx workers        | no         | —        |
-| `RUSHDB_SYNX_DESTINATION_API_KEY` | Internal write key for synx destination writes | no         | —        |
-
-Managed synx workers run as daemons. They poll for runnable connectors, renew connector leases, release leases on graceful shutdown, and let platform/core reclaim expired leases after crashes.
+| Name                            | Description                          | Required   | Default  |
+| ------------------------------- | ------------------------------------ | ---------- | -------- |
+| `NEO4J_URL`                     | Neo4j connection URL                 | yes        | —        |
+| `NEO4J_USERNAME`                | Neo4j username                       | yes        | neo4j    |
+| `NEO4J_PASSWORD`                | Neo4j password                       | yes        | —        |
+| `RUSHDB_AES_256_ENCRYPTION_KEY` | 32-char key for API token encryption | yes (prod) | —        |
+| `RUSHDB_PORT`                   | HTTP port                            | no         | 3000     |
+| `RUSHDB_LOGIN`                  | Admin login                          | no         | admin    |
+| `RUSHDB_PASSWORD`               | Admin password                       | no         | password |
 
 </details>
 
@@ -397,8 +387,8 @@ One SearchQuery retrieves multiple perspectives simultaneously (records + proper
 | TypeScript SDK           | https://docs.rushdb.com/typescript-sdk/introduction            |
 | Python SDK               | https://docs.rushdb.com/python-sdk/introduction                |
 | REST API                 | https://docs.rushdb.com/rest-api/introduction                  |
-| MCP Server               | packages/mcp-server/README.md                                  |
-| Agent Skills             | packages/skills/README.md                                      |
+| MCP Server               | https://github.com/rush-db/mcp-server#readme                   |
+| Agent Skills             | https://github.com/rush-db/skills#readme                       |
 
 ---
 
@@ -425,14 +415,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines. Issues and PRs welco
 
 ## License
 
-| Path                    | License             |
-| ----------------------- | ------------------- |
-| platform/core           | Elastic License 2.0 |
-| platform/dashboard      | Elastic License 2.0 |
-| docs                    | Apache 2.0          |
-| website                 | Apache 2.0          |
-| packages/javascript-sdk | Apache 2.0          |
-| packages/mcp-server     | Apache 2.0          |
+| Path                                                                | License             |
+| ------------------------------------------------------------------- | ------------------- |
+| platform/core                                                       | Elastic License 2.0 |
+| platform/dashboard                                                  | Elastic License 2.0 |
+| [@rushdb/javascript-sdk](https://github.com/rush-db/javascript-sdk) | Apache 2.0          |
+| [@rushdb/mcp-server](https://github.com/rush-db/mcp-server)         | Apache 2.0          |
 
 ---
 

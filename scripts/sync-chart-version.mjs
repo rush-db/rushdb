@@ -1,9 +1,8 @@
 // Keeps the Helm chart in step with the platform release.
 //
-// Runs as part of `pnpm run version`, i.e. inside `changeset version`, so the
-// chart bump travels in the changesets "version packages" PR rather than being
-// remembered by hand. Merging that PR changes `charts/**`, which is what
-// .github/workflows/helm-publish.yml triggers on — the chart publishes itself.
+// Run manually with `pnpm version:chart` as part of a 2.x platform version
+// bump. The 2.x branch has no changesets; core and dashboard are bumped
+// together and the chart follows the platform image.
 //
 // The chart's own `version` tracks the platform version rather than moving
 // independently. Pushing to an OCI registry overwrites an existing chart
@@ -20,7 +19,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (file) => readFileSync(join(root, file), 'utf8')
 
 // The platform image is tagged with rushdb-core's version (core and dashboard
-// are a `fixed` changesets pair, so this covers both halves of the image).
+// are bumped together, so this covers both halves of the image).
 const version = JSON.parse(read('platform/core/package.json')).version
 
 const EDITS = [
@@ -37,7 +36,7 @@ const EDITS = [
     replacement: `appVersion: '${version}'`
   },
   {
-    // Anchored on the repository line so the synx and neo4j image tags in the
+    // Anchored on the repository line so the neo4j image tags in the
     // same file are left alone.
     file: 'charts/rushdb/values.yaml',
     what: 'rushdb/platform image tag',

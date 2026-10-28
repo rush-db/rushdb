@@ -43,7 +43,6 @@ export class AppSettingsController {
     const embeddingDimensions = this.configService.get('RUSHDB_EMBEDDING_DIMENSIONS')
     const llmApiKey = this.configService.get('RUSHDB_LLM_API_KEY')
     const llmModel = this.configService.get('RUSHDB_LLM_MODEL')
-    const synxControlToken = this.configService.get('RUSHDB_SYNX_CONTROL_TOKEN')
     return {
       selfHosted: toBoolean(selfHosted),
       dashboardUrl: dashboardUrl,
@@ -51,8 +50,7 @@ export class AppSettingsController {
       githubOAuthEnabled: toBoolean(githubAuthClientId),
       embeddingEnabled:
         isPresent(embeddingApiKey) && isPresent(embeddingModel) && isPositiveInteger(embeddingDimensions),
-      llmEnabled: isPresent(llmApiKey) && isPresent(llmModel),
-      synxEnabled: toBoolean(synxControlToken)
+      llmEnabled: isPresent(llmApiKey) && isPresent(llmModel)
     }
   }
 

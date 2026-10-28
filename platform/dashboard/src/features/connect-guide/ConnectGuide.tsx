@@ -58,7 +58,7 @@ const localMcpConfig = (token: string) => `{
   "mcpServers": {
     "rushdb": {
       "command": "npx",
-      "args": ["-y", "@rushdb/mcp-server"],
+      "args": ["-y", "@rushdb/mcp-server@2.13.0"],
       "env": {
         "RUSHDB_API_KEY": "${token}"
       }
@@ -71,7 +71,7 @@ const vscodeMcpConfig = (token: string) => `{
     "rushdb": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@rushdb/mcp-server"],
+      "args": ["-y", "@rushdb/mcp-server@2.13.0"],
       "env": {
         "RUSHDB_API_KEY": "${token}"
       }
@@ -83,7 +83,7 @@ const getSdkInstallCommand = (language: AvailableSdkLanguage) =>
   ({
     python: 'pip install rushdb',
     shell: null,
-    typescript: 'npm install @rushdb/javascript-sdk'
+    typescript: 'npm install @rushdb/javascript-sdk@2.11.0'
   })[language]
 
 const getSdkConnectionSnippet = ({ language, token }: { language: AvailableSdkLanguage; token: string }) => {
@@ -779,11 +779,7 @@ function AgentSkillsGuide() {
         />
 
         <div className="grid min-w-0 content-start gap-4">
-          <CodeSnippet
-            title="Install skills"
-            code="npx skills add rush-db/rushdb --path packages/skills"
-            language="shell"
-          />
+          <CodeSnippet title="Install skills" code="npx skills add rush-db/skills" language="shell" />
           <CodeSnippet
             title="Bootstrap memory"
             code={`Fetch ${AGENT_SETUP_URL} and follow the instructions exactly.`}
