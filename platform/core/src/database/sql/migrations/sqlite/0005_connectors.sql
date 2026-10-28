@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS `connectors` (
   FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
 );
 
+--> statement-breakpoint
+
+
 CREATE TABLE IF NOT EXISTS `connector_secrets` (
   `connector_id` text PRIMARY KEY NOT NULL,
   `provider` text DEFAULT 'local' NOT NULL,
@@ -25,6 +28,9 @@ CREATE TABLE IF NOT EXISTS `connector_secrets` (
   FOREIGN KEY (`connector_id`) REFERENCES `connectors`(`id`) ON UPDATE no action ON DELETE cascade
 );
 
+--> statement-breakpoint
+
+
 CREATE TABLE IF NOT EXISTS `connector_offsets` (
   `connector_id` text NOT NULL,
   `partition` text NOT NULL,
@@ -33,6 +39,9 @@ CREATE TABLE IF NOT EXISTS `connector_offsets` (
   PRIMARY KEY(`connector_id`, `partition`),
   FOREIGN KEY (`connector_id`) REFERENCES `connectors`(`id`) ON UPDATE no action ON DELETE cascade
 );
+
+--> statement-breakpoint
+
 
 CREATE TABLE IF NOT EXISTS `connector_events` (
   `id` text PRIMARY KEY NOT NULL,
@@ -46,6 +55,9 @@ CREATE TABLE IF NOT EXISTS `connector_events` (
   FOREIGN KEY (`connector_id`) REFERENCES `connectors`(`id`) ON UPDATE no action ON DELETE cascade,
   FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
 );
+
+--> statement-breakpoint
+
 
 CREATE TABLE IF NOT EXISTS `connector_leases` (
   `connector_id` text PRIMARY KEY NOT NULL,
