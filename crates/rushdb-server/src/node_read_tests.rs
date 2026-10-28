@@ -1396,7 +1396,7 @@ fn reclaim_vector_slots_erases_superseded_slots_after_gc() {
 fn reclaim_vector_slots_discovers_cold_tenants_from_the_directory() {
     let node = Node::bootstrap(&mut crate::ServerConfig::default()).unwrap();
     // A registered tenant with no resident engine (cold) is still found:
-    // enumeration reads the tenant directory, not resident caches (DC8).
+    // enumeration reads the tenant directory, not resident caches.
     let cold_tenant =
         rushdb_lmpg::tenancy::resolve_or_register_scope(&node.store, "cold-tenant").unwrap();
     let lmpg = rushdb_lmpg::Lmpg::new(Arc::clone(&node.store), cold_tenant);
@@ -1498,7 +1498,7 @@ fn commit_latency_and_capacity_gauges_are_exported() {
 }
 
 /// Every commit-pipeline phase is timed and exported, so the commit
-/// line's cost can be attributed before choosing how to scale it (DC3).
+/// line's cost can be attributed before choosing how to scale it.
 #[test]
 fn commit_phase_timings_are_exported() {
     on_backends(|node| {

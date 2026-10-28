@@ -137,7 +137,7 @@ impl Store {
 
     /// Drop WAL segments fully covered by the durable materialization at
     /// `durable_lsn`, additionally clamped to the durable retention cursor
-    /// (A4): outcome-payload retention derives each old commit's
+    ///: outcome-payload retention derives each old commit's
     /// payload key from the WAL's embedded command, so a segment must not be
     /// reclaimed before that sweep has consumed it, or the payload key
     /// becomes unrecoverable. A sealed segment whose last record is at or
@@ -256,7 +256,7 @@ impl Store {
         let last_file = self.last_compacted_file_bytes.load(Ordering::Relaxed);
         let grown = last_file == 0
             || file.saturating_mul(100) >= last_file.saturating_mul(u64::from(growth_percent));
-        // A purge frees pages without growing the file (L4).
+        // A purge frees pages without growing the file.
         let purged = self.purged_since_compaction.load(Ordering::Relaxed) >= PURGED_KEYS_TO_COMPACT;
         if !grown && !purged {
             return Ok(CompactOutcome::BelowThreshold);

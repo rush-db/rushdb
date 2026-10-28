@@ -28,7 +28,7 @@ use crate::reader::{keys_ext, TryRead};
 // Deriver
 // ---------------------------------------------------------------------------
 
-/// The LMPG apply-time deriver (DC12).
+/// The LMPG apply-time deriver.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LmpgDeriver;
 
@@ -565,7 +565,7 @@ fn derive_pid(
         }
     }
     // Array markers: an exact count of array-holding owners per label, so
-    // the marker is a function of the current base rows (DC12).
+    // the marker is a function of the current base rows.
     let was = label_before.filter(|_| old.array);
     let is = label_after.filter(|_| new.array);
     if was != is {
@@ -714,7 +714,7 @@ pub enum AdjDirection {
     In,
 }
 
-/// A tenant's usage totals at one snapshot (USE-1).
+/// A tenant's usage totals at one snapshot.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TenantUsage {
     /// Live records.
@@ -786,7 +786,7 @@ pub fn label_count<R: TryRead + ?Sized>(
 /// Every live label with its count, in first-appearance order: by the
 /// ordinal of the label's oldest live record (one bounded seek per label),
 /// then name. The order is read from live rows, not stored, so it stays a
-/// function of the base state (DC12).
+/// function of the base state.
 ///
 /// # Errors
 /// Returns [`StorageError`] if the counters cannot be read or are malformed.

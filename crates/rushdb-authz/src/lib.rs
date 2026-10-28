@@ -371,7 +371,7 @@ pub fn store_policy(
     store_policy_with_min_count(lmpg, policy, mode, 0)
 }
 
-/// [`store_policy`] with a small-count threshold for catalog reads (POL-2):
+/// [`store_policy`] with a small-count threshold for catalog reads:
 /// groups counted over fewer than `min_count` records are withheld. 0 is no
 /// threshold and publishes exactly what [`store_policy`] does.
 ///

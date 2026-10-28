@@ -71,15 +71,15 @@ consequences:
 - Keep query-language claims precise. A parser accepting syntax is not a
   conformance guarantee.
 - Add benchmark evidence when changing storage, planner, index, or hot-path
-  behavior. Use the deterministic benchmark harnesses and include the JSON
-  artifact plus machine details in the pull request.
+  behavior; include the methodology, machine details, and raw results in the
+  pull request.
 - Keep user/workspace, billing, prompts, and hosted product behavior outside
   the engine unless it is required database semantics.
 
 ## Pull requests
 
 Explain the concrete user-visible behavior, migration or compatibility impact,
-and validation performed. Keep changes focused. Maintainers may request an ADR
+and validation performed. Keep changes focused. Maintainers may request a design note
 for changes to durable format, authorization, query semantics, or public wire
 contracts.
 

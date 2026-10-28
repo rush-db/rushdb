@@ -38,7 +38,7 @@ pub mod security;
 pub mod stats;
 /// Scalar value model and JSON conversion helpers.
 pub mod value;
-/// Matching a search text against stored values (CAT-2).
+/// Matching a search text against stored values.
 pub mod value_match;
 
 pub use error::TypesError;

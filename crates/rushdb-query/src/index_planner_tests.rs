@@ -225,7 +225,7 @@ fn eligible_returns_plan_residual_only_returns_none_and_force_scan_bypasses() {
     assert_eq!(bounded, expected);
     assert_eq!(total_support(&snap, l.tenant, "m", &[]).unwrap(), Some(20));
 
-    // Label-scoped presence (DC11) counts only the requested labels.
+    // Label-scoped presence counts only the requested labels.
     l.create_record(
         "B",
         None,

@@ -68,7 +68,7 @@ struct ResultCursor {
     next_offset: u64,
     /// Total matches at cursor creation. The view is pinned, so the total
     /// is invariant across pages: continuations reuse it instead of
-    /// re-scanning the match set for a count on every page (E6).
+    /// re-scanning the match set for a count on every page.
     total: u64,
     expires_at: Instant,
     /// Shared logical-cache reservation for the serialized request state.
@@ -218,7 +218,7 @@ pub struct Node {
         std::sync::Mutex<Option<(std::time::Instant, std::collections::BTreeMap<u64, u64>)>>,
     /// Slow-call log threshold in milliseconds; 0 disables the log.
     slow_call_threshold_ms: u64,
-    /// Per-tenant share of concurrent bulk requests (SCALE-2).
+    /// Per-tenant share of concurrent bulk requests.
     bulk_share: crate::bulk_share::BulkShare,
     /// Prefix applied to exported Prometheus metric names.
     metrics_prefix: Option<String>,
@@ -259,7 +259,7 @@ pub struct Node {
     /// Operator request (`promote`) the task observes at its next poll.
     follower_stop_requested: std::sync::atomic::AtomicBool,
     /// Maintenance closures on the blocking pool; shutdown drains them before
-    /// the final checkpoint (C6).
+    /// the final checkpoint.
     maintenance_work: crate::lifecycle::MaintenanceWork,
     /// Wakes the index builder when an index is declared or dropped.
     index_build_wake: std::sync::Arc<tokio::sync::Notify>,
@@ -893,7 +893,7 @@ impl Node {
         self.base_tenant
     }
 
-    /// Resolve a transport scope to its tenant ordinal (DC8). No scope is the
+    /// Resolve a transport scope to its tenant ordinal. No scope is the
     /// node's base tenant. A scope the directory has never seen is registered
     /// on first use, except on a follower, which cannot commit and resolves it
     /// to [`TenantId::UNREGISTERED`] (owns no keys, so reads are empty).
@@ -1109,7 +1109,7 @@ impl RequestScope<'_> {
     }
 
     /// Build a tenant-scoped engine handle bound to this node's store,
-    /// authorizer and the request's bounds (QRY-3).
+    /// authorizer and the request's bounds.
     #[must_use]
     pub fn lmpg(&self) -> rushdb_lmpg::Lmpg {
         rushdb_lmpg::Lmpg::new_with_authorizer(
@@ -1145,7 +1145,7 @@ impl RequestScope<'_> {
 
     /// Filesystem-safe, collision-free directory name for one tenant's
     /// on-disk ANN segments (`<data_dir>/vector-segments/<this>/space-<id>/`):
-    /// the tenant ordinal in hex. Ordinals are never reused (DC8), so a purged
+    /// the tenant ordinal in hex. Ordinals are never reused, so a purged
     /// tenant's directory can never be adopted by a new tenant.
     fn tenant_dir_name(tenant: TenantId) -> String {
         rushdb_types::keys::tenant_hex(tenant)
@@ -1309,7 +1309,7 @@ impl RequestScope<'_> {
     }
 
     /// [`Self::security_put_policy`] with a small-count threshold for catalog
-    /// reads (POL-2): groups counted over fewer than `min_count` records are
+    /// reads: groups counted over fewer than `min_count` records are
     /// withheld. 0 is no threshold.
     ///
     /// # Errors

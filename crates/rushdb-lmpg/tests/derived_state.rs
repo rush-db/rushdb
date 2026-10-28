@@ -77,7 +77,7 @@ fn random_value(rng: &mut Rng) -> FieldChange {
         0 => FieldChange::ExplicitNull,
         1 => FieldChange::Set(json!([])),
         2 => FieldChange::Set(json!(["a", "b", rng.below(3)])),
-        // Over DICT_MAX_VALUE_BYTES: excluded from the dictionary (DC10).
+        // Over DICT_MAX_VALUE_BYTES: excluded from the dictionary.
         3 => FieldChange::Set(json!("x".repeat(120 + rng.below(4)))),
         4 => FieldChange::Set(json!(format!("s{}", rng.below(5)))),
         5 => FieldChange::Set(json!(f64::from(u8::try_from(rng.below(4)).unwrap()) + 0.5)),
@@ -542,7 +542,7 @@ fn concurrent_edits_of_different_fields_of_one_record_do_not_conflict() {
     )
     .unwrap();
     eng.store.tx_commit(uuid::Uuid::now_v7(), &first).unwrap();
-    // Derived rows are never in a conflict set (DC12), and the edits' event
+    // Derived rows are never in a conflict set, and the edits' event
     // rows are commit-scoped, so only the two OCC rows are compared.
     eng.store
         .tx_commit(uuid::Uuid::now_v7(), &second)

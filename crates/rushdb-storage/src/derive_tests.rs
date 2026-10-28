@@ -1,4 +1,4 @@
-//! Apply-time derivation (DC12) at the storage layer, with a test deriver
+//! Apply-time derivation at the storage layer, with a test deriver
 //! that keeps one counter row per base key prefix.
 
 use super::*;

@@ -1,4 +1,4 @@
-//! Planner statistics on demand (DC1): a value distribution is read
+//! Planner statistics on demand: a value distribution is read
 //! from the store's evictable [`rushdb_storage::PlannerStats`] cache, or
 //! loaded by a budgeted walk of the value dictionary on a miss. Estimates
 //! only; exact answers read counters at the snapshot.

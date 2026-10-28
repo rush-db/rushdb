@@ -323,7 +323,7 @@ pub fn security_policy_key(tenant: TenantId) -> Vec<u8> {
     key(tenant, &[b"security", b"policy", b"active"])
 }
 
-// ---- storage format v3 typed families (DC11) -------------------------
+// ---- storage format v3 typed families -------------------------
 //
 // Typed keys are `[TENANT_NS][tenant u32 BE][family u8][fields…]`. Family tags
 // are below `/` (0x2F), so they never collide with the `/`-separated generic

@@ -125,7 +125,7 @@ impl Metrics {
 
     /// Records: an "all" series always; per-tenant series only when
     /// enabled, for the bounded set of recently served tenants. Labels that
-    /// left that set (evicted or purged tenants) are removed (L5).
+    /// left that set (evicted or purged tenants) are removed.
     fn observe_records(
         &self,
         records: &std::collections::BTreeMap<u64, u64>,

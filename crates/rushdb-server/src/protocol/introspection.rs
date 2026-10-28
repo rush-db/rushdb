@@ -88,7 +88,7 @@ impl ProtocolExecutor<'_> {
 
     /// A catalog read under `access`: over an enforced policy's allowed
     /// labels, visible properties and allowed relationship types only
-    /// (POL-2), so a hidden one is never named or counted.
+    ///, so a hidden one is never named or counted.
     pub(super) fn describe_with_access(
         &self,
         describe: Describe,

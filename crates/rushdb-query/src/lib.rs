@@ -419,7 +419,7 @@ pub enum QueryError {
     #[error("resource exhausted: {0}")]
     ResourceLimit(String),
     /// A filter without a usable index would check more records than
-    /// `unindexed-walk-max-owners` allows (SCALE-3).
+    /// `unindexed-walk-max-owners` allows.
     #[error("unindexed walk refused: {0}")]
     UnindexedWalk(String),
 }
@@ -507,7 +507,7 @@ struct Matches {
     total: u64,
 }
 
-/// One pass over the candidates in ascending ordinal order (READ-1).
+/// One pass over the candidates in ascending ordinal order.
 ///
 /// Keeps the first `keep` matches in query order and counts the rest
 /// without keeping them. Without `order_by` the pass stops once `keep`
@@ -858,7 +858,7 @@ fn check_walk_budget(
 
 /// The query working-set cap: candidate and match ordinals, ordering rows
 /// and the record being evaluated. It is `query-memory-max` (`0` = off),
-/// tightened by the request (QRY-3),
+/// tightened by the request,
 /// never the request's response byte budget, which caps only the returned
 /// page (READ-1: charging the working set against the 16 MiB response
 /// budget refused every read of a label over ~2M records).
@@ -868,7 +868,7 @@ fn working_set_budget(lmpg: &Lmpg) -> Option<usize> {
         .map(|bytes| usize::try_from(bytes).unwrap_or(usize::MAX))
 }
 
-/// The caller's cancellation or the request's deadline (QRY-3), so a
+/// The caller's cancellation or the request's deadline, so a
 /// time cap stops every read that runs on the request's handle.
 pub(crate) fn cancel_probe<'a>(
     lmpg: &Lmpg,
@@ -1601,7 +1601,7 @@ pub struct EvalCtx<'a> {
     pub lmpg: &'a Lmpg,
     /// Pinned snapshot all traversal reads resolve against.
     pub snap: QuerySnapshot,
-    /// Cooperative cancellation probe (Q-6r), when the caller supplied one.
+    /// Cooperative cancellation probe, when the caller supplied one.
     pub is_cancelled: Option<&'a dyn Fn() -> bool>,
     /// `$cycle` graphs built for this query.
     pub(crate) cycles: cycle::CycleGraphs,
@@ -1629,7 +1629,7 @@ impl<'a> EvalCtx<'a> {
         })
     }
 
-    /// Poll the cancellation probe between traversal steps (Q-6r). A no-op when
+    /// Poll the cancellation probe between traversal steps. A no-op when
     /// the caller supplied no probe.
     ///
     /// # Errors

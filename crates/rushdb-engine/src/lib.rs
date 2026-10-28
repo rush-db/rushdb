@@ -140,7 +140,6 @@ impl Engine {
     /// Every canonical storage key carries the resolved tenant prefix. A
     /// missing scope selects the isolated single-tenant domain; a scope is
     /// resolved through the tenant directory, registering it on first use
-    /// (DC8).
     ///
     /// # Errors
     /// Returns [`rushdb_storage::StorageError`] when the directory cannot be

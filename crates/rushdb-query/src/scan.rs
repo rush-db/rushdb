@@ -3,7 +3,7 @@
 //! A search without a usable index walks every record of the tenant or of
 //! its labels. Those walks stream key batches from the snapshot instead of
 //! collecting the population first, so a page can stop after its rows and
-//! a count holds no ordinals at all (READ-1).
+//! a count holds no ordinals at all.
 
 use crate::planner::OwnerSet;
 use crate::{QueryError, QuerySnapshot};

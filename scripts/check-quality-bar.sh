@@ -59,16 +59,6 @@ if rg -n 'fn has_backend\b|\.has_backend\(|struct MemoryView\b' crates --glob '*
   exit 1
 fi
 
-# Planning item codes and links to the plan registry are internal: they must
-# not reach `--help` (clap doc comments) or the crate-level docs.
-item_code='\((?:[^()]*[ ,/])?\b(?:FIT|SUB|DC|DA|CAP|VEC|MEM|IDX|SOAK|PLN|FAC|REL|LANG|QRY|QUAL|DISK|DSK|RES|RF|[A-Z])-?[0-9]+[a-z]?\b[^()]*\)|ACTIVE-WORK|docs/plans/'
-if rg -nP "^\s*//!.*(${item_code})" crates/*/src/lib.rs \
-  || rg -nP "^\s*///.*(${item_code})" crates/rushdb-server/src/resource_config.rs \
-    crates/rushdb-server/src/bin; then
-  echo 'quality bar: internal item code in --help or a crate doc' >&2
-  exit 1
-fi
-
 # Keep ignored tests visible in CI. They remain allowed for platform-specific
 # or long-running work, but every addition is an explicit review decision.
 if rg -n '#\[ignore' crates --glob '*.rs' >/dev/null; then

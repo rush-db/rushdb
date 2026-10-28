@@ -1,5 +1,5 @@
 //! `rushdb_writer_hold_seconds{holder}`: how long each kind of work held the
-//! storage backend's single writer (SCALE-2). The store keeps the histogram
+//! storage backend's single writer. The store keeps the histogram
 //! itself (atomic buckets per backend, `rushdb_storage::WriterHolds`); this
 //! collector renders the snapshot taken at each scrape.
 

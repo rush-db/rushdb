@@ -107,7 +107,7 @@ impl RequestScope<'_> {
     /// the family is found by its normalized signature and the policy is
     /// checked against the family's display name. Distinct values are
     /// charged to `meter`. With `search`, only matching values are kept, so
-    /// the working set holds matches only (CAT-2).
+    /// the working set holds matches only.
     pub(crate) fn facet_property_values(
         &self,
         view: &rushdb_storage::ReadView,
@@ -118,8 +118,8 @@ impl RequestScope<'_> {
         meter: &mut super::working_set::WorkingSet<'_>,
     ) -> Result<FacetValues, String> {
         // The distinct-value map is query working set: `query-memory-max`
-        // caps it, not the request's response budget (READ-1), tightened
-        // by the request (QRY-3). The values stay charged while the caller
+        // caps it, not the request's response budget, tightened
+        // by the request. The values stay charged while the caller
         // holds them.
         let mut index: HashMap<Vec<u8>, usize> = HashMap::new();
         let mut values: FacetValues = Vec::new();

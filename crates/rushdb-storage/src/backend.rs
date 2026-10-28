@@ -128,7 +128,7 @@ pub(crate) trait StorageBackend: Send + Sync {
     /// Load the full current state (data, MVCC metadata, GC watermark).
     fn load(&self) -> Result<LoadedState, String>;
 
-    /// Read only the durable-LSN watermark and GC floor (P04): startup needs
+    /// Read only the durable-LSN watermark and GC floor: startup needs
     /// these to restore the committed version WITHOUT materializing the full
     /// dataset into the RAM mirror. Implementations should read only the two
     /// metadata keys; the default falls back to a full `load`.
@@ -155,7 +155,7 @@ pub(crate) trait StorageBackend: Send + Sync {
     /// Reclaim a bounded batch of history keys superseded before `watermark`,
     /// resuming after `cursor`. Returns the next key to resume from, or `None`
     /// when the walk is complete. Each call is one write transaction, so GC is
-    /// bounded and resumable instead of one monolithic txn (W5).
+    /// bounded and resumable instead of one monolithic txn.
     fn retire_before_batch(
         &self,
         watermark: u64,
@@ -204,11 +204,11 @@ pub(crate) trait StorageBackend: Send + Sync {
     fn read_view(&self) -> Result<Box<dyn StorageReadView>, StorageError>;
 
     /// Cumulative time spent waiting for and holding the backend's database
-    /// lock (RM-7). Backends without such a lock report zeros.
+    /// lock. Backends without such a lock report zeros.
     fn lock_times(&self) -> crate::BackendLockTimes {
         crate::BackendLockTimes::default()
     }
-    /// Writer holds by holder (SCALE-2). Backends without a single writer
+    /// Writer holds by holder. Backends without a single writer
     /// report none.
     fn writer_holds(&self) -> Vec<(crate::WriterHolder, crate::WriterHolds)> {
         Vec::new()

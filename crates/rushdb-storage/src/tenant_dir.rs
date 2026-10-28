@@ -1,4 +1,4 @@
-//! Tenant directory (DC8): scope digest ↔ 4-byte tenant ordinal.
+//! Tenant directory: scope digest ↔ 4-byte tenant ordinal.
 //!
 //! The rows live in the system namespace and are written by an ordinary
 //! commit (`Mutation::RegisterTenant`, expanded by LMPG), so registration is

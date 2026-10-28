@@ -51,7 +51,6 @@ impl Store {
     }
 
     /// The native graph/query adapter's named child of [`Store::phase_budget`]
-    ///.
     #[must_use]
     pub fn graph_phase_budget(&self) -> Option<ByteBudget> {
         self.adapter_budgets.graph_phase.clone()

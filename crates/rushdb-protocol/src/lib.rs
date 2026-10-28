@@ -59,13 +59,13 @@ pub struct RequestContext {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deadline_ms: Option<u64>,
     /// Optional working-set cap of this request's queries, in bytes; it
-    /// may only tighten the server's `query-memory-max` (QRY-3). Must be
+    /// may only tighten the server's `query-memory-max`. Must be
     /// positive.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub query_memory_max_bytes: Option<u64>,
     /// Optional limit on the records a filter without a usable index may
     /// check; `0` refuses every such walk. It may only tighten the server's
-    /// `unindexed-walk-max-owners` (QRY-3), like `CockroachDB`'s
+    /// `unindexed-walk-max-owners`, like `CockroachDB`'s
     /// `disallow_full_table_scans` with `large_full_scan_rows`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unindexed_walk_max_owners: Option<u64>,
@@ -179,7 +179,7 @@ pub enum PropertyValuesMode {
     TopK,
 }
 
-/// Text filter over the distinct values of a property-value query (CAT-2):
+/// Text filter over the distinct values of a property-value query:
 /// keeps the values whose text matches. A string matches as stored; a number,
 /// boolean or datetime matches as the response renders it; an array matches
 /// when any element does. A text that reads as a date (year first, at least a
@@ -286,7 +286,7 @@ pub enum Query {
         property: String,
         /// The query constraining the records considered.
         query: QueryDocument,
-        /// Value-domain mode (E3). `None` = `Values` (legacy full distinct
+        /// Value-domain mode. `None` = `Values` (legacy full distinct
         /// list). `Count` returns only the exact distinct count; `Range`
         /// returns only min/max; `TopK` returns the `limit` most frequent
         /// values (exact).
@@ -298,7 +298,7 @@ pub enum Query {
         /// `truncated` flags truncation. Ignored by `Count`/`Range`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         limit: Option<u64>,
-        /// Keep only the distinct values whose text matches (CAT-2). Every
+        /// Keep only the distinct values whose text matches. Every
         /// mode then answers over the matching values: `distinct_count`
         /// counts matches, and `Values` lists them by descending owner count
         /// (ties by value), answered from the value dictionaries when they
@@ -349,7 +349,7 @@ pub enum Query {
         /// The native query document.
         query: QueryDocument,
     },
-    /// Value search across every property (CAT-2), without naming one:
+    /// Value search across every property, without naming one:
     /// the stored values that match `search`, with the label and property
     /// that hold them and their owner counts, by descending count. `labels`
     /// narrows the labels searched (all when empty).
@@ -904,13 +904,13 @@ pub enum Describe {
     Schema {
         /// The query constraining the described records.
         query: QueryDocument,
-        /// Property-entry detail level (E2). `None`/`Full` reads up to
+        /// Property-entry detail level. `None`/`Full` reads up to
         /// 10k records for samples/min/max; `Catalog` answers names, types,
         /// exact support counts, array shape, and sibling flags from catalog
         /// indexes alone (no record scan).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         detail: Option<PropertyDetail>,
-        /// Property-entry pagination (E2): slice of the `properties` list.
+        /// Property-entry pagination: slice of the `properties` list.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         skip: Option<u64>,
         /// Maximum number of property entries to return.
@@ -926,13 +926,13 @@ pub enum Describe {
     Properties {
         /// The query constraining the described properties.
         query: QueryDocument,
-        /// Entry detail level (E2): `None`/`Full` reads up to 10k
+        /// Entry detail level: `None`/`Full` reads up to 10k
         /// records for samples/min/max; `Catalog` answers names, types,
         /// exact support counts, array shape, and sibling flags from catalog
         /// indexes alone (no record scan) and rejects a non-empty `where`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         detail: Option<PropertyDetail>,
-        /// Property-entry pagination (E2): slice of the returned entry list.
+        /// Property-entry pagination: slice of the returned entry list.
         /// Independent of the stats scan window.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         skip: Option<u64>,
@@ -970,7 +970,7 @@ pub enum Describe {
         name: String,
     },
     /// Labels and properties whose names are spelled like `text`: the
-    /// answer to "no such table/column" (CAT-3). Ignores case, separators
+    /// answer to "no such table/column". Ignores case, separators
     /// and plural endings, then ranks by spelling similarity.
     Names {
         /// The name to resolve, e.g. `patients` or `Patient.birth_date`.
@@ -979,7 +979,7 @@ pub enum Describe {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         limit: Option<u64>,
     },
-    /// Every label with its properties in one compact read (CAT-4): types,
+    /// Every label with its properties in one compact read: types,
     /// exact support and distinct counts, numeric/date ranges, the values of
     /// properties holding few, and relationship shapes.
     SchemaSummary {
@@ -991,7 +991,7 @@ pub enum Describe {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         few_values: Option<u64>,
     },
-    /// Value overlap between property pairs (REL-1): for each pair, how
+    /// Value overlap between property pairs: for each pair, how
     /// many of the source's distinct values the target also holds, over the
     /// exact value dictionaries. Evidence only: deciding which pairs are
     /// references is the caller's (the Core platform's suggestions).
@@ -1022,7 +1022,7 @@ pub struct JoinPair {
     pub target: JoinEnd,
 }
 
-/// Property-entry detail level for `Describe::Properties` (E2).
+/// Property-entry detail level for `Describe::Properties`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PropertyDetail {
@@ -1839,7 +1839,7 @@ pub enum Response {
         property: String,
         /// The returned distinct values.
         values: Vec<serde_json::Value>,
-        /// Exact distinct total, always reported (E3). Equals `values.len()`
+        /// Exact distinct total, always reported. Equals `values.len()`
         /// when untruncated; the untruncated total when `truncated`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         distinct_count: Option<u64>,
@@ -1850,7 +1850,7 @@ pub enum Response {
         /// Maximum distinct value (`Range` mode).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         max: Option<serde_json::Value>,
-        /// True when `limit` truncated the shipped `values` (E3).
+        /// True when `limit` truncated the shipped `values`.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         truncated: bool,
         /// Owner counts aligned with `values` (`TopK` mode); empty otherwise.

@@ -1,4 +1,4 @@
-//! Retry receipts (DC9): one row per commit key answers "did this
+//! Retry receipts: one row per commit key answers "did this
 //! commit already happen, and what did it return?" for
 //! `idempotency-window-seconds`, then a bounded sweep removes it.
 //!

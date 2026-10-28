@@ -1,4 +1,4 @@
-//! Tenant directory (DC8): scope → never-reused 4-byte ordinal.
+//! Tenant directory: scope → never-reused 4-byte ordinal.
 
 use std::sync::Arc;
 

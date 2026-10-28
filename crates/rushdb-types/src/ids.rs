@@ -4,7 +4,7 @@ use std::fmt;
 use uuid::Uuid;
 
 /// Resolved tenant ordinal: the 4-byte prefix of every tenant-owned key
-/// (DC8). Assigned once by the tenant directory and never reused, so a purged
+///. Assigned once by the tenant directory and never reused, so a purged
 /// tenant's leftovers can never become visible to a later tenant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TenantId(pub u32);

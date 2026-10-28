@@ -444,7 +444,7 @@ fn relationship_facets_narrow_with_the_match_set() {
     }
 }
 
-/// Value search (CAT-2): matching distinct values ranked by owner count, from
+/// Value search: matching distinct values ranked by owner count, from
 /// the dictionaries when unfiltered and from the match set otherwise.
 #[test]
 fn value_search_filters_distinct_values() {
@@ -542,7 +542,7 @@ fn value_search_filters_distinct_values() {
 }
 
 /// A property with values too long for the dictionary is searched by the
-/// record scan, which keeps only matching values (CAT-2).
+/// record scan, which keeps only matching values.
 #[test]
 fn value_search_scans_values_too_long_for_the_dictionary() {
     use rushdb_protocol::{ValueMatch, ValueSearch};

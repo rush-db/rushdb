@@ -1,4 +1,4 @@
-//! Tenant directory resolution and registration (DC8).
+//! Tenant directory resolution and registration.
 //!
 //! A scope string is hashed to a [`TenantScope`]; the directory maps it to a
 //! 4-byte [`TenantId`] ordinal. Registration is an ordinary commit expanded

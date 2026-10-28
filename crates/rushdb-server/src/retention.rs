@@ -8,7 +8,7 @@
 /// `db.tx_log.rotation.retention_policy`.
 ///
 /// **This governs commit metadata / WAL only, not MVCC history.** Superseded
-/// key versions are retained for the *oldest live reader* (B2) and reclaimed
+/// key versions are retained for the *oldest live reader* and reclaimed
 /// immediately when no reader is pinned; there is no configured history window.
 /// The WAL/outcome window is legitimate because it feeds PITR, replication and
 /// idempotent retry.
@@ -69,7 +69,7 @@ impl RetentionPolicy {
         }
     }
 
-    /// The retention floor for one maintenance tick (DC4): commits
+    /// The retention floor for one maintenance tick: commits
     /// below it lose their metadata and their WAL segments become
     /// reclaimable.
     ///

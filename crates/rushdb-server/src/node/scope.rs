@@ -1,4 +1,4 @@
-//! Explicit per-request tenant scope (RM-1).
+//! Explicit per-request tenant scope.
 //!
 //! Replaces the former ambient thread-local: the scope is now a value
 //! constructed once at the transport boundary, from the `scope: Option<String>`
@@ -40,7 +40,7 @@ pub struct RequestScope<'a> {
     /// it could not (the tenant is then [`TenantId::UNREGISTERED`], which owns
     /// no keys). Surfaced by the executor before any operation runs.
     resolution_error: Option<String>,
-    /// The request's own bounds (QRY-3), applied to every engine handle
+    /// The request's own bounds, applied to every engine handle
     /// this scope builds.
     limits: rushdb_lmpg::RequestLimits,
 }
@@ -49,7 +49,7 @@ impl<'a> RequestScope<'a> {
     /// Resolve a scope value (already authenticated by the transport) into a
     /// request scope through the tenant directory ([`Node::resolve_scope`]):
     /// no scope selects the node's base tenant, a new scope is registered on
-    /// first use (DC8).
+    /// first use.
     #[must_use]
     pub fn new(node: &'a Node, scope: Option<String>) -> Self {
         let (tenant, resolution_error) = match node.resolve_scope(scope.as_deref()) {
@@ -86,7 +86,7 @@ impl<'a> RequestScope<'a> {
         }
     }
 
-    /// This scope with a request's own bounds (QRY-3).
+    /// This scope with a request's own bounds.
     #[must_use]
     pub fn with_request_limits(mut self, limits: rushdb_lmpg::RequestLimits) -> Self {
         self.limits = limits;

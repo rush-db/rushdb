@@ -1,4 +1,4 @@
-//! Per-tenant bulk share (SCALE-2): at most `permits` bulk (ingest) requests
+//! Per-tenant bulk share: at most `permits` bulk (ingest) requests
 //! of one tenant run at a time; further ones wait in line before they take a
 //! worker. Every tenant's commits go through one publisher, so a tenant
 //! loading millions of records from many writers otherwise queues every

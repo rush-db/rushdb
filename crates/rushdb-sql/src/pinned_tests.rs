@@ -312,7 +312,7 @@ fn malformed_relationship_index_fails_catalog_describe_select_and_dml() {
             &execute_sql(graph, "SELECT * FROM rushdb_edges.knows").unwrap_err(),
             "select edge",
         );
-        // DML reads like SELECT (SQL-3): a statement that reads the edge
+        // DML reads like SELECT: a statement that reads the edge
         // index fails on it and commits nothing.
         let version = graph.store.committed_version();
         assert_corrupt(

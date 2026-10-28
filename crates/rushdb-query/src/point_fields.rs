@@ -1,6 +1,6 @@
 //! Record properties read by point reads instead of rebuilding the record
-//! (READ-1): the ordering properties of an ordered page, the properties a
-//! residual predicate names, and the columns a SQL label scan reads (SQL-2).
+//!: the ordering properties of an ordered page, the properties a
+//! residual predicate names, and the columns a SQL label scan reads.
 
 use crate::planner::{family_id, pids_of};
 use crate::{access, normalize, reconstruct, Expr, FieldPred, Json, QueryError, QuerySnapshot};

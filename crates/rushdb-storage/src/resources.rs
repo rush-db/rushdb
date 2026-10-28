@@ -289,7 +289,7 @@ impl Drop for ByteReservation {
     }
 }
 
-/// Bounded fair admission gate (P01): serializes requests for bytes from a
+/// Bounded fair admission gate: serializes requests for bytes from a
 /// budget and admits them in arrival order when capacity frees up, honoring a
 /// caller deadline and an external cancellation flag. `try_reserve` remains
 /// the non-blocking primitive; this adds bounded queueing, deadlines, and
@@ -492,7 +492,7 @@ pub struct StorageResources {
     /// instead of ballooning RSS (config #3). 0 = off.
     pub query_memory_max_bytes: u64,
     /// Largest record population a filter without a usable index may check
-    /// (SCALE-3); a query above it is refused at planning with the index to
+    ///; a query above it is refused at planning with the index to
     /// declare. 0 = off.
     pub unindexed_walk_max_owners: u64,
     /// Maximum time to wait for the admission lock before failing a commit

@@ -492,7 +492,7 @@ impl RequestScope<'_> {
         }
         let mut updated = 0usize;
         // Untracked record vectors (the common backfill shape) bind in one
-        // commit (C9); source-hash-guarded and relationship items keep their
+        // commit; source-hash-guarded and relationship items keep their
         // per-item guarded path.
         let batched: Vec<(&str, &[f32])> = items
             .iter()

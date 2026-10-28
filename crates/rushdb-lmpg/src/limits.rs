@@ -1,4 +1,4 @@
-//! The bounds one request's reads run under (QRY-3).
+//! The bounds one request's reads run under.
 //!
 //! Like PostgreSQL and Neo4j, a filter without a usable index runs as a walk
 //! of the records it names. What bounds it is the server's ceilings

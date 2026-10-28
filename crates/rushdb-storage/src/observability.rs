@@ -77,7 +77,7 @@ pub struct BackendLockTimes {
 
 /// What holds a backend's single writer: one redb write transaction, from
 /// `begin_write` to its commit. Every other writer waits meanwhile, so the
-/// longest holds are what stall other tenants' commits (SCALE-2).
+/// longest holds are what stall other tenants' commits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WriterHolder {
     /// Publishing commit groups into the materialization.

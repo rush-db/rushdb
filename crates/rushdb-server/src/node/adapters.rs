@@ -81,7 +81,7 @@ impl RequestScope<'_> {
         rushdb_sql::reset_work_counters();
         let result = match policy {
             // Under an enforced policy the statement sees only what it
-            // allows (POL-2).
+            // allows.
             Some(policy) => rushdb_sql::execute_sql_under_policy_in_view(
                 &self.lmpg(),
                 snapshot,

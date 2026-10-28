@@ -172,7 +172,7 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
                     return Err(StorageError::CorruptLog);
                 }
                 // Owner support, presence and dictionary contributions move to
-                // the new label in the deriver (DC12).
+                // the new label in the deriver.
                 txn.put(
                     hdr_key,
                     rushdb_types::keys::encode_record_hdr(record_id, to_label),
@@ -227,7 +227,7 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
                     let captured = serde_json::to_vec(&(src_label.clone(), tgt_label.clone()))
                         .map_err(ser_err)?;
                     // The relationship catalog keys on these creation-time
-                    // labels, live and on replay alike (G1); the deriver
+                    // labels, live and on replay alike; the deriver
                     // counts it from this row.
                     txn.set(kx::rel_group_key(t, relationship_id), captured);
                 }
@@ -794,7 +794,7 @@ fn lookup_live_hash(
     ))
 }
 
-/// Write one canonical occurrence row (DC11). Presence, dictionary refcounts,
+/// Write one canonical occurrence row. Presence, dictionary refcounts,
 /// support counters and array markers are derived from it by the deriver.
 fn put_occurrence(
     txn: &mut Txn,

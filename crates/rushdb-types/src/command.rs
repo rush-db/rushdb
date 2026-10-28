@@ -279,7 +279,7 @@ pub enum Mutation {
         /// Maximum number of keys this step may delete.
         max_keys: u64,
     },
-    /// Register a tenant scope in the directory (DC8): assign the next
+    /// Register a tenant scope in the directory: assign the next
     /// ordinal unless the scope already has an active one. Expansion reads
     /// and bumps the directory sequence, so replay reproduces the ordinal.
     RegisterTenant {
@@ -347,7 +347,7 @@ pub enum Mutation {
         /// Owners whose current text was applied.
         owners: Vec<u64>,
     },
-    /// [`Mutation::SetSecurityPolicy`] with a small-count threshold (POL-2).
+    /// [`Mutation::SetSecurityPolicy`] with a small-count threshold.
     /// Appended last so earlier logs keep their variant indexes; written only
     /// when the threshold is set, so a log without one stays readable by
     /// binaries that predate it.

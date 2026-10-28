@@ -36,7 +36,7 @@ pub mod reader;
 
 /// Integrity checks that report LMPG invariant violations in a snapshot.
 pub mod scrub;
-/// Tenant directory resolution and registration (DC8).
+/// Tenant directory resolution and registration.
 pub mod tenancy;
 
 /// Fallible rebuilds that surface storage errors instead of panicking.
@@ -48,7 +48,7 @@ pub mod authorized_view;
 
 pub use authorized_view::AuthorizedView;
 
-/// The data-access policy as catalog reads apply it (POL-2).
+/// The data-access policy as catalog reads apply it.
 pub mod catalog_access;
 
 pub use catalog_access::CatalogAccess;
@@ -173,7 +173,7 @@ pub trait Authorizer: Send + Sync {
 
 /// Open a durable store for LMPG with the apply-time deriver installed
 /// **before** WAL recovery, so recovered commits derive the same presence,
-/// dictionary and counter rows live publication would have (DC12).
+/// dictionary and counter rows live publication would have.
 ///
 /// # Errors
 /// Returns [`rushdb_storage::StorageError`] if the store cannot be opened or
@@ -211,7 +211,7 @@ impl Lmpg {
             Box::new(|ci, batch, txn| expand_commit(ci, batch, txn).map_err(|e| e.to_string()));
         store.set_expander(Arc::new(cb));
         // Derived rows (presence, value dictionary, counters, markers) are
-        // written by the deriver at apply time (DC12). Durable stores must be
+        // written by the deriver at apply time. Durable stores must be
         // opened with it already installed (`open_store`), so WAL recovery
         // derives them too; installing it again here is idempotent.
         store.set_deriver(Arc::new(derived::LmpgDeriver));
@@ -235,7 +235,7 @@ impl Lmpg {
     }
 
     /// This handle with the server's ceilings tightened by one request's
-    /// own bounds (QRY-3).
+    /// own bounds.
     #[must_use]
     pub fn with_request_limits(mut self, request: RequestLimits) -> Self {
         self.limits = self.limits.tightened(request);
@@ -731,7 +731,7 @@ impl Lmpg {
                         .len();
                     if remaining == 0 {
                         // The keyspace is empty: retire the ordinal so the
-                        // directory never hands it out again (DC8).
+                        // directory never hands it out again.
                         let mut batch = empty_batch(tenant, ci);
                         batch.mutations = vec![Mutation::RetireTenant];
                         return Ok((batch, 0u64));

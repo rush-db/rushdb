@@ -25,12 +25,12 @@ use crate::{ApiError, ServerConfig};
 struct AppState {
     cfg: ServerConfig,
     node: Arc<Node>,
-    /// Node-wide budget for request bodies being read or executed (C7).
+    /// Node-wide budget for request bodies being read or executed.
     inflight_bodies: rushdb_storage::resources::ByteBudget,
     /// Bound on concurrently admitted protocol requests (scheduler workers +
     /// queue). Each admitted request holds a blocking-pool thread while it
     /// waits for the scheduler, so the bound also caps those threads; excess
-    /// requests are shed immediately with a retryable 503 (C7).
+    /// requests are shed immediately with a retryable 503.
     inflight_requests: Arc<tokio::sync::Semaphore>,
 }
 
@@ -80,7 +80,7 @@ pub fn bind_router(cfg: ServerConfig, node: Arc<Node>) -> Result<(HttpRouter, u1
 
 /// [`bind_router`] over an already-bound socket — the one a
 /// [`crate::boot::BootListener`] answered probes on while the node booted, so
-/// the port is never closed between boot and serving (C6).
+/// the port is never closed between boot and serving.
 ///
 /// # Errors
 /// Returns a message when the socket cannot be configured.
@@ -229,7 +229,7 @@ impl HttpRouter {
                 spawn_index_applier(weak_node.clone(), std::time::Duration::from_millis(250));
             // Declared-index builds run continuously while any is pending.
             let index_builder = spawn_index_builder(weak_node.clone(), checkpoint_interval);
-            // Continuous logical-WAL archiving (A1): append-only segment files
+            // Continuous logical-WAL archiving: append-only segment files
             // plus a durable watermark, for off-box durability and PITR.
             let wal_archiver = maintenance.wal_archive_dir.clone().map(|dir| {
                 spawn_wal_archiver(
@@ -342,7 +342,7 @@ impl HttpRouter {
                 // the blocking pool. Wait for every one to return (they observe
                 // `begin_shutdown`) so no detached closure still holds the
                 // Store when the runtime exits; otherwise redb is never closed
-                // and the next open runs a full repair (C6).
+                // and the next open runs a full repair.
                 if !node.maintenance_work().drained(std::time::Duration::from_secs(30)).await {
                     outcome = Err(format!(
                         "{} maintenance task(s) still running at the shutdown deadline",
@@ -441,10 +441,10 @@ pub(crate) fn spawn_gc_worker(
                     observe_node.observe_gc_tick(tick_started.elapsed().as_secs_f64());
                 });
                 // Pull the store off the node's store and run one GC tick,
-                // expiring abandoned read leases so history can advance (P06).
+                // expiring abandoned read leases so history can advance.
                 let store = node.store();
                 // Each step is timed (`rushdb_maintenance_step_seconds`), so a
-                // long tick names the step that held the writer (SCALE-2).
+                // long tick names the step that held the writer.
                 let step = std::time::Instant::now();
                 store.expire_read_pins(node.read_lease_ms());
                 // Planner statistics unused past their idle TTL go.
@@ -464,7 +464,7 @@ pub(crate) fn spawn_gc_worker(
                 // an extra maintenance interval.
                 //
                 // Tenants are enumerated ONCE per tick (an O(tenants)
-                // skip-scan) and shared by every per-tenant step below (C2).
+                // skip-scan) and shared by every per-tenant step below.
                 let tenants = match node.durable_tenants() {
                     Ok(tenants) => Some(tenants),
                     Err(error) => {
@@ -474,7 +474,7 @@ pub(crate) fn spawn_gc_worker(
                 };
                 let protected_floor = node.protected_retention_floor();
                 // History reclamation in batches until the sweep completes or
-                // a fifth of the tick period has passed (SOAK-1).
+                // a fifth of the tick period has passed.
                 let step = node.observe_maintenance_step("housekeeping", step);
                 let done = store.gc_tick_for(max_keys_per_tick, sweep_budget)?;
                 let step = node.observe_maintenance_step("history_gc", step);
@@ -678,7 +678,7 @@ pub(crate) fn watchdog_compact(
     }
 }
 
-/// Continuously archive committed WAL segments into `dir` (A1). Each tick
+/// Continuously archive committed WAL segments into `dir`. Each tick
 /// writes the range since the durable watermark as one append-only segment.
 pub(crate) fn spawn_wal_archiver(
     node: std::sync::Weak<Node>,
@@ -1422,7 +1422,7 @@ async fn not_found() -> Response {
 
 /// Whether the request carries a valid credential at all — the boot token, or
 /// a verified capability for this tenant — independent of the operation's
-/// permission. Checked before the body is read (C7).
+/// permission. Checked before the body is read.
 fn authenticated(state: &AppState, headers: &HeaderMap) -> bool {
     let token = presented_token(headers);
     if rushdb_protocol::constant_time_eq(token.as_bytes(), state.cfg.token.as_bytes()) {
@@ -1537,7 +1537,7 @@ impl Drop for CancelOnDrop {
 }
 
 /// Stable client-facing body for an internal fault whose detail was logged
-/// server-side (SEC-5).
+/// server-side.
 fn internal_error_response() -> Response {
     protocol_error(
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -1676,7 +1676,7 @@ mod p11_tests {
     }
 
     /// A long maintenance tick names the step that held the writer
-    /// (SCALE-2): every step of a tick is timed and exported.
+    ///: every step of a tick is timed and exported.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn every_maintenance_step_is_timed() {
         let data_dir = rushdb_storage::TempPath::dir("http-maintenance-steps");

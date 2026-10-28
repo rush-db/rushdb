@@ -13,7 +13,7 @@ fn id_string(id: &[u8; 16]) -> String {
     uuid::Uuid::from_bytes(*id).simple().to_string()
 }
 
-/// Bounded family-definition cache for a single reconstruction session (P20).
+/// Bounded family-definition cache for a single reconstruction session.
 /// Within one pinned `ReadView`, property-family definitions are frozen, so a
 /// session that reconstructs many records can resolve each distinct family
 /// once instead of once per occurrence. The cache is capped (bounded resident
@@ -274,7 +274,7 @@ pub fn reconstruct_relationship<R: TryRead>(
     session.reconstruct_relationship(ordinal)
 }
 
-/// Bounded record reconstruction (P07): like [`reconstruct_record`], but caps
+/// Bounded record reconstruction: like [`reconstruct_record`], but caps
 /// the number of occurrences an owner may contribute. A record with more than
 /// `max_occurrences` live occurrences is rejected with
 /// [`StorageError::ResourceExhausted`] instead of being materialized in full,

@@ -1,4 +1,4 @@
-//! Declared secondary indexes (DC2): the client chooses what is fast.
+//! Declared secondary indexes: the client chooses what is fast.
 //!
 //! An index belongs to one record label and one property (by normalized
 //! family name, so it covers every typed definition of that property). Its
@@ -64,7 +64,7 @@ impl IndexKind {
 /// structural index, which covers no single property).
 pub const TEXT_ALL_PROPERTIES: &str = "*";
 
-/// When a text search sees committed writes (DC7).
+/// When a text search sees committed writes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TextConsistency {

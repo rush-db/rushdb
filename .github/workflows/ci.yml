@@ -121,7 +121,7 @@ jobs:
       - name: Build the crash harness
         run: cargo build -p rushdb-storage-integration --example crash_child --locked
       - name: Verify acknowledged commits survive a crash
-        run: cargo test -p rushdb-storage-integration --test p00_baseline --locked
+        run: cargo test -p rushdb-storage-integration --test baseline --locked
       - name: Verify memory and durable replay agree
         run: cargo test -p rushdb-server --test memory_disk_differential --locked
       - name: Exercise the authenticated Bolt wire contract
@@ -301,6 +301,3 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: ./scripts/smoke-image.sh rushdb:ci
-
-  # Benchmark harnesses and baselines are maintainers' local files
-  # (see `.gitignore`), so the public repo has no benchmark CI job.

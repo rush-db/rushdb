@@ -376,7 +376,7 @@ pub struct PreparedCommand {
     /// Expanded under writer admission against the sequencer overlay, so its
     /// reads already observed every lower-index commit (published or
     /// pending). Such a command can share a publish group with the commits
-    /// it read from: the group applies in commit-index order (DC3).
+    /// it read from: the group applies in commit-index order.
     pub sequenced: bool,
 }
 
@@ -666,13 +666,13 @@ pub struct Store {
     expander: RwLock<Option<Arc<ExpandFn>>>,
     /// Called with each durable commit's latency in seconds (metrics hook).
     commit_observer: RwLock<Option<Arc<CommitObserver>>>,
-    /// Apply-time deriver (DC12); `None` applies base ops unchanged.
+    /// Apply-time deriver; `None` applies base ops unchanged.
     deriver: RwLock<Option<Arc<dyn Deriver>>>,
-    /// Bounded tenant-directory resolution cache (DC8).
+    /// Bounded tenant-directory resolution cache.
     tenant_cache: Mutex<tenant_dir::TenantCache>,
     /// Set when WAL recovery applied records with no deriver installed, so a
     /// later `set_deriver` fences the store instead of serving missing
-    /// derived rows (DC12).
+    /// derived rows.
     underived_replay: std::sync::atomic::AtomicBool,
     /// One durable backend per physical shard. `shard_count == 1` (default)
     /// keeps a single element, preserving today's single-file layout. A future
@@ -717,7 +717,7 @@ pub struct Store {
     last_compacted_file_bytes: AtomicU64,
     /// Keys erased by purges (tenant purge) since the last compaction: a
     /// purge frees pages without growing the file, so it triggers idle
-    /// compaction on its own (L4).
+    /// compaction on its own.
     purged_since_compaction: AtomicU64,
 }
 
@@ -863,7 +863,7 @@ impl Store {
 
     /// Approximate bytes resident in the writer's current-value and history
     /// maps. This is the transitional RAM mirror P04 removes; the baseline
-    /// harness (P00) records it so the "no full RAM mirror" milestone is
+    /// harness records it so the "no full RAM mirror" milestone is
     /// measurable and comparable across revisions.
     ///
     /// Lock poisoning fences the store until reopen.
@@ -927,7 +927,7 @@ impl Store {
 
     /// Open a redb-backed store with the apply-time deriver installed
     /// *before* WAL recovery, so replayed commits derive the same rows live
-    /// publication would have (DC12).
+    /// publication would have.
     ///
     /// # Errors
     /// Returns [`StorageError`] if `config` is invalid, the shard backends
@@ -985,7 +985,7 @@ impl Store {
         // Each shard file holds its tenants' data plus the global
         // log/outcome/last-applied rows for commits routed to it. The durable
         // LSN and GC floor are read for the watermark; the data/created/history
-        // maps are NOT materialized (P04): a redb-backed store reads natively
+        // maps are NOT materialized: a redb-backed store reads natively
         // and stays memory-bounded regardless of dataset size.
         let mut gc_watermark = 0u64;
         let mut commit_index = 0u64;
@@ -1038,7 +1038,7 @@ impl Store {
         &self.planner_stats
     }
 
-    /// The persistent shared byte budget for logical caches (V2), or `None`
+    /// The persistent shared byte budget for logical caches, or `None`
     /// when `resources.logical-cache-bytes` is 0. Every retained cache/cursor
     /// reservation from this store contends on this same child.
     #[must_use]
@@ -1473,7 +1473,7 @@ impl Store {
         self.retire_before_locked(watermark)
     }
 
-    /// Bounded, resumable GC (W5): reclaim history superseded before `watermark`
+    /// Bounded, resumable GC: reclaim history superseded before `watermark`
     /// for at most `max_keys` per shard in this call. Returns the next key to
     /// resume from (or `None` when every shard finished the walk). A
     /// background driver calls this repeatedly; it never performs one
@@ -1552,7 +1552,7 @@ impl Store {
         Ok(last)
     }
 
-    /// One tick of the background GC loop (W5): reclaim a bounded batch toward
+    /// One tick of the background GC loop: reclaim a bounded batch toward
     /// the current committed watermark. Returns `true` when the whole history
     /// table was swept this tick (a full GC pass completed and a checkpoint
     /// was published per shard), `false` when the sweep is mid-walk and the
@@ -1677,7 +1677,7 @@ impl Store {
         released
     }
 
-    /// Observability (P06): the oldest active pin (inclusive CI floor) and how
+    /// Observability: the oldest active pin (inclusive CI floor) and how
     /// many distinct CIs are retained. Lets operators see long-reader retention
     /// and confirm it releases after handles close.
     ///
@@ -1866,7 +1866,7 @@ impl Store {
             }
             // Command replay expands against a base-only shadow; fold the
             // derived rows in too, so an expander that reads derived counters
-            // (DeleteFamily) sees what a live expansion would (DC12).
+            // (DeleteFamily) sees what a live expansion would.
             let derived =
                 Self::derive_ops(self.deriver().as_ref(), ci, &ops, &derive::MapRead(&shadow))?;
             for op in derived.as_deref().unwrap_or(&ops) {
@@ -1884,7 +1884,7 @@ impl Store {
         for (ci, ops, command_payload) in prepared {
             // Apply through the backend: one write path for memory and
             // durable replay; `persist_ops` derives the same derived rows the
-            // live publisher would (DC12), never shipped over the wire.
+            // live publisher would, never shipped over the wire.
             self.persist_ops(&ops, ci, Some(&command_payload))?;
             self.health.guard(self.conflicts.lock())?.record(ci, &ops);
         }

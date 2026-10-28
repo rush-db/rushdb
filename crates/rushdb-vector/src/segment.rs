@@ -110,7 +110,7 @@ impl HotSegment {
     }
 
     /// Real owned bytes: entry metadata plus every vector's payload
-    /// (A3) — exact, not a formula estimate.
+    /// — exact, not a formula estimate.
     pub(crate) fn measured_bytes(&self) -> usize {
         self.entries.len() * std::mem::size_of::<SegmentEntry>()
             + self
@@ -168,7 +168,7 @@ pub(crate) struct FrozenSegment {
 
 /// A persisted segment file. Removed (with its sidecars) when the last
 /// segment holding it drops after [`FrozenSegment::supersede`], so a
-/// merged-away or replaced segment never lingers on disk (L1). A
+/// merged-away or replaced segment never lingers on disk. A
 /// segment merely evicted from the cache keeps its file for reuse.
 struct SegmentFile {
     path: PathBuf,
@@ -245,7 +245,7 @@ fn usearch_options(dims: u32, similarity: Similarity) -> usearch::IndexOptions {
         // f16 halves the graph's resident vectors. Candidates are exactly
         // reranked against the canonical f32 vectors, so quantization can
         // only affect which candidates are gathered, never the returned
-        // scores (C9).
+        // scores.
         quantization: usearch::ScalarKind::F16,
         connectivity: 0,
         expansion_add: 0,
@@ -340,7 +340,7 @@ fn decode_entries(bytes: &[u8]) -> Option<Vec<SegmentEntry>> {
 }
 
 impl FrozenSegment {
-    /// Real resident bytes (A3): the underlying `usearch` index's own
+    /// Real resident bytes: the underlying `usearch` index's own
     /// measured memory usage (near-zero for an mmap-reopened, `.view()`d
     /// index, since the OS page cache backs it rather than the heap) plus
     /// this segment's own entry metadata.
@@ -832,7 +832,7 @@ impl SegmentSet {
     }
 
     /// Real resident bytes: each segment's measured footprint plus the live
-    /// map (A3).
+    /// map.
     pub(crate) fn measured_bytes(&self) -> usize {
         let state = self.state.load();
         state

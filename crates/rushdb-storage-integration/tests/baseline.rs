@@ -31,7 +31,7 @@ fn path(name: &str) -> std::path::PathBuf {
 
 /// Locate the compiled `crash_child` example binary (built by the test build).
 fn crash_child_bin() -> std::path::PathBuf {
-    // current_exe is target/{debug,release}/deps/p00_baseline-<hash>. The
+    // current_exe is target/{debug,release}/deps/baseline-<hash>. The
     // example lives at target/{debug,release}/examples/crash_child.
     let mut path = std::env::current_exe().unwrap();
     if path.pop() && path.pop() {

@@ -1,6 +1,6 @@
 //! Catalog reads over names and the exact value dictionaries: names spelled
-//! like a requested one (CAT-3), a compact schema in one read (CAT-4), and
-//! value overlap between property pairs (REL-1).
+//! like a requested one, a compact schema in one read, and
+//! value overlap between property pairs.
 //!
 //! Value overlap is evidence only: how much of one property's distinct
 //! values another holds, counted over the whole dictionaries rather than
@@ -80,7 +80,7 @@ impl Values {
 
 impl RequestScope<'_> {
     /// Every (label, property) of the catalog `access` lists, from catalog
-    /// indexes only (POL-2).
+    /// indexes only.
     pub(crate) fn catalog_columns(
         &self,
         view: &Arc<rushdb_storage::ReadView>,
@@ -97,7 +97,7 @@ impl RequestScope<'_> {
         Ok(columns)
     }
 
-    /// Labels and properties spelled like `text` (CAT-3), best first, with a
+    /// Labels and properties spelled like `text`, best first, with a
     /// score of at least 0.5. `Label.property` text scores both parts.
     pub(crate) fn suggest_names_in_view(
         &self,
@@ -168,7 +168,7 @@ impl RequestScope<'_> {
         Ok(out)
     }
 
-    /// Every label with its properties in one read (CAT-4). Each property's
+    /// Every label with its properties in one read. Each property's
     /// dictionary is working set (`meter`) only while it is summarized.
     pub(crate) fn schema_summary_in_view(
         &self,
@@ -382,7 +382,7 @@ impl RequestScope<'_> {
         )
     }
 
-    /// Value overlap for each pair (REL-1), in request order. A pair naming
+    /// Value overlap for each pair, in request order. A pair naming
     /// a property that does not exist, or that `access` hides, comes back
     /// not compared (the two are indistinguishable); under a policy's
     /// `minCount`, overlap over fewer records is withheld. The dictionaries

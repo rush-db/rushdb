@@ -533,7 +533,7 @@ pub fn execute_mutation(
     execute_mutation_with_budget(lmpg, language, statement, parameters, MUTATION_MAX_NODES)
 }
 
-/// Execute a mutation with an explicit bounded-mutation budget (P10). The
+/// Execute a mutation with an explicit bounded-mutation budget. The
 /// tenant graph is copied into the community engine's working set only up to
 /// `max_nodes`; a larger tenant is refused with [`LanguageError::GraphTooLarge`]
 /// before any copy, so a small mutation never silently clones an oversized

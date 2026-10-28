@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 
 const MAGIC: &str = "RUSHDB_LAYOUT";
 /// v2 (2026-10-07): data rows carry the commit index that wrote them as an
-/// 8-byte header and the separate `created` table is gone (C10); conflict
-/// summaries are no longer stored (C4).
+/// 8-byte header and the separate `created` table is gone; conflict
+/// summaries are no longer stored.
 /// v3: tenant keys start with `[TENANT_NS][tenant u32]` from the
-/// tenant directory instead of `T/<32-byte digest>` (DC8).
+/// tenant directory instead of `T/<32-byte digest>`.
 /// v4: layout v3 — slim occurrence rows, label-scoped presence,
 /// value dictionary and counters derived at apply time (DC10–DC12); no
 /// posting rows.

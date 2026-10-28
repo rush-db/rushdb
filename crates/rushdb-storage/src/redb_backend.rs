@@ -18,7 +18,7 @@ const HISTORY: TableDefinition<&[u8], &[u8]> = TableDefinition::new("rushdb.hist
 /// and linked by `prev`, so a hot-key append rewrites only the head.
 const HISTORY_BLOCK: TableDefinition<&[u8], &[u8]> =
     TableDefinition::new("rushdb.history_block.v1");
-/// Expiry-ordered secondary index over [`HISTORY`] (P06): one row per retained
+/// Expiry-ordered secondary index over [`HISTORY`]: one row per retained
 /// version, keyed `to_ci_be || data_key`, value empty. Lets GC range straight
 /// to the expired versions instead of decoding every key's version list.
 const HISTORY_EXPIRY: TableDefinition<&[u8], &[u8]> =
@@ -443,7 +443,7 @@ pub(crate) struct RedbBackend {
     mutex_hold_ns: AtomicU64,
     /// Maximum single hold time of the redb database lock, in nanoseconds.
     mutex_hold_max_ns: AtomicU64,
-    /// Write-transaction holds by holder (SCALE-2).
+    /// Write-transaction holds by holder.
     writer_holds: WriterHoldCounters,
     /// RM-8 fault injection: fail the next `apply`/`apply_many`.
     #[cfg(test)]
@@ -940,7 +940,7 @@ impl crate::backend::StorageReadView for RedbReadView {
 /// Physical routing sends each key to exactly one shard, so point reads return
 /// the first shard that holds the key and ordered reads merge the per-shard
 /// iterators. This lets a multi-shard store serve reads straight from its
-/// backend with no in-memory mirror (P04). A single-shard store keeps the
+/// backend with no in-memory mirror. A single-shard store keeps the
 /// optimized current-transaction read; a multi-shard store resolves each key at
 /// the snapshot commit index.
 pub(crate) struct MergedViews {
@@ -1178,7 +1178,7 @@ impl crate::backend::StorageBackend for RedbBackend {
     }
 
     fn load_watermark(&self) -> Result<(u64, u64), String> {
-        // Read only LAST_APPLIED + GC_WATERMARK (P04): startup must not
+        // Read only LAST_APPLIED + GC_WATERMARK: startup must not
         // materialize the dataset to restore the durable LSN and GC floor.
         let tx = self.begin_read()?;
         let data = tx.open_table(DATA).map_err(|e| e.to_string())?;
@@ -1300,7 +1300,7 @@ impl RedbBackend {
             .create(path)
             .map_err(|e| e.to_string())?;
         let mut tx = db.begin_write().map_err(|e| e.to_string())?;
-        // Quick repair on the first durable commit of this open (D3): until
+        // Quick repair on the first durable commit of this open: until
         // the first checkpoint it is the newest commit with allocator state,
         // and without it a crash between open and that checkpoint forced a
         // full repair of the whole file (10.9 s at 2M records / 7 GB).
@@ -1530,7 +1530,7 @@ impl RedbBackend {
 
     /// Reclaim a bounded batch of history superseded before `watermark`.
     ///
-    /// Walks the expiry index (P06), whose keys are `to_ci_be || data_key`, so
+    /// Walks the expiry index, whose keys are `to_ci_be || data_key`, so
     /// the range bounded by `to_ci <= watermark` contains exactly the expired
     /// versions. Unexpired history keys are never visited, and each batch is one
     /// redb write transaction. `cursor` resumes after the last expiry key
@@ -1708,7 +1708,7 @@ impl RedbBackend {
         let _hold = self.writer_hold(crate::WriterHolder::Checkpoint);
         tx.set_durability(redb::Durability::Immediate)
             .map_err(|e| e.to_string())?;
-        // Quick repair (D3): persist the allocator state with every durable
+        // Quick repair: persist the allocator state with every durable
         // checkpoint. Crash recovery rolls back to the last durable commit, so
         // reopening after a kill is O(1) instead of a full checksum and
         // allocator walk of the file (9 s at 9 GB measured; cloud-capacity

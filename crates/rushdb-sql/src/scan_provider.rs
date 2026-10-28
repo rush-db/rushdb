@@ -303,7 +303,7 @@ impl LabelTable {
     }
 
     /// Like [`Self::try_new`], with only the columns `visible` allows
-    /// (POL-2): a hidden property is not a column, so no statement can read,
+    ///: a hidden property is not a column, so no statement can read,
     /// filter on or name it.
     pub(crate) fn try_new_visible(
         lmpg: Arc<Lmpg>,
@@ -330,7 +330,7 @@ impl LabelTable {
     }
 }
 
-/// The label's schema from the property catalog (SQL-2). Every typed
+/// The label's schema from the property catalog. Every typed
 /// definition its records carry contributes one sample value of its type
 /// (in an array when the label holds arrays under it), and the samples are
 /// inferred by the same Arrow JSON rules as row data, so mixed types widen
@@ -745,7 +745,7 @@ fn next_ordinals(
     let external = |error: rushdb_query::QueryError| {
         datafusion::common::DataFusionError::External(Box::new(error))
     };
-    // The request's deadline stops a long scan between batches (QRY-3); a
+    // The request's deadline stops a long scan between batches; a
     // `count(*)` over millions of records yields no result batch until it
     // ends, so the executor's own poll would come too late.
     if state.lmpg.limits().expired() {

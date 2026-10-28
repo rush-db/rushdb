@@ -1,4 +1,4 @@
-//! Apply-time derivation (DC12).
+//! Apply-time derivation.
 //!
 //! Derived rows (presence, value dictionary, counters, declared-index
 //! entries) are computed by one deterministic [`Deriver`] from a commit's

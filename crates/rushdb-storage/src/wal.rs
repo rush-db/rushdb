@@ -800,7 +800,7 @@ pub struct WalSegmentManifest {
 /// Magic identifying a WAL segment manifest.
 pub const SEGMENT_MAGIC: &str = "RDBWALSEG";
 
-/// Framed snapshot export magic (W6): distinct from the WAL segment magic so a
+/// Framed snapshot export magic: distinct from the WAL segment magic so a
 /// restore can reject a mismatched artifact type immediately.
 pub const SNAPSHOT_MAGIC: &str = "RDBWALSNAP";
 

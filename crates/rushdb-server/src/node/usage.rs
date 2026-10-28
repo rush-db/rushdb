@@ -1,4 +1,4 @@
-//! Per-tenant usage figures for a list of tenants (USE-1), an operator read.
+//! Per-tenant usage figures for a list of tenants, an operator read.
 //!
 //! The engine has no workspace, plan or billing concept: the caller names the
 //! tenant scopes it wants grouped and gets one row per scope plus their sum.

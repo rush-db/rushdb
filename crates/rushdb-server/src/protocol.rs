@@ -91,7 +91,7 @@ fn execution_operation_class(operation: &Operation) -> rushdb_engine::OperationC
     }
 }
 
-/// Fine-grained operation label for metrics and slow-call logging (E4). The
+/// Fine-grained operation label for metrics and slow-call logging. The
 /// hierarchy is `area.detail` so dashboards can aggregate by prefix; unknown
 /// shapes must never appear — every variant is listed explicitly.
 pub(crate) fn operation_kind(operation: &Operation) -> &'static str {
@@ -295,7 +295,7 @@ impl<'a> ProtocolExecutor<'a> {
     }
 
     /// Execute one request, polling `is_cancelled` for query/describe work.
-    /// The request's bounds (QRY-3) ride on every engine handle it uses.
+    /// The request's bounds ride on every engine handle it uses.
     ///
     /// # Errors
     ///
@@ -431,7 +431,7 @@ impl<'a> ProtocolExecutor<'a> {
             .as_ref()
             .is_some_and(|active| active.mode == rushdb_authz::AuthorizationMode::PolicyEnforced);
         // Catalog reads (describe, value search, SQL's tables) see only what
-        // an enforced policy allows, through one access check (POL-2).
+        // an enforced policy allows, through one access check.
         let catalog_access =
             rushdb_lmpg::CatalogAccess::new(active_policy.clone().map(std::sync::Arc::new));
         let sql_policy = catalog_access.policy().cloned().map(std::sync::Arc::new);

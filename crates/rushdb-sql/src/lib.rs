@@ -87,7 +87,6 @@ mod pinned_tests;
 /// Rows a SQL result, an eager mutation table or a relationship table may
 /// hold, so an accidental unbounded query cannot build an unbounded
 /// in-memory Arrow result. Label reads stream and never count against it
-/// (SQL-2).
 pub const MAX_SCAN_ROWS: usize = 100_000;
 /// Small execution-pool allowance for `DataFusion`'s planner/operator state.
 /// Retained result and Arrow-batch bytes are still checked against the exact
@@ -230,7 +229,7 @@ pub enum SqlError {
     #[error("unindexed walk refused: {0}")]
     UnindexedWalk(String),
     /// The statement needed more working memory than `query-memory-max`,
-    /// tightened by the request, allows (QRY-3).
+    /// tightened by the request, allows.
     #[error("query working set exceeded: the SQL statement needed more than {0} bytes")]
     MemoryLimit(usize),
     /// The caller cancelled or the deadline elapsed during execution. Polled
@@ -529,7 +528,7 @@ pub async fn execute_sql_async_with_budget_in_view_cancellable(
     .await
 }
 
-/// Execute read-only SQL under a tenant's data-access policy (POL-2): the
+/// Execute read-only SQL under a tenant's data-access policy: the
 /// statement sees tables for the policy's allowed labels only, columns for
 /// their visible properties only, and edge tables for allowed relationship
 /// types holding only relationships between allowed labels. A hidden table
@@ -655,7 +654,7 @@ fn planning_error(error: datafusion::error::DataFusionError) -> SqlError {
 }
 
 /// A "table not found" planning failure, with the closest table names of
-/// the schema it was looked up in (CAT-3). `DataFusion` already suggests
+/// the schema it was looked up in. `DataFusion` already suggests
 /// close column names; it does not for tables.
 fn with_table_hint(error: SqlError, context: &SessionContext) -> SqlError {
     let SqlError::Engine(message) = &error else {
@@ -736,7 +735,7 @@ fn map_stream_error(
 }
 
 /// The working-memory cap of a statement run on `lmpg`: `query-memory-max`,
-/// tightened by the request (QRY-3).
+/// tightened by the request.
 fn memory_cap(lmpg: &Lmpg) -> Option<usize> {
     lmpg.limits()
         .query_memory_max_bytes()
@@ -1025,7 +1024,7 @@ fn context_in_view_with_budget(
 }
 
 /// A statement context whose catalog shows only what `visible` allows
-/// (POL-2). Text search is not offered under an enforced policy: its
+///. Text search is not offered under an enforced policy: its
 /// indexes are not policy-scoped.
 fn context_in_view_visible(
     lmpg: &Lmpg,
@@ -1114,7 +1113,7 @@ fn session_context(
         None
     };
     // The real admission gate: the result budget plus the phase overhead,
-    // and never more than the statement's memory cap (QRY-3).
+    // and never more than the statement's memory cap.
     let pool_limit = match (max_result_bytes, memory_cap) {
         (Some(limit), cap) => {
             let limit = limit.saturating_add(DATAFUSION_PHASE_OVERHEAD);
@@ -1315,7 +1314,7 @@ pub(crate) fn relationship_types_for_tenant(
     tenant: rushdb_types::ids::TenantId,
 ) -> Result<BTreeSet<String>, SqlError> {
     // The maintained relationship catalog holds one row per shape, so the
-    // types are read without walking the relationships (SQL-4).
+    // types are read without walking the relationships.
     Ok(
         rushdb_lmpg::reader::try_access::relationship_catalog(snapshot, tenant)?
             .into_iter()

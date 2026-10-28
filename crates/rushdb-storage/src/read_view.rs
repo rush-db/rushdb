@@ -102,7 +102,7 @@ pub struct ReadView {
     cancellations: Arc<Mutex<BTreeMap<u64, Vec<ReadCancellation>>>>,
     ci: u64,
     // The store's apply-time deriver, so an overlay over this view can derive
-    // its staged writes (DC12). Derived rows of committed state are ordinary
+    // its staged writes. Derived rows of committed state are ordinary
     // rows of the snapshot.
     deriver: Option<Arc<dyn crate::Deriver>>,
     // The store's planner-statistics cache; estimates only.
@@ -254,7 +254,7 @@ impl Store {
             });
         }
         // The pin carries a lease timestamp so GC can expire abandoned readers
-        // by age (P06) instead of blocking history forever. Refresh it on every
+        // by age instead of blocking history forever. Refresh it on every
         // admission: a long-lived entry with churning readers is still active
         // and must not be expired out from under them.
         let lease_ms = crate::wal::now_ms();

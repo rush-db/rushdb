@@ -122,7 +122,7 @@ impl Store {
     /// Export the committed WAL as a checksummed segment stream (manifest +
     /// framed op-set records), bounded to the inclusive LSN range
     /// `[from_lsn, to_lsn]`. This is the CDC / PITR / incremental-backup cursor
-    /// (W1). Records come from the segmented WAL, which is the durable truth.
+    ///. Records come from the segmented WAL, which is the durable truth.
     ///
     /// # Errors
     /// Returns [`StorageError::Durability`] if the WAL cannot be read or the
@@ -304,7 +304,7 @@ impl Store {
 
     /// Apply one replayed WAL record (base ops only) to a backend together
     /// with the ops the installed deriver derives against the backend's
-    /// current state, exactly as live publication does (DC12).
+    /// current state, exactly as live publication does.
     fn apply_derived_replay(
         deriver: Option<&Arc<dyn crate::Deriver>>,
         backend: &dyn StorageBackend,

@@ -1,4 +1,4 @@
-//! Per-tenant logical byte accounting (USE-1).
+//! Per-tenant logical byte accounting.
 //!
 //! Every backend write already reads the value it replaces (for MVCC history),
 //! so the change in a tenant's stored `key + value` bytes is known at apply

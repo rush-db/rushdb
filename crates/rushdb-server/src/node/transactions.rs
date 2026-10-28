@@ -171,7 +171,7 @@ impl RequestScope<'_> {
                     }
                 };
                 // Plan the statement against the transaction overlay so it
-                // sees this transaction's earlier staged writes (T-5b), then
+                // sees this transaction's earlier staged writes, then
                 // stage the resulting delta back into the same overlay.
                 let overlay = coordinator.overlay_view(tx_id)?;
                 let batch = rushdb_language::stage_statement_mutation_in_overlay(

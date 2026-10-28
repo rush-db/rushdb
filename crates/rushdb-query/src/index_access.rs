@@ -56,7 +56,7 @@ fn scan<R: TryRead>(
     owner_limit: usize,
 ) -> Result<(), QueryError> {
     // Streamed straight into the owner set: an entry range of millions of
-    // owners never exists as a row list (READ-1).
+    // owners never exists as a row list.
     let mut over_budget = None;
     for def in defs {
         index::for_each_entry(snap, tenant, def.id, start, end, &mut |entry, owner| {

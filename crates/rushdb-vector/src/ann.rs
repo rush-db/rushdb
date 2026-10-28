@@ -158,7 +158,7 @@ impl AnnBacking {
 const MAX_CACHED_ANN_BYTES: usize = 256 * 1024 * 1024;
 
 /// The in-memory LRU/eviction accounting (`MAX_CACHED_ANN_BYTES`) must use
-/// the same real measured size as the `ByteBudget` reservation (A3):
+/// the same real measured size as the `ByteBudget` reservation:
 /// otherwise eviction could believe there is room (formula-estimated sum
 /// under budget) while the real, charged reservation is already exhausted.
 pub(crate) fn cached_ann_bytes(cached: &CachedAnn) -> usize {
@@ -177,7 +177,7 @@ fn generation_bytes(generation: &AnnGeneration, dims: usize) -> usize {
         .saturating_add(generation.pivots.iter().map(Vec::len).sum::<usize>() * 4)
 }
 
-/// Real, measured resident bytes for an already-built backing (A3),
+/// Real, measured resident bytes for an already-built backing,
 /// replacing `generation_bytes`'s pre-build formula estimate with the actual
 /// footprint: `usearch::Index::memory_usage()` for every frozen segment (a
 /// real introspection the provider exposes) plus the hot segment's own
@@ -232,7 +232,7 @@ fn reserve_generation(
 
 /// Release a cache entry no successor shares segments with (an explicit
 /// full rebuild, a cleared space): its segment files go once the last
-/// in-flight reader drops them (L1). Eviction keeps them: the next
+/// in-flight reader drops them. Eviction keeps them: the next
 /// miss reopens them.
 pub(crate) fn retire_cached(entry: &CachedAnn) {
     #[allow(

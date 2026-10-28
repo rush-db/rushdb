@@ -33,7 +33,7 @@ pub(crate) fn execution_failed(error: impl ToString) -> ProtocolError {
     let code = if message.contains("cancelled") || message.contains("deadline exceeded") {
         ErrorCode::Cancelled
     } else if message.contains("unindexed walk refused") {
-        // A fixed property of the query and the data (SCALE-3): retrying
+        // A fixed property of the query and the data: retrying
         // cannot help; declaring the named index does.
         ErrorCode::InvalidRequest
     } else if message.contains("resource exhausted:")

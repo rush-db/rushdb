@@ -542,7 +542,7 @@ impl ProtocolExecutor<'_> {
         let unscoped = unfiltered && query.labels.is_empty();
         // A value search over an unfiltered match set is answered from the
         // value dictionaries: matching values with exact owner counts,
-        // without reading records (CAT-2).
+        // without reading records.
         if let (Some(search), true) = (matcher.as_ref(), unfiltered) {
             if let Some(ranked) = self
                 .node
@@ -775,7 +775,7 @@ impl ProtocolExecutor<'_> {
         };
         // An enforced policy reads through this match-set path; under its
         // small-count threshold, values held by fewer records are withheld
-        // (POL-2), so counts, ranges and lists cover the reported values only.
+        //, so counts, ranges and lists cover the reported values only.
         seen.retain(|(_, count)| access.counted(*count));
         // The scan kept only matching values.
         if let Some(search) = matcher.as_ref() {

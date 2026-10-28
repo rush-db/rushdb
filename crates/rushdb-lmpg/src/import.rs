@@ -1247,7 +1247,7 @@ fn add_typed_owners(
 }
 
 /// Value → owners of `(label, pid)` at one snapshot, for merge matching.
-/// Without a declared index (DC2) a lookup must walk the label's presence
+/// Without a declared index a lookup must walk the label's presence
 /// rows; building the map once per `(label, pid)` makes a chunk of `M`
 /// lookups cost `O(label + M)` instead of `O(label × M)`.
 /// Bytes one walked upsert-key value holds beside its payload: the owner
@@ -1308,7 +1308,7 @@ impl MergeIndex {
             std::collections::hash_map::Entry::Vacant(slot) => {
                 // The population is exact (a counter) and known before the
                 // walk: refuse a large one with the index to declare instead
-                // of failing deep in the scan (MERGE-1).
+                // of failing deep in the scan.
                 let population =
                     crate::derived::prop_support_label(snap, tenant, OwnerKind::Record, pid, label)
                         .map_err(lookup)?;

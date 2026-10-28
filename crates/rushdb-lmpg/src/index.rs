@@ -1,8 +1,8 @@
-//! Declared ordered indexes (DC2): definitions, expansion of the index
+//! Declared ordered indexes: definitions, expansion of the index
 //! mutations, apply-time maintenance of `INDEX_ENTRY` rows, and the read API
 //! the planner uses.
 //!
-//! Entries are derived rows (DC12). For an index `I` and a record `r`, the
+//! Entries are derived rows. For an index `I` and a record `r`, the
 //! entries are `{(value, r) : value ∈ OCC(r, pids(I.property))}` when `r` has
 //! `I.label` and `I.state` covers `r`'s ordinal, and nothing otherwise. Every
 //! commit recomputes that set for exactly the `(I, r)` pairs it can change —
@@ -488,7 +488,7 @@ pub fn for_each_entry<R: TryRead + ?Sized>(
 }
 
 // ---------------------------------------------------------------------------
-// Apply-time maintenance (DC12)
+// Apply-time maintenance
 // ---------------------------------------------------------------------------
 
 /// What one commit touched that can change index entries.

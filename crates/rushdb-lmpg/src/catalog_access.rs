@@ -1,5 +1,5 @@
 //! What a catalog read may name and count under the tenant's data-access
-//! policy (POL-2). Every catalog surface (`describe`, name suggestions, the
+//! policy. Every catalog surface (`describe`, name suggestions, the
 //! schema summary, value overlap, value search and SQL's tables) asks this
 //! one type, so a new surface cannot apply the policy differently.
 //!

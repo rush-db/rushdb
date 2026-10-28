@@ -284,7 +284,7 @@ fn promoted_follower_accepts_writes_and_stops_tailing_the_leader() {
 /// than one shard, or `shard_count` mismatches between leader and
 /// follower) — real cross-shard routing diversity needs multitenancy,
 /// which this file's helpers do not set up. Multi-shard commit already
-/// carries its own known tearing risk independent of replication (S-2);
+/// carries its own known tearing risk independent of replication;
 /// this test does not change that.
 #[test]
 fn streaming_replication_tolerates_a_multi_shard_config() {

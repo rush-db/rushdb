@@ -1,4 +1,4 @@
-//! Session settings that bound a client's own statements (QRY-3).
+//! Session settings that bound a client's own statements.
 //!
 //! The names are PostgreSQL's and `CockroachDB`'s, so drivers and tools that
 //! already set them work unchanged: `statement_timeout`, `work_mem` (here

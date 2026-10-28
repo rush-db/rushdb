@@ -477,7 +477,7 @@ pub(super) fn extend_owners(
 /// index when one covers every requested label; otherwise presence
 /// rows narrow to the owners carrying the property (under `labels` when
 /// given), and their occurrence values decide the predicate. There are no
-/// automatic value postings (DC2).
+/// automatic value postings.
 fn leaf_owners<R: TryRead>(
     snap: &R,
     tenant: rushdb_types::ids::TenantId,

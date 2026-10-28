@@ -1,4 +1,4 @@
-//! Matching a search text against stored values (CAT-2): `contains`,
+//! Matching a search text against stored values: `contains`,
 //! `prefix`, `exact` and `similar` (near spellings), and dates written in
 //! another layout. The wire form is `rushdb_protocol::ValueSearch`; this is
 //! the engine's side of it, shared by the value dictionaries, the facet

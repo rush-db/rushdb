@@ -40,8 +40,8 @@ fn property_id(lmpg: &Lmpg, _label: &str, field: &str) -> u64 {
 }
 
 /// Owners whose `v` currently holds `value`, read through the label-scoped
-/// presence rows (DC11): presence gives the candidates, the occurrence row
-/// confirms the value, and the per-property value dictionary (DC10) count
+/// presence rows: presence gives the candidates, the occurrence row
+/// confirms the value, and the per-property value dictionary count
 /// must agree with the confirmed set.
 fn owners_with_value(lmpg: &Lmpg, pid: u64, value: i64) -> Vec<u64> {
     use rushdb_types::ids::OwnerKind;

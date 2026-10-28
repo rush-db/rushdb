@@ -1,4 +1,4 @@
-//! Checked integer `SUM` (Q-10).
+//! Checked integer `SUM`.
 //!
 //! `DataFusion`'s built-in `SUM(Int64)` accumulates with wrapping `i64`
 //! addition, so an overflowing sum silently wraps to `i64::MIN` instead of

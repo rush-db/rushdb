@@ -92,7 +92,7 @@ fn base_backup_plus_archived_wal_restores_to_a_point_in_time() {
             .restore_pitr_to(&mut stream, Some(30), Some(45))
             .unwrap();
         assert_eq!(ci, 45);
-        assert_eq!(node.verify().unwrap(), 0, "derived rows exact at 45 (G2)");
+        assert_eq!(node.verify().unwrap(), 0, "derived rows exact at 45");
         assert_eq!(snapshot_bytes(&node), snap45, "state matches source at 45");
     }
 

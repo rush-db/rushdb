@@ -1,6 +1,6 @@
 //! L03: superseded values leave no residue. Values live inline in one
-//! occurrence row per value (DC11), and the per-property value dictionary
-//! (DC10) is derived at apply time, so an update or delete must not leave an
+//! occurrence row per value, and the per-property value dictionary
+//! is derived at apply time, so an update or delete must not leave an
 //! old occurrence row or a stale dictionary entry behind.
 
 use std::sync::Arc;

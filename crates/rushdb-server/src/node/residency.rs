@@ -1,4 +1,4 @@
-//! Tenant residency on demand (DC8): one registry owns the per-tenant
+//! Tenant residency on demand: one registry owns the per-tenant
 //! in-memory handles (vector engine, transaction coordinator). Idle tenants
 //! cost about nothing:
 //!

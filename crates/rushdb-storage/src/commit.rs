@@ -92,7 +92,7 @@ impl Store {
     /// When `overlay` carries the expanded output of commits `< ci`, the
     /// result is byte-identical to the serialized forward path publishing
     /// those commits first (`sequencer_tests` asserts the equivalence). The
-    /// sequencer (C-1) calls this to expand without holding the shard lock
+    /// sequencer calls this to expand without holding the shard lock
     /// across durability.
     ///
     /// # Errors
@@ -243,7 +243,7 @@ impl Store {
         // Replication re-enters through apply_replicated_batch; do not hold
         // this mutex across the replication call. Local writes hold it through
         // planning + expansion + enqueue, then release it before the durability
-        // wait so concurrent commits can coalesce (C-1); every expansion reads
+        // wait so concurrent commits can coalesce; every expansion reads
         // the preceding logical state from the pending overlay instead.
         let replicator = self.replicator();
         let admission_started = std::time::Instant::now();
@@ -547,7 +547,7 @@ impl Store {
         }
         // The ordered entry is now visible in `pending`, so the next writer may
         // sequence. Release the serialization locks *before* waiting on
-        // durability (C-1): concurrent commits then accumulate in `pending` and
+        // durability: concurrent commits then accumulate in `pending` and
         // `drain_and_publish` coalesces them into one fsync. Their expansions
         // already read this commit's ops from the pending overlay, so releasing
         // here cannot expose them to stale state.

@@ -21,7 +21,7 @@ pub fn effective_budget(work_budget: Option<usize>, config: u64) -> Option<u64> 
 /// Charge one record's serialized size against `budget`, accumulating into
 /// `charged`. Errors once the running total exceeds the limit.
 ///
-/// `reservation`, when given, is grown to the real running total (A3):
+/// `reservation`, when given, is grown to the real running total:
 /// best-effort attribution against the shared graph-phase budget, not a new
 /// rejection path — only `budget` above can fail this call, so a tight
 /// shared pool just means the gauge under-reports.

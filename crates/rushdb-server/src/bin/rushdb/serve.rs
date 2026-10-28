@@ -239,7 +239,7 @@ pub fn run(args: ServeArgs, explicit_flags: std::collections::BTreeSet<String>) 
     if let Some(base_dir) = args.verify_base {
         verify_base(&base_dir);
     }
-    // Answer health/readiness probes from process start (C6): resolve the
+    // Answer health/readiness probes from process start: resolve the
     // stored config first so the effective listen address is known, bind it,
     // and hand the same socket to the router once bootstrap completes. TLS
     // listeners are bound by the TLS stack itself, so they keep the old order.

@@ -1,6 +1,6 @@
 //! P00 crash-harness child: writes records across a configurable durability /
 //! shard / concurrency mode, then aborts to simulate an unclean shutdown. The
-//! parent tests (`crates/rushdb-storage-integration/tests/p00_baseline.rs`)
+//! parent tests (`crates/rushdb-storage-integration/tests/baseline.rs`)
 //! spawn this binary and verify the durable prefix survives reopen + replay.
 //!
 //! Usage: `crash_child <db> <commits-per-writer> [--async] [--shards N]

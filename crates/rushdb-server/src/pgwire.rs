@@ -177,7 +177,7 @@ pub fn new_gateway(cfg: ServerConfig, port: u16) -> Result<Gateway, String> {
 }
 
 /// [`new_gateway`] that adopts the socket a [`crate::boot::BootListener`]
-/// served probes on during bootstrap (C6).
+/// served probes on during bootstrap.
 ///
 /// # Errors
 /// Returns a message when the node cannot bootstrap or a transport cannot bind.
@@ -468,7 +468,7 @@ fn err(c: &str, m: impl Into<String>) -> PgWireError {
     PgWireError::UserError(Box::new(ErrorInfo::new("ERROR".into(), c.into(), m.into())))
 }
 
-/// Answer a session-settings statement (QRY-3): `SHOW` returns its value,
+/// Answer a session-settings statement: `SHOW` returns its value,
 /// `SET`/`RESET` their command tags.
 fn setting_response<C: ClientInfo>(
     c: &mut C,

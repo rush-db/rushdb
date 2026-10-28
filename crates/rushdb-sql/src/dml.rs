@@ -4,7 +4,7 @@
 //! touches: `UPDATE` selects each matching row's `__id` with the old and new
 //! value of every assigned column, `DELETE` selects the matching `__id`s, and
 //! `INSERT` runs its `VALUES` or `SELECT` source. The read runs on the
-//! streamed label tables of the read path (SQL-2), so its filter is planned on
+//! streamed label tables of the read path, so its filter is planned on
 //! the indexes like any `SELECT`, and only the touched rows are decoded. The
 //! implied record writes are committed atomically at the snapshot version, as
 //! before; their size (not the label's) is charged to the request budget.

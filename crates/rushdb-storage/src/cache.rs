@@ -1,4 +1,4 @@
-//! Byte-accounted logical caches (V2).
+//! Byte-accounted logical caches.
 //!
 //! A bounded, LRU-evicting key/value cache whose resident bytes are charged to
 //! the shared [`ByteBudget`] tree. Unlike an unbounded `HashMap`, growth is

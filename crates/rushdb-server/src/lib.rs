@@ -116,7 +116,7 @@ pub struct ServerConfig {
     /// operator set explicitly for this boot. The data directory's
     /// `config.yml` is the single source of truth: a stored value that
     /// disagrees with an explicitly supplied one is a startup error naming
-    /// both, never a silent override (D6).
+    /// both, never a silent override.
     pub explicit_flags: std::collections::BTreeSet<String>,
 }
 

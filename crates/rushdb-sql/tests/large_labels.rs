@@ -3,7 +3,7 @@
 //! filtered scan reads its candidates the way records reads do: from the
 //! index plan when an index answers a condition, from a walk of the label
 //! otherwise, refused when an unindexed filter would check more records than
-//! the unindexed-walk limit. The request's own bounds (QRY-3) reach the scan.
+//! the unindexed-walk limit. The request's own bounds reach the scan.
 
 use std::sync::Arc;
 

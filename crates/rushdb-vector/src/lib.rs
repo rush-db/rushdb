@@ -162,7 +162,7 @@ pub enum VectorError {
     #[error("engine error: {0}")]
     Engine(String),
     /// The vector cache budget cannot admit an ANN build right now. Search
-    /// falls back to the exact path instead of surfacing this (C9).
+    /// falls back to the exact path instead of surfacing this.
     #[error("ANN build memory budget: {0}")]
     AnnBudget(String),
 }
@@ -387,7 +387,7 @@ impl VectorEngine {
     /// data directory, one subdirectory per tenant; omit it (the default)
     /// for a pure in-memory store.
     ///
-    /// Opening sweeps staged writes an earlier engine left (L1).
+    /// Opening sweeps staged writes an earlier engine left.
     /// Published segments stay: a cache miss reopens and reconciles them
     ///, deleting those without a live entry.
     #[must_use]
@@ -1419,7 +1419,7 @@ pub struct BindingCounts {
 
 /// Stream every binding of `space` to `visit` (until it returns `false`)
 /// without collecting the rows: a space past ~230K bindings overflowed the
-/// 64 MiB scan ceiling and failed every search (VEC-3).
+/// 64 MiB scan ceiling and failed every search.
 pub(crate) fn for_each_binding<R: rushdb_lmpg::reader::TryRead + ?Sized>(
     r: &R,
     t: TenantId,

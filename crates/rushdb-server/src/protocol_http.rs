@@ -27,7 +27,7 @@ pub(crate) fn execute_cancellable(
             )
         })?;
     // The server-owned transport deadline bounds every engine phase; a
-    // client's own `deadlineMs` may only shorten it (QRY-3).
+    // client's own `deadlineMs` may only shorten it.
     request.context.deadline_ms = crate::protocol::effective_deadline_ms(
         request.context.deadline_ms,
         deadline_ms.unwrap_or(0),

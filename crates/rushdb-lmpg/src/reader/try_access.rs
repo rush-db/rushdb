@@ -1,4 +1,4 @@
-//! Fallible LMPG primitives over storage format v3 (DC11). Corrupt rows are
+//! Fallible LMPG primitives over storage format v3. Corrupt rows are
 //! errors, not missing records. Eager adjacency remains subject to the Txn
 //! read cap.
 use super::{
@@ -25,7 +25,7 @@ fn decode<T: serde::de::DeserializeOwned>(raw: Option<Vec<u8>>) -> Result<Option
         .transpose()
 }
 
-/// One canonical occurrence (DC11): identity `(kind, owner, pid, elem)` plus
+/// One canonical occurrence: identity `(kind, owner, pid, elem)` plus
 /// its value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Occurrence {

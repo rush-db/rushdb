@@ -48,7 +48,7 @@ impl LazyLabelSchema {
     ///
     /// # Errors
     /// Returns a storage error when the label catalog cannot be read.
-    /// Under an enforced policy only its allowed labels are listed (POL-2).
+    /// Under an enforced policy only its allowed labels are listed.
     pub(crate) fn new(
         lmpg: &Lmpg,
         snapshot: Arc<ReadView>,
@@ -57,7 +57,7 @@ impl LazyLabelSchema {
         let mut names = rushdb_lmpg::reader::try_access::labels(&snapshot, lmpg.tenant)?;
         names.retain(|label| visible.label(label));
         Ok(Self {
-            // The request's handle: its bounds (QRY-3) reach the scans.
+            // The request's handle: its bounds reach the scans.
             lmpg: Arc::new(lmpg.handle()),
             snapshot,
             names,
@@ -115,7 +115,7 @@ impl SchemaProvider for LazyLabelSchema {
 }
 
 /// Lazily discovers relationship types (from the relationship catalog) and
-/// resolves one streamed edge table per referenced type (SQL-4).
+/// resolves one streamed edge table per referenced type.
 pub(crate) struct LazyRelationshipSchema {
     tenant: TenantId,
     snapshot: Arc<ReadView>,

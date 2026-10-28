@@ -258,7 +258,7 @@ impl RequestScope<'_> {
     }
 
     /// O(1)-per-definition exact distinct count for an unscoped property from
-    /// the on-disk counters (DC10), or `None` (caller scans) for an
+    /// the on-disk counters, or `None` (caller scans) for an
     /// array property or a property with no scalar definition.
     pub(crate) fn distinct_count_from_index_in_view(
         &self,
@@ -285,7 +285,7 @@ impl RequestScope<'_> {
     }
 
     /// Value domain of a property under `labels` (all labels when empty) from
-    /// the value dictionary (DC10): exact
+    /// the value dictionary: exact
     /// distinct count, explicit-null presence, and numeric min/max. `None`
     /// (caller scans) when a definition holds arrays or long values, or no
     /// scalar definition exists. `numeric_only` tells the caller whether
@@ -645,7 +645,7 @@ impl RequestScope<'_> {
 
     /// Every distinct `(value, owner count)` pair under `labels` (all labels
     /// when empty) from the value dictionary, keeping only the values that
-    /// match `search` (CAT-2), ranked by descending owner count (ties by the
+    /// match `search`, ranked by descending owner count (ties by the
     /// value's JSON text). Values read back as the records response shows
     /// them. `None` (caller scans) when a definition holds arrays or long
     /// values, or no scalar definition exists.
@@ -1511,7 +1511,7 @@ impl RequestScope<'_> {
                 access::label_members(view.as_ref(), tenant, label).map_err(|e| e.to_string())?;
             for ord in members {
                 // pid -> array evidence for this owner, from one occurrence
-                // prefix scan (DC11).
+                // prefix scan.
                 let mut per_pid: std::collections::BTreeMap<u64, bool> =
                     std::collections::BTreeMap::new();
                 for occ in

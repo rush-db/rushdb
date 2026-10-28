@@ -383,7 +383,7 @@ pub fn validate_config(file: &ConfigFile, requested: &mut ServerConfig) -> Resul
 
 /// Apply the data directory's stored `config.yml` (if any) to `cfg` before the
 /// node boots, so the binary knows the effective listen address and port
-/// early enough to answer probes during a long bootstrap (C6). Idempotent:
+/// early enough to answer probes during a long bootstrap. Idempotent:
 /// `Node::bootstrap` applies the same file again.
 ///
 /// # Errors
@@ -399,7 +399,7 @@ pub fn resolve_stored_config(cfg: &mut ServerConfig) -> Result<(), String> {
 }
 
 /// Every explicitly supplied startup flag whose value disagrees with the
-/// stored `config.yml` (D6). Formatted as `--flag (flag X, config.yml Y)`.
+/// stored `config.yml`. Formatted as `--flag (flag X, config.yml Y)`.
 fn explicit_flag_conflicts(file: &ConfigFile, requested: &ServerConfig) -> Vec<String> {
     fn differs<T: PartialEq + std::fmt::Debug>(flag: &str, cli: &T, stored: &T) -> Option<String> {
         (cli != stored).then(|| format!("--{flag} (flag {cli:?}, config.yml {stored:?})"))

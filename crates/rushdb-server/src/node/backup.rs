@@ -200,7 +200,7 @@ impl Node {
 
     /// Export the committed logical WAL as a checksummed segment stream
     /// (manifest + framed records) for the given LSN range. Foundation for
-    /// PITR / CDC / incremental backups (W1).
+    /// PITR / CDC / incremental backups.
     /// # Errors
     ///
     /// Returns an error message when the operation fails.
