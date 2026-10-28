@@ -85,7 +85,7 @@ postcard = { version = "=1.1.3", default-features = false, features = ["use-std"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 thiserror = "2"
 crc32fast = "1.5"
-hmac = "0.12"
+hmac = "0.13"
 sha2 = "0.10"
 base64 = "0.22"
 blake3 = "1.8"
