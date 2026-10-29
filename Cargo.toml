@@ -71,7 +71,7 @@ rushdb-mongodb = { path = "crates/rushdb-mongodb", version = "=3.0.0" }
 rushdb-grpc = { path = "crates/rushdb-grpc", version = "=3.0.0" }
 rushdb-bolt = { path = "crates/rushdb-bolt", version = "=3.0.0" }
 
-grafeo-common = { version = "=0.5.42", default-features = false }
+grafeo-common = { version = "=0.6.0", default-features = false }
 grafeo-core = { version = "=0.5.42", default-features = false, features = ["lpg", "regex", "text-index"] }
 grafeo-engine = { version = "=0.5.42", default-features = false, features = ["lpg", "gql", "cypher", "gremlin", "sql-pgq", "regex", "text-index"] }
 datafusion = { version = "=54.1.0", default-features = false, features = ["sql", "nested_expressions", "datetime_expressions", "encoding_expressions", "regex_expressions", "string_expressions", "unicode_expressions", "math_expressions", "crypto_expressions", "recursive_protection"] }
