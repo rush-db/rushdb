@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
+# RushDB — قاعدة البيانات مفتوحة المصدر للذكاء الاصطناعي
 
 ### قاعدة بيانات واحدة لسجلاتك وعلاقاتها والبحث فيها.
 
@@ -189,7 +189,12 @@ console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'L
 
 - [الدليل](docs/manual/README.md): البدء، ونموذج البيانات، والاستعلامات، واللغات، والبحث، والتشغيل، والجداول المرجعية.
 - [docs.rushdb.com](https://docs.rushdb.com): دروس، وحزم SDK، وخادم MCP.
-- [الترقية من RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): كان الإصدار 2.x هو الحزمة المبنية على Neo4j، وهو محفوظ عند الوسم `v2` في هذا المستودع.
+- [الترقية من RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): كان الإصدار 2.x هو الحزمة المبنية على Neo4j، وهو الآن في الفرع `2.x` من هذا المستودع.
+
+## الإصدارات
+
+- **RushDB 3.x** (`main`): الإصدار الحالي.
+- **RushDB 2.x (قديم)**: الحزمة المبنية على Neo4j، في [الفرع `2.x`](https://github.com/rush-db/rushdb/tree/2.x) والصورة `rushdb/platform`. إصلاحات أمنية فقط حتى 2027-10-28.
 
 ## المساهمة
 

@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
+# RushDB — AI のためのオープンソースデータベース
 
 ### レコードとその関係、そしてその上での検索を、ひとつのデータベースで。
 
@@ -159,7 +159,12 @@ Windows はネイティブでは未対応です。WSL 2 か Docker を使って�
 
 - [マニュアル](docs/manual/README.md)：はじめに、データモデル、クエリ、言語、検索、運用、リファレンス。
 - [docs.rushdb.com](https://docs.rushdb.com)：チュートリアル、SDK、MCP サーバー。
-- [RushDB 2.x からのアップグレード](docs/manual/operations/upgrading-from-2x.md)：2.x は Neo4j ベースの構成で、このリポジトリの `v2` タグに残っています。
+- [RushDB 2.x からのアップグレード](docs/manual/operations/upgrading-from-2x.md)：2.x は Neo4j ベースの構成で、現在はこのリポジトリの `2.x` ブランチにあります。
+
+## バージョン
+
+- **RushDB 3.x**（`main`）：現行バージョン。
+- **RushDB 2.x（レガシー）**：Neo4j ベースの構成。[`2.x` ブランチ](https://github.com/rush-db/rushdb/tree/2.x)と `rushdb/platform` イメージで提供。2027-10-28 までセキュリティ修正のみ。
 
 ## コントリビュート
 

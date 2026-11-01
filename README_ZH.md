@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
+# RushDB — 面向 AI 的开源数据库
 
 ### 一个数据库，存放你的记录、它们之间的关系，并在其上进行搜索。
 
@@ -159,7 +159,12 @@ Gremlin、SQL/PGQ `GRAPH_TABLE`、Mongo 风格文档和 ISO GQL 使用同一个 
 
 - [手册](docs/manual/README.md)：入门、数据模型、查询、语言、搜索、运维和参考表。
 - [docs.rushdb.com](https://docs.rushdb.com)：教程、SDK 和 MCP 服务器。
-- [从 RushDB 2.x 升级](docs/manual/operations/upgrading-from-2x.md)：2.x 是基于 Neo4j 的版本，保留在本仓库的 `v2` 标签。
+- [从 RushDB 2.x 升级](docs/manual/operations/upgrading-from-2x.md)：2.x 是基于 Neo4j 的版本，现位于本仓库的 `2.x` 分支。
+
+## 版本
+
+- **RushDB 3.x**（`main`）：当前版本。
+- **RushDB 2.x（旧版）**：基于 Neo4j 的版本，位于 [`2.x` 分支](https://github.com/rush-db/rushdb/tree/2.x)，镜像为 `rushdb/platform`。仅提供安全修复，截至 2027-10-28。
 
 ## 参与贡献
 
