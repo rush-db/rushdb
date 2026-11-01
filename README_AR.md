@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB — قاعدة البيانات مفتوحة المصدر للذكاء الاصطناعي
+# RushDB — قاعدة البيانات للذكاء الاصطناعي
 
 ### قاعدة بيانات واحدة لسجلاتك وعلاقاتها والبحث فيها.
 

@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB — AI를 위한 오픈 소스 데이터베이스
+# RushDB — AI를 위한 데이터베이스
 
 ### 레코드와 그 관계, 그리고 그 위의 검색까지 하나의 데이터베이스로.
 

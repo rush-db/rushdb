@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB — la base de données open source pour l'IA
+# RushDB — la base de données pour l'IA
 
 ### Une seule base de données pour vos enregistrements, leurs relations et la recherche.
 

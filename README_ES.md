@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB — la base de datos de código abierto para IA
+# RushDB — la base de datos para IA
 
 ### Una sola base de datos para tus registros, sus relaciones y la búsqueda sobre ellos.
 

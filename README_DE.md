@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB — die Open-Source-Datenbank für KI
+# RushDB — die Datenbank für KI
 
 ### Eine Datenbank für deine Datensätze, ihre Beziehungen und die Suche darüber.
 

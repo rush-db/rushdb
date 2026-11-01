@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB — ฐานข้อมูลโอเพนซอร์สสำหรับ AI
+# RushDB — ฐานข้อมูลสำหรับ AI
 
 ### ฐานข้อมูลเดียวสำหรับเรคคอร์ด ความสัมพันธ์ของมัน และการค้นหาบนข้อมูลเหล่านั้น
 

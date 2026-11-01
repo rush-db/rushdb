@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB — 面向 AI 的开源数据库
+# RushDB — 面向 AI 的数据库
 
 ### 一个数据库，存放你的记录、它们之间的关系，并在其上进行搜索。
 

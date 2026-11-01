@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB — database open-source untuk AI
+# RushDB — database untuk AI
 
 ### Satu database untuk record Anda, relasinya, dan pencarian di atasnya.
 
