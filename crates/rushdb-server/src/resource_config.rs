@@ -102,6 +102,11 @@ pub struct ResourceConfig {
     /// 0 disables them. Default 128 MiB.
     #[arg(long, env = "RUSHDB_LOGICAL_CACHE_BYTES", default_value = "128MiB")]
     pub logical_cache_bytes: ByteSize,
+    /// Bytes the resident ANN indexes of vector spaces may hold, a budget of
+    /// its own under managed-limit (~150 B per vector of a 768-d space). 0
+    /// keeps no ANN resident: searches answer exactly. Default 256 MiB.
+    #[arg(long, env = "RUSHDB_VECTOR_CACHE_BYTES", default_value = "256MiB")]
+    pub vector_cache_bytes: ByteSize,
     /// Byte budget of the evictable planner-statistics cache (value
     /// distributions loaded on demand), a child of the logical cache budget.
     /// 0 disables caching. Default 32 MiB.
@@ -374,6 +379,7 @@ impl Default for ResourceConfig {
             max_group_bytes: 0,
             max_group_delay_ms: 0,
             logical_cache_bytes: ByteSize(128 * 1024 * 1024),
+            vector_cache_bytes: ByteSize(storage.vector_cache_bytes),
             planner_stats_bytes: ByteSize(storage.planner_stats_bytes),
             planner_stats_idle_seconds: storage.planner_stats_idle_seconds,
             planner_stats_max_age_commits: storage.planner_stats_max_age_commits,
@@ -459,6 +465,7 @@ impl ResourceConfig {
             max_group_bytes: self.max_group_bytes,
             max_group_delay_ms: self.max_group_delay_ms,
             logical_cache_bytes: self.logical_cache_bytes.0,
+            vector_cache_bytes: self.vector_cache_bytes.0,
             // Phase admission is bounded by the whole managed envelope; the
             // shared parent budget still caps the sum of all children. This
             // decouples concurrency from the (smaller) logical-cache budget.

@@ -1221,7 +1221,8 @@ fn count_distinct_multiple_columns_is_a_clear_unsupported_error() {
     )
     .unwrap_err();
     assert!(
-        error.to_string().contains("not implemented"),
+        matches!(error, rushdb_sql::SqlError::Unsupported(_))
+            && error.to_string().contains("COUNT DISTINCT"),
         "expected an explicit unsupported error, got {error}"
     );
 }

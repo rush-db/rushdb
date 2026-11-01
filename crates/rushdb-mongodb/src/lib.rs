@@ -97,12 +97,16 @@ fn execute_find(
     }
     let score_fields = take_meta(&mut doc, "projection");
     let by_score = !take_meta(&mut doc, "sort").is_empty();
+    let projection = Projection::of(&doc, &score_fields);
     let scores = match scores {
         Some(scores) => scores,
         None if score_fields.is_empty() && !by_score => {
             let query = translate_find(&doc)?;
             let page = find(lmpg, snap, &query, is_cancelled, budget)?;
-            return Ok((page.total_matched, public_ids(page.records)));
+            return Ok((
+                page.total_matched,
+                projection.apply(public_ids(page.records)),
+            ));
         }
         None => return Err("mongo: `$meta: \"textScore\"` requires a `$text` filter".into()),
     };
@@ -140,7 +144,67 @@ fn execute_find(
             }
         }
     }
-    Ok((page.total_matched, records))
+    Ok((page.total_matched, projection.apply(records)))
+}
+
+/// The fields an inclusion projection keeps (validated by [`translate_find`]):
+/// the named fields, the `$meta` score fields, and `_id` unless excluded.
+/// Without a projection every field is returned.
+struct Projection {
+    fields: Option<Vec<String>>,
+    keep_id: bool,
+}
+
+impl Projection {
+    fn of(doc: &Map<String, Value>, score_fields: &[String]) -> Self {
+        let Some(projection) = doc
+            .get("projection")
+            .and_then(Value::as_object)
+            .filter(|projection| !projection.is_empty())
+        else {
+            return Self {
+                fields: None,
+                keep_id: true,
+            };
+        };
+        let excluded = |value: &Value| value.as_i64() == Some(0) || value == &Value::Bool(false);
+        let keep_id = !projection.get("_id").is_some_and(excluded);
+        let mut fields: Vec<String> = projection
+            .keys()
+            .filter(|name| name.as_str() != "_id")
+            .cloned()
+            .collect();
+        fields.extend(score_fields.iter().cloned());
+        // `{_id: 0}` alone excludes only the id.
+        if fields.is_empty() && !keep_id {
+            return Self {
+                fields: None,
+                keep_id,
+            };
+        }
+        Self {
+            fields: Some(fields),
+            keep_id,
+        }
+    }
+
+    fn apply(&self, mut records: Vec<Value>) -> Vec<Value> {
+        for record in &mut records {
+            let Some(object) = record.as_object_mut() else {
+                continue;
+            };
+            object.retain(|name, _| {
+                if name == "_id" {
+                    self.keep_id
+                } else {
+                    self.fields
+                        .as_ref()
+                        .is_none_or(|fields| fields.contains(name))
+                }
+            });
+        }
+        records
+    }
 }
 
 /// The native query `query`, run at `snap`.
@@ -233,6 +297,10 @@ pub fn translate_find(doc: &Map<String, Value>) -> Result<Value, String> {
     if let Some(proj) = doc.get("projection").and_then(Value::as_object) {
         let mut select = Map::new();
         for (k, v) in proj {
+            // An inclusion projection may still exclude the id.
+            if k == "_id" && (v.as_i64() == Some(0) || v == &Value::Bool(false)) {
+                continue;
+            }
             let numeric = v.as_i64();
             if !matches!(numeric, Some(0 | 1)) && !v.is_boolean() {
                 return Err("mongo: projection values must be true, false, 0, or 1".into());

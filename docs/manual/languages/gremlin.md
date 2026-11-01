@@ -152,6 +152,20 @@ Also:
   test profile. Unsupported syntax fails with `unsupported`; it is never
   silently ignored.
 
+## Known defects
+
+RushDB runs the Gremlin implementation of the embedded Grafeo engine
+unchanged. These steps parse outside the test profile and deviate from
+TinkerPop; each fails the same way on plain Grafeo. They are to be reported
+upstream; RushDB does not patch Grafeo.
+
+| Traversal | What you see | Instead |
+|---|---|---|
+| `project('a','b').by('x').by('y')` | Wrong values: every `by()` after the first overwrites the first column, so `project('name','price').by('name').by('price')` returns the price in both columns. | `valueMap('x','y')`, or a Cypher/GQL `RETURN`. |
+| `by()` with an anonymous traversal (`by(out().count())`, `by(__.values('name'))`) | `unsupported` (syntax error). | A Cypher/GQL aggregation. |
+| `project('a').by(values('x'))` | The whole vertex instead of the value. | `by('x')` for the first column. |
+| `valueMap(...)` | Plain values (`{"name": "x"}`), not TinkerPop's single-element lists (`{"name": ["x"]}`). | |
+
 ## See also
 
 - [Query languages overview](README.md)

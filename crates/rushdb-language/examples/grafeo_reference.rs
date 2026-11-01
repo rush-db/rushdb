@@ -4,7 +4,9 @@
 //!
 //! Speaks JSON lines on stdin/stdout, one response per command:
 //! `{"op": "reset"}` → `{}`; `{"op": "run", "statement": "...",
-//! "parameters": {...}}` → `{"rows": [...]}` or `{"error": "..."}`;
+//! "parameters": {...}}` → `{"rows": [...]}` or `{"error": "..."}`, with an
+//! optional `"language"` (Grafeo's name: `gql`, `gremlin`, `sql`; default
+//! `cypher`) to check the other frontends' defects too;
 //! `{"op": "snapshot"}` → `{"nodes": [...], "relationships": [...]}`.
 //! Values use the protocol's JSON shapes (`_id`, `__labels`, `type`,
 //! `source`, `target`, paths as `{"nodes", "edges"}`, temporal ISO text).
@@ -148,9 +150,9 @@ fn parameters(value: &Json) -> Option<HashMap<String, Value>> {
         .map(|map| map.iter().map(|(k, v)| (k.clone(), convert(v))).collect())
 }
 
-fn run(db: &GrafeoDB, statement: &str, params: &Json) -> Json {
+fn run(db: &GrafeoDB, language: &str, statement: &str, params: &Json) -> Json {
     let session = db.session();
-    match session.execute_language(statement, "cypher", parameters(params)) {
+    match session.execute_language(statement, language, parameters(params)) {
         Ok(result) => {
             let columns = result.columns.clone();
             let types = result.column_types.clone();
@@ -158,9 +160,10 @@ fn run(db: &GrafeoDB, statement: &str, params: &Json) -> Json {
             // differ only below it: an updating statement without RETURN, or
             // one projecting only anonymous ids, returns no rows.
             let anonymous = !columns.is_empty() && columns.iter().all(|c| c.starts_with("_anon_"));
-            let has_return = statement
-                .split(|c: char| !c.is_alphanumeric() && c != '_')
-                .any(|word| word.eq_ignore_ascii_case("RETURN"));
+            let has_return = language != "cypher"
+                || statement
+                    .split(|c: char| !c.is_alphanumeric() && c != '_')
+                    .any(|word| word.eq_ignore_ascii_case("RETURN"));
             if anonymous || !has_return {
                 return json!({ "rows": [] });
             }
@@ -204,10 +207,13 @@ fn main() {
                 // A statement that never ends must not stall the attribution:
                 // the caller treats a missing answer as a failure.
                 let statement = command["statement"].as_str().unwrap_or_default();
+                let language = command["language"].as_str().unwrap_or("cypher");
                 std::thread::scope(|scope| {
                     let worker = std::thread::Builder::new()
                         .stack_size(256 * 1024 * 1024)
-                        .spawn_scoped(scope, || run(&db, statement, &command["parameters"]))
+                        .spawn_scoped(scope, || {
+                            run(&db, language, statement, &command["parameters"])
+                        })
                         .expect("thread");
                     worker
                         .join()
@@ -215,8 +221,8 @@ fn main() {
                 })
             }
             Some("snapshot") => {
-                let nodes = run(&db, "MATCH (n) RETURN n", &Json::Null);
-                let rels = run(&db, "MATCH ()-[r]->() RETURN r", &Json::Null);
+                let nodes = run(&db, "cypher", "MATCH (n) RETURN n", &Json::Null);
+                let rels = run(&db, "cypher", "MATCH ()-[r]->() RETURN r", &Json::Null);
                 json!({
                     "nodes": nodes["rows"].as_array().cloned().unwrap_or_default().into_iter().map(|r| r["n"].clone()).collect::<Vec<_>>(),
                     "relationships": rels["rows"].as_array().cloned().unwrap_or_default().into_iter().map(|r| r["r"].clone()).collect::<Vec<_>>(),

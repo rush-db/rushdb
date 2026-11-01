@@ -480,6 +480,11 @@ pub struct StorageResources {
     /// adjacency, property dictionary). Charged to the shared budget tree so
     /// cache growth is bounded and visible to the governor. 0 = disabled.
     pub logical_cache_bytes: usize,
+    /// Bytes the resident ANN generations of vector spaces may hold, a
+    /// budget of its own under the managed limit (not a share of
+    /// `logical_cache_bytes`), so a large space keeps its index beside the
+    /// record and text caches. 0 = no resident ANN: searches answer exactly.
+    pub vector_cache_bytes: usize,
     /// Bytes reserved for concurrent request *phases* (query planning and
     /// execution admission). Each `ExecutionContext` and each `DataFusion`
     /// session reserves a fixed per-request token from this pool, so the pool
@@ -562,6 +567,8 @@ impl Default for StorageResources {
             // 32 MiB shared pool made ANN builds fail at a few thousand
             // vectors at realistic dimensions.
             logical_cache_bytes: 128 * 1024 * 1024,
+            // ~150 B per vector of a 768-d space: one space of ~1.7M vectors.
+            vector_cache_bytes: 256 * 1024 * 1024,
             // 256 MiB / 8 MiB per request = 32 concurrent phase tokens by
             // default, instead of the previous 4 that reused the 32 MiB cache
             // budget. The parent managed limit still bounds the total.

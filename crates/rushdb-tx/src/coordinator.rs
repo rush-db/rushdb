@@ -620,10 +620,30 @@ impl TxCoordinator {
             } => {
                 lmpg.create_relationship_tx(&rel_type, source, target, fields, Some(acc))?;
             }
-            other @ B::CreateRelationshipById { .. } => {
-                return Err(rushdb_lmpg::LmpgError::Conflict(format!(
-                    "transaction stage does not support operation {other:?} yet"
-                )))
+            B::CreateRelationshipById {
+                rel_type,
+                source_id,
+                target_id,
+                fields,
+            } => {
+                // A statement delta names endpoints by public id: committed
+                // records, or records this transaction staged (an earlier
+                // operation of the same delta included). Resolve them through
+                // the overlay; the reads are conflict dependencies.
+                let mut endpoint = |record_id: [u8; 16]| {
+                    lmpg.store
+                        .tx_read(acc, |txn| resolve_ordinal(txn, lmpg.tenant, record_id))
+                        .map(|ordinal| rushdb_lmpg::RecordRef { record_id, ordinal })
+                        .map_err(|error| match error {
+                            rushdb_storage::StorageError::Builder(reason) => {
+                                rushdb_lmpg::LmpgError::NotFound(reason)
+                            }
+                            other => rushdb_lmpg::LmpgError::Conflict(other.to_string()),
+                        })
+                };
+                let source = endpoint(source_id)?;
+                let target = endpoint(target_id)?;
+                lmpg.create_relationship_tx(&rel_type, source, target, fields, Some(acc))?;
             }
         }
         Ok(())

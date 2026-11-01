@@ -220,6 +220,20 @@ be reported upstream; RushDB does not patch Grafeo.
 | Lazy writes | 10 | `SKIP`/`LIMIT` after an updating clause also limits the updates. |
 | Non-termination | 1 | A variable-length match around a cycle does not end; the request deadline cancels it. |
 
+One internal error has a workaround. Grafeo builds a `CREATE` property only
+from a literal, a parameter, a variable or a property, so a computed value
+(a list index such as `r[0]`, `CASE`, arithmetic, a function call) fails.
+RushDB reports it as `unsupported`, not as an internal error. Compute the
+value in a `WITH` first:
+
+```cypher
+// Fails: CREATE (a)-[:FOLLOWS {since: r[2]}]->(b)
+UNWIND $rows AS r
+WITH r[0] AS src, r[1] AS dst, r[2] AS since
+MATCH (a:User {name: src}), (b:User {name: dst})
+CREATE (a)-[:FOLLOWS {since: since}]->(b)
+```
+
 ## Conformance
 
 The CI `opencypher-tck` job runs the whole openCypher TCK (2024.2) against a
@@ -241,6 +255,7 @@ aggregation 17% and graph functions 6%. Details and per-category counts are in
 |---|---|---|
 | Cypher not enabled | `language_disabled` | `Neo.ClientError.Statement.SyntaxError` |
 | Syntax not accepted by the parser | `unsupported` | `Neo.ClientError.Statement.SyntaxError` |
+| Computed property value in `CREATE` (see [Known defects](#known-defects)) | `unsupported` | `Neo.ClientError.Statement.SyntaxError` |
 | Statement error (undefined variable, type error, a write sent with `query.statement`) | `invalid_request`, with the engine's reason | `Neo.ClientError.Statement.SyntaxError` |
 | More than 8,192 clauses in one statement | `invalid_request` | `Neo.ClientError.Statement.SyntaxError` |
 | Index DDL sent with `query.statement` | `invalid_request` | `Neo.ClientError.Statement.SyntaxError` |

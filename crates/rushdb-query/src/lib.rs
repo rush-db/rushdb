@@ -23,6 +23,7 @@ mod aggregate_budget;
 mod aggregation;
 mod cycle;
 mod equality;
+mod field_types;
 pub use aggregation::MAX_AGGREGATE_BUCKETS;
 pub use aggregation::{
     aggregate, aggregate_in_view, aggregate_to_rows, aggregate_to_rows_in_view,
@@ -31,6 +32,7 @@ pub use aggregation::{
 };
 #[cfg(test)]
 use aggregation::{eval_row_expr, exact_f64, minmax};
+use field_types::type_held;
 mod page;
 pub use page::effective_budget;
 mod planned;
@@ -499,6 +501,40 @@ pub fn matching_ordinals(
     Ok(run_matches(lmpg, &full, is_cancelled, &snap, usize::MAX, None)?.retained)
 }
 
+/// The first `keep` ordinals matching `req`, in match order: the same prefix
+/// [`matching_ordinals`] returns, without resolving the rest. A search with
+/// no predicate and no `order_by` stops after `keep` matches, so its cost
+/// does not grow with the label's size.
+///
+/// # Errors
+///
+/// As [`matching_ordinals`].
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "callers hand over a freshly pinned view, matching find_records_in_view"
+)]
+pub fn matching_ordinals_first(
+    lmpg: &Lmpg,
+    req: &SearchRequest,
+    is_cancelled: &dyn Fn() -> bool,
+    snap: QuerySnapshot,
+    keep: usize,
+) -> Result<Vec<u64>, QueryError> {
+    let is_cancelled: &dyn Fn() -> bool = &cancel_probe(lmpg, is_cancelled);
+    if !snap.belongs_to(&lmpg.store) {
+        return Err(rushdb_storage::StorageError::InvalidRead(
+            "query view belongs to another Store".into(),
+        )
+        .into());
+    }
+    if is_cancelled() {
+        return Err(QueryError::Cancelled);
+    }
+    let mut full = req.clone();
+    full.pagination = Pagination::default();
+    Ok(run_matches(lmpg, &full, is_cancelled, &snap, keep, None)?.retained)
+}
+
 /// The matches a search keeps, and how many there are in all.
 struct Matches {
     /// The first `keep` matches in query order.
@@ -543,6 +579,7 @@ fn run_matches(
         is_cancelled: Some(is_cancelled),
         cycles: crate::cycle::CycleGraphs::default(),
         declared_types: std::cell::RefCell::default(),
+        record_types: std::cell::RefCell::default(),
     };
     let mut session = reconstruct::ReconstructSession::new(snap, lmpg.tenant);
     let order_fields = if req.order_by.is_empty() {
@@ -1101,6 +1138,7 @@ fn attach_collects_with_budget(
         is_cancelled: None,
         cycles: crate::cycle::CycleGraphs::default(),
         declared_types: std::cell::RefCell::default(),
+        record_types: std::cell::RefCell::default(),
     };
     if let Some(obj) = record.as_object_mut() {
         for spec in collects {
@@ -1313,6 +1351,7 @@ fn traverse_alias(
         is_cancelled: Some(is_cancelled),
         cycles: crate::cycle::CycleGraphs::default(),
         declared_types: std::cell::RefCell::default(),
+        record_types: std::cell::RefCell::default(),
     };
     let mut cur = vec![ord];
     for step in steps {
@@ -1610,6 +1649,11 @@ pub struct EvalCtx<'a> {
     /// and predicate).
     pub(crate) declared_types:
         std::cell::RefCell<std::collections::HashMap<String, Option<LogicalType>>>,
+    /// The typed definitions `(pid, type)` of each name stored under more
+    /// than one type (empty otherwise), by normalized name: a record of such
+    /// a name is matched by the definition it holds, not the first one.
+    pub(crate) record_types:
+        std::cell::RefCell<std::collections::HashMap<String, Vec<(u64, LogicalType)>>>,
 }
 
 impl<'a> EvalCtx<'a> {
@@ -1626,6 +1670,7 @@ impl<'a> EvalCtx<'a> {
             is_cancelled: None,
             cycles: cycle::CycleGraphs::default(),
             declared_types: std::cell::RefCell::default(),
+            record_types: std::cell::RefCell::default(),
         })
     }
 
@@ -1668,7 +1713,7 @@ fn eval_expr_ctx(
         }
         Expr::Xor(a, b) => Ok(eval_expr_ctx(ctx, a, obj)? != eval_expr_ctx(ctx, b, obj)?),
         Expr::Not(inner) => Ok(!eval_expr_ctx(ctx, inner, obj)?),
-        Expr::Field(pred) => eval_pred(&|name| type_of_field(ctx, name), pred, obj),
+        Expr::Field(pred) => eval_pred(&|name| type_held(ctx, name, obj), pred, obj),
         Expr::Related(rel) => eval_related(ctx, obj, rel),
     }
 }
@@ -2001,45 +2046,6 @@ fn canonical_type_alias(t: &str) -> String {
     }
 }
 
-fn type_of_field(
-    ctx: &EvalCtx<'_>,
-    name: &str,
-) -> Result<Option<rushdb_types::model::LogicalType>, QueryError> {
-    let norm = normalize(name);
-    if let Some(known) = ctx.declared_types.borrow().get(&norm) {
-        return Ok(*known);
-    }
-    let declared = declared_type_of(ctx, &norm)?;
-    ctx.declared_types.borrow_mut().insert(norm, declared);
-    Ok(declared)
-}
-
-fn declared_type_of(
-    ctx: &EvalCtx<'_>,
-    norm: &str,
-) -> Result<Option<rushdb_types::model::LogicalType>, QueryError> {
-    let sig = rushdb_lmpg::reader::keys_ext::family_sig_key(
-        ctx.lmpg.tenant,
-        "default",
-        rushdb_types::ids::OwnerKind::Record,
-        norm,
-    );
-    let Some(raw) = ctx.snap.get(&sig)? else {
-        return Ok(None);
-    };
-    let fid = u64::from_be_bytes(
-        raw.as_slice()
-            .try_into()
-            .map_err(|_| rushdb_storage::StorageError::CorruptLog)?,
-    );
-    for def in access::definitions_of_family(&ctx.snap, ctx.lmpg.tenant, fid)? {
-        if let rushdb_types::model::TypeState::Known(ty) = def.type_state {
-            return Ok(Some(ty));
-        }
-    }
-    Ok(None)
-}
-
 /// Total order for ORDER BY. Handles NaN deterministically (NaN sorts below
 /// every number — `partial_cmp(NaN, _) == None` breaks `sort_by`'s total-order
 /// requirement), and gives mixed non-numeric types a stable string fallback so
@@ -2106,6 +2112,7 @@ fn binding_roots_with_cancel(
         is_cancelled: Some(is_cancelled),
         cycles: crate::cycle::CycleGraphs::default(),
         declared_types: std::cell::RefCell::default(),
+        record_types: std::cell::RefCell::default(),
     };
     let mut matched: Vec<u64> = Vec::new();
     for ord in candidates {

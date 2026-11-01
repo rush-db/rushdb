@@ -351,6 +351,40 @@ fn sql_pgq_read_profile_covers_projection_filter_and_order() {
 }
 
 #[test]
+fn sql_pgq_anonymous_nodes_are_distinct_and_node_inequality_holds() {
+    let graph = Lmpg::new(Arc::new(Store::new_in_memory()), TenantId::from_ordinal(2));
+    execute_mutation(
+        &graph,
+        QueryLanguage::Cypher,
+        "CREATE (a:Customer {name: 'Ada'})-[:ORDERED]->(:Purchase)-[:ITEM]->(p:Product {name: 'Filter'}), \
+         (b:Customer {name: 'Bo'})-[:ORDERED]->(:Purchase)-[:ITEM]->(p)",
+        None,
+    )
+    .unwrap();
+    let customers = |condition: &str| {
+        execute(
+            &graph,
+            QueryLanguage::SqlPgq,
+            &format!(
+                "SELECT other FROM GRAPH_TABLE (MATCH (a:Customer)-[:ORDERED]->(:Purchase)-[:ITEM]->(:Product)<-[:ITEM]-(:Purchase)<-[:ORDERED]-(b:Customer) WHERE {condition} COLUMNS (b.name AS other)) AS g ORDER BY other"
+            ),
+            None,
+        )
+        .unwrap()
+        .rows
+    };
+    // Each anonymous node is its own node, as in Cypher and GQL.
+    assert_eq!(
+        customers("a.name = 'Ada'"),
+        vec![json!({"other": "Ada"}), json!({"other": "Bo"})]
+    );
+    assert_eq!(
+        customers("a.name = 'Ada' AND a <> b"),
+        vec![json!({"other": "Bo"})]
+    );
+}
+
+#[test]
 fn graph_language_creates_commit_to_lmpg_atomically() {
     for (language, statement) in [
         (

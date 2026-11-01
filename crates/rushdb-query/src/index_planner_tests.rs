@@ -287,6 +287,7 @@ fn related_traversal_honors_cancellation() {
         is_cancelled: Some(&cancelled),
         cycles: crate::cycle::CycleGraphs::default(),
         declared_types: std::cell::RefCell::default(),
+        record_types: std::cell::RefCell::default(),
     };
     let expr = Expr::Related(RelatedExpr {
         target_labels: Vec::new(),

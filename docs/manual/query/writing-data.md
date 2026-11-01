@@ -365,8 +365,12 @@ a `sourceLabel` record and a `targetLabel` record:
 `sourceType` defaults to `__RUSHDB__RELATION__DEFAULT__`, the type nested
 import uses when no relationship type is configured. Each matching
 relationship is re-created with the new type, endpoints and properties
-preserved, and the old one is removed. `affected` is the number of
-relationships retyped.
+preserved, and the old one is removed. When a pair already has a
+relationship of the new type, they merge into it, and `mergeStrategy`
+(`keep` by default, `append`, `rewrite` or `fail`) decides which values
+win; see [Relationships](../data-model/relationships.md#rename-a-relationship-type).
+`affected` is the number of relationships retyped; `merged` and
+`propertyConflicts` count the merges and the conflicting properties.
 
 The whole retype is one commit: a reader sees every relationship under its
 old type or every one under its new type, and a refused retype changes

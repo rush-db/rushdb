@@ -428,6 +428,61 @@ fn cypher_write_update_delete() {
 // ── gql ─────────────────────────────────────────────────────────────────────
 
 #[test]
+fn cypher_relationship_created_with_its_endpoints_is_in_the_catalog_and_sql() {
+    let node = bootstrap();
+    seed(&node);
+    // The seed puts the record ordinals ahead of the relationship ordinals.
+    write(
+        &node,
+        StatementLanguage::Cypher,
+        "CREATE (:Ship {name: 'X-wing'})-[:DOCKED_AT]->(:Port {name: 'Yavin'})",
+    );
+    let lmpg = node.scope().lmpg();
+    let snap = lmpg.store.read_view().unwrap();
+    assert_eq!(
+        rushdb_lmpg::derived::rel_catalog(&snap, lmpg.tenant).unwrap(),
+        vec![("DOCKED_AT".into(), "Ship".into(), "Port".into(), 1)]
+    );
+    let rows = read(
+        &node,
+        StatementLanguage::Sql,
+        "SELECT count(*) AS n FROM rushdb_edges.docked_at",
+    );
+    assert_eq!(rows, vec![json!({"n": 1})]);
+}
+
+#[test]
+fn cypher_computed_create_property_is_unsupported_with_the_workaround() {
+    let node = bootstrap();
+    // Grafeo plans a CREATE property only from a literal, parameter, variable
+    // or property (a Grafeo defect, verified on plain Grafeo).
+    let envelope = RequestEnvelope {
+        protocol_version: 1,
+        request_id: None,
+        context: RequestContext::default(),
+        operation: Operation::Mutate {
+            mutation: Mutation::Statement {
+                language: StatementLanguage::Cypher,
+                statement: "UNWIND [['a', 1]] AS r CREATE (:Item {name: r[0], n: r[1]})".into(),
+                parameters: None,
+            },
+        },
+    };
+    let error = rushdb_server::protocol::ProtocolExecutor::new(&node, None)
+        .execute(envelope)
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::Unsupported, "{error:?}");
+    assert!(error.message.contains("WITH"), "{error:?}");
+    // The workaround the message names.
+    write(
+        &node,
+        StatementLanguage::Cypher,
+        "UNWIND [['a', 1]] AS r WITH r[0] AS name, r[1] AS n CREATE (:Item {name: name, n: n})",
+    );
+    assert_eq!(label_count(&node, "Item"), 1);
+}
+
+#[test]
 fn gql_read_and_write() {
     let node = bootstrap();
     seed(&node);

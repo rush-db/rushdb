@@ -163,7 +163,7 @@ Common `response.kind` values:
 | `relationships` | `query.relationships` | `relationships`, `total` |
 | `propertyValues` | `query.propertyValues` | `property`, `values`, `distinctCount`, and mode-specific fields |
 | `count` | `query.joinPairs` | `value` |
-| `mutation` | delete, link, unlink, and retype-relations mutations | `affected` |
+| `mutation` | delete, link, unlink, and retype-relations mutations | `affected`; `retypeRelations` adds `merged` and `propertyConflicts` |
 | `statementMutation` | `mutate.statement` | `rows`, `total`, `affected`, `commitIndex`, optional `status` |
 | `ingested` | `ingest.documents`, `ingest.csv` | `count`, `relationships`, `records` |
 | `csv` | `query.exportCsv` | `content` (the CSV text), `count` |

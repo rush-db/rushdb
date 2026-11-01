@@ -228,10 +228,10 @@ See [Indexes](../indexes-and-search/indexes.md) and
 `rushdb_ann_exact_fallbacks_total`) increasing means the vector cache could
 not admit the ANN index, so searches ran exactly over every vector. The
 index holds about 150 bytes per vector of the vector cache (a 768-dimension
-space, measured 2026-10-19), and the vector cache shares
-`logical-cache-bytes` (default 128 MiB) with text indexes and planner
-statistics: one space of ~800K vectors fills it. Raise `logical-cache-bytes`
-(1M vectors answered in ~60 ms with 384 MiB, against 4.5 s exactly).
+space, measured 2026-10-19); `vector-cache-bytes` (default 256 MiB) holds a
+space of ~1.7M vectors. Raise `vector-cache-bytes` for larger spaces (before
+the vector cache had its own budget, 1M vectors in a 128 MiB shared cache
+answered exactly in 4.5 s, against ~60 ms with the index resident).
 `reason="annWarming"` means the index was being built in the background.
 Search is also slower right after a large bulk bind until background
 maintenance merges segments.

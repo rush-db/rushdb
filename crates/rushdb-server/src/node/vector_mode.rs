@@ -67,6 +67,11 @@ impl Node {
                 search.min_score,
             )
             .map_err(|e| e.to_string())?;
+        if outcome.path == SearchPath::ExactFallback(FallbackReason::Warming) {
+            // The bindings no persisted segment covers are indexed off the
+            // request; later searches answer by ANN once it is resident.
+            vectors.warm_ann_in_background(snap, space);
+        }
         let mut report = vector_search_report(mode, outcome.path, pool);
         if warming {
             report["fallback"] = "annWarming".into();
@@ -128,6 +133,7 @@ pub(super) fn vector_search_report(
                 FallbackReason::Metric => "metric",
                 FallbackReason::Budget => "budget",
                 FallbackReason::LowConfidence => "lowConfidence",
+                FallbackReason::Warming => "annWarming",
             }),
         ),
         _ => ("exact", None, None),

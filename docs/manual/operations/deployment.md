@@ -260,7 +260,8 @@ behind an application proxy on the same host:
 resources:
   threads: 0                         # = vCPUs
   storage-cache: 256MiB              # storage page cache; the kernel caches the rest
-  logical-cache-bytes: 384MiB        # vector and text caches
+  logical-cache-bytes: 256MiB        # text and planner caches
+  vector-cache-bytes: 512MiB         # resident ANN indexes
   query-memory-max: 256MiB
   http-inflight-body-bytes: 256MiB
   tx-log-retention-bytes: 4GiB
@@ -268,7 +269,7 @@ resources:
   retention-consumer-lease-seconds: 86400
 ```
 
-> **Note:** The logical caches, the transaction pool, and per-query phase
+> **Note:** The logical and vector caches, the transaction pool, and per-query phase
 > reservations all draw from `managed-limit` (default 512 MiB), and
 > `storage-cache + transaction-pool` must stay below it. When you enlarge the
 > caches, watch `rushdb_budget_used_bytes{pool="managed"}` against

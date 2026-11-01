@@ -756,6 +756,34 @@ pub struct RetypeRelationsMutation {
     /// Direction of the relationship.
     #[serde(default)]
     pub direction: Direction,
+    /// What happens to properties when a pair ends with one relationship
+    /// of `target_type` holding the properties of several.
+    #[serde(default)]
+    pub merge_strategy: RetypeMergeStrategy,
+}
+
+/// Property merge for `retypeRelations`, when a retyped relationship joins
+/// a relationship of the target type between the same pair (an existing
+/// one, or another retyped one). "Existing" is the relationship that is
+/// kept: the pair's `target_type` relationship if it has one, else the
+/// oldest retyped relationship.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RetypeMergeStrategy {
+    /// The existing relationship keeps its values and gains the properties
+    /// it lacks; among retyped relationships the oldest value wins.
+    #[default]
+    Keep,
+    /// Retyped relationships' values overwrite on a conflict, newest last;
+    /// other properties are kept (as `append` for import upserts).
+    Append,
+    /// An existing `target_type` relationship's properties are replaced by
+    /// the retyped relationships' (newest wins among them; as `rewrite` for
+    /// import upserts). Without one, as `append`.
+    Rewrite,
+    /// Refuse the whole retype (nothing is written) when any property is
+    /// held with different values; otherwise as `keep`.
+    Fail,
 }
 
 fn default_rel_type() -> String {
@@ -1863,8 +1891,16 @@ pub enum Response {
     },
     /// Number of records affected by a mutation.
     Mutation {
-        /// Number of records affected.
+        /// Number of records affected (relationships, for `retypeRelations`).
         affected: u64,
+        /// `retypeRelations` only: retyped relationships folded into another
+        /// relationship of the target type between the same pair.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        merged: Option<u64>,
+        /// `retypeRelations` only: properties both merged relationships held
+        /// with different values (the kept relationship's value wins).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        property_conflicts: Option<u64>,
     },
     /// Result of a link operation: relationships created, and requested
     /// pairs already linked by the same type (links are idempotent per pair).
@@ -2036,6 +2072,18 @@ pub enum Response {
         /// One entry per pair.
         pairs: Vec<ValueOverlap>,
     },
+}
+
+impl Response {
+    /// A `mutation` response that only reports how many records it affected.
+    #[must_use]
+    pub fn mutation(affected: u64) -> Self {
+        Response::Mutation {
+            affected,
+            merged: None,
+            property_conflicts: None,
+        }
+    }
 }
 
 /// One stored value matching a cross-property value search.

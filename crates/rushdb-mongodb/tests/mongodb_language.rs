@@ -46,6 +46,45 @@ fn find_translates_filter_projection_sort_and_pagination() {
 }
 
 #[test]
+fn find_projection_returns_only_the_projected_fields() {
+    let lmpg = setup();
+    lmpg.create_record(
+        "SHIP",
+        None,
+        vec![
+            (
+                "name".into(),
+                rushdb_lmpg::FieldChange::Set(json!("X-wing")),
+            ),
+            ("crew".into(), rushdb_lmpg::FieldChange::Set(json!(1))),
+            ("sku".into(), rushdb_lmpg::FieldChange::Set(json!("T-65"))),
+        ],
+    )
+    .unwrap();
+    let find = |projection: serde_json::Value| {
+        let (_, rows) = rushdb_mongodb::execute_query(
+            &lmpg,
+            &json!({ "collection": "SHIP", "projection": projection }).to_string(),
+            &|| false,
+        )
+        .unwrap();
+        let mut keys: Vec<String> = rows[0].as_object().unwrap().keys().cloned().collect();
+        keys.sort();
+        keys
+    };
+    // As in MongoDB, an inclusion projection keeps `_id` unless it excludes it.
+    assert_eq!(
+        find(json!({ "name": 1, "crew": true })),
+        ["_id", "crew", "name"]
+    );
+    assert_eq!(find(json!({ "name": 1, "_id": 0 })), ["name"]);
+    assert_eq!(
+        find(json!({ "_id": 0 })),
+        ["__label", "crew", "name", "sku"]
+    );
+}
+
+#[test]
 fn invalid_sort_direction_is_rejected_instead_of_defaulting_ascending() {
     let lmpg = setup();
     let error = rushdb_mongodb::execute_query(

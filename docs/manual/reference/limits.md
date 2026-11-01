@@ -70,7 +70,8 @@ in this release.
 |---|---|---|
 | Managed envelope | 512 MiB | `managed-limit` |
 | Storage page cache | 128 MiB (minimum 64 KiB) | `storage-cache` |
-| Logical caches (vector, text, planner statistics) | 128 MiB | `logical-cache-bytes` |
+| Logical caches (text, planner statistics, metadata) | 128 MiB | `logical-cache-bytes` |
+| Vector cache (resident ANN indexes) | 256 MiB | `vector-cache-bytes` |
 | Planner statistics | 32 MiB (child of the logical caches) | `planner-stats-bytes` |
 | ANN segment cache | 256 MiB, and at most 12 cached generations | no |
 | Resident tenant handles | 512 MiB (16 KiB minimum charge per tenant) | `tenant-resident-bytes` |

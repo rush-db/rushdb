@@ -85,8 +85,11 @@ Besides the mapping above, the PostgreSQL wire adapter raises:
 |---|---|
 | `3D000` | Multitenant server and the connection has no `database` parameter. |
 | `42601` | The SQL could not be parsed or described. |
-| `22P02` | A result value cannot be encoded as the column's declared type. |
-| `0A000` | A binary-format parameter of an unsupported type. |
+| `22P02` | A result value cannot be encoded as the column's declared type, or (`invalid_request`) a value does not cast to the type a comparison needs. |
+| `22012`, `22003` | (`invalid_request`) Division by zero, numeric overflow. |
+| `42703`, `42883` | (`not_found`) Unknown column, unknown function. |
+| `22023` | Invalid value for a session setting or client parameter. |
+| `0A000` | A binary-format parameter of an unsupported type, or `SET` of a parameter the listener does not accept. |
 
 The server answers `N` to an SSL request (no TLS on pgwire), so clients must
 connect with `sslmode=disable` or `prefer`.

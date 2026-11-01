@@ -598,8 +598,53 @@ fn aggregate_budgeted(
             }
         });
     }
+    if buckets.is_empty() && is_global_rollup(req) {
+        // As in SQL, a rollup over no matches is one row: counts are 0.
+        buckets.push(GroupBucket::default());
+    }
     apply_aggregate_pagination(&mut buckets, req);
     Ok((buckets, total_matched))
+}
+
+/// A metric with no value over a global rollup's matches is `null`, as in
+/// SQL.
+fn fill_absent_metrics(row: &mut Map<String, Json>, req: &AggregateRequest) {
+    if !is_global_rollup(req) {
+        return;
+    }
+    let metrics = req
+        .sums
+        .iter()
+        .chain(&req.avg_terms)
+        .map(|(out, _)| out)
+        .chain(req.expr_avgs.iter().map(|(out, _)| out))
+        .chain(req.mins.iter().map(|(out, _)| out))
+        .chain(req.maxs.iter().map(|(out, _)| out))
+        .chain(req.outputs.iter().map(|(out, _)| out));
+    for out in metrics {
+        if !req.hidden_outputs.contains(out) {
+            row.entry(out.clone()).or_insert(Json::Null);
+        }
+    }
+}
+
+/// True when metrics roll up into one global row: some metric, and no
+/// grouping, time buckets, per-root fields or collects. Such a rollup always
+/// has its row.
+fn is_global_rollup(req: &AggregateRequest) -> bool {
+    let metrics = !req.counts.is_empty()
+        || !req.sums.is_empty()
+        || !req.mins.is_empty()
+        || !req.maxs.is_empty()
+        || !req.outputs.is_empty()
+        || !req.expr_sums.is_empty()
+        || !req.expr_avgs.is_empty()
+        || !req.avg_terms.is_empty();
+    metrics
+        && req.group_by.is_empty()
+        && req.time_bucket.is_none()
+        && req.plain_fields.is_empty()
+        && req.collects.is_empty()
 }
 
 /// True when an aggregate is exactly a global `$count: "*"` (no grouping, no
@@ -621,17 +666,13 @@ fn is_count_only(req: &AggregateRequest) -> bool {
         && req.counts.iter().all(|(_, field)| field == "*")
 }
 
-/// One row's worth of `count_roots` (zero matches yields no bucket, matching
-/// the per-candidate loop's behavior).
+/// One row's worth of `count_roots` (zero matches is a row of 0, as the
+/// general rollup gives).
 fn count_only_bucket(total: u64) -> Vec<GroupBucket> {
-    if total == 0 {
-        Vec::new()
-    } else {
-        vec![GroupBucket {
-            count_roots: total,
-            ..GroupBucket::default()
-        }]
-    }
+    vec![GroupBucket {
+        count_roots: total,
+        ..GroupBucket::default()
+    }]
 }
 
 fn apply_aggregate_pagination(buckets: &mut Vec<GroupBucket>, req: &AggregateRequest) {
@@ -793,6 +834,7 @@ pub fn aggregate_to_rows_in_view_with_budget(
                 row.insert(out.clone(), v.clone());
             }
         }
+        fill_absent_metrics(&mut row, req);
         // Attach per-root `$collect` shapes (docs' "aggregation with select"):
         // the row keeps its aggregate metrics and gains the collected arrays.
         let mut row_json = Json::Object(row);

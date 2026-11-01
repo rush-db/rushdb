@@ -38,13 +38,55 @@ mod dml;
 mod edge_provider;
 mod lazy_catalog;
 mod scan_provider;
+mod session;
 mod text_search;
+
+pub use session::bind_session_functions;
 
 fn ensure_sync_context() -> Result<(), SqlError> {
     if tokio::runtime::Handle::try_current().is_ok() {
         return Err(SqlError::BlockingInRuntime);
     }
     Ok(())
+}
+
+thread_local! {
+    /// The calling thread's Tokio runtime for the synchronous entry points,
+    /// built on first use and kept for the thread's next statement.
+    static RUNTIME: RefCell<Option<tokio::runtime::Runtime>> = const { RefCell::new(None) };
+}
+
+/// Run a statement to completion on the calling thread. `DataFusion`
+/// spawns Tokio tasks for some operators (one per `UNION` input), which
+/// panic outside a Tokio runtime, so the statement runs on a
+/// current-thread runtime rather than a plain executor. A panic inside
+/// the engine fails this statement and drops the runtime it ran on.
+fn block_on<T>(
+    statement: impl std::future::Future<Output = Result<T, SqlError>>,
+) -> Result<T, SqlError> {
+    ensure_sync_context()?;
+    let runtime = match RUNTIME.with(RefCell::take) {
+        Some(runtime) => runtime,
+        None => tokio::runtime::Builder::new_current_thread()
+            .build()
+            .map_err(|error| SqlError::Engine(format!("SQL runtime failed to start: {error}")))?,
+    };
+    let outcome =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runtime.block_on(statement)));
+    match outcome {
+        Ok(result) => {
+            RUNTIME.with(|slot| slot.replace(Some(runtime)));
+            result
+        }
+        Err(panic) => {
+            let detail = panic
+                .downcast_ref::<&str>()
+                .map(|detail| (*detail).to_owned())
+                .or_else(|| panic.downcast_ref::<String>().cloned())
+                .unwrap_or_default();
+            Err(SqlError::Engine(format!("SQL engine panicked: {detail}")))
+        }
+    }
 }
 
 /// Work counters emitted by the bounded `DataFusion` label scan. They are
@@ -237,6 +279,23 @@ pub enum SqlError {
     /// a long scan stops promptly.
     #[error("SQL execution cancelled")]
     Cancelled,
+    /// The statement names a table, column or function the catalog does
+    /// not have.
+    #[error("SQL planning failed: {0}")]
+    Undefined(String),
+    /// The statement does not plan for another reason of its own: an
+    /// ambiguous name, operand types that do not combine.
+    #[error("SQL planning failed: {0}")]
+    Plan(String),
+    /// The statement, or a feature it uses, is valid SQL this engine does
+    /// not run (`PREPARE`, `LISTEN`, cursors, table DDL, an unsupported
+    /// type).
+    #[error("SQL statement is not supported: {0}")]
+    Unsupported(String),
+    /// A value the statement computes is invalid for its type: a text that
+    /// does not cast to a number, a division by zero.
+    #[error("SQL value is invalid: {0}")]
+    InvalidValue(String),
     /// The `DataFusion` engine reported a planning or execution failure.
     #[error("SQL engine failed: {0}")]
     Engine(String),
@@ -384,8 +443,7 @@ pub fn execute_sql_with_parameters_budget(
     parameters: Option<&Json>,
     max_result_bytes: Option<usize>,
 ) -> Result<Vec<Row>, SqlError> {
-    ensure_sync_context()?;
-    futures::executor::block_on(execute_sql_async_with_budget(
+    block_on(execute_sql_async_with_budget(
         lmpg,
         sql,
         parameters,
@@ -436,8 +494,7 @@ pub fn execute_sql_with_parameters_budget_in_view_cancellable(
     is_cancelled: &(dyn Fn() -> bool + Send + Sync),
     text: Option<&Arc<TextIndexes>>,
 ) -> Result<Vec<Row>, SqlError> {
-    ensure_sync_context()?;
-    futures::executor::block_on(execute_sql_async_with_budget_in_view_cancellable(
+    block_on(execute_sql_async_with_budget_in_view_cancellable(
         lmpg,
         snapshot,
         sql,
@@ -553,8 +610,7 @@ pub fn execute_sql_under_policy_in_view(
     text: Option<&Arc<TextIndexes>>,
     policy: Arc<rushdb_types::security::ActivePolicy>,
 ) -> Result<Vec<Row>, SqlError> {
-    ensure_sync_context()?;
-    futures::executor::block_on(execute_read(
+    block_on(execute_read(
         lmpg,
         snapshot,
         sql,
@@ -639,7 +695,8 @@ async fn execute_read(
 }
 
 /// A statement that failed to plan: a failed `text_search` call keeps its
-/// own class, anything else is the engine's.
+/// own class, a statement error is the caller's, anything else is the
+/// engine's.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "used directly as a `map_err` adapter, which supplies the owned error value"
@@ -650,14 +707,61 @@ fn planning_error(error: datafusion::error::DataFusionError) -> SqlError {
             return SqlError::TextSearch(failed.to_string());
         }
     }
-    scan_error(&error).unwrap_or_else(|| SqlError::Engine(error.to_string()))
+    scan_error(&error)
+        .or_else(|| statement_error(&error))
+        .unwrap_or_else(|| SqlError::Engine(error.to_string()))
+}
+
+/// The class of a failure that describes the statement rather than the
+/// engine (SQL-1): an unknown name, a plan that does not type-check, an
+/// unsupported feature, a value that does not cast. `None` for the rest.
+fn statement_error(error: &datafusion::error::DataFusionError) -> Option<SqlError> {
+    use arrow::error::ArrowError;
+    use datafusion::common::SchemaError;
+    use datafusion::error::DataFusionError;
+    Some(match error.find_root() {
+        DataFusionError::SchemaError(schema, _) => match schema.as_ref() {
+            SchemaError::FieldNotFound { .. } => SqlError::Undefined(schema.to_string()),
+            _ => SqlError::Plan(schema.to_string()),
+        },
+        DataFusionError::Plan(message)
+            if message.starts_with("Invalid function ")
+                || (message.starts_with("table '") && message.contains("' not found")) =>
+        {
+            SqlError::Undefined(message.clone())
+        }
+        DataFusionError::Plan(message) => SqlError::Plan(message.clone()),
+        DataFusionError::SQL(parse, _) => SqlError::Parse(parse.to_string()),
+        DataFusionError::NotImplemented(message) => SqlError::Unsupported(message.clone()),
+        DataFusionError::ArrowError(arrow, _) => match arrow.as_ref() {
+            // Text compared with a number is cast to the number's type: the
+            // values of a property stored as both text and number (it reads
+            // as text), or a date literal against a datetime column (it
+            // reads as epoch milliseconds).
+            ArrowError::CastError(message) if message.starts_with("Cannot cast string") => {
+                SqlError::InvalidValue(format!(
+                    "{message}; text compared with a number is cast to a number. A column \
+                     whose values have more than one type reads as text: compare it with \
+                     text, or skip the values that are not numbers with \
+                     TRY_CAST(column AS BIGINT). A datetime column reads as epoch \
+                     milliseconds: compare to_timestamp_millis(column) with a TIMESTAMP"
+                ))
+            }
+            ArrowError::CastError(message)
+            | ArrowError::ParseError(message)
+            | ArrowError::ArithmeticOverflow(message) => SqlError::InvalidValue(message.clone()),
+            ArrowError::DivideByZero => SqlError::InvalidValue(arrow.to_string()),
+            _ => return None,
+        },
+        _ => return None,
+    })
 }
 
 /// A "table not found" planning failure, with the closest table names of
 /// the schema it was looked up in. `DataFusion` already suggests
 /// close column names; it does not for tables.
 fn with_table_hint(error: SqlError, context: &SessionContext) -> SqlError {
-    let SqlError::Engine(message) = &error else {
+    let SqlError::Undefined(message) = &error else {
         return error;
     };
     let Some(name) = message
@@ -685,7 +789,7 @@ fn with_table_hint(error: SqlError, context: &SessionContext) -> SqlError {
         return error;
     }
     let quoted: Vec<String> = closest.iter().map(|table| format!("'{table}'")).collect();
-    SqlError::Engine(format!("{message}. Did you mean {}?", quoted.join(" or ")))
+    SqlError::Undefined(format!("{message}. Did you mean {}?", quoted.join(" or ")))
 }
 
 /// A label scan refused or stopped like a records read (SQL-2, QRY-3)
@@ -731,7 +835,7 @@ fn map_stream_error(
             _ => {}
         }
     }
-    SqlError::Engine(message)
+    statement_error(error).unwrap_or(SqlError::Engine(message))
 }
 
 /// The working-memory cap of a statement run on `lmpg`: `query-memory-max`,
@@ -760,8 +864,7 @@ pub fn execute_sql_mutation(
     sql: &str,
     parameters: Option<&Json>,
 ) -> Result<SqlMutationResult, SqlError> {
-    ensure_sync_context()?;
-    futures::executor::block_on(execute_sql_mutation_async(lmpg, sql, parameters))
+    block_on(execute_sql_mutation_async(lmpg, sql, parameters))
 }
 
 /// Async form of [`execute_sql_mutation`].
@@ -797,8 +900,7 @@ pub fn execute_sql_mutation_in_view_with_budget(
     max_result_bytes: Option<usize>,
     text: Option<&Arc<TextIndexes>>,
 ) -> Result<SqlMutationResult, SqlError> {
-    ensure_sync_context()?;
-    futures::executor::block_on(execute_sql_mutation_async_in_view(
+    block_on(execute_sql_mutation_async_in_view(
         lmpg,
         snapshot,
         sql,
@@ -829,8 +931,7 @@ pub async fn execute_sql_mutation_async_in_view(
 ///
 /// Returns the same errors as [`execute_sql`].
 pub fn describe_sql(lmpg: &Lmpg, sql: &str) -> Result<SqlDescription, SqlError> {
-    ensure_sync_context()?;
-    futures::executor::block_on(describe_sql_async(lmpg, sql, None))
+    block_on(describe_sql_async(lmpg, sql, None))
 }
 
 /// Describe parameter types for the supported atomic DML subset. Pgwire uses
@@ -843,8 +944,7 @@ pub fn describe_sql(lmpg: &Lmpg, sql: &str) -> Result<SqlDescription, SqlError> 
 /// Returns [`SqlError::UnsupportedMutation`] when `sql` is not a supported DML
 /// statement, and other [`SqlError`] variants for storage or engine failures.
 pub fn describe_sql_mutation(lmpg: &Lmpg, sql: &str) -> Result<SqlDescription, SqlError> {
-    ensure_sync_context()?;
-    futures::executor::block_on(describe_sql_mutation_async(lmpg, sql, None))
+    block_on(describe_sql_mutation_async(lmpg, sql, None))
 }
 
 /// Async form of [`describe_sql_mutation`].
@@ -1260,10 +1360,51 @@ fn validate_read_only(sql: &str) -> Result<(), SqlError> {
 
     for statement in statements {
         if !df_statement_is_read_only(&statement) {
-            return Err(SqlError::ReadOnly(statement.to_string()));
+            let text = statement.to_string();
+            return Err(match unsupported_statement(&text) {
+                Some(reason) => SqlError::Unsupported(reason),
+                None => SqlError::ReadOnly(text),
+            });
         }
     }
     Ok(())
+}
+
+/// Why a statement that is neither a read nor a write the mutation path
+/// runs (DML and index DDL) is not run at all, by its leading keywords.
+/// `None` for such a write.
+fn unsupported_statement(text: &str) -> Option<String> {
+    let words: Vec<String> = text
+        .split_whitespace()
+        .take(3)
+        .map(str::to_ascii_uppercase)
+        .collect();
+    let word = |index: usize| words.get(index).map_or("", String::as_str);
+    let reason = match (word(0), word(1)) {
+        ("INSERT" | "UPDATE" | "DELETE", _) | ("DROP" | "CREATE", "INDEX") => return None,
+        ("CREATE", "UNIQUE") if word(2) == "INDEX" => return None,
+        ("SET" | "RESET", _) => "session settings are not SQL statements here; over the \
+             PostgreSQL wire, SET accepts the settings listed in the manual"
+            .to_owned(),
+        ("PREPARE" | "EXECUTE" | "DEALLOCATE", _) => "prepared statements are made with the \
+             extended query protocol (Parse/Bind) or bound parameters, not with SQL PREPARE"
+            .to_owned(),
+        ("LISTEN" | "UNLISTEN" | "NOTIFY", _) => "change notifications are not offered".to_owned(),
+        ("DECLARE" | "FETCH" | "CLOSE" | "MOVE", _) => {
+            "cursors are not offered; page with ORDER BY … LIMIT … OFFSET".to_owned()
+        }
+        ("COPY", _) => "COPY is not offered; read with SELECT".to_owned(),
+        ("CREATE" | "ALTER" | "DROP" | "TRUNCATE", _) => {
+            return Some(format!(
+                "{} {}: tables are record labels, made by writing records; the only DDL is \
+                 CREATE INDEX and DROP INDEX",
+                word(0),
+                word(1)
+            ))
+        }
+        _ => "not offered".to_owned(),
+    };
+    Some(format!("{}: {reason}", word(0)))
 }
 
 fn table_factor_name(table: &TableFactor) -> Result<String, SqlError> {

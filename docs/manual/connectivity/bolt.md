@@ -57,7 +57,13 @@ opening a second keyspace.
    reads or writes, and routes it to the read or the write operation; you do
    not need separate read and write sessions. `RUN` executes the whole
    statement and buffers its rows; `PULL {n}` streams them in windows (`n: -1`
-   means all). `has_more` tells you whether rows remain.
+   means all). `has_more` tells you whether rows remain. The `SUCCESS` that
+   ends the result carries the query `type` (`r`, `w`, or `rw` for a write
+   that returns rows) and, after a write that changed data,
+   `stats: {"contains-updates": true}`. That is the only counter: RushDB
+   reports how many changes a write applied, not of which kind, so a
+   driver's `nodes_created` and similar counters stay 0 while
+   `contains_updates` is true.
 4. **`GOODBYE`** closes the connection.
 
 Supported messages:
@@ -86,11 +92,17 @@ discards them.
 ```text
 C: BEGIN {}
 S: SUCCESS {}
-C: RUN "CREATE (p:Person {name: 'commit'})" {} {}
+C: RUN "CREATE (p:Person {name: 'commit'})-[:WORKS_AT]->(:Company {name: 'Acme'})" {} {}
 S: SUCCESS {"fields": [], "type": "w"}
+C: PULL {"n": -1}
+S: SUCCESS {"type": "w", "stats": {"contains-updates": true}, "has_more": false}
 C: COMMIT
 S: SUCCESS {}
 ```
+
+Nodes, relationships (between new nodes, staged nodes or committed ones),
+updates and deletes all stage, so a driver's managed transactions
+(`execute_write`) work for any write.
 
 Rules inside an explicit transaction:
 

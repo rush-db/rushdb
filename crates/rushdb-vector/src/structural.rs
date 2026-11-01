@@ -201,7 +201,7 @@ impl VectorEngine {
         }
         let budget = self.store.vector_cache_budget().ok_or_else(|| {
             VectorError::AnnBudget(
-                "no logical cache budget (resources.logical-cache-bytes: 0)".into(),
+                "no vector cache budget (resources.vector-cache-bytes: 0)".into(),
             )
         })?;
         let vectors = embed(&snap, tenant, &members, dimensions as usize, &budget)?;

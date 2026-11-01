@@ -104,7 +104,7 @@ vector search only returns records of the requested labels.
 
 Each applier batch holds one vector per record it reads (the batch's records
 and their neighbours), reserved from the vector cache budget
-(`logical-cache-bytes`) before it is computed. A batch that does not fit is
+(`vector-cache-bytes`) before it is computed. A batch that does not fit is
 refused: nothing is bound, the records stay pending, and the applier retries
 on its next pass.
 

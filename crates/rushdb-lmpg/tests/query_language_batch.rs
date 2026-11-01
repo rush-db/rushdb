@@ -55,6 +55,55 @@ fn relationship_can_reference_records_created_in_the_same_atomic_batch() {
 }
 
 #[test]
+fn relationship_to_records_created_in_the_same_batch_is_in_the_relationship_catalog() {
+    // Record and relationship ordinals are separate counters, so the
+    // relationship's ordinal sorts before its new endpoints' unless the batch
+    // orders relationship headers after record headers. Earlier records push
+    // the record ordinals ahead.
+    let store = Arc::new(Store::new_in_memory());
+    let graph = Lmpg::new(store, TenantId::from_ordinal(8));
+    for name in ["a", "b", "c"] {
+        graph
+            .create_record(
+                "Other",
+                None,
+                vec![("name".into(), FieldChange::Set(json!(name)))],
+            )
+            .unwrap();
+    }
+    let source_id = *Uuid::now_v7().as_bytes();
+    let target_id = *Uuid::now_v7().as_bytes();
+    graph
+        .run_batch(BatchTx {
+            ops: vec![
+                BatchOp::CreateRecord {
+                    label: "Person".into(),
+                    explicit_id: Some(source_id),
+                    fields: Vec::new(),
+                },
+                BatchOp::CreateRecord {
+                    label: "City".into(),
+                    explicit_id: Some(target_id),
+                    fields: Vec::new(),
+                },
+                BatchOp::CreateRelationshipById {
+                    rel_type: "LIVES_IN".into(),
+                    source_id,
+                    target_id,
+                    fields: Vec::new(),
+                },
+            ],
+        })
+        .unwrap();
+
+    let snapshot = graph.store.read_view().unwrap();
+    assert_eq!(
+        rushdb_lmpg::derived::rel_catalog(&snapshot, graph.tenant).unwrap(),
+        vec![("LIVES_IN".into(), "Person".into(), "City".into(), 1)]
+    );
+}
+
+#[test]
 fn derived_batch_rejects_a_stale_snapshot_version() {
     let store = Arc::new(Store::new_in_memory());
     let graph = Lmpg::new(store, TenantId::from_ordinal(9));

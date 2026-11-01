@@ -261,6 +261,7 @@ fn retype_over_the_cap_changes_nothing() {
                 source_type: "HAS".into(),
                 target_type: "OWNS".into(),
                 direction: Direction::Out,
+                merge_strategy: rushdb_protocol::RetypeMergeStrategy::Keep,
             },
         },
     ));

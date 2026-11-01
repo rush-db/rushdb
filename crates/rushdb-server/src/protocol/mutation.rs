@@ -40,6 +40,8 @@ impl ProtocolExecutor<'_> {
                 // SQL index DDL is intercepted before DataFusion (which has no
                 // DDL): CREATE [VECTOR] INDEX / DROP INDEX -> native index ops.
                 if language == StatementLanguage::Sql {
+                    let statement =
+                        super::index_ddl::sql_index_label_as_stored(&statement, execution_context)?;
                     if let Some(response) =
                         self.sql_index_ddl(&statement, execution_context, is_cancelled)?
                     {
@@ -390,7 +392,7 @@ impl ProtocolExecutor<'_> {
                 self.node
                     .delete_record_with_execution_context(execution_context, &id)
                     .map_err(execution_failed)?;
-                Ok(Response::Mutation { affected: 1 })
+                Ok(Response::mutation(1))
             }
             Mutation::RetypeRecord {
                 id,
@@ -421,7 +423,7 @@ impl ProtocolExecutor<'_> {
                         is_cancelled,
                     )
                     .map_err(execution_failed)?;
-                Ok(Response::Mutation { affected })
+                Ok(Response::mutation(affected))
             }
             Mutation::DeleteProperty { name } => {
                 let result = self
@@ -434,9 +436,7 @@ impl ProtocolExecutor<'_> {
                             format!("property `{name}` does not exist"),
                         )
                     })?;
-                Ok(Response::Mutation {
-                    affected: response_u64(&result, "deleted")?,
-                })
+                Ok(Response::mutation(response_u64(&result, "deleted")?))
             }
             Mutation::LinkRecords { command } => {
                 let result = self
@@ -453,9 +453,7 @@ impl ProtocolExecutor<'_> {
                     .node
                     .unlink_records_with_execution_context(execution_context, &command)
                     .map_err(execution_failed)?;
-                Ok(Response::Mutation {
-                    affected: response_u64(&result, "deleted")?,
-                })
+                Ok(Response::mutation(response_u64(&result, "deleted")?))
             }
             Mutation::LinkRecordsById { command } => {
                 let result = self
@@ -482,9 +480,7 @@ impl ProtocolExecutor<'_> {
                     .node
                     .unlink_records_by_id_with_execution_context(execution_context, &command)
                     .map_err(execution_failed)?;
-                Ok(Response::Mutation {
-                    affected: response_u64(&result, "deleted")?,
-                })
+                Ok(Response::mutation(response_u64(&result, "deleted")?))
             }
             Mutation::RetypeRelations { command } => {
                 let result = self
@@ -493,6 +489,8 @@ impl ProtocolExecutor<'_> {
                     .map_err(execution_failed)?;
                 Ok(Response::Mutation {
                     affected: response_u64(&result, "retyped")?,
+                    merged: Some(response_u64(&result, "merged")?),
+                    property_conflicts: Some(response_u64(&result, "propertyConflicts")?),
                 })
             }
         }

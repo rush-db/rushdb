@@ -178,9 +178,21 @@ fn check_values(node: &Node, query: &QueryDocument, expected: &Matched, property
         let Some(value) = properties.get(property) else {
             continue;
         };
-        match want.iter_mut().find(|(seen, _)| seen == value) {
-            Some(slot) => slot.1 += 1,
-            None => want.push((value.clone(), 1)),
+        // An array counts each distinct element once; an empty one nothing.
+        let mut held: Vec<serde_json::Value> = Vec::new();
+        for value in value
+            .as_array()
+            .map_or_else(|| vec![value.clone()], Clone::clone)
+        {
+            if !held.contains(&value) {
+                held.push(value);
+            }
+        }
+        for value in held {
+            match want.iter_mut().find(|(seen, _)| *seen == value) {
+                Some(slot) => slot.1 += 1,
+                None => want.push((value, 1)),
+            }
         }
     }
     let ask = |mode| {
@@ -535,10 +547,10 @@ fn value_search_filters_distinct_values() {
         false,
     );
     assert_eq!(values, vec![json!("ann"), json!("dan")]);
-    // Array values (scan path) match when any element does.
+    // Array values (scan path) match element by element.
     let (values, distinct, _) = ask("tags", all(), None, "x", ValueMatch::Exact, false);
-    assert_eq!(distinct, Some(2));
-    assert!(values.contains(&json!(["x", "y"])) && values.contains(&json!(["x"])));
+    assert_eq!(distinct, Some(1));
+    assert_eq!(values, vec![json!("x")]);
 }
 
 /// A property with values too long for the dictionary is searched by the

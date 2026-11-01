@@ -45,7 +45,11 @@ name is the label name; lookups are case-insensitive, so the label `Person` is
 Column types come from the label's property catalog at the snapshot: the
 types its records store under each property (integers, floats, strings,
 booleans, datetimes as epoch milliseconds, arrays). Mixed types widen the way
-JSON values do: integers and floats read as floats, any other mix as text. An
+JSON values do: integers and floats read as floats, any other mix as text.
+Comparing such a text column with a number casts every value to a number, so
+a value that is not one fails the statement with `invalid_request` (`22P02`
+over pgwire) rather than being skipped. Compare it with text, or skip those
+values explicitly: `WHERE TRY_CAST(price AS BIGINT) > 30`. An
 array that has only ever been empty takes the element type its property was
 defined with. Property columns come in the order the properties were first
 created, then `__id`. Building a table reads no record, whatever the label's
@@ -258,6 +262,11 @@ CREATE VECTOR INDEX note_embedding ON Note(embedding) SIMILARITY cosine DIMENSIO
 DROP INDEX item_price;
 ```
 
+The label is resolved like a table name: case-insensitively, to the stored
+label a `SELECT` on that name reads, so `CREATE INDEX s_region ON supplier
+(region)` indexes the label `SUPPLIER`. A label no record has yet is kept as
+written.
+
 The response `status` carries the created vector index's name. See
 [Indexes](../indexes-and-search/indexes.md) for how indexes are built and used.
 
@@ -311,11 +320,15 @@ with `unauthorized`.
 | Situation | Protocol error | SQLSTATE over pgwire |
 |---|---|---|
 | SQL not enabled | `language_disabled` | `0A000` |
-| Unknown table or column (the message suggests close names: `Did you mean 'Patient'?`) | `not_found` | `42P01` |
+| Unknown table (the message suggests close names: `Did you mean 'Patient'?`) | `not_found` | `42P01` |
+| Unknown column (the message names the valid or closest columns) | `not_found` | `42703` |
+| Unknown function | `not_found` | `42883` |
+| A value that does not cast (a mixed-type column compared with a number), division by zero, overflow | `invalid_request` | `22P02`, `22012`, `22003` |
 | Unsupported DML form (multi-statement, relationship table, non-DML on the write path, `RETURNING`, `ON CONFLICT`, `ORDER BY`/`LIMIT` in DML) | `unsupported` | `0A000` |
+| A statement that is neither a read nor DML/index DDL (`SET`, `PREPARE`, `LISTEN`/`NOTIFY`, cursors, `COPY`, `CREATE TABLE` and other table DDL), multiple statements, or a type or feature DataFusion does not implement (`::jsonb`) | `unsupported` | `0A000` |
 | Limit exceeded | `resource_exhausted` | `53200` |
 | Cancelled or deadline elapsed | `cancelled` | `57014` |
-| Syntax error, or a write sent through `query.statement` | `invalid_request` | `42601` |
+| Syntax error, a statement that does not plan (ambiguous name, operand types that do not combine), or DML sent through `query.statement` | `invalid_request` | `42601` |
 | A filter without a usable index over more records than the server's or the request's unindexed-walk limit | `invalid_request` | `42601` |
 | A DML statement lost to another write to the same tenant after its snapshot (retry it) | `write_conflict` | `40001` |
 | Other failures | `execution_failed` | `XX000` |

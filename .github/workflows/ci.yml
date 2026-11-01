@@ -101,7 +101,13 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    env:
+      # The workspace test build outgrew the runner's disk with full debug info.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
+      # Toolchains preinstalled on the runner image that this job never uses.
+      - name: Free runner disk
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:

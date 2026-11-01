@@ -169,7 +169,7 @@ fn oversized_put_record_returns_compact_ack_after_commit() {
     });
     assert!(matches!(
         response.map(|envelope| envelope.response),
-        Ok(Response::Mutation { affected: 1 })
+        Ok(Response::Mutation { affected: 1, .. })
     ));
     assert_eq!(node.store().committed_version(), 1);
 }
@@ -825,6 +825,7 @@ fn retype_relations_uses_the_request_pinned_view() {
                 source_type: "OLD".into(),
                 target_type: "NEW".into(),
                 direction: rushdb_protocol::Direction::Out,
+                merge_strategy: rushdb_protocol::RetypeMergeStrategy::Keep,
             },
         )
         .unwrap();
@@ -1143,6 +1144,7 @@ fn operation_kind_labels_every_operation_for_metrics_and_slow_logs() {
                         source_type: "T".into(),
                         target_type: "U".into(),
                         direction: rushdb_protocol::Direction::default(),
+                        merge_strategy: rushdb_protocol::RetypeMergeStrategy::default(),
                     },
                 },
             },
@@ -4022,7 +4024,7 @@ fn link_and_unlink_records_by_id_are_idempotent_and_typed() {
             .unwrap()
             .response;
         match response {
-            Response::Mutation { affected }
+            Response::Mutation { affected, .. }
             | Response::Linked {
                 created: affected, ..
             } => affected,
@@ -4157,7 +4159,7 @@ fn link_records_by_id_commits_one_batch_with_counts() {
         properties: serde_json::json!({}),
     };
     let affected = |response: rushdb_protocol::Response| match response {
-        rushdb_protocol::Response::Mutation { affected }
+        rushdb_protocol::Response::Mutation { affected, .. }
         | rushdb_protocol::Response::Linked {
             created: affected, ..
         } => affected,
@@ -4261,7 +4263,7 @@ fn link_records_by_id_with_dangling_target_applies_nothing() {
     );
     let retry = try_execute(vec![cid]).unwrap();
     let affected = match retry.response {
-        rushdb_protocol::Response::Mutation { affected }
+        rushdb_protocol::Response::Mutation { affected, .. }
         | rushdb_protocol::Response::Linked {
             created: affected, ..
         } => affected,
@@ -4344,7 +4346,7 @@ fn link_records_pairs_commits_one_batch_with_verbatim_types() {
         properties: serde_json::json!({}),
     };
     let affected = |response: rushdb_protocol::Response| match response {
-        rushdb_protocol::Response::Mutation { affected }
+        rushdb_protocol::Response::Mutation { affected, .. }
         | rushdb_protocol::Response::Linked {
             created: affected, ..
         } => affected,
@@ -4460,7 +4462,7 @@ fn link_records_pairs_with_dangling_id_applies_nothing() {
     );
     let retry = try_execute(vec![good()]).unwrap();
     let affected = match retry.response {
-        rushdb_protocol::Response::Mutation { affected }
+        rushdb_protocol::Response::Mutation { affected, .. }
         | rushdb_protocol::Response::Linked {
             created: affected, ..
         } => affected,
@@ -4520,7 +4522,7 @@ fn link_records_pairs_do_not_disturb_other_shapes() {
             .response
     };
     let affected = |response: rushdb_protocol::Response| match response {
-        rushdb_protocol::Response::Mutation { affected }
+        rushdb_protocol::Response::Mutation { affected, .. }
         | rushdb_protocol::Response::Linked {
             created: affected, ..
         } => affected,
@@ -4839,7 +4841,7 @@ fn delete_property_removes_occurrences_and_schema() {
             },
         })
         .unwrap();
-    let Response::Mutation { affected } = del.response else {
+    let Response::Mutation { affected, .. } = del.response else {
         panic!("expected mutation response");
     };
     assert_eq!(affected, 2, "two nickname occurrences removed");
@@ -5317,12 +5319,13 @@ fn retype_relations_renames_edges_between_labels() {
                         source_type: "__RUSHDB__RELATION__DEFAULT__".into(),
                         target_type: "FOUNDED".into(),
                         direction: rushdb_protocol::Direction::Out,
+                        merge_strategy: rushdb_protocol::RetypeMergeStrategy::Keep,
                     },
                 },
             },
         })
         .unwrap();
-    let Response::Mutation { affected } = retyped.response else {
+    let Response::Mutation { affected, .. } = retyped.response else {
         panic!("expected mutation response")
     };
     assert_eq!(affected, 1);
@@ -6283,7 +6286,13 @@ fn server_request_timeout_bounds_every_request() {
 
 #[test]
 fn writes_are_refused_below_the_disk_threshold_on_every_transport() {
+    // An in-memory node has no store to protect: the host disk never gates it.
+    let mut memory = config(false);
+    memory.resources.disk_space_threshold_percent = 100;
+    assert!(Node::bootstrap(&mut memory).unwrap().disk_space_ok());
+    let dir = tempfile::tempdir().unwrap();
     let mut cfg = config(false);
+    cfg.data_dir = Some(dir.path().to_path_buf());
     // No filesystem has 100% free space: the guard always trips.
     cfg.resources.disk_space_threshold_percent = 100;
     let node = Node::bootstrap(&mut cfg).unwrap();
@@ -6665,7 +6674,7 @@ fn delete_property_removes_it_from_records_and_relationships() {
         vec![("since".into(), FieldChange::Set(serde_json::json!(2020)))],
     )
     .unwrap();
-    let Response::Mutation { affected } = run(
+    let Response::Mutation { affected, .. } = run(
         &node,
         Operation::Mutate {
             mutation: rushdb_protocol::Mutation::DeleteProperty {
