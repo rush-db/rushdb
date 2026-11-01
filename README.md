@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
+# RushDB — the database for AI
 
 ### One database for your records, their relationships, and search over them.
 
@@ -186,7 +186,12 @@ features, which they refuse with `CloudOnlyError`.
 - [docs.rushdb.com](https://docs.rushdb.com): tutorials, the SDKs and the MCP
   server.
 - [Upgrading from RushDB 2.x](docs/manual/operations/upgrading-from-2x.md):
-  2.x was the Neo4j-backed stack, kept at the `v2` tag of this repository.
+  2.x was the Neo4j-based stack, now on the `2.x` branch of this repository.
+
+## Versions
+
+- **RushDB 3.x** (`main`): the current version.
+- **RushDB 2.x (legacy)**: the Neo4j-based stack, on the [`2.x` branch](https://github.com/rush-db/rushdb/tree/2.x) and the `rushdb/platform` image. Security fixes only until 2027-10-28.
 
 ## Contributing
 

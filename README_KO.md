@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
+# RushDB — AI를 위한 데이터베이스
 
 ### 레코드와 그 관계, 그리고 그 위의 검색까지 하나의 데이터베이스로.
 
@@ -159,7 +159,12 @@ Windows는 네이티브로 지원하지 않습니다. WSL 2나 Docker를 사용�
 
 - [매뉴얼](docs/manual/README.md): 시작하기, 데이터 모델, 쿼리, 언어, 검색, 운영, 참조 표.
 - [docs.rushdb.com](https://docs.rushdb.com): 튜토리얼, SDK, MCP 서버.
-- [RushDB 2.x에서 업그레이드](docs/manual/operations/upgrading-from-2x.md): 2.x는 Neo4j 기반 구성으로, 이 저장소의 `v2` 태그에 남아 있습니다.
+- [RushDB 2.x에서 업그레이드](docs/manual/operations/upgrading-from-2x.md): 2.x는 Neo4j 기반 구성으로, 현재 이 저장소의 `2.x` 브랜치에 있습니다.
+
+## 버전
+
+- **RushDB 3.x** (`main`): 현재 버전.
+- **RushDB 2.x (레거시)**: Neo4j 기반 구성. [`2.x` 브랜치](https://github.com/rush-db/rushdb/tree/2.x)와 `rushdb/platform` 이미지로 제공됩니다. 2027-10-28까지 보안 수정만 제공합니다.
 
 ## 기여하기
 

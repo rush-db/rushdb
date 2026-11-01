@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
+# RushDB — ฐานข้อมูลสำหรับ AI
 
 ### ฐานข้อมูลเดียวสำหรับเรคคอร์ด ความสัมพันธ์ของมัน และการค้นหาบนข้อมูลเหล่านั้น
 
@@ -159,7 +159,12 @@ SDK สำหรับ [JavaScript](https://www.npmjs.com/package/@rushdb/javasc
 
 - [คู่มือ](docs/manual/README.md): การเริ่มต้น, โมเดลข้อมูล, คิวรี, ภาษา, การค้นหา, การดูแลระบบ และตารางอ้างอิง
 - [docs.rushdb.com](https://docs.rushdb.com): บทเรียน, SDK และเซิร์ฟเวอร์ MCP
-- [การอัปเกรดจาก RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): 2.x คือสแตกที่ใช้ Neo4j ซึ่งเก็บไว้ที่แท็ก `v2` ของรีโพนี้
+- [การอัปเกรดจาก RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): 2.x คือสแตกที่ใช้ Neo4j ซึ่งตอนนี้อยู่ที่แบรนช์ `2.x` ของรีโพนี้
+
+## เวอร์ชัน
+
+- **RushDB 3.x** (`main`): เวอร์ชันปัจจุบัน
+- **RushDB 2.x (legacy)**: สแตกที่ใช้ Neo4j อยู่ที่[แบรนช์ `2.x`](https://github.com/rush-db/rushdb/tree/2.x) และอิมเมจ `rushdb/platform` แก้ไขเฉพาะด้านความปลอดภัยจนถึง 2027-10-28
 
 ## การมีส่วนร่วม
 

@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
+# RushDB — AI के लिए database
 
 ### आपके records, उनके relationships और उन पर search — सब एक database में।
 
@@ -159,7 +159,12 @@ Windows natively supported नहीं है; WSL 2 या Docker इस्त
 
 - [मैनुअल](docs/manual/README.md): शुरुआत, data model, queries, languages, search, operations और reference tables।
 - [docs.rushdb.com](https://docs.rushdb.com): tutorials, SDKs और MCP server।
-- [RushDB 2.x से upgrade](docs/manual/operations/upgrading-from-2x.md): 2.x Neo4j-आधारित stack था, जो इस repository के `v2` tag पर रखा गया है।
+- [RushDB 2.x से upgrade](docs/manual/operations/upgrading-from-2x.md): 2.x Neo4j-आधारित stack था, जो अब इस repository की `2.x` branch पर है।
+
+## Versions
+
+- **RushDB 3.x** (`main`): मौजूदा version।
+- **RushDB 2.x (legacy)**: Neo4j-आधारित stack, [`2.x` branch](https://github.com/rush-db/rushdb/tree/2.x) और `rushdb/platform` image पर। 2027-10-28 तक केवल security fixes।
 
 ## योगदान
 

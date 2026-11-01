@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
+# RushDB — die Datenbank für KI
 
 ### Eine Datenbank für deine Datensätze, ihre Beziehungen und die Suche darüber.
 
@@ -159,7 +159,12 @@ Diese Engine ist der Teil von RushDB, den du selbst hostest. Sie erzeugt keine E
 
 - [Handbuch](docs/manual/README.md): Einstieg, Datenmodell, Abfragen, Sprachen, Suche, Betrieb und Referenztabellen.
 - [docs.rushdb.com](https://docs.rushdb.com): Tutorials, die SDKs und der MCP-Server.
-- [Upgrade von RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): 2.x war der Neo4j-basierte Stack und bleibt am `v2`-Tag dieses Repositorys erhalten.
+- [Upgrade von RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): 2.x war der Neo4j-basierte Stack und liegt jetzt auf dem `2.x`-Branch dieses Repositorys.
+
+## Versionen
+
+- **RushDB 3.x** (`main`): die aktuelle Version.
+- **RushDB 2.x (Legacy)**: der Neo4j-basierte Stack, auf dem [`2.x`-Branch](https://github.com/rush-db/rushdb/tree/2.x) und im Image `rushdb/platform`. Nur noch Sicherheitsfixes bis 2027-10-28.
 
 ## Mitwirken
 

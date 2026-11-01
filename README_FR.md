@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
+# RushDB — la base de données pour l'IA
 
 ### Une seule base de données pour vos enregistrements, leurs relations et la recherche.
 
@@ -159,7 +159,12 @@ Ce moteur est la partie de RushDB que vous auto-hébergez. Il ne génère pas d'
 
 - [Manuel](docs/manual/README.md) : prise en main, modèle de données, requêtes, langages, recherche, exploitation et tables de référence.
 - [docs.rushdb.com](https://docs.rushdb.com) : tutoriels, SDK et serveur MCP.
-- [Mise à niveau depuis RushDB 2.x](docs/manual/operations/upgrading-from-2x.md) : la 2.x était la pile basée sur Neo4j, conservée au tag `v2` de ce dépôt.
+- [Mise à niveau depuis RushDB 2.x](docs/manual/operations/upgrading-from-2x.md) : la 2.x était la pile basée sur Neo4j, désormais sur la branche `2.x` de ce dépôt.
+
+## Versions
+
+- **RushDB 3.x** (`main`) : la version actuelle.
+- **RushDB 2.x (legacy)** : la pile basée sur Neo4j, sur la [branche `2.x`](https://github.com/rush-db/rushdb/tree/2.x) et l'image `rushdb/platform`. Correctifs de sécurité uniquement jusqu'au 2027-10-28.
 
 ## Contribuer
 

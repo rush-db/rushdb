@@ -2,7 +2,7 @@
 
 ![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
 
-# RushDB
+# RushDB — database untuk AI
 
 ### Satu database untuk record Anda, relasinya, dan pencarian di atasnya.
 
@@ -159,7 +159,12 @@ Engine ini adalah bagian RushDB yang Anda host sendiri. Ia tidak membuat embeddi
 
 - [Manual](docs/manual/README.md): memulai, model data, kueri, bahasa, pencarian, operasi, dan tabel referensi.
 - [docs.rushdb.com](https://docs.rushdb.com): tutorial, SDK, dan server MCP.
-- [Upgrade dari RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): 2.x adalah stack berbasis Neo4j, disimpan di tag `v2` repositori ini.
+- [Upgrade dari RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): 2.x adalah stack berbasis Neo4j, sekarang ada di branch `2.x` repositori ini.
+
+## Versi
+
+- **RushDB 3.x** (`main`): versi saat ini.
+- **RushDB 2.x (legacy)**: stack berbasis Neo4j, di [branch `2.x`](https://github.com/rush-db/rushdb/tree/2.x) dan image `rushdb/platform`. Hanya perbaikan keamanan hingga 2027-10-28.
 
 ## Berkontribusi
 

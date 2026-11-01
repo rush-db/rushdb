@@ -31,7 +31,7 @@ license = "Apache-2.0"
 homepage = "https://rushdb.com"
 repository = "https://github.com/rush-db/rushdb"
 documentation = "https://github.com/rush-db/rushdb/tree/main/docs/manual"
-keywords = ["database", "graph", "vector-search", "lmpg", "rust"]
+keywords = ["database", "ai", "graph", "vector-search", "sql"]
 categories = ["database"]
 
 # Opt-in via `[lints] workspace = true` in each crate. Keep the high-signal

@@ -64,7 +64,7 @@ jobs:
             type=semver,pattern={{major}},value=${{ env.TAG }}
           labels: |
             org.opencontainers.image.title=rushdb
-            org.opencontainers.image.description=RushDB property graph database server
+            org.opencontainers.image.description=RushDB, the database for AI
             org.opencontainers.image.licenses=Apache-2.0
       # Smoke-test both architectures before anything is pushed.
       - name: Build for testing
