@@ -7,6 +7,55 @@ use rushdb_language::ddl::{DdlKind, IndexDdl};
 
 use super::{execution_failed, ErrorCode, ProtocolError, ProtocolExecutor, Response};
 
+/// SQL `CREATE [VECTOR] INDEX … ON <label>(…)` with the label spelled
+/// as stored. A SQL table name finds its label case-insensitively (the
+/// first stored spelling that matches, as a `SELECT` resolves it), so
+/// the index is declared on the label a `SELECT` on that name reads. A
+/// label no record has yet is kept as written.
+pub(super) fn sql_index_label_as_stored<'s>(
+    sql: &'s str,
+    execution_context: &rushdb_engine::ExecutionContext,
+) -> Result<std::borrow::Cow<'s, str>, ProtocolError> {
+    let unchanged = Ok(std::borrow::Cow::Borrowed(sql));
+    let upper = sql.to_ascii_uppercase();
+    let ddl = upper.trim_start();
+    if !(ddl.starts_with("CREATE INDEX") || ddl.starts_with("CREATE VECTOR INDEX")) {
+        return unchanged;
+    }
+    let Some(on) = upper.find(" ON ") else {
+        return unchanged;
+    };
+    let after_on = &sql[on + 4..];
+    let Some(paren) = after_on.find('(') else {
+        return unchanged;
+    };
+    let start = on + 4 + (after_on.len() - after_on.trim_start().len());
+    let end = on + 4 + after_on[..paren].trim_end().len();
+    if start >= end {
+        return unchanged;
+    }
+    let written = sql[start..end].trim_matches('"');
+    let labels = rushdb_lmpg::reader::try_access::labels(
+        execution_context.read_view().as_ref(),
+        execution_context.tenant(),
+    )
+    .map_err(|e| execution_failed(e.to_string()))?;
+    if labels.iter().any(|label| label == written) {
+        return unchanged;
+    }
+    let Some(stored) = labels
+        .iter()
+        .find(|label| label.eq_ignore_ascii_case(written))
+    else {
+        return unchanged;
+    };
+    Ok(std::borrow::Cow::Owned(format!(
+        "{}{stored}{}",
+        &sql[..start],
+        &sql[end..]
+    )))
+}
+
 impl ProtocolExecutor<'_> {
     /// Drop a declared index by name, or a vector index when no declared
     /// index has that name.

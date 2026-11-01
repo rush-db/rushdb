@@ -896,46 +896,39 @@ impl RequestScope<'_> {
         }
 
         // One atomic commit for the whole retype: a conflict or an
-        // oversized commit leaves every edge as it was.
+        // oversized commit leaves every edge as it was. Each endpoint pair
+        // ends with one `target_type` edge (MERGE semantics) carrying the
+        // properties of the edges merged into it (REL-1), merged by
+        // `mergeStrategy`; an existing `target_type` edge keeps its identity.
         let mut batch = lmpg.begin_batch();
         let mut retyped = 0usize;
-        for ((a_ord, b_ord), rels) in by_pair {
-            let delete_old = rels
-                .into_iter()
-                .map(|rel| rushdb_lmpg::BatchOp::DeleteRelationship { rel });
-            if access::edge_exists(snap, tenant, a_ord, &command.target_type, b_ord)
-                .map_err(|e| e.to_string())?
-            {
-                // target type already present for this pair — drop the old edges
-                batch.ops.extend(delete_old);
-                continue;
-            }
-            let src_hdr = access::record_by_ord(&snap, tenant, a_ord)
-                .map_err(|e| e.to_string())?
-                .ok_or("corrupt relationship: missing source")?;
-            let tgt_hdr = access::record_by_ord(&snap, tenant, b_ord)
-                .map_err(|e| e.to_string())?
-                .ok_or("corrupt relationship: missing target")?;
-            batch.ops.push(rushdb_lmpg::BatchOp::CreateRelationship {
-                rel_type: command.target_type.clone(),
-                source: rushdb_lmpg::RecordRef {
-                    record_id: src_hdr.record_id,
-                    ordinal: src_hdr.ordinal,
-                },
-                target: rushdb_lmpg::RecordRef {
-                    record_id: tgt_hdr.record_id,
-                    ordinal: tgt_hdr.ordinal,
-                },
-                fields: vec![],
-            });
-            batch.ops.extend(delete_old);
-            retyped += 1;
+        let mut merged = 0usize;
+        let mut conflicts = RetypeConflicts::default();
+        for (pair, rels) in by_pair {
+            retyped += rels.len();
+            merged += retype_pair(
+                snap,
+                tenant,
+                command,
+                pair,
+                rels,
+                &mut batch.ops,
+                &mut conflicts,
+            )?;
+        }
+        if command.merge_strategy == rushdb_protocol::RetypeMergeStrategy::Fail
+            && conflicts.count > 0
+        {
+            return Err(conflicts.refusal(snap, tenant)?);
         }
         run_nonempty(&lmpg, batch)?;
 
-        Ok(
-            serde_json::json!({ "message": "Relations have been successfully retyped", "retyped": retyped }),
-        )
+        Ok(serde_json::json!({
+            "message": "Relations have been successfully retyped",
+            "retyped": retyped,
+            "merged": merged,
+            "propertyConflicts": conflicts.count,
+        }))
     }
 
     /// Retype relationships using the caller-owned execution view.
@@ -960,4 +953,272 @@ fn directed(direction: rushdb_protocol::Direction, source: u64, target: u64) -> 
     } else {
         (source, target)
     }
+}
+
+type RelField = (String, serde_json::Value, rushdb_lmpg::plan::FieldChange);
+
+/// How many property conflicts a retype reports in detail (`fail`).
+const RETYPE_CONFLICT_DETAILS: usize = 20;
+
+/// One property two merged relationships held with different values.
+struct RetypeConflict {
+    pair: (u64, u64),
+    property: String,
+    kept: serde_json::Value,
+    other: serde_json::Value,
+}
+
+/// Property conflicts of a retype: their number, and the first few.
+#[derive(Default)]
+struct RetypeConflicts {
+    count: usize,
+    first: Vec<RetypeConflict>,
+}
+
+impl RetypeConflicts {
+    fn push(&mut self, conflict: RetypeConflict) {
+        self.count += 1;
+        if self.first.len() < RETYPE_CONFLICT_DETAILS {
+            self.first.push(conflict);
+        }
+    }
+
+    /// The `fail` refusal: the count and the first conflicts, with record ids.
+    fn refusal(
+        &self,
+        snap: &rushdb_storage::ReadView,
+        tenant: rushdb_types::ids::TenantId,
+    ) -> Result<String, String> {
+        let mut details = Vec::with_capacity(self.first.len());
+        for conflict in &self.first {
+            let id = |ord| -> Result<String, String> {
+                Ok(access::record_by_ord(snap, tenant, ord)
+                    .map_err(|e| e.to_string())?
+                    .map_or_else(
+                        || ord.to_string(),
+                        |header| uuid::Uuid::from_bytes(header.record_id).to_string(),
+                    ))
+            };
+            details.push(format!(
+                "`{}` between {} and {} ({} vs {})",
+                conflict.property,
+                id(conflict.pair.0)?,
+                id(conflict.pair.1)?,
+                conflict.kept,
+                conflict.other
+            ));
+        }
+        Ok(format!(
+            "retypeRelations refused by mergeStrategy `fail`: {} property conflict(s), nothing \
+             was written; first {}: {}",
+            self.count,
+            details.len(),
+            details.join("; ")
+        ))
+    }
+}
+
+/// One endpoint pair of a retype: leave a single `target_type` edge carrying
+/// the properties of every edge merged into it, merged by `strategy`, and
+/// delete `rels`. The kept edge is the pair's existing `target_type` edge,
+/// else a new one seeded with the oldest retyped edge's properties. Returns
+/// how many of `rels` were folded into another edge; conflicts (a property
+/// two merged edges held with different values) go to `conflicts`.
+fn retype_pair(
+    snap: &rushdb_storage::ReadView,
+    tenant: rushdb_types::ids::TenantId,
+    command: &rushdb_protocol::RetypeRelationsMutation,
+    (a_ord, b_ord): (u64, u64),
+    mut rels: Vec<rushdb_lmpg::RelationshipRef>,
+    ops: &mut Vec<rushdb_lmpg::BatchOp>,
+    conflicts: &mut RetypeConflicts,
+) -> Result<usize, String> {
+    use rushdb_lmpg::plan::FieldChange;
+    use rushdb_protocol::RetypeMergeStrategy;
+    let (target_type, strategy) = (command.target_type.as_str(), command.merge_strategy);
+    rels.sort_by_key(|rel| rel.ordinal);
+    let existing = access::adj_out(snap, tenant, a_ord, Some(target_type))
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|(_, other, _)| *other == b_ord)
+        .map(|(_, _, rel_ord)| rel_ord);
+    let original = match existing {
+        Some(rel_ord) => relationship_fields(snap, tenant, rel_ord)?,
+        None => Vec::new(),
+    };
+    // Incoming edges in age order; without an existing edge the oldest
+    // seeds the new one.
+    let mut incoming = Vec::with_capacity(rels.len());
+    for rel in &rels {
+        incoming.push(relationship_fields(snap, tenant, rel.ordinal)?);
+    }
+    let retyped_names: std::collections::BTreeSet<String> = incoming
+        .iter()
+        .flatten()
+        .map(|(name, _, _)| name.clone())
+        .collect();
+    let mut incoming = incoming.into_iter();
+    let mut fields: Vec<RelField> = match existing {
+        Some(_) => original.clone(),
+        None => incoming.next().unwrap_or_default(),
+    };
+    let overwrite = matches!(
+        strategy,
+        RetypeMergeStrategy::Append | RetypeMergeStrategy::Rewrite
+    );
+    for edge in incoming {
+        merge_fields(&mut fields, edge, overwrite, (a_ord, b_ord), conflicts);
+    }
+    let Some(rel_ord) = existing else {
+        let src_hdr = access::record_by_ord(snap, tenant, a_ord)
+            .map_err(|e| e.to_string())?
+            .ok_or("corrupt relationship: missing source")?;
+        let tgt_hdr = access::record_by_ord(snap, tenant, b_ord)
+            .map_err(|e| e.to_string())?
+            .ok_or("corrupt relationship: missing target")?;
+        ops.push(rushdb_lmpg::BatchOp::CreateRelationship {
+            rel_type: target_type.to_string(),
+            source: rushdb_lmpg::RecordRef {
+                record_id: src_hdr.record_id,
+                ordinal: src_hdr.ordinal,
+            },
+            target: rushdb_lmpg::RecordRef {
+                record_id: tgt_hdr.record_id,
+                ordinal: tgt_hdr.ordinal,
+            },
+            fields: fields
+                .into_iter()
+                .map(|(name, _, change)| (name, change))
+                .collect(),
+        });
+        let merged = rels.len() - 1;
+        ops.extend(
+            rels.into_iter()
+                .map(|rel| rushdb_lmpg::BatchOp::DeleteRelationship { rel }),
+        );
+        return Ok(merged);
+    };
+    // `rewrite`: the existing edge keeps only what the retyped edges hold.
+    if strategy == RetypeMergeStrategy::Rewrite {
+        fields.retain(|(name, _, _)| retyped_names.contains(name));
+    }
+    let mut writes: Vec<(String, FieldChange)> = Vec::new();
+    for (name, value, change) in fields.iter().cloned() {
+        if !original
+            .iter()
+            .any(|(held, held_value, _)| *held == name && *held_value == value)
+        {
+            writes.push((name, change));
+        }
+    }
+    for (name, _, _) in &original {
+        if !fields.iter().any(|(kept, _, _)| kept == name) {
+            writes.push((name.clone(), FieldChange::Delete));
+        }
+    }
+    if !writes.is_empty() {
+        let header = access::relationship_by_ord(snap, tenant, rel_ord)
+            .map_err(|e| e.to_string())?
+            .ok_or("corrupt relationship: missing header")?;
+        ops.push(rushdb_lmpg::BatchOp::UpdateFields {
+            owner: rushdb_types::ids::OwnerKind::Relationship,
+            owner_ord: rel_ord,
+            owner_public_id: header.relationship_id,
+            fields: writes,
+        });
+    }
+    let merged = rels.len();
+    ops.extend(
+        rels.into_iter()
+            .map(|rel| rushdb_lmpg::BatchOp::DeleteRelationship { rel }),
+    );
+    Ok(merged)
+}
+
+/// Fold one merged edge's properties into `fields`: a property `fields`
+/// lacks is added; one held with a different value is a conflict, and
+/// `overwrite` lets the merged edge's value win it.
+fn merge_fields(
+    fields: &mut Vec<RelField>,
+    edge: Vec<RelField>,
+    overwrite: bool,
+    pair: (u64, u64),
+    conflicts: &mut RetypeConflicts,
+) {
+    for (name, value, change) in edge {
+        match fields.iter_mut().find(|(held, _, _)| *held == name) {
+            Some(held) if held.1 != value => {
+                conflicts.push(RetypeConflict {
+                    pair,
+                    property: name.clone(),
+                    kept: held.1.clone(),
+                    other: value.clone(),
+                });
+                if overwrite {
+                    *held = (name, value, change);
+                }
+            }
+            Some(_) => {}
+            None => fields.push((name, value, change)),
+        }
+    }
+}
+
+/// A relationship's properties as `(name, value, write)`, the write
+/// re-creating the value on another relationship: a scalar datetime stays a
+/// datetime (its JSON form is a number), and a null stays an explicit null.
+fn relationship_fields(
+    snap: &rushdb_storage::ReadView,
+    tenant: rushdb_types::ids::TenantId,
+    ordinal: u64,
+) -> Result<Vec<RelField>, String> {
+    use rushdb_lmpg::plan::FieldChange;
+    use rushdb_lmpg::reader::try_access;
+    let Some(serde_json::Value::Object(document)) =
+        rushdb_lmpg::reconstruct::reconstruct_relationship(snap, tenant, ordinal)
+            .map_err(|e| e.to_string())?
+    else {
+        return Ok(Vec::new());
+    };
+    let mut datetimes = std::collections::BTreeSet::new();
+    for occurrence in try_access::occurrences_of_owner(
+        snap,
+        tenant,
+        rushdb_types::ids::OwnerKind::Relationship,
+        ordinal,
+    )
+    .map_err(|e| e.to_string())?
+    {
+        if occurrence.array
+            || occurrence.value
+                != (rushdb_types::occurrence::OccurrenceValue::Stored {
+                    ty: rushdb_types::model::LogicalType::DateTime,
+                })
+        {
+            continue;
+        }
+        if let Some(definition) =
+            try_access::definition(snap, tenant, occurrence.pid).map_err(|e| e.to_string())?
+        {
+            if let Some(family) =
+                try_access::family(snap, tenant, definition.family_id).map_err(|e| e.to_string())?
+            {
+                datetimes.insert(family.display_name);
+            }
+        }
+    }
+    Ok(document
+        .into_iter()
+        .filter(|(name, _)| !rushdb_types::value::is_reserved_name(name))
+        .map(|(name, value)| {
+            let change = match &value {
+                serde_json::Value::Null => FieldChange::ExplicitNull,
+                serde_json::Value::Number(n) if datetimes.contains(&name) => n
+                    .as_i64()
+                    .map_or_else(|| FieldChange::Set(value.clone()), FieldChange::SetDatetime),
+                _ => FieldChange::Set(value.clone()),
+            };
+            (name, value, change)
+        })
+        .collect())
 }

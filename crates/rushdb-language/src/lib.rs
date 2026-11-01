@@ -29,6 +29,7 @@ pub mod gremlin_bytecode;
 mod lmpg_store;
 mod mutation_budget;
 mod overlay;
+mod sql_pgq;
 use lmpg_store::LmpgGraphStore;
 use overlay::OverlayStore;
 
@@ -446,7 +447,11 @@ fn execute_in_view_with_budget_cancellable_on_stack(
         QueryLanguage::Gremlin => "gremlin",
         QueryLanguage::SqlPgq => "sql",
     };
-    let executed = session.execute_language(statement, language_name, params);
+    let statement = match language {
+        QueryLanguage::SqlPgq => sql_pgq::name_anonymous_nodes(statement),
+        _ => std::borrow::Cow::Borrowed(statement),
+    };
+    let executed = session.execute_language(&statement, language_name, params);
     // A failed text search cancels the statement's reads: report it, not
     // the cancelled reads it caused.
     adapter.text_check()?;
@@ -464,7 +469,7 @@ fn execute_in_view_with_budget_cancellable_on_stack(
     // the cancelled reads it caused.
     adapter.text_check()?;
     adapter.check()?;
-    if returns_nothing(language, statement, &columns) {
+    if returns_nothing(language, &statement, &columns) {
         return Ok(LanguageResult {
             columns: Vec::new(),
             rows: Vec::new(),

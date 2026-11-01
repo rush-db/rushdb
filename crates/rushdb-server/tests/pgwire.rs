@@ -437,3 +437,190 @@ async fn session_settings_bound_the_sessions_own_statements() {
     };
     assert_eq!(row.get("disallow_full_table_scans"), Some("off"));
 }
+
+fn db_code(error: &tokio_postgres::Error) -> String {
+    error.as_db_error().map_or_else(
+        || error.to_string(),
+        |error| format!("{}: {}", error.code().code(), error.message()),
+    )
+}
+
+#[tokio::test]
+async fn session_functions_combine_with_other_expressions() {
+    // PGW-1: only the exact `SELECT current_database()` used to work.
+    let (http_port, port) = start_gateway(false, None, true);
+    put_record(
+        http_port,
+        None,
+        "NOTE",
+        &serde_json::json!({ "name": "alpha" }),
+    );
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    let sql = "SELECT current_database(), current_user, name FROM note \
+               WHERE current_schema() = 'public'";
+    let rows = client.query(sql, &[]).await.unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get::<_, String>("current_database"), "rushdb");
+    assert_eq!(rows[0].get::<_, String>("current_user"), "rushdb");
+    assert_eq!(rows[0].get::<_, String>("name"), "alpha");
+    let messages = client
+        .simple_query("SELECT current_database(), current_user")
+        .await
+        .unwrap();
+    let Some(SimpleQueryMessage::Row(row)) = messages.get(1) else {
+        panic!("expected a row, got {messages:?}");
+    };
+    assert_eq!(row.get("current_database"), Some("rushdb"));
+    assert_eq!(row.get("current_user"), Some("rushdb"));
+}
+
+#[tokio::test]
+async fn client_parameters_are_accepted_and_shown() {
+    // PGW-1: Metabase (JDBC) sends `SET application_name` on every
+    // connection; refusing it refused the connection.
+    let port = start(false, None);
+    let mut config = Config::new();
+    config
+        .host("127.0.0.1")
+        .port(port)
+        .user("rushdb")
+        .dbname("rushdb")
+        .password("pgwire-token")
+        .application_name("startup-name");
+    let (client, connection) = config.connect(NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let shown = client.query("SHOW application_name", &[]).await.unwrap();
+    assert_eq!(shown[0].get::<_, String>(0), "startup-name");
+    for sql in [
+        "SET application_name = 'Metabase v0.57.4 [8f0c]'",
+        "SET extra_float_digits = 3",
+        "SET DateStyle = 'ISO'",
+        "SET TIME ZONE 'UTC'",
+        "SET client_encoding = 'UTF8'",
+        "SET search_path = public",
+    ] {
+        client.simple_query(sql).await.unwrap();
+    }
+    client
+        .execute("SET application_name = 'extended'", &[])
+        .await
+        .unwrap();
+    let shown = client.query("SHOW application_name", &[]).await.unwrap();
+    assert_eq!(shown[0].get::<_, String>(0), "extended");
+    let shown = client.query("SHOW extra_float_digits", &[]).await.unwrap();
+    assert_eq!(shown[0].get::<_, String>(0), "3");
+    // A setting nothing honours is refused as unsupported, not as a write.
+    for sql in ["SET enable_seqscan = off", "RESET enable_seqscan"] {
+        for error in [
+            client.simple_query(sql).await.unwrap_err(),
+            client.execute(sql, &[]).await.unwrap_err(),
+        ] {
+            let error = db_code(&error);
+            assert!(error.starts_with("0A000"), "{sql}: {error}");
+            assert!(!error.contains("mutate.statement"), "{error}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn statement_errors_carry_postgres_sqlstates() {
+    let (http_port, port) = start_gateway(false, None, true);
+    for price in [
+        serde_json::json!(30),
+        serde_json::json!("40"),
+        serde_json::json!("cheap"),
+    ] {
+        put_record(
+            http_port,
+            None,
+            "ITEM",
+            &serde_json::json!({ "price": price }),
+        );
+    }
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    for (sql, code, says) in [
+        // SQL-1: an unknown column was a bare XX000 "internal execution error".
+        ("SELECT nosuchcol FROM item", "42703", "nosuchcol"),
+        ("SELECT nosuchfn(price) FROM item", "42883", "nosuchfn"),
+        ("SELECT * FROM itme", "42P01", "Did you mean 'ITEM'"),
+        // PGW-1: not "send writes as mutate.statement".
+        (
+            "PREPARE q(text) AS SELECT price FROM item WHERE price = $1",
+            "0A000",
+            "PREPARE",
+        ),
+        ("LISTEN changes", "0A000", "notifications"),
+        ("CREATE TABLE foo (id int)", "0A000", "record labels"),
+        // CAT-4: a mixed text/number column compared with a number.
+        (
+            "SELECT price FROM item WHERE price > 30",
+            "22P02",
+            "TRY_CAST",
+        ),
+    ] {
+        for error in [
+            client.simple_query(sql).await.unwrap_err(),
+            client.query(sql, &[]).await.unwrap_err(),
+        ] {
+            let error = db_code(&error);
+            assert!(error.starts_with(code), "{sql}: {error}");
+            assert!(error.contains(says), "{sql}: {error}");
+            assert!(!error.contains("mutate.statement"), "{sql}: {error}");
+        }
+    }
+    // PGW-1: UNION ALL used to panic inside DataFusion (503).
+    let sql = "SELECT count(*) AS n FROM item UNION ALL SELECT count(*) AS n FROM item";
+    let rows = client.query(sql, &[]).await.unwrap();
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|row| row.get::<_, i64>("n") == 3));
+    let messages = client.simple_query(sql).await.unwrap();
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| matches!(message, SimpleQueryMessage::Row(_)))
+            .count(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn create_index_on_a_lowercase_table_name_indexes_the_label() {
+    // PGW-1: `SELECT … FROM note` reads label NOTE, but `CREATE INDEX … ON
+    // note (v)` declared an index on a label `note` that no record has.
+    let (http_port, port) = start_gateway(false, None, true);
+    for v in 0..3 {
+        put_record(http_port, None, "NOTE", &serde_json::json!({ "v": v }));
+    }
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    client
+        .simple_query("CREATE INDEX note_v ON note (v)")
+        .await
+        .unwrap();
+    client
+        .simple_query("SET disallow_full_table_scans = on")
+        .await
+        .unwrap();
+    let count = "SELECT count(*) AS c FROM note WHERE v = 1";
+    // The index is built in the background.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let rows = loop {
+        match client.query(count, &[]).await {
+            Ok(rows) => break rows,
+            Err(error) if std::time::Instant::now() < deadline => {
+                assert!(
+                    db_code(&error).contains("unindexed walk refused"),
+                    "{error}"
+                );
+                tokio::task::spawn_blocking(|| {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                })
+                .await
+                .unwrap();
+            }
+            Err(error) => panic!("the index never served the filter: {}", db_code(&error)),
+        }
+    };
+    assert_eq!(rows[0].get::<_, i64>("c"), 1);
+}

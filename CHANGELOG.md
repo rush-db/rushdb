@@ -4,7 +4,90 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
-## 3.0.0 — Unreleased
+## 3.0.1 — 2026-11-01
+
+### Changed
+
+- Vector indexes have their own memory budget, `resources.vector-cache-bytes`
+  (default 256 MiB), instead of sharing `logical-cache-bytes` with text and
+  planner caches. A space of 1M 768-dimension vectors now answers from its
+  index on default settings (it fell back to exact search before).
+
+### Fixed
+
+- **Data-access policy (security):** under an enforced policy, a record query that filters, sorts, groups or aggregates on a hidden property, or traverses a denied relationship type, is refused with `unauthorized`. Before, the output was masked but the hidden values still decided which records came back and in what order. A traversal must name its `$relation` type when the policy denies any type, and its endpoint label unless every label is allowed.
+- **Nested logic:** `$or`/`$and`/`$nor`/`$xor`/`$not` inside a label block that is itself inside a block (`{ DIAGNOSIS: { CONCEPT: { $or: [...] } } }`) silently matched nothing, and with a `$relation` beside it the query failed. The inner block was read as a property; it is now parsed as the root parses it.
+- **`retypeRelations`:** merging into a pair that already has the target type keeps every relationship property from both sides (the existing relationship's values win a conflict, and it keeps its id). Before, the retyped relationships' properties were dropped, and a newly created relationship carried none. `affected` now counts relationships retyped, and the response reports `merged` and `propertyConflicts`. A new `mergeStrategy` option picks the winner of a conflict: `keep` (default, as above), `append` (the retyped value wins), `rewrite` (the retyped relationships' properties replace the existing one's) or `fail` (refuse with `conflict`, writing nothing, and list the first 20 conflicts).
+
+- Building an indexed filter's match set no longer re-counts the set for
+  every owner it adds: the cost was quadratic in the tenant's size. The set
+  is also kept per snapshot and shared by its readers, so repeated pages of
+  an indexed filter no longer re-read the index.
+- A vector search never waits for an index build: past a small tail of
+  unindexed vectors it answers exactly (`fallback: "annWarming"`) while the
+  index is built in the background.
+
+- A relationship created in the same statement or batch as its new endpoint
+  records is counted in the relationship catalog: `describe.schema` shows
+  it and SQL has its `rushdb_edges` table. Relationship headers now apply
+  after record headers in every commit.
+- Cypher, GQL and Gremlin writes that create relationships stage in
+  transactions, and so over Bolt in explicit and driver-managed
+  transactions; they failed with "transaction stage does not support
+  operation … yet".
+- Bolt reports the query type (`w`, `rw`, `r`) and
+  `stats: {"contains-updates": true}` in the summary that ends a write's
+  result; drivers saw `query_type = 'r'` and no updates.
+- A Cypher `CREATE` property computed from an expression (`r[0]`, `CASE`,
+  arithmetic, a function call) fails with `unsupported` and the `WITH`
+  workaround instead of an internal execution error (a Grafeo limitation).
+- SQL/PGQ: two anonymous nodes in one pattern are separate nodes; they were
+  joined as one (a Grafeo defect), which also made `a <> b` match nothing.
+- Mongo-style `find` applies its inclusion `projection`: documents keep only
+  the projected fields and `_id` (`"_id": 0` drops it).
+- Describing a label's properties without a filter reads only its sample
+  records, and value search skips columns whose type cannot hold the text;
+  property ranges come from the value dictionary's first and last entries.
+  None of this changes a result.
+- Value search over long texts reads only the records that hold the column
+  and matches ASCII text in place.
+- A name held under several types on one label is searched once: `total` no
+  longer counts its matches twice.
+- `$type` matches the type each record holds when a name is stored under
+  more than one type (`$type: "number"` no longer matches text values).
+- Value counts, top values and value lists over arrays count each element
+  once per record, as distinct counts already did.
+- A `select` of metrics without `groupBy` over no matches returns one row
+  (counts 0, other metrics `null`), as SQL does.
+- An unfiltered property description samples every label, so a label
+  written after 10,000 others' records still shows sample values.
+- An in-memory node no longer rejects writes when the host disk is below the
+  free-space threshold: the guard protects a data directory.
+- The PostgreSQL wire `INSERT` tag is `INSERT 0 n`: psql no longer reports
+  "could not interpret result", and psycopg's `rowcount` is the count, not -1.
+- The PostgreSQL wire accepts the client parameters drivers and tools set on
+  every connection (`application_name`, `extra_float_digits`, `DateStyle`,
+  `TimeZone`, `client_encoding`, `search_path`, …) and `SHOW` answers them;
+  Metabase sent `SET application_name` and could not connect. `SET` of
+  another parameter fails with `0A000` naming the accepted ones.
+- `current_database()`, `current_user` and the other session functions work
+  beside other expressions over the PostgreSQL wire, not only alone.
+- SQL `UNION`/`UNION ALL` works; it panicked inside DataFusion and returned
+  `unavailable` (503). A panic inside the SQL engine now fails only its
+  statement, with `execution_failed`.
+- SQL statement errors carry their class instead of "internal execution
+  error": an unknown column or function is `not_found` (`42703`/`42883` over
+  pgwire), a mixed-type column compared with a number is `invalid_request`
+  (`22P02`) naming `TRY_CAST`, an unimplemented type or feature is
+  `unsupported`.
+- SQL `SET`, `PREPARE`, `LISTEN`, cursors, `COPY` and table DDL fail with
+  `unsupported` (`0A000`) and the reason, not "send writes as
+  mutate.statement".
+- SQL `CREATE INDEX … ON supplier (region)` indexes the stored label
+  (`SUPPLIER`) a `SELECT` on `supplier` reads; it declared an index on a
+  label `supplier` that nothing used.
+
+## 3.0.0 — 2026-10-28
 
 First standalone release of the Rust engine.
 

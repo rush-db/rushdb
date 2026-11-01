@@ -42,11 +42,11 @@ fn cached_ann_generation_releases_shared_reservation_on_engine_drop() {
     // well above the old `generation_bytes() * 2` formula estimate this
     // budget used to assume was enough. 32 MiB comfortably covers it.
     let config = rushdb_storage::resources::StorageResources {
-        logical_cache_bytes: 32 * 1024 * 1024,
+        vector_cache_bytes: 32 * 1024 * 1024,
         ..Default::default()
     };
     let store = Arc::new(Store::new_with_resources(config).unwrap());
-    let budget = store.cache_budget().unwrap();
+    let budget = store.vector_cache_budget().unwrap();
     let engine = VectorEngine::new(Arc::new(Lmpg::new(
         Arc::clone(&store),
         TenantId::from_ordinal(74),
@@ -76,7 +76,7 @@ fn cached_ann_generation_releases_shared_reservation_on_engine_drop() {
     assert!(budget.snapshot().used > 0);
     drop(engine);
     // The engine's generation reservation is released; derived state lives
-    // on disk and charges nothing to the shared cache budget.
+    // on disk and charges nothing to the vector cache budget.
     assert_eq!(budget.snapshot().used, 0);
 }
 
@@ -123,7 +123,7 @@ fn ann_build_admission_uses_the_real_measured_peak_not_a_formula_estimate() {
     let n = 300usize;
 
     let learn_config = rushdb_storage::resources::StorageResources {
-        logical_cache_bytes: 64 * 1024 * 1024,
+        vector_cache_bytes: 64 * 1024 * 1024,
         ..Default::default()
     };
     let learn_store = Arc::new(Store::new_with_resources(learn_config).unwrap());
@@ -160,7 +160,7 @@ fn ann_build_admission_uses_the_real_measured_peak_not_a_formula_estimate() {
 
     // Comfortably over the real peak: admits.
     let fits_config = rushdb_storage::resources::StorageResources {
-        logical_cache_bytes: generous_limit,
+        vector_cache_bytes: generous_limit,
         ..Default::default()
     };
     let fits_store = Arc::new(Store::new_with_resources(fits_config).unwrap());
@@ -175,7 +175,7 @@ fn ann_build_admission_uses_the_real_measured_peak_not_a_formula_estimate() {
 
     // Comfortably under the real peak: rejects.
     let tight_config = rushdb_storage::resources::StorageResources {
-        logical_cache_bytes: tight_limit,
+        vector_cache_bytes: tight_limit,
         ..Default::default()
     };
     let tight_store = Arc::new(Store::new_with_resources(tight_config).unwrap());
@@ -1207,7 +1207,7 @@ fn space_larger_than_the_vector_budget_is_built_in_persisted_chunks() {
     let per_vector = crate::segment::build_bytes_per_vector(dims);
     // Room for about a third of the corpus at once.
     let config = rushdb_storage::resources::StorageResources {
-        logical_cache_bytes: n * per_vector / 3,
+        vector_cache_bytes: n * per_vector / 3,
         ..Default::default()
     };
     let store = Arc::new(Store::new_with_resources(config).unwrap());
@@ -1737,4 +1737,55 @@ fn binding_reads_stream_past_the_materialization_ceiling() {
             .unwrap();
         assert_eq!(outcome.hits.len(), 5);
     });
+}
+
+#[test]
+fn a_search_never_builds_more_than_a_tail_of_the_index() {
+    // VEC-4: bindings no persisted segment covers are indexed by the
+    // background warm-up, not by the search that finds them; that search
+    // answers exactly, and later ones by ANN once the index is resident.
+    let engine = Arc::new(VectorEngine::new(Arc::new(Lmpg::new(
+        Arc::new(Store::new_in_memory()),
+        TenantId::from_ordinal(79),
+    ))));
+    bind_many(&engine, "cold", 2, 10_050);
+    let space = engine.lookup_space_by_alias("cold").unwrap().unwrap();
+    let search = || {
+        let snap = engine.snapshot().unwrap();
+        engine
+            .search_in_view(
+                &snap,
+                &space,
+                &[1.0, 2.0],
+                5,
+                crate::search::SearchMode::Ann { ef: 64 },
+                None,
+                None,
+            )
+            .unwrap()
+    };
+    let first = search();
+    assert_eq!(
+        first.path,
+        crate::search::SearchPath::ExactFallback(crate::search::FallbackReason::Warming)
+    );
+    assert_eq!(first.hits.len(), 5);
+    let snap = engine.snapshot().unwrap();
+    engine.warm_ann_in_background(&snap, &space);
+    let started = std::time::Instant::now();
+    while !engine.ann_resident_in_view(&snap, &space).unwrap() {
+        assert!(started.elapsed() < std::time::Duration::from_secs(120));
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let warm = search();
+    assert_eq!(warm.path, crate::search::SearchPath::Ann);
+    // The fixture's vectors repeat, so equal scores may name other owners.
+    let scores = |outcome: &crate::search::SearchOutcome| {
+        outcome.hits.iter().map(|hit| hit.score).collect::<Vec<_>>()
+    };
+    assert_eq!(
+        scores(&warm),
+        scores(&first),
+        "ANN agrees with the exact answer"
+    );
 }

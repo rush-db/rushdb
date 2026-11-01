@@ -32,6 +32,11 @@ const HOT_SEGMENT_BACKSTOP: usize = 4 * HOT_SEGMENT_FREEZE_THRESHOLD;
 /// bounds how long one step holds the space's build gate.
 const MAX_BUILD_CHUNK: usize = 256_000;
 
+/// Most bindings a search indexes itself when the persisted segments do not
+/// cover the space (seconds of work); a larger rest is built in the
+/// background while searches answer exactly (VEC-4).
+const INLINE_BUILD_MAX: usize = 10_000;
+
 /// ANN searches answered exactly because the ANN budget could not admit the
 /// space's index (a legitimate degradation, exported as
 /// `rushdb_ann_exact_fallbacks_total`).
@@ -113,6 +118,13 @@ pub struct AnnEntry {
     /// Hash of the source value at bind time.
     pub value_hash: u64,
 }
+
+/// A space's assembled generation, backing and their reservation.
+type Assembled = (
+    AnnGeneration,
+    AnnBacking,
+    Option<rushdb_storage::resources::ByteReservation>,
+);
 
 pub(crate) struct CachedAnn {
     /// The space version (commit that last changed its bindings) this
@@ -203,12 +215,12 @@ fn measured_backing_bytes(backing: &AnnBacking, generation: &AnnGeneration, dims
 fn vector_cache_budget(
     store: &std::sync::Arc<rushdb_storage::Store>,
 ) -> Result<rushdb_storage::resources::ByteBudget, VectorError> {
-    // A resident ANN build must be byte-accounted. With the logical cache
-    // disabled (`resources.logical-cache-bytes: 0`) no ANN may be resident,
+    // A resident ANN build must be byte-accounted. With the vector cache
+    // disabled (`resources.vector-cache-bytes: 0`) no ANN may be resident,
     // so this is a budget refusal: search answers exactly, as it does when
     // a build does not fit.
     store.vector_cache_budget().ok_or_else(|| {
-        VectorError::AnnBudget("no logical cache budget (resources.logical-cache-bytes: 0)".into())
+        VectorError::AnnBudget("no vector cache budget (resources.vector-cache-bytes: 0)".into())
     })
 }
 
@@ -494,6 +506,19 @@ impl VectorEngine {
         snap: &ReadView,
         space: &crate::EmbeddingSpace,
     ) -> Result<Arc<CachedAnn>, VectorError> {
+        self.current_ann_within(snap, space, None)?
+            .ok_or_else(|| VectorError::Engine("unbounded ANN assembly declined".into()))
+    }
+
+    /// [`Self::current_ann`], declining (`None`) instead of building inline
+    /// when more than `inline` bindings are left after the persisted
+    /// segments are reopened.
+    pub(super) fn current_ann_within(
+        &self,
+        snap: &ReadView,
+        space: &crate::EmbeddingSpace,
+        inline: Option<usize>,
+    ) -> Result<Option<Arc<CachedAnn>>, VectorError> {
         let (_, version) = space_version(snap, self.tenant(), space.space_id)?;
         let cached = |engine: &Self| -> Result<Option<Arc<CachedAnn>>, VectorError> {
             Ok(engine
@@ -505,7 +530,7 @@ impl VectorEngine {
                 .cloned())
         };
         if let Some(cached) = cached(self)? {
-            return Ok(cached);
+            return Ok(Some(cached));
         }
         // One assembly per space at a time: concurrent misses wait
         // for it instead of each decoding the corpus.
@@ -516,13 +541,24 @@ impl VectorEngine {
                 .entry(space.space_id)
                 .or_default(),
         );
-        let _building = gate
-            .lock()
-            .map_err(|_| VectorError::Engine("ANN build gate poisoned".into()))?;
+        // A bounded search does not queue behind a running build either.
+        let _building = match (gate.try_lock(), inline) {
+            (Ok(guard), _) => guard,
+            (Err(std::sync::TryLockError::WouldBlock), Some(_)) => return Ok(None),
+            (Err(std::sync::TryLockError::WouldBlock), None) => gate
+                .lock()
+                .map_err(|_| VectorError::Engine("ANN build gate poisoned".into()))?,
+            (Err(std::sync::TryLockError::Poisoned(_)), _) => {
+                return Err(VectorError::Engine("ANN build gate poisoned".into()))
+            }
+        };
         if let Some(cached) = cached(self)? {
-            return Ok(cached);
+            return Ok(Some(cached));
         }
-        let (generation, backing, reservation) = self.assemble(snap, space, true)?;
+        let Some((generation, backing, reservation)) = self.assemble(snap, space, true, inline)?
+        else {
+            return Ok(None);
+        };
         self.admit_fresh_ann(
             space.space_id,
             version,
@@ -531,6 +567,7 @@ impl VectorEngine {
             space.dims as usize,
             reservation,
         )
+        .map(Some)
     }
 
     /// Builds a space's backing from its current bindings at `snap`
@@ -548,14 +585,8 @@ impl VectorEngine {
         snap: &ReadView,
         space: &crate::EmbeddingSpace,
         reopen: bool,
-    ) -> Result<
-        (
-            AnnGeneration,
-            AnnBacking,
-            Option<rushdb_storage::resources::ByteReservation>,
-        ),
-        VectorError,
-    > {
+        inline: Option<usize>,
+    ) -> Result<Option<Assembled>, VectorError> {
         let tenant = self.tenant();
         let dims = space.dims as usize;
         let bindings = load_ready_segment_entries(snap, tenant, space.space_id)?;
@@ -565,8 +596,10 @@ impl VectorEngine {
             VectorError::AnnBudget(error.to_string())
         };
         let decode = |slot: u64| {
-            let raw = snap.get(&emb_vector_key(tenant, space.space_id, slot))?;
-            crate::decode_vector(raw, space.dims)
+            crate::decode_vector(
+                snap.get(&emb_vector_key(tenant, space.space_id, slot))?,
+                space.dims,
+            )
         };
         #[cfg(feature = "turbovec")]
         if wants_provider(dims) {
@@ -582,18 +615,15 @@ impl VectorEngine {
                 reservation
                     .resize(measured_backing_bytes(&backing, &generation, dims))
                     .map_err(refuse)?;
-                return Ok((generation, backing, Some(reservation)));
+                return Ok(Some((generation, backing, Some(reservation))));
             }
         }
         let mut reservation = budget.try_reserve(0).map_err(refuse)?;
-        let set = crate::segment::SegmentSet::new();
-        let space_dir = self.space_dir(space.space_id);
-        if let (true, Some(dir)) = (reopen, space_dir.as_deref()) {
-            for segment in crate::segment::open_space_dir(dir, space.dims, space.similarity)? {
-                set.push(Arc::new(crate::segment::Segment::Frozen(segment)));
-            }
+        let (set, mut missing) = self.reopened(space, &bindings, reopen)?;
+        // Declined: the reopened segments are dropped; the build reopens them.
+        if inline.is_some_and(|inline| missing.len() > inline) {
+            return Ok(None);
         }
-        let mut missing = set.reconcile(&bindings);
         reservation.resize(set.measured_bytes()).map_err(refuse)?;
         if set.frozen_count() > 0 && missing.len() < HOT_SEGMENT_FREEZE_THRESHOLD {
             // A small tail next to reopened segments stays hot (f32,
@@ -653,7 +683,34 @@ impl VectorEngine {
         reservation
             .resize(measured_backing_bytes(&backing, &generation, dims))
             .map_err(refuse)?;
-        Ok((generation, backing, Some(reservation)))
+        Ok(Some((generation, backing, Some(reservation))))
+    }
+
+    /// The space's persisted segments (with `reopen`) reconciled against
+    /// its current `bindings`, and the bindings none of them covers.
+    fn reopened(
+        &self,
+        space: &crate::EmbeddingSpace,
+        bindings: &[crate::segment::SegmentEntry],
+        reopen: bool,
+    ) -> Result<
+        (
+            crate::segment::SegmentSet,
+            Vec<crate::segment::SegmentEntry>,
+        ),
+        VectorError,
+    > {
+        let set = crate::segment::SegmentSet::new();
+        if let (true, Some(dir)) = (reopen, self.space_dir(space.space_id).as_deref()) {
+            for segment in crate::segment::open_space_dir(dir, space.dims, space.similarity)? {
+                set.push(Arc::new(crate::segment::Segment::Frozen(segment)));
+            }
+        }
+        let missing = set.reconcile(bindings);
+        if reopen {
+            log_reopen(space.space_id, &set, bindings.len(), missing.len());
+        }
+        Ok((set, missing))
     }
 
     /// Shared tail of every "this space's generation was assembled" path:
@@ -1072,12 +1129,13 @@ impl VectorEngine {
         let source_commit_index = snap.commit_index();
         let (_, version) =
             space_version(&snap, self.tenant(), space.space_id).map_err(|e| e.to_string())?;
-        let (generation, backing, reservation) =
-            self.assemble(&snap, &space, false)
-                .map_err(|error| match error {
-                    VectorError::AnnBudget(reason) => format!("ANN build memory budget: {reason}"),
-                    other => other.to_string(),
-                })?;
+        let (generation, backing, reservation) = self
+            .assemble(&snap, &space, false, None)
+            .map_err(|error| match error {
+                VectorError::AnnBudget(reason) => format!("ANN build memory budget: {reason}"),
+                other => other.to_string(),
+            })?
+            .ok_or("an unbounded build declined")?;
         let manifest = AnnManifest {
             format_version: 1,
             source_commit_index,
@@ -1219,8 +1277,12 @@ impl VectorEngine {
         // The ANN is a cache over the canonical vectors: when the budget
         // cannot admit a build, answer exactly instead of failing the query
         // (C9, cloud-capacity F10).
-        let cached = match self.current_ann(snap, space) {
-            Ok(cached) => cached,
+        // A search waits for the persisted segments to be reopened, not for
+        // bindings no segment covers to be indexed: past a small tail that
+        // build is the background warm-up's, and this search answers exactly.
+        let cached = match self.current_ann_within(snap, space, Some(INLINE_BUILD_MAX)) {
+            Ok(Some(cached)) => cached,
+            Ok(None) => return exact(FallbackReason::Warming),
             Err(VectorError::AnnBudget(_)) => {
                 ANN_EXACT_FALLBACKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 return exact(FallbackReason::Budget);
@@ -1311,6 +1373,19 @@ impl VectorEngine {
         profile.emit(candidate_count);
         Ok((out, SearchPath::Ann))
     }
+}
+
+/// How much of a space its reopened segments cover (VEC-4: bindings no
+/// persisted segment covers are rebuilt before the space answers by ANN).
+fn log_reopen(space: u64, set: &crate::segment::SegmentSet, bindings: usize, uncovered: usize) {
+    tracing::info!(
+        target: "rushdb_vector::maintain",
+        space,
+        segments = set.frozen_count(),
+        bindings,
+        uncovered,
+        "reopened the space's persisted segments"
+    );
 }
 
 /// Whole-search timings (cache lookup, storage reads

@@ -36,6 +36,19 @@ fn value_matcher(search: &rushdb_protocol::ValueSearch) -> ValueMatcher {
     )
 }
 
+/// Whether a column described as `value_type` can hold a value matching
+/// `search`. `number` covers both int and float definitions; an unknown
+/// display type is always searched.
+fn display_type_may_match(search: &ValueMatcher, value_type: &str) -> bool {
+    use rushdb_types::model::LogicalType;
+    match value_type {
+        "number" => search.may_match(LogicalType::Int64) || search.may_match(LogicalType::Float64),
+        "boolean" => search.may_match(LogicalType::Boolean),
+        "datetime" => search.may_match(LogicalType::DateTime),
+        _ => true,
+    }
+}
+
 /// A `similar` search ranks by similarity, then by the count order already
 /// given; other searches keep it.
 fn rank_by_similarity(
@@ -732,21 +745,34 @@ impl ProtocolExecutor<'_> {
                     .node
                     .facet_value_digests(view, &ords, &property, access, &mut meter)
                     .map_err(execution_failed)?;
-                counts.retain(|(_, count, _)| access.counted(*count));
+                counts.retain(|(_, count, _, _)| access.counted(*count));
                 let distinct_count = Some(counts.len() as u64);
                 let (values, counts) = if mode == PropertyValuesMode::TopK {
                     let k = limit.unwrap_or(10).min(1000) as usize;
                     // Stable: equal counts keep first-seen order.
                     counts.sort_by_key(|entry| std::cmp::Reverse(entry.1));
                     counts.truncate(k);
-                    let owners: Vec<u64> = counts.iter().map(|(_, _, ord)| *ord).collect();
+                    let owners: Vec<u64> = counts.iter().map(|(_, _, ord, _)| *ord).collect();
                     let values = self
                         .node
                         .facet_values_of(view, &owners, &property, access, &mut meter)
                         .map_err(execution_failed)?;
+                    // An array element is read back from its first owner's array.
+                    let values = values
+                        .into_iter()
+                        .zip(&counts)
+                        .map(|(value, (_, _, _, element))| match (value, element) {
+                            (serde_json::Value::Array(mut items), Some(at))
+                                if *at < items.len() =>
+                            {
+                                items.swap_remove(*at)
+                            }
+                            (value, _) => value,
+                        })
+                        .collect();
                     (
                         values,
-                        counts.into_iter().map(|(_, count, _)| count).collect(),
+                        counts.into_iter().map(|(_, count, _, _)| count).collect(),
                     )
                 } else {
                     (Vec::new(), Vec::new())
@@ -889,6 +915,11 @@ impl ProtocolExecutor<'_> {
         let mut meter = self.node.working_set(is_cancelled, context.deadline());
         let mut by_label: std::collections::BTreeMap<String, Vec<String>> =
             std::collections::BTreeMap::new();
+        // The (label, property) pairs some stored type of which can hold the
+        // text; the rest are skipped unread (a word cannot match a number),
+        // which leaves the result unchanged.
+        let mut searchable: std::collections::BTreeSet<(String, String)> =
+            std::collections::BTreeSet::new();
         for column in self
             .node
             .catalog_columns(&view, labels, access)
@@ -898,8 +929,16 @@ impl ProtocolExecutor<'_> {
                 continue;
             }
             if let Some(label) = column.label {
+                if display_type_may_match(&wanted, &column.value_type) {
+                    searchable.insert((label.clone(), column.name.clone()));
+                }
                 by_label.entry(label).or_default().push(column.name);
             }
+        }
+        // A name split across types on one label is one column to search.
+        for properties in by_label.values_mut() {
+            let mut seen = std::collections::BTreeSet::new();
+            properties.retain(|name| seen.insert(name.clone()));
         }
         let mut matches: Vec<(f64, rushdb_protocol::ValueMatchRow)> = Vec::new();
         let mut skipped = Vec::new();
@@ -935,6 +974,9 @@ impl ProtocolExecutor<'_> {
             let scope = [label.clone()];
             let mut scanned = Vec::new();
             for property in properties {
+                if !searchable.contains(&(label.clone(), property.clone())) {
+                    continue;
+                }
                 meter.check().map_err(execution_failed)?;
                 let before = meter.charged();
                 let read = self.node.value_dictionary_in_view(
@@ -946,6 +988,27 @@ impl ProtocolExecutor<'_> {
                 );
                 // What is kept is small (at most `limit` per property); the
                 // dictionary's working set ends here.
+                // Values too long for the dictionary: matched from the
+                // owners that hold the property, when that answers alone.
+                let read = match read {
+                    Ok(None) => self
+                        .node
+                        .search_label_texts(
+                            view.as_ref(),
+                            &label,
+                            &property,
+                            &wanted,
+                            access,
+                            &mut meter,
+                        )
+                        .map(|found| {
+                            found.map(|mut found| {
+                                rank_values(&mut found);
+                                found
+                            })
+                        }),
+                    read => read,
+                };
                 meter.release(meter.charged() - before);
                 match read {
                     Ok(Some(ranked)) => keep(&label, &property, ranked, &mut matches),

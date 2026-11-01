@@ -1,17 +1,18 @@
-//! Per-adapter resource-budget attribution: a named child of the
-//! shared cache/phase budget per adapter (vector, SQL, graph), so each
-//! adapter's `peak`/`used` (a real, measured high-water mark — see
-//! [`crate::resources::ByteBudget::snapshot`]) is individually observable
-//! instead of only the two pooled totals. Each child's limit equals its
-//! parent's, so this is pure attribution: creating it does not narrow the
-//! shared capacity the adapters already contend on (see
-//! [`crate::resources::ByteBudget::child`]).
+//! Per-adapter resource budgets: the vector adapter's own cache budget
+//! (`vector_cache_bytes`, a child of the managed limit), and a named child of
+//! the shared phase budget per query adapter (SQL, graph), so each adapter's
+//! `peak`/`used` (a real, measured high-water mark — see
+//! [`crate::resources::ByteBudget::snapshot`]) is individually observable.
+//! Each phase child's limit equals its parent's, so those are pure
+//! attribution: they do not narrow the shared capacity the adapters contend
+//! on (see [`crate::resources::ByteBudget::child`]).
 
 use crate::resources::ByteBudget;
 use crate::{StorageError, Store};
 
-/// One named attribution child per adapter. `None` exactly when its parent
-/// budget (`logical_cache_resources` / `phase_resources`) is `None`.
+/// The vector cache budget and one named attribution child per query
+/// adapter. `None` exactly when its budget (`vector_cache_bytes` /
+/// `phase_resources`) is disabled.
 pub(crate) struct AdapterBudgets {
     vector_cache: Option<ByteBudget>,
     sql_phase: Option<ByteBudget>,
@@ -20,7 +21,7 @@ pub(crate) struct AdapterBudgets {
 
 impl AdapterBudgets {
     pub(crate) fn new(
-        cache: Option<&ByteBudget>,
+        vector_cache: Option<ByteBudget>,
         phase: Option<&ByteBudget>,
     ) -> Result<Self, StorageError> {
         let child = |parent: Option<&ByteBudget>, name: &'static str| {
@@ -30,7 +31,7 @@ impl AdapterBudgets {
                 .map_err(|e| StorageError::InvalidConfiguration(e.to_string()))
         };
         Ok(Self {
-            vector_cache: child(cache, "vector-cache")?,
+            vector_cache,
             sql_phase: child(phase, "sql-phase")?,
             graph_phase: child(phase, "graph-phase")?,
         })
@@ -38,7 +39,7 @@ impl AdapterBudgets {
 }
 
 impl Store {
-    /// The vector adapter's named child of [`Store::cache_budget`].
+    /// The vector adapter's cache budget (`vector_cache_bytes`).
     #[must_use]
     pub fn vector_cache_budget(&self) -> Option<ByteBudget> {
         self.adapter_budgets.vector_cache.clone()

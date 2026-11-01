@@ -47,6 +47,7 @@ Everything from [Filtering](filtering.md) works inside a block: operators,
 | `{ "DEPARTMENT": {} }` | Has at least one related `DEPARTMENT` record, through any relationship type, in either direction. |
 | `{ "DEPARTMENT": { "name": "Sales" } }` | Has a related `DEPARTMENT` whose `name` is `Sales`. |
 | `{ "DEPARTMENT": { "$or": [{ "name": "Sales" }, { "name": "Support" }] } }` | Logical combination evaluated on the same related record. |
+| `{ "DIAGNOSIS": { "CONCEPT": { "$or": [{ "name": "A" }, { "name": "B" }] } } }` | The same logic two blocks deep (or deeper), with or without a `$relation` beside it. |
 | `{ "DEPARTMENT": { "$id": "0192…" } }` | Is related to that specific record. |
 | `{ "$not": { "DEPARTMENT": {} } }` | Has no related `DEPARTMENT` record. |
 | `{ "DEPARTMENT": {...}, "OFFICE": {...} }` | Both conditions hold (each on its own related record). |

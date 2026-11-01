@@ -10,10 +10,7 @@ use rushdb_lmpg::reader::TryRead;
 use rushdb_types::value_match::ValueMatcher;
 
 /// A text property's exact distinct count and, when few, its values with owner counts.
-type ScannedText = (u64, Vec<(serde_json::Value, u64)>);
-/// Records one listing of long text values may read
-/// (`long_text_values_in_view`) before it leaves the values out.
-const LONG_VALUE_WALK: u64 = 65_536;
+pub(super) type ScannedText = (u64, Vec<(serde_json::Value, u64)>);
 impl RequestScope<'_> {
     // The tenant identity is collision-free and derived from the request
     // scope, so the keyspace prefix is the sole isolation boundary. Records
@@ -117,7 +114,7 @@ impl RequestScope<'_> {
     /// Typed scalar definitions `(type, pid)` of an unscoped record property,
     /// or `None` when no record ever carried the name.
     /// The property's scalar definitions of `types` (all when empty).
-    fn scalar_definitions_of(
+    pub(super) fn scalar_definitions_of(
         &self,
         view: &rushdb_storage::ReadView,
         property: &str,
@@ -133,7 +130,7 @@ impl RequestScope<'_> {
             }))
     }
 
-    fn scalar_definitions(
+    pub(super) fn scalar_definitions(
         &self,
         view: &rushdb_storage::ReadView,
         property: &str,
@@ -775,166 +772,6 @@ impl RequestScope<'_> {
         Ok(Some(out))
     }
 
-    /// Distinct count and, when it is at most `keep`, the values with their
-    /// owner counts (by descending count, ties by value) of a text property
-    /// on `label` that holds values too long for the dictionary. The count
-    /// is exact from the write-time counters: the dictionary's for short
-    /// values, the digest refcounts for long ones. Long values are digests
-    /// on disk, so listing them reads the label's records until every digest
-    /// is matched, at most `LONG_VALUE_WALK` records; past that the values
-    /// are left out and the count stays. `None` when the property has no
-    /// text definition.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one linear digest walk; splitting would scatter the shared read-view borrows"
-    )]
-    pub(crate) fn long_text_values_in_view(
-        &self,
-        view: &rushdb_storage::ReadView,
-        property: &str,
-        label: &str,
-        keep: u64,
-        meter: &mut WorkingSet<'_>,
-    ) -> Result<Option<ScannedText>, String> {
-        use rushdb_lmpg::derived;
-        use rushdb_types::keys as k;
-        use rushdb_types::model::LogicalType;
-        use std::collections::{BTreeMap, BTreeSet};
-        let Some(definitions) = self.scalar_definitions_of(view, property, &[LogicalType::Utf8])?
-        else {
-            return Ok(None);
-        };
-        if definitions.is_empty() {
-            return Ok(None);
-        }
-        let t = self.tenant();
-        let scope = [label.to_string()];
-        let mut short: BTreeMap<Vec<u8>, u64> = BTreeMap::new();
-        let mut long: BTreeMap<[u8; k::LONG_DIGEST_BYTES], u64> = BTreeMap::new();
-        let distinct = if let [(_, pid)] = definitions.as_slice() {
-            derived::label_distinct(view, t, OwnerKind::Record, label, *pid)
-                .map_err(|e| e.to_string())?
-        } else {
-            let mut entries: BTreeSet<Vec<u8>> = BTreeSet::new();
-            let mut digests = BTreeSet::new();
-            for (_, pid) in &definitions {
-                entries.extend(
-                    derived::dictionary(view, t, OwnerKind::Record, *pid, &scope)
-                        .map_err(|e| e.to_string())?
-                        .into_keys(),
-                );
-                digests.extend(
-                    derived::long_value_counts(view, t, OwnerKind::Record, label, *pid)
-                        .map_err(|e| e.to_string())?
-                        .into_iter()
-                        .map(|(digest, _)| digest),
-                );
-            }
-            (entries.len() + digests.len()) as u64
-        };
-        if distinct == 0 || distinct > keep {
-            return Ok(Some((distinct, Vec::new())));
-        }
-        // At most `keep` values from here on.
-        for (_, pid) in &definitions {
-            for (entry, count) in derived::dictionary(view, t, OwnerKind::Record, *pid, &scope)
-                .map_err(|e| e.to_string())?
-            {
-                *short.entry(entry).or_default() += count;
-            }
-            for (digest, count) in
-                derived::long_value_counts(view, t, OwnerKind::Record, label, *pid)
-                    .map_err(|e| e.to_string())?
-            {
-                *long.entry(digest).or_default() += count;
-            }
-        }
-        let decode = |entry: &[u8]| -> Option<serde_json::Value> {
-            let scalar =
-                rushdb_types::encoding::decode_order_preserving(LogicalType::Utf8, entry.get(1..)?)
-                    .ok()?;
-            Some(rushdb_types::value::scalar_to_json(&scalar))
-        };
-        let mut found: BTreeMap<[u8; k::LONG_DIGEST_BYTES], serde_json::Value> = BTreeMap::new();
-        let mut held = 0u64;
-        let mut walked = 0u64;
-        let mut outcome: Result<(), String> = Ok(());
-        'walk: for (_, pid) in &definitions {
-            if found.len() == long.len() {
-                break;
-            }
-            let prefix =
-                k::presence_nullness_prefix(t, OwnerKind::Record, label, *pid, k::NULLNESS_VALUE);
-            let (start, end) = rushdb_storage::prefix_range(&prefix);
-            let mut visit = |key: &[u8]| -> Result<bool, String> {
-                walked += 1;
-                if walked > LONG_VALUE_WALK {
-                    return Ok(false);
-                }
-                if walked.is_multiple_of(1024) {
-                    meter.check()?;
-                }
-                let (_, _, _, _, owner) =
-                    k::parse_presence_key(key).ok_or("corrupt presence row")?;
-                let rows = view
-                    .range_prefix(&k::occ_pid_prefix(t, OwnerKind::Record, owner, *pid))
-                    .map_err(|e| e.to_string())?;
-                for (_, raw) in rows {
-                    let occ = rushdb_types::occurrence::decode_occ_value(&raw)
-                        .map_err(|_| "corrupt occurrence row".to_string())?;
-                    if occ.entry.len() <= k::DICT_MAX_VALUE_BYTES {
-                        continue;
-                    }
-                    let digest = k::long_value_digest(occ.entry);
-                    if !long.contains_key(&digest) || found.contains_key(&digest) {
-                        continue;
-                    }
-                    if let Some(value) = decode(occ.entry) {
-                        let bytes = value_bytes(occ.entry.len());
-                        meter.charge(bytes)?;
-                        held += bytes;
-                        found.insert(digest, value);
-                    }
-                }
-                Ok(found.len() < long.len())
-            };
-            view.for_each_row(&start, &end, &mut |key, _| match visit(key) {
-                Ok(more) => more,
-                Err(error) => {
-                    outcome = Err(error);
-                    false
-                }
-            })
-            .map_err(|e| e.to_string())?;
-            if outcome.is_err() || walked > LONG_VALUE_WALK {
-                break 'walk;
-            }
-        }
-        meter.release(held);
-        outcome?;
-        if found.len() < long.len() {
-            // Not every long value was reached within the walk.
-            return Ok(Some((distinct, Vec::new())));
-        }
-        let mut values: Vec<(serde_json::Value, u64)> = short
-            .into_iter()
-            .filter_map(|(entry, count)| Some((decode(&entry)?, count)))
-            .chain(
-                found
-                    .into_iter()
-                    .map(|(digest, value)| (value, long[&digest])),
-            )
-            .collect();
-        values.sort_by(|a, b| {
-            b.1.cmp(&a.1).then_with(|| {
-                let left = serde_json::to_string(&a.0).unwrap_or_default();
-                let right = serde_json::to_string(&b.0).unwrap_or_default();
-                left.cmp(&right)
-            })
-        });
-        Ok(Some((distinct, values)))
-    }
-
     /// Whether vector writes/searches must carry an explicit index name.
     #[must_use]
     pub fn require_vector_index_name(&self) -> bool {
@@ -1008,8 +845,8 @@ impl RequestScope<'_> {
             .flatten()
     }
 
-    /// Exact `(min, max)` of `pid` on `label` from the label's value
-    /// dictionary, whose entries sort in value order; `None` when the
+    /// Exact `(min, max)` of `pid` on `label` from the bounds of the label's
+    /// value dictionary, whose entries sort in value order; `None` when the
     /// dictionary does not hold every value (arrays, long strings) or holds
     /// none. Datetimes render as records do.
     fn exact_range(
@@ -1031,25 +868,18 @@ impl RequestScope<'_> {
         if !self.dictionary_answers(view, pid, &scope)? {
             return Ok(None);
         }
-        let mut first: Option<Vec<u8>> = None;
-        let mut last: Option<Vec<u8>> = None;
-        rushdb_lmpg::derived::for_each_dictionary_entry(
+        // Entries whose count falls to zero are deleted on write, so the
+        // first and last key are the live minimum and maximum: a few dozen
+        // seeks, not a walk of the dictionary.
+        let (first, last) = rushdb_lmpg::derived::dictionary_bounds(
             view,
             self.tenant(),
             OwnerKind::Record,
+            label,
             pid,
-            &scope,
-            &mut |entry, count| {
-                if count > 0 {
-                    if first.is_none() {
-                        first = Some(entry.to_vec());
-                    }
-                    last = Some(entry.to_vec());
-                }
-                true
-            },
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?
+        .unzip();
         let decode = |entry: Option<Vec<u8>>| -> Result<Option<serde_json::Value>, String> {
             let Some(entry) = entry else {
                 return Ok(None);
@@ -1250,15 +1080,34 @@ impl RequestScope<'_> {
         let ords: &[u64] = match matched {
             // The caller resolved this filtered query's match set already.
             Some(ords) if !where_empty => ords,
+            // The unfiltered sample reads only the first records of each
+            // label (10k shared between the labels, at least 1k each), so
+            // the read does not grow with a label and a label written after
+            // others still has samples.
+            _ if where_empty => {
+                let labels = if parsed.search.labels.is_empty() {
+                    self.labels_in_view(view)?
+                } else {
+                    parsed.search.labels.clone()
+                };
+                let each = (10_000 / labels.len().max(1)).max(1_000);
+                let mut sample = Vec::new();
+                for label in labels {
+                    let search = rushdb_query::SearchRequest {
+                        labels: vec![label],
+                        ..parsed.search.clone()
+                    };
+                    sample.extend(self.facet_ordinals_first(view, &search, each, is_cancelled)?);
+                }
+                sample.sort_unstable();
+                sample.dedup();
+                resolved = sample;
+                &resolved
+            }
             _ => {
                 resolved = self.facet_ordinals(view, &parsed.search, is_cancelled)?;
                 &resolved
             }
-        };
-        let ords = if where_empty {
-            &ords[..ords.len().min(10_000)]
-        } else {
-            ords
         };
         let described: std::collections::HashSet<u64> = meta
             .values()

@@ -300,7 +300,7 @@ fn revalidate_reports_ann_build_failure_without_failing_reconciliation() {
     // report the derived-build failure instead of returning an error over a
     // partial mutation.
     let mut cfg = ServerConfig::default();
-    cfg.resources.logical_cache_bytes = rushdb_server::resource_config::ByteSize(64);
+    cfg.resources.vector_cache_bytes = rushdb_server::resource_config::ByteSize(64);
     let n = Node::bootstrap(&mut cfg).unwrap();
     let alias = "emb__REVAL__embedding__cosine__2";
     n.scope()
@@ -338,11 +338,11 @@ fn revalidate_reports_ann_build_failure_without_failing_reconciliation() {
 
 #[test]
 fn zero_cache_budget_refuses_resident_ann_and_searches_exactly() {
-    // With the logical cache budget disabled there is no bound on a resident
+    // With the vector cache budget disabled there is no bound on a resident
     // ANN build: the build is refused with an actionable error, and an `ef`
     // search answers exactly instead of failing.
     let mut cfg = ServerConfig::default();
-    cfg.resources.logical_cache_bytes = rushdb_server::resource_config::ByteSize(0);
+    cfg.resources.vector_cache_bytes = rushdb_server::resource_config::ByteSize(0);
     let n = Node::bootstrap(&mut cfg).unwrap();
     let alias = "emb__ZERO__embedding__cosine__2";
     n.scope()
@@ -373,7 +373,7 @@ fn zero_cache_budget_refuses_resident_ann_and_searches_exactly() {
         .as_str()
         .expect("zero cache budget must fail the ANN build");
     assert!(
-        error.contains("logical cache budget"),
+        error.contains("vector cache budget"),
         "error must name the missing budget: {error}"
     );
     let query = |ef: Option<usize>| VectorQuery {
@@ -1133,7 +1133,7 @@ fn unfiltered_vector_search_excludes_deleted_records() {
 fn ann_search_falls_back_to_exact_when_the_budget_cannot_admit_a_build() {
     let mut cfg = ServerConfig::default();
     // Room for the store's own needs, far too little for any ANN build.
-    cfg.resources.logical_cache_bytes = rushdb_server::resource_config::ByteSize(64 * 1024);
+    cfg.resources.vector_cache_bytes = rushdb_server::resource_config::ByteSize(64 * 1024);
     let n = Node::bootstrap(&mut cfg).unwrap();
     let alias = "tiny-budget";
     n.scope()

@@ -11,6 +11,13 @@ type KeyValueRows = Vec<(Vec<u8>, Vec<u8>)>;
 /// not implement an infallible counterpart, so a disk error cannot become a
 /// missing record.
 pub trait TryRead {
+    /// The owner-set cache of the committed snapshot this reader reads and
+    /// that snapshot's commit index; `None` (the default) for any reader
+    /// whose rows are not exactly a committed snapshot (transactions,
+    /// overlays of staged writes).
+    fn owner_sets(&self) -> Option<(&rushdb_storage::owner_sets::OwnerSets, u64)> {
+        None
+    }
     /// Returns the value stored at `k`, or `None` if absent.
     ///
     /// # Errors
@@ -154,6 +161,12 @@ impl TryRead for rushdb_storage::Store {
 pub mod try_access;
 
 impl TryRead for rushdb_storage::ReadView {
+    fn owner_sets(&self) -> Option<(&rushdb_storage::owner_sets::OwnerSets, u64)> {
+        Some((
+            rushdb_storage::ReadView::owner_sets(self),
+            self.commit_index(),
+        ))
+    }
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
         rushdb_storage::ReadView::get(self, key)
     }
@@ -286,6 +299,9 @@ impl TryRead for rushdb_storage::OverlayView {
 }
 
 impl<R: TryRead + ?Sized> TryRead for &R {
+    fn owner_sets(&self) -> Option<(&rushdb_storage::owner_sets::OwnerSets, u64)> {
+        (*self).owner_sets()
+    }
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
         (*self).get(key)
     }
@@ -349,6 +365,9 @@ impl<R: TryRead + ?Sized> TryRead for &R {
 }
 
 impl<R: TryRead> TryRead for std::sync::Arc<R> {
+    fn owner_sets(&self) -> Option<(&rushdb_storage::owner_sets::OwnerSets, u64)> {
+        self.as_ref().owner_sets()
+    }
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
         self.as_ref().get(key)
     }

@@ -327,6 +327,9 @@ impl QueryParser for SqlQueryParser {
             return Err(err("0A000", TRANSACTIONS_UNSUPPORTED.to_owned()));
         }
         if let Some(command) = settings::parse(sql) {
+            if let settings::Command::Unsupported(name) = command {
+                return Err(settings::unsupported(&name));
+            }
             return Ok(PreparedSql {
                 sql: sql.to_owned(),
                 parameter_types: Vec::new(),
@@ -345,6 +348,9 @@ impl QueryParser for SqlQueryParser {
                 result_fields,
             });
         }
+        let tenant = scope(client, self.multitenant);
+        let bound = session_sql(sql, tenant.as_deref());
+        let sql = bound.as_str();
         if mutation_tag(sql).is_some_and(|tag| tag.ends_with("INDEX")) {
             // Index DDL binds no parameters and returns no rows.
             return Ok(PreparedSql {
@@ -357,12 +363,11 @@ impl QueryParser for SqlQueryParser {
             // DML has a separate descriptor because the read descriptor
             // deliberately rejects mutations. This gives a standard client
             // concrete parameter OIDs before Bind without executing a write.
-            let tenant = scope(client, self.multitenant);
             let lmpg = RequestScope::new(&self.node, tenant).lmpg();
             let description =
                 rushdb_sql::describe_sql_mutation_async(&lmpg, sql, Some(self.node.text_indexes()))
                     .await;
-            let description = description.map_err(|error| err("42601", error.to_string()))?;
+            let description = description.map_err(described_err)?;
             let inferred = description
                 .parameters
                 .iter()
@@ -383,11 +388,10 @@ impl QueryParser for SqlQueryParser {
                 result_fields: Vec::new(),
             });
         }
-        let tenant = scope(client, self.multitenant);
         let lmpg = RequestScope::new(&self.node, tenant).lmpg();
         let description =
             rushdb_sql::describe_sql_async(&lmpg, sql, Some(self.node.text_indexes())).await;
-        let description = description.map_err(|error| err("42601", error.to_string()))?;
+        let description = description.map_err(described_err)?;
 
         let inferred = description
             .parameters
@@ -493,8 +497,34 @@ fn scope<C: ClientInfo>(c: &C, tenant: bool) -> Option<String> {
         .flatten()
 }
 fn perr(e: ProtocolError) -> PgWireError {
-    let c = sqlstate(e.code);
+    let c = refined_sqlstate(e.code, &e.message);
     err(c, e.message)
+}
+
+/// A statement that fails to describe at Parse fails as it would execute.
+fn described_err(error: rushdb_sql::SqlError) -> PgWireError {
+    perr(crate::protocol::sql_failed(error))
+}
+
+/// The SQLSTATE PostgreSQL clients expect where one protocol code covers
+/// several: an unknown column (42703) or function (42883) is not found like
+/// an unknown table (42P01); a value that does not cast or divide is a data
+/// exception (22xxx), not a syntax error.
+fn refined_sqlstate(code: ErrorCode, message: &str) -> &'static str {
+    match code {
+        ErrorCode::NotFound if message.contains("No field named") => "42703",
+        ErrorCode::NotFound if message.contains("Invalid function") => "42883",
+        ErrorCode::InvalidRequest if message.starts_with("SQL value is invalid:") => {
+            if message.contains("Divide by zero") {
+                "22012"
+            } else if message.contains("Overflow") || message.contains("overflow") {
+                "22003"
+            } else {
+                "22P02"
+            }
+        }
+        _ => sqlstate(code),
+    }
 }
 
 /// Shared pgwire SQLSTATE taxonomy: the same `ErrorCode` maps to the same
@@ -560,6 +590,29 @@ fn builtin_result_fields(sql: &str) -> Option<Vec<(String, Type)>> {
         _ => None,
     }
 }
+/// The user every pgwire session runs as, as `current_user` answers.
+const SESSION_USER: &str = "rushdb";
+
+/// `sql` with PostgreSQL's session information functions bound to this
+/// session's values, so they work beside other expressions (the exact
+/// one-function forms are answered by [`builtin`]).
+fn session_sql(sql: &str, tenant: Option<&str>) -> String {
+    let database = tenant.unwrap_or("rushdb");
+    rushdb_sql::bind_session_functions(
+        sql,
+        &[
+            ("current_database", database),
+            ("current_catalog", database),
+            ("current_user", SESSION_USER),
+            ("session_user", SESSION_USER),
+            ("current_role", SESSION_USER),
+            ("current_schema", "public"),
+            ("version", "RushDB pgwire 0.40"),
+        ],
+    )
+    .unwrap_or_else(|| sql.to_owned())
+}
+
 async fn run_async(
     node: Arc<Node>,
     tenant: Option<String>,
@@ -573,7 +626,7 @@ async fn run_async(
             &node,
             tenant.as_deref(),
             &statement,
-            "rushdb",
+            SESSION_USER,
             parameters,
             request_timeout_ms,
             session,
@@ -663,16 +716,25 @@ fn run(
         }
         RushResponse::StatementMutation { affected, .. } => {
             let tag = mutation.expect("statement mutation must originate from a mutation tag");
-            Ok(PgExecution::Command(if tag.ends_with("INDEX") {
-                Tag::new(tag)
-            } else {
-                Tag::new(tag).with_rows(usize::try_from(affected).unwrap_or(usize::MAX))
-            }))
+            Ok(PgExecution::Command(command_tag(tag, affected)))
         }
         response => Err(ProtocolError::new(
             ErrorCode::ProtocolViolation,
             format!("unexpected SQL response over pgwire: {response:?}"),
         )),
+    }
+}
+
+/// The `CommandComplete` tag of a statement mutation that affected
+/// `affected` rows.
+fn command_tag(tag: &str, affected: u64) -> Tag {
+    let rows = usize::try_from(affected).unwrap_or(usize::MAX);
+    match tag {
+        _ if tag.ends_with("INDEX") => Tag::new(tag),
+        // `INSERT oid rows`: the oid is always 0 since PostgreSQL 12, and
+        // clients (psql, psycopg) parse only the three-part form.
+        "INSERT" => Tag::new(tag).with_oid(0).with_rows(rows),
+        _ => Tag::new(tag).with_rows(rows),
     }
 }
 
@@ -910,6 +972,11 @@ impl SimpleQueryHandler for DbHandler {
             return Ok(vec![setting_response(c, command, &Format::UnifiedText)?]);
         }
         let session = settings::limits(c.metadata())?;
+        let s = &if builtin_result_fields(s).is_some() {
+            s.to_owned()
+        } else {
+            session_sql(s, scope(c, self.multitenant).as_deref())
+        };
         let execution = run_async(
             Arc::clone(&self.node),
             scope(c, self.multitenant),
@@ -933,7 +1000,7 @@ impl SimpleQueryHandler for DbHandler {
                 rushdb_sql::describe_sql_async(&lmpg, s, Some(self.node.text_indexes())).await;
             Arc::new(prepared_fields(
                 &description
-                    .map_err(|error| err("42601", error.to_string()))?
+                    .map_err(described_err)?
                     .columns
                     .into_iter()
                     .map(|column| (column.name, pg_type(&column.data_type)))
@@ -1057,6 +1124,63 @@ mod tests {
         worker.join().unwrap();
         assert!(matches!(client.read(&mut reply), Ok(0) | Err(_)));
         assert!(std::net::TcpStream::connect(("127.0.0.1", port)).is_err());
+    }
+
+    #[test]
+    fn mutation_command_tags_are_postgres_shaped() {
+        // PGW-1: `INSERT 1` made psql report "could not interpret result"
+        // and psycopg's rowcount -1.
+        let tag = |command, affected| {
+            pgwire::messages::response::CommandComplete::from(command_tag(command, affected)).tag
+        };
+        assert_eq!(tag("INSERT", 1), "INSERT 0 1");
+        assert_eq!(tag("UPDATE", 2), "UPDATE 2");
+        assert_eq!(tag("DELETE", 0), "DELETE 0");
+        assert_eq!(tag("CREATE INDEX", 1), "CREATE INDEX");
+    }
+
+    #[test]
+    fn statement_errors_refine_their_sqlstate() {
+        let state = |code, message| refined_sqlstate(code, message);
+        assert_eq!(
+            state(
+                ErrorCode::NotFound,
+                "SQL planning failed: No field named nosuchcol."
+            ),
+            "42703"
+        );
+        assert_eq!(
+            state(
+                ErrorCode::NotFound,
+                "SQL planning failed: Invalid function 'f'"
+            ),
+            "42883"
+        );
+        assert_eq!(
+            state(
+                ErrorCode::NotFound,
+                "SQL planning failed: table 't' not found"
+            ),
+            "42P01"
+        );
+        assert_eq!(
+            state(
+                ErrorCode::InvalidRequest,
+                "SQL value is invalid: Cannot cast string 'x' to value of Int64 type"
+            ),
+            "22P02"
+        );
+        assert_eq!(
+            state(
+                ErrorCode::InvalidRequest,
+                "SQL value is invalid: Divide by zero error"
+            ),
+            "22012"
+        );
+        assert_eq!(
+            state(ErrorCode::InvalidRequest, "SQL parse failed: x"),
+            "42601"
+        );
     }
 
     #[test]

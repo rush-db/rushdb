@@ -65,7 +65,8 @@ interact and for common setups, see
 | `--transaction-pool` | `RUSHDB_TRANSACTION_POOL` | `resources.transaction-pool` | bytes | `128MiB` | Shared pool for staged transaction payloads. |
 | `--deployment-limit` | `RUSHDB_DEPLOYMENT_LIMIT` | `resources.deployment-limit` | bytes | none | Optional declared memory cap of the host or container. When set, `managed-limit + memory-headroom` must fit inside it. Not detected automatically. |
 | `--memory-headroom` | `RUSHDB_MEMORY_HEADROOM` | `resources.memory-headroom` | bytes | `128MiB` | Untracked allowance reserved inside `deployment-limit`. Must be positive. |
-| `--logical-cache-bytes` | `RUSHDB_LOGICAL_CACHE_BYTES` | `resources.logical-cache-bytes` | bytes | `128MiB` | Byte-accounted caches: ANN vector segments, text indexes, planner statistics. `0` disables them. |
+| `--logical-cache-bytes` | `RUSHDB_LOGICAL_CACHE_BYTES` | `resources.logical-cache-bytes` | bytes | `128MiB` | Byte-accounted caches: text indexes, planner statistics, metadata and property caches. `0` disables them. |
+| `--vector-cache-bytes` | `RUSHDB_VECTOR_CACHE_BYTES` | `resources.vector-cache-bytes` | bytes | `256MiB` | Resident ANN indexes of vector spaces (~150 B per vector of a 768-dimension space). `0` keeps none resident: vector searches answer exactly. |
 | `--planner-stats-bytes` | `RUSHDB_PLANNER_STATS_BYTES` | `resources.planner-stats-bytes` | bytes | `32MiB` | Evictable planner-statistics cache, charged to the logical cache. `0` disables caching. |
 | `--planner-stats-idle-seconds` | `RUSHDB_PLANNER_STATS_IDLE_SECONDS` | `resources.planner-stats-idle-seconds` | u64 | `600` | Seconds an unused planner-statistics entry stays cached. |
 | `--planner-stats-max-age-commits` | `RUSHDB_PLANNER_STATS_MAX_AGE_COMMITS` | `resources.planner-stats-max-age-commits` | u64 | `10000` | Commits after which a cached statistics entry is recomputed. |

@@ -29,6 +29,7 @@ mod maintenance;
 mod memory_backend;
 mod observability;
 mod overlay_view;
+pub mod owner_sets;
 mod persist;
 pub mod planner_stats;
 mod publish;
@@ -617,6 +618,7 @@ pub struct Store {
     /// Per-adapter attribution children of the two budgets above.
     adapter_budgets: adapter_budgets::AdapterBudgets,
     planner_stats: Arc<planner_stats::PlannerStats>,
+    owner_sets: Arc<owner_sets::OwnerSets>,
     resource_config: resources::StorageResources,
     data: Arc<RwLock<BTreeMap<Vec<u8>, Vec<u8>>>>,
     /// creation commit index per live key (multi-version reads).
@@ -764,9 +766,12 @@ impl Store {
         let phase_resources = optional_child("query-phases", config.phase_budget_bytes)?;
         let logical_cache_resources = optional_child("logical-cache", config.logical_cache_bytes)?;
         let adapter_budgets = adapter_budgets::AdapterBudgets::new(
-            logical_cache_resources.as_ref(),
+            optional_child("vector-cache", config.vector_cache_bytes)?,
             phase_resources.as_ref(),
         )?;
+        let owner_sets = Arc::new(owner_sets::OwnerSets::new(
+            logical_cache_resources.as_ref(),
+        )?);
         let planner_stats = Arc::new(planner_stats::PlannerStats::new(
             &config,
             logical_cache_resources.as_ref(),
@@ -799,6 +804,7 @@ impl Store {
             phase_resources,
             adapter_budgets,
             planner_stats,
+            owner_sets,
             resource_config: config,
             data: Arc::clone(&maps.data),
             created: Arc::clone(&maps.created),

@@ -168,8 +168,20 @@ SQL see only what it allows: `describe` `schema`, `labels`, `properties`,
 relationship shapes of allowed types between allowed labels, and an SQL
 `SELECT` sees a table per allowed label with its visible columns and an edge
 table per allowed type (see [SQL](../languages/sql.md#under-a-data-access-policy)).
-A hidden label, property or type is never named, counted or suggested. Read
-paths that cannot apply a policy still fail closed with `unauthorized`
+A hidden label, property or type is never named, counted or suggested.
+
+A record query may use only what the policy shows. A filter, sort, group-by or
+metric (`$sum`, `$max`, …) on a hidden property is refused with `unauthorized`,
+because the records it selects, or their order, would reveal the hidden values
+even with the property masked from the output. A traversal through a denied
+relationship type is refused in the same way. So is a traversal that names no
+`$relation` type while the policy denies any type, since it could cross a
+denied one, and a traversal that names no endpoint label unless every label is
+allowed. Filtering on visible properties, including across allowed
+relationship types, works as without a policy. SQL plans only against the
+visible columns, so `WHERE salary > 150` on a hidden `salary` fails to plan.
+
+Read paths that cannot apply a policy still fail closed with `unauthorized`
 (`policy-enforced reads are unavailable for this adapter`): Cypher, GQL,
 Gremlin, SQL/PGQ and Mongo statements, `joinPairs`, `vectorIndexCandidates`,
 `text`, `backup` and `describe.explain`.

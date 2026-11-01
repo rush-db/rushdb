@@ -157,14 +157,20 @@ pub(crate) fn sql_failed(error: rushdb_sql::SqlError) -> ProtocolError {
     let message = error.to_string();
     match error {
         SqlError::Parse(_)
+        | SqlError::Plan(_)
+        | SqlError::InvalidValue(_)
         | SqlError::InvalidIdentity(_)
         | SqlError::TextSearch(_)
         | SqlError::UnindexedWalk(_) => ProtocolError::new(ErrorCode::InvalidRequest, message),
+        // An unknown column or function is not found, like an unknown table.
+        SqlError::Undefined(_) => ProtocolError::new(ErrorCode::NotFound, message),
         SqlError::ReadOnly(_) => ProtocolError::new(
             ErrorCode::InvalidRequest,
             format!("{message}; send writes as mutate.statement"),
         ),
-        SqlError::UnsupportedMutation(_) => ProtocolError::new(ErrorCode::Unsupported, message),
+        SqlError::Unsupported(_) | SqlError::UnsupportedMutation(_) => {
+            ProtocolError::new(ErrorCode::Unsupported, message)
+        }
         SqlError::ResourceLimit(_) | SqlError::MemoryLimit(_) => {
             ProtocolError::new(ErrorCode::ResourceExhausted, message).with_retryable(false)
         }
@@ -227,6 +233,15 @@ pub(crate) fn language_execution_failed(error: rushdb_language::LanguageError) -
         LanguageError::Query { .. } if message.contains("GRAFEO-X") => {
             if message.contains(" require the ") {
                 ProtocolError::new(ErrorCode::Unsupported, message)
+            } else if message.contains("Unsupported expression type for property source") {
+                // Grafeo plans a CREATE property only from a literal, a
+                // parameter, a variable or a property: say so, not "internal".
+                ProtocolError::new(
+                    ErrorCode::Unsupported,
+                    "GRAFEO-X001: a computed property value in CREATE (a list index, CASE, \
+                     arithmetic or a function call) is not supported; compute it in a WITH \
+                     clause first: WITH r[0] AS v CREATE (n {p: v})",
+                )
             } else {
                 execution_failed(message)
             }

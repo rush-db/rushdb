@@ -185,8 +185,10 @@ sequenceDiagram
 
 ## Memory budget
 
-ANN structures are charged to the **vector cache budget**, a named child of
-the shared logical-cache pool (`logical-cache-bytes`, default 128 MiB):
+ANN structures are charged to the **vector cache budget**
+(`vector-cache-bytes`, default 256 MiB), a pool of its own under
+`managed-limit`, so a large space does not compete with the text and planner
+caches of `logical-cache-bytes`:
 
 1. Before decoding any vector, a build reserves its working set: about
    `2 × dimensions + 320` bytes per vector (checked against real builds).
@@ -195,7 +197,11 @@ the shared logical-cache pool (`logical-cache-bytes`, default 128 MiB):
    file-backed space larger than the budget is still built. A chunk that
    cannot be reserved refuses the build (the search answers exactly); the
    chunks already persisted are reopened by the next search. One build
-   per space runs at a time; concurrent searches wait for it.
+   per space runs at a time. A search never waits for one: it reopens the
+   persisted segments and indexes at most a 10,000-vector tail itself;
+   when more is uncovered, or a build is already running, it answers
+   exactly (`fallback: "annWarming"`) and the rest is built in the
+   background.
 2. After the build, the reservation is resized to the structure's real
    measured size (for a file-backed segment, its entries and live map: the
    mapped file is page cache, not charged).
@@ -205,8 +211,8 @@ the shared logical-cache pool (`logical-cache-bytes`, default 128 MiB):
 4. When the budget cannot admit a space's index, the search answers
    exactly and increments `rushdb_ann_exact_fallbacks_total`.
 
-> **Note:** ANN requires a logical cache budget. With
-> `logical-cache-bytes: 0` there is nothing to bound ANN memory, so no
+> **Note:** ANN requires a vector cache budget. With
+> `vector-cache-bytes: 0` there is nothing to bound ANN memory, so no
 > ANN is built and every search answers exactly.
 
 The per-tenant vector engine itself is a resident handle governed by

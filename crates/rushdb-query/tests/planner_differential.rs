@@ -294,15 +294,9 @@ fn count_only_aggregate_equals_the_scan_count() {
         let (buckets, total) =
             rushdb_query::aggregate_with_cancel(&lmpg, &aggregate, &|| false).unwrap();
         assert_eq!(total, expected, "case {i}: {case}");
-        if expected == 0 {
-            assert!(
-                buckets.is_empty(),
-                "case {i}: zero matches yields no bucket"
-            );
-        } else {
-            assert_eq!(buckets.len(), 1, "case {i}");
-            assert_eq!(buckets[0].count_roots, expected, "case {i}: {case}");
-        }
+        // Zero matches is still one row, of 0, as in SQL.
+        assert_eq!(buckets.len(), 1, "case {i}");
+        assert_eq!(buckets[0].count_roots, expected, "case {i}: {case}");
     }
 }
 

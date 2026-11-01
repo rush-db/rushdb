@@ -39,6 +39,10 @@ pub enum FallbackReason {
     Budget,
     /// The gather found too few candidates passing the filter.
     LowConfidence,
+    /// The persisted index does not cover the space and the rest must be
+    /// built first: that build runs in the background
+    /// ([`VectorEngine::warm_ann_in_background`]), not on the request.
+    Warming,
 }
 
 /// The path that answered a search.

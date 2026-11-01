@@ -198,7 +198,7 @@ impl ProtocolExecutor<'_> {
             },
             IndexOperation::Drop { name } => {
                 self.node.drop_index(&name).map_err(execution_failed)?;
-                Response::Mutation { affected: 1 }
+                Response::mutation(1)
             }
             IndexOperation::CreateVector { definition } => {
                 let index = self
@@ -211,7 +211,7 @@ impl ProtocolExecutor<'_> {
                 self.node
                     .drop_vector_index_with_execution_context(execution_context, &name)
                     .map_err(execution_failed)?;
-                Response::Mutation { affected: 1 }
+                Response::mutation(1)
             }
             IndexOperation::UpsertVectors { name, items } => {
                 let requested = items.len() as u64;

@@ -12,7 +12,7 @@ use rushdb_types::index::IndexDef;
 use rushdb_types::model::LogicalType;
 use rushdb_types::value::{normalize_name, Scalar};
 
-use crate::planner::{extend_owners, range_scalar_matches, scalar_variants, OwnerSet, RangeOp};
+use crate::planner::{range_scalar_matches, scalar_variants, BoundedOwners, OwnerSet, RangeOp};
 use crate::{Expr, FieldPred, QueryError};
 
 type Json = serde_json::Value;
@@ -58,12 +58,13 @@ fn scan<R: TryRead>(
     // Streamed straight into the owner set: an entry range of millions of
     // owners never exists as a row list.
     let mut over_budget = None;
+    let mut owners = BoundedOwners::new(owners, owner_limit);
     for def in defs {
         index::for_each_entry(snap, tenant, def.id, start, end, &mut |entry, owner| {
             if !keep(entry) {
                 return true;
             }
-            match extend_owners(owners, std::iter::once(owner), owner_limit) {
+            match owners.insert(owner) {
                 Ok(()) => true,
                 Err(error) => {
                     over_budget = Some(error);
@@ -239,6 +240,42 @@ pub(crate) fn leaf_owners<R: TryRead>(
     let Some(defs) = covering(snap, tenant, name, labels)? else {
         return Ok(None);
     };
+    // A leaf's set is a function of the snapshot: readers of one snapshot
+    // share it instead of each reading every index entry again.
+    let cache = snap.owner_sets();
+    let ids: Vec<u32> = defs.iter().map(|def| def.id).collect();
+    let key = format!("{tenant:?}|{ids:?}|{expr:?}").into_bytes();
+    if let Some(hit) = cache
+        .and_then(|(sets, ci)| sets.get(&key, ci))
+        .and_then(|set| set.downcast::<OwnerSet>().ok())
+    {
+        if hit.len() > u64::try_from(owner_limit).unwrap_or(u64::MAX) {
+            return Err(QueryError::ResourceLimit(
+                "aggregate candidate budget exceeded".into(),
+            ));
+        }
+        return Ok(Some(OwnerSet::clone(&hit)));
+    }
+    let owners = leaf_owners_uncached(snap, tenant, expr, &defs, owner_limit)?;
+    if let (Some(owners), Some((sets, ci))) = (owners.as_ref(), cache) {
+        sets.insert(
+            key,
+            ci,
+            std::sync::Arc::new(owners.clone()),
+            owners.serialized_size(),
+        );
+    }
+    Ok(owners)
+}
+
+fn leaf_owners_uncached<R: TryRead>(
+    snap: &R,
+    tenant: TenantId,
+    expr: &Expr,
+    defs: &[IndexDef],
+    owner_limit: usize,
+) -> Result<Option<OwnerSet>, QueryError> {
+    let defs = defs.to_vec();
     match expr {
         Expr::Field(FieldPred::Eq(_, value)) if !value.is_null() => equal(
             snap,

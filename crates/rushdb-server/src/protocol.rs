@@ -814,7 +814,7 @@ impl<'a> ProtocolExecutor<'a> {
             // retryable failure that could duplicate the write. Reads and
             // other large responses still fail before transport encoding.
             if matches!(response, Response::Record { .. }) {
-                response = Response::Mutation { affected: 1 };
+                response = Response::mutation(1);
                 encoded_bytes = serde_json::to_vec(&response).map_err(|error| {
                     ProtocolError::new(
                         ErrorCode::ExecutionFailed,
@@ -1086,7 +1086,8 @@ mod value_domain_index_tests {
             (3, Some(1.0), Some(2.5))
         );
         assert_eq!(call("nv", PropertyValuesMode::Count, Vec::new()).0, 1);
-        assert_eq!(call("arr", PropertyValuesMode::Count, Vec::new()).0, 1);
+        // An array counts its elements, as the value dictionary does.
+        assert_eq!(call("arr", PropertyValuesMode::Count, Vec::new()).0, 2);
     }
 
     #[test]

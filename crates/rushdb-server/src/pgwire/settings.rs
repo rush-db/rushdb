@@ -7,6 +7,13 @@
 //! tighten the server's ceilings. A value is set with `SET`, cleared with
 //! `RESET` or `SET … = DEFAULT`, read with `SHOW`, or passed as a startup
 //! parameter; it lives in the connection's metadata.
+//!
+//! Drivers and tools also set client parameters on every connection
+//! (`application_name`, `extra_float_digits`, `DateStyle`, `TimeZone`, …).
+//! Those are recorded so `SHOW` answers them, and change nothing the server
+//! does; a value the server cannot honour (an encoding other than UTF8, a
+//! date style other than ISO) is refused. `SET` of any other parameter is
+//! refused as unsupported.
 
 use std::collections::HashMap;
 
@@ -22,13 +29,32 @@ pub(super) enum Setting {
     WorkMem,
     DisallowFullTableScans,
     LargeFullScanRows,
+    // Client parameters: recorded, not acted on.
+    ApplicationName,
+    ClientEncoding,
+    DateStyle,
+    TimeZone,
+    ExtraFloatDigits,
+    SearchPath,
+    IntervalStyle,
+    StandardConformingStrings,
+    ClientMinMessages,
 }
 
-const SETTINGS: [Setting; 4] = [
+const SETTINGS: [Setting; 13] = [
     Setting::StatementTimeout,
     Setting::WorkMem,
     Setting::DisallowFullTableScans,
     Setting::LargeFullScanRows,
+    Setting::ApplicationName,
+    Setting::ClientEncoding,
+    Setting::DateStyle,
+    Setting::TimeZone,
+    Setting::ExtraFloatDigits,
+    Setting::SearchPath,
+    Setting::IntervalStyle,
+    Setting::StandardConformingStrings,
+    Setting::ClientMinMessages,
 ];
 
 impl Setting {
@@ -38,6 +64,15 @@ impl Setting {
             Setting::WorkMem => "work_mem",
             Setting::DisallowFullTableScans => "disallow_full_table_scans",
             Setting::LargeFullScanRows => "large_full_scan_rows",
+            Setting::ApplicationName => "application_name",
+            Setting::ClientEncoding => "client_encoding",
+            Setting::DateStyle => "DateStyle",
+            Setting::TimeZone => "TimeZone",
+            Setting::ExtraFloatDigits => "extra_float_digits",
+            Setting::SearchPath => "search_path",
+            Setting::IntervalStyle => "IntervalStyle",
+            Setting::StandardConformingStrings => "standard_conforming_strings",
+            Setting::ClientMinMessages => "client_min_messages",
         }
     }
 
@@ -48,12 +83,22 @@ impl Setting {
     }
 
     /// What `SHOW` answers when the session has not set it: no bound of
-    /// its own (the server's ceilings still apply).
+    /// its own (the server's ceilings still apply), or PostgreSQL's default
+    /// for a client parameter.
     fn unset(self) -> &'static str {
         match self {
             Setting::StatementTimeout | Setting::LargeFullScanRows => "0",
             Setting::WorkMem => "server",
             Setting::DisallowFullTableScans => "off",
+            Setting::ApplicationName => "",
+            Setting::ClientEncoding => "UTF8",
+            Setting::DateStyle => "ISO, MDY",
+            Setting::TimeZone => "UTC",
+            Setting::ExtraFloatDigits => "1",
+            Setting::SearchPath => "\"$user\", public",
+            Setting::IntervalStyle => "postgres",
+            Setting::StandardConformingStrings => "on",
+            Setting::ClientMinMessages => "notice",
         }
     }
 
@@ -69,6 +114,47 @@ impl Setting {
                 .parse::<u64>()
                 .map(|rows| rows.to_string())
                 .map_err(|_| "expected a whole number of rows".to_owned()),
+            Setting::ApplicationName
+            | Setting::TimeZone
+            | Setting::IntervalStyle
+            | Setting::ClientMinMessages => Ok(value.to_owned()),
+            Setting::ClientEncoding => matches!(
+                value.to_ascii_uppercase().as_str(),
+                "UTF8" | "UTF-8" | "UNICODE"
+            )
+            .then(|| "UTF8".to_owned())
+            .ok_or_else(|| "only UTF8 is offered".to_owned()),
+            // Dates and timestamps are always written in ISO form.
+            Setting::DateStyle => value
+                .to_ascii_uppercase()
+                .contains("ISO")
+                .then(|| value.to_owned())
+                .ok_or_else(|| "only ISO output is offered".to_owned()),
+            Setting::ExtraFloatDigits => value
+                .parse::<i8>()
+                .ok()
+                .filter(|digits| (-15..=3).contains(digits))
+                .map(|digits| digits.to_string())
+                .ok_or_else(|| "expected a whole number from -15 to 3".to_owned()),
+            // Record tables are in `public`; a path without it would name
+            // tables the session cannot see unqualified.
+            Setting::SearchPath => value
+                .split(',')
+                .any(|schema| {
+                    schema
+                        .trim()
+                        .trim_matches('"')
+                        .eq_ignore_ascii_case("public")
+                })
+                .then(|| value.to_owned())
+                .ok_or_else(|| {
+                    "the path must include public, where the record tables are".to_owned()
+                }),
+            Setting::StandardConformingStrings => boolean(value)
+                .ok()
+                .filter(|on| *on)
+                .map(|_| "on".to_owned())
+                .ok_or_else(|| "only on is offered".to_owned()),
         }
     }
 }
@@ -81,6 +167,9 @@ pub(super) enum Command {
     /// `RESET ALL`.
     ResetAll,
     Show(Setting),
+    /// `SET`/`RESET` of a parameter this module does not offer, named as
+    /// written.
+    Unsupported(String),
 }
 
 /// The settings statement `sql` is, if it names one of these settings.
@@ -92,15 +181,34 @@ pub(super) fn parse(sql: &str) -> Option<Command> {
     match verb.as_str() {
         "SHOW" => Setting::of(rest).map(Command::Show),
         "RESET" if rest.eq_ignore_ascii_case("all") => Some(Command::ResetAll),
-        "RESET" => Setting::of(rest).map(|setting| Command::Set(setting, None)),
+        "RESET" => Some(Setting::of(rest).map_or_else(
+            || Command::Unsupported(rest.to_owned()),
+            |setting| Command::Set(setting, None),
+        )),
         "SET" => {
             let rest = strip_word(rest, "SESSION").unwrap_or(rest);
-            let (name, value) = rest
-                .split_once('=')
-                .or_else(|| split_word(rest, "TO"))
-                .map(|(name, value)| (name.trim(), value.trim()))?;
-            let setting = Setting::of(name)?;
-            let value = unquote(value);
+            // `SET TIME ZONE x` and `SET NAMES x` are PostgreSQL's spellings
+            // of `TimeZone` and `client_encoding`.
+            let (setting, value) = if let Some(value) =
+                strip_word(rest, "TIME").and_then(|rest| strip_word(rest, "ZONE"))
+            {
+                (Setting::TimeZone, value)
+            } else if let Some(value) = strip_word(rest, "NAMES") {
+                (Setting::ClientEncoding, value)
+            } else {
+                let Some((name, value)) = rest
+                    .split_once('=')
+                    .or_else(|| split_word(rest, "TO"))
+                    .map(|(name, value)| (name.trim(), value.trim()))
+                else {
+                    return Some(Command::Unsupported(rest.to_owned()));
+                };
+                let Some(setting) = Setting::of(name) else {
+                    return Some(Command::Unsupported(name.to_owned()));
+                };
+                (setting, value)
+            };
+            let value = unquote(value.trim());
             Some(Command::Set(
                 setting,
                 (!value.eq_ignore_ascii_case("default")).then(|| value.to_owned()),
@@ -130,10 +238,13 @@ pub(super) fn apply(
                 metadata.remove(setting.name());
             }
         }
+        Command::Unsupported(name) => return Err(unsupported(&name)),
         Command::Show(setting) => {
+            // A startup parameter is keyed as the client spelled it.
             let value = metadata
-                .get(setting.name())
-                .map_or_else(|| setting.unset().to_owned(), Clone::clone);
+                .iter()
+                .find(|(key, _)| key.eq_ignore_ascii_case(setting.name()))
+                .map_or_else(|| setting.unset().to_owned(), |(_, value)| value.clone());
             let mut row = Map::new();
             row.insert(setting.name().to_owned(), Value::String(value));
             return Ok(Some(vec![row]));
@@ -177,6 +288,19 @@ pub(super) fn limits(metadata: &HashMap<String, String>) -> PgWireResult<Session
         query_memory_max_bytes,
         unindexed_walk_max_owners: disallow.then_some(rows),
     })
+}
+
+/// `SET` of a parameter the listener does not offer: refused, not ignored,
+/// so a client relying on it learns it has no effect.
+pub(super) fn unsupported(name: &str) -> pgwire::error::PgWireError {
+    let offered = SETTINGS.map(Setting::name).join(", ");
+    err(
+        "0A000",
+        format!(
+            "parameter \"{name}\" is not supported over the PostgreSQL wire; \
+             the parameters SET accepts are {offered}"
+        ),
+    )
 }
 
 fn invalid(setting: Setting, value: &str, reason: &str) -> pgwire::error::PgWireError {
@@ -317,9 +441,9 @@ mod tests {
             parse("SHOW statement_timeout"),
             Some(Command::Show(Setting::StatementTimeout))
         );
-        // Other settings are not this module's.
-        assert_eq!(parse("SET search_path = public"), None);
+        // SHOW of other settings is not this module's.
         assert_eq!(parse("SHOW server_version"), None);
+        assert_eq!(parse("SELECT 1"), None);
     }
 
     #[test]
@@ -389,5 +513,84 @@ mod tests {
         // A malformed startup parameter fails the statement, not silently.
         let startup = HashMap::from([("statement_timeout".to_owned(), "soon".to_owned())]);
         assert!(limits(&startup).is_err());
+    }
+
+    #[test]
+    fn client_parameters_are_recorded_and_shown() {
+        // PGW-1: Metabase (JDBC), psycopg and node-postgres set these on
+        // every connection; refusing them refused the connection.
+        assert_eq!(
+            parse("SET application_name = 'Metabase v0.57.4 [abc]'"),
+            Some(Command::Set(
+                Setting::ApplicationName,
+                Some("Metabase v0.57.4 [abc]".into())
+            ))
+        );
+        assert_eq!(
+            parse("SET TIME ZONE 'UTC'"),
+            Some(Command::Set(Setting::TimeZone, Some("UTC".into())))
+        );
+        assert_eq!(
+            parse("SET NAMES 'utf8'"),
+            Some(Command::Set(Setting::ClientEncoding, Some("utf8".into())))
+        );
+        let mut metadata = session(&[
+            "SET application_name = 'Metabase v0.57.4 [abc]'",
+            "SET extra_float_digits = 3",
+            "SET DateStyle = 'ISO'",
+            "SET client_encoding TO 'UTF-8'",
+            "SET search_path = \"$user\", public",
+            "SET TIME ZONE 'Europe/Berlin'",
+        ]);
+        let mut shown = |sql: &str| {
+            let Some(Command::Show(setting)) = parse(sql) else {
+                panic!("{sql}");
+            };
+            apply(&mut metadata, Command::Show(setting))
+                .unwrap()
+                .unwrap()[0][setting.name()]
+            .clone()
+        };
+        assert_eq!(shown("SHOW application_name"), "Metabase v0.57.4 [abc]");
+        assert_eq!(shown("SHOW extra_float_digits"), "3");
+        assert_eq!(shown("show datestyle"), "ISO");
+        assert_eq!(shown("SHOW client_encoding"), "UTF8");
+        assert_eq!(shown("SHOW TimeZone"), "Europe/Berlin");
+        assert_eq!(shown("SHOW IntervalStyle"), "postgres");
+        // They bound nothing.
+        assert_eq!(limits(&metadata).unwrap(), SessionLimits::default());
+        // A startup parameter is shown as the client sent it.
+        let mut startup = HashMap::from([("DateStyle".to_owned(), "ISO, DMY".to_owned())]);
+        let row = apply(&mut startup, Command::Show(Setting::DateStyle))
+            .unwrap()
+            .unwrap();
+        assert_eq!(row[0]["DateStyle"], "ISO, DMY");
+        // A value the server cannot honour is refused.
+        for sql in [
+            "SET client_encoding = 'LATIN1'",
+            "SET DateStyle = 'German'",
+            "SET search_path = rushdb_edges",
+            "SET extra_float_digits = 9",
+            "SET standard_conforming_strings = off",
+        ] {
+            let error = apply(&mut startup, parse(sql).unwrap()).unwrap_err();
+            assert!(error.to_string().contains("22023"), "{sql}: {error}");
+        }
+    }
+
+    #[test]
+    fn other_parameters_are_refused_as_unsupported() {
+        // PGW-1: not "send writes as mutate.statement".
+        for sql in [
+            "SET enable_seqscan = off",
+            "SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY",
+            "RESET enable_seqscan",
+        ] {
+            let command = parse(sql).expect(sql);
+            assert!(matches!(command, Command::Unsupported(_)), "{sql}");
+            let error = apply(&mut HashMap::new(), command).unwrap_err().to_string();
+            assert!(error.contains("0A000"), "{sql}: {error}");
+            assert!(error.contains("application_name"), "{error}");
+        }
     }
 }

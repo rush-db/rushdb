@@ -10,8 +10,10 @@ mod fusion;
 mod hybrid;
 mod indexes;
 mod ingest;
+mod long_text;
 mod metrics;
 mod observability;
+mod policy_gate;
 mod queries;
 mod records;
 mod relationship_reads;
@@ -749,15 +751,15 @@ impl Node {
 
     /// Readiness disk guard: true when the data filesystem has at least the
     /// configured free percentage (or the guard is disabled / unsupported).
+    /// An in-memory node writes no store, so the host's disk does not gate it.
     pub fn disk_space_ok(&self) -> bool {
         if self.disk_space_threshold_percent == 0 {
             return true;
         }
-        let path = self
-            .data_dir
-            .clone()
-            .unwrap_or_else(|| std::path::PathBuf::from("."));
-        disk_free_ok(&path, self.disk_space_threshold_percent).unwrap_or(true)
+        let Some(path) = self.data_dir.as_deref() else {
+            return true;
+        };
+        disk_free_ok(path, self.disk_space_threshold_percent).unwrap_or(true)
     }
 
     /// Reclaim old MVCC versions and compact the redb backing file.
@@ -1243,6 +1245,7 @@ impl RequestScope<'_> {
             }
             related.push(spec.clone());
         }
+        policy_gate::PolicyGate::new(&active.policy).search(&labels, request)?;
         Ok(SearchRequest {
             labels,
             related,
@@ -1267,6 +1270,12 @@ impl RequestScope<'_> {
             ..SearchRequest::default()
         };
         let restricted = self.authorize_search_in_view(view, &search)?;
+        if let Some(active) = rushdb_authz::load_active_policy_in_view(view, self.tenant())
+            .map_err(|error| error.to_string())?
+            .filter(|active| active.mode == rushdb_authz::AuthorizationMode::PolicyEnforced)
+        {
+            policy_gate::PolicyGate::new(&active.policy).aggregate(&restricted.labels, request)?;
+        }
         Ok(rushdb_query::AggregateRequest {
             labels: restricted.labels,
             related: restricted.related,

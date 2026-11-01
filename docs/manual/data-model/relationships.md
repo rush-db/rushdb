@@ -206,6 +206,32 @@ rdb '{"protocolVersion":1,"operation":{"kind":"mutate","mutation":{
 `sourceType` defaults to the nested-import default type, which makes this the
 natural follow-up to an import that did not name its relationship types.
 
+Each pair of records ends with one relationship of the target type. When a
+pair already has one, the retyped relationships merge into it and it keeps its
+id. `mergeStrategy` decides what happens to properties that both sides hold
+(a **conflict**: the same name with different values):
+
+| `mergeStrategy` | Effect on the pair's existing target-type relationship |
+|---|---|
+| `keep` (default) | Keeps its own values and gains every property it lacks from the retyped relationships (older first). |
+| `append` | The retyped relationships' values win a conflict (newest last); properties only it has are kept. Same meaning as `append` for [import upserts](nested-import.md#upserts-merge). |
+| `rewrite` | Its properties are replaced by the retyped relationships' (newest wins among them). Same meaning as `rewrite` for import upserts. |
+| `fail` | With any conflict the retype is refused with `conflict` and nothing is written; the message gives the count and the first 20 conflicts (property, both record ids, both values). Without one, as `keep`. |
+
+A pair without a target-type relationship gets a new one carrying the union of
+the retyped relationships' properties (`keep` and `fail`: the oldest value wins
+a conflict; `append` and `rewrite`: the newest). The response counts the
+relationships retyped in `affected`, and also reports `merged` (relationships
+folded into another one) and `propertyConflicts` (conflicts met, whichever
+value won). To check before writing, retype with `fail` first.
+
+```bash
+rdb '{"protocolVersion":1,"operation":{"kind":"mutate","mutation":{
+  "kind":"retypeRelations",
+  "command":{"sourceLabel":"PERSON","targetLabel":"COMPANY","sourceType":"EMPLOYED_BY",
+    "targetType":"WORKS_AT","mergeStrategy":"fail"}}}}'
+```
+
 ## List relationships
 
 The `relationships` query returns relationship instances, optionally filtered

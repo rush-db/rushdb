@@ -123,3 +123,52 @@ fn later_statement_sees_earlier_statement_for_gated_create() {
     let records = t5_records(&node);
     assert_eq!(records.len(), 2, "both staged nodes committed");
 }
+
+fn cypher_rows(node: &Node, statement: &str) -> Vec<serde_json::Value> {
+    let Response::Rows { rows, .. } = execute(
+        node,
+        Operation::Query {
+            query: Query::Statement {
+                language: StatementLanguage::Cypher,
+                statement: statement.to_string(),
+                parameters: None,
+            },
+        },
+    ) else {
+        panic!("expected rows");
+    };
+    rows
+}
+
+#[test]
+fn statement_relationships_stage_in_a_transaction() {
+    let node = cypher_node();
+    let tx = begin(&node);
+
+    // A relationship between nodes the same statement creates, and one from
+    // a node an earlier statement staged to a node this statement creates.
+    stage_statement(
+        &node,
+        &tx,
+        "CREATE (:T5 {tag: 'a'})-[:T5_LINK {w: 1}]->(:T5 {tag: 'b'})",
+    );
+    stage_statement(
+        &node,
+        &tx,
+        "MATCH (a:T5 {tag: 'a'}) CREATE (a)-[:T5_LINK {w: 2}]->(:T5 {tag: 'c'})",
+    );
+
+    commit(&node, &tx);
+
+    let rows = cypher_rows(
+        &node,
+        "MATCH (a:T5)-[r:T5_LINK]->(b:T5) RETURN a.tag AS a, r.w AS w, b.tag AS b ORDER BY w",
+    );
+    assert_eq!(
+        rows,
+        vec![
+            serde_json::json!({"a": "a", "w": 1, "b": "b"}),
+            serde_json::json!({"a": "a", "w": 2, "b": "c"}),
+        ]
+    );
+}

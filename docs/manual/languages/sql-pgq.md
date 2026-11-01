@@ -34,6 +34,8 @@ properties as output columns.
 | `GRAPH_TABLE` with `MATCH` | `GRAPH_TABLE (MATCH (n:FACTION) COLUMNS (n.name AS name))` |
 | Edge patterns | `MATCH (p:Person)-[:KNOWS]->(f:Person)` |
 | Projection with `COLUMNS` | `COLUMNS (p.name AS source, f.name AS target)` |
+| Anonymous nodes | `MATCH (a:Person)-[:WROTE]->(:Post)<-[:WROTE]-(b:Person)` |
+| Node inequality | `... WHERE a.name = 'Ada' AND a <> b` |
 | Filtering on the result | `... AS g WHERE age >= 29` |
 | Ordering on the result | `... AS g ORDER BY name DESC` |
 
@@ -96,6 +98,12 @@ Send it as a read:
   `GRAPH_TABLE` result with relational SQL tables is not supported; use
   [relational SQL](sql.md) joins over `rushdb_edges` tables for that.
 - Results are materialized; there is no server-side cursor.
+- The embedded Grafeo engine gives every anonymous node pattern in a
+  `MATCH` the same variable, which would join them into one node. RushDB
+  names each one (`_rushdb_anon_0`, `_rushdb_anon_1`, ...) before Grafeo
+  parses the statement, so anonymous nodes match as in Cypher and GQL. The
+  names can appear in a syntax error's statement text; do not use them as
+  variables.
 
 ## See also
 

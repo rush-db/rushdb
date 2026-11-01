@@ -83,9 +83,9 @@ fn setup_on(
 }
 
 #[test]
-fn ann_search_answers_exactly_when_the_logical_cache_is_disabled() {
+fn ann_search_answers_exactly_when_the_vector_cache_is_disabled() {
     let store = Store::new_with_resources(rushdb_storage::resources::StorageResources {
-        logical_cache_bytes: 0,
+        vector_cache_bytes: 0,
         ..Default::default()
     })
     .unwrap();

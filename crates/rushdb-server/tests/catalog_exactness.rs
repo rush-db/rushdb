@@ -676,3 +676,216 @@ fn one_label_reads_agree_with_the_dictionary_walk() {
         }
     }
 }
+
+#[test]
+fn ranges_move_when_the_extremes_are_deleted_or_changed() {
+    // Ranges are the bounds of the value dictionary; a value whose last
+    // owner goes leaves the dictionary, so the bounds move with it.
+    let handler = node(256 * 1024 * 1024);
+    let docs: Vec<Value> = (0..50)
+        .map(|i| {
+            json!({ "n": i, "code": format!("c{i:02}"),
+                    "day": format!("2001-01-{:02}T00:00:00.000Z", 1 + i % 28) })
+        })
+        .collect();
+    ingest(&handler, "t", &docs);
+    let range = |name: &str| {
+        let entry = property(&properties(&handler, "t"), name).clone();
+        (entry["min"].clone(), entry["max"].clone())
+    };
+    assert_eq!(range("n"), (json!(0), json!(49)));
+    assert_eq!(range("code"), (json!("c00"), json!("c49")));
+    assert_eq!(range("day"), (json!("2001-01-01"), json!("2001-01-28")));
+    call(
+        &handler,
+        &json!({ "kind": "mutate", "mutation": { "kind": "deleteRecords",
+            "query": { "labels": ["t"], "predicate": { "n": { "$in": [0, 1, 27, 48, 49] } } } } }),
+    );
+    assert_eq!(range("n"), (json!(2), json!(47)));
+    assert_eq!(range("code"), (json!("c02"), json!("c47")));
+    // Day 1 is held by n = 0 and 28; day 28 by 27 only.
+    assert_eq!(range("day"), (json!("2001-01-01"), json!("2001-01-27")));
+    call(
+        &handler,
+        &json!({ "kind": "mutate", "mutation": { "kind": "deleteRecords",
+            "query": { "labels": ["t"], "predicate": { "n": { "$gte": 2 } } } } }),
+    );
+    assert!(properties(&handler, "t").is_empty());
+}
+
+#[test]
+fn value_search_over_long_texts_counts_what_a_record_scan_would() {
+    // Short and long values of one text column, records without it, the
+    // name held as a number on another label, and a label whose column is
+    // split between text and numbers (read by the record scan).
+    let handler = node(256 * 1024 * 1024);
+    let long =
+        |i: usize, word: &str| format!("<goal><v>{i}</v><t>{word}</t>{}</goal>", "x".repeat(120));
+    let words = ["League", "LEAGUE cup", "Jupiler", "Ünïon league", "none"];
+    let mut docs: Vec<Value> = Vec::new();
+    for i in 0..400 {
+        let word = words[i % words.len()];
+        docs.push(match i % 4 {
+            0 => json!({ "goal": long(i % 7, word), "n": i }),
+            1 => json!({ "goal": word, "n": i }),
+            2 => json!({ "goal": long(1000 + i, word), "n": i }),
+            _ => json!({ "n": i }),
+        });
+    }
+    ingest(&handler, "Match", &docs);
+    ingest(
+        &handler,
+        "Team",
+        &[json!({ "goal": 3 }), json!({ "goal": 4 })],
+    );
+    let split: Vec<Value> = (0..40)
+        .map(|i| {
+            if i % 2 == 0 {
+                json!({ "goal": long(i, "league") })
+            } else {
+                json!({ "goal": i })
+            }
+        })
+        .collect();
+    ingest(&handler, "Split", &split);
+    for (label, documents) in [("Match", &docs), ("Split", &split)] {
+        for text in ["league", "LEAGUE", "ünïon", "jupiler</t>", "absent"] {
+            let mut expected: std::collections::BTreeMap<String, u64> =
+                std::collections::BTreeMap::new();
+            for doc in documents {
+                if let Some(value) = doc["goal"].as_str() {
+                    if value.to_lowercase().contains(&text.to_lowercase()) {
+                        *expected.entry(value.to_string()).or_default() += 1;
+                    }
+                }
+            }
+            let out = call(
+                &handler,
+                &json!({ "kind": "query", "query": { "kind": "searchValues",
+                    "search": { "text": text }, "labels": [label], "limit": 1000 } }),
+            );
+            let mut found: std::collections::BTreeMap<String, u64> =
+                std::collections::BTreeMap::new();
+            let rows = out["matches"].as_array().expect("matches");
+            assert_eq!(
+                rows.len(),
+                expected.len(),
+                "{label} {text}: one row per value"
+            );
+            for row in rows {
+                assert_eq!(row["label"], json!(label));
+                assert_eq!(row["property"], json!("goal"), "{row}");
+                found.insert(
+                    row["value"].as_str().unwrap().to_string(),
+                    row["count"].as_u64().unwrap(),
+                );
+            }
+            assert_eq!(found, expected, "{label} {text}");
+            assert_eq!(out["total"], json!(expected.len()), "{label} {text}");
+        }
+    }
+}
+
+#[test]
+fn array_values_are_counted_per_element() {
+    let handler = node(256 * 1024 * 1024);
+    ingest(
+        &handler,
+        "A",
+        &[
+            json!({ "tags": ["x", "y"] }),
+            json!({ "tags": ["x", "x"] }),
+            json!({ "tags": ["z", "x"] }),
+        ],
+    );
+    let top = values(&handler, "A", "tags", "topK");
+    assert_eq!(top["values"], json!(["x", "y", "z"]), "{top}");
+    assert_eq!(top["counts"], json!([3, 1, 1]), "{top}");
+    assert_eq!(top["distinctCount"], json!(3));
+    assert_eq!(
+        values(&handler, "A", "tags", "count")["distinctCount"],
+        json!(3)
+    );
+    let listed = values(&handler, "A", "tags", "values");
+    assert_eq!(listed["values"], json!(["x", "y", "z"]), "{listed}");
+}
+
+#[test]
+fn type_filters_match_the_type_each_record_holds() {
+    let handler = node(256 * 1024 * 1024);
+    ingest(
+        &handler,
+        "B",
+        &[
+            json!({ "v": 1 }),
+            json!({ "v": "2" }),
+            json!({ "v": "three" }),
+            json!({ "v": 4.5 }),
+        ],
+    );
+    let held = |wanted: &str| {
+        let out = call(
+            &handler,
+            &json!({ "kind": "query", "query": { "kind": "records", "query": {
+                "labels": ["B"], "predicate": { "v": { "$type": wanted } } } } }),
+        );
+        let mut held: Vec<String> = out["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["properties"]["v"].to_string())
+            .collect();
+        held.sort();
+        held
+    };
+    assert_eq!(held("number"), ["1", "4.5"]);
+    assert_eq!(held("string"), ["\"2\"", "\"three\""]);
+}
+
+#[test]
+fn a_rollup_over_no_matches_is_one_row() {
+    let handler = node(256 * 1024 * 1024);
+    ingest(&handler, "C", &[json!({ "n": 1 }), json!({ "n": 2 })]);
+    let rows = |predicate: Value| {
+        call(
+            &handler,
+            &json!({ "kind": "query", "query": { "kind": "records", "query": {
+                "labels": ["C"], "predicate": predicate,
+                "select": { "count": { "$count": "*" }, "total": { "$sum": "$record.n" } } } } }),
+        )["rows"]
+            .clone()
+    };
+    assert_eq!(
+        rows(json!({ "n": 9 })),
+        json!([{ "count": 0, "total": null }])
+    );
+    assert_eq!(rows(json!({})), json!([{ "count": 2, "total": 3.0 }]));
+}
+
+#[test]
+fn every_label_has_samples_in_an_unfiltered_description() {
+    let handler = node(256 * 1024 * 1024);
+    let first: Vec<Value> = (0..12_000).map(|i| json!({ "n": i })).collect();
+    ingest(&handler, "Early", &first);
+    ingest(
+        &handler,
+        "Late",
+        &[json!({ "code": "late-1" }), json!({ "code": "late-2" })],
+    );
+    let out = call(
+        &handler,
+        &json!({ "kind": "describe", "describe": { "kind": "properties", "query": {} } }),
+    );
+    let late = out["properties"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["label"] == "Late" && p["name"] == "code")
+        .cloned()
+        .expect("Late.code");
+    assert!(
+        !late["sampleValues"].as_array().unwrap().is_empty(),
+        "{late}"
+    );
+    assert_eq!(late["recordsCount"], json!(2));
+}

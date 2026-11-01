@@ -220,13 +220,17 @@ fn sql_mutations_fail_closed() {
         "INSERT INTO person (name) VALUES ('Eve')",
         "UPDATE person SET salary = 0",
         "DELETE FROM person",
-        "CREATE TABLE leaked (id BIGINT)",
     ] {
         assert!(matches!(
             execute_sql(&graph, statement),
             Err(SqlError::ReadOnly(_))
         ));
     }
+    // Table DDL is no write the mutation path runs either.
+    assert!(matches!(
+        execute_sql(&graph, "CREATE TABLE leaked (id BIGINT)"),
+        Err(SqlError::Unsupported(_))
+    ));
     assert_eq!(
         execute_sql(&graph, "SELECT COUNT(*) AS count FROM person").unwrap()[0]["count"],
         3
@@ -387,4 +391,110 @@ fn prepared_statement_metadata_comes_from_the_datafusion_plan() {
     assert_eq!(description.columns[0].name, "name");
     assert_eq!(description.columns[0].data_type, SqlType::Utf8);
     assert_eq!(description.columns[1].data_type, SqlType::Int64);
+}
+
+#[test]
+fn union_all_runs_on_the_synchronous_entry_point() {
+    // PGW-1: DataFusion spawns a Tokio task per `UNION` input; the
+    // synchronous entry point used to poll without a Tokio runtime, so the
+    // statement panicked ("there is no reactor running").
+    let graph = fixture(Arc::new(Store::new_in_memory()), 1, "");
+    let rows = execute_sql(
+        &graph,
+        "SELECT count(*) AS n FROM person UNION ALL SELECT count(*) AS n FROM person \
+         WHERE department = 'research'",
+    )
+    .unwrap();
+    let mut counts: Vec<i64> = rows.iter().map(|row| row["n"].as_i64().unwrap()).collect();
+    counts.sort_unstable();
+    assert_eq!(counts, [1, 3]);
+    let rows = execute_sql(
+        &graph,
+        "SELECT name FROM person WHERE salary > 160000 UNION SELECT name FROM person \
+         WHERE salary > 160000",
+    )
+    .unwrap();
+    assert_eq!(
+        rows,
+        [serde_json::Map::from_iter([(
+            "name".into(),
+            json!("Carol")
+        )])]
+    );
+}
+
+#[test]
+fn statement_errors_carry_their_class() {
+    // SQL-1: a statement the catalog cannot plan is the caller's error,
+    // not an internal engine failure.
+    let graph = fixture(Arc::new(Store::new_in_memory()), 1, "");
+    let error = execute_sql(&graph, "SELECT nosuchcol FROM person").unwrap_err();
+    assert!(matches!(error, SqlError::Undefined(_)), "{error:?}");
+    assert!(error.to_string().contains("nosuchcol"), "{error}");
+    let error = execute_sql(&graph, "SELECT * FROM persn").unwrap_err();
+    assert!(matches!(error, SqlError::Undefined(_)), "{error:?}");
+    assert!(
+        error.to_string().contains("Did you mean 'Person'"),
+        "{error}"
+    );
+    let error = execute_sql(&graph, "SELECT no_such_function(name) FROM person").unwrap_err();
+    assert!(matches!(error, SqlError::Undefined(_)), "{error:?}");
+    let error = execute_sql(&graph, "SELECT '{}'::jsonb").unwrap_err();
+    assert!(matches!(error, SqlError::Unsupported(_)), "{error:?}");
+    let error = execute_sql(&graph, "SELECT 1; SELECT 2").unwrap_err();
+    assert!(matches!(error, SqlError::Unsupported(_)), "{error:?}");
+}
+
+#[test]
+fn session_and_protocol_statements_are_unsupported_not_writes() {
+    // PGW-1: SET, PREPARE and LISTEN are not writes, so "send writes as
+    // mutate.statement" is the wrong advice for them.
+    let graph = fixture(Arc::new(Store::new_in_memory()), 1, "");
+    for sql in [
+        "SET search_path = public",
+        "PREPARE q(text) AS SELECT name FROM person WHERE department = $1",
+        "EXECUTE q('research')",
+        "DEALLOCATE q",
+        "LISTEN changes",
+        "NOTIFY changes",
+        "DECLARE c CURSOR FOR SELECT name FROM person",
+        "CREATE TABLE foo (id int)",
+    ] {
+        let error = execute_sql(&graph, sql).unwrap_err();
+        assert!(
+            matches!(error, SqlError::Unsupported(_)),
+            "{sql}: {error:?}"
+        );
+    }
+    // DML is still a write for the mutation path.
+    let error = execute_sql(&graph, "DELETE FROM person").unwrap_err();
+    assert!(matches!(error, SqlError::ReadOnly(_)), "{error:?}");
+}
+
+#[test]
+fn comparing_a_mixed_type_column_with_a_number_is_a_typed_error() {
+    // CAT-4/SQL-1: a property stored as both text and number reads as
+    // text; comparing it with a number casts every value, and a value that
+    // is not a number is the statement's error, with the way around it.
+    let graph = Lmpg::new(Arc::new(Store::new_in_memory()), TenantId::from_ordinal(1));
+    for price in [json!(30), json!("40"), json!(25), json!("cheap")] {
+        graph
+            .create_record(
+                "Item",
+                None,
+                vec![("price".into(), FieldChange::Set(price))],
+            )
+            .unwrap();
+    }
+    let error = execute_sql(&graph, "SELECT price FROM item WHERE price > 30").unwrap_err();
+    assert!(matches!(error, SqlError::InvalidValue(_)), "{error:?}");
+    assert!(error.to_string().contains("'cheap'"), "{error}");
+    assert!(error.to_string().contains("TRY_CAST"), "{error}");
+    // The way around it named in the error works.
+    let rows = execute_sql(
+        &graph,
+        "SELECT price FROM item WHERE TRY_CAST(price AS BIGINT) > 30",
+    )
+    .unwrap();
+    assert_eq!(rows.len(), 1);
 }

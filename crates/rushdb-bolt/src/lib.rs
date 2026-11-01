@@ -210,6 +210,29 @@ struct Connection {
 struct PendingResult {
     fields: Vec<String>,
     rows: Vec<Map<String, Value>>,
+    /// Bolt query type of the RUN (`r`, `w` or `rw`), reported again in the
+    /// final PULL/DISCARD summary, where drivers read it.
+    query_type: &'static str,
+    /// Whether the RUN changed data, reported as `stats` in the final summary.
+    contains_updates: bool,
+}
+
+impl PendingResult {
+    /// Metadata of the PULL/DISCARD SUCCESS: `type` and, once the result is
+    /// exhausted after a write, `stats`. The engine reports how many
+    /// operations a write applied, not their kinds, so the only counter is
+    /// `contains-updates`.
+    fn summary(&self, has_more: bool) -> Map<String, Value> {
+        let mut meta = Map::new();
+        meta.insert("type".into(), Value::String(self.query_type.into()));
+        if !has_more && self.contains_updates {
+            let mut stats = Map::new();
+            stats.insert("contains-updates".into(), Value::Bool(true));
+            meta.insert("stats".into(), Value::Object(stats));
+        }
+        meta.insert("has_more".into(), Value::Bool(has_more));
+        meta
+    }
 }
 
 enum MessageResponse {
@@ -440,15 +463,29 @@ impl Connection {
                             .collect(),
                     ),
                 );
-                let type_name = if looks_like_mutation(&statement) {
-                    "w"
-                } else {
-                    "r"
+                let write = looks_like_mutation(&statement);
+                let query_type = match (write, fields_order.is_empty()) {
+                    (false, _) => "r",
+                    (true, true) => "w",
+                    (true, false) => "rw",
                 };
-                meta.insert("type".into(), Value::String(type_name.into()));
+                // An auto-commit write reports what it applied; a staged one
+                // was refused unless it changes something.
+                let contains_updates = write
+                    && match response.get("kind").and_then(Value::as_str) {
+                        Some("statementMutation") => response
+                            .get("affected")
+                            .and_then(Value::as_u64)
+                            .is_some_and(|affected| affected > 0),
+                        Some("transactionStaged") => true,
+                        _ => false,
+                    };
+                meta.insert("type".into(), Value::String(query_type.into()));
                 self.pending = Some(PendingResult {
                     fields: fields_order,
                     rows: row_maps,
+                    query_type,
+                    contains_updates,
                 });
                 Ok(vec![success(meta)])
             }
@@ -504,15 +541,13 @@ impl Connection {
         }
         pending.rows.drain(..count);
         let has_more = !pending.rows.is_empty();
+        let mut meta = pending.summary(has_more);
         if has_more {
             self.pending = Some(pending);
         }
-        let mut meta = Map::new();
-        meta.insert("type".into(), Value::String("r".into()));
         if let Some(scope) = &self.scope {
             meta.insert("db".into(), Value::String(scope.clone()));
         }
-        meta.insert("has_more".into(), Value::Bool(has_more));
         write_message(&mut self.stream, &success(meta))
     }
 
@@ -531,12 +566,10 @@ impl Connection {
             }
         };
         let has_more = discard_pending(&mut pending, window);
+        let meta = pending.summary(has_more);
         if has_more {
             self.pending = Some(pending);
         }
-        let mut meta = Map::new();
-        meta.insert("type".into(), Value::String("r".into()));
-        meta.insert("has_more".into(), Value::Bool(has_more));
         vec![success(meta)]
     }
 
@@ -927,6 +960,8 @@ mod tests {
     fn discard_obeys_bounded_window_and_reports_remaining_rows() {
         let mut pending = PendingResult {
             fields: vec!["x".into()],
+            query_type: "r",
+            contains_updates: false,
             rows: (0..3).map(|_| Map::new()).collect(),
         };
         assert!(discard_pending(&mut pending, 2));
@@ -973,6 +1008,8 @@ mod tests {
     fn discard_accepts_finite_windows_larger_than_internal_pull_batch() {
         let mut pending = PendingResult {
             fields: vec!["x".into()],
+            query_type: "r",
+            contains_updates: false,
             rows: (0..10_001).map(|_| Map::new()).collect(),
         };
         let window = pull_window(&[Value::Object(
@@ -989,6 +1026,8 @@ mod tests {
     fn discard_unbounded_window_consumes_more_than_internal_pull_batch() {
         let mut pending = PendingResult {
             fields: vec!["x".into()],
+            query_type: "r",
+            contains_updates: false,
             rows: (0..10_001).map(|_| Map::new()).collect(),
         };
         assert!(!discard_pending(&mut pending, usize::MAX));
@@ -1025,6 +1064,8 @@ mod tests {
             scope: None,
             pending: Some(PendingResult {
                 fields: vec!["x".into()],
+                query_type: "r",
+                contains_updates: false,
                 rows: (0..total_rows)
                     .map(|value| {
                         [("x".into(), Value::Number(value.into()))]

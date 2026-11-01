@@ -494,6 +494,13 @@ fn parse_related_block(label: &str, v: &Json) -> Result<RelatedExpr, QueryDocume
             return Err(QueryDocumentError::Parse(format!(
                 "operator `{k}` cannot apply to the related block `{label}`; put it on a field"
             )));
+        } else if value.is_object()
+            && (looks_like_related_block(&value) || looks_like_related_logical_block(&value))
+        {
+            // nested label block with `$relation`/`$alias`, or a logical
+            // combination over one (`{ CONCEPT: { $or: [{ name: … }] } }`),
+            // decided as `parse_where` decides it at the root (Q-1)
+            nested_related.push(Expr::Related(parse_related_block(&k, &value)?));
         } else if value.is_object() && looks_like_operator_block(&value) {
             field_preds.push(parse_field_ops(&k, &value)?);
         } else if value.is_object() || value.is_array() {

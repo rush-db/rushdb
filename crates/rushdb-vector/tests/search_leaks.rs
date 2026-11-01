@@ -43,13 +43,13 @@ fn repeated_searches_hold_no_memory_and_leave_no_files() {
         rushdb_lmpg::open_store_with_resources(
             &dir.join("rushdb.redb"),
             StorageResources {
-                logical_cache_bytes: 64 * 1024 * 1024,
+                vector_cache_bytes: 64 * 1024 * 1024,
                 ..StorageResources::default()
             },
         )
         .unwrap(),
     );
-    let budget = store.cache_budget().unwrap();
+    let budget = store.vector_cache_budget().unwrap();
     let engine = VectorEngine::new(Arc::new(Lmpg::new(
         Arc::clone(&store),
         TenantId::from_ordinal(31),

@@ -33,6 +33,26 @@ impl RequestScope<'_> {
             .map_err(|e| e.to_string())
     }
 
+    /// The first `keep` authorized match-set ordinals, in match order: the
+    /// prefix of [`Self::facet_ordinals`], read without resolving the rest.
+    pub(crate) fn facet_ordinals_first(
+        &self,
+        view: &Arc<rushdb_storage::ReadView>,
+        search: &SearchRequest,
+        keep: usize,
+        is_cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<u64>, String> {
+        let search = self.authorize_search_in_view(view.as_ref(), search)?;
+        rushdb_query::matching_ordinals_first(
+            &self.lmpg(),
+            &search,
+            is_cancelled,
+            Arc::clone(view),
+            keep,
+        )
+        .map_err(|e| e.to_string())
+    }
+
     /// Record count per label over `ords`: one header read per ordinal.
     pub(crate) fn facet_labels(
         &self,
@@ -66,7 +86,10 @@ impl RequestScope<'_> {
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<BTreeMap<(String, u64), PropertyScanStats>, String> {
         let tenant = self.tenant();
-        let mut stats: BTreeMap<(String, u64), PropertyScanStats> = BTreeMap::new();
+        // Keyed by (label slot, pid) while scanning: a match set of millions
+        // of records would otherwise copy its label for every property.
+        let mut labels: Vec<String> = Vec::new();
+        let mut stats: HashMap<(usize, u64), PropertyScanStats> = HashMap::new();
         for &ord in ords {
             if is_cancelled() {
                 return Err("query cancelled".into());
@@ -76,6 +99,12 @@ impl RequestScope<'_> {
             else {
                 continue;
             };
+            let slot = if let Some(slot) = labels.iter().position(|label| *label == header.label) {
+                slot
+            } else {
+                labels.push(header.label);
+                labels.len() - 1
+            };
             let occurrences = access::occurrences_of_owner(view, tenant, OwnerKind::Record, ord)
                 .map_err(|e| e.to_string())?;
             for rows in occurrences.chunk_by(|a, b| a.pid == b.pid) {
@@ -83,7 +112,7 @@ impl RequestScope<'_> {
                 if !known.contains(&pid) {
                     continue;
                 }
-                let entry = stats.entry((header.label.clone(), pid)).or_default();
+                let entry = stats.entry((slot, pid)).or_default();
                 entry.records_count += 1;
                 if is_empty_array_marker(rows) {
                     entry.is_array = true;
@@ -97,11 +126,15 @@ impl RequestScope<'_> {
                 }
             }
         }
-        Ok(stats)
+        Ok(stats
+            .into_iter()
+            .map(|((slot, pid), entry)| ((labels[slot].clone(), pid), entry))
+            .collect())
     }
 
     /// Distinct values of `property` over `ords`, as the records response
-    /// would show them: arrays are one value, datetimes render as strings,
+    /// would show them: an array counts each distinct element once, as the
+    /// value dictionary does; datetimes render as strings,
     /// and a property `access` hides for a record's label is absent.
     /// `property` may be spelled as the display name or the normalized name;
     /// the family is found by its normalized signature and the policy is
@@ -130,18 +163,20 @@ impl RequestScope<'_> {
             access,
             meter,
             &mut |_, value, meter| {
-                if search.is_some_and(|search| !search.matches(&value)) {
-                    return Ok(());
+                for (_, value) in counted_values(value) {
+                    if search.is_some_and(|search| !search.matches(&value)) {
+                        continue;
+                    }
+                    let fingerprint = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
+                    if let Some(&at) = index.get(&fingerprint) {
+                        values[at].1 += 1;
+                        continue;
+                    }
+                    // Key, stored value and slot: roughly twice the encoded size.
+                    meter.charge(super::working_set::value_bytes(fingerprint.len()))?;
+                    index.insert(fingerprint, values.len());
+                    values.push((value, 1));
                 }
-                let fingerprint = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
-                if let Some(&at) = index.get(&fingerprint) {
-                    values[at].1 += 1;
-                    return Ok(());
-                }
-                // Key, stored value and slot: roughly twice the encoded size.
-                meter.charge(super::working_set::value_bytes(fingerprint.len()))?;
-                index.insert(fingerprint, values.len());
-                values.push((value, 1));
                 Ok(())
             },
         )?;
@@ -152,7 +187,8 @@ impl RequestScope<'_> {
     /// [`Self::facet_property_values`] counts them, holding a 32-byte
     /// SHA-256 digest per distinct value instead of the value: a column of
     /// long texts is counted in bounded memory. Returns `(digest, count,
-    /// first owner)` in first-seen order; [`Self::facet_values_of`] reads
+    /// first owner, element)` in first-seen order, `element` locating an
+    /// array element in the owner's value; [`Self::facet_values_of`] reads
     /// back the values of the owners a caller keeps.
     pub(crate) fn facet_value_digests(
         &self,
@@ -161,10 +197,10 @@ impl RequestScope<'_> {
         property: &str,
         access: &rushdb_lmpg::CatalogAccess,
         meter: &mut super::working_set::WorkingSet<'_>,
-    ) -> Result<Vec<([u8; 32], u64, u64)>, String> {
+    ) -> Result<Vec<ValueDigest>, String> {
         use sha2::Digest as _;
         let mut index: HashMap<[u8; 32], usize> = HashMap::new();
-        let mut counts: Vec<([u8; 32], u64, u64)> = Vec::new();
+        let mut counts: Vec<ValueDigest> = Vec::new();
         self.for_each_facet_value(
             view,
             ords,
@@ -172,15 +208,17 @@ impl RequestScope<'_> {
             access,
             meter,
             &mut |ord, value, meter| {
-                let fingerprint = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
-                let digest: [u8; 32] = sha2::Sha256::digest(&fingerprint).into();
-                if let Some(&at) = index.get(&digest) {
-                    counts[at].1 += 1;
-                    return Ok(());
+                for (element, value) in counted_values(value) {
+                    let fingerprint = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
+                    let digest: [u8; 32] = sha2::Sha256::digest(&fingerprint).into();
+                    if let Some(&at) = index.get(&digest) {
+                        counts[at].1 += 1;
+                        continue;
+                    }
+                    meter.charge(super::working_set::value_bytes(digest.len() + 24))?;
+                    index.insert(digest, counts.len());
+                    counts.push((digest, 1, ord, element));
                 }
-                meter.charge(super::working_set::value_bytes(digest.len() + 16))?;
-                index.insert(digest, counts.len());
-                counts.push((digest, 1, ord));
                 Ok(())
             },
         )?;
@@ -305,6 +343,27 @@ impl RequestScope<'_> {
             visit(ord, value, meter)?;
         }
         Ok(())
+    }
+}
+
+/// `(digest, owner count, first owner, array element)` of one distinct value.
+pub(crate) type ValueDigest = ([u8; 32], u64, u64, Option<usize>);
+
+/// The values an owner's `value` counts toward, as the value dictionary
+/// counts them: a scalar is one value; an array counts each distinct element
+/// once (with its position), and an empty array none.
+fn counted_values(value: serde_json::Value) -> Vec<(Option<usize>, serde_json::Value)> {
+    match value {
+        serde_json::Value::Array(items) => {
+            let mut seen = std::collections::HashSet::new();
+            items
+                .into_iter()
+                .enumerate()
+                .filter(|(_, item)| seen.insert(item.to_string()))
+                .map(|(at, item)| (Some(at), item))
+                .collect()
+        }
+        value => vec![(None, value)],
     }
 }
 

@@ -78,28 +78,71 @@ impl ValueMatcher {
     #[must_use]
     pub fn matches(&self, value: &Json) -> bool {
         let text = match value {
-            Json::String(text) => Cow::Borrowed(text.as_str()),
+            Json::String(text) => return self.matches_text(text),
             Json::Number(number) => Cow::Owned(number.to_string()),
             Json::Bool(flag) => Cow::Owned(flag.to_string()),
             Json::Array(items) => return items.iter().any(|item| self.matches(item)),
             Json::Null | Json::Object(_) => return false,
         };
-        let text = if self.case_sensitive {
+        self.matches_text(&text)
+    }
+
+    /// Whether a text value matches, as [`Self::matches`] does for the
+    /// string `text`, without building the JSON value.
+    #[must_use]
+    pub fn matches_text(&self, text: &str) -> bool {
+        let text = Cow::Borrowed(text);
+        // ASCII text lowercases byte for byte, so it is compared in place
+        // instead of copying a lowercased value (a long text is read once).
+        let in_place = !self.case_sensitive
+            && self.matching != TextMatch::Similar
+            && self.needle.is_ascii()
+            && text.is_ascii();
+        let text = if self.case_sensitive || in_place {
             text
         } else {
             Cow::Owned(text.to_lowercase())
         };
-        let textual = match self.matching {
-            TextMatch::Contains => text.contains(self.needle.as_str()),
-            TextMatch::Prefix => text.starts_with(self.needle.as_str()),
-            TextMatch::Exact => *text == *self.needle,
-            TextMatch::Similar => similarity(&self.text, &text) >= self.min_similarity,
+        let textual = if in_place {
+            ascii_match_ignoring_case(text.as_bytes(), self.needle.as_bytes(), self.matching)
+        } else {
+            match self.matching {
+                TextMatch::Contains => text.contains(self.needle.as_str()),
+                TextMatch::Prefix => text.starts_with(self.needle.as_str()),
+                TextMatch::Exact => *text == *self.needle,
+                TextMatch::Similar => similarity(&self.text, &text) >= self.min_similarity,
+            }
         };
         textual
             || self.date.is_some_and(|wanted| {
                 parse_date_text(&text, true)
                     .is_some_and(|held| wanted.matches(held, self.matching == TextMatch::Exact))
             })
+    }
+
+    /// Whether a value of `ty` can match: false only when no rendering of
+    /// that type can contain the text, so a caller may skip the type's
+    /// values without changing the result. Numbers render with digits,
+    /// `.`, `-`, `+` and `e`; booleans as `true`/`false`; datetimes as a
+    /// year-first date with an optional `T…Z` time. `similar` and a text
+    /// that reads as a date can match any type.
+    #[must_use]
+    pub fn may_match(&self, ty: crate::model::LogicalType) -> bool {
+        use crate::model::LogicalType;
+        if self.matching == TextMatch::Similar || self.date.is_some() {
+            return true;
+        }
+        let only = |allowed: &dyn Fn(char) -> bool| self.needle.chars().all(allowed);
+        match ty {
+            LogicalType::Utf8 => true,
+            LogicalType::Int64 | LogicalType::Float64 => {
+                only(&|c| c.is_ascii_digit() || matches!(c, '.' | '-' | '+' | 'e' | 'E'))
+            }
+            LogicalType::Boolean => "true".contains(&self.needle) || "false".contains(&self.needle),
+            LogicalType::DateTime => only(&|c| {
+                c.is_ascii_digit() || matches!(c, '-' | ':' | '.' | '+' | 'T' | 'Z' | 't' | 'z')
+            }),
+        }
     }
 
     /// How close `value` is to the text, from 0 to 1 (see [`similarity`]);
@@ -206,6 +249,26 @@ impl DateText {
 /// and day may be unpadded), and, when `stored`, also a compact `YYYYMM[DD]`
 /// and a trailing time (`T…` or ` …`, either case). Day-first and
 /// month-first layouts are ambiguous and not read.
+/// `text` against a lowercase ASCII `needle`, ignoring ASCII case.
+fn ascii_match_ignoring_case(text: &[u8], needle: &[u8], matching: TextMatch) -> bool {
+    match matching {
+        TextMatch::Exact => text.eq_ignore_ascii_case(needle),
+        TextMatch::Prefix => text
+            .get(..needle.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(needle)),
+        TextMatch::Contains | TextMatch::Similar => {
+            let Some((&first, _)) = needle.split_first() else {
+                return true;
+            };
+            text.len() >= needle.len()
+                && (0..=text.len() - needle.len()).any(|at| {
+                    text[at].to_ascii_lowercase() == first
+                        && text[at..at + needle.len()].eq_ignore_ascii_case(needle)
+                })
+        }
+    }
+}
+
 fn parse_date_text(text: &str, stored: bool) -> Option<DateText> {
     let text = text.trim();
     let date = if stored {
@@ -260,6 +323,57 @@ mod tests {
     }
 
     #[test]
+    fn may_match_skips_only_types_that_cannot_render_the_text() {
+        use crate::model::LogicalType as T;
+        let contains = |text: &str| ValueMatcher::new(text, TextMatch::Contains, false, None);
+        let word = contains("Withdrawal");
+        assert!(word.may_match(T::Utf8));
+        for ty in [T::Int64, T::Float64, T::Boolean, T::DateTime] {
+            assert!(!word.may_match(ty), "{ty}");
+        }
+        for ty in [T::Int64, T::Float64, T::DateTime, T::Utf8] {
+            assert!(contains("-12.5").may_match(ty), "{ty}");
+        }
+        assert!(!contains("-12.5").may_match(T::Boolean));
+        assert!(contains("1e-7").may_match(T::Float64));
+        assert!(contains("RU").may_match(T::Boolean));
+        assert!(contains("T10:00").may_match(T::DateTime));
+        assert!(!contains("T10:00").may_match(T::Int64));
+        // An empty text, a date text and `similar` can match anything.
+        for matcher in [
+            contains(""),
+            contains("1993/3/22"),
+            ValueMatcher::new("attack", TextMatch::Similar, false, None),
+        ] {
+            for ty in [T::Int64, T::Float64, T::Boolean, T::DateTime, T::Utf8] {
+                assert!(matcher.may_match(ty), "{ty}");
+            }
+        }
+        // Each skip agrees with `matches` on rendered values of the type.
+        let rendered = [
+            (T::Int64, json!(1_234_567)),
+            (T::Float64, json!(-0.000_000_1)),
+            (T::Float64, json!(1.5e300)),
+            (T::Boolean, json!(true)),
+            (T::Boolean, json!(false)),
+            (T::DateTime, json!("1993-11-12")),
+            (T::DateTime, json!("2024-01-02T10:00:00.000Z")),
+        ];
+        for text in [
+            "attack", "Ajax", "e", "E", "true", "al", "12", "-0", "t1", "z",
+        ] {
+            for matching in [TextMatch::Contains, TextMatch::Prefix, TextMatch::Exact] {
+                let matcher = ValueMatcher::new(text, matching, false, None);
+                for (ty, value) in &rendered {
+                    if matcher.matches(value) {
+                        assert!(matcher.may_match(*ty), "{text} {ty} {value}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn matches_dates_across_layouts() {
         let day = search("1993/11/12", TextMatch::Contains);
         for held in [
@@ -297,6 +411,41 @@ mod tests {
         assert!(!search("1993", TextMatch::Exact).matches(&json!("1993-01-01")));
         assert!(parse_date_text("199313", true).is_none());
         assert!(parse_date_text("2024-01-02t10:00:00z", true).is_some());
+    }
+
+    #[test]
+    fn ascii_text_matches_as_its_lowercase_copy_would() {
+        let texts = [
+            "",
+            "a",
+            "Joanne",
+            "JOANNE",
+            "<goal><value>Belgian Jupiler League</value></goal>",
+            "jo",
+            "xJoA",
+            "Ünïcode Joanne",
+            "\u{212A}elvin",
+        ];
+        let needles = ["", "jo", "JOA", "joanne", "league</", "e", "kelvin", "ü"];
+        for matching in [TextMatch::Contains, TextMatch::Prefix, TextMatch::Exact] {
+            for needle in needles {
+                let fast = search(needle, matching);
+                for text in texts {
+                    let lower = text.to_lowercase();
+                    let needle = needle.to_lowercase();
+                    let expected = match matching {
+                        TextMatch::Contains => lower.contains(&needle),
+                        TextMatch::Prefix => lower.starts_with(&needle),
+                        _ => lower == needle,
+                    };
+                    assert_eq!(
+                        fast.matches(&json!(text)),
+                        expected,
+                        "{matching:?} {needle:?} in {text:?}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

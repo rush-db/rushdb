@@ -1031,7 +1031,18 @@ fn finish_batch(pl: &mut Planner<'_>, ci: u64) -> CommitBatch {
 }
 
 fn normalize_mutations(mut muts: Vec<Mutation>) -> Vec<Mutation> {
-    muts.sort_by_key(sort_rank);
+    // Relationship headers go after every record header: record and
+    // relationship ordinals are separate counters, and a relationship to a
+    // record created in the same batch must see that record's label when the
+    // relationship catalog captures its endpoint labels.
+    muts.sort_by_key(|m| {
+        let (rank, ordinal) = sort_rank(m);
+        (
+            rank,
+            matches!(m, Mutation::CreateRelationshipHeader { .. }),
+            ordinal,
+        )
+    });
     muts
 }
 

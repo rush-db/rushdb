@@ -172,11 +172,14 @@ let tenant_b = connect(port, "tenant-b", &token).await?;   // dbname = tenant-b
 - Text and binary encodings for `bool`, `int2`/`int4`/`int8`,
   `float4`/`float8`, `text`, `bytea`, `date`, `time`, `timestamp`, and
   `json`/`jsonb`.
-- `CommandComplete` tags with affected-row counts for `INSERT`, `UPDATE`, and
-  `DELETE`, and `CREATE INDEX` / `DROP INDEX` tags for index DDL.
+- `CommandComplete` tags with affected-row counts in PostgreSQL's form
+  (`INSERT 0 n`, `UPDATE n`, `DELETE n`), and `CREATE INDEX` / `DROP INDEX`
+  tags for index DDL.
 - Compatibility answers for `SELECT 1`, `SELECT version()`,
-  `SHOW server_version`, `SELECT current_database()`, and
-  `SELECT current_user`.
+  `SHOW server_version`, and the session functions `current_database()`,
+  `current_catalog`, `current_user`, `session_user`, `current_role`,
+  `current_schema()` and `version()`, anywhere an expression can go
+  (`SELECT current_database(), current_user, name FROM …`).
 
 ## Statements and transactions
 
@@ -220,7 +223,27 @@ RESET ALL;
 `SET name = DEFAULT` and `RESET name` clear one setting. The settings can
 also be passed as startup parameters (for example `statement_timeout` in
 the connection options); a malformed value fails each statement with
-`22023`. Other `SET` statements are not supported.
+`22023`.
+
+### Client parameters
+
+Drivers and tools set client parameters on every connection (Metabase and
+other JDBC clients send `SET application_name`). These are accepted and
+recorded, so `SHOW` answers them, but they change nothing the server does:
+
+| Parameter | Accepted values | `SHOW` when unset |
+|---|---|---|
+| `application_name` | any | empty |
+| `client_encoding` (also `SET NAMES`) | `UTF8` only | `UTF8` |
+| `DateStyle` | any style with `ISO` (output is always ISO) | `ISO, MDY` |
+| `TimeZone` (also `SET TIME ZONE`) | any; recorded, not applied: timestamps are written without a time zone | `UTC` |
+| `extra_float_digits` | -15 to 3 | `1` |
+| `search_path` | a path that includes `public`, where the record tables are | `"$user", public` |
+| `IntervalStyle`, `client_min_messages` | any | `postgres`, `notice` |
+| `standard_conforming_strings` | `on` only | `on` |
+
+A value the server cannot honour fails with `22023`. `SET` or `RESET` of any
+other parameter fails with `0A000`, naming the parameters it accepts.
 
 ## SQLSTATE mapping
 
@@ -231,16 +254,19 @@ SQLSTATE codes:
 |---|---|---|
 | `28P01` | Wrong password (token) | (authentication) |
 | `3D000` | Missing `database` on a multitenant server; scope missing or mismatched | `missing_scope`, `scope_mismatch` |
-| `42601` | Statement could not be parsed or described during Parse | `invalid_request` |
+| `42601` | Statement could not be parsed or planned | `invalid_request` |
 | `42501` | Not authorized | `unauthorized` |
 | `42P01` | Table or object not found | `not_found` |
+| `42703` | Column not found (the message names the valid or closest columns) | `not_found` |
+| `42883` | Function not found | `not_found` |
+| `22P02`, `22012`, `22003` | A value does not cast to the type a comparison needs, a division by zero, an overflow (see [mixed types](../languages/sql.md#how-the-graph-maps-to-tables)) | `invalid_request` |
 | `23505` | Constraint or state conflict | `conflict` |
 | `40001` | Serialization failure; retry | `write_conflict` |
 | `57014` | Query cancelled or deadline elapsed | `cancelled` |
 | `53200` | Resource budget exhausted | `resource_exhausted` |
 | `22023` | Invalid value for a [session setting](#session-settings) | (session) |
 | `57P03` | Server unavailable (capacity, maintenance, shutting down) | `unavailable` |
-| `0A000` | Feature not supported (including transaction control) or language disabled | `unsupported`, `language_disabled`, `unsupported_version` |
+| `0A000` | Feature not supported (transaction control, `PREPARE`, `LISTEN`, cursors, table DDL, other `SET` parameters) or language disabled | `unsupported`, `language_disabled`, `unsupported_version` |
 | `08P01` | Protocol violation | `protocol_violation` |
 | `22P02` | A result value cannot be encoded as its column type | (encoding) |
 | `XX000` | Internal or unclassified execution failure | `execution_failed` |
@@ -257,6 +283,7 @@ SQLSTATE codes:
 
 - TLS, SCRAM-SHA-256, channel binding, and certificate authentication.
 - Explicit transactions, savepoints, cursors, and bounded portal fetches.
+- SQL `PREPARE`/`EXECUTE` (prepare through the extended query flow instead).
 - `COPY`, `LISTEN`/`NOTIFY`, and replication connections.
 - PostgreSQL system catalogs, type casts specific to PostgreSQL, and
   extensions.

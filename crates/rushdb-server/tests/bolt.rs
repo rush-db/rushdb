@@ -277,6 +277,84 @@ fn bolt_transaction_commit_persists_rollback_does_not() {
 }
 
 #[test]
+fn bolt_transaction_creates_relationships() {
+    let port = boot("bolt-token", true);
+    let mut client = Client::connect(port);
+    assert_eq!(tag_of(&client.hello("bolt-token")), SUCCESS);
+    client.run("CREATE (:Person {name: 'ada'})");
+    client.pull();
+
+    // New endpoints with the relationship, and a relationship from a
+    // committed node: both stage, and commit together.
+    assert_eq!(tag_of(&client.begin()), SUCCESS);
+    for statement in [
+        "CREATE (:Person {name: 'bo'})-[:KNOWS {since: 1}]->(:Person {name: 'cy'})",
+        "MATCH (a:Person {name: 'ada'}) CREATE (a)-[:KNOWS {since: 2}]->(:Person {name: 'di'})",
+    ] {
+        let run = client.run(statement);
+        assert_eq!(tag_of(&run), SUCCESS, "{run}");
+        let pulled = client.pull();
+        assert_eq!(tag_of(pulled.last().unwrap()), SUCCESS, "{pulled:?}");
+    }
+    assert_eq!(tag_of(&client.commit()), SUCCESS);
+
+    let run = client.run(
+        "MATCH (a:Person)-[k:KNOWS]->(b:Person) RETURN a.name AS a, k.since AS since, b.name AS b ORDER BY since",
+    );
+    assert_eq!(tag_of(&run), SUCCESS, "{run}");
+    let rows: Vec<Value> = client
+        .pull()
+        .iter()
+        .filter(|m| tag_of(m) == RECORD)
+        .map(|m| value::struct_fields(m)[0].clone())
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            serde_json::json!(["bo", 1, "cy"]),
+            serde_json::json!(["ada", 2, "di"])
+        ]
+    );
+}
+
+#[test]
+fn bolt_summary_reports_the_query_type_and_updates() {
+    let port = boot("bolt-token", true);
+    let mut client = Client::connect(port);
+    assert_eq!(tag_of(&client.hello("bolt-token")), SUCCESS);
+    // Drivers read `type` and `stats` from the summary that ends the result.
+    let summary = |client: &mut Client, statement: &str| -> Map<String, Value> {
+        let run = client.run(statement);
+        assert_eq!(tag_of(&run), SUCCESS, "{run}");
+        let pulled = client.pull();
+        let last = pulled.last().unwrap();
+        assert_eq!(tag_of(last), SUCCESS, "{pulled:?}");
+        value::struct_fields(last)[0].as_object().unwrap().clone()
+    };
+    let updates = serde_json::json!({"contains-updates": true});
+
+    let write = summary(&mut client, "CREATE (:Person {name: 'ada'})");
+    assert_eq!(write["type"], "w");
+    assert_eq!(write["stats"], updates);
+    let read_write = summary(&mut client, "CREATE (p:Person {name: 'bo'}) RETURN p.name");
+    assert_eq!(read_write["type"], "rw");
+    assert_eq!(read_write["stats"], updates);
+    let read = summary(&mut client, "MATCH (p:Person) RETURN p.name");
+    assert_eq!(read["type"], "r");
+    assert!(!read.contains_key("stats"), "{read:?}");
+    // A write that changes nothing reports no updates.
+    let unchanged = summary(&mut client, "MERGE (:Person {name: 'ada'})");
+    assert_eq!(unchanged["type"], "w");
+    assert!(!unchanged.contains_key("stats"), "{unchanged:?}");
+
+    assert_eq!(tag_of(&client.begin()), SUCCESS);
+    let staged = summary(&mut client, "CREATE (:Person {name: 'cy'})");
+    assert_eq!(staged["type"], "w");
+    assert_eq!(staged["stats"], updates);
+    assert_eq!(tag_of(&client.commit()), SUCCESS);
+}
+
+#[test]
 fn bolt_read_inside_transaction_sees_committed_data() {
     let port = boot("bolt-token", true);
     let mut client = Client::connect(port);
