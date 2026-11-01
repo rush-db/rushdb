@@ -24,7 +24,7 @@ members = [
 ]
 
 [workspace.package]
-version = "3.0.1"
+version = "3.0.2"
 edition = "2021"
 rust-version = "1.91"
 license = "Apache-2.0"
@@ -52,24 +52,24 @@ result_large_err = { level = "allow", priority = 4 }
 
 [workspace.dependencies]
 roaring = "0.11"
-rushdb-types = { path = "crates/rushdb-types", version = "=3.0.1" }
-rushdb-storage = { path = "crates/rushdb-storage", version = "=3.0.1" }
-rushdb-lmpg = { path = "crates/rushdb-lmpg", version = "=3.0.1" }
-rushdb-tx = { path = "crates/rushdb-tx", version = "=3.0.1" }
-rushdb-query = { path = "crates/rushdb-query", version = "=3.0.1" }
-rushdb-engine = { path = "crates/rushdb-engine", version = "=3.0.1" }
-rushdb-backup = { path = "crates/rushdb-backup", version = "=3.0.1" }
-rushdb-raft = { path = "crates/rushdb-raft", version = "=3.0.1" }
-rushdb-server = { path = "crates/rushdb-server", version = "=3.0.1" }
-rushdb-authz = { path = "crates/rushdb-authz", version = "=3.0.1" }
-rushdb-sql = { path = "crates/rushdb-sql", version = "=3.0.1" }
-rushdb-textsearch = { path = "crates/rushdb-textsearch", version = "=3.0.1" }
-rushdb-vector = { path = "crates/rushdb-vector", version = "=3.0.1" }
-rushdb-protocol = { path = "crates/rushdb-protocol", version = "=3.0.1" }
-rushdb-language = { path = "crates/rushdb-language", version = "=3.0.1" }
-rushdb-mongodb = { path = "crates/rushdb-mongodb", version = "=3.0.1" }
-rushdb-grpc = { path = "crates/rushdb-grpc", version = "=3.0.1" }
-rushdb-bolt = { path = "crates/rushdb-bolt", version = "=3.0.1" }
+rushdb-types = { path = "crates/rushdb-types", version = "=3.0.2" }
+rushdb-storage = { path = "crates/rushdb-storage", version = "=3.0.2" }
+rushdb-lmpg = { path = "crates/rushdb-lmpg", version = "=3.0.2" }
+rushdb-tx = { path = "crates/rushdb-tx", version = "=3.0.2" }
+rushdb-query = { path = "crates/rushdb-query", version = "=3.0.2" }
+rushdb-engine = { path = "crates/rushdb-engine", version = "=3.0.2" }
+rushdb-backup = { path = "crates/rushdb-backup", version = "=3.0.2" }
+rushdb-raft = { path = "crates/rushdb-raft", version = "=3.0.2" }
+rushdb-server = { path = "crates/rushdb-server", version = "=3.0.2" }
+rushdb-authz = { path = "crates/rushdb-authz", version = "=3.0.2" }
+rushdb-sql = { path = "crates/rushdb-sql", version = "=3.0.2" }
+rushdb-textsearch = { path = "crates/rushdb-textsearch", version = "=3.0.2" }
+rushdb-vector = { path = "crates/rushdb-vector", version = "=3.0.2" }
+rushdb-protocol = { path = "crates/rushdb-protocol", version = "=3.0.2" }
+rushdb-language = { path = "crates/rushdb-language", version = "=3.0.2" }
+rushdb-mongodb = { path = "crates/rushdb-mongodb", version = "=3.0.2" }
+rushdb-grpc = { path = "crates/rushdb-grpc", version = "=3.0.2" }
+rushdb-bolt = { path = "crates/rushdb-bolt", version = "=3.0.2" }
 
 grafeo-common = { version = "=0.5.42", default-features = false }
 grafeo-core = { version = "=0.5.42", default-features = false, features = ["lpg", "regex", "text-index"] }

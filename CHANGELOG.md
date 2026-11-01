@@ -4,6 +4,18 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.2 — 2026-11-02
+
+No engine, protocol or storage changes: the binary behaves exactly like 3.0.1.
+
+### Changed
+
+- Package and image metadata use RushDB's current description, "the database
+  for AI": the container image label, the `rushdb-server` crate description and
+  keywords, the Homebrew formula (homepage now https://rushdb.com) and the Helm
+  chart description.
+- The Apple silicon binary is built on macOS 15.
+
 ## 3.0.1 — 2026-11-01
 
 ### Changed
