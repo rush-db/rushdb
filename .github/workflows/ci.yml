@@ -22,7 +22,7 @@ jobs:
         with:
           toolchain: 1.98.1
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: cargo fmt --all --check
       - run: bash scripts/check-quality-bar.sh
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -55,7 +55,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.91
         with:
           toolchain: 1.91
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: cargo check --workspace --all-targets --locked
 
   feature-matrix:
@@ -67,7 +67,7 @@ jobs:
         with:
           toolchain: 1.98.1
           components: clippy
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Check server without default features
         run: cargo check -p rushdb-server --no-default-features --all-targets --locked
       - name: Check vector with all features
@@ -89,7 +89,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:
           toolchain: 1.98.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       # Cargo verifies each archive against the dependency versions available
       # to the clean consumer. Keep this as a real verification gate; --no-
       # verify would only test archive creation. A synchronized release must
@@ -112,7 +112,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:
           toolchain: 1.98.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: cargo test --workspace --no-fail-fast --locked
 
   fault-matrix:
@@ -123,7 +123,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:
           toolchain: 1.98.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Build the crash harness
         run: cargo build -p rushdb-storage-integration --example crash_child --locked
       - name: Verify acknowledged commits survive a crash
@@ -141,7 +141,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:
           toolchain: 1.98.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Run planner differential oracle
         run: cargo test -p rushdb-query --test planner_differential --locked
       - name: Run randomized server differential oracle
@@ -155,7 +155,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:
           toolchain: 1.98.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       # Keep the engine's Rust contracts visible as a named gate. The broad
       # workspace job remains useful, but this job makes recovery, LMPG
       # reconstruction, and embedded execution failures easy to localize.
@@ -173,7 +173,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:
           toolchain: 1.98.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Fetch the pinned openCypher TCK
         run: |
           git clone --depth 1 --branch 2024.2 https://github.com/opencypher/openCypher.git "$RUNNER_TEMP/openCypher"
@@ -239,7 +239,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
         with:
           toolchain: 1.98.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: cargo build --release -p rushdb-server --bins
       - run: ./target/release/rushdb --help
       - run: ./target/release/rushdb serve --help
