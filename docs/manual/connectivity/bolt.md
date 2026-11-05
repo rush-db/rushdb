@@ -27,7 +27,7 @@ is for developers bringing Neo4j-style applications or tools to RushDB.
 The Bolt listener needs a port and a graph language:
 
 ```bash
-rushdb serve --data-dir ./data --languages cypher --bolt-port 7687
+rushdb serve --data-dir ./data --languages sql,cypher --bolt-port 7687
 ```
 
 It binds only when `--bolt-port` is non-zero **and** `cypher` is enabled:

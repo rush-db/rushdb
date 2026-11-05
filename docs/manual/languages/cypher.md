@@ -9,7 +9,7 @@ Cypher database.
 | Property | Value |
 |---|---|
 | Status | **Release candidate** |
-| Enable with | `--languages cypher` (`languages.cypher: true`) |
+| Enable with | `--languages sql,cypher` (`languages.cypher: true`); a `--languages` list replaces the default set, so name `sql` to keep it |
 | Wire id | `cypher` |
 | Profile | openCypher property-graph profile |
 | Implementation | Grafeo graph planner and executor |
