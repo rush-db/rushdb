@@ -45,12 +45,32 @@ if [ "$mode" = "--dry-run" ]; then
   exit 0
 fi
 
-# crates.io rate-limits new crates, so a first release can stop part way.
-# Versions already on crates.io are skipped, so a re-run resumes where it
-# stopped. cargo publish waits until each crate is available before returning.
+# crates.io rate-limits new crates, so a first release hits 429 part way. On a
+# 429 this waits until the time crates.io names and retries; versions already
+# on crates.io are skipped, so a re-run resumes where a run stopped. cargo
+# publish waits until each crate is available before returning.
 version=$(cargo metadata --format-version 1 --no-deps |
   sed -n 's/.*"name":"rushdb-server","version":"\([^"]*\)".*/\1/p')
 [ -n "$version" ] || { echo "cannot read the rushdb-server version" >&2; exit 1; }
+
+log=$(mktemp)
+trap 'rm -f "$log"' EXIT
+
+publish() {
+  while :; do
+    if cargo publish --package "$1" 2>"$log"; then
+      cat "$log" >&2
+      return 0
+    fi
+    cat "$log" >&2
+    grep -q '429 Too Many Requests' "$log" || return 1
+    until=$(sed -n 's/.*try again after \(.* GMT\).*/\1/p' "$log" | head -n 1)
+    wait=$(( $(date -d "${until:-now}" +%s) - $(date +%s) + 15 ))
+    [ "$wait" -gt 0 ] || wait=60
+    echo "crates.io rate limit: retrying $1 in ${wait}s"
+    sleep "$wait"
+  done
+}
 
 for package in $crates; do
   status=$(curl -s -o /dev/null -w '%{http_code}' -A 'rushdb-release (https://github.com/rush-db/rushdb)' \
@@ -59,5 +79,5 @@ for package in $crates; do
     echo "$package $version is already on crates.io; skipping."
     continue
   fi
-  cargo publish --package "$package"
+  publish "$package"
 done
