@@ -9,7 +9,7 @@ Release only from a signed, reviewed `vX.Y.Z` tag after CI passes.
 | Repository `rush-db/homebrew-tap` | `publish.yml` | Holds `Formula/rushdb.rb` (`brew install rush-db/tap/rushdb`) |
 | Secret `HOMEBREW_TAP_TOKEN` | `publish.yml` | Fine-grained token with contents write on `rush-db/homebrew-tap` |
 | Secrets `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` | `publish.yml` | Push `rushdb/rushdb` to Docker Hub |
-| Secret `CARGO_REGISTRY_TOKEN` | `release.yml` (manual run) | Publish the crates |
+| Secret `CARGO_REGISTRY_TOKEN` | `crates.yml` | Publish the crates |
 | GHCR package `rushdb` visibility: public | after the first push | Anonymous `docker pull ghcr.io/rush-db/rushdb` |
 | GHCR package `charts/rushdb` visibility: public | after the first push | Anonymous `helm install oci://ghcr.io/rush-db/charts/rushdb` |
 
@@ -47,11 +47,14 @@ GHCR needs only the workflow token.
      version and `appVersion`, and pushes it to `oci://ghcr.io/rush-db/charts`;
    - regenerates `Formula/rushdb.rb` in the tap with
      `scripts/homebrew-formula.sh`.
-4. Publish the crates: run `release.yml` manually with the tag and
-   `publish: true`. `scripts/publish-crates.sh` packages every crate, then
-   publishes them in dependency order, ending with `rushdb-server`. Only
-   `rushdb-server` is meant for users (`cargo install` / `cargo binstall`); the
-   others are internal components and say so in their descriptions.
+4. Publish the crates: run `crates.yml` with the tag. It checks the
+   dependency sources, packages every crate, then publishes them in dependency
+   order with `scripts/publish-crates.sh`, ending with `rushdb-server`. It
+   builds no release artifacts. Versions already on crates.io are skipped, so
+   if crates.io's limit on new crates stops a first release part way, re-run it
+   later to continue. Only `rushdb-server` is meant for users (`cargo install`
+   / `cargo binstall`); the others are internal components and say so in their
+   descriptions.
 
 `publish.yml` can be re-run for a published tag with `workflow_dispatch`.
 

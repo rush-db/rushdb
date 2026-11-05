@@ -5,8 +5,7 @@
 # interdependent crates from the clean consumer's available registry; a first
 # release therefore requires synchronized versioning/publication of the full
 # internal crate set before consumer verification can pass. --publish
-# intentionally requires a separate workflow_dispatch run with the
-# CARGO_REGISTRY_TOKEN secret.
+# runs from the crates.yml workflow, which has the CARGO_REGISTRY_TOKEN secret.
 set -eu
 
 mode="${1:---dry-run}"
@@ -46,7 +45,19 @@ if [ "$mode" = "--dry-run" ]; then
   exit 0
 fi
 
+# crates.io rate-limits new crates, so a first release can stop part way.
+# Versions already on crates.io are skipped, so a re-run resumes where it
+# stopped. cargo publish waits until each crate is available before returning.
+version=$(cargo metadata --format-version 1 --no-deps |
+  sed -n 's/.*"name":"rushdb-server","version":"\([^"]*\)".*/\1/p')
+[ -n "$version" ] || { echo "cannot read the rushdb-server version" >&2; exit 1; }
+
 for package in $crates; do
+  status=$(curl -s -o /dev/null -w '%{http_code}' -A 'rushdb-release (https://github.com/rush-db/rushdb)' \
+    "https://crates.io/api/v1/crates/$package/$version")
+  if [ "$status" = 200 ]; then
+    echo "$package $version is already on crates.io; skipping."
+    continue
+  fi
   cargo publish --package "$package"
-  echo "Published $package. Wait for it to appear on crates.io before continuing."
 done
