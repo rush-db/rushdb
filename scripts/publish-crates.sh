@@ -17,28 +17,24 @@ case "$mode" in
     ;;
 esac
 
-# This order follows the workspace dependency graph. Cargo checks each package
-# again, so a newly introduced edge cannot silently publish out of order.
-crates='
-rushdb-types
-rushdb-storage
-rushdb-lmpg
-rushdb-query
-rushdb-authz
-rushdb-tx
-rushdb-protocol
-rushdb-bolt
-rushdb-grpc
-rushdb-vector
-rushdb-textsearch
-rushdb-raft
-rushdb-backup
-rushdb-sql
-rushdb-language
-rushdb-mongodb
-rushdb-engine
-rushdb-server
-'
+# Publishable workspace crates in dependency order, read from the manifests:
+# a crate is published only after every workspace crate it depends on.
+crates=$(cargo metadata --format-version 1 --no-deps --locked | python3 -c '
+import json, sys
+packages = {p["name"]: p for p in json.load(sys.stdin)["packages"] if p.get("publish") is None or p["publish"]}
+deps = {name: {d["name"] for d in p["dependencies"] if d["name"] in packages} for name, p in packages.items()}
+order = []
+while deps:
+    ready = sorted(name for name, needs in deps.items() if not needs)
+    if not ready:
+        sys.exit("dependency cycle among " + ", ".join(sorted(deps)))
+    order += ready
+    for name in ready:
+        del deps[name]
+    for needs in deps.values():
+        needs.difference_update(ready)
+print("\n".join(order))
+')
 
 if [ "$mode" = "--dry-run" ]; then
   cargo package --workspace --allow-dirty --no-verify
