@@ -4,6 +4,16 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.3 — 2026-11-05
+
+No engine, protocol or storage changes: the binary behaves exactly like 3.0.2.
+
+### Changed
+
+- The Bolt and Cypher manual pages enable Cypher with `--languages sql,cypher`.
+  `--languages` replaces the default set, so `--languages cypher` alone turned
+  SQL off, and RushDB Cloud's Smart Search needs SQL.
+
 ## 3.0.2 — 2026-11-02
 
 No engine, protocol or storage changes: the binary behaves exactly like 3.0.1.
