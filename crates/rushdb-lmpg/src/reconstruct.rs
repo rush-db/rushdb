@@ -167,7 +167,11 @@ impl<'a, R: TryRead> ReconstructSession<'a, R> {
         }
         for (pid, rows) in by_pid {
             let family = self.family_of_pid(pid)?;
-            if selected.is_some_and(|names| !names.contains(&family.display_name)) {
+            // Selected by either spelling: the stored display name or the
+            // normalized name a query resolves fields by.
+            if selected.is_some_and(|names| {
+                !names.contains(&family.display_name) && !names.contains(&family.normalized_name)
+            }) {
                 continue;
             }
             let is_array = rows.iter().all(|row| row.array);

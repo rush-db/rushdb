@@ -59,10 +59,9 @@ pub(super) fn csv_documents(
     options: &Value,
     vectors: Vec<Value>,
 ) -> Result<Vec<Value>, ProtocolError> {
-    let suggest_types = options
-        .get("suggestTypes")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
+    // The one default: `dynamicTyping` follows `suggestTypes` as the import
+    // path reads it.
+    let suggest_types = rushdb_lmpg::import::ImportOptions::from_json(options).suggest_types;
     let mut rows = decode(data, config, suggest_types).map_err(|error| {
         ProtocolError::new(
             ErrorCode::InvalidRequest,

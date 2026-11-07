@@ -91,13 +91,13 @@ fn compaction_is_gated_by_quiescence_and_growth() {
     // Not quiescent: a commit just happened, so compaction defers.
     assert_eq!(
         store
-            .compact_if_needed(Duration::from_secs(600), 100)
+            .compact_if_needed(Duration::from_secs(600), 100, None)
             .unwrap(),
         CompactOutcome::CommitsRecent
     );
 
     // Quiescent and never compacted: it runs.
-    let ran = store.compact_if_needed(Duration::ZERO, 100).unwrap();
+    let ran = store.compact_if_needed(Duration::ZERO, 100, None).unwrap();
     assert!(
         matches!(ran, CompactOutcome::Compacted(_)),
         "first quiescent compaction should run: {ran:?}"
@@ -105,7 +105,7 @@ fn compaction_is_gated_by_quiescence_and_growth() {
 
     // Growth gate: with no new growth, a 200% threshold defers.
     assert_eq!(
-        store.compact_if_needed(Duration::ZERO, 200).unwrap(),
+        store.compact_if_needed(Duration::ZERO, 200, None).unwrap(),
         CompactOutcome::BelowThreshold
     );
 
@@ -139,26 +139,26 @@ fn tenant_purge_triggers_compaction_without_file_growth() {
         .unwrap();
     }
     assert!(matches!(
-        store.compact_if_needed(Duration::ZERO, 100).unwrap(),
+        store.compact_if_needed(Duration::ZERO, 100, None).unwrap(),
         CompactOutcome::Compacted(_)
     ));
     let before = store.storage_file_bytes().unwrap();
     // No growth since that compaction: the growth gate defers.
     assert_eq!(
-        store.compact_if_needed(Duration::ZERO, 150).unwrap(),
+        store.compact_if_needed(Duration::ZERO, 150, None).unwrap(),
         CompactOutcome::BelowThreshold
     );
     gone.purge_tenant().unwrap();
     // The purge alone qualifies, and the file shrinks.
     assert!(matches!(
-        store.compact_if_needed(Duration::ZERO, 150).unwrap(),
+        store.compact_if_needed(Duration::ZERO, 150, None).unwrap(),
         CompactOutcome::Compacted(_)
     ));
     let after = store.storage_file_bytes().unwrap();
     assert!(after * 10 < before * 6, "file {before} -> {after} bytes");
     // Consumed: without a new purge or growth it defers again.
     assert_eq!(
-        store.compact_if_needed(Duration::ZERO, 150).unwrap(),
+        store.compact_if_needed(Duration::ZERO, 150, None).unwrap(),
         CompactOutcome::BelowThreshold
     );
     std::fs::remove_dir_all(&dir).ok();
@@ -277,5 +277,45 @@ fn retained_log_bytes_tracks_commits_pruning_and_reopen() {
     let reopened = Store::open_with_resources(&db, config).unwrap();
     let after_reopen = reopened.retained_log_bytes().unwrap();
     assert!(after_reopen > 0, "WAL segments are restored on reopen");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_file_over_the_cap_is_left_to_offline_compaction() {
+    // A compaction holds every request while it rewrites the file: a 1.9 GB
+    // store on a 2 GiB container blocked the node for over 20 minutes. Past
+    // `compact-max-file-bytes` the automatic path reports the skip instead.
+    use std::time::Duration;
+
+    let dir = path("cap");
+    std::fs::create_dir_all(&dir).unwrap();
+    let store = Arc::new(Store::open(&dir.join("rushdb.redb")).unwrap());
+    let lmpg = Lmpg::new(store.clone(), TENANT);
+    for i in 0..200u64 {
+        lmpg.create_record("S", None, vec![("u".into(), FieldChange::Set(json!(i)))])
+            .unwrap();
+    }
+    let file = store.storage_file_bytes().unwrap();
+    assert!(file > 1);
+    let outcome = store
+        .compact_if_needed(Duration::ZERO, 100, Some(1))
+        .unwrap();
+    assert!(
+        matches!(outcome, CompactOutcome::FileTooLarge { file_bytes, max_bytes: 1 } if file_bytes == file),
+        "{outcome:?}"
+    );
+    assert!(!store.compacting());
+    // Without a cap (or under it) the same store compacts.
+    let outcome = store.compact_if_needed(Duration::ZERO, 100, None).unwrap();
+    assert!(
+        matches!(outcome, CompactOutcome::Compacted(_)),
+        "{outcome:?}"
+    );
+    assert!(!store.compacting(), "the flag is released after compaction");
+    // The write streams are counted: 200 commits appended to the WAL and
+    // applied their base and derived ops.
+    let stats = store.storage_stats().unwrap();
+    assert!(stats.wal_bytes_appended > 0);
+    assert!(stats.applied_bytes > stats.wal_bytes_appended / 4);
     std::fs::remove_dir_all(&dir).ok();
 }

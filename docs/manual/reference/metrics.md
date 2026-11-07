@@ -72,6 +72,8 @@ Bolt, and `pgwire.execute` for PostgreSQL wire.
 | `rushdb_bytes_stored` | gauge | `tenant` | Approximate stored bytes; `tenant="all"` is the node total. |
 | `rushdb_records_stored` | gauge | `tenant` | Records stored. `tenant="all"` always; per-tenant series (internal tenant id) only with `--metrics-tenant-limit`. |
 | `rushdb_storage_checkpoints_total` | counter | — | Durability checkpoints taken. |
+| `rushdb_storage_wal_bytes_total` | counter | — | Bytes appended to the write-ahead log. |
+| `rushdb_storage_applied_bytes_total` | counter | — | Encoded op bytes (base and derived) applied to the store. With the WAL counter, the two write streams a commit produces; compare against file growth and the process's block writes. |
 | `rushdb_storage_checkpoint_wait_ms_total` | counter | — | Milliseconds spent in checkpoints. |
 | `rushdb_storage_compactions_total` | counter | — | Completed storage compactions. |
 | `rushdb_commit_log_rows_pruned` | gauge | — | Command-log rows reclaimed by retention. |

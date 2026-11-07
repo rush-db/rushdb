@@ -33,7 +33,8 @@ On HTTP a protocol error has this shape:
 |---|---|---|---|---|---|---|
 | `unsupported_version` | `protocolVersion` is not 1. | no | 426 | `0A000` | `INVALID_ARGUMENT` | `Neo.ClientError.Request.Invalid` |
 | `protocol_violation` | The request broke the protocol contract. | no | 400 | `08P01` | `INVALID_ARGUMENT` | `Neo.ClientError.Statement.SyntaxError` |
-| `invalid_request` | Malformed request: bad JSON, unknown query key, invalid argument, oversized body. | no | 400 | `42601` | `INVALID_ARGUMENT` | `Neo.ClientError.Statement.SyntaxError` |
+| `invalid_request` | Malformed request: bad JSON, unknown query key, invalid argument. | no | 400 | `42601` | `INVALID_ARGUMENT` | `Neo.ClientError.Statement.SyntaxError` |
+| `payload_too_large` | The request body is larger than the server's body limit (`buildInfo.limits.maxRequestBytes`); the message names the limit. | no | 413 | `54000` | `RESOURCE_EXHAUSTED` | `Neo.ClientError.Request.Invalid` |
 | `unauthorized` | Credential missing or wrong, capability lacks the permission, or a data-access policy denies the read. | no | 401 | `42501` | `UNAUTHENTICATED` | `Neo.ClientError.Security.Unauthorized` |
 | `missing_scope` | Multitenant mode and no tenant scope supplied. | no | 403 | `3D000` | `UNAUTHENTICATED` | `Neo.ClientError.Security.Unauthorized` |
 | `scope_mismatch` | `context.scope` differs from the transport scope, or a scope was sent to a single-tenant server. | no | 403 | `3D000` | `UNAUTHENTICATED` | `Neo.ClientError.Security.Unauthorized` |
@@ -58,7 +59,7 @@ execution. Their status does not always follow the table above.
 | 400 | protocol error `missing_scope` | Multitenant server and no `X-RushDB-Tenant` header. | Send the header. |
 | 400 | protocol error `invalid_request` | `X-RushDB-Tenant` longer than 1024 bytes. | Shorten the scope. |
 | 404 | `{"error":"route not found"}` | Unknown path. | — |
-| 413 | protocol error `invalid_request` | Request body larger than `server.body-limit`. | Split the request. |
+| 413 | protocol error `payload_too_large` | Request body larger than the body limit (`--body-limit`, `server.body-limit`); the message names the limit in bytes. | Split the request; size batches by bytes (`buildInfo.limits.maxRequestBytes`). |
 | 413 | protocol error `execution_failed` | The response would exceed the `server.body-limit` output budget. | Page the query (smaller `limit`, cursors). |
 | 503 | protocol error `unavailable` | Scheduler at capacity (`server at request capacity; retry shortly`), node still booting, or a write while free disk is below `disk-space-threshold-percent`. | Retry with backoff; for disk, free space. |
 | 429 | protocol error `resource_exhausted` | HTTP in-flight body budget full (`too many request bytes in flight`). | Retry with backoff. |
@@ -122,6 +123,7 @@ connect with `sslmode=disable` or `prefer`.
 | `property ... does not exist` | `not_found` | `deleteProperty` of an unknown name. |
 | `record ... already exists` | `conflict` | `putRecord` create with the id of an existing record. |
 | `aggregate exceeds 1000 distinct groups` | `resource_exhausted` (not retryable) | Narrow the grouping or add filters. |
+| `aggregate working set would exceed query-memory-max (N bytes)` | `resource_exhausted` (not retryable) | Raise `--query-memory-max` or narrow the filter; the request body limit never caps an aggregate's working set. |
 
 ## See also
 

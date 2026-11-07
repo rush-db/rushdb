@@ -26,6 +26,49 @@ fn boot(token: &str, cypher: bool) -> u16 {
 }
 
 fn boot_with(token: &str, cypher: bool, multitenant: bool) -> u16 {
+    boot_full(token, cypher, multitenant, None, false, None)
+}
+
+/// A TLS listener from a fresh self-signed certificate, with `advertised`
+/// as its `ROUTE` address.
+fn boot_tls(
+    token: &str,
+    multitenant: bool,
+    capability_secret: Option<&[u8]>,
+    advertised: Option<&str>,
+) -> u16 {
+    boot_full(
+        token,
+        true,
+        multitenant,
+        capability_secret,
+        true,
+        advertised,
+    )
+}
+
+fn boot_full(
+    token: &str,
+    cypher: bool,
+    multitenant: bool,
+    capability_secret: Option<&[u8]>,
+    tls: bool,
+    advertised: Option<&str>,
+) -> u16 {
+    // The directory lives until the listener has read the PEM files below.
+    let dir = tls.then(|| rushdb_storage::TempPath::dir("bolt-tls"));
+    let (tls_cert, tls_key) = match &dir {
+        Some(dir) => {
+            let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+            std::fs::create_dir_all(dir).unwrap();
+            let cert_path = dir.join("cert.pem");
+            let key_path = dir.join("key.pem");
+            std::fs::write(&cert_path, cert.cert.pem()).unwrap();
+            std::fs::write(&key_path, cert.key_pair.serialize_pem()).unwrap();
+            (Some(cert_path), Some(key_path))
+        }
+        None => (None, None),
+    };
     let mut cfg = ServerConfig {
         port: 0,
         pgwire_port: 0,
@@ -34,7 +77,7 @@ fn boot_with(token: &str, cypher: bool, multitenant: bool) -> u16 {
         token: token.to_string(),
         data_dir: None,
         multitenant,
-        capability_secret: None,
+        capability_secret: capability_secret.map(<[u8]>::to_vec),
         raft: None,
         resources: rushdb_server::resource_config::ResourceConfig::default(),
         transactions: rushdb_server::resource_config::TransactionConfig::default(),
@@ -44,8 +87,8 @@ fn boot_with(token: &str, cypher: bool, multitenant: bool) -> u16 {
         },
         max_request_bytes: 64 * 1024 * 1024,
         listen_addr: "127.0.0.1".into(),
-        tls_cert: None,
-        tls_key: None,
+        tls_cert,
+        tls_key,
         maintenance: false,
         allow_insecure_listen: false,
         require_index_warmup: false,
@@ -54,23 +97,109 @@ fn boot_with(token: &str, cypher: bool, multitenant: bool) -> u16 {
         explicit_flags: std::collections::BTreeSet::new(),
     };
     let node = Arc::new(Node::bootstrap(&mut cfg).expect("bootstrap"));
-    let handler: Arc<dyn EnvelopeHandler> = Arc::new(NodeEnvelopeHandler::new(node));
-    let (mut server, port) =
-        BoltServer::bind(handler, token.to_string(), "127.0.0.1", 0).expect("bolt bind");
+    let handler: Arc<dyn EnvelopeHandler> = Arc::new(NodeEnvelopeHandler::new(node, &cfg));
+    let tls = match (&cfg.tls_cert, &cfg.tls_key) {
+        (Some(cert), Some(key)) => Some(rushdb_bolt::BoltTls {
+            cert_pem: std::fs::read(cert).unwrap(),
+            key_pem: std::fs::read(key).unwrap(),
+        }),
+        _ => None,
+    };
+    let (mut server, port) = BoltServer::bind(
+        handler,
+        "127.0.0.1",
+        0,
+        tls.as_ref(),
+        advertised.map(str::to_owned),
+    )
+    .expect("bolt bind");
     std::thread::spawn(move || server.serve_forever());
     port
 }
 
+trait ReadWrite: Read + Write {}
+impl<T: Read + Write> ReadWrite for T {}
+
+/// A rustls client that accepts the test's self-signed certificate.
+mod tls_client {
+    use std::sync::Arc;
+
+    use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+
+    #[derive(Debug)]
+    struct NoVerify;
+
+    impl ServerCertVerifier for NoVerify {
+        fn verify_server_cert(
+            &self,
+            _end_entity: &rustls::pki_types::CertificateDer<'_>,
+            _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+            _server_name: &rustls::pki_types::ServerName<'_>,
+            _ocsp_response: &[u8],
+            _now: rustls::pki_types::UnixTime,
+        ) -> Result<ServerCertVerified, rustls::Error> {
+            Ok(ServerCertVerified::assertion())
+        }
+        fn verify_tls12_signature(
+            &self,
+            _message: &[u8],
+            _cert: &rustls::pki_types::CertificateDer<'_>,
+            _dss: &rustls::DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            Ok(HandshakeSignatureValid::assertion())
+        }
+        fn verify_tls13_signature(
+            &self,
+            _message: &[u8],
+            _cert: &rustls::pki_types::CertificateDer<'_>,
+            _dss: &rustls::DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            Ok(HandshakeSignatureValid::assertion())
+        }
+        fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+            rustls::crypto::ring::default_provider()
+                .signature_verification_algorithms
+                .supported_schemes()
+        }
+    }
+
+    pub fn connection() -> rustls::ClientConnection {
+        let config = rustls::ClientConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(NoVerify))
+        .with_no_client_auth();
+        rustls::ClientConnection::new(Arc::new(config), "localhost".try_into().unwrap()).unwrap()
+    }
+}
+
 struct Client {
-    stream: TcpStream,
+    stream: Box<dyn ReadWrite>,
 }
 
 impl Client {
     fn connect(port: u16) -> Client {
-        let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("connect");
-        stream
-            .set_read_timeout(Some(Duration::from_secs(10)))
+        Self::open(port, false)
+    }
+
+    /// Direct TLS, as `bolt+s://` drivers do: the TLS handshake first, then
+    /// the Bolt magic inside it.
+    fn connect_tls(port: u16) -> Client {
+        Self::open(port, true)
+    }
+
+    fn open(port: u16, tls: bool) -> Client {
+        let tcp = TcpStream::connect(("127.0.0.1", port)).expect("connect");
+        tcp.set_read_timeout(Some(Duration::from_secs(10)))
             .expect("read timeout");
+        let mut stream: Box<dyn ReadWrite> = if tls {
+            Box::new(rustls::StreamOwned::new(tls_client::connection(), tcp))
+        } else {
+            Box::new(tcp)
+        };
         // Handshake: magic + 4 Bolt 5.0 proposals.
         let mut handshake = Vec::new();
         handshake.extend_from_slice(&MAGIC);
@@ -544,5 +673,144 @@ fn bolt_hello_db_is_refused_on_a_single_tenant_server() {
         tag_of(&client.run("MATCH (p:Person) RETURN p.name")),
         FAILURE,
         "a tenant scope must not open a second keyspace"
+    );
+}
+
+#[test]
+fn bolt_tls_sessions_are_served_and_plaintext_is_refused() {
+    let port = boot_tls("bolt-token", false, None, None);
+    let mut client = Client::connect_tls(port);
+    let hello = client.hello("bolt-token");
+    assert_eq!(tag_of(&hello), SUCCESS, "{hello}");
+    let run = client.run("RETURN 1 AS x");
+    assert_eq!(tag_of(&run), SUCCESS, "{run}");
+    // A plaintext handshake against a TLS listener gets no Bolt version: the
+    // TLS layer refuses the bytes and the connection closes.
+    let mut plain = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    plain
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
+    let mut handshake = Vec::from(MAGIC);
+    for _ in 0..4 {
+        handshake.extend_from_slice(&VERSION_5_0);
+    }
+    let _ = plain.write_all(&handshake);
+    let mut version = [0u8; 4];
+    let outcome = plain.read_exact(&mut version);
+    assert!(
+        outcome.is_err() || version != VERSION_5_0,
+        "a plaintext handshake must not be negotiated"
+    );
+}
+
+#[test]
+fn bolt_capabilities_are_tenant_bound_credentials() {
+    let secret = b"bolt-capability-secret-0123456789";
+    let port = boot_tls("bolt-token", true, Some(secret), None);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let issue = |scope: &str, tenant: &str| {
+        rushdb_server::capability::issue_for_tenant(secret, "svc", scope, Some(tenant), 60, now)
+    };
+    // The boot token seeds both tenants.
+    for (tenant, name) in [("tenant-a", "alpha"), ("tenant-b", "beta")] {
+        let mut operator = Client::connect_tls(port);
+        assert_eq!(
+            tag_of(&operator.hello_db("bolt-token", Some(tenant))),
+            SUCCESS
+        );
+        let run = operator.run(&format!("CREATE (:Note {{name: '{name}'}})"));
+        assert_eq!(tag_of(&run), SUCCESS, "{run}");
+        operator.pull();
+    }
+    // A read capability reads its own tenant ...
+    let mut reader = Client::connect_tls(port);
+    let hello = reader.hello_db(&issue("read", "tenant-a"), Some("tenant-a"));
+    assert_eq!(tag_of(&hello), SUCCESS, "{hello}");
+    let run = reader.run("MATCH (n:Note) RETURN n.name AS name");
+    assert_eq!(tag_of(&run), SUCCESS, "{run}");
+    let rows = reader.pull();
+    assert_eq!(
+        rows.iter().filter(|row| tag_of(row) == RECORD).count(),
+        1,
+        "{rows:?}"
+    );
+    // ... and is forbidden to write.
+    let run = reader.run("CREATE (:Note {name: 'gamma'})");
+    assert_eq!(tag_of(&run), FAILURE, "{run}");
+    let meta = value::struct_fields(&run)[0].as_object().unwrap().clone();
+    assert_eq!(
+        meta["code"], "Neo.ClientError.Security.Forbidden",
+        "{meta:?}"
+    );
+    // The same capability cannot open another tenant.
+    let mut other = Client::connect_tls(port);
+    let hello = other.hello_db(&issue("read", "tenant-a"), Some("tenant-b"));
+    assert_eq!(tag_of(&hello), FAILURE, "{hello}");
+    let meta = value::struct_fields(&hello)[0].as_object().unwrap().clone();
+    assert_eq!(meta["code"], "Neo.ClientError.Security.Unauthorized");
+    // Expired and tampered tokens are refused.
+    let expired = rushdb_server::capability::issue_for_tenant(
+        secret,
+        "svc",
+        "read",
+        Some("tenant-a"),
+        1,
+        now - 100,
+    );
+    let mut client = Client::connect_tls(port);
+    assert_eq!(
+        tag_of(&client.hello_db(&expired, Some("tenant-a"))),
+        FAILURE
+    );
+    let mut client = Client::connect_tls(port);
+    let tampered = format!("{}x", issue("read", "tenant-a"));
+    assert_eq!(
+        tag_of(&client.hello_db(&tampered, Some("tenant-a"))),
+        FAILURE
+    );
+    // A write capability writes.
+    let mut writer = Client::connect_tls(port);
+    assert_eq!(
+        tag_of(&writer.hello_db(&issue("read write", "tenant-a"), Some("tenant-a"))),
+        SUCCESS
+    );
+    let run = writer.run("CREATE (:Note {name: 'delta'})");
+    assert_eq!(tag_of(&run), SUCCESS, "{run}");
+    writer.pull();
+    let run = writer.run("MATCH (n:Note) RETURN n.name AS name");
+    assert_eq!(tag_of(&run), SUCCESS, "{run}");
+    assert_eq!(
+        writer
+            .pull()
+            .iter()
+            .filter(|row| tag_of(row) == RECORD)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn bolt_route_names_the_advertised_address() {
+    let port = boot_tls("bolt-token", false, None, Some("db.example.internal:7687"));
+    let mut client = Client::connect_tls(port);
+    assert_eq!(tag_of(&client.hello("bolt-token")), SUCCESS);
+    let route = client.call(
+        0x42,
+        vec![
+            Value::Object(Map::new()),
+            Value::Array(Vec::new()),
+            Value::Object(Map::new()),
+        ],
+    );
+    assert_eq!(tag_of(&route), SUCCESS, "{route}");
+    let meta = value::struct_fields(&route)[0].as_object().unwrap().clone();
+    let servers = &meta["rt"]["routing"]["servers"];
+    assert_eq!(
+        servers[0]["addresses"][0],
+        Value::String("db.example.internal:7687".into()),
+        "{meta:?}"
     );
 }

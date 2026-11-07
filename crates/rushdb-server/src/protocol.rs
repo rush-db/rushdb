@@ -7,13 +7,13 @@ mod index_ddl;
 mod introspection;
 mod mutation;
 mod policy;
-mod queries;
+pub(crate) mod queries;
 mod transactions;
 
 pub(crate) use capabilities::{engine_capabilities, query_language_capabilities};
 pub(crate) use errors::{
     execution_failed, language_execution_failed, query_failed, response_array, response_u64,
-    scheduler_error_to_protocol_error, sql_failed,
+    scheduler_error_to_protocol_error, sql_failed, text_search_failed,
 };
 
 use rushdb_protocol::{
@@ -41,18 +41,6 @@ mod test_access {
         ordinal: u64,
     ) -> Option<rushdb_types::occurrence::RecordHeader> {
         try_access::record_by_ord(view, tenant, ordinal).expect("test read")
-    }
-}
-
-pub(crate) fn operation_permission(operation: &Operation) -> &'static str {
-    match operation {
-        Operation::Query { .. } | Operation::Describe { .. } | Operation::Backup { .. } => "read",
-        Operation::Mutate { .. }
-        | Operation::Ingest { .. }
-        | Operation::Index { .. }
-        | Operation::Transaction { .. }
-        | Operation::PurgeTenant => "write",
-        Operation::Policy { .. } => "operator",
     }
 }
 
@@ -126,6 +114,7 @@ pub(crate) fn operation_kind(operation: &Operation) -> &'static str {
             Mutation::LinkRecordsById { .. } => "mutate.linkRecordsById",
             Mutation::LinkRecordsPairs { .. } => "mutate.linkRecordsPairs",
             Mutation::UnlinkRecordsById { .. } => "mutate.unlinkRecordsById",
+            Mutation::UpdateRelationshipsById { .. } => "mutate.updateRelationshipsById",
         },
         Operation::Describe { describe } => match describe {
             Describe::Schema { .. } => "describe.schema",
@@ -693,11 +682,12 @@ impl<'a> ProtocolExecutor<'a> {
                     limit,
                     all_terms,
                     phrase,
+                    syntax,
                 } => self.query_text_with_context(
                     &index,
                     &query,
                     limit,
-                    rushdb_textsearch::LexicalOptions { all_terms, phrase },
+                    queries::lexical_options(all_terms, phrase, syntax),
                     is_cancelled,
                     &execution_context,
                 )?,
@@ -984,6 +974,8 @@ mod transaction_ingest_tests;
 mod transaction_reference_tests;
 #[cfg(test)]
 mod unlink_tests;
+#[cfg(test)]
+mod update_relationships_tests;
 
 #[cfg(test)]
 mod structural_index_tests;

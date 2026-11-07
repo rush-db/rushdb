@@ -190,73 +190,158 @@ fn collect_expansion_is_cumulative_across_page_records() {
 }
 
 #[test]
-fn aggregate_explicit_zero_budget_does_not_mean_unlimited() {
-    let store = store_with_cap(0);
-    let lmpg = Lmpg::new(store.clone(), TenantId::single());
-    let result = rushdb_query::aggregate_with_cancel_in_view_with_budget(
-        &lmpg,
-        &rushdb_query::AggregateRequest::default(),
-        &|| false,
-        Arc::new(store.read_view().unwrap()),
-        Some(0),
-    );
-    assert!(matches!(result, Err(QueryError::ResourceLimit(_))));
-}
-
-#[test]
-fn aggregate_applies_the_stricter_configured_limit() {
+fn aggregate_applies_the_configured_limit() {
     let store = store_with_cap(128);
     let lmpg = Lmpg::new(store.clone(), TenantId::single());
-    let result = rushdb_query::aggregate_with_cancel_in_view_with_budget(
+    let result = rushdb_query::aggregate_with_cancel_in_view(
         &lmpg,
         &rushdb_query::AggregateRequest::default(),
         &|| false,
         Arc::new(store.read_view().unwrap()),
-        Some(1024 * 1024),
     );
     assert!(matches!(result, Err(QueryError::ResourceLimit(_))));
 }
 
+/// Seeds `count` trips with a few scalar columns in one commit.
+fn seed_trips(lmpg: &Lmpg, count: u32) {
+    let rows: Vec<serde_json::Value> = (0..count)
+        .map(|i| {
+            json!({
+                "vendor": if i % 3 == 0 { "A" } else { "B" },
+                "hour": i % 24,
+                "fare": f64::from(i % 50) + 0.5,
+                "distance": f64::from(i % 7),
+                "note": format!("trip {i}"),
+            })
+        })
+        .collect();
+    let options = rushdb_lmpg::import::ImportOptions::default();
+    let plan = rushdb_lmpg::import::serialize_bfs(&json!(rows), "Trip", &options);
+    rushdb_lmpg::import::import_bfs(lmpg, &plan, &options).unwrap();
+}
+
 #[test]
-fn aggregate_indexed_candidates_respect_work_budget() {
-    let store = store_with_cap(0);
+fn grouped_averages_over_many_records_fit_query_memory_max() {
+    // The aggregate working set is the match ordinals, the row being
+    // aggregated and the buckets, under `query-memory-max`. Before, the
+    // candidate vector's *capacity* was charged twice over (16 B then 8 B
+    // per slot) and tripled again for an `$avg`, so 30,000 matches needed
+    // over 768 KiB and every row was rebuilt in full (the `note` column
+    // included). 30,000 ordinals are 240,000 bytes retained, and the walk
+    // charged twice that.
+    let store = store_with_cap(600_000);
     let lmpg = Lmpg::new(store.clone(), TenantId::single());
-    for _ in 0..200 {
-        lmpg.create_record(
-            "Shared",
-            None,
-            vec![("n".into(), FieldChange::Set(json!(1)))],
-        )
-        .unwrap();
-    }
-    let parsed = parse_document(&json!({"labels": ["Shared"], "where": {"n": 1}})).unwrap();
+    seed_trips(&lmpg, 30_000);
     let request = rushdb_query::AggregateRequest {
-        labels: parsed.search.labels,
-        where_: parsed.search.where_,
-        sums: vec![("sum".into(), "n".into())],
+        labels: vec!["Trip".into()],
+        group_by: vec!["vendor".into()],
+        avg_terms: vec![("dist".into(), "distance".into())],
+        maxs: vec![("max_fare".into(), "fare".into())],
+        counts: vec![("n".into(), "*".into())],
         ..Default::default()
     };
     let view = Arc::new(store.read_view().unwrap());
-    let result = rushdb_query::aggregate_with_cancel_in_view_with_budget(
-        &lmpg,
-        &request,
-        &|| false,
-        view.clone(),
-        Some(32 * 1024),
+    let (buckets, total) =
+        rushdb_query::aggregate_with_cancel_in_view(&lmpg, &request, &|| false, view).unwrap();
+    assert_eq!(total, 30_000);
+    assert_eq!(buckets.len(), 2);
+    let a = buckets
+        .iter()
+        .find(|b| b.keys["vendor"] == json!("A"))
+        .unwrap();
+    assert_eq!(a.count_roots, 10_000);
+    assert_eq!(a.maxs["max_fare"], json!(49.5));
+    let expected_distance = (0..30_000u32)
+        .filter(|i| i % 3 == 0)
+        .map(|i| f64::from(i % 7))
+        .sum::<f64>()
+        / 10_000.0;
+    assert_eq!(a.sums["dist"], json!(expected_distance));
+
+    // The cap still binds the retained ordinals: 30,000 do not fit 200 KiB.
+    let store = store_with_cap(200_000);
+    let lmpg = Lmpg::new(store.clone(), TenantId::single());
+    seed_trips(&lmpg, 30_000);
+    let view = Arc::new(store.read_view().unwrap());
+    let error =
+        rushdb_query::aggregate_with_cancel_in_view(&lmpg, &request, &|| false, view).unwrap_err();
+    assert!(
+        matches!(&error, QueryError::ResourceLimit(message) if message.contains("query-memory-max")),
+        "{error:?}"
     );
+}
+
+#[test]
+fn aggregate_limits_retained_groups_under_query_memory_max() {
+    // Buckets are what an aggregate retains: 100 groups with 1 KiB keys do
+    // not fit a 64 KiB working set, whether or not `skip` discards them.
+    let store = store_with_cap(64 * 1024);
+    let lmpg = Lmpg::new(store.clone(), TenantId::single());
+    for i in 0..100 {
+        lmpg.create_record(
+            "Groups",
+            None,
+            vec![(
+                "group".into(),
+                FieldChange::Set(json!(format!("{i}{}", "x".repeat(1024)))),
+            )],
+        )
+        .unwrap();
+    }
+    let request = rushdb_query::AggregateRequest {
+        labels: vec!["Groups".into()],
+        group_by: vec!["group".into()],
+        skip: 100,
+        ..Default::default()
+    };
+    let view = Arc::new(store.read_view().unwrap());
+    let result = rushdb_query::aggregate_with_cancel_in_view(&lmpg, &request, &|| false, view);
     assert!(
         matches!(result, Err(QueryError::ResourceLimit(_))),
         "{result:?}"
     );
-    let (buckets, _) = rushdb_query::aggregate_with_cancel_in_view_with_budget(
-        &lmpg,
-        &request,
-        &|| false,
-        view,
-        Some(1024 * 1024),
-    )
-    .unwrap();
-    assert_eq!(buckets[0].sums["sum"], json!(200.0));
+}
+
+#[test]
+fn a_filtered_grouped_aggregate_reads_only_the_fields_it_names() {
+    // The residual filter and the metrics read their properties by point
+    // reads; a 64 KiB payload column is never decoded, so the working set
+    // stays near the ordinals.
+    let store = store_with_cap(96 * 1024);
+    let lmpg = Lmpg::new(store.clone(), TenantId::single());
+    for i in 0..40 {
+        lmpg.create_record(
+            "Wide",
+            None,
+            vec![
+                ("kind".into(), FieldChange::Set(json!(i % 2))),
+                ("n".into(), FieldChange::Set(json!(i))),
+                (
+                    "payload".into(),
+                    FieldChange::Set(json!("x".repeat(64 * 1024))),
+                ),
+            ],
+        )
+        .unwrap();
+    }
+    let parsed =
+        parse_document(&json!({"labels": ["Wide"], "where": {"n": {"$gte": 20}}})).unwrap();
+    let request = rushdb_query::AggregateRequest {
+        labels: parsed.search.labels,
+        where_: parsed.search.where_,
+        group_by: vec!["kind".into()],
+        sums: vec![("sum".into(), "n".into())],
+        ..Default::default()
+    };
+    let view = Arc::new(store.read_view().unwrap());
+    let (buckets, total) =
+        rushdb_query::aggregate_with_cancel_in_view(&lmpg, &request, &|| false, view).unwrap();
+    assert_eq!(total, 20);
+    let even = buckets.iter().find(|b| b.keys["kind"] == json!(0)).unwrap();
+    assert_eq!(
+        even.sums["sum"],
+        json!(f64::from((20..40).step_by(2).sum::<i32>()))
+    );
 }
 
 #[test]

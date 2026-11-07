@@ -319,7 +319,7 @@ collected record above it.
 | Limit | Value | Error when exceeded |
 |---|---|---|
 | Distinct groups (rows before paging) in one grouped or rolled-up aggregation | 1,000 | `resource_exhausted` (not retryable): "aggregate exceeds 1000 distinct groups" |
-| Aggregation working memory (match set, retained rows, groups, collected arrays) | the per-query budget, `resources.query-memory-max` (default 256 MiB) | `resource_exhausted`: "aggregate working byte budget exceeded" |
+| Aggregation working set (match ordinals, the row being aggregated, groups, collected arrays) | `resources.query-memory-max` (default 256 MiB), tightened by `context.queryMemoryMaxBytes`; never the request body limit, which caps only the returned page | `resource_exhausted` (not retryable): "aggregate working set would exceed query-memory-max (N bytes)" |
 | `$avg` `$precision` | 15 | Clamped to 15 |
 | `$timeBucket` `size` | at least 1 | `invalid_request` |
 

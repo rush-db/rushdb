@@ -550,3 +550,114 @@ fn more_indexes_than_the_open_cache_holds_all_keep_answering() {
     }
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn plain_text_is_searched_as_words() {
+    let (lmpg, text) = setup();
+    let a = article(
+        &lmpg,
+        "Adhesion molecules and chemokines: relation to inflammation",
+        "role of the virus' genome",
+    );
+    article(&lmpg, "Unrelated", "nothing here");
+    define(
+        &lmpg,
+        "articles",
+        "Article",
+        "*",
+        TextConsistency::Immediate,
+    );
+    for query in [
+        "inflammatory chemokines: role",
+        "virus' genome",
+        "AND OR NOT chemokines",
+    ] {
+        assert_eq!(
+            search(&lmpg, &text, "articles", query).0,
+            vec![a.ordinal],
+            "{query}"
+        );
+    }
+    assert!(search(&lmpg, &text, "articles", "NOT").0.is_empty());
+    let all = LexicalOptions {
+        all_terms: true,
+        ..LexicalOptions::default()
+    };
+    assert_eq!(
+        search_opts(
+            &lmpg,
+            &text,
+            "articles",
+            "chemokines: inflammation",
+            all,
+            None
+        )
+        .0,
+        vec![a.ordinal]
+    );
+    assert!(
+        search_opts(&lmpg, &text, "articles", "chemokines absent", all, None)
+            .0
+            .is_empty()
+    );
+}
+
+#[test]
+fn the_query_syntax_is_opt_in_and_reports_what_does_not_parse() {
+    let (lmpg, text) = setup();
+    let a = article(&lmpg, "graph database", "storage");
+    article(&lmpg, "relational database", "storage");
+    define(
+        &lmpg,
+        "articles",
+        "Article",
+        "*",
+        TextConsistency::Immediate,
+    );
+    let syntax = LexicalOptions {
+        syntax: rushdb_textsearch::TextSyntax::Query,
+        ..LexicalOptions::default()
+    };
+    assert_eq!(
+        search_opts(
+            &lmpg,
+            &text,
+            "articles",
+            "database -relational",
+            syntax,
+            None
+        )
+        .0,
+        vec![a.ordinal]
+    );
+    let view = lmpg.store.read_view().unwrap();
+    let attempt = |index: &str, query: &str| {
+        text.search(
+            lmpg.tenant,
+            &view,
+            rushdb_textsearch::TextQuery {
+                index,
+                query,
+                opts: syntax,
+                top_k: 10,
+            },
+            None,
+        )
+        .unwrap_err()
+    };
+    assert!(matches!(
+        attempt("articles", "title:("),
+        rushdb_textsearch::TextSearchError::InvalidQuery(_)
+    ));
+    // The index's internal owner column is not searchable.
+    assert!(matches!(
+        attempt("articles", "owner:1"),
+        rushdb_textsearch::TextSearchError::InvalidQuery(_)
+    ));
+    assert!(matches!(
+        attempt("missing", "database"),
+        rushdb_textsearch::TextSearchError::UnknownIndex(_)
+    ));
+    // As plain words the same string is two terms, neither indexed.
+    assert!(search(&lmpg, &text, "articles", "title:(").0.is_empty());
+}

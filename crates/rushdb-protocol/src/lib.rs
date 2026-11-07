@@ -335,6 +335,10 @@ pub enum Query {
         /// Match the whole query as one phrase (terms adjacent, in order).
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         phrase: bool,
+        /// How `query` is read: plain words (the default) or the query
+        /// syntax.
+        #[serde(default, skip_serializing_if = "TextSyntax::is_terms")]
+        syntax: TextSyntax,
     },
     /// Combined graph + vector + lexical query, fused by reciprocal-rank
     /// fusion over one shared, predicate-resolved candidate scope.
@@ -724,6 +728,12 @@ pub enum Mutation {
         /// Which relationships to delete.
         command: UnlinkRecordsMutation,
     },
+    /// Update the properties of existing relationships between explicit
+    /// source and target records.
+    UpdateRelationshipsById {
+        /// Which relationships to update, and how.
+        command: UpdateRelationshipsMutation,
+    },
     /// Pairwise batch link: explicit (source, target) pairs, one edge per
     /// pair — unlike `LinkRecordsById`, which is cross-product. The whole
     /// batch resolves up front (dangling id fails the call) and commits
@@ -856,6 +866,10 @@ pub struct RelationshipIdsMutation {
     /// Relationship properties.
     #[serde(default = "empty_object")]
     pub properties: serde_json::Value,
+    /// Declared types of named `properties` (see
+    /// [`UpdateRelationshipsMutation::types`]).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub types: std::collections::BTreeMap<String, PropertyType>,
 }
 
 /// Delete the relationships between every source and every target record.
@@ -874,6 +888,63 @@ pub struct UnlinkRecordsMutation {
     pub source_ids: Vec<String>,
     /// Target endpoint record ids.
     pub target_ids: Vec<String>,
+}
+
+/// Update the properties of the existing `relation_type` relationships
+/// between every source and every target record (cross product, as
+/// `RelationshipIdsMutation`). A pair without such a relationship is skipped;
+/// every update of one call commits atomically.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateRelationshipsMutation {
+    /// Type of the relationships to update.
+    pub relation_type: String,
+    /// Direction from source to target; `in` swaps the endpoints.
+    #[serde(default)]
+    pub direction: Direction,
+    /// Source endpoint record ids.
+    pub source_ids: Vec<String>,
+    /// Target endpoint record ids.
+    pub target_ids: Vec<String>,
+    /// Properties to write; a JSON `null` writes an explicit null.
+    #[serde(default = "empty_object")]
+    pub set: serde_json::Value,
+    /// Properties to remove. A name may not also appear in `set`.
+    #[serde(default)]
+    pub unset: Vec<String>,
+    /// Declared types of named `set` properties. Every name must be in
+    /// `set`; a non-null value must match its type, and a `datetime` takes
+    /// an ISO 8601 date or datetime string, stored as a datetime. A `null`
+    /// stays an explicit null; an untyped value is stored as given.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub types: std::collections::BTreeMap<String, PropertyType>,
+}
+
+/// The declared type of a written property value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PropertyType {
+    /// A string (or an array of strings).
+    String,
+    /// A number (or an array of numbers).
+    Number,
+    /// A boolean (or an array of booleans).
+    Boolean,
+    /// A scalar ISO 8601 date or datetime string, stored as a datetime.
+    Datetime,
+}
+
+impl PropertyType {
+    /// The wire name, as in `propertyTypes`.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::String => "string",
+            Self::Number => "number",
+            Self::Boolean => "boolean",
+            Self::Datetime => "datetime",
+        }
+    }
 }
 
 /// One explicit edge of a pairwise batch link.
@@ -904,6 +975,10 @@ pub struct RelationshipPairsMutation {
     /// Relationship properties.
     #[serde(default = "empty_object")]
     pub properties: serde_json::Value,
+    /// Declared types of named `properties` (see
+    /// [`UpdateRelationshipsMutation::types`]).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub types: std::collections::BTreeMap<String, PropertyType>,
 }
 
 /// Direction of a relationship.
@@ -1584,6 +1659,25 @@ pub struct HybridVectorLeg {
     pub prefetch_limit: Option<u64>,
 }
 
+/// How a text query string is read ([`Query::Text`], [`HybridTextLeg`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TextSyntax {
+    /// Plain words: every character is text. The default.
+    #[default]
+    Terms,
+    /// The query syntax: `+`, `-`, quotes, parentheses, `AND`/`OR`/`NOT`.
+    Query,
+}
+
+impl TextSyntax {
+    /// Whether this is the default, left off the wire.
+    #[must_use]
+    pub fn is_terms(&self) -> bool {
+        *self == Self::Terms
+    }
+}
+
 /// The lexical leg of a [`HybridQuery`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1598,6 +1692,9 @@ pub struct HybridTextLeg {
     /// See [`Query::Text`]'s `phrase`.
     #[serde(default)]
     pub phrase: bool,
+    /// See [`Query::Text`]'s `syntax`.
+    #[serde(default, skip_serializing_if = "TextSyntax::is_terms")]
+    pub syntax: TextSyntax,
     /// This leg's share of a fused score (both legs set); default 1.
     #[serde(default = "default_leg_weight")]
     pub weight: f64,
@@ -2592,6 +2689,58 @@ pub enum ErrorCode {
     /// [`ErrorCode::Conflict`], which is a non-retryable constraint/state
     /// conflict. Append-only.
     WriteConflict,
+    /// The request body is larger than the server's body limit
+    /// (`buildInfo.limits.maxRequestBytes`); the message names the limit.
+    /// Not retryable as sent: split the request. Append-only.
+    PayloadTooLarge,
+}
+
+/// The principal a transport session or request acts as, as the server
+/// decided from its credential ([`EnvelopeHandler::authenticate`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Principal {
+    /// The boot token: every permission on every tenant, operator
+    /// operations included.
+    Operator,
+    /// A capability, already checked against the requested tenant.
+    Capability {
+        /// Its space-separated permissions (`read`, `write`, `*`).
+        scope: String,
+    },
+}
+
+impl Principal {
+    /// Whether this principal may run an operation that needs `permission`
+    /// (see [`operation_permission`]). A capability never runs operator
+    /// operations, whatever its scope.
+    #[must_use]
+    pub fn allows(&self, permission: &str) -> bool {
+        match self {
+            Self::Operator => true,
+            Self::Capability { scope } => {
+                permission != "operator"
+                    && scope
+                        .split_whitespace()
+                        .any(|granted| granted == "*" || granted == permission)
+            }
+        }
+    }
+}
+
+/// The permission an operation needs: `read` for queries, describes and
+/// backups; `write` for mutations, ingest, index DDL, transactions and
+/// tenant purge; `operator` for the tenant's own policy.
+#[must_use]
+pub fn operation_permission(operation: &Operation) -> &'static str {
+    match operation {
+        Operation::Query { .. } | Operation::Describe { .. } | Operation::Backup { .. } => "read",
+        Operation::Mutate { .. }
+        | Operation::Ingest { .. }
+        | Operation::Index { .. }
+        | Operation::Transaction { .. }
+        | Operation::PurgeTenant => "write",
+        Operation::Policy { .. } => "operator",
+    }
 }
 
 /// A structured protocol error with a stable [`ErrorCode`].
@@ -2622,6 +2771,22 @@ pub trait EnvelopeHandler: Send + Sync + 'static {
         envelope: RequestEnvelope,
         scope: Option<String>,
     ) -> Result<ResponseEnvelope, ProtocolError>;
+
+    /// The principal `credential` (a bearer token, a password) grants for
+    /// `scope`, the tenant the caller asks for. Every transport asks here,
+    /// so one rule, the server's, decides for all of them: the boot token
+    /// is the operator; a signed capability must be bound to exactly
+    /// `scope` on a multitenant server and unbound on a single-tenant one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorCode::Unauthorized`] when the credential grants
+    /// nothing for `scope`.
+    fn authenticate(
+        &self,
+        credential: &str,
+        scope: Option<&str>,
+    ) -> Result<Principal, ProtocolError>;
 
     /// Whether the owning service has begun shutdown and new transport work
     /// should stop. Transports use this optional lifecycle hook to drain
@@ -2672,6 +2837,109 @@ mod tests {
         assert!(!constant_time_eq(b"secret", b"secret-longer"));
         assert!(!constant_time_eq(b"", b"x"));
         assert!(constant_time_eq(b"", b""));
+    }
+
+    #[test]
+    fn update_relationships_by_id_parses_its_wire_shape() {
+        let operation: Operation = serde_json::from_value(serde_json::json!({
+            "kind": "mutate",
+            "mutation": {"kind": "updateRelationshipsById", "command": {
+                "relationType": "PLACES", "direction": "in",
+                "sourceIds": ["a"], "targetIds": ["b", "c"],
+                "set": {"channel": "web", "note": null}, "unset": ["old"]
+            }}
+        }))
+        .unwrap();
+        let Operation::Mutate {
+            mutation: Mutation::UpdateRelationshipsById { command },
+        } = operation
+        else {
+            panic!("expected updateRelationshipsById, got {operation:?}")
+        };
+        assert_eq!(command.relation_type, "PLACES");
+        assert_eq!(command.direction, Direction::In);
+        assert_eq!(command.target_ids, ["b", "c"]);
+        assert_eq!(command.set["note"], serde_json::Value::Null);
+        assert_eq!(command.unset, ["old"]);
+
+        // `set`, `unset` and `direction` default; unknown fields are refused.
+        let minimal: UpdateRelationshipsMutation = serde_json::from_value(serde_json::json!({
+            "relationType": "PLACES", "sourceIds": [], "targetIds": []
+        }))
+        .unwrap();
+        assert_eq!(minimal.direction, Direction::Out);
+        assert_eq!(minimal.set, serde_json::json!({}));
+        assert!(minimal.unset.is_empty());
+        assert!(
+            serde_json::from_value::<UpdateRelationshipsMutation>(serde_json::json!({
+                "relationType": "PLACES", "sourceIds": [], "targetIds": [], "properties": {}
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn relationship_property_types_parse_and_serialize_lowercase() {
+        let update: UpdateRelationshipsMutation = serde_json::from_value(serde_json::json!({
+            "relationType": "PLACES", "sourceIds": [], "targetIds": [],
+            "set": {"at": "2024-03-01", "n": 1, "ok": true, "s": "x"},
+            "types": {"at": "datetime", "n": "number", "ok": "boolean", "s": "string"}
+        }))
+        .unwrap();
+        assert_eq!(update.types["at"], PropertyType::Datetime);
+        assert_eq!(update.types["n"], PropertyType::Number);
+        assert_eq!(update.types["ok"], PropertyType::Boolean);
+        assert_eq!(update.types["s"], PropertyType::String);
+        assert_eq!(
+            serde_json::to_value(&update).unwrap()["types"],
+            serde_json::json!({"at": "datetime", "n": "number", "ok": "boolean", "s": "string"})
+        );
+        assert_eq!(PropertyType::Datetime.as_str(), "datetime");
+
+        // Unknown type names are refused; absent `types` is empty and not
+        // serialized.
+        assert!(
+            serde_json::from_value::<UpdateRelationshipsMutation>(serde_json::json!({
+                "relationType": "PLACES", "sourceIds": [], "targetIds": [],
+                "set": {"at": 1}, "types": {"at": "date"}
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<UpdateRelationshipsMutation>(serde_json::json!({
+                "relationType": "PLACES", "sourceIds": [], "targetIds": [],
+                "set": {"at": 1}, "types": {"at": "Datetime"}
+            }))
+            .is_err()
+        );
+        let untyped: UpdateRelationshipsMutation = serde_json::from_value(serde_json::json!({
+            "relationType": "PLACES", "sourceIds": [], "targetIds": []
+        }))
+        .unwrap();
+        assert!(untyped.types.is_empty());
+        assert!(serde_json::to_value(&untyped)
+            .unwrap()
+            .get("types")
+            .is_none());
+
+        // The by-id link mutations carry the same map.
+        let link: RelationshipIdsMutation = serde_json::from_value(serde_json::json!({
+            "relationType": "KNOWS", "sourceIds": ["a"], "targetIds": ["b"],
+            "properties": {"since": "2024-03-01"}, "types": {"since": "datetime"}
+        }))
+        .unwrap();
+        assert_eq!(link.types["since"], PropertyType::Datetime);
+        let pairs: RelationshipPairsMutation = serde_json::from_value(serde_json::json!({
+            "relationType": "KNOWS", "pairs": [{"sourceId": "a", "targetId": "b"}],
+            "properties": {"since": "2024-03-01"}, "types": {"since": "datetime"}
+        }))
+        .unwrap();
+        assert_eq!(pairs.types["since"], PropertyType::Datetime);
+        let untyped_link: RelationshipIdsMutation = serde_json::from_value(serde_json::json!({
+            "relationType": "KNOWS", "sourceIds": [], "targetIds": []
+        }))
+        .unwrap();
+        assert!(untyped_link.types.is_empty());
     }
 
     #[test]
@@ -2869,6 +3137,7 @@ mod compatibility {
             super::ErrorCode::LanguageDisabled,
             super::ErrorCode::Unsupported,
             super::ErrorCode::WriteConflict,
+            super::ErrorCode::PayloadTooLarge,
         ];
         for (i, code) in codes.iter().enumerate() {
             // Discriminant order is the wire contract; assert it explicitly.

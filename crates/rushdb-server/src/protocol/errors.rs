@@ -52,11 +52,15 @@ pub(crate) fn execution_failed(error: impl ToString) -> ProtocolError {
     {
         // Residency: every resident tenant is active; retry later.
         ErrorCode::Unavailable
-    } else if message.contains("denied by policy") || message.contains("` not authorized") {
+    } else if message.contains("denied by policy")
+        || message.contains("` not authorized")
+        || (message.contains("relationship type `") && message.contains("` denied"))
+    {
         // AuthorizedView's label/property gate; same taxonomy as the
         // pre-execution authorize_search_in_view/authorize_aggregate_in_view.
         // Writes to a label outside `allowedLabels` say "label `X` not
-        // authorized".
+        // authorized"; writes to a type in `deniedRelTypes` say
+        // "relationship type `X` denied".
         ErrorCode::Unauthorized
     } else if message.contains("not found") || message.contains("unknown property") {
         ErrorCode::NotFound
@@ -106,6 +110,23 @@ pub(crate) fn execution_failed(error: impl ToString) -> ProtocolError {
         error.with_retryable(false)
     } else {
         error
+    }
+}
+
+/// A text search's typed failure: the caller's own input (an unknown
+/// index, a name of another kind, a query that does not parse) is told in
+/// full; an index still building is `unavailable` and retryable; an index
+/// or storage fault stays internal.
+pub(crate) fn text_search_failed(error: rushdb_textsearch::TextSearchError) -> ProtocolError {
+    use rushdb_textsearch::TextSearchError;
+    let message = error.to_string();
+    match error {
+        TextSearchError::UnknownIndex(_) => ProtocolError::new(ErrorCode::NotFound, message),
+        TextSearchError::NotATextIndex(_) | TextSearchError::InvalidQuery(_) => {
+            ProtocolError::new(ErrorCode::InvalidRequest, message)
+        }
+        TextSearchError::NotReady { .. } => ProtocolError::new(ErrorCode::Unavailable, message),
+        TextSearchError::Internal(detail) => execution_failed(detail),
     }
 }
 

@@ -75,10 +75,11 @@ pub struct ServerSection {
     /// setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub listen_addr: Option<String>,
-    /// PEM certificate chain path for HTTPS. Both cert and key are required.
+    /// PEM certificate chain path for TLS on the HTTP and PostgreSQL
+    /// listeners. Both cert and key are required.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tls_cert: Option<String>,
-    /// PEM private key path (PKCS#8) for HTTPS.
+    /// PEM private key path (PKCS#8) for TLS.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tls_key: Option<String>,
     /// PostgreSQL wire-protocol port.
@@ -441,6 +442,10 @@ fn explicit_flag_conflicts(file: &ConfigFile, requested: &ServerConfig) -> Vec<S
                 .listen_addr
                 .as_ref()
                 .and_then(|stored| differs(flag, &requested.listen_addr, stored)),
+            "body-limit" => file
+                .server
+                .body_limit
+                .and_then(|stored| differs(flag, &requested.max_request_bytes, &stored.0)),
             "maintenance" => differs(flag, &requested.maintenance, &file.server.maintenance),
             "require-index-warmup" => differs(
                 flag,

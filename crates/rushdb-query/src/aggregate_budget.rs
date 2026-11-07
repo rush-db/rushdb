@@ -9,10 +9,11 @@ use serde_json::Value;
 use crate::{GroupBucket, QueryError, QuerySnapshot};
 
 pub(super) fn check(limit: Option<usize>, bytes: usize) -> Result<(), QueryError> {
-    if limit.is_some_and(|limit| bytes > limit) {
-        return Err(QueryError::ResourceLimit(
-            "aggregate working byte budget exceeded".into(),
-        ));
+    if let Some(limit) = limit.filter(|limit| bytes > *limit) {
+        return Err(QueryError::ResourceLimit(format!(
+            "aggregate working set would exceed query-memory-max ({limit} bytes); \
+             raise --query-memory-max or narrow the filter"
+        )));
     }
     Ok(())
 }
@@ -131,4 +132,25 @@ pub(super) fn resource_error(error: QueryError) -> QueryError {
         }
         error => error,
     }
+}
+
+/// One collected child, decoded through a budgeted reader: the `selected`
+/// properties, or the whole record.
+pub(super) fn collected_child(
+    snap: &QuerySnapshot,
+    tenant: rushdb_types::ids::TenantId,
+    ordinal: u64,
+    selected: Option<&std::collections::HashSet<String>>,
+    budget: Option<usize>,
+) -> Result<Option<serde_json::Map<String, Value>>, QueryError> {
+    let reader = RecordReader::new(snap, budget);
+    let mut session = rushdb_lmpg::reconstruct::ReconstructSession::new(&reader, tenant);
+    let child = match selected {
+        Some(selected) => session.reconstruct_record_selected(ordinal, selected)?,
+        None => session.reconstruct_record(ordinal)?,
+    };
+    Ok(match child {
+        Some(Value::Object(child)) => Some(child),
+        _ => None,
+    })
 }

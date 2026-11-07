@@ -17,7 +17,7 @@ pub mod expand;
 /// Keys erased per tenant-purge commit. Bounds both the materialized key set
 /// and the write transaction so purge scales to arbitrarily large tenants;
 /// the driver loops until the tenant is empty.
-const PURGE_CHUNK_KEYS: usize = 1024;
+const PURGE_CHUNK_KEYS: usize = 4096;
 
 /// NDJSON/CSV/JSON importers that coerce external documents into LMPG
 /// records, relationships and vector drafts.
@@ -887,36 +887,29 @@ impl Lmpg {
         rel_ref: RelationshipRef,
         fields: Vec<(String, FieldChange)>,
     ) -> LmpgResult<()> {
+        self.update_relationship_fields_tx(rel_ref, fields, None)
+    }
+
+    /// Cross-service transaction variant of [`Self::update_relationship_fields`].
+    ///
+    /// # Errors
+    /// Returns [`LmpgError`] if the relationship is missing or stale, the type
+    /// is denied, or the commit conflicts.
+    pub fn update_relationship_fields_tx(
+        &self,
+        rel_ref: RelationshipRef,
+        fields: Vec<(String, FieldChange)>,
+        tx: Option<&mut rushdb_storage::TxAccumulator>,
+    ) -> LmpgResult<()> {
         let tenant = self.tenant;
-        let outcome = self
-            .store
-            .commit_for_tenant(&self.tenant, Uuid::now_v7(), |ci, txn| {
-                let hdr =
-                    crate::reader::try_access::relationship_by_ord(txn, tenant, rel_ref.ordinal)
-                        .map_err(|e| e.to_string())?
-                        .ok_or("relationship vanished")?;
-                if hdr.relationship_id != rel_ref.relationship_id {
-                    return Err("relationship identity mismatch".into());
-                }
-                self.authorize_rel_type_in_txn(&hdr.rel_type, txn, ci.saturating_sub(1))?;
-                let mut pl = Planner::new(tenant, txn);
-                pl.push_precondition(Precondition::exists(kx::rel_row_key(
-                    tenant,
-                    &rel_ref.relationship_id,
-                )));
-                for (name, change) in fields {
-                    plan_field_write(
-                        &mut pl,
-                        OwnerKind::Relationship,
-                        rel_ref.ordinal,
-                        &name,
-                        &change,
-                    )
-                    .map_err(|e| e.to_string())?;
-                }
-                Ok((finish_batch(&mut pl, ci), ()))
-            });
-        finalize(outcome)
+        run_mutation(self, tx, |ci, txn| {
+            let txn: &rushdb_storage::Txn<'_> = txn;
+            let mut pl = Planner::new(tenant, txn);
+            plan_relationship_fields(&mut pl, rel_ref, fields, |rel_type| {
+                self.authorize_rel_type_in_txn(rel_type, txn, ci.saturating_sub(1))
+            })?;
+            Ok((finish_batch(&mut pl, ci), ()))
+        })
     }
 
     /// Deletes a relationship and all of its occurrences.
@@ -1123,6 +1116,34 @@ pub(crate) fn plan_field_write(
     pl.stage_put_values(kind, owner_ord, &family, &def, display_name, &payload)
 }
 
+/// Stages field writes on an existing relationship: it must still exist
+/// under the same identity (a commit precondition), and its type must pass
+/// `authorize_rel`.
+fn plan_relationship_fields(
+    pl: &mut Planner<'_>,
+    rel: RelationshipRef,
+    fields: Vec<(String, FieldChange)>,
+    authorize_rel: impl Fn(&str) -> Result<(), String>,
+) -> Result<(), String> {
+    let tenant = pl.tenant;
+    pl.push_precondition(Precondition::exists(kx::rel_row_key(
+        tenant,
+        &rel.relationship_id,
+    )));
+    let hdr = crate::reader::try_access::relationship_by_ord(pl.txn, tenant, rel.ordinal)
+        .map_err(|e| e.to_string())?
+        .ok_or("relationship vanished")?;
+    if hdr.relationship_id != rel.relationship_id {
+        return Err("relationship identity mismatch".into());
+    }
+    authorize_rel(&hdr.rel_type)?;
+    for (name, change) in fields {
+        plan_field_write(pl, OwnerKind::Relationship, rel.ordinal, &name, &change)
+            .map_err(|e| LmpgError::Plan(e).to_reason())?;
+    }
+    Ok(())
+}
+
 /// Stages deletions of every live occurrence owned by one owner (all
 /// properties), used for cascade deletes.
 pub(crate) fn stage_all_owner_occurrences(
@@ -1172,7 +1193,9 @@ pub enum BatchOp {
         /// Field writes applied to the new record.
         fields: Vec<(String, FieldChange)>,
     },
-    /// Apply field writes to an existing record or relationship owner.
+    /// Apply field writes to an existing record or relationship owner. A
+    /// relationship must still exist under the same identity, and its type
+    /// must be authorized.
     UpdateFields {
         /// Whether the owner is a record or a relationship.
         owner: OwnerKind,
@@ -1382,17 +1405,26 @@ impl Lmpg {
                         owner_ord,
                         owner_public_id,
                         fields,
-                    } => {
-                        if matches!(owner, OwnerKind::Record) {
+                    } => match owner {
+                        OwnerKind::Record => {
                             pl.push_precondition(Precondition::exists(
                                 rushdb_types::keys::record_id_key(tenant, &owner_public_id),
                             ));
+                            for (name, change) in &fields {
+                                plan_field_write(&mut pl, owner, owner_ord, name, change)
+                                    .map_err(|e| LmpgError::Plan(e).to_reason())?;
+                            }
                         }
-                        for (name, change) in &fields {
-                            plan_field_write(&mut pl, owner, owner_ord, name, change)
-                                .map_err(|e| LmpgError::Plan(e).to_reason())?;
-                        }
-                    }
+                        OwnerKind::Relationship => plan_relationship_fields(
+                            &mut pl,
+                            RelationshipRef {
+                                relationship_id: owner_public_id,
+                                ordinal: owner_ord,
+                            },
+                            fields,
+                            authorize_rel,
+                        )?,
+                    },
                     BatchOp::RetypeRecord {
                         record,
                         from_label,

@@ -25,9 +25,14 @@ rushdb serve --data-dir ./data --languages sql --token "$RUSHDB_TOKEN"
 To change the port, pass `--pgwire-port` or set `server.pgwire-port` in
 `config.yml`. With `sql` disabled, nothing listens.
 
-The listener is cleartext. It refuses SSL and GSS encryption requests during
-startup, so clients must allow a non-TLS connection (`sslmode=disable` or the
-default `prefer`). Keep it on loopback; see
+With `--tls-cert` and `--tls-key` the listener speaks TLS, with the same
+certificate as HTTP: both the classic `SSLRequest` negotiation and PostgreSQL
+17's direct TLS (`sslnegotiation=direct`), and it then refuses a plaintext
+session with SQLSTATE `28000` before any password is sent. Without TLS it is
+cleartext: it refuses SSL and GSS encryption requests during startup, so
+clients must allow a non-TLS connection (`sslmode=disable` or the default
+`prefer`), and it belongs on loopback. See
+[Security](../operations/security.md#tls) and
 [Listener security](README.md#listener-security).
 
 ## Connecting
@@ -35,7 +40,7 @@ default `prefer`). Keep it on loopback; see
 | Startup parameter | Meaning |
 |---|---|
 | `user` | Accepted for compatibility; any value. `current_user` reports `rushdb`. |
-| password | The server's bootstrap token (`--token`). Sent as a cleartext password message. |
+| password | The server's bootstrap token (`--token`), or a [capability token](../operations/security.md#capability-tokens) bound to the tenant in `database` (over TLS). Sent as a cleartext password message, which is why a capability belongs on a TLS listener. |
 | `database` | Tenant scope on a multitenant server (required, non-empty). Ignored on a single-tenant server. |
 
 ### psql
@@ -153,17 +158,20 @@ let tenant_b = connect(port, "tenant-b", &token).await?;   // dbname = tenant-b
 // SELECT name FROM NOTE returns only that tenant's records on each connection
 ```
 
-> **Warning:** The listener authenticates only the bootstrap token, which is
-> not bound to a tenant: whoever holds it can open any tenant by changing
-> `database`. Capability tokens are not accepted as passwords. On a
-> multitenant server the listener therefore refuses to bind a non-loopback
-> address; expose it only through a trusted proxy that authenticates callers
-> and fixes the `database` value.
+> **Note:** The bootstrap token is not bound to a tenant: whoever holds it
+> can open any tenant by changing `database`. A capability token is: it
+> logs in only with its own tenant as `database`, and a `read` capability
+> cannot run `INSERT`/`UPDATE`/`DELETE` or index DDL (SQLSTATE `42501`). On a
+> multitenant server a non-loopback listener therefore requires TLS and
+> `--capability-secret`, or a trusted proxy that authenticates callers and
+> fixes the `database` value.
 
 ## Supported protocol features
 
 - Protocol 3 startup.
-- Cleartext password authentication against the bootstrap token.
+- Cleartext password authentication against the bootstrap token or a
+  tenant-bound capability token; TLS (`SSLRequest` and direct) with
+  `--tls-cert`/`--tls-key`.
 - Startup responses: `AuthenticationOk`, `ParameterStatus` (`server_version`
   is `16.0-rushdb`), `BackendKeyData`, `ReadyForQuery`.
 - Simple query flow.
@@ -252,7 +260,8 @@ SQLSTATE codes:
 
 | SQLSTATE | Meaning | Engine error code |
 |---|---|---|
-| `28P01` | Wrong password (token) | (authentication) |
+| `28000` | TLS is configured and the session is plaintext | (authentication) |
+| `28P01` | Wrong password: neither the token nor a capability bound to `database` | (authentication) |
 | `3D000` | Missing `database` on a multitenant server; scope missing or mismatched | `missing_scope`, `scope_mismatch` |
 | `42601` | Statement could not be parsed or planned | `invalid_request` |
 | `42501` | Not authorized | `unauthorized` |
@@ -281,13 +290,12 @@ SQLSTATE codes:
 
 ## Not supported
 
-- TLS, SCRAM-SHA-256, channel binding, and certificate authentication.
+- SCRAM-SHA-256, channel binding, and certificate authentication.
 - Explicit transactions, savepoints, cursors, and bounded portal fetches.
 - SQL `PREPARE`/`EXECUTE` (prepare through the extended query flow instead).
 - `COPY`, `LISTEN`/`NOTIFY`, and replication connections.
 - PostgreSQL system catalogs, type casts specific to PostgreSQL, and
   extensions.
-- Capability tokens as passwords.
 - Graph languages (use [Bolt](bolt.md) for Cypher, or the
   [HTTP API](http-api.md) for everything else).
 - Vector and full-text search.

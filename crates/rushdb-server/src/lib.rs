@@ -7,6 +7,7 @@ use thiserror::Error;
 
 pub mod allocator;
 pub mod archive;
+mod auth;
 pub mod bolt;
 pub mod boot;
 mod bulk_share;
@@ -23,6 +24,15 @@ pub mod replication;
 pub mod resource_config;
 pub mod retention;
 
+/// Make `ring` the process's rustls provider, once. The binary links two
+/// providers (`ring` through pgwire and tonic, `aws-lc-rs` through
+/// axum-server), and rustls refuses to pick one on its own; every listener
+/// that builds a TLS configuration without naming a provider calls this
+/// first. A second call is a no-op.
+pub(crate) fn install_crypto_provider() {
+    let _ =
+        ::pgwire::tokio::tokio_rustls::rustls::crypto::ring::default_provider().install_default();
+}
 pub use bolt::bind_bolt;
 pub use grpc::{bind_grpc, NodeEnvelopeHandler};
 pub use http::{new_router, HttpRouter};
@@ -44,10 +54,10 @@ pub struct ServerConfig {
     /// Bind address for the HTTP protocol adapter (default `127.0.0.1`).
     /// Set to `0.0.0.0` to expose the engine beyond loopback (pair with TLS).
     pub listen_addr: String,
-    /// Path to a PEM certificate chain for HTTPS. Both `tls_cert` and
-    /// `tls_key` must be set to enable TLS on the HTTP listener.
+    /// Path to a PEM certificate chain for TLS on the HTTP and PostgreSQL
+    /// listeners. Both `tls_cert` and `tls_key` must be set to enable TLS.
     pub tls_cert: Option<std::path::PathBuf>,
-    /// Path to a PEM private key (PKCS#8) for HTTPS.
+    /// Path to a PEM private key (PKCS#8) for TLS.
     pub tls_key: Option<std::path::PathBuf>,
     /// PostgreSQL wire-protocol port.
     pub pgwire_port: u16,

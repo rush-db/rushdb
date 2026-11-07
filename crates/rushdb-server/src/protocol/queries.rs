@@ -2,7 +2,8 @@
 
 use super::{
     execution_failed, query_document_to_parser_input, query_failed, response_array, response_u64,
-    values_range, ErrorCode, ProtocolError, ProtocolExecutor, QueryDocument, Response,
+    text_search_failed, values_range, ErrorCode, ProtocolError, ProtocolExecutor, QueryDocument,
+    Response,
 };
 use rushdb_lmpg::CatalogAccess;
 use rushdb_types::value_match::{TextMatch, ValueMatcher};
@@ -1133,7 +1134,7 @@ impl ProtocolExecutor<'_> {
                 usize::try_from(limit).unwrap_or(10),
                 execution_context.read_view().as_ref(),
             )
-            .map_err(execution_failed)?;
+            .map_err(text_search_failed)?;
         let total = rows.len() as u64;
         Ok(Response::TextHits {
             rows,
@@ -1152,12 +1153,12 @@ impl ProtocolExecutor<'_> {
         let result = self
             .node
             .hybrid_search_with_execution_context(execution_context, query)
-            .map_err(|error| {
-                if error == "hybrid query denied by policy" {
-                    ProtocolError::new(ErrorCode::Unauthorized, error)
-                } else {
-                    execution_failed(error)
+            .map_err(|error| match error {
+                crate::node::HybridError::Policy => {
+                    ProtocolError::new(ErrorCode::Unauthorized, error.to_string())
                 }
+                crate::node::HybridError::Text(error) => text_search_failed(error),
+                crate::node::HybridError::Other(message) => execution_failed(message),
             })?;
         let records = response_array(&result, "data")?;
         let total = records.len() as u64;
@@ -1169,6 +1170,22 @@ impl ProtocolExecutor<'_> {
             text_search: report(&result, "textSearch")?,
             fusion: report(&result, "fusion")?,
         })
+    }
+}
+
+/// The engine's lexical options for a wire request.
+pub(crate) fn lexical_options(
+    all_terms: bool,
+    phrase: bool,
+    syntax: rushdb_protocol::TextSyntax,
+) -> rushdb_textsearch::LexicalOptions {
+    rushdb_textsearch::LexicalOptions {
+        all_terms,
+        phrase,
+        syntax: match syntax {
+            rushdb_protocol::TextSyntax::Terms => rushdb_textsearch::TextSyntax::Terms,
+            rushdb_protocol::TextSyntax::Query => rushdb_textsearch::TextSyntax::Query,
+        },
     }
 }
 

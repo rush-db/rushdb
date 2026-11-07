@@ -113,9 +113,11 @@ backfilling, a search against it returns an error naming its state.
 
 A text search names the index, the query string, and a limit:
 
-- **Query syntax.** The query string is parsed by Tantivy's query parser
-  against the text field, so Tantivy's syntax applies (for example a quoted
-  phrase). Bare terms are combined with OR.
+- **Query building.** By default the query string is tokenized by the
+  index's own analyzer and searched as terms combined with OR (AND with
+  `allTerms`, a phrase with `phrase`); no character is special. With
+  `syntax: "query"` Tantivy's query parser reads it against the text field,
+  and a query that names any other field is refused.
 - **Candidate restriction.** In a hybrid query, the records that pass the
   predicate are applied inside Tantivy's collector, so the lexical top *k*
   is drawn only from records that pass the filters.

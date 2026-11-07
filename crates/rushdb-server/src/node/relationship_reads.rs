@@ -61,6 +61,7 @@ impl RequestScope<'_> {
         // reconstructed only when the predicate needs it or it is on the page.
         let mut total = 0u64;
         let mut rows = Vec::new();
+        let mut names = PropertyNames::default();
         let mut consider =
             |hdr: rushdb_types::occurrence::RelationshipHeader| -> Result<(), String> {
                 if type_filter.is_some_and(|t| hdr.rel_type != *t)
@@ -106,6 +107,8 @@ impl RequestScope<'_> {
                     return Ok(());
                 }
                 rel_obj.retain(|name, _| !rushdb_types::value::is_reserved_name(name));
+                let property_types =
+                    render_typed_properties(&mut rel_obj, &names.of(snap, tenant, hdr.ordinal)?);
                 rows.push(serde_json::json!({
                     "id": uuid::Uuid::from_bytes(hdr.relationship_id).to_string(),
                     "type": hdr.rel_type,
@@ -114,6 +117,7 @@ impl RequestScope<'_> {
                     "sourceLabel": src_hdr.label,
                     "targetLabel": tgt_hdr.label,
                     "properties": rel_obj,
+                    "propertyTypes": property_types,
                 }));
                 Ok(())
             };
@@ -337,12 +341,18 @@ impl RequestScope<'_> {
                 ))
                 .or_default();
             group.0 += 1;
+            let declared = row.get("propertyTypes");
             if let Some(properties) = row.get("properties").and_then(serde_json::Value::as_object) {
                 for (name, value) in properties {
                     if value.is_null() {
                         continue;
                     }
-                    let observed_type = schema_json_type(value);
+                    // A datetime renders as a string; its declared type wins.
+                    let observed_type = declared
+                        .and_then(|types| types.get(name))
+                        .and_then(serde_json::Value::as_str)
+                        .filter(|_| !value.is_array())
+                        .map_or_else(|| schema_json_type(value), str::to_string);
                     let property = group
                         .1
                         .entry(name.clone())
@@ -418,4 +428,72 @@ fn for_each_relationship(
             return Ok(());
         }
     }
+}
+
+/// Display names of property ids, resolved once per request.
+#[derive(Default)]
+pub(super) struct PropertyNames(std::collections::HashMap<u64, Option<String>>);
+
+impl PropertyNames {
+    /// The stored type of each of a relationship's properties, by display
+    /// name, with whether it is held as an array. A property holding only a
+    /// null (or an empty array) has no type.
+    pub(super) fn of(
+        &mut self,
+        snap: &rushdb_storage::ReadView,
+        tenant: rushdb_types::ids::TenantId,
+        ordinal: u64,
+    ) -> Result<BTreeMap<String, (rushdb_types::model::LogicalType, bool)>, String> {
+        use rushdb_lmpg::reader::try_access;
+        let mut out = BTreeMap::new();
+        for occurrence in
+            try_access::occurrences_of_owner(snap, tenant, OwnerKind::Relationship, ordinal)
+                .map_err(|e| e.to_string())?
+        {
+            let rushdb_types::occurrence::OccurrenceValue::Stored { ty } = occurrence.value else {
+                continue;
+            };
+            let name = if let Some(name) = self.0.get(&occurrence.pid) {
+                name.clone()
+            } else {
+                let name = match try_access::definition(snap, tenant, occurrence.pid)
+                    .map_err(|e| e.to_string())?
+                {
+                    Some(definition) => try_access::family(snap, tenant, definition.family_id)
+                        .map_err(|e| e.to_string())?
+                        .map(|family| family.display_name),
+                    None => None,
+                };
+                self.0.insert(occurrence.pid, name.clone());
+                name
+            };
+            if let Some(name) = name {
+                out.entry(name).or_insert((ty, occurrence.array));
+            }
+        }
+        Ok(out)
+    }
+}
+
+/// Render a relationship's properties for a protocol client, as records
+/// are: a scalar datetime (stored as epoch milliseconds) becomes its ISO
+/// 8601 string. Returns the `propertyTypes` map (name -> type name).
+pub(super) fn render_typed_properties(
+    properties: &mut serde_json::Map<String, serde_json::Value>,
+    types: &BTreeMap<String, (rushdb_types::model::LogicalType, bool)>,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut property_types = serde_json::Map::new();
+    for (name, (ty, array)) in types {
+        let Some(value) = properties.get_mut(name) else {
+            continue;
+        };
+        if *ty == rushdb_types::model::LogicalType::DateTime && !array {
+            if let Some(ms) = value.as_i64() {
+                *value =
+                    serde_json::Value::String(rushdb_types::datetime::ms_to_datetime_string(ms));
+            }
+        }
+        property_types.insert(name.clone(), serde_json::Value::String(type_name_str(*ty)));
+    }
+    property_types
 }

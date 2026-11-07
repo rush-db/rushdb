@@ -274,10 +274,14 @@ the records again. When you need retry safety, use merge options.
 
 Size limits:
 
-- One request body is limited to 16 MiB by default (`server.body-limit`).
-- Batches of about **500 documents per request** are the recommended size:
-  larger requests risk `413 Payload Too Large` or timeouts without loading
-  faster.
+- One request body is limited to 16 MiB by default (`--body-limit`,
+  `server.body-limit`); `buildInfo.limits.maxRequestBytes` reports the value.
+  A larger body is refused with 413 `payload_too_large`, and the message
+  names the limit.
+- Size batches by bytes: without vectors, about **500 documents per
+  request** is a good size; 500 documents with 1536-dimension vectors are
+  about 17 MB, so send fewer. Larger requests risk 413 or timeouts without
+  loading faster.
 - A single commit is capped by `max-expanded-commit-bytes` (512 MiB by
   default); larger loads are refused with `resource_exhausted` and belong in
   multiple requests.

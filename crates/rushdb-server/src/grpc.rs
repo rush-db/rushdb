@@ -8,25 +8,64 @@
 use std::sync::Arc;
 
 use rushdb_grpc::{EnvelopeHandler, GrpcServer};
-use rushdb_protocol::{ProtocolError, RequestEnvelope, ResponseEnvelope};
+use rushdb_protocol::{Principal, ProtocolError, RequestEnvelope, ResponseEnvelope};
 
 use crate::protocol::scheduler_error_to_protocol_error;
 use crate::{Node, ServerConfig};
 
-/// Executes canonical envelopes on a node under the request tenant scope.
+/// Executes canonical envelopes on a node under the request tenant scope,
+/// and authenticates the transports' credentials with the server's one rule.
 #[derive(Clone)]
 pub struct NodeEnvelopeHandler {
     node: Arc<Node>,
+    credentials: crate::auth::Credentials,
 }
 
 impl NodeEnvelopeHandler {
-    /// Wrap a booted node as an envelope handler for the gRPC/Bolt transports.
-    pub fn new(node: Arc<Node>) -> Self {
-        NodeEnvelopeHandler { node }
+    /// Wrap a booted node as an envelope handler for the gRPC/Bolt transports,
+    /// checking credentials against `cfg` (boot token, capability secret,
+    /// tenancy mode).
+    pub fn new(node: Arc<Node>, cfg: &ServerConfig) -> Self {
+        NodeEnvelopeHandler {
+            node,
+            credentials: crate::auth::Credentials::from_config(cfg),
+        }
     }
 }
 
+/// A certificate chain and a private key, as PEM bytes.
+pub(crate) type PemPair = (Vec<u8>, Vec<u8>);
+
+/// The PEM files behind `--tls-cert`/`--tls-key`, read for a transport that
+/// takes them as bytes; `None` when TLS is not configured.
+pub(crate) fn tls_pem(cfg: &ServerConfig, transport: &str) -> Result<Option<PemPair>, String> {
+    let (Some(cert), Some(key)) = (&cfg.tls_cert, &cfg.tls_key) else {
+        return Ok(None);
+    };
+    let cert_pem = std::fs::read(cert).map_err(|error| {
+        format!(
+            "{transport} TLS: cannot read certificate {}: {error}",
+            cert.display()
+        )
+    })?;
+    let key_pem = std::fs::read(key).map_err(|error| {
+        format!(
+            "{transport} TLS: cannot read private key {}: {error}",
+            key.display()
+        )
+    })?;
+    Ok(Some((cert_pem, key_pem)))
+}
+
 impl EnvelopeHandler for NodeEnvelopeHandler {
+    fn authenticate(
+        &self,
+        credential: &str,
+        scope: Option<&str>,
+    ) -> Result<Principal, ProtocolError> {
+        self.credentials.authenticate(credential, scope)
+    }
+
     fn execute(
         &self,
         envelope: RequestEnvelope,
@@ -84,12 +123,15 @@ pub fn bind_grpc(cfg: &ServerConfig, node: Arc<Node>) -> Result<(GrpcServer, u16
     if cfg.grpc_port == 0 {
         return Ok((GrpcServer::disabled(), 0));
     }
-    let handler: Arc<dyn EnvelopeHandler> = Arc::new(NodeEnvelopeHandler { node });
+    crate::install_crypto_provider();
+    let handler: Arc<dyn EnvelopeHandler> = Arc::new(NodeEnvelopeHandler::new(node, cfg));
+    let tls =
+        tls_pem(cfg, "gRPC")?.map(|(cert_pem, key_pem)| rushdb_grpc::GrpcTls { cert_pem, key_pem });
     GrpcServer::bind(
         handler,
-        cfg.token.clone(),
         &cfg.listen_addr,
         cfg.grpc_port,
         cfg.max_request_bytes,
+        tls,
     )
 }

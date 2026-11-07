@@ -674,6 +674,13 @@ fn materialize(mut changes: Changes, before: &dyn DeriveRead) -> Result<Vec<Op>,
             .insert(key, (next > 0).then(|| next.to_be_bytes().to_vec()));
     }
     derive_usage(&mut changes, before)?;
+    // Derived rows are versioned like the base rows (`Op::Put`), not
+    // overwritten in place (`Op::Set`): a view pinned at an older commit
+    // reads the counts and dictionaries as of its snapshot, which is what
+    // keeps every catalog answer exact at the reader's snapshot. The cost is
+    // one version per overwritten counter per commit, reclaimed by the
+    // maintenance tick once no snapshot needs it; `Op::Set` is for the
+    // internal allocation and degree counters no snapshot reads back.
     let mut out = Vec::with_capacity(changes.counters.len() + changes.rows.len());
     for (key, delta) in changes.counters {
         if delta == 0 {

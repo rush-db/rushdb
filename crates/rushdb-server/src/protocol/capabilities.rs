@@ -145,6 +145,12 @@ pub(crate) fn engine_capabilities(enabled: LanguageSet) -> Vec<String> {
     let mut flags = vec![
         "linkRecordsById".into(),
         "unlinkRecordsById".into(),
+        "updateRelationshipsById".into(),
+        // `types` on the by-id relationship writes (`linkRecordsById`,
+        // `linkRecordsPairs`, `updateRelationshipsById`), and datetime
+        // relationship properties read back as ISO strings with
+        // `propertyTypes`.
+        "relationshipPropertyTypes".into(),
         "linkRecordsByKey".into(),
         "unlinkRecordsByKey".into(),
         "retypeRelations".into(),

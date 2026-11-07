@@ -109,7 +109,7 @@ specific action. The permission column is what a
 | `query` | `records`, `cursor`, `record`, `relationships`, `propertyValues`, `vector`, `text`, `hybrid`, `joinPairs`, `vectorIndexCandidates`, `statement`, `exportCsv` | `read` |
 | `describe` | `schema`, `labels`, `properties`, `queryLanguages`, `capabilities`, `buildInfo`, `explain`, `explainVector`, `indexes`, `vectorIndexes`, `vectorIndex` | `read` |
 | `backup` | logical backup of the request's tenant (`{"kind": "backup", "request": {"scopes": []}}`) | `read` |
-| `mutate` | `putRecord`, `deleteRecord`, `deleteRecords`, `retypeRecord`, `deleteProperty`, `linkRecords`, `unlinkRecords`, `linkRecordsById`, `unlinkRecordsById`, `linkRecordsPairs`, `retypeRelations`, `statement` | `write` |
+| `mutate` | `putRecord`, `deleteRecord`, `deleteRecords`, `retypeRecord`, `deleteProperty`, `linkRecords`, `unlinkRecords`, `linkRecordsById`, `unlinkRecordsById`, `updateRelationshipsById`, `linkRecordsPairs`, `retypeRelations`, `statement` | `write` |
 | `ingest` | `documents` (nested JSON import), `csv` (CSV rows) | `write` |
 | `index` | `create`, `drop`, `createVector`, `dropVector`, `upsertVectors`, `revalidateVector` | `write` |
 | `transaction` | `begin`, `stage`, `commit`, `rollback` | `write` |
@@ -222,7 +222,7 @@ same request may succeed later. HTTP statuses:
 | 403 | `missing_scope`, `scope_mismatch` (envelope scope missing or not equal to the header) |
 | 404 | `not_found` |
 | 409 | `conflict`, `write_conflict` |
-| 413 | request body over the limit (`invalid_request`), or response over the output budget (`execution_failed`) |
+| 413 | request body over the limit (`payload_too_large`, the message names the limit), or response over the output budget (`execution_failed`) |
 | 422 | `execution_failed`, `language_disabled`, `unsupported` |
 | 426 | `unsupported_version` |
 | 429 | `resource_exhausted` (a per-request budget, such as the query working set, or the in-flight request-body budget) |
@@ -245,7 +245,7 @@ The complete code list, with gRPC, SQLSTATE, and Bolt equivalents, is in
 
 | Limit | Default | Behavior |
 |---|---|---|
-| Request body | 16 MiB (`server.body-limit` in `config.yml`) | Larger bodies are refused with 413 before they are read. |
+| Request body | 16 MiB (`--body-limit`, `RUSHDB_BODY_LIMIT`, `server.body-limit`) | A larger body is refused with 413 `payload_too_large` naming the limit, after authentication and before it is read. `buildInfo.limits.maxRequestBytes` reports the value. |
 | Response size | same as the body limit | A larger response is refused with 413; results are never silently truncated. |
 | In-flight request bytes | 256 MiB (`--http-inflight-body-bytes`) | Over budget: immediate 429 `resource_exhausted`. |
 | Concurrent requests | scheduler workers plus queue (`--threads`) | Over capacity: immediate 503 `unavailable`. |
@@ -274,9 +274,11 @@ server's capacity by following these rules:
   transaction (re-sending `commit` with the same transaction id returns the
   recorded outcome). See
   [Writing data](../query/writing-data.md#commit-order-and-retries).
-- **Payloads.** Stay under the 16 MiB body limit. Ingest in batches of
-  about 500 documents and link in batches of about 500 ids: larger chunks
-  risk 413 rejections and timeouts without loading faster. Enforce your own
+- **Payloads.** Stay under the body limit (`buildInfo.limits.maxRequestBytes`,
+  16 MiB by default) and size batches by bytes, not by count: 500 documents
+  with 1536-dimension vectors are about 17 MB. Without vectors, batches of
+  about 500 documents and 500 link pairs are a good size: larger chunks risk
+  413 rejections and timeouts without loading faster. Enforce your own
   per-user rate and payload limits in the proxy before forwarding.
 - **Writers.** All writes on a node share one commit pipeline, so scale bulk
   loads with bigger batches rather than more concurrent writers (see

@@ -389,19 +389,17 @@ impl Engine {
         let snap = Arc::clone(context.read_view());
         let cancellation = Arc::clone(context.read_view());
         let deadline = context.deadline();
-        let work_budget = context.remaining_budget();
         self.scheduler
             .execute_for_tenant(tenant, move || {
                 let is_cancelled = || {
                     cancellation.check_cancelled().is_err()
                         || deadline.is_some_and(|at| std::time::Instant::now() >= at)
                 };
-                rushdb_query::aggregate_with_cancel_in_view_with_budget(
+                rushdb_query::aggregate_with_cancel_in_view(
                     &Lmpg::new(store, tenant),
                     &request,
                     &is_cancelled,
                     snap,
-                    work_budget,
                 )
                 .map(|(buckets, _)| buckets)
             })

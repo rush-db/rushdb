@@ -122,7 +122,8 @@ impl RequestScope<'_> {
     /// changes not yet applied when the search ran.
     ///
     /// # Errors
-    /// Returns an error message when the search or record lookup fails.
+    /// Returns the search's typed failure; a record lookup fault is
+    /// [`rushdb_textsearch::TextSearchError::Internal`].
     pub fn text_search_in_view(
         &self,
         index: &str,
@@ -130,7 +131,7 @@ impl RequestScope<'_> {
         opts: rushdb_textsearch::LexicalOptions,
         limit: usize,
         view: &rushdb_storage::ReadView,
-    ) -> Result<(Vec<serde_json::Value>, u64), String> {
+    ) -> Result<(Vec<serde_json::Value>, u64), rushdb_textsearch::TextSearchError> {
         let found = self.text.search(
             self.tenant(),
             view,

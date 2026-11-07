@@ -11,8 +11,8 @@ is for developers bringing Neo4j-style applications or tools to RushDB.
 | Status | Stable (Cypher over Bolt) |
 | Protocol version | Bolt 5.0 |
 | Language | openCypher only |
-| Authentication | `basic` scheme; the credentials are the bootstrap token |
-| Encryption | none (plaintext) |
+| Authentication | `basic` scheme; the credentials are the bootstrap token or a tenant-bound [capability token](../operations/security.md#capability-tokens) |
+| Encryption | TLS with `--tls-cert`/`--tls-key` (`bolt+s://`, `neo4j+s://`); plaintext otherwise |
 
 > **Note:** No maintained Rust Neo4j driver negotiates Bolt 5, so the release
 > suite verifies the wire protocol with a protocol-conformant Bolt 5 client
@@ -47,11 +47,15 @@ opening a second keyspace.
    is 5 and answers with Bolt 5.0. If no proposal is version 5, the
    connection is closed.
 2. **`HELLO`.** Authenticate with `scheme: "basic"` and `credentials` set to
-   the bootstrap token (`principal` is ignored). `scheme: "none"` is accepted
-   only when the server token is empty. A wrong token returns
-   `Neo.ClientError.Security.Unauthorized`. Any message other than `HELLO` or
-   `GOODBYE` before successful authentication is refused. The server
-   identifies itself as `RushDB/1.0`.
+   the bootstrap token or a capability token (`principal` is ignored); `db`
+   names the tenant on a multitenant server, and a capability must be
+   bound to exactly that tenant. `scheme: "none"` is accepted only when the
+   server token is empty. A wrong credential returns
+   `Neo.ClientError.Security.Unauthorized`. Any message other than `HELLO`
+   or `GOODBYE` before successful authentication is refused, and a
+   statement the capability does not grant (a write under `read`) fails
+   with `Neo.ClientError.Security.Forbidden`. The server identifies itself
+   as `RushDB/1.0`.
 3. **`RUN` and `PULL`.** `RUN` takes the Cypher text and an optional
    parameter map. RushDB decides from the statement's parsed plan whether it
    reads or writes, and routes it to the read or the write operation; you do
@@ -76,7 +80,7 @@ Supported messages:
 | `DISCARD` | Drop buffered rows; honors `n`. |
 | `BEGIN`, `COMMIT`, `ROLLBACK` | Explicit transactions. |
 | `RESET` | Clear the pending result and recover from a failure. |
-| `ROUTE` | Returns a single-server routing table pointing at this listener. |
+| `ROUTE` | Returns a single-server routing table naming `--bolt-advertised-address`, or the bound address. |
 | `GOODBYE` | Close the connection. |
 
 Bolt 5.1+ messages (`LOGON`, `LOGOFF`, `TELEMETRY`) are not implemented;
@@ -141,8 +145,11 @@ columns.
 
 ## Using a Neo4j driver
 
-Connect with `bolt://` (not `neo4j://`: there is no cluster routing), and pass
-the server token as the password; the user name is ignored.
+Connect with `bolt://`, or `bolt+s://` / `neo4j+s://` when the listener has
+TLS (`+ssc` for a self-signed certificate), and pass the server token or a
+capability token as the password; the user name is ignored. With `neo4j+s://`
+the driver follows the `ROUTE` answer, so set `--bolt-advertised-address` to
+the address it can reach.
 
 Python (`pip install neo4j`):
 
@@ -198,6 +205,7 @@ What to expect from a driver:
 | Bolt failure code | Engine error codes |
 |---|---|
 | `Neo.ClientError.Security.Unauthorized` | `unauthorized`, `missing_scope`, `scope_mismatch`, failed `HELLO` |
+| `Neo.ClientError.Security.Forbidden` | the session's capability does not grant the statement |
 | `Neo.ClientError.Statement.SyntaxError` | `invalid_request`, `protocol_violation`, `language_disabled`, `unsupported` |
 | `Neo.ClientError.Statement.EntityNotFound` | `not_found` |
 | `Neo.ClientError.Constraint.UniqueConstraintViolation` | `conflict` |
@@ -222,8 +230,7 @@ After a failure, send `RESET` before continuing.
 
 ## Not supported
 
-- TLS (`bolt+s://`, `neo4j+s://`) and cluster routing beyond a single-server
-  table.
+- Cluster routing beyond a single-server table.
 - Languages other than Cypher over Bolt.
 - Vector, full-text, and native operations; use the [HTTP API](http-api.md).
 - Multitenant servers (see the warning above).

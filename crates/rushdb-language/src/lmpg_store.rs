@@ -137,7 +137,12 @@ impl LmpgGraphStore {
             rushdb_textsearch::TextQuery {
                 index,
                 query,
-                opts: rushdb_textsearch::LexicalOptions::default(),
+                // `text_match`/`text_score` read the query syntax, as
+                // documented: an unparsable query fails the statement.
+                opts: rushdb_textsearch::LexicalOptions {
+                    syntax: rushdb_textsearch::TextSyntax::Query,
+                    ..rushdb_textsearch::LexicalOptions::default()
+                },
                 top_k,
             },
             None,
@@ -149,7 +154,7 @@ impl LmpgGraphStore {
                 .map(|hit| (hit.owner_ord, hit.score))
                 .collect(),
             Err(error) => {
-                self.text_failed(error);
+                self.text_failed(error.to_string());
                 Vec::new()
             }
         }

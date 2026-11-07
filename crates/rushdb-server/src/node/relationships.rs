@@ -78,17 +78,17 @@ fn run_nonempty(lmpg: &rushdb_lmpg::Lmpg, batch: rushdb_lmpg::BatchTx) -> Result
     Ok(())
 }
 
-/// Relationships an unlink deletes, collected against one snapshot and
-/// deleted in one atomic commit (each at most once).
+/// Relationships an unlink deletes or a by-id update rewrites, collected
+/// against one snapshot (each at most once) and written in one atomic commit.
 #[derive(Default)]
-struct Doomed {
+pub(super) struct MatchedEdges {
     seen: std::collections::HashSet<u64>,
     rels: Vec<rushdb_lmpg::RelationshipRef>,
 }
 
-impl Doomed {
+impl MatchedEdges {
     /// Every `rel_type` edge from `from` to `to`.
-    fn edges_between(
+    pub(super) fn edges_between(
         &mut self,
         snap: &rushdb_storage::ReadView,
         tenant: rushdb_types::ids::TenantId,
@@ -125,6 +125,32 @@ impl Doomed {
         );
         run_nonempty(lmpg, batch)?;
         Ok(deleted)
+    }
+
+    /// Apply `fields` to them all in one commit; the count updated. With no
+    /// fields nothing is written.
+    pub(super) fn update(
+        self,
+        lmpg: &rushdb_lmpg::Lmpg,
+        fields: &[(String, rushdb_lmpg::plan::FieldChange)],
+    ) -> Result<usize, String> {
+        let updated = self.rels.len();
+        if fields.is_empty() {
+            return Ok(updated);
+        }
+        let mut batch = lmpg.begin_batch();
+        batch.ops.extend(
+            self.rels
+                .into_iter()
+                .map(|rel| rushdb_lmpg::BatchOp::UpdateFields {
+                    owner: rushdb_types::ids::OwnerKind::Relationship,
+                    owner_ord: rel.ordinal,
+                    owner_public_id: rel.relationship_id,
+                    fields: fields.to_vec(),
+                }),
+        );
+        run_nonempty(lmpg, batch)?;
+        Ok(updated)
     }
 }
 
@@ -459,7 +485,7 @@ impl RequestScope<'_> {
             self.enumerate_records_in_view(&source_label, Some(&command.source.predicate), snap)?;
         let targets =
             self.enumerate_records_in_view(&target_label, Some(&command.target.predicate), snap)?;
-        let mut doomed = Doomed::default();
+        let mut doomed = MatchedEdges::default();
         let mut doom =
             |(_, sord, _): &IndexedRecord, (_, tord, _): &IndexedRecord| -> Result<bool, String> {
                 // `direction` names which endpoint the edge leaves, as in link.
@@ -522,24 +548,15 @@ impl RequestScope<'_> {
     ) -> Result<serde_json::Value, String> {
         let rel_type = command.relation_type.clone();
         let direction = command.direction;
-        let props: Vec<(String, rushdb_lmpg::plan::FieldChange)> = command
-            .properties
-            .as_object()
-            .map(|o| {
-                o.iter()
-                    .map(|(k, v)| {
-                        (
-                            k.clone(),
-                            if v.is_null() {
-                                rushdb_lmpg::plan::FieldChange::ExplicitNull
-                            } else {
-                                rushdb_lmpg::plan::FieldChange::Set(v.clone())
-                            },
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        let props = super::relationship_updates::typed_property_changes(
+            "linkRecordsById",
+            "properties",
+            command
+                .properties
+                .as_object()
+                .unwrap_or(&serde_json::Map::new()),
+            &command.types,
+        )?;
 
         let mut endpoints: Vec<(rushdb_lmpg::RecordRef, u64)> = Vec::new();
         for id_hex in command.source_ids.iter().chain(command.target_ids.iter()) {
@@ -642,24 +659,15 @@ impl RequestScope<'_> {
         snap: &rushdb_storage::ReadView,
     ) -> Result<serde_json::Value, String> {
         let direction = command.direction;
-        let props: Vec<(String, rushdb_lmpg::plan::FieldChange)> = command
-            .properties
-            .as_object()
-            .map(|o| {
-                o.iter()
-                    .map(|(k, v)| {
-                        (
-                            k.clone(),
-                            if v.is_null() {
-                                rushdb_lmpg::plan::FieldChange::ExplicitNull
-                            } else {
-                                rushdb_lmpg::plan::FieldChange::Set(v.clone())
-                            },
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        let props = super::relationship_updates::typed_property_changes(
+            "linkRecordsPairs",
+            "properties",
+            command
+                .properties
+                .as_object()
+                .unwrap_or(&serde_json::Map::new()),
+            &command.types,
+        )?;
 
         // Resolve every endpoint before staging anything: a dangling id
         // fails the whole call with zero partials.
@@ -795,7 +803,7 @@ impl RequestScope<'_> {
         let sources = endpoints[..command.source_ids.len()].to_vec();
         let targets = endpoints[command.source_ids.len()..].to_vec();
 
-        let mut doomed = Doomed::default();
+        let mut doomed = MatchedEdges::default();
         for (_sid, sord) in &sources {
             for (_tid, tord) in &targets {
                 let pairs = match command.direction {
@@ -947,7 +955,11 @@ impl RequestScope<'_> {
 
 /// The (from, to) ordinals of an edge between a selected source and target:
 /// `In` means the edge points from the target to the source.
-fn directed(direction: rushdb_protocol::Direction, source: u64, target: u64) -> (u64, u64) {
+pub(super) fn directed(
+    direction: rushdb_protocol::Direction,
+    source: u64,
+    target: u64,
+) -> (u64, u64) {
     if direction == rushdb_protocol::Direction::In {
         (target, source)
     } else {
@@ -1173,40 +1185,19 @@ fn relationship_fields(
     ordinal: u64,
 ) -> Result<Vec<RelField>, String> {
     use rushdb_lmpg::plan::FieldChange;
-    use rushdb_lmpg::reader::try_access;
     let Some(serde_json::Value::Object(document)) =
         rushdb_lmpg::reconstruct::reconstruct_relationship(snap, tenant, ordinal)
             .map_err(|e| e.to_string())?
     else {
         return Ok(Vec::new());
     };
-    let mut datetimes = std::collections::BTreeSet::new();
-    for occurrence in try_access::occurrences_of_owner(
-        snap,
-        tenant,
-        rushdb_types::ids::OwnerKind::Relationship,
-        ordinal,
-    )
-    .map_err(|e| e.to_string())?
-    {
-        if occurrence.array
-            || occurrence.value
-                != (rushdb_types::occurrence::OccurrenceValue::Stored {
-                    ty: rushdb_types::model::LogicalType::DateTime,
-                })
-        {
-            continue;
-        }
-        if let Some(definition) =
-            try_access::definition(snap, tenant, occurrence.pid).map_err(|e| e.to_string())?
-        {
-            if let Some(family) =
-                try_access::family(snap, tenant, definition.family_id).map_err(|e| e.to_string())?
-            {
-                datetimes.insert(family.display_name);
-            }
-        }
-    }
+    let datetimes: std::collections::BTreeSet<String> =
+        super::relationship_reads::PropertyNames::default()
+            .of(snap, tenant, ordinal)?
+            .into_iter()
+            .filter(|(_, (ty, array))| *ty == rushdb_types::model::LogicalType::DateTime && !array)
+            .map(|(name, _)| name)
+            .collect();
     Ok(document
         .into_iter()
         .filter(|(name, _)| !rushdb_types::value::is_reserved_name(name))

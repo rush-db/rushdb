@@ -14,9 +14,11 @@ gRPC is off by default. Give it a port:
 rushdb serve --data-dir ./data --grpc-port 50051
 ```
 
-It binds the `--listen` address (default `127.0.0.1`) and serves plaintext
-HTTP/2 (no TLS). The same [listener security](README.md#listener-security)
-rules as the PostgreSQL wire and Bolt listeners apply. The port can also be set
+It binds the `--listen` address (default `127.0.0.1`) and serves HTTP/2:
+over TLS when `--tls-cert`/`--tls-key` are set (the same certificate as
+HTTP; the listener then speaks only TLS), plaintext otherwise. The same
+[listener security](README.md#listener-security) rules as the PostgreSQL
+wire and Bolt listeners apply. The port can also be set
 with `server.grpc-port` in `config.yml`; `describe.buildInfo` reports it under
 `transports`.
 
@@ -50,7 +52,7 @@ offered.
 
 | Metadata | Value |
 |---|---|
-| `authorization` | `Bearer <token>`: the bootstrap token (`--token`). Capability tokens are not accepted. |
+| `authorization` | `Bearer <credential>`: the bootstrap token (`--token`), or a [capability token](../operations/security.md#capability-tokens) bound to the tenant in `x-rushdb-tenant`. |
 | `x-rushdb-tenant` | Tenant scope, on a multitenant server. |
 
 On a multitenant server, set the scope in **both** places: the
@@ -127,7 +129,8 @@ error message:
 
 | gRPC status | Engine error codes |
 |---|---|
-| `UNAUTHENTICATED` | missing or invalid bearer token; `unauthorized`, `missing_scope`, `scope_mismatch` |
+| `UNAUTHENTICATED` | missing or invalid bearer token, or a capability not bound to the requested tenant; `unauthorized`, `missing_scope`, `scope_mismatch` |
+| `PERMISSION_DENIED` | the capability does not grant the operation (`read`, `write`; operator operations never accept one) |
 | `INVALID_ARGUMENT` | malformed envelope JSON; `invalid_request`, `protocol_violation`, `unsupported_version`, `language_disabled`, `unsupported`, `execution_failed` |
 | `NOT_FOUND` | `not_found` |
 | `ALREADY_EXISTS` | `conflict` |

@@ -254,7 +254,8 @@ Response:
       "targetId": "0192f1d2-6c20-7c02-a1b3-77e1f0d2c3b4",
       "sourceLabel": "COMPANY",
       "targetLabel": "DEPARTMENT",
-      "properties": { "since": 2021 }
+      "properties": { "since": 2021, "signed": "2021-04-12" },
+      "propertyTypes": { "since": "number", "signed": "datetime" }
     }
   ],
   "total": 1
@@ -262,6 +263,8 @@ Response:
 ```
 
 `total` counts every matching relationship before `offset`/`limit`.
+`propertyTypes` names each property's stored type, as for records; datetime
+properties are returned as ISO 8601 strings.
 
 > **Note:** The relationship listing scans the tenant's relationships. For
 > counts per relationship shape, use `describe.schema` instead, which reads

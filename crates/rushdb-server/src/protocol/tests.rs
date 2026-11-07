@@ -677,6 +677,7 @@ fn link_by_id_uses_the_request_pinned_view() {
         source_ids: vec![source_id],
         target_ids: vec![target["id"].as_str().unwrap().to_owned()],
         properties: serde_json::json!({}),
+        types: std::collections::BTreeMap::new(),
     };
     let error = node
         .scope()
@@ -720,6 +721,7 @@ fn link_pairs_uses_the_request_pinned_view() {
             relation_type: None,
         }],
         properties: serde_json::json!({}),
+        types: std::collections::BTreeMap::new(),
     };
     let error = node
         .scope()
@@ -763,6 +765,7 @@ fn unlink_by_id_uses_the_request_pinned_view() {
             source_ids: vec![source_id.clone()],
             target_ids: vec![target_id.clone()],
             properties: serde_json::json!({}),
+            types: std::collections::BTreeMap::new(),
         })
         .unwrap();
     let result = node
@@ -813,6 +816,7 @@ fn retype_relations_uses_the_request_pinned_view() {
             source_ids: vec![source["id"].as_str().unwrap().into()],
             target_ids: vec![target["id"].as_str().unwrap().into()],
             properties: serde_json::json!({}),
+            types: std::collections::BTreeMap::new(),
         })
         .unwrap();
     let result = node
@@ -865,6 +869,7 @@ fn unlink_query_uses_the_request_pinned_view() {
             source_ids: vec![source["id"].as_str().unwrap().into()],
             target_ids: vec![target["id"].as_str().unwrap().into()],
             properties: serde_json::json!({}),
+            types: std::collections::BTreeMap::new(),
         })
         .unwrap();
     let result = node
@@ -976,6 +981,7 @@ fn operation_kind_labels_every_operation_for_metrics_and_slow_logs() {
         source_ids: vec![],
         target_ids: vec![],
         properties: serde_json::json!({}),
+        types: std::collections::BTreeMap::new(),
     };
     let vector = VectorQuery {
         labels: vec![],
@@ -1164,6 +1170,7 @@ fn operation_kind_labels_every_operation_for_metrics_and_slow_logs() {
                         direction: rushdb_protocol::Direction::default(),
                         pairs: vec![],
                         properties: serde_json::json!({}),
+                        types: std::collections::BTreeMap::new(),
                     },
                 },
             },
@@ -1181,6 +1188,22 @@ fn operation_kind_labels_every_operation_for_metrics_and_slow_logs() {
                 },
             },
             "mutate.unlinkRecordsById",
+        ),
+        (
+            Operation::Mutate {
+                mutation: Mutation::UpdateRelationshipsById {
+                    command: rushdb_protocol::UpdateRelationshipsMutation {
+                        relation_type: "LINK".into(),
+                        direction: rushdb_protocol::Direction::default(),
+                        source_ids: vec![],
+                        target_ids: vec![],
+                        set: serde_json::json!({}),
+                        unset: vec![],
+                        types: std::collections::BTreeMap::new(),
+                    },
+                },
+            },
+            "mutate.updateRelationshipsById",
         ),
         (
             Operation::Describe {
@@ -2454,6 +2477,7 @@ fn text_query_returns_lexical_hits_with_record_ids() {
                     limit: 10,
                     all_terms: false,
                     phrase: false,
+                    syntax: rushdb_protocol::TextSyntax::Terms,
                 },
             },
         })
@@ -2538,6 +2562,7 @@ fn hybrid_query_fuses_legs_inside_one_predicate_resolved_candidate_set() {
                             query: "quick".into(),
                             all_terms: false,
                             phrase: false,
+                            syntax: rushdb_protocol::TextSyntax::Terms,
                             weight: 1.0,
                             prefetch_limit: None,
                         }),
@@ -2616,6 +2641,7 @@ fn hybrid_text_only_scores_by_bm25_and_reports_matches() {
                             query: query.into(),
                             all_terms,
                             phrase,
+                            syntax: rushdb_protocol::TextSyntax::Terms,
                             weight: 1.0,
                             prefetch_limit: None,
                         }),
@@ -2720,6 +2746,7 @@ fn fusion_query(
             query: "fox".into(),
             all_terms: false,
             phrase: false,
+            syntax: rushdb_protocol::TextSyntax::Terms,
             weight: text_weight,
             prefetch_limit: text_prefetch,
         }),
@@ -4040,6 +4067,7 @@ fn link_and_unlink_records_by_id_are_idempotent_and_typed() {
         source_ids: vec![pid.clone()],
         target_ids: ids,
         properties: serde_json::json!({ "since": 2020 }),
+        types: std::collections::BTreeMap::new(),
     };
 
     // First link creates 1; a second identical link is idempotent (0 new).
@@ -4157,6 +4185,7 @@ fn link_records_by_id_commits_one_batch_with_counts() {
         source_ids: persons.clone(),
         target_ids: targets,
         properties: serde_json::json!({}),
+        types: std::collections::BTreeMap::new(),
     };
     let affected = |response: rushdb_protocol::Response| match response {
         rushdb_protocol::Response::Mutation { affected, .. }
@@ -4251,6 +4280,7 @@ fn link_records_by_id_with_dangling_target_applies_nothing() {
                         source_ids: vec![pid.clone()],
                         target_ids: targets,
                         properties: serde_json::json!({}),
+                        types: std::collections::BTreeMap::new(),
                     },
                 },
             },
@@ -4344,6 +4374,7 @@ fn link_records_pairs_commits_one_batch_with_verbatim_types() {
         direction: rushdb_protocol::Direction::Out,
         pairs: pairs.clone(),
         properties: serde_json::json!({}),
+        types: std::collections::BTreeMap::new(),
     };
     let affected = |response: rushdb_protocol::Response| match response {
         rushdb_protocol::Response::Mutation { affected, .. }
@@ -4441,6 +4472,7 @@ fn link_records_pairs_with_dangling_id_applies_nothing() {
                         direction: rushdb_protocol::Direction::Out,
                         pairs,
                         properties: serde_json::json!({}),
+                        types: std::collections::BTreeMap::new(),
                     },
                 },
             },
@@ -4536,6 +4568,7 @@ fn link_records_pairs_do_not_disturb_other_shapes() {
             source_ids: vec![ids[0].clone()],
             target_ids: vec![ids[1].clone()],
             properties: serde_json::json!({}),
+            types: std::collections::BTreeMap::new(),
         },
     }));
     assert_eq!(seeded, 1);
@@ -4550,6 +4583,7 @@ fn link_records_pairs_do_not_disturb_other_shapes() {
                 relation_type: None,
             }],
             properties: serde_json::json!({}),
+            types: std::collections::BTreeMap::new(),
         },
     }));
     assert_eq!(created, 1);
@@ -4561,6 +4595,7 @@ fn link_records_pairs_do_not_disturb_other_shapes() {
             source_ids: vec![ids[0].clone()],
             target_ids: vec![ids[1].clone()],
             properties: serde_json::json!({}),
+            types: std::collections::BTreeMap::new(),
         },
     }));
     assert_eq!(dup, 0, "cross-shape duplicate must be detected");
@@ -4575,6 +4610,7 @@ fn link_records_pairs_do_not_disturb_other_shapes() {
                 relation_type: None,
             }],
             properties: serde_json::json!({}),
+            types: std::collections::BTreeMap::new(),
         },
     }));
     assert_eq!(created, 1, "same pair under a new type is a distinct edge");
@@ -6245,6 +6281,7 @@ fn fulltext_ddl_from_statement_surfaces() {
                     limit: 10,
                     all_terms: false,
                     phrase: false,
+                    syntax: rushdb_protocol::TextSyntax::Terms,
                 },
             },
         ) else {
@@ -7269,6 +7306,7 @@ fn link_operations_report_pairs_that_were_already_linked() {
                         source_ids: vec![person.clone()],
                         target_ids: vec![company.clone()],
                         properties: serde_json::json!({}),
+                        types: std::collections::BTreeMap::new(),
                     },
                 },
             },

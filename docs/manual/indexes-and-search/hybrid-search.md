@@ -89,7 +89,8 @@ At least one leg is required; with both set the query is a true hybrid.
 | Field | Required | Description |
 |---|---|---|
 | `index` | yes | Text index name. The index must be `ready`. |
-| `query` | yes | Query string ([syntax](full-text-search.md#query-syntax)). |
+| `query` | yes | The text to search for, as words. |
+| `syntax` | no | `"terms"` (default) or `"query"` for the [query syntax](full-text-search.md#query-syntax). |
 | `allTerms` | no | Unmarked terms must all match (AND) instead of any (OR). Default `false`. |
 | `phrase` | no | Match the whole query as one phrase. Default `false`. |
 | `weight` | no | This leg's share of the fused score (≥ 0). Default 1. |

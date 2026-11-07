@@ -4,7 +4,11 @@ use rushdb_query::{AggregateRequest, QueryError};
 use serde_json::json;
 
 #[test]
-fn aggregate_charges_work_even_when_pagination_discards_result() {
+fn the_response_budget_caps_the_aggregate_page_not_its_working_set() {
+    // The request's byte budget (the HTTP body limit) caps what the
+    // aggregate returns. The work of matching and grouping 20 records with
+    // 4 KiB payloads is charged to `query-memory-max`, not to it: a 2-byte
+    // budget still runs the aggregate and refuses only a page it cannot hold.
     let engine = Engine::new_in_memory();
     for i in 0..20 {
         engine
@@ -15,22 +19,26 @@ fn aggregate_charges_work_even_when_pagination_discards_result() {
             )
             .unwrap();
     }
+    let request = |skip: u64| AggregateRequest {
+        labels: vec!["Audit".into()],
+        group_by: vec!["group".into()],
+        skip,
+        ..Default::default()
+    };
     let mut context = engine
         .context(None, OperationClass::Read, None, Some(2))
         .unwrap();
-    let result = engine.aggregate_with_context(
-        &mut context,
-        &AggregateRequest {
-            labels: vec!["Audit".into()],
-            group_by: vec!["group".into()],
-            skip: 20,
-            ..Default::default()
-        },
-    );
+    let empty = engine
+        .aggregate_with_context(&mut context, &request(20))
+        .unwrap();
+    assert!(empty.is_empty());
+    let mut context = engine
+        .context(None, OperationClass::Read, None, Some(2))
+        .unwrap();
+    let result = engine.aggregate_with_context(&mut context, &request(0));
     assert!(
         matches!(result, Err(QueryError::ResourceLimit(_))),
-        "aggregate work bypassed 2-byte budget: {result:?}; charged={}",
-        context.charged_bytes()
+        "a 20-bucket page bypassed the 2-byte budget: {result:?}"
     );
 }
 
@@ -94,34 +102,6 @@ fn aggregation_preserves_all_metrics_for_interleaved_groups() {
 }
 
 #[test]
-fn aggregate_rejects_large_record_before_discarding_output() {
-    let engine = Engine::new_in_memory();
-    engine
-        .import_document(
-            None,
-            "Large",
-            &json!({"group": "a", "payload": "x".repeat(128 * 1024)}),
-        )
-        .unwrap();
-    let mut context = engine
-        .context(None, OperationClass::Read, None, Some(64 * 1024))
-        .unwrap();
-    let result = engine.aggregate_with_context(
-        &mut context,
-        &AggregateRequest {
-            labels: vec!["Large".into()],
-            group_by: vec!["group".into()],
-            skip: 1,
-            ..Default::default()
-        },
-    );
-    assert!(
-        matches!(result, Err(QueryError::ResourceLimit(_))),
-        "{result:?}"
-    );
-}
-
-#[test]
 fn aggregate_reuses_temporary_record_budget() {
     let engine = Engine::new_in_memory();
     for _ in 0..100 {
@@ -147,34 +127,4 @@ fn aggregate_reuses_temporary_record_budget() {
         )
         .unwrap();
     assert_eq!(result[0].sums["sum"], json!(100.0));
-}
-
-#[test]
-fn aggregate_limits_retained_groups_even_when_skip_discards_them() {
-    let engine = Engine::new_in_memory();
-    for i in 0..100 {
-        engine
-            .import_document(
-                None,
-                "Groups",
-                &json!({"group": format!("{i}{}", "x".repeat(1024))}),
-            )
-            .unwrap();
-    }
-    let mut context = engine
-        .context(None, OperationClass::Read, None, Some(64 * 1024))
-        .unwrap();
-    let result = engine.aggregate_with_context(
-        &mut context,
-        &AggregateRequest {
-            labels: vec!["Groups".into()],
-            group_by: vec!["group".into()],
-            skip: 100,
-            ..Default::default()
-        },
-    );
-    assert!(
-        matches!(result, Err(QueryError::ResourceLimit(_))),
-        "{result:?}"
-    );
 }

@@ -3,9 +3,17 @@
 //! in every tenancy mode.
 
 use super::*;
-use rushdb_protocol::{RequestContext, RequestEnvelope, StatementLanguage};
+use rushdb_protocol::{RequestContext, RequestEnvelope, StatementLanguage, TextSyntax};
 
 fn execute(node: &Node, scope: Option<&str>, operation: Operation) -> Response {
+    try_execute(node, scope, operation).unwrap()
+}
+
+fn try_execute(
+    node: &Node,
+    scope: Option<&str>,
+    operation: Operation,
+) -> Result<Response, rushdb_protocol::ProtocolError> {
     ProtocolExecutor::new(node, scope.map(str::to_owned))
         .execute(RequestEnvelope {
             protocol_version: PROTOCOL_VERSION,
@@ -17,12 +25,18 @@ fn execute(node: &Node, scope: Option<&str>, operation: Operation) -> Response {
             },
             operation,
         })
-        .unwrap()
-        .response
+        .map(|outcome| outcome.response)
 }
 
 /// An `eventual` whole-record text index `name` on `Doc`, built.
 fn eventual_index(node: &Node, scope: Option<&str>, name: &str) {
+    declare_eventual_index(node, scope, name);
+    while node.step_index_builds(std::time::Duration::from_secs(5)) > 0 {}
+}
+
+/// An `eventual` whole-record text index `name` on `Doc`, declared but not
+/// yet built.
+fn declare_eventual_index(node: &Node, scope: Option<&str>, name: &str) {
     execute(
         node,
         scope,
@@ -37,7 +51,6 @@ fn eventual_index(node: &Node, scope: Option<&str>, name: &str) {
             },
         },
     );
-    while node.step_index_builds(std::time::Duration::from_secs(5)) > 0 {}
 }
 
 fn doc(node: &Node, scope: Option<&str>, body: &str) {
@@ -59,23 +72,49 @@ fn doc(node: &Node, scope: Option<&str>, body: &str) {
 
 /// `(hits, pending)` of one text search.
 fn search(node: &Node, query: &str, all_terms: bool, phrase: bool) -> (u64, u64) {
-    let response = execute(
-        node,
-        None,
-        Operation::Query {
-            query: Query::Text {
-                index: "docs".into(),
-                query: query.into(),
-                limit: 10,
-                all_terms,
-                phrase,
-            },
-        },
-    );
+    search_with(node, "docs", query, all_terms, phrase, TextSyntax::Terms)
+}
+
+/// `(hits, pending)` of one text search of `index` under `syntax`.
+fn search_with(
+    node: &Node,
+    index: &str,
+    query: &str,
+    all_terms: bool,
+    phrase: bool,
+    syntax: TextSyntax,
+) -> (u64, u64) {
+    let response = try_search(node, index, query, all_terms, phrase, syntax)
+        .unwrap_or_else(|error| panic!("search failed: {error:?}"));
     let Response::TextHits { total, pending, .. } = response else {
         panic!("expected text hits, got {response:?}");
     };
     (total, pending)
+}
+
+/// One text search as the protocol answers it.
+fn try_search(
+    node: &Node,
+    index: &str,
+    query: &str,
+    all_terms: bool,
+    phrase: bool,
+    syntax: TextSyntax,
+) -> Result<Response, rushdb_protocol::ProtocolError> {
+    try_execute(
+        node,
+        None,
+        Operation::Query {
+            query: Query::Text {
+                index: index.into(),
+                query: query.into(),
+                limit: 10,
+                all_terms,
+                phrase,
+                syntax,
+            },
+        },
+    )
 }
 
 #[test]
@@ -190,4 +229,64 @@ fn dropping_a_text_index_deletes_its_files() {
     assert_eq!(files(), 0, "the dropped index's directory is gone");
     drop(node);
     std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn plain_words_are_the_default_and_the_query_syntax_is_opt_in() {
+    let node = Node::bootstrap(&mut super::tests::config(false)).unwrap();
+    eventual_index(&node, None, "docs");
+    doc(
+        &node,
+        None,
+        "Adhesion molecules and chemokines: relation to inflammation",
+    );
+    doc(&node, None, "the virus' genome");
+    node.apply_text_indexes(std::time::Duration::from_secs(5));
+    // Colons, apostrophes and the words and/or/not are text, as the
+    // benchmark suite's natural-language queries send them.
+    assert_eq!(
+        search(&node, "inflammatory chemokines: role", false, false).0,
+        1
+    );
+    assert_eq!(search(&node, "virus' genome", false, false).0, 1);
+    // `and` is a word of the first document.
+    assert_eq!(search(&node, "AND OR NOT", false, false).0, 1);
+    assert_eq!(search(&node, "chemokines inflammation", true, false).0, 1);
+    assert_eq!(search(&node, "chemokines absent", true, false).0, 0);
+    // The query syntax is opt-in, and a query that does not parse says so.
+    assert_eq!(
+        search_with(
+            &node,
+            "docs",
+            "genome -chemokines",
+            false,
+            false,
+            TextSyntax::Query
+        )
+        .0,
+        1
+    );
+    let error = try_search(&node, "docs", "title:(", false, false, TextSyntax::Query)
+        .expect_err("an unparsable query must fail");
+    assert_eq!(error.code, ErrorCode::InvalidRequest, "{error:?}");
+    assert!(error.message.contains("cannot be parsed"), "{error:?}");
+    // The index's internal owner column is not searchable.
+    let error = try_search(&node, "docs", "owner:1", false, false, TextSyntax::Query)
+        .expect_err("a field prefix must fail");
+    assert_eq!(error.code, ErrorCode::InvalidRequest, "{error:?}");
+}
+
+#[test]
+fn a_text_search_names_what_is_wrong_with_it() {
+    let node = Node::bootstrap(&mut super::tests::config(false)).unwrap();
+    let error = try_search(&node, "missing", "fox", false, false, TextSyntax::Terms)
+        .expect_err("an unknown index must fail");
+    assert_eq!(error.code, ErrorCode::NotFound, "{error:?}");
+    assert!(error.message.contains("`missing`"), "{error:?}");
+    declare_eventual_index(&node, None, "docs");
+    let error = try_search(&node, "docs", "fox", false, false, TextSyntax::Terms)
+        .expect_err("a building index must fail");
+    assert_eq!(error.code, ErrorCode::Unavailable, "{error:?}");
+    assert!(error.retryable, "{error:?}");
+    assert!(error.message.contains("`docs`"), "{error:?}");
 }

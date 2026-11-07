@@ -770,23 +770,26 @@ struct QueueItem {
 #[must_use]
 pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPlan {
     let mut plan = BfsPlan::default();
-    let mut queue: Vec<QueueItem> = Vec::new();
+    // Breadth first: children go to the back, the next record comes off
+    // the front. A `Vec` popped at index 0 shifted every queued row, which
+    // made one call quadratic in its rows (a 240K-row CSV chunk moved
+    // terabytes); a deque pops the front in place.
+    let mut queue: std::collections::VecDeque<QueueItem> = std::collections::VecDeque::new();
 
     if let Some(arr) = data.as_array() {
-        if !arr.is_empty() {
-            for value in arr {
-                queue.push(QueueItem {
-                    key: if options.capitalize_labels {
-                        capitalize(label)
-                    } else {
-                        label.to_string()
-                    },
-                    value: value.clone(),
-                    parent_id: None,
-                    skip: false,
-                    rel_type: None,
-                });
-            }
+        queue.reserve(arr.len());
+        for value in arr {
+            queue.push_back(QueueItem {
+                key: if options.capitalize_labels {
+                    capitalize(label)
+                } else {
+                    label.to_string()
+                },
+                value: value.clone(),
+                parent_id: None,
+                skip: false,
+                rel_type: None,
+            });
         }
     } else {
         let has_explicit_label = !label.trim().is_empty();
@@ -800,7 +803,7 @@ pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPl
             })
             .count();
         let skip = !has_explicit_label || !(has_primitive_at_root || complex_children_count > 1);
-        queue.push(QueueItem {
+        queue.push_back(QueueItem {
             key: if options.capitalize_labels {
                 capitalize(label)
             } else {
@@ -813,8 +816,7 @@ pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPl
         });
     }
 
-    while !queue.is_empty() {
-        let current = queue.remove(0);
+    while let Some(current) = queue.pop_front() {
         let mut record_draft = BfsRecord {
             draft_id: *uuid::Uuid::now_v7().as_bytes(),
             label: current.key.clone(),
@@ -883,7 +885,7 @@ pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPl
         for (key, value) in value_obj {
             if value.is_object() {
                 let rel_type = Some(options.rel_type_for(&key));
-                queue.push(QueueItem {
+                queue.push_back(QueueItem {
                     key: if options.capitalize_labels {
                         capitalize(&key)
                     } else {
@@ -894,14 +896,16 @@ pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPl
                     skip: false,
                     rel_type,
                 });
-            } else if value.is_array()
-                && value
-                    .as_array()
-                    .is_some_and(|a| a.iter().any(Json::is_object))
+            } else if value
+                .as_array()
+                .is_some_and(|a| a.iter().any(Json::is_object))
             {
                 let rel_type = Some(options.rel_type_for(&key));
-                for val in value.as_array().cloned().unwrap_or_default() {
-                    queue.push(QueueItem {
+                let Json::Array(children) = value else {
+                    unreachable!("checked to be an array above");
+                };
+                for val in children {
+                    queue.push_back(QueueItem {
                         key: if options.capitalize_labels {
                             capitalize(&key)
                         } else {
@@ -996,6 +1000,9 @@ fn find_record_by_keys(
     let Some(candidates) = index_candidates(snap, index, lmpg.tenant, label, keys, props)? else {
         return scan_record_by_keys(snap, lmpg.tenant, label, keys, props);
     };
+    // Only the merge keys are decoded of each candidate.
+    let selected = key_selection(keys);
+    let mut session = crate::reconstruct::ReconstructSession::new(snap, lmpg.tenant);
     for ord in candidates {
         let Some(hdr) = crate::reader::try_access::record_by_ord(snap, lmpg.tenant, ord)
             .map_err(|error| LmpgError::Conflict(format!("merge lookup record failed: {error}")))?
@@ -1007,8 +1014,9 @@ fn find_record_by_keys(
         if hdr.label != label {
             continue;
         }
-        let Some(rec) =
-            crate::reconstruct::reconstruct_record(snap, lmpg.tenant, ord).map_err(|error| {
+        let Some(rec) = session
+            .reconstruct_record_selected(ord, &selected)
+            .map_err(|error| {
                 LmpgError::Conflict(format!("merge lookup reconstruction failed: {error}"))
             })?
         else {
@@ -1055,9 +1063,11 @@ fn find_record_by_id(
         .cloned()
         .collect();
     if !others.is_empty() {
-        let rec = crate::reconstruct::reconstruct_record(snap, lmpg.tenant, hdr.ordinal).map_err(
-            |error| LmpgError::Conflict(format!("merge lookup reconstruction failed: {error}")),
-        )?;
+        let rec = crate::reconstruct::ReconstructSession::new(snap, lmpg.tenant)
+            .reconstruct_record_selected(hdr.ordinal, &key_selection(&others))
+            .map_err(|error| {
+                LmpgError::Conflict(format!("merge lookup reconstruction failed: {error}"))
+            })?;
         if !rec.is_some_and(|rec| record_matches_keys(&rec, &others, props)) {
             return Ok(None);
         }
@@ -1408,6 +1418,13 @@ fn property_id(
 }
 
 /// Exact key comparison against a reconstructed record.
+/// The merge keys by either spelling, for decoding only them of a record.
+fn key_selection(keys: &[String]) -> std::collections::HashSet<String> {
+    keys.iter()
+        .flat_map(|key| [key.clone(), normalize_name(key)])
+        .collect()
+}
+
 fn record_matches_keys(rec: &Json, keys: &[String], props: &[(String, FieldChange)]) -> bool {
     let Some(obj) = rec.as_object() else {
         return false;
@@ -1465,14 +1482,18 @@ fn scan_record_by_keys(
 ) -> Result<Option<RecordRef>, LmpgError> {
     let members = crate::reader::try_access::label_members(snap, tenant, label)
         .map_err(|error| LmpgError::Conflict(format!("merge label scan failed: {error}")))?;
+    // Only the merge keys are decoded of each member.
+    let selected = key_selection(keys);
+    let mut session = crate::reconstruct::ReconstructSession::new(snap, tenant);
     for ord in members {
         let Some(hdr) = crate::reader::try_access::record_by_ord(snap, tenant, ord)
             .map_err(|error| LmpgError::Conflict(format!("merge scan record failed: {error}")))?
         else {
             continue;
         };
-        let Some(rec) =
-            crate::reconstruct::reconstruct_record(snap, tenant, ord).map_err(|error| {
+        let Some(rec) = session
+            .reconstruct_record_selected(ord, &selected)
+            .map_err(|error| {
                 LmpgError::Conflict(format!("merge scan reconstruction failed: {error}"))
             })?
         else {

@@ -3,18 +3,57 @@
 
 use super::{access, append_bounded_json_response, Arc, HashSet, OwnerKind, RequestScope};
 
+/// Why a hybrid search did not run.
+#[derive(Debug)]
+pub(crate) enum HybridError {
+    /// The enforced policy denies a label the query names.
+    Policy,
+    /// The text leg's typed failure.
+    Text(rushdb_textsearch::TextSearchError),
+    /// Anything else, as the engine phrased it.
+    Other(String),
+}
+
+impl From<String> for HybridError {
+    fn from(message: String) -> Self {
+        Self::Other(message)
+    }
+}
+
+impl From<&str> for HybridError {
+    fn from(message: &str) -> Self {
+        Self::Other(message.to_owned())
+    }
+}
+
+impl From<rushdb_textsearch::TextSearchError> for HybridError {
+    fn from(error: rushdb_textsearch::TextSearchError) -> Self {
+        Self::Text(error)
+    }
+}
+
+impl std::fmt::Display for HybridError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Policy => f.write_str("hybrid query denied by policy"),
+            Self::Text(error) => error.fmt(f),
+            Self::Other(message) => f.write_str(message),
+        }
+    }
+}
+
 impl RequestScope<'_> {
     /// Execute [`Self::hybrid_search_in_view`] against a caller-owned
     /// execution context's pinned view and remaining response-byte budget.
     ///
     /// # Errors
     ///
-    /// Returns an error message when the operation fails.
+    /// Returns why the search did not run.
     pub(crate) fn hybrid_search_with_execution_context(
         &self,
         context: &mut rushdb_engine::ExecutionContext,
         query: &rushdb_protocol::HybridQuery,
-    ) -> Result<serde_json::Value, String> {
+    ) -> Result<serde_json::Value, HybridError> {
         context
             .check_deadline()
             .map_err(|error| error.to_string())?;
@@ -59,9 +98,9 @@ impl RequestScope<'_> {
         &self,
         query: &rushdb_protocol::HybridQuery,
         snap: &Arc<rushdb_storage::ReadView>,
-    ) -> Result<serde_json::Value, String> {
+    ) -> Result<serde_json::Value, HybridError> {
         if query.vector.is_none() && query.text.is_none() {
-            return Err("hybrid query requires at least one of `vector`/`text`".to_string());
+            return Err("hybrid query requires at least one of `vector`/`text`".into());
         }
         validate(query)?;
         if let Some(active) = rushdb_authz::load_active_policy_in_view(snap, self.tenant())
@@ -77,7 +116,7 @@ impl RequestScope<'_> {
                         .all(|label| active.policy.allows_label(label))
                 })
             {
-                return Err("hybrid query denied by policy".into());
+                return Err(HybridError::Policy);
             }
         }
         let limit = usize::try_from(query.limit).unwrap_or(usize::MAX).max(1);
@@ -116,7 +155,7 @@ impl RequestScope<'_> {
         let vec_hits: Vec<rushdb_vector::ScoredSource> = match &query.vector {
             Some(leg) => {
                 if leg.vector.is_empty() {
-                    return Err("hybrid vector leg requires a non-empty vector".to_string());
+                    return Err("hybrid vector leg requires a non-empty vector".into());
                 }
                 let label = query.labels.first().cloned().unwrap_or_default();
                 let dims = leg.vector.len();
@@ -175,10 +214,11 @@ impl RequestScope<'_> {
                     rushdb_textsearch::TextQuery {
                         index: &leg.index,
                         query: &leg.query,
-                        opts: rushdb_textsearch::LexicalOptions {
-                            all_terms: leg.all_terms,
-                            phrase: leg.phrase,
-                        },
+                        opts: crate::protocol::queries::lexical_options(
+                            leg.all_terms,
+                            leg.phrase,
+                            leg.syntax,
+                        ),
                         top_k: prefetch(leg.prefetch_limit),
                     },
                     Some(std::sync::Arc::new(allowed)),

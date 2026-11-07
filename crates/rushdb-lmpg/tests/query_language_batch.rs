@@ -135,3 +135,51 @@ fn derived_batch_rejects_a_stale_snapshot_version() {
         1
     );
 }
+
+/// A relationship's `UpdateFields` must find the relationship it names: one
+/// deleted after it was read fails the whole batch, so the update beside it
+/// is not applied either.
+#[test]
+fn relationship_field_update_of_a_vanished_relationship_fails_the_batch() {
+    use rushdb_types::ids::OwnerKind;
+    let store = Arc::new(Store::new_in_memory());
+    let graph = Lmpg::new(store, TenantId::from_ordinal(10));
+    let a = graph.create_record("Person", None, Vec::new()).unwrap();
+    let b = graph.create_record("Person", None, Vec::new()).unwrap();
+    let kept = graph
+        .create_relationship("KNOWS", a, b, Vec::new())
+        .unwrap();
+    let gone = graph
+        .create_relationship("LIKES", a, b, Vec::new())
+        .unwrap();
+    graph.delete_relationship(gone).unwrap();
+    let update = |rel: rushdb_lmpg::RelationshipRef| BatchOp::UpdateFields {
+        owner: OwnerKind::Relationship,
+        owner_ord: rel.ordinal,
+        owner_public_id: rel.relationship_id,
+        fields: vec![("since".into(), FieldChange::Set(json!(2024)))],
+    };
+    let properties = |rel: rushdb_lmpg::RelationshipRef| {
+        rushdb_lmpg::reconstruct::reconstruct_relationship(
+            &graph.store.read_view().unwrap(),
+            graph.tenant,
+            rel.ordinal,
+        )
+        .unwrap()
+        .unwrap()
+    };
+
+    assert!(graph
+        .run_batch(BatchTx {
+            ops: vec![update(kept), update(gone)],
+        })
+        .is_err());
+    assert!(properties(kept).get("since").is_none(), "nothing applied");
+
+    graph
+        .run_batch(BatchTx {
+            ops: vec![update(kept)],
+        })
+        .unwrap();
+    assert_eq!(properties(kept)["since"], 2024);
+}

@@ -158,3 +158,112 @@ fn the_default_token_cannot_guard_a_non_loopback_listener() {
         "loopback keeps the default"
     );
 }
+
+/// A self-signed certificate and key as PEM files, alive as long as the
+/// returned directory handle.
+fn tls_files() -> (
+    std::path::PathBuf,
+    std::path::PathBuf,
+    rushdb_storage::TempPath,
+) {
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    let dir = rushdb_storage::TempPath::dir("transport-tls");
+    std::fs::create_dir_all(&dir).unwrap();
+    let cert_path = dir.join("cert.pem");
+    let key_path = dir.join("key.pem");
+    std::fs::write(&cert_path, cert.cert.pem()).unwrap();
+    std::fs::write(&key_path, cert.key_pair.serialize_pem()).unwrap();
+    (cert_path, key_path, dir)
+}
+
+/// A port nothing listens on right now, for a non-ephemeral pgwire bind.
+fn free_port() -> u16 {
+    std::net::TcpListener::bind(("0.0.0.0", 0))
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+fn sql_only(config: &mut ServerConfig) {
+    config.languages = rushdb_protocol::LanguageSet::NONE;
+    config.languages.sql = true;
+}
+
+#[test]
+fn multitenant_pgwire_binds_externally_with_tls_and_capabilities() {
+    // pgwire speaks only TLS once configured and authenticates tenant-bound
+    // capabilities, so it may face the network on a multitenant server.
+    let mut config = cfg("0.0.0.0", false, false);
+    config.multitenant = true;
+    sql_only(&mut config);
+    let (cert, key, _dir) = tls_files();
+    config.tls_cert = Some(cert);
+    config.tls_key = Some(key);
+    config.capability_secret = Some(vec![7u8; 32]);
+    bind_ok_on(config, free_port());
+}
+
+#[test]
+fn multitenant_pgwire_with_tls_but_no_capability_secret_is_refused() {
+    let mut config = cfg("0.0.0.0", false, true);
+    config.multitenant = true;
+    sql_only(&mut config);
+    let (cert, key, _dir) = tls_files();
+    config.tls_cert = Some(cert);
+    config.tls_key = Some(key);
+    let Err(error) = new_gateway(config, free_port()) else {
+        panic!("a multitenant TLS pgwire without capabilities must be refused")
+    };
+    assert!(error.contains("capability-secret"), "{error}");
+}
+
+#[test]
+fn single_tenant_pgwire_with_tls_needs_no_acknowledgement() {
+    let mut config = cfg("0.0.0.0", false, false);
+    sql_only(&mut config);
+    let (cert, key, _dir) = tls_files();
+    config.tls_cert = Some(cert);
+    config.tls_key = Some(key);
+    bind_ok_on(config, free_port());
+}
+
+#[test]
+fn unreadable_tls_files_fail_the_pgwire_bind() {
+    let mut config = cfg("127.0.0.1", false, false);
+    sql_only(&mut config);
+    config.tls_cert = Some("/nonexistent/cert.pem".into());
+    config.tls_key = Some("/nonexistent/key.pem".into());
+    let Err(error) = new_gateway(config, 0) else {
+        panic!("missing TLS files must fail the bind")
+    };
+    assert!(error.contains("pgwire TLS"), "{error}");
+}
+
+#[test]
+fn multitenant_grpc_and_bolt_bind_externally_with_tls_and_capabilities() {
+    let mut config = cfg("0.0.0.0", true, false);
+    config.multitenant = true;
+    config.languages = rushdb_protocol::LanguageSet::NONE;
+    config.languages.cypher = true;
+    config.bolt_port = free_port();
+    let (cert, key, _dir) = tls_files();
+    config.tls_cert = Some(cert);
+    config.tls_key = Some(key);
+    config.capability_secret = Some(vec![9u8; 32]);
+    bind_ok_on(config, 0);
+}
+
+#[test]
+fn multitenant_grpc_with_tls_but_no_capability_secret_is_refused() {
+    let mut config = cfg("0.0.0.0", true, true);
+    config.multitenant = true;
+    config.languages = rushdb_protocol::LanguageSet::NONE;
+    let (cert, key, _dir) = tls_files();
+    config.tls_cert = Some(cert);
+    config.tls_key = Some(key);
+    let Err(error) = new_gateway(config, 0) else {
+        panic!("a multitenant TLS gRPC without capabilities must be refused")
+    };
+    assert!(error.contains("capability-secret"), "{error}");
+}

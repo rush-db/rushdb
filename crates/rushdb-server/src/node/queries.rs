@@ -91,12 +91,11 @@ impl RequestScope<'_> {
             .map_err(|_| QueryError::Cancelled)?;
         let request = req.clone();
         let snapshot = Arc::clone(context.read_view());
-        let result = rushdb_query::aggregate_with_cancel_in_view_with_budget(
+        let result = rushdb_query::aggregate_with_cancel_in_view(
             &self.lmpg(),
             &request,
             is_cancelled,
             snapshot,
-            context.remaining_budget(),
         )?;
         if is_cancelled() {
             return Err(QueryError::Cancelled);

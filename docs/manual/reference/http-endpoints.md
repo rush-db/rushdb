@@ -189,6 +189,7 @@ capability scope needed.
 | `retypeRelations` | Rename a relationship type between two labels. | `mutate.retypeRelations` |
 | `linkRecordsById` / `unlinkRecordsById` | Link or unlink explicit record ids. | `mutate.linkRecordsById` / `mutate.unlinkRecordsById` |
 | `linkRecordsPairs` | Batch-link explicit (source, target) pairs. | `mutate.linkRecordsPairs` |
+| `updateRelationshipsById` | Set or remove properties of the relationships between explicit record ids. | `mutate.updateRelationshipsById` |
 
 ### `describe` (permission `read`)
 
@@ -198,7 +199,7 @@ capability scope needed.
 | `labels` | Labels present on the records matching a query. | `describe.labels` |
 | `properties` | Properties of the records matching a query (`detail`: `full` or `catalog`; `skip`, `limit`). | `describe.properties` |
 | `queryLanguages` | Enabled languages and their capability descriptors. | `describe.queryLanguages` |
-| `capabilities` | Feature flags for client negotiation (the catalog reads below advertise `valueSearch`, `searchValues`, `describeNames`, `schemaSummary`, `valueOverlap`). | `describe.capabilities` |
+| `capabilities` | Feature flags for client negotiation (the catalog reads below advertise `valueSearch`, `searchValues`, `describeNames`, `schemaSummary`, `valueOverlap`; `relationshipPropertyTypes` means relationship writes accept a `types` map and relationship reads return `propertyTypes`). | `describe.capabilities` |
 | `buildInfo` | Engine build information. | `describe.buildInfo` |
 | `explain` | Query plan for a search query. | `describe.explain` |
 | `explainVector` | Plan for a vector query. | `describe.explainVector` |

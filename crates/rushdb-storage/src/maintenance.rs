@@ -33,6 +33,15 @@ pub enum CompactOutcome {
     ReadersPinned,
     /// The store has no file (in-memory).
     NotDurable,
+    /// The file is over the automatic compaction's size cap: rewriting it
+    /// would hold every request for minutes. Compact it offline
+    /// (`rushdb serve --compact`).
+    FileTooLarge {
+        /// The store file's size.
+        file_bytes: u64,
+        /// The cap (`compact-max-file-bytes`).
+        max_bytes: u64,
+    },
 }
 
 impl Store {
@@ -218,8 +227,13 @@ impl Store {
         self.drain_and_publish();
         let commit_index = self.committed_version();
         self.retire_before_locked(commit_index)?;
-        // Compact every shard file concurrently (independent files).
-        self.for_each_backend_parallel(|backend| backend.compact())?;
+        // Compact every shard file concurrently (independent files). The
+        // rewrite holds the database: readers and commits wait, so readiness
+        // reports it until it ends.
+        self.compacting.store(true, Ordering::Relaxed);
+        let compacted = self.for_each_backend_parallel(|backend| backend.compact());
+        self.compacting.store(false, Ordering::Relaxed);
+        compacted?;
         self.compactions.fetch_add(1, Ordering::Relaxed);
         Ok(Some(commit_index))
     }
@@ -242,6 +256,7 @@ impl Store {
         &self,
         quiesce: std::time::Duration,
         growth_percent: u32,
+        max_file_bytes: Option<u64>,
     ) -> Result<CompactOutcome, StorageError> {
         self.check_health()?;
         let now = wal::now_ms();
@@ -260,6 +275,15 @@ impl Store {
         let purged = self.purged_since_compaction.load(Ordering::Relaxed) >= PURGED_KEYS_TO_COMPACT;
         if !grown && !purged {
             return Ok(CompactOutcome::BelowThreshold);
+        }
+        // A rewrite holds every request for the time it takes to copy the
+        // file (about 90 s per GB on a 2 GiB container, measured in the
+        // report that led here); past the cap it is an offline operation.
+        if let Some(max_bytes) = max_file_bytes.filter(|max| file > *max) {
+            return Ok(CompactOutcome::FileTooLarge {
+                file_bytes: file,
+                max_bytes,
+            });
         }
         let deadline = std::time::Instant::now() + COMPACT_BUSY_RETRY;
         let compacted = loop {
@@ -333,6 +357,8 @@ impl Store {
         total.admission_waits = self.admission_waits.load(Ordering::Relaxed);
         total.admission_wait_ms = self.admission_wait_ms.load(Ordering::Relaxed);
         total.checkpoints = self.checkpoints.load(Ordering::Relaxed);
+        total.wal_bytes_appended = self.wal_bytes_appended.load(Ordering::Relaxed);
+        total.applied_bytes = self.applied_bytes.load(Ordering::Relaxed);
         total.checkpoint_wait_ms = self.checkpoint_wait_ms.load(Ordering::Relaxed);
         Ok(total)
     }

@@ -81,6 +81,7 @@ fn seed(node: &Node, scope: &str, records: u16, with_vectors: bool) {
                     source_ids: vec![previous],
                     target_ids: vec![id.clone()],
                     properties: json!({}),
+                    types: std::collections::BTreeMap::new(),
                 })
                 .unwrap();
         }

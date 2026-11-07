@@ -14,6 +14,45 @@ fn start_gateway(
     capability_secret: Option<&[u8]>,
     serve_http: bool,
 ) -> (u16, u16) {
+    start_gateway_with(multitenant, capability_secret, serve_http, None)
+}
+
+/// A gateway whose listeners serve TLS from a fresh self-signed certificate:
+/// `(HTTP port, pgwire port, the PEM files' directory)`.
+fn start_tls_gateway(
+    multitenant: bool,
+    capability_secret: Option<&[u8]>,
+) -> (u16, u16, rushdb_storage::TempPath) {
+    let (cert, key, dir) = self_signed_pem();
+    let (http_port, port) =
+        start_gateway_with(multitenant, capability_secret, true, Some((cert, key)));
+    (http_port, port, dir)
+}
+
+/// A self-signed certificate and its key, written as PEM files in a
+/// directory that lives as long as the returned handle.
+fn self_signed_pem() -> (
+    std::path::PathBuf,
+    std::path::PathBuf,
+    rushdb_storage::TempPath,
+) {
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    let dir = rushdb_storage::TempPath::dir("pgwire-tls");
+    std::fs::create_dir_all(&dir).unwrap();
+    let cert_path = dir.join("cert.pem");
+    let key_path = dir.join("key.pem");
+    std::fs::write(&cert_path, cert.cert.pem()).unwrap();
+    std::fs::write(&key_path, cert.key_pair.serialize_pem()).unwrap();
+    (cert_path, key_path, dir)
+}
+
+fn start_gateway_with(
+    multitenant: bool,
+    capability_secret: Option<&[u8]>,
+    serve_http: bool,
+    tls: Option<(std::path::PathBuf, std::path::PathBuf)>,
+) -> (u16, u16) {
+    let (tls_cert, tls_key) = tls.map_or((None, None), |(cert, key)| (Some(cert), Some(key)));
     let config = ServerConfig {
         port: 0,
         pgwire_port: 0,
@@ -32,8 +71,8 @@ fn start_gateway(
         },
         max_request_bytes: 64 * 1024 * 1024,
         listen_addr: "127.0.0.1".into(),
-        tls_cert: None,
-        tls_key: None,
+        tls_cert,
+        tls_key,
         maintenance: false,
         allow_insecure_listen: false,
         require_index_warmup: false,
@@ -90,6 +129,31 @@ fn start_gateway_timeout(request_timeout_ms: u64) -> (u16, u16) {
 }
 
 fn put_record(http_port: u16, scope: Option<&str>, label: &str, properties: &serde_json::Value) {
+    let mut stream = TcpStream::connect(("127.0.0.1", http_port)).unwrap();
+    put_record_over(&mut stream, scope, label, properties);
+}
+
+/// `put_record` over HTTPS, trusting the test's self-signed certificate.
+fn put_record_tls(
+    http_port: u16,
+    scope: Option<&str>,
+    label: &str,
+    properties: &serde_json::Value,
+) {
+    let tcp = TcpStream::connect(("127.0.0.1", http_port)).unwrap();
+    let connection =
+        rustls::ClientConnection::new(tls_client::sync_config(), "localhost".try_into().unwrap())
+            .unwrap();
+    let mut stream = rustls::StreamOwned::new(connection, tcp);
+    put_record_over(&mut stream, scope, label, properties);
+}
+
+fn put_record_over<S: Read + Write>(
+    stream: &mut S,
+    scope: Option<&str>,
+    label: &str,
+    properties: &serde_json::Value,
+) {
     let body = serde_json::json!({
         "protocolVersion": 1,
         "context": { "scope": scope },
@@ -105,7 +169,6 @@ fn put_record(http_port: u16, scope: Option<&str>, label: &str, properties: &ser
         }
     })
     .to_string();
-    let mut stream = TcpStream::connect(("127.0.0.1", http_port)).unwrap();
     let scope_header = scope
         .map(|scope| format!("X-RushDB-Tenant: {scope}\r\n"))
         .unwrap_or_default();
@@ -314,33 +377,6 @@ async fn password_authentication_fails_closed() {
     let error = connect(port, "rushdb", "wrong-token").await.unwrap_err();
     assert_eq!(
         error.as_db_error().map(|error| error.code().code()),
-        Some("28P01")
-    );
-}
-
-#[tokio::test]
-async fn capability_password_is_not_accepted_by_stock_pgwire_auth() {
-    let secret = b"pgwire-capability-secret";
-    let port = start(true, Some(secret));
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let token = rushdb_server::capability::issue_for_tenant(
-        secret,
-        "reader",
-        "read",
-        Some("tenant-a"),
-        60,
-        now,
-    );
-
-    let accepted = connect(port, "tenant-a", &token).await;
-    assert!(accepted.is_err());
-
-    let rejected = connect(port, "tenant-b", &token).await.unwrap_err();
-    assert_eq!(
-        rejected.as_db_error().map(|error| error.code().code()),
         Some("28P01")
     );
 }
@@ -623,4 +659,293 @@ async fn create_index_on_a_lowercase_table_name_indexes_the_label() {
         }
     };
     assert_eq!(rows[0].get::<_, i64>("c"), 1);
+}
+
+/// A rustls client for `tokio-postgres` that accepts the test's self-signed
+/// certificate (the handshake is what is under test, not the CA).
+mod tls_client {
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use std::task::{Context, Poll};
+
+    use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+    use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+    use tokio_postgres::tls::{ChannelBinding, MakeTlsConnect, TlsConnect, TlsStream};
+
+    #[derive(Debug)]
+    struct NoVerify;
+
+    impl ServerCertVerifier for NoVerify {
+        fn verify_server_cert(
+            &self,
+            _end_entity: &rustls::pki_types::CertificateDer<'_>,
+            _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+            _server_name: &rustls::pki_types::ServerName<'_>,
+            _ocsp_response: &[u8],
+            _now: rustls::pki_types::UnixTime,
+        ) -> Result<ServerCertVerified, rustls::Error> {
+            Ok(ServerCertVerified::assertion())
+        }
+        fn verify_tls12_signature(
+            &self,
+            _message: &[u8],
+            _cert: &rustls::pki_types::CertificateDer<'_>,
+            _dss: &rustls::DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            Ok(HandshakeSignatureValid::assertion())
+        }
+        fn verify_tls13_signature(
+            &self,
+            _message: &[u8],
+            _cert: &rustls::pki_types::CertificateDer<'_>,
+            _dss: &rustls::DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            Ok(HandshakeSignatureValid::assertion())
+        }
+        fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+            rustls::crypto::ring::default_provider()
+                .signature_verification_algorithms
+                .supported_schemes()
+        }
+    }
+
+    pub struct Connector(tokio_rustls::TlsConnector);
+
+    /// A client configuration that accepts any server certificate.
+    pub fn sync_config() -> Arc<rustls::ClientConfig> {
+        Arc::new(
+            rustls::ClientConfig::builder_with_provider(Arc::new(
+                rustls::crypto::ring::default_provider(),
+            ))
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(NoVerify))
+            .with_no_client_auth(),
+        )
+    }
+
+    impl Connector {
+        pub fn new() -> Self {
+            Self(tokio_rustls::TlsConnector::from(sync_config()))
+        }
+    }
+
+    pub struct Connect(
+        tokio_rustls::TlsConnector,
+        rustls::pki_types::ServerName<'static>,
+    );
+    pub struct Stream<S>(tokio_rustls::client::TlsStream<S>);
+
+    impl<S> MakeTlsConnect<S> for Connector
+    where
+        S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
+        type Stream = Stream<S>;
+        type TlsConnect = Connect;
+        type Error = std::io::Error;
+        fn make_tls_connect(&mut self, domain: &str) -> Result<Connect, std::io::Error> {
+            let name = rustls::pki_types::ServerName::try_from(domain.to_owned())
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error))?;
+            Ok(Connect(self.0.clone(), name))
+        }
+    }
+
+    impl<S> TlsConnect<S> for Connect
+    where
+        S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
+        type Stream = Stream<S>;
+        type Error = std::io::Error;
+        type Future = Pin<Box<dyn Future<Output = Result<Stream<S>, std::io::Error>> + Send>>;
+        fn connect(self, stream: S) -> Self::Future {
+            Box::pin(async move { self.0.connect(self.1, stream).await.map(Stream) })
+        }
+    }
+
+    impl<S: AsyncRead + AsyncWrite + Unpin> TlsStream for Stream<S> {
+        fn channel_binding(&self) -> ChannelBinding {
+            ChannelBinding::none()
+        }
+    }
+
+    impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for Stream<S> {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_read(cx, buf)
+        }
+    }
+
+    impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for Stream<S> {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<std::io::Result<usize>> {
+            Pin::new(&mut self.0).poll_write(cx, buf)
+        }
+        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_flush(cx)
+        }
+        fn poll_shutdown(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_shutdown(cx)
+        }
+    }
+}
+
+async fn connect_tls(
+    port: u16,
+    database: &str,
+    password: &str,
+) -> Result<tokio_postgres::Client, tokio_postgres::Error> {
+    let mut config = Config::new();
+    config
+        .host("localhost")
+        .port(port)
+        .user("rushdb")
+        .dbname(database)
+        .password(password)
+        .ssl_mode(tokio_postgres::config::SslMode::Require);
+    let (client, connection) = config.connect(tls_client::Connector::new()).await?;
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    Ok(client)
+}
+
+#[tokio::test]
+async fn tls_sessions_are_served_and_plaintext_is_refused() {
+    let (_http_port, port, _dir) = start_tls_gateway(false, None);
+    let client = connect_tls(port, "rushdb", "pgwire-token").await.unwrap();
+    let rows = client.simple_query("SELECT 1").await.unwrap();
+    assert!(rows
+        .iter()
+        .any(|message| matches!(message, SimpleQueryMessage::Row(_))));
+    // A session that skipped TLS is refused before any password is sent.
+    let error = connect(port, "rushdb", "pgwire-token").await.unwrap_err();
+    assert!(db_code(&error).starts_with("28000"), "{error}");
+}
+
+#[tokio::test]
+async fn capabilities_are_tenant_bound_passwords_over_tls() {
+    let secret = b"pgwire-capability-secret";
+    let (http_port, port, _dir) = start_tls_gateway(true, Some(secret));
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let issue = |scope: &str, tenant: &str| {
+        rushdb_server::capability::issue_for_tenant(secret, "svc", scope, Some(tenant), 60, now)
+    };
+    // The operator seeds both tenants (over HTTPS: a label is created by a
+    // record write, which SQL DML does not do), and the boot token still
+    // opens any tenant over pgwire.
+    put_record_tls(
+        http_port,
+        Some("tenant-a"),
+        "NOTE",
+        &serde_json::json!({ "name": "alpha" }),
+    );
+    put_record_tls(
+        http_port,
+        Some("tenant-b"),
+        "NOTE",
+        &serde_json::json!({ "name": "beta" }),
+    );
+    let operator = connect_tls(port, "tenant-b", "pgwire-token").await.unwrap();
+    assert_eq!(
+        operator
+            .query("SELECT name FROM NOTE", &[])
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // A read capability for tenant-a reads tenant-a and nothing else.
+    let reader = connect_tls(port, "tenant-a", &issue("read", "tenant-a"))
+        .await
+        .unwrap();
+    let rows = reader.query("SELECT name FROM NOTE", &[]).await.unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get::<_, String>("name"), "alpha");
+    let error = reader
+        .simple_query("INSERT INTO NOTE (name) VALUES ('gamma')")
+        .await
+        .unwrap_err();
+    assert!(db_code(&error).starts_with("42501"), "{error}");
+    let error = reader
+        .simple_query("CREATE INDEX note_name ON NOTE (name)")
+        .await
+        .unwrap_err();
+    assert!(db_code(&error).starts_with("42501"), "{error}");
+
+    // The same capability cannot open another tenant.
+    let error = connect_tls(port, "tenant-b", &issue("read", "tenant-a"))
+        .await
+        .unwrap_err();
+    assert!(db_code(&error).starts_with("28P01"), "{error}");
+
+    // Expired and tampered tokens are refused.
+    let expired = rushdb_server::capability::issue_for_tenant(
+        secret,
+        "svc",
+        "read",
+        Some("tenant-a"),
+        1,
+        now - 100,
+    );
+    let error = connect_tls(port, "tenant-a", &expired).await.unwrap_err();
+    assert!(db_code(&error).starts_with("28P01"), "{error}");
+    let mut tampered = issue("read", "tenant-a");
+    tampered.push('x');
+    let error = connect_tls(port, "tenant-a", &tampered).await.unwrap_err();
+    assert!(db_code(&error).starts_with("28P01"), "{error}");
+
+    // A write capability writes.
+    let writer = connect_tls(port, "tenant-a", &issue("read write", "tenant-a"))
+        .await
+        .unwrap();
+    writer
+        .simple_query("INSERT INTO NOTE (name) VALUES ('delta')")
+        .await
+        .unwrap();
+    assert_eq!(
+        writer
+            .query("SELECT name FROM NOTE", &[])
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn a_capability_is_a_password_on_a_loopback_cleartext_listener_too() {
+    // Without TLS the listener stays cleartext (loopback only, by the listen
+    // guard); a capability still logs in, bound to its tenant.
+    let secret = b"pgwire-capability-secret";
+    let port = start(true, Some(secret));
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let token = rushdb_server::capability::issue_for_tenant(
+        secret,
+        "reader",
+        "read",
+        Some("tenant-a"),
+        60,
+        now,
+    );
+    assert!(connect(port, "tenant-a", &token).await.is_ok());
+    let rejected = connect(port, "tenant-b", &token).await.unwrap_err();
+    assert!(db_code(&rejected).starts_with("28P01"), "{rejected}");
 }

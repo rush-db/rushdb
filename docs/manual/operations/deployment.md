@@ -102,7 +102,8 @@ Every listener binds the same address (`--listen`, default `127.0.0.1`).
 | gRPC | `--grpc-port` | 0 (off) | the port is non-zero |
 | Bolt (Neo4j wire) | `--bolt-port` | 0 (off) | the port is non-zero and `cypher` is enabled |
 
-Only HTTP supports TLS. Exposing anything beyond loopback has extra rules;
+Every listener supports TLS, with one certificate (`--tls-cert`,
+`--tls-key`). Exposing anything beyond loopback has extra rules;
 read [Security](security.md#network-exposure) before changing `--listen`.
 
 ## Data directory layout

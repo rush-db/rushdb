@@ -39,6 +39,8 @@ pub struct Metrics {
     storage_admission_wait_ms: prometheus::IntCounter,
     storage_checkpoints: prometheus::IntCounter,
     storage_checkpoint_wait_ms: prometheus::IntCounter,
+    storage_wal_bytes: prometheus::IntCounter,
+    storage_applied_bytes: prometheus::IntCounter,
     storage_backend_mutex_wait_ms: prometheus::IntCounter,
     storage_backend_mutex_hold_ms: prometheus::IntCounter,
     storage_backend_mutex_hold_max_ms: prometheus::IntGauge,
@@ -109,6 +111,8 @@ impl Metrics {
                 &self.storage_checkpoint_wait_ms,
                 clamp(stats.checkpoint_wait_ms),
             );
+            advance(&self.storage_wal_bytes, clamp(stats.wal_bytes_appended));
+            advance(&self.storage_applied_bytes, clamp(stats.applied_bytes));
         }
         self.retention_consumers
             .set(i64::try_from(consumers.len()).unwrap_or(i64::MAX));
@@ -450,6 +454,16 @@ impl Metrics {
             "Cumulative milliseconds spent in durability checkpoints",
         )
         .expect("valid Prometheus metric");
+        let storage_wal_bytes = prometheus::IntCounter::new(
+            "rushdb_storage_wal_bytes_total",
+            "Cumulative bytes appended to the write-ahead log",
+        )
+        .expect("valid Prometheus metric");
+        let storage_applied_bytes = prometheus::IntCounter::new(
+            "rushdb_storage_applied_bytes_total",
+            "Cumulative encoded op bytes (base and derived) applied to the store",
+        )
+        .expect("valid Prometheus metric");
         let storage_backend_mutex_wait_ms = prometheus::IntCounter::new(
             "rushdb_storage_backend_mutex_wait_ms_total",
             "Cumulative milliseconds spent waiting for the backend database mutex",
@@ -612,6 +626,8 @@ impl Metrics {
             Box::new(storage_admission_wait_ms.clone()),
             Box::new(storage_checkpoints.clone()),
             Box::new(storage_checkpoint_wait_ms.clone()),
+            Box::new(storage_wal_bytes.clone()),
+            Box::new(storage_applied_bytes.clone()),
             Box::new(storage_backend_mutex_wait_ms.clone()),
             Box::new(storage_backend_mutex_hold_ms.clone()),
             Box::new(storage_backend_mutex_hold_max_ms.clone()),
@@ -680,6 +696,8 @@ impl Metrics {
             storage_admission_wait_ms,
             storage_checkpoints,
             storage_checkpoint_wait_ms,
+            storage_wal_bytes,
+            storage_applied_bytes,
             storage_backend_mutex_wait_ms,
             storage_backend_mutex_hold_ms,
             storage_backend_mutex_hold_max_ms,

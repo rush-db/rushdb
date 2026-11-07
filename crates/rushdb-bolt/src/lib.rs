@@ -6,9 +6,12 @@
 //! existing language layer — the engine already executes openCypher — so this
 //! crate is a protocol translator, not a query engine.
 //!
-//! Supported: HELLO (basic auth), RUN/PULL (read + write Cypher), BEGIN /
-//! COMMIT / ROLLBACK (cross-service transactions), RESET / DISCARD, ROUTE,
-//! GOODBYE.
+//! Supported: HELLO (basic auth: the boot token or a tenant-bound capability
+//! as `credentials`, decided by [`EnvelopeHandler::authenticate`]), RUN/PULL
+//! (read + write Cypher), BEGIN / COMMIT / ROLLBACK (cross-service
+//! transactions), RESET / DISCARD, ROUTE, GOODBYE. With a [`BoltTls`] the
+//! listener speaks only TLS (`bolt+s://`, `neo4j+s://`): the handshake comes
+//! before the Bolt magic, as Neo4j drivers do it.
 
 pub mod value;
 
@@ -21,9 +24,81 @@ use std::time::Duration;
 use serde_json::{Map, Number, Value};
 
 use rushdb_protocol::{
-    EnvelopeHandler, ErrorCode, LanguageSet, Operation, ProtocolError, Query, RequestContext,
-    RequestEnvelope, StatementLanguage, TransactionMutation, TransactionOperation,
+    EnvelopeHandler, ErrorCode, LanguageSet, Operation, Principal, ProtocolError, Query,
+    RequestContext, RequestEnvelope, StatementLanguage, TransactionMutation, TransactionOperation,
 };
+
+/// The listener's certificate chain and private key, as PEM.
+#[derive(Clone)]
+pub struct BoltTls {
+    /// PEM certificate chain.
+    pub cert_pem: Vec<u8>,
+    /// PEM private key (PKCS#8).
+    pub key_pem: Vec<u8>,
+}
+
+/// rustls server configuration for `tls`, the same `ring` provider as the
+/// other listeners.
+fn tls_config(tls: &BoltTls) -> Result<Arc<rustls::ServerConfig>, String> {
+    let certs = rustls_pemfile::certs(&mut tls.cert_pem.as_slice())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Bolt TLS: invalid certificate: {error}"))?;
+    if certs.is_empty() {
+        return Err("Bolt TLS: no certificate in the PEM".into());
+    }
+    let key = rustls_pemfile::private_key(&mut tls.key_pem.as_slice())
+        .map_err(|error| format!("Bolt TLS: invalid private key: {error}"))?
+        .ok_or_else(|| "Bolt TLS: no private key in the PEM".to_string())?;
+    let config = rustls::ServerConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .map_err(|error| format!("Bolt TLS: {error}"))?
+    .with_no_client_auth()
+    .with_single_cert(certs, key)
+    .map_err(|error| format!("Bolt TLS: {error}"))?;
+    Ok(Arc::new(config))
+}
+
+/// A session's socket: plain, or wrapped in TLS. Timeouts and shutdown act
+/// on the socket underneath either.
+enum BoltStream {
+    Plain(TcpStream),
+    Tls(Box<rustls::StreamOwned<rustls::ServerConnection, TcpStream>>),
+}
+
+impl BoltStream {
+    fn socket(&self) -> &TcpStream {
+        match self {
+            Self::Plain(stream) => stream,
+            Self::Tls(stream) => stream.get_ref(),
+        }
+    }
+}
+
+impl Read for BoltStream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Plain(stream) => stream.read(buf),
+            Self::Tls(stream) => stream.read(buf),
+        }
+    }
+}
+
+impl Write for BoltStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Plain(stream) => stream.write(buf),
+            Self::Tls(stream) => stream.write(buf),
+        }
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Plain(stream) => stream.flush(),
+            Self::Tls(stream) => stream.flush(),
+        }
+    }
+}
 
 /// Magic bytes that begin every Bolt handshake.
 const MAGIC: [u8; 4] = [0x60, 0x60, 0xB0, 0x17];
@@ -84,7 +159,7 @@ pub fn looks_like_mutation(statement: &str) -> bool {
 // ---- framing --------------------------------------------------------------
 
 /// Read one full (de-chunked) Bolt message from the stream.
-fn read_message(stream: &mut TcpStream) -> Result<Vec<u8>, String> {
+fn read_message<S: Read>(stream: &mut S) -> Result<Vec<u8>, String> {
     let mut payload = Vec::new();
     loop {
         let mut len = [0u8; 2];
@@ -111,7 +186,7 @@ fn read_message(stream: &mut TcpStream) -> Result<Vec<u8>, String> {
 }
 
 /// Write one Bolt message with chunk framing.
-fn write_message(stream: &mut TcpStream, payload: &[u8]) -> Result<(), String> {
+fn write_message<S: Write>(stream: &mut S, payload: &[u8]) -> Result<(), String> {
     let mut offset = 0;
     while offset < payload.len() {
         let chunk = payload.len() - offset;
@@ -168,11 +243,17 @@ fn neo_code(error: &ProtocolError) -> &'static str {
     // Shared error taxonomy: the same ErrorCode maps to the same Neo4j-style
     // status code on every adapter. Add below — do not reorder.
     match error.code {
-        ErrorCode::UnsupportedVersion => "Neo.ClientError.Request.Invalid",
+        ErrorCode::UnsupportedVersion | ErrorCode::PayloadTooLarge => {
+            "Neo.ClientError.Request.Invalid"
+        }
         ErrorCode::ProtocolViolation
         | ErrorCode::InvalidRequest
         | ErrorCode::LanguageDisabled
         | ErrorCode::Unsupported => "Neo.ClientError.Statement.SyntaxError",
+        // Logged in, but the credential does not grant the operation.
+        ErrorCode::Unauthorized if error.message.starts_with(FORBIDDEN_PREFIX) => {
+            "Neo.ClientError.Security.Forbidden"
+        }
         ErrorCode::Unauthorized | ErrorCode::MissingScope | ErrorCode::ScopeMismatch => {
             "Neo.ClientError.Security.Unauthorized"
         }
@@ -189,12 +270,15 @@ fn neo_code(error: &ProtocolError) -> &'static str {
 
 // ---- per-connection state machine ------------------------------------------
 
+/// How a permission refusal starts (shared wording with the server).
+const FORBIDDEN_PREFIX: &str = "the session's credential does not grant ";
+
 struct Connection {
-    stream: TcpStream,
+    stream: BoltStream,
     handler: Arc<dyn EnvelopeHandler>,
-    token: String,
-    /// HELLO authentication must succeed before any operation is dispatched.
-    authenticated: bool,
+    /// The principal HELLO logged in as; `None` until it succeeds, and no
+    /// operation is dispatched before.
+    principal: Option<Principal>,
     /// Multitenant scope selected by the HELLO `db` field.
     scope: Option<String>,
     /// Pending RUN result (buffered rows + column order).
@@ -276,6 +360,17 @@ impl Connection {
     /// Every envelope carries the HELLO-selected scope in its context too: the
     /// executor requires the envelope scope to match the transport scope.
     fn execute(&self, mut envelope: RequestEnvelope) -> Result<Value, ProtocolError> {
+        let permission = rushdb_protocol::operation_permission(&envelope.operation);
+        if !self
+            .principal
+            .as_ref()
+            .is_some_and(|principal| principal.allows(permission))
+        {
+            return Err(ProtocolError::new(
+                ErrorCode::Unauthorized,
+                format!("{FORBIDDEN_PREFIX}`{permission}`"),
+            ));
+        }
         envelope.context.scope.clone_from(&self.scope);
         let response = self.handler.execute(envelope, self.scope.clone())?;
         serde_json::to_value(response.response)
@@ -285,7 +380,7 @@ impl Connection {
     fn handle_decoded(&mut self, decoded: &Value) -> Result<MessageResponse, String> {
         let tag = value::struct_tag(decoded).ok_or("bolt: message is not a struct")?;
         let fields = value::struct_fields(decoded);
-        if tag != HELLO && tag != GOODBYE && !self.authenticated {
+        if tag != HELLO && tag != GOODBYE && self.principal.is_none() {
             return Ok(MessageResponse::Buffered(vec![failure(
                 "Neo.ClientError.Security.Unauthorized",
                 "HELLO authentication is required before this operation.",
@@ -333,29 +428,31 @@ impl Connection {
             .get("scheme")
             .and_then(Value::as_str)
             .unwrap_or("basic");
-        let credentials = meta
-            .get("credentials")
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        let authorized = match scheme {
-            "none" => self.token.is_empty(),
-            _ => rushdb_protocol::constant_time_eq(credentials.as_bytes(), self.token.as_bytes()),
+        // `scheme: "none"` presents no credential; it logs in only where
+        // the server accepts an empty one.
+        let credentials = match scheme {
+            "none" => "",
+            _ => meta
+                .get("credentials")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
         };
-        if !authorized {
-            self.authenticated = false;
+        // The `db` field selects the tenant scope (multitenant mode); a
+        // single-tenant server refuses statements sent under one.
+        let scope = meta
+            .get("db")
+            .and_then(Value::as_str)
+            .filter(|db| !db.is_empty() && !db.eq_ignore_ascii_case("neo4j"))
+            .map(str::to_string);
+        let Ok(principal) = self.handler.authenticate(credentials, scope.as_deref()) else {
+            self.principal = None;
             return vec![failure(
                 "Neo.ClientError.Security.Unauthorized",
                 "The client is unauthorized due to authentication failure.",
             )];
-        }
-        self.authenticated = true;
-        // The `db` field selects the tenant scope (multitenant mode); a
-        // single-tenant server refuses statements sent under one.
-        if let Some(db) = meta.get("db").and_then(Value::as_str) {
-            if !db.is_empty() && !db.eq_ignore_ascii_case("neo4j") {
-                self.scope = Some(db.to_string());
-            }
-        }
+        };
+        self.principal = Some(principal);
+        self.scope = scope;
         let mut resp = Map::new();
         resp.insert("server".into(), Value::String("RushDB/1.0".into()));
         resp.insert("connection_id".into(), Value::String("bolt-1".into()));
@@ -671,8 +768,11 @@ impl Connection {
 /// Bolt transport server mirroring the gRPC/pgwire adapters.
 pub struct BoltServer {
     handler: Option<Arc<dyn EnvelopeHandler>>,
-    token: Option<String>,
     listener: Option<TcpListener>,
+    /// With a certificate the listener speaks only TLS.
+    tls: Option<Arc<rustls::ServerConfig>>,
+    /// The `host:port` a `ROUTE` answer names; the bound address by default.
+    advertised_address: Option<String>,
 }
 
 impl BoltServer {
@@ -681,8 +781,9 @@ impl BoltServer {
     pub fn disabled() -> Self {
         BoltServer {
             handler: None,
-            token: None,
             listener: None,
+            tls: None,
+            advertised_address: None,
         }
     }
 
@@ -692,18 +793,21 @@ impl BoltServer {
         self.listener.is_none()
     }
 
-    /// Pre-bind the listener and return the bound port.
+    /// Pre-bind the listener and return the bound port. With `tls` the
+    /// listener speaks only TLS; `advertised_address` is what `ROUTE` names.
     ///
     /// # Errors
     ///
-    /// Returns an error if the address cannot be bound or its local address
-    /// cannot be read.
+    /// Returns an error if the certificate is invalid, the address cannot be
+    /// bound or its local address cannot be read.
     pub fn bind(
         handler: Arc<dyn EnvelopeHandler>,
-        token: String,
         listen_addr: &str,
         port: u16,
+        tls: Option<&BoltTls>,
+        advertised_address: Option<String>,
     ) -> Result<(Self, u16), String> {
+        let tls = tls.map(tls_config).transpose()?;
         let listener = TcpListener::bind((listen_addr, port)).map_err(|e| e.to_string())?;
         let bound = listener.local_addr().map_err(|e| e.to_string())?.port();
         listener
@@ -712,8 +816,9 @@ impl BoltServer {
         Ok((
             BoltServer {
                 handler: Some(handler),
-                token: Some(token),
                 listener: Some(listener),
+                tls,
+                advertised_address,
             },
             bound,
         ))
@@ -729,13 +834,16 @@ impl BoltServer {
         let Some(listener) = self.listener.take() else {
             return Ok(());
         };
-        let (Some(handler), Some(token)) = (self.handler.take(), self.token.take()) else {
+        let Some(handler) = self.handler.take() else {
             return Ok(());
         };
-        let local_addr = listener
-            .local_addr()
-            .map(|a| a.to_string())
-            .unwrap_or_default();
+        let tls = self.tls.take();
+        let local_addr = self.advertised_address.take().unwrap_or_else(|| {
+            listener
+                .local_addr()
+                .map(|a| a.to_string())
+                .unwrap_or_default()
+        });
         let mut connections: Vec<(TcpStream, std::thread::JoinHandle<()>)> = Vec::new();
         while !handler.shutdown_requested() {
             // Reap completed sessions so an idle long-lived listener does not
@@ -762,12 +870,12 @@ impl BoltServer {
                     };
                     let _ = stream.set_nodelay(true);
                     let handler = Arc::clone(&handler);
-                    let token = token.clone();
+                    let tls = tls.clone();
                     let address = local_addr.clone();
                     connections.push((
                         control,
                         std::thread::spawn(move || {
-                            let _ = handle_connection(stream, handler, token, address);
+                            let _ = handle_connection(stream, handler, address, tls);
                         }),
                     ));
                 }
@@ -814,24 +922,24 @@ impl BoltServer {
 pub fn handle_connection(
     stream: TcpStream,
     handler: Arc<dyn EnvelopeHandler>,
-    token: String,
     address: String,
+    tls: Option<Arc<rustls::ServerConfig>>,
 ) -> Result<(), String> {
     handle_connection_with_timeouts(
         stream,
         handler,
-        token,
         address,
+        tls,
         AUTH_IDLE_TIMEOUT,
         CONNECTION_IO_TIMEOUT,
     )
 }
 
 fn handle_connection_with_timeouts(
-    mut stream: TcpStream,
+    stream: TcpStream,
     handler: Arc<dyn EnvelopeHandler>,
-    token: String,
     address: String,
+    tls: Option<Arc<rustls::ServerConfig>>,
     auth_idle_timeout: Duration,
     connection_io_timeout: Duration,
 ) -> Result<(), String> {
@@ -842,14 +950,24 @@ fn handle_connection_with_timeouts(
     stream
         .set_write_timeout(Some(connection_io_timeout))
         .map_err(|error| format!("bolt: set write timeout: {error}"))?;
+    // Direct TLS, as Neo4j drivers do it: the TLS handshake precedes the Bolt
+    // magic. A plaintext handshake against a TLS listener fails the TLS
+    // layer's first read and closes the connection.
+    let mut stream = match tls {
+        Some(config) => BoltStream::Tls(Box::new(rustls::StreamOwned::new(
+            rustls::ServerConnection::new(config)
+                .map_err(|error| format!("bolt: TLS session: {error}"))?,
+            stream,
+        ))),
+        None => BoltStream::Plain(stream),
+    };
     if !handshake(&mut stream)? {
         return Ok(());
     }
     let mut connection = Connection {
         stream,
         handler,
-        token,
-        authenticated: false,
+        principal: None,
         scope: None,
         pending: None,
         transaction_id: None,
@@ -882,9 +1000,10 @@ fn handle_connection_with_timeouts(
                 "protocol error",
             )]),
         };
-        if connection.authenticated {
+        if connection.principal.is_some() {
             connection
                 .stream
+                .socket()
                 .set_read_timeout(Some(connection_io_timeout))
                 .map_err(|error| format!("bolt: set read timeout: {error}"))?;
         }
@@ -905,7 +1024,7 @@ fn handle_connection_with_timeouts(
 }
 
 /// Bolt handshake: verify magic, negotiate v5, and respond.
-fn handshake(stream: &mut TcpStream) -> Result<bool, String> {
+fn handshake<S: Read + Write>(stream: &mut S) -> Result<bool, String> {
     let mut header = [0u8; 20];
     stream
         .read_exact(&mut header)
@@ -1043,6 +1162,17 @@ mod tests {
     fn pull_stream_boundary(window: usize, total_rows: usize, expect_remaining: bool) {
         struct NoopHandler;
         impl EnvelopeHandler for NoopHandler {
+            fn authenticate(
+                &self,
+                credential: &str,
+                _scope: Option<&str>,
+            ) -> Result<Principal, ProtocolError> {
+                if credential == "token" {
+                    Ok(Principal::Operator)
+                } else {
+                    Err(ProtocolError::new(ErrorCode::Unauthorized, "invalid token"))
+                }
+            }
             fn execute(
                 &self,
                 _envelope: RequestEnvelope,
@@ -1057,10 +1187,9 @@ mod tests {
         let client = TcpStream::connect(address).expect("connect");
         let (server, _) = listener.accept().expect("accept");
         let mut connection = Connection {
-            stream: server,
+            stream: BoltStream::Plain(server),
             handler: Arc::new(NoopHandler),
-            token: String::new(),
-            authenticated: true,
+            principal: Some(Principal::Operator),
             scope: None,
             pending: Some(PendingResult {
                 fields: vec!["x".into()],
@@ -1174,6 +1303,10 @@ mod tests {
                 ErrorCode::Unsupported,
                 "Neo.ClientError.Statement.SyntaxError",
             ),
+            (
+                ErrorCode::PayloadTooLarge,
+                "Neo.ClientError.Request.Invalid",
+            ),
         ];
         for (code, expected) in cases {
             let err = ProtocolError::new(*code, "x");
@@ -1185,6 +1318,17 @@ mod tests {
     fn unauthenticated_idle_connection_is_closed_by_deadline() {
         struct NoopHandler;
         impl EnvelopeHandler for NoopHandler {
+            fn authenticate(
+                &self,
+                credential: &str,
+                _scope: Option<&str>,
+            ) -> Result<Principal, ProtocolError> {
+                if credential == "token" {
+                    Ok(Principal::Operator)
+                } else {
+                    Err(ProtocolError::new(ErrorCode::Unauthorized, "invalid token"))
+                }
+            }
             fn execute(
                 &self,
                 _envelope: RequestEnvelope,
@@ -1202,8 +1346,8 @@ mod tests {
             handle_connection_with_timeouts(
                 server,
                 Arc::new(NoopHandler),
-                "token".into(),
                 address.to_string(),
+                None,
                 Duration::from_millis(20),
                 Duration::from_millis(20),
             )
@@ -1227,6 +1371,17 @@ mod tests {
     fn authenticated_idle_connection_uses_the_normal_io_deadline() {
         struct NoopHandler;
         impl EnvelopeHandler for NoopHandler {
+            fn authenticate(
+                &self,
+                credential: &str,
+                _scope: Option<&str>,
+            ) -> Result<Principal, ProtocolError> {
+                if credential == "token" {
+                    Ok(Principal::Operator)
+                } else {
+                    Err(ProtocolError::new(ErrorCode::Unauthorized, "invalid token"))
+                }
+            }
             fn execute(
                 &self,
                 _envelope: RequestEnvelope,
@@ -1244,8 +1399,8 @@ mod tests {
             handle_connection_with_timeouts(
                 server,
                 Arc::new(NoopHandler),
-                "token".into(),
                 address.to_string(),
+                None,
                 Duration::from_secs(1),
                 Duration::from_millis(20),
             )
@@ -1280,6 +1435,17 @@ mod tests {
     fn active_session_closes_before_accepting_more_work_during_shutdown() {
         struct ShuttingDownHandler;
         impl EnvelopeHandler for ShuttingDownHandler {
+            fn authenticate(
+                &self,
+                credential: &str,
+                _scope: Option<&str>,
+            ) -> Result<Principal, ProtocolError> {
+                if credential == "token" {
+                    Ok(Principal::Operator)
+                } else {
+                    Err(ProtocolError::new(ErrorCode::Unauthorized, "invalid token"))
+                }
+            }
             fn execute(
                 &self,
                 _envelope: RequestEnvelope,
@@ -1301,8 +1467,8 @@ mod tests {
             handle_connection_with_timeouts(
                 server,
                 Arc::new(ShuttingDownHandler),
-                "token".into(),
                 address.to_string(),
+                None,
                 Duration::from_secs(1),
                 Duration::from_millis(20),
             )
@@ -1329,6 +1495,17 @@ mod tests {
         use std::sync::atomic::{AtomicBool, Ordering};
         struct Handler(Arc<AtomicBool>);
         impl EnvelopeHandler for Handler {
+            fn authenticate(
+                &self,
+                credential: &str,
+                _scope: Option<&str>,
+            ) -> Result<Principal, ProtocolError> {
+                if credential == "token" {
+                    Ok(Principal::Operator)
+                } else {
+                    Err(ProtocolError::new(ErrorCode::Unauthorized, "invalid token"))
+                }
+            }
             fn execute(
                 &self,
                 _: RequestEnvelope,
@@ -1343,9 +1520,10 @@ mod tests {
         let stop = Arc::new(AtomicBool::new(false));
         let (mut server, port) = BoltServer::bind(
             Arc::new(Handler(Arc::clone(&stop))),
-            "token".into(),
             "127.0.0.1",
             0,
+            None,
+            None,
         )
         .unwrap();
         let (done, finished) = std::sync::mpsc::channel();

@@ -54,6 +54,12 @@ pub struct ServeArgs {
     /// index has caught up with its source records. Single-tenant only.
     #[arg(long, env = "RUSHDB_REQUIRE_INDEX_WARMUP")]
     require_index_warmup: bool,
+    /// Largest HTTP request body, gRPC message and response, in bytes
+    /// (`16MiB`, `64MiB`, ...). An HTTP body over it is refused with 413
+    /// `payload_too_large` naming the limit; a client reads the limit from
+    /// `buildInfo.limits.maxRequestBytes`. `server.body-limit` in config.yml
+    #[arg(long, env = "RUSHDB_BODY_LIMIT", default_value = "16MiB")]
+    body_limit: rushdb_server::resource_config::ByteSize,
     /// Request execution deadline in milliseconds for every transport (0 = no
     /// deadline; a client deadline may only shorten it). Requests
     /// exceeding it are cancelled with a structured `Cancelled` error.
@@ -208,7 +214,7 @@ pub fn run(args: ServeArgs, explicit_flags: std::collections::BTreeSet<String>) 
         resources: args.resources,
         transactions: args.transactions,
         languages,
-        max_request_bytes: 16 * 1024 * 1024,
+        max_request_bytes: args.body_limit.0,
         explicit_flags,
     };
     if args.print_config {
