@@ -164,9 +164,11 @@ The [manual](docs/manual/README.md) documents each surface's exact limits.
 
 The [JavaScript](https://www.npmjs.com/package/@rushdb/javascript-sdk) and
 [Python](https://pypi.org/project/rushdb/) SDKs, the
-[MCP server](https://www.npmjs.com/package/@rushdb/mcp-server) and the
-[agent skills](https://github.com/rush-db/skills) work with a self-hosted
-engine in direct mode.
+[MCP server](https://www.npmjs.com/package/@rushdb/mcp-server), the
+[agent skills](https://github.com/rush-db/skills) and the
+[LangChain and LangGraph integrations](https://github.com/rush-db/langchain-rushdb)
+(`langchain-rushdb`, `@rushdb/langchain`) work with a self-hosted engine in
+direct mode.
 
 ## Self-hosted engine and RushDB Cloud
 
