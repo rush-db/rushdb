@@ -176,6 +176,8 @@ fn ordinary_txn_reads_are_captured_for_prepared_commands() {
             buffer: BTreeMap::new(),
             purge_keys: BTreeSet::default(),
             set_keys: BTreeSet::default(),
+            watermark_keys: BTreeSet::default(),
+            ids: &store.ids,
             deps: Some(&recorder),
         };
         txn.get(b"absent").unwrap();
@@ -225,6 +227,8 @@ fn prefix_scans_include_unbounded_successors_and_transaction_overlays() {
         buffer: BTreeMap::new(),
         purge_keys: BTreeSet::default(),
         set_keys: BTreeSet::default(),
+        watermark_keys: BTreeSet::default(),
+        ids: &store.ids,
         deps: None,
     };
     txn.del(vec![255]);

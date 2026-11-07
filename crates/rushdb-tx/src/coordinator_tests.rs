@@ -542,3 +542,166 @@ fn expired_non_autocommit_transaction_is_discarded() {
         "a non-autocommit tx is rolled back on expiry"
     );
 }
+
+fn wide_limits() -> TransactionLimits {
+    TransactionLimits {
+        max_active: 16,
+        max_operations: 64,
+        max_staged_bytes: 1 << 20,
+        max_expired_ids: 16,
+    }
+}
+
+fn create(label: &str, property: &str, value: i64) -> BatchOp {
+    BatchOp::CreateRecord {
+        label: label.into(),
+        explicit_id: None,
+        fields: vec![(property.into(), FieldChange::Set(json!(value)))],
+    }
+}
+
+fn record_counter(view: &rushdb_storage::ReadView, tenant: TenantId) -> u64 {
+    let raw = view
+        .get(&rushdb_lmpg::expand::meta_counter_key(tenant, "record"))
+        .unwrap()
+        .unwrap();
+    u64::from_be_bytes(raw.try_into().unwrap())
+}
+
+#[test]
+fn concurrent_transactions_creating_records_on_disjoint_or_shared_labels_all_commit() {
+    // Regression for #425: every transaction allocated its ordinals from the
+    // record counter at its snapshot, so concurrent creators wrote the same
+    // record keys and all but the first aborted.
+    let store = store(64 * 1024 * 1024);
+    let tenant = TenantId::from_ordinal(0);
+    let coord = coord(&store, 0, wide_limits());
+    let warm = coord.begin().unwrap();
+    coord.stage(&warm, create("Warm", "k", 0)).unwrap();
+    assert!(matches!(coord.commit(&warm), TxOutcome::Committed(_)));
+
+    let labels = ["A", "B", "C", "D", "Shared", "Shared"];
+    let txs: Vec<String> = labels.iter().map(|_| coord.begin().unwrap()).collect();
+    for (tx, label) in txs.iter().zip(labels) {
+        for value in 0..3 {
+            coord.stage(tx, create(label, "k", value)).unwrap();
+        }
+    }
+    // Commit in reverse: transactions that reserved later ordinals commit
+    // first, so the counter must not move back when an earlier one commits.
+    for tx in txs.iter().rev() {
+        let outcome = coord.commit(tx);
+        assert!(matches!(outcome, TxOutcome::Committed(_)), "{outcome:?}");
+    }
+
+    let view = store.read_view().unwrap();
+    let mut ordinals = std::collections::BTreeSet::new();
+    for (label, expected) in [("A", 3), ("B", 3), ("C", 3), ("D", 3), ("Shared", 6)] {
+        let members = rushdb_lmpg::reader::try_access::label_members(&view, tenant, label).unwrap();
+        // The derived label count agrees with the base rows.
+        assert_eq!(members.len(), expected, "{label}");
+        assert_eq!(
+            rushdb_lmpg::derived::label_count(&view, tenant, label).unwrap(),
+            expected as u64,
+            "{label}"
+        );
+        ordinals.extend(members);
+    }
+    assert_eq!(ordinals.len(), 18, "every record has its own ordinal");
+    assert_eq!(record_counter(&view, tenant), ordinals.last().unwrap() + 1);
+}
+
+#[test]
+fn concurrent_transactions_introducing_properties_conflict_only_on_the_same_name() {
+    let store = store(64 * 1024 * 1024);
+    let coord = coord(&store, 0, wide_limits());
+    // Different new property names: distinct family and definition ids.
+    let first = coord.begin().unwrap();
+    let second = coord.begin().unwrap();
+    coord.stage(&first, create("A", "alpha", 1)).unwrap();
+    coord.stage(&second, create("B", "beta", 1)).unwrap();
+    assert!(matches!(coord.commit(&second), TxOutcome::Committed(_)));
+    assert!(matches!(coord.commit(&first), TxOutcome::Committed(_)));
+    // The same new name: both define one catalog entry, so the second
+    // committer aborts, retryably.
+    let first = coord.begin().unwrap();
+    let second = coord.begin().unwrap();
+    coord.stage(&first, create("A", "gamma", 1)).unwrap();
+    coord.stage(&second, create("B", "gamma", 1)).unwrap();
+    assert!(matches!(coord.commit(&first), TxOutcome::Committed(_)));
+    assert!(matches!(
+        coord.commit(&second),
+        TxOutcome::ConflictRetryable(_)
+    ));
+}
+
+#[test]
+fn concurrent_transactions_updating_the_same_record_still_conflict() {
+    let store = store(64 * 1024 * 1024);
+    let tenant = TenantId::from_ordinal(0);
+    let coord = coord(&store, 0, wide_limits());
+    let lmpg = Lmpg::new(store, tenant);
+    let record = lmpg
+        .create_record("A", None, vec![("k".into(), FieldChange::Set(json!(0)))])
+        .unwrap();
+    let update = |value: i64| BatchOp::UpdateFields {
+        owner: OwnerKind::Record,
+        owner_ord: record.ordinal,
+        owner_public_id: record.record_id,
+        fields: vec![("k".into(), FieldChange::Set(json!(value)))],
+    };
+    let first = coord.begin().unwrap();
+    let second = coord.begin().unwrap();
+    coord.stage(&first, update(1)).unwrap();
+    coord.stage(&second, update(2)).unwrap();
+    assert!(matches!(coord.commit(&first), TxOutcome::Committed(_)));
+    assert!(matches!(
+        coord.commit(&second),
+        TxOutcome::ConflictRetryable(_)
+    ));
+}
+
+#[test]
+fn record_counter_never_moves_back_and_survives_reopen_and_replay() {
+    let path = rushdb_storage::TempPath::store("tx-id-watermark");
+    let tenant = TenantId::from_ordinal(0);
+    let (counter, log, staged) = {
+        let store = Arc::new(Store::open(&path).unwrap());
+        drop(Lmpg::new(store.clone(), tenant));
+        let coord = coord(&store, 0, wide_limits());
+        let earlier = coord.begin().unwrap();
+        let later = coord.begin().unwrap();
+        coord.stage(&earlier, create("A", "a", 1)).unwrap();
+        coord.stage(&later, create("B", "b", 2)).unwrap();
+        // The later reservation commits first; the earlier commit must keep
+        // the counter past both.
+        assert!(matches!(coord.commit(&later), TxOutcome::Committed(_)));
+        assert!(matches!(coord.commit(&earlier), TxOutcome::Committed(_)));
+        let view = store.read_view().unwrap();
+        let staged = ["A", "B"].map(|label| {
+            rushdb_lmpg::reader::try_access::label_members(&view, tenant, label).unwrap()[0]
+        });
+        let counter = record_counter(&view, tenant);
+        assert_eq!(counter, staged.iter().max().unwrap() + 1);
+        drop(view);
+        (counter, store.take_log_for_crash(), staged)
+    };
+    // A replay of the log derives the same counter.
+    let replayed = Arc::new(Store::new_in_memory());
+    drop(Lmpg::new(replayed.clone(), tenant));
+    replayed.try_replay(&log).unwrap();
+    assert_eq!(
+        record_counter(&replayed.read_view().unwrap(), tenant),
+        counter
+    );
+    // After a restart, with no reservations in memory, the next record takes
+    // the next free ordinal.
+    let reopened = Arc::new(Store::open(&path).unwrap());
+    let lmpg = Lmpg::new(reopened.clone(), tenant);
+    let next = lmpg.create_record("C", None, vec![]).unwrap();
+    assert_eq!(next.ordinal, counter);
+    assert!(!staged.contains(&next.ordinal));
+    drop(lmpg);
+    drop(reopened);
+    rushdb_storage::remove_store(&path).unwrap();
+}

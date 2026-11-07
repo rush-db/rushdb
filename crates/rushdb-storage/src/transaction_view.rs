@@ -1,9 +1,9 @@
 //! Buffered transaction reads and dependency tracking over one storage view.
 
 use super::{
-    prefix_range, redb_backend, Arc, BTreeMap, DependencySet, Included, Op, OverlayView,
-    ReadLimits, ReadView, RefCell, ScanBounds, ScanCursor, ScanProjection, ScanRow, StorageError,
-    Unbounded,
+    prefix_range, redb_backend, Arc, BTreeMap, DependencySet, IdAllocator, Included, Op,
+    OverlayView, ReadLimits, ReadView, RefCell, ScanBounds, ScanCursor, ScanProjection, ScanRow,
+    StorageError, Unbounded,
 };
 
 /// A transaction's base read source, checked after its staged `buffer`.
@@ -74,7 +74,12 @@ pub struct Txn<'a> {
     /// Keys staged via [`Txn::set`]: their drained op is [`Op::Set`]
     /// (history-free overwrite) instead of [`Op::Put`] (history-retaining).
     pub(super) set_keys: std::collections::BTreeSet<Vec<u8>>,
+    /// Keys staged via [`Txn::set_watermark`]: monotone counters, which a
+    /// transaction neither depends on nor conflicts on.
+    pub(super) watermark_keys: std::collections::BTreeSet<Vec<u8>>,
     pub(super) deps: Option<&'a RefCell<DependencySet>>,
+    /// The store's id reservations, for [`Txn::allocate`].
+    pub(super) ids: &'a IdAllocator,
 }
 
 /// Materialize a bounded slice of a pinned snapshot's range. `max_rows == 0`
@@ -189,6 +194,50 @@ impl Txn<'_> {
     /// exceeds the default read item limit.
     pub fn get(&self, k: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
         self.track(k);
+        self.get_untracked(k)
+    }
+
+    /// Reserve the next id of the monotone counter at `key` (an ordinal, a
+    /// property family or definition). Ids are unique across concurrent
+    /// transactions; the counter is not a read dependency. See
+    /// [`IdAllocator`].
+    ///
+    /// # Errors
+    /// Returns [`StorageError::Builder`] ("invalid u64 metadata") if the
+    /// stored counter is not a big-endian `u64`, or the reservation error of [`IdAllocator::reserve`].
+    pub fn allocate(&self, key: &[u8]) -> Result<u64, StorageError> {
+        let watermark = self.watermark(key)?;
+        self.ids.reserve(key, watermark)
+    }
+
+    /// Advance the monotone counter at `key` to at least `next` (a
+    /// big-endian `u64`, history-free). It is read untracked and is exempt
+    /// from a transaction's write conflicts: concurrent commits each raise it
+    /// to `max(current, next)`, so their order does not matter. Commit-time
+    /// expansion reads current state, so the counter never moves back.
+    ///
+    /// # Errors
+    /// Returns [`StorageError::Builder`] ("invalid u64 metadata") if the
+    /// stored counter is not a big-endian `u64`.
+    pub fn set_watermark(&mut self, key: Vec<u8>, next: u64) -> Result<(), StorageError> {
+        let value = self.watermark(&key)?.max(next);
+        self.watermark_keys.insert(key.clone());
+        self.set(key, value.to_be_bytes().to_vec());
+        Ok(())
+    }
+
+    fn watermark(&self, key: &[u8]) -> Result<u64, StorageError> {
+        self.get_untracked(key)?
+            .map(|raw| {
+                <[u8; 8]>::try_from(raw.as_slice())
+                    .map(u64::from_be_bytes)
+                    .map_err(|_| StorageError::Builder("invalid u64 metadata".into()))
+            })
+            .transpose()
+            .map(Option::unwrap_or_default)
+    }
+
+    fn get_untracked(&self, k: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
         if let Some(v) = self.buffer.get(k) {
             ReadLimits::default().check_item(k.len(), v.as_ref().map_or(0, Vec::len))?;
             return Ok(v.clone());

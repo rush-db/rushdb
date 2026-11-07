@@ -588,6 +588,8 @@ fn bounded_keys_prefix_stops_at_limit_and_skips_tombstones() {
         buffer: BTreeMap::new(),
         purge_keys: BTreeSet::default(),
         set_keys: BTreeSet::default(),
+        watermark_keys: BTreeSet::default(),
+        ids: &store.ids,
         deps: None,
     };
     // A staged replacement stays; a staged tombstone drops out.
@@ -754,6 +756,8 @@ fn txn_reads_through_the_sequencer_overlay() {
         buffer: BTreeMap::new(),
         purge_keys: BTreeSet::default(),
         set_keys: BTreeSet::default(),
+        watermark_keys: BTreeSet::default(),
+        ids: &store.ids,
         deps: None,
     };
 

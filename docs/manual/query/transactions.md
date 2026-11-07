@@ -229,12 +229,28 @@ Repeatable Read:
   inside the transaction so that a concurrent change to any of them aborts
   your commit.
 
-Conflicts can also come from shared engine state rather than the same
-record. For example, two concurrent transactions that both create records
-can conflict with each other, and a transaction that deletes a record an
-`eventual` text index has not yet indexed conflicts with the index's
-background commit for that record. Treat a retryable `aborted` as a normal
-event and retry the whole transaction.
+Creating records does not make transactions conflict. Concurrent
+transactions that create records, on different labels or the same one,
+commit without aborting each other. Record and relationship ids are
+reserved when a write is staged, as a PostgreSQL sequence hands out values:
+they are unique, and a rolled-back or aborted transaction leaves its ids
+unused. Label counts and the other catalog statistics are computed at
+commit, so they stay exact.
+
+A few cases still conflict through shared engine state rather than the same
+record:
+
+- Two transactions that both introduce the same **new** property name: the
+  first to commit defines it, and the other aborts. Once the name exists,
+  writing it never conflicts.
+- A transaction that deletes a record an `eventual` text index has not yet
+  indexed, with the index's background commit for that record.
+- A transaction that writes records, with an index being declared, built or
+  dropped: every build or drop step updates the index definition, which
+  the transaction's writes read.
+
+Treat a retryable `aborted` as a normal event and retry the whole
+transaction.
 
 > **Note:** A transaction that stages a `statement` is ordered against every
 > other writer: any other commit that lands after its `begin` aborts it

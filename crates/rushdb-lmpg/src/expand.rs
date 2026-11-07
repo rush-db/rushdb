@@ -750,20 +750,7 @@ fn adj_del(
 }
 
 fn ensure_counter(txn: &mut Txn, t: TenantId, name: &str, next: u64) -> Result<(), StorageError> {
-    let ckey = meta_counter_key(t, name);
-    let cur = raw_u64(txn.get(&ckey)?.as_deref())?.unwrap_or(0);
-    let want = std::cmp::max(cur, next);
-    txn.set(ckey, want.to_be_bytes().to_vec());
-    Ok(())
-}
-
-fn raw_u64(v: Option<&[u8]>) -> Result<Option<u64>, StorageError> {
-    v.map(|b| {
-        b.try_into()
-            .map(u64::from_be_bytes)
-            .map_err(|_| StorageError::CorruptLog)
-    })
-    .transpose()
+    txn.set_watermark(meta_counter_key(t, name), next)
 }
 
 /// Prefixes `bytes` with its length as a big-endian `u64`, producing a

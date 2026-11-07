@@ -195,7 +195,12 @@ flowchart LR
   the transaction wrote or a key its staging read, the transaction aborts
   with a retryable `write_conflict` and its receipt records the abort. No
   locks are taken during the transaction and there is no deadlock
-  detection.
+  detection. Id counters are the exception: ids (record and relationship
+  ordinals, property ids) are reserved at staging from a store-wide
+  allocator, so concurrent transactions never share one, and each commit
+  only raises the counter. Transactions that create records therefore do
+  not conflict with each other. The commit is expanded against the current
+  state, as a replay of it is.
 - **Bounded history.** The conflict window keeps recent write sets in
   memory under a 64 MiB cap, charged to the managed memory budget (it
   shrinks, oldest first, when the budget is full). A transaction old enough that a needed write
