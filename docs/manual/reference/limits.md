@@ -43,7 +43,7 @@ in this release.
 | Graph-language statement clauses | 8,192 | no | `invalid_request` |
 | `text` query default `limit` | 10 | per request | — |
 | `vectorIndexCandidates` default `limit` | 500 | per request | — |
-| Vector spaces per tenant | 256 | no | refused |
+| Vector spaces per tenant (live vector and structural indexes; a dropped index frees its space) | 256 | no | `resource_exhausted` (not retryable) |
 | Records per transport response | bounded by the response size | `server.body-limit` | see above |
 
 ## Writes and transactions

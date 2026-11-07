@@ -90,7 +90,12 @@ pub fn score(query: &[f32], vec: &[f32], similarity: rushdb_types::occurrence::S
 pub(crate) const MAX_CACHED_ANN_GENERATIONS: usize = 12;
 /// Tenant-local immutable vector spaces are metadata, but each can retain
 /// bindings and derived generations; bound their cardinality explicitly.
-const MAX_VECTOR_SPACES: usize = 256;
+/// The bound counts live spaces: dropping an index deletes its space row.
+pub const MAX_VECTOR_SPACES: usize = 256;
+
+/// Commit-closure reason for [`VectorError::SpaceLimit`]; the closure can
+/// only return text, so the caller maps this exact reason back to the type.
+const SPACE_LIMIT_REASON: &str = "vector space limit reached";
 
 /// Rows and bytes per batch when exact search streams an index's bindings.
 const EXACT_SCAN_BATCH_ROWS: usize = 1024;
@@ -165,6 +170,14 @@ pub enum VectorError {
     /// falls back to the exact path instead of surfacing this.
     #[error("ANN build memory budget: {0}")]
     AnnBudget(String),
+    /// The tenant already holds the maximum number of live vector spaces
+    /// (`docs/manual/reference/limits.md`). Dropping a vector index frees
+    /// its space; retrying without one does not help.
+    #[error(
+        "resource exhausted: vector space limit reached ({MAX_VECTOR_SPACES} per tenant); \
+         drop an unused vector index first"
+    )]
+    SpaceLimit,
 }
 
 /// Canonical identity of one vector's source occurrence: the owning record or
@@ -426,8 +439,10 @@ impl VectorEngine {
     ///
     /// Returns [`VectorError::InvalidVector`] when `dims` is zero,
     /// [`VectorError::Conflict`] when the alias exists with a different dims
-    /// or similarity contract, and [`VectorError::Storage`] or
-    /// [`VectorError::Engine`] when the commit fails.
+    /// or similarity contract, [`VectorError::SpaceLimit`] when the tenant
+    /// already holds [`MAX_VECTOR_SPACES`] live spaces, and
+    /// [`VectorError::Storage`] or [`VectorError::Engine`] when the commit
+    /// fails.
     pub fn ensure_space_similarity(
         &self,
         alias: &str,
@@ -466,16 +481,18 @@ impl VectorEngine {
                 }
                 return Ok((empty_batch(t), sp));
             }
-            let space_prefix = rushdb_types::keys::key(t, &[rushdb_types::keys::P_EMB_SPACE]);
+            // Count live spaces by their aliases: each live space has exactly
+            // one, and dropping an index deletes it. Stores written by 3.0.4
+            // and earlier keep the space row of every dropped index, so
+            // counting space rows would keep such a tenant locked out.
+            let alias_prefix = rushdb_types::keys::key(t, &[rushdb_types::keys::P_EMB_ALIAS, b""]);
             if txn
-                .range_prefix(&space_prefix)
+                .keys_prefix(&alias_prefix)
                 .map_err(|e| e.to_string())?
                 .len()
                 >= MAX_VECTOR_SPACES
             {
-                return Err(format!(
-                    "vector space limit reached ({MAX_VECTOR_SPACES} per tenant)"
-                ));
+                return Err(SPACE_LIMIT_REASON.to_string());
             }
             let sid = read_counter_bytes(
                 txn.get(&meta_counter_key(t, "space"))
@@ -506,6 +523,9 @@ impl VectorEngine {
             ))
         }) {
             Ok(CommitOutcome::Committed { payload, .. }) => Ok(payload),
+            Ok(CommitOutcome::Conflicted(reason)) if reason == SPACE_LIMIT_REASON => {
+                Err(VectorError::SpaceLimit)
+            }
             Ok(CommitOutcome::Conflicted(reason)) => Err(reason.into()),
             Err(e) => Err(VectorError::Engine(e.to_string())),
         }
@@ -1133,9 +1153,13 @@ impl VectorEngine {
         }
     }
 
-    /// Remove every binding and vector segment of a space (index deletion).
-    /// Alias resolution, enumeration, and deletion share writer admission.
-    /// Immutable space metadata and allocation counters are retained.
+    /// Delete a space (index deletion): its bindings, vectors, alias, space
+    /// row, slot counter and ANN manifest in one commit, then its persisted
+    /// segment directory. The deleted space no longer counts toward
+    /// [`MAX_VECTOR_SPACES`]. Only the tenant's monotonic space-id counter
+    /// stays, so a later space never reuses this id (or its segment
+    /// directory). Alias resolution, enumeration, and deletion share writer
+    /// admission.
     ///
     /// # Errors
     ///
@@ -1179,6 +1203,7 @@ impl VectorEngine {
                         }
                     }
                 }
+                self.remove_space_dir(space_id);
                 Ok(count)
             }
             Ok(CommitOutcome::Conflicted(r)) => Err(r.into()),

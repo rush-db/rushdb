@@ -407,6 +407,26 @@ impl VectorEngine {
             .map(|dir| dir.join(format!("space-{space_id}")))
     }
 
+    /// Delete a dropped space's persisted segments. Its id is never
+    /// reused, so nothing can want them back; a reader still holding a
+    /// segment keeps its open file until it drops it (a missing file is
+    /// expected then). A failure is logged and leaves only disk behind.
+    pub(crate) fn remove_space_dir(&self, space_id: u64) {
+        let Some(dir) = self.space_dir(space_id) else {
+            return;
+        };
+        if let Err(error) = std::fs::remove_dir_all(&dir) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                tracing::warn!(
+                    space_id,
+                    dir = %dir.display(),
+                    %error,
+                    "cannot remove a dropped vector space's segments"
+                );
+            }
+        }
+    }
+
     /// A fresh path for one of this space's segments, when a segments
     /// directory is configured. Unique across sets and engine instances (a
     /// superseded segment's file is deleted when its last reader drops it,
