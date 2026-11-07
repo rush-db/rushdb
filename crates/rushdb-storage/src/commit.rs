@@ -117,6 +117,8 @@ impl Store {
             buffer: BTreeMap::new(),
             purge_keys: BTreeSet::default(),
             set_keys: BTreeSet::default(),
+            watermark_keys: BTreeSet::default(),
+            ids: &self.ids,
             deps: None,
         };
         self.expand_commit_ops(ci, batch, &payload_bytes, txn)
@@ -311,6 +313,8 @@ impl Store {
                 buffer: BTreeMap::new(),
                 purge_keys: BTreeSet::default(),
                 set_keys: BTreeSet::default(),
+                watermark_keys: BTreeSet::default(),
+                ids: &self.ids,
                 deps: Some(&build_deps),
             };
             let build_started = std::time::Instant::now();
@@ -427,6 +431,8 @@ impl Store {
                 buffer: BTreeMap::new(),
                 purge_keys: BTreeSet::default(),
                 set_keys: BTreeSet::default(),
+                watermark_keys: BTreeSet::default(),
+                ids: &self.ids,
                 // Record expansion reads so `prepared.reads` is non-empty and
                 // admission is held through publication. Otherwise a
                 // read-dependent expander (e.g. a counter) releases admission
@@ -677,6 +683,8 @@ impl Store {
                 buffer: BTreeMap::new(),
                 purge_keys: BTreeSet::default(),
                 set_keys: BTreeSet::default(),
+                watermark_keys: BTreeSet::default(),
+                ids: &self.ids,
                 deps: Some(&dep_recorder),
             };
             match build(&mut txn) {
@@ -745,6 +753,8 @@ impl Store {
                 buffer: BTreeMap::new(),
                 purge_keys: BTreeSet::default(),
                 set_keys: BTreeSet::default(),
+                watermark_keys: BTreeSet::default(),
+                ids: &self.ids,
                 deps: None,
             };
             self.expand_commit_ops(ci, &batch, &payload_bytes, wtxn)
@@ -811,6 +821,8 @@ impl Store {
                 buffer: tx.buffer.clone(),
                 purge_keys: BTreeSet::default(),
                 set_keys: BTreeSet::default(),
+                watermark_keys: BTreeSet::default(),
+                ids: &self.ids,
                 deps: Some(&dep_recorder),
             };
             let (batch, payload) = build(ci, &mut txn).map_err(StorageError::Builder)?;
@@ -822,6 +834,7 @@ impl Store {
             };
             expand(ci, &batch, &mut txn).map_err(StorageError::Builder)?;
             tx.buffer = txn.buffer;
+            tx.watermarks.extend(txn.watermark_keys);
             tx.mutations.append(&mut batch.mutations);
             tx.preconditions.append(&mut batch.preconditions);
             tx.deps = dep_recorder.into_inner();
@@ -860,6 +873,8 @@ impl Store {
             buffer: tx.buffer.clone(),
             purge_keys: BTreeSet::default(),
             set_keys: BTreeSet::default(),
+            watermark_keys: BTreeSet::default(),
+            ids: &self.ids,
             deps: Some(&dep_recorder),
         };
         let result = f(&mut txn).map_err(StorageError::Builder);
@@ -907,6 +922,8 @@ impl Store {
             buffer: tx.buffer.clone(),
             purge_keys: BTreeSet::default(),
             set_keys: BTreeSet::default(),
+            watermark_keys: BTreeSet::default(),
+            ids: &self.ids,
             deps: Some(&dep_recorder),
         };
         let expander = self.health.guard(self.expander.read())?.clone();
@@ -915,6 +932,7 @@ impl Store {
         };
         expand(ci, &batch, &mut txn).map_err(StorageError::Builder)?;
         tx.buffer = txn.buffer;
+        tx.watermarks.extend(txn.watermark_keys);
         tx.mutations.append(&mut batch.mutations);
         tx.preconditions.append(&mut batch.preconditions);
         tx.deps = dep_recorder.into_inner();
@@ -923,9 +941,10 @@ impl Store {
 
     /// Atomically commit a transaction's accumulated writes. Conflict rule: any
     /// committed mutation since `base_ci` that wrote a key the transaction read
-    /// (public read-set) or writes (write-set, including counters) aborts it —
-    /// this catches read-write anomalies and ordinal/counter clashes without the
-    /// planner tracking its internal reads. Success publishes the writes as one
+    /// (public read-set) or writes (write-set) aborts it. Monotone counters
+    /// (`Txn::set_watermark`) are exempt: ids come from the store's
+    /// [`crate::IdAllocator`], so concurrent transactions never share an
+    /// ordinal, and each commit only raises the counter. Success publishes the writes as one
     /// atomic commit; conflict aborts the transaction, which may retry or roll back.
     ///
     /// # Errors
@@ -1066,7 +1085,7 @@ impl Store {
                             commit_index: probe,
                         })?;
                 for k in key_set.iter() {
-                    if tx.deps.intersects_key(k) || tx.buffer.contains_key(k) {
+                    if tx.deps.intersects_key(k) || writes_conflicting(tx, k) {
                         conflicted = Some(probe);
                         break;
                     }
@@ -1082,7 +1101,7 @@ impl Store {
             if let Some(state) = admission.as_ref() {
                 for (key, (ci, _)) in &state.buffer {
                     if *ci > tx.base_ci
-                        && (tx.deps.intersects_key(key) || tx.buffer.contains_key(key))
+                        && (tx.deps.intersects_key(key) || writes_conflicting(tx, key))
                     {
                         conflicted = Some(*ci);
                         break;
@@ -1161,21 +1180,37 @@ impl Store {
         // the in-memory command-journal row otherwise (no WAL to derive it from).
         let command_payload = rushdb_types::command_codec::encode(&batch);
         let ops = {
-            // Deterministic expansion reads the transaction's snapshot so it
-            // matches the state the transaction observed.
-            let snapshot = tx.base_view.is_some();
-            let guard = self.txn_data(snapshot)?;
-            let native = if snapshot {
-                None
-            } else {
-                self.native_transaction_view()?
+            // Expand against current state (committed plus pending), as an
+            // autocommit and a replay of this command do. The conflict check
+            // above aborted the transaction if any key it read or wrote
+            // changed since its snapshot, so for those keys this is the state
+            // it observed. The exception is monotone counters
+            // (`Txn::set_watermark`), which concurrent commits may have
+            // advanced: reading them here keeps them from moving back.
+            let overlay = match admission.as_ref() {
+                Some(state) => Some(self.sequencer_overlay(state)?),
+                None => None,
             };
-            let base = TxnBase::resolve(None, tx.base_view.clone(), native, guard.as_deref());
+            // The overlay is authoritative; taking the live map's read guard
+            // as well would re-enter the RwLock a publisher may be waiting on.
+            let guard = if overlay.is_none() {
+                Some(self.health.guard(self.data.read())?)
+            } else {
+                None
+            };
+            let native = if overlay.is_none() {
+                self.native_transaction_view()?
+            } else {
+                None
+            };
+            let base = TxnBase::resolve(overlay, None, native, guard.as_deref());
             let mut wtxn = Txn {
                 base,
                 buffer: BTreeMap::new(),
                 purge_keys: BTreeSet::default(),
                 set_keys: BTreeSet::default(),
+                watermark_keys: BTreeSet::default(),
+                ids: &self.ids,
                 deps: None,
             };
             let expander = self.health.guard(self.expander.read())?.clone();
@@ -1201,4 +1236,10 @@ impl Store {
         self.enqueue_and_publish(ci, shard, ops, command_payload)?;
         Ok(ci)
     }
+}
+
+/// Whether a key written by a later commit collides with the transaction's
+/// own writes. A monotone counter both advance is not a collision.
+fn writes_conflicting(tx: &TxAccumulator, key: &[u8]) -> bool {
+    tx.buffer.contains_key(key) && !tx.watermarks.contains(key)
 }

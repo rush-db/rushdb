@@ -7094,6 +7094,62 @@ fn property_values_are_scalars_and_inference_off_keeps_arrays_element_wise() {
 }
 
 #[test]
+fn vector_index_create_drop_cycles_never_exhaust_the_space_limit() {
+    // Regression: `index.dropVector` left the space row the per-tenant
+    // limit counts, so after 256 create/drop cycles every `createVector`
+    // failed as an opaque `execution_failed`.
+    let node = Node::bootstrap(&mut config(false)).unwrap();
+    let execute = |operation: IndexOperation| {
+        ProtocolExecutor::new(&node, None).execute(RequestEnvelope {
+            protocol_version: PROTOCOL_VERSION,
+            request_id: None,
+            context: RequestContext::default(),
+            operation: Operation::Index { index: operation },
+        })
+    };
+    let create = |name: String| {
+        execute(IndexOperation::CreateVector {
+            definition: rushdb_protocol::VectorIndexDefinition {
+                label: "SAME".into(),
+                property: "p".into(),
+                dimensions: 3,
+                similarity: "cosine".into(),
+                name: Some(name),
+                model: None,
+                owner: None,
+            },
+        })
+    };
+    let limit = rushdb_vector::MAX_VECTOR_SPACES;
+    for cycle in 0..limit + 44 {
+        let name = format!("v{cycle}");
+        create(name.clone()).unwrap_or_else(|error| panic!("cycle {cycle}: {error:?}"));
+        execute(IndexOperation::DropVector { name })
+            .unwrap_or_else(|error| panic!("cycle {cycle}: {error:?}"));
+    }
+
+    // The limit counts live spaces, and reaching it is a clear,
+    // non-retryable client error naming the limit.
+    for index in 0..limit {
+        create(format!("live{index}")).unwrap();
+    }
+    let error = create("overflow".into()).unwrap_err();
+    assert_eq!(error.code, ErrorCode::ResourceExhausted, "{error:?}");
+    assert!(!error.retryable, "{error:?}");
+    assert!(
+        error
+            .message
+            .contains("vector space limit reached (256 per tenant)"),
+        "{error:?}"
+    );
+    execute(IndexOperation::DropVector {
+        name: "live0".into(),
+    })
+    .unwrap();
+    create("overflow".into()).unwrap();
+}
+
+#[test]
 fn vector_index_definitions_are_immutable_and_candidates_carry_their_source_hash() {
     let node = Node::bootstrap(&mut config(false)).unwrap();
     node.scope()

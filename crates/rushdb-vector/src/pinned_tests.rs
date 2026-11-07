@@ -27,11 +27,105 @@ fn vector_space_cardinality_is_bounded_per_tenant() {
         Arc::new(Store::new_in_memory()),
         TenantId::from_ordinal(72),
     )));
-    for index in 0..256 {
+    for index in 0..MAX_VECTOR_SPACES {
         engine.ensure_space(&format!("space-{index}"), 2).unwrap();
     }
     let error = engine.ensure_space("space-overflow", 2).unwrap_err();
-    assert!(error.to_string().contains("space limit reached"));
+    assert!(matches!(error, VectorError::SpaceLimit), "{error:?}");
+    assert!(
+        error
+            .to_string()
+            .starts_with("resource exhausted: vector space limit reached (256 per tenant)"),
+        "{error}"
+    );
+    // An existing alias still resolves at the limit; dropping one space
+    // admits exactly one new space.
+    engine.ensure_space("space-0", 2).unwrap();
+    engine.clear_space("space-0").unwrap();
+    engine.ensure_space("space-overflow", 2).unwrap();
+    assert!(matches!(
+        engine.ensure_space("space-overflow-2", 2),
+        Err(VectorError::SpaceLimit)
+    ));
+}
+
+#[test]
+fn dropping_a_space_frees_it_for_the_tenant_limit() {
+    // Regression: `clear_space` kept the space row, which the limit counts,
+    // so 256 create/drop cycles locked a tenant out of vector indexes.
+    on_backends(|engine| {
+        let mut last = None;
+        for cycle in 0..MAX_VECTOR_SPACES + 44 {
+            let space = engine.ensure_space("cycled", 3).unwrap();
+            assert!(
+                last.is_none_or(|previous| space.space_id > previous),
+                "space ids are never reused"
+            );
+            last = Some(space.space_id);
+            engine
+                .bind_external("cycled", external(1), &[1., 0., 0.])
+                .unwrap();
+            engine.clear_space("cycled").unwrap_or_else(|error| {
+                panic!("cycle {cycle}: {error}");
+            });
+        }
+        let snap = engine.snapshot().unwrap();
+        let tenant = engine.tenant();
+        assert!(
+            snap.range_prefix(&key(tenant, &[rushdb_types::keys::P_EMB_SPACE]))
+                .unwrap()
+                .is_empty(),
+            "no space row outlives its drop"
+        );
+        assert!(rushdb_lmpg::derived::tenant_usage(&snap, tenant)
+            .unwrap()
+            .vectors
+            .is_empty());
+        let space_id = last.unwrap();
+        assert!(snap
+            .get(&meta_counter_key(tenant, &format!("vecslot/{space_id}")))
+            .unwrap()
+            .is_none());
+    });
+}
+
+#[test]
+fn space_rows_left_by_earlier_drops_do_not_count_toward_the_limit() {
+    // 3.0.4 and earlier kept a dropped index's space row (without its
+    // alias). A tenant that already hit the limit that way recovers.
+    on_backends(|engine| {
+        let leaked = (0..MAX_VECTOR_SPACES as u64)
+            .map(|space_id| Mutation::EnsureEmbeddingSpace {
+                alias: format!("dropped-{space_id}"),
+                info: EmbeddingSpaceInfo {
+                    space_id,
+                    name: format!("dropped-{space_id}"),
+                    dims: 3,
+                    similarity: rushdb_types::occurrence::Similarity::Cosine,
+                },
+                new: false,
+            })
+            .collect();
+        command(engine, rushdb_types::command::COMMAND_VERSION, leaked).unwrap();
+        let space = engine.ensure_space("fresh", 3).unwrap();
+        assert_eq!(space.space_id, MAX_VECTOR_SPACES as u64, "ids stay unique");
+    });
+}
+
+#[test]
+fn dropping_a_space_removes_its_persisted_segments() {
+    let dir = tempfile::tempdir().unwrap();
+    let lmpg = Arc::new(Lmpg::new(
+        Arc::new(Store::new_in_memory()),
+        TenantId::from_ordinal(73),
+    ));
+    let engine = VectorEngine::new(Arc::clone(&lmpg)).with_segments_dir(dir.path().to_path_buf());
+    let (_, space, _) = fixture(&engine, "persisted");
+    engine.build_ann("persisted").unwrap();
+    let space_dir = dir.path().join(format!("space-{}", space.space_id));
+    assert!(!segment_files(&space_dir).is_empty(), "the build persisted");
+    engine.clear_space("persisted").unwrap();
+    assert!(!space_dir.exists(), "a dropped space leaves no segments");
 }
 
 #[test]
@@ -660,7 +754,9 @@ fn clear_space_deletes_binary_keys_and_orphan_segments_without_crossing_scope() 
         let old = engine.snapshot().unwrap();
         let slot_counter =
             meta_counter_key(engine.tenant(), &format!("vecslot/{}", space.space_id));
-        let counter_before = old.get(&slot_counter).unwrap();
+        let sibling_counter =
+            meta_counter_key(engine.tenant(), &format!("vecslot/{}", sibling.space_id));
+        assert!(old.get(&slot_counter).unwrap().is_some());
         assert_eq!(engine.clear_space("target").unwrap(), 1);
         assert!(engine.lookup_space_by_alias("target").unwrap().is_none());
         assert!(engine.bindings_of(space.space_id).unwrap().is_empty());
@@ -678,10 +774,18 @@ fn clear_space_deletes_binary_keys_and_orphan_segments_without_crossing_scope() 
             .try_get(&emb_vector_key(engine.tenant(), space.space_id, 255))
             .unwrap()
             .is_none());
-        assert_eq!(engine.store.try_get(&slot_counter).unwrap(), counter_before);
+        // The space row and its slot counter go with the space; the
+        // sibling space keeps both.
+        assert!(engine.store.try_get(&slot_counter).unwrap().is_none());
         assert!(engine
             .store
             .try_get(&emb_space_key(engine.tenant(), space.space_id))
+            .unwrap()
+            .is_none());
+        assert!(engine.store.try_get(&sibling_counter).unwrap().is_some());
+        assert!(engine
+            .store
+            .try_get(&emb_space_key(engine.tenant(), sibling.space_id))
             .unwrap()
             .is_some());
         assert!(!engine

@@ -423,6 +423,19 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
                 }
                 txn.del(rushdb_types::keys::emb_space_version_key(t, *space_id));
                 txn.del(rushdb_types::keys::emb_ready_count_key(t, *space_id));
+                // The space row is what the per-tenant space limit counts and
+                // what tenant usage lists: deleting it frees the space. Space
+                // ids come from the monotonic `space` counter and are never
+                // reused, so deleting this id's slot counter is safe, and a
+                // pending reclamation row of this id only deletes a vector
+                // key that no later space can own.
+                txn.del(rushdb_types::keys::emb_space_key(t, *space_id));
+                txn.del(meta_counter_key(t, &format!("vecslot/{space_id}")));
+                txn.del(
+                    format!("{}{space_id}", ann_manifest_meta_prefix(t))
+                        .as_bytes()
+                        .to_vec(),
+                );
                 txn.del(alias_key);
             }
             Mutation::SetMetaValue { key, value } => {
@@ -737,20 +750,7 @@ fn adj_del(
 }
 
 fn ensure_counter(txn: &mut Txn, t: TenantId, name: &str, next: u64) -> Result<(), StorageError> {
-    let ckey = meta_counter_key(t, name);
-    let cur = raw_u64(txn.get(&ckey)?.as_deref())?.unwrap_or(0);
-    let want = std::cmp::max(cur, next);
-    txn.set(ckey, want.to_be_bytes().to_vec());
-    Ok(())
-}
-
-fn raw_u64(v: Option<&[u8]>) -> Result<Option<u64>, StorageError> {
-    v.map(|b| {
-        b.try_into()
-            .map(u64::from_be_bytes)
-            .map_err(|_| StorageError::CorruptLog)
-    })
-    .transpose()
+    txn.set_watermark(meta_counter_key(t, name), next)
 }
 
 /// Prefixes `bytes` with its length as a big-endian `u64`, producing a

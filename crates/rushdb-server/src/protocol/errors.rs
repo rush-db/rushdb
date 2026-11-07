@@ -89,6 +89,9 @@ pub(crate) fn execution_failed(error: impl ToString) -> ProtocolError {
         "resource exhausted: transaction JSON depth/size limit",
         "resource exhausted: staging size overflow",
         "resource exhausted: staging capacity overflow",
+        // A tenant at its live vector-space limit stays there until it
+        // drops a vector index (`rushdb_vector::VectorError::SpaceLimit`).
+        "resource exhausted: vector space limit reached",
         // Large transactions: a commit past the configured
         // transaction ceiling (`StorageError::ResourceExhausted`, Display
         // = "storage resource exhausted: {0}") — the ETL/bulk-load boundary.
@@ -304,6 +307,22 @@ fn staging_limit_is_resource_exhausted_not_generic_execution_failure() {
             "a fixed per-transaction limit is not fixed by blind retry"
         );
     }
+}
+
+#[test]
+fn vector_space_limit_is_a_non_retryable_resource_exhausted_error() {
+    let error = execution_failed(rushdb_vector::VectorError::SpaceLimit);
+    assert_eq!(error.code, ErrorCode::ResourceExhausted);
+    assert!(
+        !error.retryable,
+        "the limit holds until an index is dropped"
+    );
+    assert!(
+        error
+            .message
+            .contains("vector space limit reached (256 per tenant)"),
+        "{error:?}"
+    );
 }
 
 #[test]

@@ -416,8 +416,14 @@ failure does not undo the status reconciliation).
 ### Drop
 
 `{"kind": "dropVector", "name": "doc-embedding"}` removes the index's bindings,
-its space and its metadata. The name can then be reused with a different
-shape; the new declaration gets a new `generation`.
+its space, its persisted ANN segments and its metadata. The name can then be
+reused with a different shape; the new declaration gets a new `generation`.
+
+A tenant holds at most 256 vector spaces at a time (one per vector or
+structural index). Dropping an index frees its space, so creating and dropping
+indexes never runs out. Declaring an index past the limit fails with
+`resource_exhausted` (`retryable: false`), naming the limit; drop an unused
+index first.
 
 ## Consistency
 

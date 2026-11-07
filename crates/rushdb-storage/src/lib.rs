@@ -11,6 +11,8 @@ mod adapter_budgets;
 pub mod backend;
 pub mod cache;
 mod health;
+mod id_alloc;
+pub use id_alloc::IdAllocator;
 pub mod read_accounting;
 mod transaction_view;
 pub use transaction_view::Txn;
@@ -549,6 +551,9 @@ pub struct TxAccumulator {
     pub tenant: TenantId,
     /// Uncommitted write overlay, keyed by storage key.
     pub buffer: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
+    /// Keys of `buffer` that are monotone counters ([`Txn::set_watermark`]).
+    /// A concurrent commit that advanced one is not a write conflict.
+    pub watermarks: BTreeSet<Vec<u8>>,
     /// Public read dependencies recorded inside the transaction.
     pub deps: DependencySet,
     /// Mutations accumulated across statements, replayed at commit.
@@ -570,6 +575,7 @@ impl TxAccumulator {
             base_ci,
             tenant,
             buffer: BTreeMap::new(),
+            watermarks: BTreeSet::new(),
             deps: DependencySet::default(),
             mutations: Vec::new(),
             preconditions: Vec::new(),
@@ -679,6 +685,8 @@ pub struct Store {
     deriver: RwLock<Option<Arc<dyn Deriver>>>,
     /// Bounded tenant-directory resolution cache.
     tenant_cache: Mutex<tenant_dir::TenantCache>,
+    /// Ids reserved by planning, ahead of their commits (`id_alloc`).
+    pub(crate) ids: IdAllocator,
     /// Set when WAL recovery applied records with no deriver installed, so a
     /// later `set_deriver` fences the store instead of serving missing
     /// derived rows.
@@ -847,6 +855,7 @@ impl Store {
             commit_observer: RwLock::new(None),
             deriver: RwLock::new(None),
             tenant_cache: Mutex::new(tenant_dir::TenantCache::default()),
+            ids: IdAllocator::default(),
             underived_replay: std::sync::atomic::AtomicBool::new(false),
             durable: RwLock::new(memory_backends),
             log: Mutex::new(None),
@@ -1903,6 +1912,8 @@ impl Store {
                     buffer: BTreeMap::new(),
                     purge_keys: BTreeSet::default(),
                     set_keys: BTreeSet::default(),
+                    watermark_keys: BTreeSet::default(),
+                    ids: &self.ids,
                     deps: None,
                 };
                 expand(ci, batch, &mut txn).map_err(StorageError::Builder)?;
@@ -2013,6 +2024,8 @@ impl Store {
                 buffer: BTreeMap::new(),
                 purge_keys: BTreeSet::default(),
                 set_keys: BTreeSet::default(),
+                watermark_keys: BTreeSet::default(),
+                ids: &self.ids,
                 deps: None,
             };
             let expander = self.health.guard(self.expander.read())?.clone();

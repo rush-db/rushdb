@@ -100,7 +100,6 @@ pub struct Planner<'a> {
     /// Tenant whose keys are planned against.
     pub tenant: TenantId,
     pub(crate) txn: &'a Txn<'a>,
-    allocs: HashMap<&'static str, u64>,
     /// Mutations staged so far, in planning order.
     pub mutations: Vec<Mutation>,
     /// Preconditions accumulated for the commit.
@@ -125,7 +124,6 @@ impl<'a> Planner<'a> {
         Planner {
             tenant,
             txn,
-            allocs: HashMap::new(),
             mutations: Vec::new(),
             preconditions: Vec::new(),
             pending_families: HashMap::new(),
@@ -136,28 +134,16 @@ impl<'a> Planner<'a> {
         }
     }
 
-    /// Allocates the next ordinal for the named counter, reading and caching
-    /// the committed counter on first use within this batch.
+    /// Reserves the next id of the named counter (an ordinal, a property
+    /// family or definition) from the store's id allocator: unique across
+    /// concurrent transactions, and not a read dependency of this batch.
     ///
     /// # Errors
-    /// Returns [`PlanError::Storage`] if the counter key cannot be read or
-    /// decoded.
+    /// Returns [`PlanError::Storage`] if the counter cannot be read or
+    /// decoded, or the allocator fails.
     pub fn next_alloc(&mut self, name: &'static str) -> Result<u64, PlanError> {
-        let entry = self.allocs.entry(name);
-        match entry {
-            std::collections::hash_map::Entry::Occupied(mut o) => {
-                let v = *o.get();
-                *o.get_mut() += 1;
-                Ok(v)
-            }
-            std::collections::hash_map::Entry::Vacant(vac) => {
-                let ckey = crate::expand::meta_counter_key(self.tenant, name);
-                let cur = self.txn.get(&ckey)?.map(|b| decode_u64(&b)).transpose()?;
-                let next = cur.unwrap_or(0);
-                vac.insert(next + 1);
-                Ok(next)
-            }
-        }
+        let ckey = crate::expand::meta_counter_key(self.tenant, name);
+        Ok(self.txn.allocate(&ckey)?)
     }
 
     /// Allocate a new record or relationship ordinal and remember it as

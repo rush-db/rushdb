@@ -163,29 +163,41 @@ fn disjoint_tx_and_autocommit_both_commit() {
 }
 
 #[test]
-fn concurrent_counter_bump_conflicts() {
+fn a_transaction_and_a_concurrent_create_get_distinct_ordinals_and_both_commit() {
     let store = Arc::new(Store::new_in_memory());
     let tenant = tenant();
-    let _lmpg = with_expander(&store, tenant);
+    let lmpg = with_expander(&store, tenant);
     let base_ci = store.committed_version();
 
-    // The tx plans a record (allocates the shared counter into its buffer).
+    // The transaction plans a record: its ordinal is reserved, not read from
+    // the counter as a dependency.
     let mut tx = TxAccumulator::new(tenant, base_ci);
-    store
-        .tx_apply(&mut tx, Uuid::now_v7(), |_ci, txn| {
-            Ok((create_record_batch(tenant, txn, [3u8; 16], "Doc"), ()))
-        })
+    let staged = lmpg
+        .create_record_tx("Doc", None, vec![], Some(&mut tx))
         .unwrap();
+    // A concurrent autocommit creates a record before the transaction
+    // commits. It must not reuse the reserved ordinal.
+    let committed = lmpg.create_record("Doc", None, vec![]).unwrap();
+    assert_ne!(staged.ordinal, committed.ordinal);
 
-    // A concurrent autocommit bumps the SAME counter (same write keys).
-    let lmpg = with_expander(&store, tenant);
-    lmpg.create_record("Doc", None, vec![]).unwrap();
-
-    // The tx commit must detect the write-set overlap (counter key) and abort.
-    let err = store.tx_commit(Uuid::now_v7(), &tx).unwrap_err();
-    assert!(
-        err.to_string().contains("transaction_conflict"),
-        "expected transaction_conflict, got {err}"
+    // Both advanced the same counter; that is not a conflict.
+    store.tx_commit(Uuid::now_v7(), &tx).unwrap();
+    let snap = store.read_view().unwrap();
+    for ordinal in [staged.ordinal, committed.ordinal] {
+        assert!(
+            rushdb_lmpg::reader::try_access::record_by_ord(&snap, tenant, ordinal)
+                .unwrap()
+                .is_some()
+        );
+    }
+    let counter = snap
+        .get(&meta_counter_key(tenant, "record"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        u64::from_be_bytes(counter.try_into().unwrap()),
+        staged.ordinal.max(committed.ordinal) + 1,
+        "the counter covers both ordinals"
     );
 }
 
