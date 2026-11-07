@@ -1089,6 +1089,7 @@ fn link_pairs_skip_existing_without_scanning_unrelated_edges() {
                 direction: rushdb_protocol::Direction::Out,
                 pairs,
                 properties: json!({}),
+                types: std::collections::BTreeMap::new(),
             })
             .unwrap();
         assert_eq!(first["created"], 40);
@@ -1110,6 +1111,7 @@ fn link_pairs_skip_existing_without_scanning_unrelated_edges() {
                     },
                 ],
                 properties: json!({}),
+                types: std::collections::BTreeMap::new(),
             })
             .unwrap();
         assert_eq!(second["created"], 1);
@@ -1165,6 +1167,7 @@ fn load_phase_profile() {
             direction: rushdb_protocol::Direction::Out,
             pairs,
             properties: json!({}),
+            types: std::collections::BTreeMap::new(),
         })
         .unwrap();
     let link_ms = t1.elapsed().as_millis();

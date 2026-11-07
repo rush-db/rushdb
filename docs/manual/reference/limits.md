@@ -9,7 +9,7 @@ in this release.
 
 | Limit | Default | Configurable | Behavior when exceeded |
 |---|---|---|---|
-| HTTP request body | 16 MiB | `server.body-limit` | 413, `invalid_request` |
+| HTTP request body | 16 MiB | `--body-limit` / `server.body-limit` | 413, `payload_too_large` (the message names the limit) |
 | Response size (all transports) | 16 MiB | `server.body-limit` | HTTP 413, `execution_failed`; elsewhere `resource_exhausted` |
 | gRPC message size (in and out) | 16 MiB | `server.body-limit` | gRPC error |
 | HTTP request bodies in flight (all connections) | 256 MiB (never below the body limit) | `http-inflight-body-bytes` | 503, `resource_exhausted`, before the body is read |

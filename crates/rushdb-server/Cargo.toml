@@ -62,14 +62,14 @@ axum-server = { version = "0.7", features = ["tls-rustls"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rustls-pemfile = "2"
 hex = "0.4"
-tower-http = { version = "0.7", features = ["trace", "limit"] }
+tower-http = { version = "0.7", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 prometheus = "0.14"
 uuid = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
-pgwire = { version = "0.40.7", default-features = false, features = ["server-api", "pg-type-chrono", "pg-type-serde-json"] }
+pgwire = { version = "0.40.7", default-features = false, features = ["server-api-ring", "pg-type-chrono", "pg-type-serde-json"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 serde_yml = "0.0.13"
@@ -81,10 +81,11 @@ tempfile = { workspace = true }
 redb = "4.2.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"] }
 tokio-postgres = "0.7"
-tonic = { version = "0.12", features = ["transport", "codegen", "prost"] }
+tonic = { version = "0.12", features = ["transport", "codegen", "prost", "tls"] }
 rcgen = "0.13"
 native-tls = "0.2"
 rustls = { version = "0.23", features = ["ring"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
 
 [lints]
 workspace = true

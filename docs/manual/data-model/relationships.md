@@ -40,12 +40,44 @@ explicit type use the default type `__RUSHDB__RELATION__DEFAULT__`.
 ## Relationship properties
 
 Relationships carry properties with the same value types as records
-(boolean, number, string, arrays, explicit `null`). Two differences:
+(boolean, number, string, datetime, arrays, explicit `null`). Two
+differences:
 
 - No type inference is applied: a date string on a relationship stays a
-  string.
+  string unless the request declares it a `datetime` in `types`.
 - Properties are set when the relationship is created; a link request that
-  finds the relationship already present leaves it untouched.
+  finds the relationship already present leaves it untouched (use
+  `updateRelationshipsById` to change them).
+
+### Declared types
+
+`linkRecordsById`, `linkRecordsPairs` and `updateRelationshipsById` take an
+optional `types` map from property name to `string`, `number`, `boolean` or
+`datetime`, next to the properties they write (`properties`, or `set` for an
+update):
+
+```json
+"properties": { "since": "2024-03-01T09:30:00Z", "weight": 0.8, "note": null },
+"types": { "since": "datetime", "weight": "number", "note": "datetime" }
+```
+
+- Every name in `types` must be among the written properties; otherwise the
+  call fails with `invalid_request`.
+- A non-null value must match its type: a `string`, `number` or `boolean`
+  property takes that scalar or an array of them. A `datetime` takes one
+  ISO 8601 date or datetime string (`2024-03-01`, `2024-03-01T09:30:00Z`,
+  `2024-03-01T09:30:00.250+02:00`; no zone means UTC) and is stored as a
+  datetime. Datetime arrays are rejected, as for records. A mismatch fails
+  the call with `invalid_request` and nothing is written.
+- `null` stores an explicit null whatever its declared type.
+- A property without a declared type is stored as sent.
+
+Engines that support `types` advertise the `relationshipPropertyTypes`
+capability.
+
+Relationships are returned with their datetime properties as ISO 8601
+strings and a `propertyTypes` map, as records are (see
+[List relationships](#list-relationships)).
 
 ## Link records by id
 
@@ -81,6 +113,7 @@ rdb '{
 | `sourceIds`, `targetIds` | Yes | Record ids (dashed UUIDs or 32 hex digits). |
 | `direction` | No | `out` (default): source → target. `in`: each pair is stored target → source. |
 | `properties` | No | Properties for every relationship created. |
+| `types` | No | Declared types of named `properties`; see [Declared types](#declared-types). |
 
 Behaviour:
 
@@ -167,6 +200,31 @@ writes every new edge in one atomic commit: all of them, or none.
 - **Statement languages** create relationships with their own syntax, for
   example `CREATE (a)-[:KNOWS]->(b)` in Cypher; see
   [Query languages](../languages/README.md).
+
+## Update relationship properties
+
+`updateRelationshipsById` changes the properties of the existing edges of
+`relationType` from every source to every target, in `direction` (`out` by
+default; `in` swaps the endpoints). `set` writes properties (`null` stores an
+explicit null) and `unset` removes them; one name cannot be in both. `types`
+declares the type of named `set` properties (see
+[Declared types](#declared-types)):
+
+```bash
+rdb '{"protocolVersion":1,"operation":{"kind":"mutate","mutation":{
+  "kind":"updateRelationshipsById",
+  "command":{"relationType":"INFLUENCED","direction":"out",
+    "sourceIds":["019a0000-0000-7000-8000-000000000001"],
+    "targetIds":["019a0000-0000-7000-8000-000000000002"],
+    "set":{"strength":"high","note":null,"since":"1843-10-01"},
+    "types":{"since":"datetime"},"unset":["source"]}}}}'
+```
+
+A pair without such an edge is skipped. An unknown id fails the call before
+anything is written, and all updates are one commit. The response is
+`{"kind": "mutation", "affected": <updated edges>}`. Statement languages
+update edges too (`SET r.strength = 'high'` in Cypher), but select them by
+pattern rather than by record id.
 
 ## Remove relationships
 
@@ -260,7 +318,8 @@ rdb '{"protocolVersion":1,"operation":{"kind":"query","query":{"kind":"relations
         "targetId": "019a0000-0000-7000-8000-000000000002",
         "sourceLabel": "Person",
         "targetLabel": "Person",
-        "properties": { "via": "the Analytical Engine notes" }
+        "properties": { "via": "the Analytical Engine notes", "since": "1843-10-01" },
+        "propertyTypes": { "via": "string", "since": "datetime" }
       }
     ]
   }
@@ -268,6 +327,10 @@ rdb '{"protocolVersion":1,"operation":{"kind":"query","query":{"kind":"relations
 ```
 
 Every id in a row (`id`, `sourceId`, `targetId`) is a dashed UUID.
+`propertyTypes` names the stored type of each property (`string`, `number`,
+`boolean` or `datetime`); a property holding only `null` has no entry. A
+datetime property is returned as an ISO 8601 string: a date at midnight UTC
+as `YYYY-MM-DD`, any other instant as `YYYY-MM-DDTHH:MM:SS.sssZ`.
 
 The relationship `predicate` filters the relationship's own properties with
 every field operator and logical combinator of the record predicate (see

@@ -38,6 +38,21 @@ const IMMEDIATE_APPLY_LIMIT: usize = 64 * APPLY_BATCH;
 /// in-memory store keeps every index open: it holds the index's only copy).
 const MAX_OPEN_INDEXES: usize = 256;
 
+/// How a query string is read.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TextSyntax {
+    /// Plain words: every character is text, and the query's terms are the
+    /// tokens the index's own analysis produces. The default of `query.text`
+    /// and the hybrid text leg, because callers send colons, apostrophes
+    /// and the words `and`/`or`/`not`.
+    #[default]
+    Terms,
+    /// Tantivy's query syntax: `+`, `-`, quotes, parentheses and
+    /// upper-case `AND`/`OR`/`NOT`. A query that does not parse is refused
+    /// as [`TextSearchError::InvalidQuery`].
+    Query,
+}
+
 /// Lexical search options.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LexicalOptions {
@@ -45,6 +60,40 @@ pub struct LexicalOptions {
     pub all_terms: bool,
     /// Match the whole query as a phrase (term adjacency).
     pub phrase: bool,
+    /// How the query string is read.
+    pub syntax: TextSyntax,
+}
+
+/// Why a text search could not run.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum TextSearchError {
+    /// No index of that name.
+    #[error("unknown text index `{0}`")]
+    UnknownIndex(String),
+    /// The name belongs to an index of another kind.
+    #[error("`{0}` is not a text index")]
+    NotATextIndex(String),
+    /// The index exists but is not `ready` yet; the search can be retried.
+    #[error("text index `{index}` is {state}")]
+    NotReady {
+        /// The index name.
+        index: String,
+        /// Its current state.
+        state: String,
+    },
+    /// The query string does not parse under [`TextSyntax::Query`], or
+    /// names a field other than the indexed text.
+    #[error("text query cannot be parsed: {0}")]
+    InvalidQuery(String),
+    /// A storage or index fault; the detail is for the log.
+    #[error("{0}")]
+    Internal(String),
+}
+
+impl From<String> for TextSearchError {
+    fn from(message: String) -> Self {
+        Self::Internal(message)
+    }
 }
 
 /// One BM25-ranked owner with its raw score.
@@ -229,6 +278,16 @@ impl TextIndexes {
         }
         let mut writer: tantivy::IndexWriter = opened.index.writer(15_000_000).map_err(err)?;
         let mut session = rushdb_lmpg::reconstruct::ReconstructSession::new(&snap, tenant);
+        // An index on one property decodes that property alone; `*` needs
+        // every string of the record.
+        let selected: Option<HashSet<String>> = (def.property != TEXT_ALL_PROPERTIES).then(|| {
+            [
+                def.property.clone(),
+                rushdb_types::value::normalize_name(&def.property),
+            ]
+            .into_iter()
+            .collect()
+        });
         for &owner in &owners {
             writer.delete_term(tantivy::Term::from_field_u64(opened.owner_field, owner));
             let covered = def.state.covers(owner)
@@ -238,7 +297,12 @@ impl TextIndexes {
             if !covered {
                 continue;
             }
-            let Some(record) = session.reconstruct_record(owner).map_err(err)? else {
+            let record = match &selected {
+                Some(selected) => session.reconstruct_record_selected(owner, selected),
+                None => session.reconstruct_record(owner),
+            }
+            .map_err(err)?;
+            let Some(record) = record else {
                 continue;
             };
             let text = record_text(&record, &def.property);
@@ -300,15 +364,16 @@ impl TextIndexes {
     /// pending changes (bounded); an `eventual` one reports its backlog.
     ///
     /// # Errors
-    /// Returns an error if the index is unknown, not a ready text index, or
-    /// the query cannot be parsed or executed.
+    /// Returns [`TextSearchError`]: an unknown name, an index of another
+    /// kind, an index not yet ready, a query that does not parse, or an
+    /// index or storage fault.
     pub fn search(
         &self,
         tenant: TenantId,
         view: &ReadView,
         request: TextQuery<'_>,
         candidates: Option<Arc<HashSet<u64>>>,
-    ) -> Result<TextHits, String> {
+    ) -> Result<TextHits, TextSearchError> {
         let TextQuery {
             index: name,
             query,
@@ -318,12 +383,15 @@ impl TextIndexes {
         let lmpg = rushdb_lmpg::Lmpg::new(Arc::clone(&self.store), tenant);
         let def = index::by_name(view, tenant, name)
             .map_err(err)?
-            .ok_or_else(|| format!("unknown text index `{name}`"))?;
+            .ok_or_else(|| TextSearchError::UnknownIndex(name.to_owned()))?;
         let IndexKind::Text { consistency } = def.kind else {
-            return Err(format!("`{name}` is not a text index"));
+            return Err(TextSearchError::NotATextIndex(name.to_owned()));
         };
         if def.state != IndexState::Ready {
-            return Err(format!("text index `{name}` is {}", def.state.label()));
+            return Err(TextSearchError::NotReady {
+                index: name.to_owned(),
+                state: def.state.label().to_owned(),
+            });
         }
         if consistency == TextConsistency::Immediate {
             let mut applied = 0;
@@ -385,6 +453,89 @@ impl TextIndexes {
     }
 }
 
+/// The query `text` denotes under `opts.syntax`.
+fn build_query(
+    opened: &OpenIndex,
+    text: &str,
+    opts: LexicalOptions,
+) -> Result<Box<dyn tantivy::query::Query>, TextSearchError> {
+    use tantivy::query::{
+        BooleanQuery, EmptyQuery, Occur, PhraseQuery, Query, QueryParser, TermQuery,
+    };
+    use tantivy::schema::IndexRecordOption;
+    use tantivy::tokenizer::TokenStream;
+    use tantivy::Term;
+    match opts.syntax {
+        TextSyntax::Query => {
+            let mut parser = QueryParser::for_index(&opened.index, vec![opened.text_field]);
+            if opts.all_terms {
+                parser.set_conjunction_by_default();
+            }
+            let expression = if opts.phrase {
+                format!("\"{}\"", text.replace('"', "\\\""))
+            } else {
+                text.to_string()
+            };
+            let parsed = parser
+                .parse_query(&expression)
+                .map_err(|error| TextSearchError::InvalidQuery(error.to_string()))?;
+            // Only the indexed text is searchable: `owner:` would name the
+            // index's internal id column.
+            let mut foreign = false;
+            parsed.query_terms(&mut |term, _| {
+                if term.field() != opened.text_field {
+                    foreign = true;
+                }
+            });
+            if foreign {
+                return Err(TextSearchError::InvalidQuery(
+                    "only the indexed text can be searched; a `field:` prefix is not accepted"
+                        .into(),
+                ));
+            }
+            Ok(parsed)
+        }
+        TextSyntax::Terms => {
+            // The index's own analysis: what it did to the documents.
+            let mut analyzer = opened
+                .index
+                .tokenizer_for_field(opened.text_field)
+                .map_err(err)?;
+            let mut stream = analyzer.token_stream(text);
+            let mut terms = Vec::new();
+            while stream.advance() {
+                terms.push(Term::from_field_text(
+                    opened.text_field,
+                    &stream.token().text,
+                ));
+            }
+            let occur = if opts.all_terms {
+                Occur::Must
+            } else {
+                Occur::Should
+            };
+            Ok(match (terms.len(), opts.phrase) {
+                (0, _) => Box::new(EmptyQuery),
+                (1, _) => Box::new(TermQuery::new(
+                    terms.remove(0),
+                    IndexRecordOption::WithFreqs,
+                )),
+                (_, true) => Box::new(PhraseQuery::new(terms)),
+                (_, false) => Box::new(BooleanQuery::new(
+                    terms
+                        .into_iter()
+                        .map(|term| {
+                            let query: Box<dyn Query> =
+                                Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs));
+                            (occur, query)
+                        })
+                        .collect(),
+                )),
+            })
+        }
+    }
+}
+
 /// The best `top_k` matches of `query` in `opened` (all of them for
 /// [`ALL_HITS`]) among `candidates`, and how many matched.
 fn ranked(
@@ -393,25 +544,15 @@ fn ranked(
     opts: LexicalOptions,
     top_k: usize,
     candidates: Option<Arc<HashSet<u64>>>,
-) -> Result<(Vec<ScoredDoc>, usize), String> {
+) -> Result<(Vec<ScoredDoc>, usize), TextSearchError> {
     use tantivy::collector::{Count, FilterCollector, TopDocs};
-    use tantivy::query::QueryParser;
     use tantivy::schema::{TantivyDocument, Value as _};
     let searcher = opened.reader.searcher();
-    let mut parser = QueryParser::for_index(&opened.index, vec![opened.text_field]);
-    if opts.all_terms {
-        parser.set_conjunction_by_default();
-    }
-    let expression = if opts.phrase {
-        format!("\"{}\"", query.replace('"', "\\\""))
-    } else {
-        query.to_string()
-    };
-    let parsed = parser.parse_query(&expression).map_err(err)?;
+    let parsed = build_query(opened, query, opts)?;
     let accepts = move |owner: u64| candidates.as_ref().is_none_or(|c| c.contains(&owner));
     let matches = searcher
         .search(
-            &parsed,
+            &*parsed,
             &FilterCollector::new("owner".to_string(), accepts.clone(), Count),
         )
         .map_err(err)?;
@@ -422,7 +563,7 @@ fn ranked(
     } else {
         searcher
             .search(
-                &parsed,
+                &*parsed,
                 &FilterCollector::new(
                     "owner".to_string(),
                     accepts,

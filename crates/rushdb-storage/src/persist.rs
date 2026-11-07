@@ -70,6 +70,12 @@ impl Store {
             })
             .collect();
         self.observe_phase(CommitPhase::WalEncode, encode_started);
+        let appended: u64 = encoded
+            .iter()
+            .map(|(_, framed)| u64::try_from(framed.len()).unwrap_or(u64::MAX))
+            .sum();
+        self.wal_bytes_appended
+            .fetch_add(appended, std::sync::atomic::Ordering::Relaxed);
         let sync_started = std::time::Instant::now();
         let mut guard = self.health.guard(self.log.lock())?;
         if let Some(log) = guard.as_mut() {
@@ -133,6 +139,13 @@ impl Store {
             self.append_log(&records)?;
         }
         let apply_started = std::time::Instant::now();
+        let op_bytes: u64 = pairs
+            .iter()
+            .flat_map(|(_, ops)| ops.iter())
+            .map(|op| u64::try_from(op.encoded_len()).unwrap_or(u64::MAX))
+            .sum();
+        self.applied_bytes
+            .fetch_add(op_bytes, std::sync::atomic::Ordering::Relaxed);
         let applied = self.apply_sharded(pairs, batch);
         self.observe_phase(CommitPhase::BackendApply, apply_started);
         applied

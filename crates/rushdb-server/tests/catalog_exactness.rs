@@ -40,7 +40,10 @@ fn node(query_memory_max: usize) -> NodeEnvelopeHandler {
         max_concurrent_requests_per_tenant: 0,
         explicit_flags: std::collections::BTreeSet::new(),
     };
-    NodeEnvelopeHandler::new(Arc::new(Node::bootstrap(&mut cfg).expect("bootstrap")))
+    {
+        let node = Arc::new(Node::bootstrap(&mut cfg).expect("bootstrap"));
+        NodeEnvelopeHandler::new(node, &cfg)
+    }
 }
 
 fn call(handler: &NodeEnvelopeHandler, operation: &Value) -> Value {

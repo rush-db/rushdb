@@ -588,17 +588,24 @@ impl TxCoordinator {
                 owner_ord,
                 owner_public_id,
                 fields,
-            } => {
-                debug_assert_eq!(owner, rushdb_types::ids::OwnerKind::Record);
-                lmpg.update_fields_tx(
+            } => match owner {
+                rushdb_types::ids::OwnerKind::Record => lmpg.update_fields_tx(
                     rushdb_lmpg::RecordRef {
                         record_id: owner_public_id,
                         ordinal: owner_ord,
                     },
                     fields,
                     Some(acc),
-                )?;
-            }
+                )?,
+                rushdb_types::ids::OwnerKind::Relationship => lmpg.update_relationship_fields_tx(
+                    rushdb_lmpg::RelationshipRef {
+                        relationship_id: owner_public_id,
+                        ordinal: owner_ord,
+                    },
+                    fields,
+                    Some(acc),
+                )?,
+            },
             B::RetypeRecord {
                 record,
                 from_label,

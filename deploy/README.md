@@ -25,8 +25,9 @@ are published from the first 3.x release.
 - **Set a token.** Every client presents it. Generate one with
   `openssl rand -hex 32`; the server refuses the default token anywhere but
   loopback.
-- **Only HTTP has TLS.** The PostgreSQL wire, gRPC and Bolt listeners are
-  plaintext. The templates keep them on `127.0.0.1` or a private network.
+- **Every listener has TLS** (one certificate, `--tls-cert` and
+  `--tls-key`). Without it the PostgreSQL wire, gRPC and Bolt listeners are
+  plaintext, and the templates keep them on `127.0.0.1` or a private network.
 - **Settings live in the data directory.** The first start writes
   `config.yml` there; later, a flag that disagrees with it is a startup error.
 - **One node per data directory.** For read replicas, see

@@ -69,6 +69,7 @@ pub(crate) fn http_status(code: rushdb_protocol::ErrorCode) -> u16 {
         rushdb_protocol::ErrorCode::ExecutionFailed
         | rushdb_protocol::ErrorCode::LanguageDisabled
         | rushdb_protocol::ErrorCode::Unsupported => 422,
+        rushdb_protocol::ErrorCode::PayloadTooLarge => 413,
     }
 }
 
@@ -93,6 +94,8 @@ mod tests {
             (rushdb_protocol::ErrorCode::ExecutionFailed, 422),
             (rushdb_protocol::ErrorCode::LanguageDisabled, 422),
             (rushdb_protocol::ErrorCode::Unsupported, 422),
+            (rushdb_protocol::ErrorCode::WriteConflict, 409),
+            (rushdb_protocol::ErrorCode::PayloadTooLarge, 413),
         ];
         for (code, status) in expected {
             assert_eq!(http_status(code), status, "{code:?}");

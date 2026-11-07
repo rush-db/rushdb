@@ -988,6 +988,7 @@ fn enforced_policy_scopes_the_catalog_and_sql() {
                 source_ids: vec![source.clone()],
                 target_ids: vec![target.clone()],
                 properties: json!({}),
+                types: std::collections::BTreeMap::new(),
             })
             .unwrap();
     }
@@ -1168,6 +1169,7 @@ fn enforced_policy_withholds_small_counts() {
             source_ids: vec![ids[0].clone()],
             target_ids: vec![ids[1].clone()],
             properties: json!({}),
+            types: std::collections::BTreeMap::new(),
         })
         .unwrap();
     let Response::Policy { .. } = run(

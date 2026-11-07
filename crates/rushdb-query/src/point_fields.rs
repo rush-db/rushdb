@@ -87,7 +87,7 @@ impl PointFields {
 
 /// Collect the property names `expr` reads into `out`; `false` when it needs
 /// the whole record (`$id`, traversals).
-fn predicate_fields(expr: &Expr, out: &mut std::collections::BTreeSet<String>) -> bool {
+pub(super) fn predicate_fields(expr: &Expr, out: &mut std::collections::BTreeSet<String>) -> bool {
     match expr {
         Expr::And(items) | Expr::Or(items) | Expr::Nor(items) => {
             items.iter().all(|item| predicate_fields(item, out))
@@ -148,4 +148,34 @@ fn scalar_pids<R: TryRead>(
     }
     pids.sort_unstable();
     Ok(Some(pids))
+}
+
+/// The properties a collect with a `fields` projection reads of each child:
+/// the projected sources, the ordering fields and the filter's fields, by
+/// either spelling. `None` (whole child) without `fields`, or when the
+/// filter needs the whole record (`$id`, a traversal).
+pub(super) fn collect_selection(
+    spec: &crate::CollectSpec,
+) -> Option<std::collections::HashSet<String>> {
+    if spec.fields.is_empty() {
+        return None;
+    }
+    let mut names = std::collections::BTreeSet::new();
+    if let Some(filter) = &spec.filter {
+        if !predicate_fields(filter, &mut names) {
+            return None;
+        }
+    }
+    for (_, source) in &spec.fields {
+        names.insert(source.strip_prefix("$record.").unwrap_or(source).to_owned());
+    }
+    for (field, _) in &spec.order_by {
+        names.insert(field.clone());
+    }
+    Some(
+        names
+            .into_iter()
+            .flat_map(|name| [normalize(&name), name])
+            .collect(),
+    )
 }

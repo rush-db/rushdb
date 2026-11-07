@@ -10,8 +10,8 @@ RushDB has two kinds of credentials.
 
 | Credential | Set with | Accepted on | Grants |
 |---|---|---|---|
-| **Boot token** | `--token` / `RUSHDB_TOKEN` (default `local-token`) | HTTP, pgwire (as the password), gRPC, Bolt, replication endpoints | Full access to every tenant. |
-| **Capability token** | issued by your application, verified with `--capability-secret` | HTTP only | The listed permissions, optionally bound to one tenant, until it expires. |
+| **Boot token** | `--token` / `RUSHDB_TOKEN` (default `local-token`) | HTTP, pgwire (as the password), gRPC (bearer), Bolt (`HELLO` credentials), replication endpoints | Full access to every tenant. |
+| **Capability token** | issued by your application, verified with `--capability-secret` | HTTP; pgwire as the password (`database` names the tenant); gRPC as the bearer token (`x-rushdb-tenant`); Bolt as the `HELLO` credentials (`db`). Over TLS on the network listeners. | The listed permissions, optionally bound to one tenant, until it expires. |
 
 > **Warning:** The default boot token is `local-token`. Always set your own
 > long random token for anything beyond a local experiment:
@@ -66,9 +66,16 @@ Which permission an operation needs:
 | `read` | `query`, `describe`, `backup`, and `GET /metrics` |
 | `write` | `mutate`, `ingest`, `index`, `transaction`, `purgeTenant` |
 
-A failed check returns HTTP 401. Rotating `--capability-secret` invalidates
-every outstanding capability. Capabilities are HTTP-only; pgwire, gRPC, and
-Bolt accept only the boot token.
+A failed check returns HTTP 401, SQLSTATE `42501` on pgwire,
+`PERMISSION_DENIED` on gRPC and `Neo.ClientError.Security.Forbidden` on
+Bolt. Rotating `--capability-secret` invalidates every outstanding
+capability. Every transport applies the same rule: the boot token is the
+operator; a capability must be bound to exactly the requested tenant
+(`X-RushDB-Tenant`, `database`, `x-rushdb-tenant`, `db`) on a multitenant
+server and unbound on a single-tenant one. gRPC checks it per call. pgwire
+and Bolt check it at login, and a session that logged in before the secret
+rotated or the token expired stays open until it disconnects, as a
+PostgreSQL session outlives a password change.
 
 ## Tenant isolation
 
@@ -85,21 +92,22 @@ A missing scope is refused, never defaulted. Each tenant is a separate
 keyspace; no tenant identifier is stored on records. The mode is fixed when
 the data directory is created. See [Tenants](../data-model/tenants.md).
 
-Because pgwire, gRPC, and Bolt authenticate only with the boot token, any
-holder of that token can select any tenant on them. RushDB therefore
-refuses to start them on a non-loopback multitenant listener (see below).
-For tenant-facing traffic, expose HTTP with tenant-bound capabilities, or
-put a trusted proxy in front that enforces tenant identity.
+The boot token is not bound to a tenant: whoever holds it can select any
+tenant on any transport. A capability is, and every transport authenticates
+them, so a multitenant pgwire, gRPC or Bolt listener may face the network
+with TLS and `--capability-secret` (see below). For tenant-facing traffic,
+expose the TLS listeners with capabilities, or put a trusted proxy in front
+that enforces tenant identity.
 
 ## Network exposure
 
 All listeners bind `--listen` (default `127.0.0.1`). The startup guard:
 
-| Listen address | HTTP | pgwire / gRPC / Bolt (any non-zero port) |
+| Listen address | HTTP | pgwire (`sql` enabled), gRPC, Bolt (`cypher` enabled) |
 |---|---|---|
 | Loopback (`127.x.x.x`, `::1`, `localhost`) | allowed | allowed |
-| Non-loopback, single-tenant | requires TLS **or** `--allow-insecure-listen` | requires `--allow-insecure-listen` |
-| Non-loopback, multitenant | requires TLS **or** `--allow-insecure-listen` | **refused**, even with `--allow-insecure-listen` |
+| Non-loopback, single-tenant | requires TLS **or** `--allow-insecure-listen` | requires TLS **or** `--allow-insecure-listen` |
+| Non-loopback, multitenant | requires TLS **or** `--allow-insecure-listen` | requires TLS **and** `--capability-secret` |
 
 The check counts only listeners that will actually start, on the effective
 configuration (after `config.yml`): pgwire when `sql` is enabled, Bolt when
@@ -109,22 +117,32 @@ non-loopback address without the insecure flag, keep those listeners off
 
 ## TLS
 
-Only the HTTP listener supports TLS:
+Every listener shares one certificate:
 
 ```bash
 rushdb serve --data-dir /var/lib/rushdb --listen 0.0.0.0 \
   --tls-cert /etc/rushdb/tls/fullchain.pem \
-  --tls-key /etc/rushdb/tls/privkey.pem \
-  --pgwire-port 0
+  --tls-key /etc/rushdb/tls/privkey.pem
 ```
 
 - `--tls-cert` is a PEM certificate chain; `--tls-key` a PEM private key in
   PKCS#8 form. Both must be set, or startup fails.
 - The files are read at startup; restart to rotate certificates.
-- PostgreSQL wire, gRPC, and Bolt are cleartext. The PostgreSQL listener
-  declines TLS negotiation, so clients must use `sslmode=disable` or
-  `sslmode=prefer`. To encrypt those protocols across hosts, tunnel them
-  (for example a TLS-terminating proxy or an SSH or WireGuard tunnel).
+- The PostgreSQL listener accepts both the classic `SSLRequest` negotiation
+  and PostgreSQL 17's direct TLS (`sslnegotiation=direct`). Once TLS is
+  configured it speaks only TLS: a plaintext session is refused with
+  SQLSTATE `28000` before any password is sent. Clients use
+  `sslmode=verify-full` with the CA that signed the certificate. A load
+  balancer in front must pass TCP through (it cannot terminate TLS for
+  pgwire: the `SSLRequest` is part of the PostgreSQL protocol).
+- gRPC serves HTTP/2 over TLS (an `https://` channel); once TLS is
+  configured the listener speaks only TLS.
+- Bolt serves direct TLS, as `bolt+s://` and `neo4j+s://` drivers expect:
+  the TLS handshake comes first, then the Bolt magic. A plaintext handshake
+  against a TLS listener is refused. `--bolt-advertised-address` is the
+  `host:port` a `ROUTE` answer names, for drivers behind a load balancer.
+- A load balancer in front of pgwire, gRPC or Bolt must pass TCP through:
+  TLS ends at RushDB, which is what lets the multitenant rule above hold.
 
 ## Data-access policies
 

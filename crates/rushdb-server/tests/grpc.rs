@@ -12,6 +12,53 @@ use tonic::{transport::Channel, Request};
 use rushdb_grpc::{BytesEnvelope, GrpcServer};
 
 fn boot(token: &str, languages: LanguageSet) -> u16 {
+    boot_with(token, languages, false, None, None)
+}
+
+/// A self-signed certificate and its key as PEM files (alive as long as the
+/// returned directory handle), and the certificate's PEM for the client's
+/// trust store.
+fn self_signed_pem() -> (
+    (std::path::PathBuf, std::path::PathBuf),
+    Vec<u8>,
+    rushdb_storage::TempPath,
+) {
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    let dir = rushdb_storage::TempPath::dir("grpc-tls");
+    std::fs::create_dir_all(&dir).unwrap();
+    let cert_path = dir.join("cert.pem");
+    let key_path = dir.join("key.pem");
+    let cert_pem = cert.cert.pem();
+    std::fs::write(&cert_path, &cert_pem).unwrap();
+    std::fs::write(&key_path, cert.key_pair.serialize_pem()).unwrap();
+    ((cert_path, key_path), cert_pem.into_bytes(), dir)
+}
+
+/// A TLS gateway: `(port, certificate PEM, the PEM files' directory)`.
+fn boot_tls(
+    token: &str,
+    multitenant: bool,
+    capability_secret: Option<&[u8]>,
+) -> (u16, Vec<u8>, rushdb_storage::TempPath) {
+    let (tls, cert_pem, dir) = self_signed_pem();
+    let port = boot_with(
+        token,
+        LanguageSet::default(),
+        multitenant,
+        capability_secret,
+        Some(tls),
+    );
+    (port, cert_pem, dir)
+}
+
+fn boot_with(
+    token: &str,
+    languages: LanguageSet,
+    multitenant: bool,
+    capability_secret: Option<&[u8]>,
+    tls: Option<(std::path::PathBuf, std::path::PathBuf)>,
+) -> u16 {
+    let (tls_cert, tls_key) = tls.map_or((None, None), |(cert, key)| (Some(cert), Some(key)));
     let mut cfg = ServerConfig {
         port: 0,
         pgwire_port: 0,
@@ -19,16 +66,16 @@ fn boot(token: &str, languages: LanguageSet) -> u16 {
         bolt_port: 0,
         token: token.to_string(),
         data_dir: None,
-        multitenant: false,
-        capability_secret: None,
+        multitenant,
+        capability_secret: capability_secret.map(<[u8]>::to_vec),
         raft: None,
         resources: rushdb_server::resource_config::ResourceConfig::default(),
         transactions: rushdb_server::resource_config::TransactionConfig::default(),
         languages,
         max_request_bytes: 64 * 1024 * 1024,
         listen_addr: "127.0.0.1".into(),
-        tls_cert: None,
-        tls_key: None,
+        tls_cert,
+        tls_key,
         maintenance: false,
         allow_insecure_listen: false,
         require_index_warmup: false,
@@ -37,10 +84,17 @@ fn boot(token: &str, languages: LanguageSet) -> u16 {
         explicit_flags: std::collections::BTreeSet::new(),
     };
     let node = Arc::new(Node::bootstrap(&mut cfg).expect("bootstrap"));
-    let handler: Arc<dyn rushdb_grpc::EnvelopeHandler> = Arc::new(NodeEnvelopeHandler::new(node));
+    let handler: Arc<dyn rushdb_grpc::EnvelopeHandler> =
+        Arc::new(NodeEnvelopeHandler::new(node, &cfg));
+    let tls = match (&cfg.tls_cert, &cfg.tls_key) {
+        (Some(cert), Some(key)) => Some(rushdb_grpc::GrpcTls {
+            cert_pem: std::fs::read(cert).unwrap(),
+            key_pem: std::fs::read(key).unwrap(),
+        }),
+        _ => None,
+    };
     let (mut server, port) =
-        GrpcServer::bind(handler, token.to_string(), "127.0.0.1", 0, 64 * 1024 * 1024)
-            .expect("grpc bind");
+        GrpcServer::bind(handler, "127.0.0.1", 0, 64 * 1024 * 1024, tls).expect("grpc bind");
     std::thread::spawn(move || server.serve_forever());
     port
 }
@@ -54,11 +108,43 @@ async fn connect(port: u16, _token: &str) -> tonic::client::Grpc<Channel> {
     tonic::client::Grpc::new(channel)
 }
 
+/// A TLS channel trusting `cert_pem` for `localhost`.
+async fn connect_tls(port: u16, cert_pem: &[u8]) -> tonic::client::Grpc<Channel> {
+    // The test binary links two rustls providers; tonic's client builder
+    // needs the process default to be one of them.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let tls = tonic::transport::ClientTlsConfig::new()
+        .ca_certificate(tonic::transport::Certificate::from_pem(cert_pem))
+        .domain_name("localhost");
+    let channel = Channel::from_shared(format!("https://localhost:{port}"))
+        .expect("channel uri")
+        .tls_config(tls)
+        .expect("tls config")
+        .connect()
+        .await
+        .expect("connect over TLS");
+    tonic::client::Grpc::new(channel)
+}
+
 async fn execute(
     grpc: &mut tonic::client::Grpc<Channel>,
     token: &str,
     envelope: serde_json::Value,
 ) -> Result<BytesEnvelope, tonic::Status> {
+    execute_scoped(grpc, token, None, envelope).await
+}
+
+/// One call with `x-rushdb-tenant` and the envelope's `context.scope` set
+/// to `tenant` when given.
+async fn execute_scoped(
+    grpc: &mut tonic::client::Grpc<Channel>,
+    token: &str,
+    tenant: Option<&str>,
+    mut envelope: serde_json::Value,
+) -> Result<BytesEnvelope, tonic::Status> {
+    if let Some(tenant) = tenant {
+        envelope["context"]["scope"] = serde_json::json!(tenant);
+    }
     let mut req = Request::new(BytesEnvelope {
         json: serde_json::to_vec(&envelope).expect("serialize envelope"),
     });
@@ -66,6 +152,10 @@ async fn execute(
         "authorization",
         format!("Bearer {token}").parse().expect("token metadata"),
     );
+    if let Some(tenant) = tenant {
+        req.metadata_mut()
+            .insert("x-rushdb-tenant", tenant.parse().expect("tenant metadata"));
+    }
     let codec = ProstCodec::<BytesEnvelope, BytesEnvelope>::default();
     grpc.ready()
         .await
@@ -276,4 +366,126 @@ async fn grpc_tenant_metadata_is_refused_on_a_single_tenant_server() {
     let err = grpc.unary(req, path, codec).await.unwrap_err();
     assert_eq!(err.code(), tonic::Code::Unauthenticated, "{err:?}");
     assert!(err.message().contains("single-tenant"), "{err:?}");
+}
+
+#[tokio::test]
+async fn grpc_tls_channel_works_and_plaintext_is_refused() {
+    let (port, cert_pem, _dir) = boot_tls("grpc-token", false, None);
+    let mut grpc = connect_tls(port, &cert_pem).await;
+    let resp = execute(&mut grpc, "grpc-token", query_envelope("Artist"))
+        .await
+        .expect("query over TLS");
+    let value: serde_json::Value = serde_json::from_slice(&resp.json).unwrap();
+    assert_eq!(value["response"]["kind"], "records", "{value}");
+    // A plaintext channel to a TLS listener never completes a call.
+    let channel = Channel::from_shared(format!("http://127.0.0.1:{port}"))
+        .unwrap()
+        .connect_lazy();
+    let mut plain = tonic::client::Grpc::new(channel);
+    assert!(execute(&mut plain, "grpc-token", query_envelope("Artist"))
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn grpc_capabilities_are_tenant_bound_bearer_tokens() {
+    let secret = b"grpc-capability-secret-0123456789";
+    let (port, cert_pem, _dir) = boot_tls("grpc-token", true, Some(secret));
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let issue = |scope: &str, tenant: &str| {
+        rushdb_server::capability::issue_for_tenant(secret, "svc", scope, Some(tenant), 60, now)
+    };
+    let mut grpc = connect_tls(port, &cert_pem).await;
+    // The boot token seeds both tenants.
+    for tenant in ["tenant-a", "tenant-b"] {
+        execute_scoped(
+            &mut grpc,
+            "grpc-token",
+            Some(tenant),
+            put_envelope("Artist", &format!("{tenant}-1")),
+        )
+        .await
+        .unwrap();
+    }
+    // A read capability reads its own tenant ...
+    let reader = issue("read", "tenant-a");
+    let resp = execute_scoped(
+        &mut grpc,
+        &reader,
+        Some("tenant-a"),
+        query_envelope("Artist"),
+    )
+    .await
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&resp.json).unwrap();
+    assert_eq!(value["response"]["total"], 1, "{value}");
+    // ... not another, and nothing it was not granted.
+    let err = execute_scoped(
+        &mut grpc,
+        &reader,
+        Some("tenant-b"),
+        query_envelope("Artist"),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(err.code(), tonic::Code::Unauthenticated, "{err}");
+    let err = execute_scoped(
+        &mut grpc,
+        &reader,
+        Some("tenant-a"),
+        put_envelope("Artist", "tenant-a-2"),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(err.code(), tonic::Code::PermissionDenied, "{err}");
+    // Expired and tampered tokens are refused.
+    let expired = rushdb_server::capability::issue_for_tenant(
+        secret,
+        "svc",
+        "read",
+        Some("tenant-a"),
+        1,
+        now - 100,
+    );
+    let err = execute_scoped(
+        &mut grpc,
+        &expired,
+        Some("tenant-a"),
+        query_envelope("Artist"),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(err.code(), tonic::Code::Unauthenticated, "{err}");
+    let err = execute_scoped(
+        &mut grpc,
+        &format!("{reader}x"),
+        Some("tenant-a"),
+        query_envelope("Artist"),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(err.code(), tonic::Code::Unauthenticated, "{err}");
+    // A write capability writes.
+    let writer = issue("read write", "tenant-a");
+    execute_scoped(
+        &mut grpc,
+        &writer,
+        Some("tenant-a"),
+        put_envelope("Artist", "tenant-a-2"),
+    )
+    .await
+    .unwrap();
+    let resp = execute_scoped(
+        &mut grpc,
+        &writer,
+        Some("tenant-a"),
+        query_envelope("Artist"),
+    )
+    .await
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&resp.json).unwrap();
+    assert_eq!(value["response"]["total"], 2, "{value}");
 }

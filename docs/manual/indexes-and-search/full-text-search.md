@@ -115,10 +115,11 @@ retention, and an index with nothing queued never commits.
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `index` | string | yes | — | Text index name. |
-| `query` | string | yes | — | Query string (syntax below). An empty or blank query returns no hits. |
+| `query` | string | yes | — | The text to search for, as words: every character is text (see [Query syntax](#query-syntax) for the opt-in operator syntax). An empty or blank query returns no hits. |
 | `limit` | integer | no | 10 | Maximum hits. `0` returns no hits. |
-| `allTerms` | boolean | no | `false` | Unmarked terms must all match (AND) instead of any (OR); explicit `OR`, `+` and `-` still apply. |
-| `phrase` | boolean | no | `false` | Match the whole query as one phrase: the terms adjacent and in order. The [query syntax](#query-syntax) is not interpreted. |
+| `allTerms` | boolean | no | `false` | Every term must match (AND) instead of any (OR). Under `syntax: "query"`, explicit `OR`, `+` and `-` still apply. |
+| `phrase` | boolean | no | `false` | Match the whole query as one phrase: the terms adjacent and in order. |
+| `syntax` | string | no | `"terms"` | `"terms"`: the query is words. `"query"`: the [query syntax](#query-syntax) below. |
 
 ```bash
 curl -s http://127.0.0.1:3000/protocol/v1/execute \
@@ -209,6 +210,13 @@ The query string goes through the same analysis.
 
 ### Query syntax
 
+By default (`syntax: "terms"`) the query is plain words: it goes through the
+same analysis as the documents, and every character is text, so
+`chemokines: role`, `virus' genome` and `AND OR NOT` are searched as the
+words they contain. `syntax: "query"` opts into the operator syntax below.
+SQL's `text_search`, Cypher's and GQL's `text_match`/`text_score` and Mongo's
+`$text` always read the operator syntax.
+
 | Syntax | Meaning | Example |
 |---|---|---|
 | `a b` | Any term may match (OR); records matching more terms rank higher. | `quick fox` |
@@ -218,9 +226,12 @@ The query string goes through the same analysis.
 | `a AND b`, `a OR b`, `NOT a` | Boolean operators (upper case). | `graph AND NOT sql` |
 | `( … )` | Grouping. | `(graph OR network) AND storage` |
 
-Characters such as `:`, `^`, `*`, `[`, `]`, `{`, `}`, `!` and `\` have
-special meaning in the parser; wrap terms containing them in double quotes.
-A query that cannot be parsed fails with `execution_failed`.
+Under `syntax: "query"`, characters such as `:`, `^`, `*`, `[`, `]`, `{`,
+`}`, `!` and `\` have special meaning; wrap terms containing them in double
+quotes. A query that cannot be parsed, or that names a field (`owner:`),
+fails with `invalid_request` and the parser's message. Whatever the syntax,
+an unknown index is `not_found`, a name of another index kind is
+`invalid_request`, and an index still building is `unavailable` (retryable).
 
 ### Scoring
 

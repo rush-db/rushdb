@@ -856,7 +856,7 @@ fn property_id<R: TryRead>(
 }
 
 /// Every logical type state a property family may have definitions for.
-fn all_type_states() -> Vec<TypeState> {
+pub(super) fn all_type_states() -> Vec<TypeState> {
     let mut states = vec![TypeState::Unresolved];
     states.extend(
         [

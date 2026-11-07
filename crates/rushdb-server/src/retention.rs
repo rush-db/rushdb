@@ -306,6 +306,10 @@ pub struct MaintenanceConfig {
     /// Compact only when the file has grown by at least this percent since the
     /// last compaction (`RUSHDB_COMPACT_GROWTH_PERCENT`, default 150).
     pub compact_growth_percent: u32,
+    /// Largest store file automatic compaction rewrites
+    /// (`RUSHDB_COMPACT_MAX_FILE_BYTES`, default 1 GiB; none = no cap). A
+    /// larger file is compacted offline.
+    pub compact_max_file_bytes: Option<u64>,
     /// RSS watchdog threshold in bytes (`RUSHDB_RSS_MAX_BYTES`; none =
     /// disabled). Policy, not a hard allocation cap.
     pub rss_max_bytes: Option<u64>,
@@ -345,6 +349,7 @@ impl Default for MaintenanceConfig {
             compact_interval: Some(std::time::Duration::from_secs(300)),
             compact_quiesce: std::time::Duration::from_secs(10),
             compact_growth_percent: 150,
+            compact_max_file_bytes: Some(1024 * 1024 * 1024),
             rss_max_bytes: None,
             wal_archive_dir: None,
             wal_archive_retention: std::time::Duration::from_hours(7 * 24),

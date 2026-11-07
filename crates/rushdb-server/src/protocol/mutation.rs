@@ -482,6 +482,14 @@ impl ProtocolExecutor<'_> {
                     .map_err(execution_failed)?;
                 Ok(Response::mutation(response_u64(&result, "deleted")?))
             }
+            Mutation::UpdateRelationshipsById { command } => {
+                scalar_properties(&command.set)?;
+                let result = self
+                    .node
+                    .update_relationships_by_id_with_execution_context(execution_context, &command)
+                    .map_err(execution_failed)?;
+                Ok(Response::mutation(response_u64(&result, "updated")?))
+            }
             Mutation::RetypeRelations { command } => {
                 let result = self
                     .node

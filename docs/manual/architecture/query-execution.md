@@ -219,8 +219,8 @@ They therefore use the same planner and indexes. See
 
 | Bound | Default | Applies to |
 |---|---|---|
-| Request working budget | Request body limit, 16 MiB | Native query working sets, DataFusion's memory pool, graph-language output, response size. |
-| `query-memory-max` | 256 MiB | Working set of structured queries and aggregations when no request budget applies; aggregations use the smaller of the two. Also caps DataFusion's memory pool and the values an unindexed upsert key holds. A request may set a smaller cap (`context.queryMemoryMaxBytes`). |
+| Request working budget | Request body limit, 16 MiB | DataFusion's memory pool, graph-language output, response size (the page a records search or aggregate returns). |
+| `query-memory-max` | 256 MiB | Working set of structured queries and aggregations: match ordinals, the row being evaluated, groups. Also caps DataFusion's memory pool and the values an unindexed upsert key holds. A request may set a smaller cap (`context.queryMemoryMaxBytes`). |
 | `unindexed-walk-max-owners` | 0 (none) | Records a filter without a usable index may check; above it the query is refused at planning. A request may set a limit (`context.unindexedWalkMaxOwners`). |
 | Query-phase reservation | 8 MiB per request, from a pool the size of `managed-limit` | Concurrency of executing requests. |
 | Planner materialization cap | 2 million owners | Above it the planner scans instead of building an owner set. |

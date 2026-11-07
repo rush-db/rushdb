@@ -138,10 +138,10 @@ does not shrink.
 ## Per-request budgets
 
 Inside the executor, each request carries a working byte budget equal to
-the body limit. Native queries, aggregations, DataFusion's memory pool, and
-graph-language results are charged against it, and `query-memory-max`
-(default 256 MiB) bounds structured-query and aggregation working sets
-where no request budget applies (aggregations take the smaller of the two).
+the body limit. DataFusion's memory pool, graph-language results and the page a
+native query or aggregate returns are charged against it; `query-memory-max`
+(default 256 MiB) bounds structured-query and aggregation working sets:
+match ordinals, the row being evaluated and the groups. The two never mix.
 See [query execution](query-execution.md#budgets-deadlines-and-cancellation).
 
 ## Request bounds

@@ -1,8 +1,8 @@
 //! Multi-step writes commit once (all or nothing): `putRecord` replace,
-//! query/ID link and unlink, `retypeRelations` and Mongo `*Many`. Each test
-//! caps `max-expanded-commit-bytes` between one item's commit and the whole
-//! operation's, so the operation is refused partway through its items and
-//! must leave nothing applied.
+//! query/ID link and unlink, by-ID relationship updates, `retypeRelations`
+//! and Mongo `*Many`. Each test caps `max-expanded-commit-bytes` between one
+//! item's commit and the whole operation's, so the operation is refused
+//! partway through its items and must leave nothing applied.
 
 use super::*;
 use crate::resource_config::ByteSize;
@@ -136,6 +136,7 @@ fn link_one_by_one(node: &Node, sources: &[String], target: &str) {
                     source_ids: vec![source.clone()],
                     target_ids: vec![target.to_owned()],
                     properties: serde_json::json!({}),
+                    types: std::collections::BTreeMap::new(),
                 },
             },
         )
@@ -319,4 +320,41 @@ fn mongo_update_and_delete_many_over_the_cap_change_nothing() {
         &serde_json::json!({"deleteMany": {"collection": "M", "filter": {}}}),
     ));
     assert_eq!(label_count(&node, "M"), ITEMS, "no document was deleted");
+}
+
+#[test]
+fn update_by_id_over_the_cap_changes_nothing() {
+    let update = |sources: &[String], target: &str| Mutation::UpdateRelationshipsById {
+        command: rushdb_protocol::UpdateRelationshipsMutation {
+            relation_type: "HAS".into(),
+            direction: Direction::Out,
+            source_ids: sources.to_vec(),
+            target_ids: vec![target.to_owned()],
+            set: serde_json::json!({"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}),
+            unset: Vec::new(),
+            types: std::collections::BTreeMap::new(),
+        },
+    };
+    let node = capped_node(DELETE_CAP);
+    let (sources, target) = link_fixture(&node);
+    link_one_by_one(&node, &sources, &target);
+    let before = node.store().committed_version();
+    assert_refused_whole(mutate(&node, update(&sources, &target)));
+    assert_eq!(
+        node.store().committed_version(),
+        before,
+        "nothing committed"
+    );
+
+    // Uncapped: every relationship updated in one commit.
+    let node = Node::bootstrap(&mut super::tests::config(false)).unwrap();
+    let (sources, target) = link_fixture(&node);
+    link_one_by_one(&node, &sources, &target);
+    let before = node.store().committed_version();
+    let Response::Mutation { affected, .. } = mutate(&node, update(&sources, &target)).unwrap()
+    else {
+        panic!("expected a mutation response")
+    };
+    assert_eq!(affected, ITEMS as u64);
+    assert_eq!(node.store().committed_version(), before + 1, "one commit");
 }

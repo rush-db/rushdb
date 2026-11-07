@@ -55,7 +55,7 @@ commit and scan costs creep up with file size.
 ### Automatic idle compaction
 
 On by default. Every `compact-interval-seconds` (300 s) the server checks
-three gates, and compacts only if all pass:
+four gates, and compacts only if all pass:
 
 1. **Quiet:** no commit in the last `compact-quiesce-seconds` (10 s).
 2. **Interval:** at least one interval since the previous check (the check
@@ -64,6 +64,18 @@ three gates, and compacts only if all pass:
    (150%) of its size after the previous compaction, **or** at least 10,000
    keys were purged since then (a tenant purge frees space without growing
    the file). The first check after startup counts as "worth it".
+4. **Small enough:** the file is at most `compact-max-file-bytes` (1 GiB).
+   A compaction holds the database while it copies the file, so every
+   request waits for it: about 90 s per GB on a small container, and far
+   longer when the file does not fit the page cache. A larger file is left
+   to [offline compaction](#offline-compaction), and the skip is logged at
+   `info` (`automatic compaction skipped`) on every check that would
+   otherwise have run.
+
+While a compaction runs, `/ready` answers 503 with
+`"reason": "storage compaction holds the database"` so an orchestrator stops
+routing traffic to the node; `/health` stays a liveness probe. The start is
+logged (`storage compaction started`, with `file_bytes`).
 
 If a reader holds the store, the server retries for up to 2 s, then defers
 to the next interval. Outcomes are logged: `storage compaction complete`
@@ -74,6 +86,7 @@ with `before_bytes` and `after_bytes` (info), or `compaction deferred`.
 | `compact-interval-seconds` | 300 | Check period and minimum spacing; `0` disables automatic compaction. |
 | `compact-quiesce-seconds` | 10 | Quiet time required after the last commit. |
 | `compact-growth-percent` | 150 | File growth needed to trigger. |
+| `compact-max-file-bytes` | 1 GiB | Largest file automatic compaction rewrites; `0` = no cap. |
 
 Because of the quiet gate, compaction does not run during sustained write
 load. In measurements, gated compaction at a 1 s interval left ingest speed
@@ -164,7 +177,17 @@ to disable the guard (not recommended).
 ## Guidance
 
 - **Bulk loads:** leave compaction on; the quiet gate keeps it out of the
-  way. Larger batches reduce churn per record.
+  way, and the size cap keeps a store that grew past 1 GiB from being
+  rewritten under traffic. Larger batches reduce churn per record.
+- **What a commit writes:** its framed record to the WAL (one fsync per
+  group, `rushdb_storage_wal_bytes_total`), and its base and derived rows to
+  the store (`rushdb_storage_applied_bytes_total`). Derived rows (counters,
+  dictionary refcounts, presence) are versioned like records, so a pinned
+  snapshot reads exact counts; a counter overwritten by every commit
+  therefore adds a version per commit, reclaimed by the maintenance tick
+  once no snapshot needs it. Compare the two counters with
+  `rushdb_storage_file_bytes` and the process's block writes to see where
+  the bytes go.
 - **Between large campaigns:** purge the tenants you no longer need, then run
   `--compact` with the server stopped.
 - **Measuring load times:** record `rushdb_storage_file_bytes` next to each

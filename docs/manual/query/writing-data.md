@@ -25,6 +25,7 @@ need a token with write permission (see
 | `linkRecordsPairs` | Create relationships for explicit source/target pairs | `linked` | One commit |
 | `linkRecords` | Create relationships between records matched by label, property and predicate | `linked` | One commit |
 | `unlinkRecordsById` | Delete relationships between records named by id | `mutation` | One commit |
+| `updateRelationshipsById` | Set or remove properties of existing relationships between records named by id | `mutation` | One commit |
 | `unlinkRecords` | Delete relationships between records matched by selectors | `mutation` | One commit |
 | `retypeRelations` | Rename the type of relationships between two labels | `mutation` | One commit |
 | `statement` | A write in SQL, GQL, Cypher, Gremlin or MongoDB syntax | `statementMutation` | One commit per statement |
@@ -350,6 +351,41 @@ types to delete (omitted: every type), and its `direction` is `out` or `in`
 
 Every deletion is in one commit: all of them happen, or none.
 
+### Updating relationship properties
+
+`updateRelationshipsById` rewrites the properties of the existing
+relationships of `relationType` from every source to every target (`direction:
+"in"` swaps the endpoints, as for linking):
+
+```json
+{
+  "kind": "updateRelationshipsById",
+  "command": {
+    "relationType": "PLACES",
+    "direction": "out",
+    "sourceIds": ["0192f1d2-6c1e-7a40-9d1b-0d6f2c1e4a77"],
+    "targetIds": ["0192f1d2-6c20-7c02-a1b3-77e1f0d2c3b4"],
+    "set": { "channel": "web", "note": null, "placedAt": "2024-03-01T09:30:00Z" },
+    "types": { "placedAt": "datetime" },
+    "unset": ["legacyCode"]
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `set` | Properties to write; a value replaces the stored one, `null` stores an explicit null. Values are scalars or arrays of them. |
+| `unset` | Properties to remove. A name in both `set` and `unset` is rejected with `invalid_request`. |
+| `types` | Optional declared types of named `set` properties: `string`, `number`, `boolean` or `datetime`. Every name must be in `set`, and a non-null value must match its type, else `invalid_request`. A `datetime` takes one ISO 8601 date or datetime string and is stored as a datetime (no arrays); `null` stays an explicit null. `linkRecordsById` and `linkRecordsPairs` take the same `types` for their `properties`. |
+
+A pair without a relationship of that type is skipped; `affected` counts the
+relationships updated. Every id is resolved first: if any does not exist the
+call fails with `not_found` and nothing is written. All updates are one
+commit. `describe.schema` reports the change: a new property appears among
+the type's relationship properties, and one removed from its last
+relationship disappears. A type in the policy's `deniedRelTypes` is refused
+with `unauthorized`, as for linking.
+
 ### Retype relationships
 
 `retypeRelations` renames the type of every relationship whose endpoints are
@@ -426,7 +462,7 @@ every field has a default:
 | `delimiter` | `","` | Field separator; any non-empty string without a line break or the quote character. |
 | `header` | `true` | The first row names the fields. Without it, fields are named `column_1`, `column_2`, ... |
 | `skipEmptyLines` | `true` | `true` skips lines with no characters, `"greedy"` also lines of whitespace-only fields, `false` keeps every line. |
-| `dynamicTyping` | `options.suggestTypes` | Turn `true`/`TRUE`/`false`/`FALSE`, numbers below 2^53 in magnitude, and ISO datetimes with a time zone into typed values; an empty cell is then left out. |
+| `dynamicTyping` | `options.suggestTypes` (`true` unless set) | Turn `true`/`TRUE`/`false`/`FALSE`, numbers below 2^53 in magnitude, and ISO datetimes with a time zone into typed values; an empty cell is then left out. |
 | `quoteChar` | `"` | One character opening and closing a quoted field. |
 | `escapeChar` | the quote character | One character that, before the quote character, makes it literal. |
 | `newline` | detected | `\n`, `\r` or `\r\n`; any other value is ignored and the line ending is detected. |
@@ -438,6 +474,11 @@ imported, and a repeated name gets a suffix (`a`, `a_1`, ...). A row whose
 field count differs from the header's, or a malformed quoted field, fails the
 whole import with `invalidRequest` and a `CSV parse error: ...` message;
 nothing is written.
+
+A request is one commit, so send a large file in chunks of a few MiB (the
+[body limit](../connectivity/http-api.md#limits-and-admission) applies), each
+with its header, and pass `newline` so a chunk's line ending is not detected
+again. Rows load at the same rate as the equivalent `ingest.documents`.
 
 `vectors` (optional) carries inline vectors per row: entry `i` becomes data
 row `i`'s `$vectors`, as in a [nested import](../data-model/nested-import.md).

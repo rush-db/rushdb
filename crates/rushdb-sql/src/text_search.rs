@@ -95,7 +95,7 @@ impl TableFunctionImpl for TextSearchFunction {
             Some(expr) => limit_argument(expr)?,
         };
         let opts = match exprs.get(3) {
-            None => LexicalOptions::default(),
+            None => query_syntax(),
             Some(expr) => options_argument(&text_argument(expr, "options")?)?,
         };
         let Some(text) = &self.text else {
@@ -113,7 +113,7 @@ impl TableFunctionImpl for TextSearchFunction {
                 },
                 None,
             )
-            .or_else(failed)?;
+            .or_else(|error| failed(error.to_string()))?;
         let mut ids = Vec::with_capacity(found.hits.len());
         let mut scores = Vec::with_capacity(found.hits.len());
         for hit in found.hits {
@@ -157,13 +157,23 @@ fn limit_argument(expr: &Expr) -> Result<usize> {
     usize::try_from(value).or_else(|_| failed("text_search `limit` must not be negative".into()))
 }
 
+/// SQL's `text_search` reads its query under the query syntax (quotes,
+/// `+`/`-`, `AND`/`OR`/`NOT`), as documented; a query that does not parse
+/// fails the statement.
+fn query_syntax() -> LexicalOptions {
+    LexicalOptions {
+        syntax: rushdb_textsearch::TextSyntax::Query,
+        ..LexicalOptions::default()
+    }
+}
+
 fn options_argument(options: &str) -> Result<LexicalOptions> {
     let parsed: serde_json::Value = serde_json::from_str(options)
         .or_else(|error| failed(format!("text_search `options` is not JSON: {error}")))?;
     let Some(fields) = parsed.as_object() else {
         return failed("text_search `options` must be a JSON object".into());
     };
-    let mut opts = LexicalOptions::default();
+    let mut opts = query_syntax();
     for (name, value) in fields {
         let Some(flag) = value.as_bool() else {
             return failed(format!("text_search option `{name}` must be true or false"));

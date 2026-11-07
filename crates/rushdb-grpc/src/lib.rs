@@ -5,8 +5,10 @@
 //! operation (query/mutate/describe/index/ingest/transaction/purge/backup) goes
 //! through the same protocol surface as HTTP — no new execution logic.
 //!
-//! Auth: `authorization: Bearer <token>` metadata (the boot `--token` secret).
-//! Tenant scope: `x-rushdb-tenant` metadata (multitenant mode).
+//! Auth: `authorization: Bearer <credential>` metadata, the boot token or a
+//! signed capability, decided by [`EnvelopeHandler::authenticate`] (the
+//! server's one rule). Tenant scope: `x-rushdb-tenant` metadata (multitenant
+//! mode). With a [`GrpcTls`] the listener speaks only TLS.
 //!
 //! The crate is transport-only: it knows the canonical envelope types and a
 //! handler trait, never the engine internals (no dependency on the server
@@ -29,6 +31,35 @@ const MAX_CONCURRENT_STREAMS: u32 = 64;
 
 pub use rushdb_protocol::EnvelopeHandler;
 use rushdb_protocol::RequestEnvelope;
+
+/// The listener's certificate chain and private key, as PEM.
+#[derive(Clone)]
+pub struct GrpcTls {
+    /// PEM certificate chain.
+    pub cert_pem: Vec<u8>,
+    /// PEM private key (PKCS#8).
+    pub key_pem: Vec<u8>,
+}
+
+/// tonic's TLS configuration for `tls`.
+fn tls_config(tls: &GrpcTls) -> tonic::transport::ServerTlsConfig {
+    let identity = tonic::transport::Identity::from_pem(&tls.cert_pem, &tls.key_pem);
+    tonic::transport::ServerTlsConfig::new().identity(identity)
+}
+
+/// The PEM pair parses as a certificate chain and a private key.
+fn validate_pem(tls: &GrpcTls) -> Result<(), String> {
+    let certs = rustls_pemfile::certs(&mut tls.cert_pem.as_slice())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("gRPC TLS: invalid certificate: {error}"))?;
+    if certs.is_empty() {
+        return Err("gRPC TLS: no certificate in the PEM".into());
+    }
+    rustls_pemfile::private_key(&mut tls.key_pem.as_slice())
+        .map_err(|error| format!("gRPC TLS: invalid private key: {error}"))?
+        .ok_or_else(|| "gRPC TLS: no private key in the PEM".to_string())?;
+    Ok(())
+}
 
 /// Protobuf wire envelope: field 1 = the canonical JSON envelope bytes.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -69,15 +100,14 @@ impl prost::Message for BytesEnvelope {
 #[derive(Clone)]
 pub struct DatabaseService {
     handler: Arc<dyn EnvelopeHandler>,
-    token: String,
 }
 
 impl DatabaseService {
-    /// Creates a service that authenticates `token` and dispatches request
-    /// envelopes to `handler`.
+    /// Creates a service that authenticates every call through `handler`
+    /// and dispatches request envelopes to it.
     #[must_use]
-    pub fn new(handler: Arc<dyn EnvelopeHandler>, token: String) -> Self {
-        DatabaseService { handler, token }
+    pub fn new(handler: Arc<dyn EnvelopeHandler>) -> Self {
+        DatabaseService { handler }
     }
 
     fn execute(&self, request: Request<BytesEnvelope>) -> Result<Response<BytesEnvelope>, Status> {
@@ -87,17 +117,25 @@ impl DatabaseService {
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or_else(|| Status::unauthenticated("missing bearer token"))?;
-        if !rushdb_protocol::constant_time_eq(token.as_bytes(), self.token.as_bytes()) {
-            return Err(Status::unauthenticated("invalid token"));
-        }
         let scope = metadata
             .get("x-rushdb-tenant")
             .and_then(|v| v.to_str().ok())
             .map(str::to_string);
+        // Authenticated for the requested tenant, then allowed to do this.
+        let principal = self
+            .handler
+            .authenticate(token, scope.as_deref())
+            .map_err(|error| Status::unauthenticated(error.message))?;
 
         let payload = request.into_inner().json;
         let envelope: RequestEnvelope = serde_json::from_slice(&payload)
             .map_err(|e| Status::invalid_argument(format!("invalid envelope: {e}")))?;
+        let permission = rushdb_protocol::operation_permission(&envelope.operation);
+        if !principal.allows(permission) {
+            return Err(Status::permission_denied(format!(
+                "the credential does not grant `{permission}`"
+            )));
+        }
 
         let result = self.handler.execute(envelope, scope);
         let response = result.map_err(|error| grpc_status(&error))?;
@@ -196,9 +234,10 @@ where
 /// a pre-bound listener served from a dedicated runtime thread.
 pub struct GrpcServer {
     handler: Option<Arc<dyn EnvelopeHandler>>,
-    token: Option<String>,
     listener: Option<std::net::TcpListener>,
     max_message_size: usize,
+    /// With a certificate the listener speaks only TLS.
+    tls: Option<GrpcTls>,
 }
 
 impl GrpcServer {
@@ -207,9 +246,9 @@ impl GrpcServer {
     pub fn disabled() -> Self {
         GrpcServer {
             handler: None,
-            token: None,
             listener: None,
             max_message_size: 64 * 1024 * 1024,
+            tls: None,
         }
     }
 
@@ -225,20 +264,24 @@ impl GrpcServer {
     /// non-blocking.
     pub fn bind(
         handler: Arc<dyn EnvelopeHandler>,
-        token: String,
         listen_addr: &str,
         port: u16,
         max_message_size: usize,
+        tls: Option<GrpcTls>,
     ) -> Result<(Self, u16), String> {
+        // A bad certificate fails the bind, not the first connection.
+        if let Some(tls) = &tls {
+            validate_pem(tls)?;
+        }
         let l = std::net::TcpListener::bind((listen_addr, port)).map_err(|e| e.to_string())?;
         let p = l.local_addr().map_err(|e| e.to_string())?.port();
         l.set_nonblocking(true).map_err(|e| e.to_string())?;
         Ok((
             GrpcServer {
                 handler: Some(handler),
-                token: Some(token),
                 listener: Some(l),
                 max_message_size,
+                tls,
             },
             p,
         ))
@@ -260,14 +303,14 @@ impl GrpcServer {
             return Ok(());
         };
         let handler = self.handler.take().unwrap();
-        let token = self.token.take().unwrap();
+        let tls = self.tls.take();
         let max_message_size = self.max_message_size;
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .expect("grpc runtime");
         let outcome = rt.block_on(async move {
-            let service = DatabaseService::new(handler, token);
+            let service = DatabaseService::new(handler);
             let shutdown_handler = Arc::clone(&service.handler);
             let handler_for_deadline = Arc::clone(&service.handler);
             let router = DatabaseGrpc {
@@ -282,7 +325,13 @@ impl GrpcServer {
             // stays at the default (tonic enforces h2's 16MB ceiling).
             // C7: bound concurrent requests per connection and HTTP/2 streams
             // so one client cannot fan out unbounded in-flight work.
-            let server = tonic::transport::Server::builder()
+            let mut builder = tonic::transport::Server::builder();
+            if let Some(tls) = &tls {
+                builder = builder
+                    .tls_config(tls_config(tls))
+                    .map_err(|error| format!("gRPC TLS: {error}"))?;
+            }
+            let server = builder
                 .concurrency_limit_per_connection(MAX_CONCURRENT_REQUESTS_PER_CONNECTION)
                 .max_concurrent_streams(MAX_CONCURRENT_STREAMS)
                 .add_service(router)
@@ -325,7 +374,8 @@ fn grpc_status(error: &rushdb_protocol::ProtocolError) -> tonic::Status {
         rushdb_protocol::ErrorCode::Conflict => tonic::Status::already_exists(message),
         rushdb_protocol::ErrorCode::WriteConflict => tonic::Status::aborted(message),
         rushdb_protocol::ErrorCode::Cancelled => tonic::Status::cancelled(message),
-        rushdb_protocol::ErrorCode::ResourceExhausted => tonic::Status::resource_exhausted(message),
+        rushdb_protocol::ErrorCode::ResourceExhausted
+        | rushdb_protocol::ErrorCode::PayloadTooLarge => tonic::Status::resource_exhausted(message),
         rushdb_protocol::ErrorCode::Unavailable => tonic::Status::unavailable(message),
     }
 }
@@ -335,6 +385,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the stub handler, its authenticator and the drain choreography read as one scenario"
+    )]
     fn shutdown_bounds_an_active_uncooperative_grpc_handler() {
         use std::sync::{
             atomic::{AtomicBool, Ordering},
@@ -348,6 +402,20 @@ mod tests {
             release: Mutex<mpsc::Receiver<()>>,
         }
         impl EnvelopeHandler for Handler {
+            fn authenticate(
+                &self,
+                credential: &str,
+                _scope: Option<&str>,
+            ) -> Result<rushdb_protocol::Principal, rushdb_protocol::ProtocolError> {
+                if credential == "token" {
+                    Ok(rushdb_protocol::Principal::Operator)
+                } else {
+                    Err(rushdb_protocol::ProtocolError::new(
+                        rushdb_protocol::ErrorCode::Unauthorized,
+                        "invalid token",
+                    ))
+                }
+            }
             fn shutdown_requested(&self) -> bool {
                 self.stopping.load(Ordering::Acquire)
             }
@@ -377,7 +445,7 @@ mod tests {
             release: Mutex::new(released),
         });
         let (mut server, port) =
-            GrpcServer::bind(handler.clone(), "token".into(), "127.0.0.1", 0, 1024 * 1024).unwrap();
+            GrpcServer::bind(handler.clone(), "127.0.0.1", 0, 1024 * 1024, None).unwrap();
         let (finished, outcome) = mpsc::channel();
         let worker = std::thread::spawn(move || finished.send(server.serve_forever()).unwrap());
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -443,6 +511,20 @@ mod tests {
             timed_out: Arc<AtomicBool>,
         }
         impl EnvelopeHandler for BlockingHandler {
+            fn authenticate(
+                &self,
+                credential: &str,
+                _scope: Option<&str>,
+            ) -> Result<rushdb_protocol::Principal, rushdb_protocol::ProtocolError> {
+                if credential == "token" {
+                    Ok(rushdb_protocol::Principal::Operator)
+                } else {
+                    Err(rushdb_protocol::ProtocolError::new(
+                        rushdb_protocol::ErrorCode::Unauthorized,
+                        "invalid token",
+                    ))
+                }
+            }
             fn execute(
                 &self,
                 _: RequestEnvelope,
@@ -466,13 +548,10 @@ mod tests {
         }
         let (release, receiver) = mpsc::channel();
         let timed_out = Arc::new(AtomicBool::new(false));
-        let mut service = DatabaseService::new(
-            Arc::new(BlockingHandler {
-                release: Mutex::new(receiver),
-                timed_out: Arc::clone(&timed_out),
-            }),
-            "token".into(),
-        );
+        let mut service = DatabaseService::new(Arc::new(BlockingHandler {
+            release: Mutex::new(receiver),
+            timed_out: Arc::clone(&timed_out),
+        }));
         let envelope = RequestEnvelope {
             protocol_version: rushdb_protocol::PROTOCOL_VERSION,
             request_id: None,
@@ -554,6 +633,10 @@ mod tests {
             (
                 rushdb_protocol::ErrorCode::Unsupported,
                 Code::InvalidArgument,
+            ),
+            (
+                rushdb_protocol::ErrorCode::PayloadTooLarge,
+                Code::ResourceExhausted,
             ),
         ];
         for (code, grpc_code) in cases {

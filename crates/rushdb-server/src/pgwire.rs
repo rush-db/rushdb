@@ -2,9 +2,9 @@
 use crate::{http::HttpRouter, node::Node, RequestScope, ServerConfig};
 use async_trait::async_trait;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use futures::sink::{Sink, SinkExt};
 use futures::stream;
-use pgwire::api::auth::cleartext::CleartextPasswordAuthStartupHandler;
-use pgwire::api::auth::{AuthSource, DefaultServerParameterProvider, LoginInfo, Password};
+use pgwire::api::auth::{DefaultServerParameterProvider, StartupHandler};
 use pgwire::api::portal::{Format, Portal};
 use pgwire::api::query::{ExtendedQueryHandler, SimpleQueryHandler};
 use pgwire::api::results::{
@@ -12,8 +12,13 @@ use pgwire::api::results::{
     Response, Tag,
 };
 use pgwire::api::stmt::{QueryParser, StoredStatement};
-use pgwire::api::{ClientInfo, PgWireServerHandlers, Type};
+use pgwire::api::{
+    ClientInfo, PgWireConnectionState, PgWireServerHandlers, PidSecretKeyGenerator,
+    RandomPidSecretKeyGenerator, Type,
+};
 use pgwire::error::{ErrorInfo, PgWireError, PgWireResult};
+use pgwire::messages::startup::Authentication;
+use pgwire::messages::{PgWireBackendMessage, PgWireFrontendMessage};
 use pgwire::tokio::process_socket;
 use rushdb_protocol::{
     ErrorCode, Operation, ProtocolError, Query, RequestContext, RequestEnvelope,
@@ -23,6 +28,25 @@ use serde_json::{Map, Value};
 use std::{fmt::Debug, net::TcpListener, sync::Arc};
 
 mod settings;
+mod tls;
+
+/// The session metadata key holding the principal's permissions after
+/// login: [`OPERATOR_SCOPE`] for the boot token, a capability's `scope`
+/// otherwise.
+const PRINCIPAL_SCOPE: &str = "rushdb.scope";
+/// The boot token's scope: every permission, operator operations included.
+const OPERATOR_SCOPE: &str = "<operator>";
+
+/// The principal a stored scope denotes.
+fn principal_of(scope: &str) -> rushdb_protocol::Principal {
+    if scope == OPERATOR_SCOPE {
+        rushdb_protocol::Principal::Operator
+    } else {
+        rushdb_protocol::Principal::Capability {
+            scope: scope.to_owned(),
+        }
+    }
+}
 
 /// A bound PostgreSQL wire-protocol adapter, or a disabled placeholder when the
 /// `sql` statement language is off.
@@ -30,6 +54,8 @@ pub struct PgWireServer {
     cfg: Option<ServerConfig>,
     node: Option<Arc<Node>>,
     listener: Option<TcpListener>,
+    /// From `--tls-cert`/`--tls-key`; `None` is a cleartext listener.
+    tls: Option<pgwire::tokio::TlsAcceptor>,
 }
 impl PgWireServer {
     /// A server that does not bind (the `sql` language is disabled at startup).
@@ -39,10 +65,12 @@ impl PgWireServer {
             cfg: None,
             node: None,
             listener: None,
+            tls: None,
         }
     }
 
     fn bind(cfg: ServerConfig, node: Arc<Node>, port: u16) -> Result<(Self, u16), String> {
+        let tls = tls::acceptor(&cfg)?;
         let l = TcpListener::bind((cfg.listen_addr.as_str(), port)).map_err(|e| e.to_string())?;
         let p = l.local_addr().map_err(|e| e.to_string())?.port();
         l.set_nonblocking(true).map_err(|e| e.to_string())?;
@@ -51,6 +79,7 @@ impl PgWireServer {
                 cfg: Some(cfg),
                 node: Some(node),
                 listener: Some(l),
+                tls,
             },
             p,
         ))
@@ -72,7 +101,8 @@ impl PgWireServer {
         };
         let cfg = self.cfg.clone().expect("enabled pgwire has config");
         let node = self.node.clone().expect("enabled pgwire has node");
-        let h = Handlers::new(cfg, Arc::clone(&node));
+        let tls = self.tls.clone();
+        let h = Handlers::new(&cfg, Arc::clone(&node));
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -91,7 +121,7 @@ impl PgWireServer {
                             drop(s);
                             continue;
                         }
-                        connections.spawn(process_socket(s, None, h.clone()));
+                        connections.spawn(process_socket(s, tls.clone(), h.clone()));
                     }
                     _ = connections.join_next(), if !connections.is_empty() => {}
                     () = tokio::time::sleep(std::time::Duration::from_millis(25)) => {
@@ -124,30 +154,43 @@ pub(crate) fn is_loopback(addr: &str) -> bool {
     matches!(addr, "127.0.0.1" | "::1" | "localhost") || addr.starts_with("127.")
 }
 
-/// Refuse to expose cleartext transports (pgwire/gRPC/Bolt) on a non-loopback
-/// `--listen` address unless the operator explicitly acknowledges it via
-/// `--allow-insecure-listen`. Loopback binds and HTTP-with-TLS are unaffected.
-/// Checked on the effective configuration (after `config.yml` is applied),
-/// counting only the transports that will actually bind.
+/// Refuse to expose a transport on a non-loopback `--listen` address unless
+/// it is secure there. Checked on the effective configuration (after
+/// `config.yml` is applied), counting only the transports that will bind.
+///
+/// pgwire is judged on its own: with TLS configured it speaks only TLS, and
+/// it authenticates tenant-bound capabilities, so on a multitenant listener
+/// it needs TLS **and** `--capability-secret`; on a single-tenant listener
+/// TLS alone makes it safe. Without TLS it is cleartext and needs
+/// `--allow-insecure-listen`, and a multitenant listener refuses it. gRPC and
+/// Bolt authenticate only the boot token in cleartext: they need
+/// `--allow-insecure-listen`, and a multitenant listener refuses them.
 fn guard_insecure_listen(cfg: &ServerConfig) -> Result<(), String> {
-    let pgwire_enabled = cfg.pgwire_port != 0 && cfg.languages.sql;
-    let cleartext_enabled = pgwire_enabled || cfg.grpc_port != 0 || crate::bolt::bolt_enabled(cfg);
-    // HTTP has signed, tenant-bound capabilities. pgwire, gRPC, and Bolt
-    // currently authenticate only the global boot token, so exposing any of
-    // them directly on a multitenant non-loopback listener would let a holder
-    // select an arbitrary tenant scope. They remain safe behind a local trusted
-    // proxy, or for a single-tenant server. `--allow-insecure-listen`
-    // acknowledges cleartext; it must not disable this tenancy guard.
-    if cfg.multitenant && cleartext_enabled && !is_loopback(&cfg.listen_addr) {
-        return Err(
-            "refusing to bind pgwire/gRPC/Bolt on a non-loopback multitenant listener: these transports require tenant-bound credentials or a trusted local proxy".into(),
-        );
+    if is_loopback(&cfg.listen_addr) {
+        return Ok(());
     }
-    if cleartext_enabled && !is_loopback(&cfg.listen_addr) && !cfg.allow_insecure_listen {
-        return Err(format!(
-            "refusing to bind pgwire/gRPC/Bolt (cleartext) to non-loopback listen address `{}` without --allow-insecure-listen; keep --listen loopback or add the explicit flag",
-            cfg.listen_addr
-        ));
+    let tls = cfg.tls_cert.is_some() && cfg.tls_key.is_some();
+    let transports = [
+        ("pgwire", cfg.pgwire_port != 0 && cfg.languages.sql),
+        ("gRPC", cfg.grpc_port != 0),
+        ("Bolt", crate::bolt::bolt_enabled(cfg)),
+    ];
+    for (name, _) in transports.iter().filter(|(_, enabled)| *enabled) {
+        // With TLS every transport speaks only TLS and authenticates
+        // tenant-bound capabilities, so a multitenant listener needs both;
+        // without TLS a transport is cleartext and needs the acknowledgement,
+        // and a multitenant listener refuses it outright.
+        if cfg.multitenant && !(tls && cfg.capability_secret.is_some()) {
+            return Err(format!(
+                "refusing to bind {name} on a non-loopback multitenant listener without TLS and --capability-secret: a multitenant {name} listener needs tenant-bound credentials (`--tls-cert`, `--tls-key`, `--capability-secret`) or a trusted local proxy"
+            ));
+        }
+        if !tls && !cfg.allow_insecure_listen {
+            return Err(format!(
+                "refusing to bind {name} (cleartext) to non-loopback listen address `{}` without --allow-insecure-listen; configure TLS (`--tls-cert`, `--tls-key`), keep --listen loopback or add the explicit flag",
+                cfg.listen_addr
+            ));
+        }
     }
     Ok(())
 }
@@ -218,22 +261,22 @@ pub fn new_gateway_with_boot_listener(
 
 #[derive(Clone)]
 struct Handlers {
-    auth: Arc<CleartextPasswordAuthStartupHandler<DbAuth, DefaultServerParameterProvider>>,
+    auth: Arc<RushAuth>,
     db: Arc<DbHandler>,
 }
 impl Handlers {
-    fn new(c: ServerConfig, n: Arc<Node>) -> Self {
+    fn new(c: &ServerConfig, n: Arc<Node>) -> Self {
         let mut p = DefaultServerParameterProvider::default();
         p.server_version = "16.0-rushdb".into();
         let multitenant = c.multitenant;
         Self {
-            auth: Arc::new(CleartextPasswordAuthStartupHandler::new(
-                DbAuth {
-                    token: c.token,
-                    multitenant,
-                },
-                p,
-            )),
+            auth: Arc::new(RushAuth {
+                credentials: crate::auth::Credentials::from_config(c),
+                multitenant,
+                tls_required: c.tls_cert.is_some() && c.tls_key.is_some(),
+                parameters: p,
+                pids: Arc::new(RandomPidSecretKeyGenerator::default()),
+            }),
             db: Arc::new(DbHandler {
                 node: n,
                 multitenant,
@@ -256,24 +299,101 @@ impl PgWireServerHandlers for Handlers {
         self.db.clone()
     }
 }
-#[derive(Debug)]
-struct DbAuth {
-    token: String,
+/// Session login: the password is the boot token (the operator) or a signed
+/// capability (`--capability-secret`) bound to the session's `database`, the
+/// tenant. A capability is a short-lived bearer token, so it is sent as a
+/// cleartext password over TLS, as a Postgres `hostssl … password` rule
+/// would; with TLS configured the listener refuses a plaintext session
+/// before it asks for the password. Expiry is checked at login; a session
+/// outlives its token's `exp`, as a Postgres session outlives a password
+/// change.
+struct RushAuth {
+    credentials: crate::auth::Credentials,
     multitenant: bool,
+    tls_required: bool,
+    parameters: DefaultServerParameterProvider,
+    pids: Arc<dyn PidSecretKeyGenerator>,
 }
-#[async_trait]
-impl AuthSource for DbAuth {
-    async fn get_password(&self, l: &LoginInfo) -> PgWireResult<Password> {
-        if self.multitenant
-            && l.database()
-                .map(str::trim)
-                .as_ref()
-                .is_none_or(|database| database.is_empty())
-        {
-            return Err(err("3D000", "database is required as tenant scope"));
+
+impl RushAuth {
+    /// The scope `password` grants for `database`, or `None` when it is
+    /// neither the boot token nor a capability verified and bound to it.
+    fn principal(&self, password: &str, database: Option<&str>) -> Option<String> {
+        match self.credentials.authenticate(password, database).ok()? {
+            rushdb_protocol::Principal::Operator => Some(OPERATOR_SCOPE.into()),
+            rushdb_protocol::Principal::Capability { scope } => Some(scope),
         }
-        Ok(Password::new(None, self.token.as_bytes().to_vec()))
     }
+}
+
+#[async_trait]
+impl StartupHandler for RushAuth {
+    async fn on_startup<C>(
+        &self,
+        client: &mut C,
+        message: PgWireFrontendMessage,
+    ) -> PgWireResult<()>
+    where
+        C: ClientInfo + Sink<PgWireBackendMessage> + Unpin + Send + Sync,
+        C::Error: Debug,
+        PgWireError: From<<C as Sink<PgWireBackendMessage>>::Error>,
+    {
+        match message {
+            PgWireFrontendMessage::Startup(ref startup) => {
+                pgwire::api::auth::protocol_negotiation(client, startup).await?;
+                pgwire::api::auth::save_startup_parameters_to_metadata(client, startup);
+                // Postgres `hostssl`: once TLS is configured, a session that
+                // skipped it is refused before any credential is sent.
+                if self.tls_required && !client.is_secure() {
+                    return Err(PgWireError::UserError(Box::new(ErrorInfo::new(
+                        "FATAL".into(),
+                        "28000".into(),
+                        "TLS required: this listener accepts only TLS sessions (sslmode=require)"
+                            .into(),
+                    ))));
+                }
+                client.set_state(PgWireConnectionState::AuthenticationInProgress);
+                client
+                    .send(PgWireBackendMessage::Authentication(
+                        Authentication::CleartextPassword,
+                    ))
+                    .await?;
+            }
+            PgWireFrontendMessage::PasswordMessageFamily(password) => {
+                let password = password.into_password()?;
+                let user = client
+                    .metadata()
+                    .get(pgwire::api::METADATA_USER)
+                    .cloned()
+                    .unwrap_or_default();
+                let database = client
+                    .metadata()
+                    .get(pgwire::api::METADATA_DATABASE)
+                    .map(|database| database.trim().to_owned())
+                    .filter(|database| !database.is_empty());
+                if self.multitenant && database.is_none() {
+                    return Err(err("3D000", "database is required as tenant scope"));
+                }
+                let scope = self
+                    .principal(&password.password, database.as_deref())
+                    .ok_or(PgWireError::InvalidPassword(user))?;
+                client.metadata_mut().insert(PRINCIPAL_SCOPE.into(), scope);
+                let (pid, secret_key) = self.pids.generate(client);
+                client.set_pid_and_secret_key(pid, secret_key);
+                pgwire::api::auth::finish_authentication(client, &self.parameters).await?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
+/// The permissions the session logged in with (fail closed when absent).
+fn principal_scope<C: ClientInfo>(c: &C) -> String {
+    c.metadata()
+        .get(PRINCIPAL_SCOPE)
+        .cloned()
+        .unwrap_or_default()
 }
 struct DbHandler {
     node: Arc<Node>,
@@ -543,6 +663,7 @@ fn sqlstate(code: ErrorCode) -> &'static str {
         ErrorCode::WriteConflict => "40001",
         ErrorCode::Cancelled => "57014",
         ErrorCode::ResourceExhausted => "53200",
+        ErrorCode::PayloadTooLarge => "54000",
         ErrorCode::Unavailable => "57P03",
         ErrorCode::ExecutionFailed => "XX000",
     }
@@ -620,6 +741,7 @@ async fn run_async(
     parameters: Option<Value>,
     request_timeout_ms: u64,
     session: settings::SessionLimits,
+    scope: String,
 ) -> Result<PgExecution, ProtocolError> {
     tokio::task::spawn_blocking(move || {
         run(
@@ -630,12 +752,17 @@ async fn run_async(
             parameters,
             request_timeout_ms,
             session,
+            &scope,
         )
     })
     .await
     .map_err(|error| ProtocolError::new(ErrorCode::Unavailable, error.to_string()))?
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one statement execution carries its session: tenant, limits and the principal's scope"
+)]
 fn run(
     node: &Arc<Node>,
     tenant: Option<&str>,
@@ -644,6 +771,7 @@ fn run(
     parameters: Option<Value>,
     request_timeout_ms: u64,
     session: settings::SessionLimits,
+    scope: &str,
 ) -> Result<PgExecution, ProtocolError> {
     let statement = sql.trim().trim_end_matches(';');
     // The session's `statement_timeout` may only shorten the server's.
@@ -686,6 +814,13 @@ fn run(
             }
         },
     };
+    // The session's capability must grant what the statement does (the
+    // boot token grants everything); operator operations never accept a
+    // capability, as over HTTP.
+    let permission = rushdb_protocol::operation_permission(&envelope.operation);
+    if !principal_of(scope).allows(permission) {
+        return Err(crate::auth::forbidden(permission));
+    }
     let started = std::time::Instant::now();
     // Deadline-derived cancellation (same as the HTTP path): a long-running
     // pgwire query aborts with a structured Cancelled error (SQLSTATE 57014).
@@ -984,6 +1119,7 @@ impl SimpleQueryHandler for DbHandler {
             None,
             self.request_timeout_ms,
             session,
+            principal_scope(c),
         )
         .await
         .map_err(perr)?;
@@ -1047,6 +1183,7 @@ impl ExtendedQueryHandler for DbHandler {
             parameters,
             self.request_timeout_ms,
             session,
+            principal_scope(c),
         )
         .await
         .map_err(perr)?;
@@ -1201,6 +1338,7 @@ mod tests {
             (ErrorCode::ExecutionFailed, "XX000"),
             (ErrorCode::LanguageDisabled, "0A000"),
             (ErrorCode::Unsupported, "0A000"),
+            (ErrorCode::PayloadTooLarge, "54000"),
         ];
         for (code, state) in expected {
             assert_eq!(sqlstate(code), state, "{code:?}");

@@ -4,6 +4,145 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.4 — 2026-11-07
+
+### Added
+
+- **TLS and tenant-bound capabilities on the PostgreSQL listener** (#394).
+  With `--tls-cert`/`--tls-key`, the same certificate as HTTP, pgwire speaks
+  TLS (`SSLRequest` and PostgreSQL 17 direct TLS) and refuses a plaintext
+  session with SQLSTATE `28000` before any password is sent. A capability
+  token is accepted as the password, bound to the tenant in `database`; a
+  statement the capability's scope does not grant fails with `42501`, as
+  do operator operations. The listen guard judges pgwire on its own: on a
+  non-loopback multitenant listener it needs TLS and `--capability-secret`;
+  on a single-tenant one TLS alone removes the need for
+  `--allow-insecure-listen`. gRPC and Bolt are unchanged.
+- **TLS and tenant-bound capabilities on the gRPC and Bolt listeners**
+  (#395). With `--tls-cert`/`--tls-key` gRPC serves HTTP/2 over TLS and
+  Bolt serves direct TLS (`bolt+s://`, `neo4j+s://`); each then speaks only
+  TLS. A capability token is accepted as the gRPC bearer token (bound to
+  `x-rushdb-tenant`, checked per call) and as the Bolt `HELLO` credentials
+  (bound to `db`, checked at login); an operation it does not grant is
+  `PERMISSION_DENIED` on gRPC and `Neo.ClientError.Security.Forbidden` on
+  Bolt. One rule decides every transport's credential. The listen guard
+  treats gRPC and Bolt as it treats pgwire: on a non-loopback multitenant
+  listener they need TLS and `--capability-secret`. `--bolt-advertised-address`
+  names the `host:port` a Bolt `ROUTE` answer returns.
+- `--body-limit` / `RUSHDB_BODY_LIMIT` sets the request body, gRPC message
+  and response size limit from the command line (`server.body-limit` in
+  `config.yml` keeps overriding it, and disagreeing with an explicit flag is
+  refused as for every other setting).
+- `query.text` and the hybrid text leg take `syntax`: `"terms"` (the
+  default) searches the query as words, `"query"` reads the operator syntax
+  (`+`, `-`, quotes, parentheses, `AND`/`OR`/`NOT`).
+- `--compact-max-file-bytes` (default 1 GiB): the largest store file
+  automatic compaction rewrites. A compaction holds every request while it
+  copies the file; a larger file is left to the offline
+  `rushdb serve --compact`, and the skip is logged.
+- `rushdb_storage_wal_bytes_total` and `rushdb_storage_applied_bytes_total`
+  count the two write streams a commit produces, to attribute disk writes.
+- **`mutate.updateRelationshipsById` edits relationship properties.** For
+  every source and target id it updates the existing relationships of
+  `relationType` in `direction`: `set` writes properties (`null` stores an
+  explicit null), `unset` removes them, and a name in both is
+  `invalid_request`. A pair without the relationship is skipped; an unknown
+  id fails the call before anything is written, and all updates are one
+  commit. The answer is `{"kind": "mutation", "affected": <relationships
+  updated>}`, and `describe.schema` reflects added and removed relationship
+  properties. `describe.capabilities` advertises `updateRelationshipsById`.
+- **Typed relationship properties.** `linkRecordsById`, `linkRecordsPairs`
+  and `updateRelationshipsById` take an optional `types` map from property
+  name to `string`, `number`, `boolean` or `datetime`. A `datetime` takes
+  an ISO 8601 date or datetime string and stores a datetime, so a
+  relationship can now hold one (a date string sent untyped still stays a
+  string). Every typed name must be among the written properties, and a
+  non-null value must match its type (datetime arrays are rejected, as for
+  records); otherwise the call is `invalid_request` and nothing is written.
+  `null` stays an explicit null. `describe.capabilities` advertises
+  `relationshipPropertyTypes`.
+
+### Changed
+
+- **Text search reads plain words by default.** `query.text` and the hybrid
+  text leg handed the string to the query parser, so a colon, an apostrophe
+  or the words `AND`/`OR`/`NOT` failed with `execution_failed` and a
+  message only the server log held. The query is now tokenized by the
+  index's own analysis and every character is text; the operator syntax is
+  `syntax: "query"`. SQL's `text_search`, Cypher's and GQL's
+  `text_match`/`text_score` and Mongo's `$text` keep the operator syntax
+  they document. A text search's failures are typed: an unknown index is
+  `not_found`, a name of another index kind or a query that does not parse
+  (under `syntax: "query"`) is `invalid_request` with the parser's message,
+  an index still building is `unavailable` and retryable. A query can no
+  longer address the index's internal `owner` field.
+- **A request body over the limit is a protocol error.** The HTTP layer
+  answered 413 with the plain text `length limit exceeded` before the
+  handler ran, so a JSON client never saw the reason. Every body is now
+  read through one bounded reader after authentication, and the answer is
+  the envelope with the new code `payload_too_large` and the limit in
+  bytes in the message (gRPC `RESOURCE_EXHAUSTED`, SQLSTATE `54000`,
+  Bolt `Neo.ClientError.Request.Invalid`). An unauthenticated oversized
+  request is 401, as the auth-first rule says.
+- **Relationship datetime properties are returned as ISO 8601 strings.**
+  `query.relationships` returned a relationship's datetime property as
+  epoch milliseconds with nothing marking it a datetime. Each relationship
+  now carries a `propertyTypes` map (name -> `string`, `number`, `boolean`
+  or `datetime`), as records do, and a datetime property is its ISO 8601
+  string. The `describe.schema` fallback for stores without a relationship
+  catalog reports such a property as `datetime` instead of `number`.
+- A tenant purge erases 4,096 keys per commit instead of 1,024: a quarter
+  of the commits, WAL records and fsyncs for the same tenant.
+- `/ready` answers 503 (`storage compaction holds the database`) while a
+  compaction runs; `/health` stays a liveness probe. The start of a
+  compaction is logged with the file size.
+
+### Fixed
+
+- **Every request blocked after a large bulk load while `/health` stayed
+  200** (#408). The first idle compaction after a load rewrote the whole
+  store file under the database lock, which every read and commit waits on:
+  a 1.9 GB file on a 2 GiB container held the node for over 20 minutes.
+  Automatic compaction now runs only on files up to `compact-max-file-bytes`
+  (1 GiB) and otherwise logs the skip and leaves the rewrite to the offline
+  `rushdb serve --compact`; a running compaction is logged with the file
+  size and makes `/ready` answer 503.
+- **Grouped aggregations over large labels failed with
+  `resource_exhausted`.** The aggregate working set was capped at the
+  request's 16 MiB response budget: the match ordinals of 1M records
+  filled it, an `$avg` tripled the charge, and a filtered query's presence
+  scan ran under a 1 MiB materialization limit. The working set is now
+  governed by `query-memory-max` alone, like a records search; the response
+  budget caps only the returned page. The error names the limit and the
+  flag.
+- **Grouped aggregations read every record in full.** Each row was rebuilt
+  as a whole JSON document with a fresh reconstruction session, and buckets
+  were found by comparing every bucket's keys per row. The aggregate now
+  reads only the properties it names by point reads (one session for the
+  run, hashed buckets), the residual filter does the same, and
+  `groupBy` on one property with `$count: "*"` over one label is answered
+  from the value dictionary without reading a record (explicit nulls and
+  records without the property keep their own rows).
+- Other reads that rebuilt whole records to use one or two properties now
+  decode only those: a traversal step's and a `$relation` endpoint's
+  filter, alias metrics (`$sum: "$alias.prop"`), a `$collect` with a
+  `fields` projection, `mergeBy` upsert lookups (including the label scan
+  of an unindexed key), the text index applier for a single-property index,
+  and the inline-vector listing.
+- **CSV ingest was about five times slower than the same rows as
+  documents.** The import serializer popped its queue with `Vec::remove(0)`,
+  quadratic in the rows of one call, which an 8 MiB CSV chunk (about 240K
+  rows) made dominant. The queue is a deque. `dynamicTyping` now defaults
+  to `suggestTypes` as the import path reads it (`true` unless set): the
+  CSV decoder had its own `false`.
+- The HTTP error taxonomy test lists `write_conflict`.
+- A write to a relationship type in the policy's `deniedRelTypes`
+  (`linkRecordsById`, `linkRecordsPairs`, `updateRelationshipsById`) is
+  `unauthorized` with the type named, not `execution_failed`.
+- A statement-language `SET` on a relationship property (Cypher
+  `SET r.x = ...`) staged inside a transaction failed at staging; it now
+  stages and commits with the transaction.
+
 ## 3.0.3 — 2026-11-05
 
 No engine, protocol or storage changes: the binary behaves exactly like 3.0.2.

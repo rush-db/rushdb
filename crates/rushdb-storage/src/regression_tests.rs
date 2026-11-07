@@ -317,7 +317,7 @@ fn idle_compaction_retries_past_a_transient_unpinned_reader() {
         drop(view);
     });
     let compacted = store
-        .compact_if_needed(std::time::Duration::ZERO, 100)
+        .compact_if_needed(std::time::Duration::ZERO, 100, None)
         .unwrap();
     assert!(
         matches!(compacted, CompactOutcome::Compacted(_)),
@@ -346,7 +346,7 @@ fn idle_compaction_retries_past_a_transient_pinned_view() {
         drop(view);
     });
     let compacted = store
-        .compact_if_needed(std::time::Duration::ZERO, 100)
+        .compact_if_needed(std::time::Duration::ZERO, 100, None)
         .unwrap();
     assert!(
         matches!(compacted, CompactOutcome::Compacted(_)),
@@ -375,7 +375,7 @@ fn idle_compaction_measures_growth_from_the_file_as_opened() {
     assert!(
         matches!(
             store
-                .compact_if_needed(std::time::Duration::ZERO, 150)
+                .compact_if_needed(std::time::Duration::ZERO, 150, None)
                 .unwrap(),
             CompactOutcome::BelowThreshold
         ),
@@ -388,7 +388,7 @@ fn idle_compaction_measures_growth_from_the_file_as_opened() {
     store.persist_ops_local(&grown, 0).unwrap();
     assert!(matches!(
         store
-            .compact_if_needed(std::time::Duration::ZERO, 150)
+            .compact_if_needed(std::time::Duration::ZERO, 150, None)
             .unwrap(),
         CompactOutcome::Compacted(_)
     ));

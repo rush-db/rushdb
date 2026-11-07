@@ -110,10 +110,23 @@ is sustained, add CPU (`threads` defaults to all cores), reduce request
 size, batch writes, or add indexes so requests finish faster. Check
 `rushdb_scheduler_inflight` against `rushdb_scheduler_capacity`.
 
+### Every request blocks, `/health` is 200, `/ready` is 503 "storage compaction"
+
+A storage compaction holds the database while it rewrites the file; reads
+and commits wait for it. Automatic compaction only runs on a quiet store up
+to `compact-max-file-bytes` (1 GiB by default) and logs `storage compaction
+started` with the file size; a larger file is skipped with `automatic
+compaction skipped` at `info` and must be compacted offline (`rushdb serve
+--data-dir <dir> --compact`, server stopped). If a compaction is running,
+wait for `storage compaction complete`; to keep it from running again, lower
+`compact-max-file-bytes` or set `compact-interval-seconds: 0`. See
+[Storage and compaction](storage-and-compaction.md#automatic-idle-compaction).
+
 ### 413 request or response too large
 
-- `request body exceeds the N-byte limit`: split the request (for ingest, use
-  batches of about 500 documents), or raise `server.body-limit`.
+- `request body exceeds the N-byte limit` (413 `payload_too_large`): split
+  the request (for ingest, size batches by bytes), or raise the limit
+  (`--body-limit`, `server.body-limit`).
 - `response exceeds the N byte output budget`: request fewer records per
   page, use cursors, or project fewer fields.
 

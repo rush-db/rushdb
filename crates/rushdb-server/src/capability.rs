@@ -136,6 +136,20 @@ pub fn verify(secret: &[u8], token: &str, now: u64) -> Result<Capability, CapErr
     Ok(cap)
 }
 
+/// Whether `capability` may act as the `requested` tenant: on a multitenant
+/// server it must be bound to exactly that tenant; on a single-tenant server
+/// it must be unbound. One rule for HTTP (`X-RushDB-Tenant`) and pgwire
+/// (`database`).
+#[must_use]
+pub fn tenant_matches(multitenant: bool, capability: &Capability, requested: Option<&str>) -> bool {
+    if multitenant {
+        let requested = requested.map(str::trim).filter(|tenant| !tenant.is_empty());
+        requested.is_some() && capability.tenant.as_deref() == requested
+    } else {
+        capability.tenant.is_none()
+    }
+}
+
 /// Check that `permission` is granted by the scope string.
 #[must_use]
 pub fn allows_scope(scope: &str, permission: &str) -> bool {

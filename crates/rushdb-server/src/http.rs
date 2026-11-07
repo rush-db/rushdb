@@ -4,12 +4,11 @@
 use std::net::TcpListener;
 use std::sync::Arc;
 
-use axum::extract::{DefaultBodyLimit, Query, State};
+use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
-use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::node::Node;
@@ -73,6 +72,7 @@ pub fn new_router(mut cfg: ServerConfig) -> Result<(HttpRouter, u16), String> {
 /// # Errors
 /// Returns a message when the listener cannot bind the configured address.
 pub fn bind_router(cfg: ServerConfig, node: Arc<Node>) -> Result<(HttpRouter, u16), String> {
+    crate::install_crypto_provider();
     let listener =
         TcpListener::bind((cfg.listen_addr.as_str(), cfg.port)).map_err(|e| e.to_string())?;
     bind_router_with_listener(cfg, node, listener)
@@ -93,7 +93,6 @@ pub fn bind_router_with_listener(
     listener.set_nonblocking(true).map_err(|e| e.to_string())?;
     let port = addr.port();
     let weak_node = Arc::downgrade(&node);
-    let max_request_bytes = cfg.max_request_bytes;
     let tls = match (&cfg.tls_cert, &cfg.tls_key) {
         (Some(cert), Some(key)) => Some((cert.clone(), key.clone())),
         _ => None,
@@ -126,13 +125,10 @@ pub fn bind_router_with_listener(
         .route("/internal/backup/base", post(backup_base_online))
         .route("/internal/usage", post(tenant_usage))
         .fallback(not_found)
-        .layer(RequestBodyLimitLayer::new(max_request_bytes))
-        // The `Bytes` extractor (and any body-reading extractor) is gated by
-        // axum's `DefaultBodyLimit`, which defaults to 2MB — independent of the
-        // tower-http layer above. Without raising it, batch imports >2MB were
-        // rejected with 413 "length limit exceeded" despite the configured
-        // body limit (`server.body-limit`, 16 MiB by default).
-        .layer(DefaultBodyLimit::max(max_request_bytes))
+        // No body-limit layer: every handler reads its body through
+        // `bounded_body`, so an oversized body is refused after
+        // authentication and with the protocol error envelope. A layer
+        // answered first, with a plain-text 413 no JSON client could read.
         .layer(TraceLayer::new_for_http())
         .with_state(state);
     Ok((
@@ -151,6 +147,14 @@ pub fn bind_router_with_listener(
 }
 
 impl HttpRouter {
+    /// The store this router serves, while the node is alive (tests of what
+    /// observes storage state, such as readiness during a compaction).
+    #[doc(hidden)]
+    #[must_use]
+    pub fn store(&self) -> Option<Arc<rushdb_storage::Store>> {
+        self.node.upgrade().map(|node| node.store())
+    }
+
     /// Return the shared stop signal for all transports and maintenance work.
     pub fn shutdown_handle(&self) -> impl Fn() + 'static {
         let node = self.node.clone();
@@ -215,6 +219,7 @@ impl HttpRouter {
                     period,
                     maintenance.compact_quiesce,
                     maintenance.compact_growth_percent,
+                    maintenance.compact_max_file_bytes,
                 )
             });
             // Durable byte accounting is refreshed off the request path so a
@@ -259,6 +264,7 @@ impl HttpRouter {
                     std::time::Duration::from_secs(10),
                     limit,
                     maintenance.compact_quiesce,
+                    maintenance.compact_max_file_bytes,
                 )
             });
             let addr = self_addr;
@@ -566,6 +572,7 @@ pub(crate) fn spawn_compaction_worker(
     period: std::time::Duration,
     quiesce: std::time::Duration,
     growth_percent: u32,
+    max_file_bytes: Option<u64>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(period);
@@ -581,7 +588,19 @@ pub(crate) fn spawn_compaction_worker(
                 .spawn(move || {
                     let store = node.store();
                     let before = store.storage_file_bytes();
-                    match store.compact_if_needed(quiesce, growth_percent) {
+                    match store.compact_if_needed(quiesce, growth_percent, max_file_bytes) {
+                        Ok(rushdb_storage::CompactOutcome::FileTooLarge {
+                            file_bytes,
+                            max_bytes,
+                        }) => {
+                            tracing::info!(
+                                file_bytes,
+                                max_bytes,
+                                "automatic compaction skipped: the store file is over \
+                                 compact-max-file-bytes; run `rushdb serve --data-dir <dir> \
+                                 --compact` with the server stopped to reclaim space"
+                            );
+                        }
                         Ok(rushdb_storage::CompactOutcome::Compacted(ci)) => {
                             let after = store.storage_file_bytes();
                             if let (Some(before), Some(after)) = (before, after) {
@@ -623,6 +642,7 @@ pub(crate) fn spawn_memory_watchdog(
     period: std::time::Duration,
     rss_max_bytes: u64,
     quiesce: std::time::Duration,
+    max_file_bytes: Option<u64>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(period);
@@ -648,7 +668,7 @@ pub(crate) fn spawn_memory_watchdog(
                     );
                     let _ = store.expire_read_pins(node.read_lease_ms());
                     let _ = store.gc_tick(512);
-                    watchdog_compact(&store, quiesce);
+                    watchdog_compact(&store, quiesce, max_file_bytes);
                 })
                 .await;
             if let Err(error) = result {
@@ -665,8 +685,9 @@ pub(crate) fn spawn_memory_watchdog(
 pub(crate) fn watchdog_compact(
     store: &rushdb_storage::Store,
     quiesce: std::time::Duration,
+    max_file_bytes: Option<u64>,
 ) -> Option<rushdb_storage::CompactOutcome> {
-    match store.compact_if_needed(quiesce, 100) {
+    match store.compact_if_needed(quiesce, 100, max_file_bytes) {
         Ok(outcome) => {
             tracing::debug!(?outcome, "watchdog compaction");
             Some(outcome)
@@ -944,6 +965,17 @@ async fn ready(State(state): State<AppState>) -> Response {
             }),
         );
     }
+    // A physical compaction holds the database: every request waits on it.
+    // `/health` stays a liveness probe; readiness says no traffic for now.
+    if state.node.store().compacting() {
+        return json(
+            StatusCode::SERVICE_UNAVAILABLE,
+            &serde_json::json!({
+                "status": "not_ready",
+                "reason": "storage compaction holds the database",
+            }),
+        );
+    }
     let commit_index = state.node.store().committed_version();
     let data_dir = state.cfg.data_dir.clone();
     let mut writable = true;
@@ -1096,7 +1128,7 @@ struct UsageRequest {
 async fn tenant_usage(
     State(state): State<AppState>,
     headers: HeaderMap,
-    body: axum::body::Bytes,
+    body: axum::body::Body,
 ) -> Response {
     if !operator_token(&state, &headers) {
         return json(
@@ -1104,6 +1136,10 @@ async fn tenant_usage(
             &serde_json::json!({"error":"unauthorized"}),
         );
     }
+    let body = match bounded_body(&headers, body, state.cfg.max_request_bytes).await {
+        Ok(body) => body,
+        Err(response) => return response,
+    };
     let request: UsageRequest = if body.is_empty() {
         UsageRequest {
             tenants: Vec::new(),
@@ -1268,10 +1304,7 @@ async fn execute(
     // Reserve the declared body size from the node-wide in-flight budget
     // before reading it; a body without a declared length reserves the limit.
     let max_body = state.cfg.max_request_bytes;
-    let declared = headers
-        .get(axum::http::header::CONTENT_LENGTH)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.parse::<usize>().ok());
+    let declared = declared_length(&headers);
     if declared.is_some_and(|len| len > max_body) {
         return payload_too_large(max_body);
     }
@@ -1284,8 +1317,9 @@ async fn execute(
             "too many request bytes in flight; retry shortly",
         ));
     };
-    let Ok(payload) = axum::body::to_bytes(body, max_body).await else {
-        return payload_too_large(max_body);
+    let payload = match bounded_body(&headers, body, max_body).await {
+        Ok(payload) => payload,
+        Err(response) => return response,
     };
     let (permission, op_kind) = request_route(&payload);
     if !authorized(&state, &headers, permission) {
@@ -1437,13 +1471,34 @@ fn authenticated(state: &AppState, headers: &HeaderMap) -> bool {
 }
 
 fn payload_too_large(limit: usize) -> Response {
-    protocol_error(
-        StatusCode::PAYLOAD_TOO_LARGE,
-        &rushdb_protocol::ProtocolError::new(
-            rushdb_protocol::ErrorCode::InvalidRequest,
-            format!("request body exceeds the {limit}-byte limit"),
-        ),
-    )
+    coded_error(&rushdb_protocol::ProtocolError::new(
+        rushdb_protocol::ErrorCode::PayloadTooLarge,
+        format!("request body exceeds the {limit}-byte limit (server.body-limit)"),
+    ))
+}
+
+/// The request's declared `Content-Length`, when it has one.
+fn declared_length(headers: &HeaderMap) -> Option<usize> {
+    headers
+        .get(axum::http::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<usize>().ok())
+}
+
+/// The whole request body, at most `limit` bytes. A body that declares more,
+/// or streams more, is refused with the `payload_too_large` envelope that
+/// names the limit, and no handler reads an unbounded body.
+async fn bounded_body(
+    headers: &HeaderMap,
+    body: axum::body::Body,
+    limit: usize,
+) -> Result<axum::body::Bytes, Response> {
+    if declared_length(headers).is_some_and(|len| len > limit) {
+        return Err(payload_too_large(limit));
+    }
+    axum::body::to_bytes(body, limit)
+        .await
+        .map_err(|_| payload_too_large(limit))
 }
 
 fn presented_token(headers: &HeaderMap) -> &str {
@@ -1462,32 +1517,15 @@ fn capability_tenant_matches(
     headers: &HeaderMap,
     capability: &crate::capability::Capability,
 ) -> bool {
-    if state.node.multitenant() {
-        capability.tenant.as_deref() == Some(header(headers, "x-rushdb-tenant").trim())
-    } else {
-        capability.tenant.is_none()
-    }
+    let requested = header(headers, "x-rushdb-tenant");
+    crate::capability::tenant_matches(state.node.multitenant(), capability, Some(requested))
 }
 
 fn authorized(state: &AppState, headers: &HeaderMap, permission: &str) -> bool {
-    let token = presented_token(headers);
-    if rushdb_protocol::constant_time_eq(token.as_bytes(), state.cfg.token.as_bytes()) {
-        return true;
-    }
-    // Operator operations (the tenant's own policy) never accept a
-    // capability token, whatever its scope.
-    if permission == "operator" {
-        return false;
-    }
-    state
-        .cfg
-        .capability_secret
-        .as_ref()
-        .and_then(|secret| crate::capability::verify(secret, token, unix_now()).ok())
-        .is_some_and(|capability| {
-            capability_tenant_matches(state, headers, &capability)
-                && crate::capability::allows_scope(&capability.scope, permission)
-        })
+    let requested = header(headers, "x-rushdb-tenant");
+    crate::auth::Credentials::from_config(&state.cfg)
+        .authenticate(presented_token(headers), Some(requested))
+        .is_ok_and(|principal| principal.allows(permission))
 }
 
 fn header<'a>(headers: &'a HeaderMap, name: &str) -> &'a str {
@@ -1503,7 +1541,7 @@ fn header<'a>(headers: &'a HeaderMap, name: &str) -> &'a str {
 fn request_route(body: &[u8]) -> (&'static str, &'static str) {
     match serde_json::from_slice::<rushdb_protocol::RequestEnvelope>(body) {
         Ok(envelope) => (
-            crate::protocol::operation_permission(&envelope.operation),
+            rushdb_protocol::operation_permission(&envelope.operation),
             crate::protocol::operation_kind(&envelope.operation),
         ),
         Err(_) => ("write", "invalid"),
@@ -1949,12 +1987,12 @@ mod p11_tests {
             .unwrap();
         let store = node.store();
         assert_eq!(
-            watchdog_compact(&store, std::time::Duration::from_secs(600)),
+            watchdog_compact(&store, std::time::Duration::from_secs(600), None),
             Some(rushdb_storage::CompactOutcome::CommitsRecent),
             "commits just flowed: the watchdog must not rewrite the file"
         );
         assert!(matches!(
-            watchdog_compact(&store, std::time::Duration::ZERO),
+            watchdog_compact(&store, std::time::Duration::ZERO, None),
             Some(rushdb_storage::CompactOutcome::Compacted(_))
         ));
         drop(store);

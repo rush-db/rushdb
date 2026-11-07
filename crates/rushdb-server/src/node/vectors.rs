@@ -665,12 +665,18 @@ impl RequestScope<'_> {
         let skip = query.skip as usize;
         let limit = query.limit as usize;
 
+        // Records decode only the vector property; a relationship is small
+        // and has no selective reconstruction.
+        let mut session = rushdb_lmpg::reconstruct::ReconstructSession::new(snap, tenant);
+        let selected: std::collections::HashSet<String> =
+            [query.property.clone(), norm.clone()].into_iter().collect();
         for ord in ords {
             let rec = if owner_kind == OwnerKind::Relationship {
                 rushdb_lmpg::reconstruct::reconstruct_relationship(snap, tenant, ord)
                     .map_err(|e| e.to_string())?
             } else {
-                rushdb_lmpg::reconstruct::reconstruct_record(snap, tenant, ord)
+                session
+                    .reconstruct_record_selected(ord, &selected)
                     .map_err(|e| e.to_string())?
             };
             let Some(rec) = rec else {

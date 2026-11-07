@@ -196,6 +196,13 @@ pub struct StorageStatistics {
     pub checkpoints: u64,
     /// Milliseconds spent in explicit durability checkpoints.
     pub checkpoint_wait_ms: u64,
+    /// Bytes appended to the WAL (framed records), cumulative since open.
+    pub wal_bytes_appended: u64,
+    /// Encoded bytes of every op, base and derived, handed to the backends,
+    /// cumulative since open. With `wal_bytes_appended`, the two write
+    /// streams a commit produces; compare against `rushdb.redb` growth and
+    /// the process's block writes to attribute write amplification.
+    pub applied_bytes: u64,
 }
 
 /// Errors returned by the storage layer: failed preconditions, corrupt or
@@ -721,6 +728,13 @@ pub struct Store {
     /// purge frees pages without growing the file, so it triggers idle
     /// compaction on its own.
     purged_since_compaction: AtomicU64,
+    /// Bytes appended to the WAL, cumulative (see `StorageStatistics`).
+    wal_bytes_appended: AtomicU64,
+    /// Encoded op bytes handed to the backends, cumulative.
+    applied_bytes: AtomicU64,
+    /// Whether a physical compaction holds the database: every read and
+    /// commit waits on it, so readiness reports it.
+    compacting: AtomicBool,
 }
 
 impl Default for Store {
@@ -747,6 +761,10 @@ impl Store {
     /// Returns [`StorageError::InvalidConfiguration`] when `config` fails
     /// validation, or [`StorageError::ResourceExhausted`] when a byte budget
     /// cannot be created.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the store's constructor initializes every counter and lock in one place"
+    )]
     pub fn new_with_resources(config: resources::StorageResources) -> Result<Self, StorageError> {
         config
             .validate()
@@ -849,7 +867,35 @@ impl Store {
             last_commit_ms: AtomicU64::new(0),
             last_compacted_file_bytes: AtomicU64::new(0),
             purged_since_compaction: AtomicU64::new(0),
+            wal_bytes_appended: AtomicU64::new(0),
+            applied_bytes: AtomicU64::new(0),
+            compacting: AtomicBool::new(false),
         })
+    }
+
+    /// Whether a physical compaction currently holds the database. Reads
+    /// and commits wait for it; `/ready` reports it so an orchestrator does
+    /// not route traffic to a node that cannot answer.
+    #[must_use]
+    pub fn compacting(&self) -> bool {
+        self.compacting.load(Ordering::Relaxed)
+    }
+
+    /// Mark a physical compaction as holding (or releasing) the database.
+    /// Set by compaction itself; public for tests of what observes it.
+    #[doc(hidden)]
+    pub fn mark_compacting(&self, on: bool) {
+        self.compacting.store(on, Ordering::Relaxed);
+    }
+
+    /// `(WAL bytes appended, op bytes applied)` since the store opened: the
+    /// two write streams a commit produces.
+    #[must_use]
+    pub fn write_bytes(&self) -> (u64, u64) {
+        (
+            self.wal_bytes_appended.load(Ordering::Relaxed),
+            self.applied_bytes.load(Ordering::Relaxed),
+        )
     }
 
     /// The store's managed-byte budget.

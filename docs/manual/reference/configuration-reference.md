@@ -32,7 +32,7 @@ interact and for common setups, see
 | `--pgwire-port` | — | `server.pgwire-port` | u16 | `5432` | PostgreSQL wire-protocol port. The listener is bound only when the `sql` language is enabled. |
 | `--grpc-port` | — | `server.grpc-port` | u16 | `0` | gRPC port; `0` disables gRPC. |
 | `--bolt-port` | — | `server.bolt-port` | u16 | `0` | Bolt (Neo4j wire) port; `0` disables Bolt. Bound only when `cypher` is enabled. |
-| — | — | `server.body-limit` | bytes | `16MiB` | Maximum HTTP request body, gRPC message, and response size. `config.yml` only. |
+| `--body-limit` | `RUSHDB_BODY_LIMIT` | `server.body-limit` | bytes | `16MiB` | Maximum HTTP request body, gRPC message, and response size. An HTTP body over it is refused with 413 `payload_too_large`. |
 | `--allow-insecure-listen` | `RUSHDB_ALLOW_INSECURE_LISTEN` | CLI/env only | bool | `false` | Acknowledge binding a non-loopback address without TLS (HTTP) and exposing the cleartext pgwire/gRPC/Bolt listeners. Refused in multitenant mode for pgwire/gRPC/Bolt regardless. |
 | `--maintenance` | `RUSHDB_MAINTENANCE` | `server.maintenance` | bool | `false` | Maintenance mode: writes are rejected with `unavailable`, `/health` and `/ready` return 503. Reads keep working. |
 | `--require-index-warmup` | `RUSHDB_REQUIRE_INDEX_WARMUP` | `server.require-index-warmup` | bool | `false` | `/ready` returns 503 until every vector index has caught up with its source records. Single-tenant only. |
@@ -41,6 +41,7 @@ interact and for common setups, see
 | `--max-concurrent-requests-per-tenant` | `RUSHDB_MAX_CONCURRENT_PER_TENANT` | CLI/env only | usize | `0` | Per-tenant concurrent request cap in multitenant mode; excess requests fail with `unavailable`. `0` = unlimited. |
 | `--threads` | `RUSHDB_THREADS` | `resources.threads` | usize | `0` | Request-scheduler and HTTP runtime worker threads. `0` = the host's available parallelism. Workers are clamped to 2–256; the scheduler queue holds 32 requests per worker, clamped to 64–4096. |
 | `--advertised-address` | `RUSHDB_ADVERTISED_ADDRESS` | `resources.advertised-address` | string | bind address | Address reported to clients in build info. |
+| `--bolt-advertised-address` | `RUSHDB_BOLT_ADVERTISED_ADDRESS` | `resources.bolt-advertised-address` | `host:port` | bound address | What the Bolt `ROUTE` answer names: the address a driver reaches the listener at (behind a load balancer the bound address is wrong). |
 
 ## Security and tenancy
 
@@ -99,6 +100,7 @@ interact and for common setups, see
 | `--compact-interval-seconds` | `RUSHDB_COMPACT_INTERVAL_SECONDS` | `resources.compact-interval-seconds` | u64 | `300` | Idle compaction period and minimum interval between compactions. `0` = disabled. |
 | `--compact-quiesce-seconds` | `RUSHDB_COMPACT_QUIESCE_SECONDS` | `resources.compact-quiesce-seconds` | u64 | `10` | Quiet period after the last commit before compaction may run. |
 | `--compact-growth-percent` | `RUSHDB_COMPACT_GROWTH_PERCENT` | `resources.compact-growth-percent` | u32 | `150` | Compact only when the file has grown to at least this percentage of its size after the last compaction (or at least 10,000 keys were purged). |
+| `--compact-max-file-bytes` | `RUSHDB_COMPACT_MAX_FILE_BYTES` | `resources.compact-max-file-bytes` | bytes | `1GiB` | Largest store file automatic compaction rewrites; `0` = no cap. A compaction holds every request while it copies the file, so a larger file is left to the offline `rushdb serve --compact`, and the skip is logged at `info`. |
 | `--tx-log-keep-commits` | `RUSHDB_TX_LOG_KEEP_COMMITS` | `resources.tx-log-keep-commits` | u64 | `0` | Commits the WAL keeps even when no consumer or open reader needs them. `0` = keep only what consumers and readers pin. Bounded by the hard caps. |
 | `--tx-log-retention-commits` | `RUSHDB_TX_LOG_RETENTION_COMMITS` | `resources.tx-log-retention-commits` | u64 | `100000` | Hard cap: the WAL never holds more than the last N commits for any consumer. |
 | `--tx-log-keep-all` | `RUSHDB_TX_LOG_KEEP_ALL` | `resources.tx-log-keep-all` | bool | `false` | Remove the commit-count cap (wins over `tx-log-retention-commits`). |

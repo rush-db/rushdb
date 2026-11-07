@@ -102,8 +102,8 @@ languages:
   stops the server with a parse error instead of being ignored.
 - `server.require-index-warmup: true` may be added by hand; it is not
   written by default.
-- `server.body-limit` exists only in the file (no flag); it caps request
-  bodies, gRPC messages, and responses.
+- `server.body-limit` (also `--body-limit` / `RUSHDB_BODY_LIMIT`) caps
+  request bodies, gRPC messages, and responses.
 
 Preview the file a set of flags would produce without touching anything:
 

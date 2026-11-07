@@ -3,10 +3,12 @@
 use super::{
     aggregate_budget, alias_field_values, attach_collects_with_budget, binding_roots_with_cancel,
     canonical_scalar_cmp, count_related, infer_scalar, json_value_cmp, normalize, reconstruct,
-    related_specs_from_where, resolve_field, resolve_field_numeric, AggregateRequest, Arc,
-    GroupBucket, Json, Lmpg, Map, OutputExpr, Pagination, QueryError, QuerySnapshot, Scalar,
-    SearchRequest, MISSING_SENTINEL,
+    related_specs_from_where, resolve_field, resolve_field_numeric, working_set_budget,
+    AggregateRequest, Arc, GroupBucket, Json, Lmpg, Map, OutputExpr, Pagination, PointFields,
+    QueryError, QuerySnapshot, Scalar, SearchRequest, MISSING_SENTINEL,
 };
+use crate::aggregate_catalog::{dictionary_grouped_count, too_many_groups};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// Branch-grain aggregation over a `BindingRelation` of distinct roots:
 /// one root contributes exactly one binding row, independent branches are
@@ -63,7 +65,15 @@ pub fn aggregate_in_view(
     aggregate_with_cancel_in_view(lmpg, req, &|| false, snap)
 }
 
-/// Execute an aggregate on the supplied view using the configured query budget.
+/// Execute an aggregate on the supplied view.
+///
+/// The working set (candidate ordinals, the row being aggregated, the
+/// buckets) is capped by `query-memory-max`, tightened by the request, the
+/// same cap a records search uses. It is never the request's response byte
+/// budget: that caps only the rendered page
+/// ([`aggregate_to_rows_in_view_with_budget`]). Charging the working set
+/// against the 16 MiB response budget refused every grouped aggregate over
+/// ~1M records (the candidate ordinals alone filled it).
 ///
 /// # Errors
 /// Returns storage, predicate, cancellation, or resource errors.
@@ -72,21 +82,6 @@ pub fn aggregate_with_cancel_in_view(
     req: &AggregateRequest,
     is_cancelled: &dyn Fn() -> bool,
     snap: QuerySnapshot,
-) -> Result<(Vec<GroupBucket>, u64), QueryError> {
-    aggregate_with_cancel_in_view_with_budget(lmpg, req, is_cancelled, snap, None)
-}
-
-/// Execute an aggregate with one caller budget across working state and groups.
-/// An explicit zero budget rejects allocations; an absent budget uses storage configuration.
-///
-/// # Errors
-/// Returns storage, predicate, cancellation, or resource errors.
-pub fn aggregate_with_cancel_in_view_with_budget(
-    lmpg: &Lmpg,
-    req: &AggregateRequest,
-    is_cancelled: &dyn Fn() -> bool,
-    snap: QuerySnapshot,
-    work_budget: Option<usize>,
 ) -> Result<(Vec<GroupBucket>, u64), QueryError> {
     let is_cancelled: &dyn Fn() -> bool = &crate::cancel_probe(lmpg, is_cancelled);
     if !snap.belongs_to(&lmpg.store) {
@@ -98,19 +93,8 @@ pub fn aggregate_with_cancel_in_view_with_budget(
     if is_cancelled() {
         return Err(QueryError::Cancelled);
     }
-    let configured = lmpg
-        .limits()
-        .query_memory_max_bytes()
-        .map(|bytes| usize::try_from(bytes).unwrap_or(usize::MAX));
-    let budget = match (work_budget, configured) {
-        (Some(a), Some(b)) => Some(a.min(b)),
-        (a, b) => a.or(b),
-    };
+    let budget = working_set_budget(lmpg);
     aggregate_budget::check(budget, std::mem::size_of::<GroupBucket>())?;
-    let snap = match budget {
-        Some(bytes) => snap.with_materialization_limit(bytes / 16),
-        None => snap,
-    };
     aggregate_budgeted(lmpg, req, is_cancelled, snap, budget)
         .map_err(aggregate_budget::resource_error)
 }
@@ -150,11 +134,23 @@ fn aggregate_budgeted(
             return Ok((buckets, total));
         }
     }
+    // Grouped counts over one property: the value dictionary holds the
+    // exact owner count per value, so no record is read.
+    if let Some(buckets) = dictionary_grouped_count(lmpg, req, &snap, is_cancelled)? {
+        aggregate_budget::check(
+            budget,
+            buckets.iter().fold(0usize, |sum, b| {
+                sum.saturating_add(aggregate_budget::bucket_bytes(b))
+            }),
+        )?;
+        let total = buckets.iter().map(|b| b.count_roots).sum();
+        return Ok((order_and_page(buckets, req), total));
+    }
     let candidates: Vec<u64> =
         binding_roots_with_cancel(lmpg, &page_req, is_cancelled, &snap, budget)?;
-    let candidate_bytes = candidates
-        .capacity()
-        .saturating_mul(std::mem::size_of::<u64>());
+    // What is retained: one ordinal per match. The walk charged its own
+    // transient copies.
+    let candidate_bytes = candidates.len().saturating_mul(std::mem::size_of::<u64>());
     aggregate_budget::check(budget, candidate_bytes)?;
     let total_matched = candidates.len() as u64;
     if is_count_only(req) {
@@ -197,45 +193,51 @@ fn aggregate_budgeted(
     };
 
     let mut buckets: Vec<GroupBucket> = Vec::new();
-    // Family definitions are frozen within one pinned snapshot: a session
-    // caches them per candidate (bounded, semantically invisible — P20).
+    // Grouped buckets are found by their rendered key, not by comparing
+    // every bucket's key map per row.
+    let mut bucket_index: HashMap<String, usize> = HashMap::new();
+    // Only the properties the request names are read: by point reads when
+    // every one is a scalar (READ-1's `PointFields`), else by folding the
+    // record's occurrences into just those names. One session serves every
+    // row: family definitions are frozen within the pinned snapshot.
+    let names = referenced_fields(req);
+    let point_fields = PointFields::resolve(&snap, lmpg.tenant, names.iter().map(String::as_str))?;
+    let selected: HashSet<String> = names
+        .iter()
+        .flat_map(|name| [name.clone(), normalize(name)])
+        .collect();
+    let mut session = reconstruct::ReconstructSession::new(&snap, lmpg.tenant);
+    let metric_count = req
+        .counts
+        .len()
+        .saturating_add(req.sums.len())
+        .saturating_add(req.mins.len())
+        .saturating_add(req.maxs.len())
+        .saturating_add(req.expr_avgs.len())
+        .saturating_add(req.expr_sums.len())
+        .saturating_add(req.avg_terms.len())
+        .saturating_add(req.group_by.len())
+        .saturating_add(req.plain_fields.len());
     let mut retained_bytes = candidate_bytes;
     for ord in candidates {
-        let snap = budget.map_or_else(
-            || Arc::clone(&snap),
-            |limit| snap.with_materialization_limit(limit.saturating_sub(retained_bytes) / 16),
-        );
-        let reader = aggregate_budget::RecordReader::new(
-            &snap,
-            budget.map(|limit| limit.saturating_sub(retained_bytes)),
-        );
-        let mut session = reconstruct::ReconstructSession::new(&reader, lmpg.tenant);
         if is_cancelled() {
             return Err(QueryError::Cancelled);
         }
-        let Some(json) = session.reconstruct_record(ord)? else {
-            continue;
+        let obj: Map<String, Json> = match &point_fields {
+            Some(fields) => fields.row(&snap, lmpg.tenant, ord)?,
+            None => match session.reconstruct_record_selected(ord, &selected)? {
+                Some(Json::Object(map)) => map,
+                _ => continue,
+            },
         };
-        let row_bytes = aggregate_budget::value_bytes(&json);
-        let metric_count = req
-            .counts
-            .len()
-            .saturating_add(req.sums.len())
-            .saturating_add(req.mins.len())
-            .saturating_add(req.maxs.len())
-            .saturating_add(req.expr_avgs.len())
-            .saturating_add(req.expr_sums.len())
-            .saturating_add(req.avg_terms.len())
-            .saturating_add(req.group_by.len())
-            .saturating_add(req.plain_fields.len());
-        // Reserve space for row clones and per-row metric/key additions before retaining them.
-        let row_allowance = row_bytes.saturating_mul(metric_count.saturating_add(4));
-        aggregate_budget::check(budget, retained_bytes.saturating_add(row_allowance))?;
+        // The row is transient: it must fit beside what is retained, but it
+        // is not retained itself.
+        let row_bytes = aggregate_budget::object_bytes(&obj);
+        aggregate_budget::check(budget, retained_bytes.saturating_add(row_bytes))?;
         let alias_budget = budget.map(|limit| {
-            limit.saturating_sub(retained_bytes.saturating_add(row_allowance))
+            limit.saturating_sub(retained_bytes.saturating_add(row_bytes))
                 / metric_count.saturating_add(1)
         });
-        let obj = json.as_object().cloned().unwrap_or_default();
 
         let mut bucket_keys: Map<String, Json> = Map::new();
         if pure_projection || per_root {
@@ -284,25 +286,22 @@ fn aggregate_budgeted(
             bucket_keys.insert(tb_key, keyed);
         }
 
-        if !per_row
-            && buckets.len() >= MAX_AGGREGATE_BUCKETS
-            && !buckets.iter().any(|b| b.keys == bucket_keys)
-        {
-            return Err(QueryError::ResourceLimit(format!("aggregate exceeds {MAX_AGGREGATE_BUCKETS} distinct groups; narrow the groupBy or add filters")));
-        }
         // Per-row keys carry the root ordinal, so they never repeat.
-        let previous_bucket_bytes = if per_row {
-            0
+        let (bucket, previous_bucket_bytes) = if per_row {
+            (new_bucket(&mut buckets, bucket_keys), 0)
         } else {
-            buckets
-                .iter()
-                .find(|b| b.keys == bucket_keys)
-                .map_or(0, aggregate_budget::bucket_bytes)
-        };
-        let bucket = if per_row {
-            new_bucket(&mut buckets, bucket_keys)
-        } else {
-            ensure_bucket(&mut buckets, bucket_keys)
+            let rendered = serde_json::to_string(&bucket_keys).unwrap_or_default();
+            if let Some(&position) = bucket_index.get(&rendered) {
+                let bucket = &mut buckets[position];
+                let bytes = aggregate_budget::bucket_bytes(bucket);
+                (bucket, bytes)
+            } else {
+                if buckets.len() >= MAX_AGGREGATE_BUCKETS {
+                    return Err(too_many_groups());
+                }
+                bucket_index.insert(rendered, buckets.len());
+                (new_bucket(&mut buckets, bucket_keys), 0)
+            }
         };
 
         // $count '*' = distinct root identity; each row already unique.
@@ -499,18 +498,23 @@ fn aggregate_budgeted(
 
     // Derived outputs ($ref chains): source sums materialize first, then
     // refs resolve in declaration order; cycles surface as unresolved refs.
+    // The candidate ordinals are no longer needed; what stays is the buckets
+    // plus one derived value per output and bucket.
     if !req.outputs.is_empty() || !req.avg_terms.is_empty() || !req.expr_avgs.is_empty() {
         let output_bytes = req
             .outputs
             .iter()
-            .fold(0usize, |sum, (name, _)| {
+            .map(|(name, _)| name)
+            .chain(req.avg_terms.iter().map(|(name, _)| name))
+            .chain(req.expr_avgs.iter().map(|(name, _)| name))
+            .fold(0usize, |sum, name| {
                 sum.saturating_add(name.len()).saturating_add(256)
             })
             .saturating_mul(buckets.len());
         aggregate_budget::check(
             budget,
             retained_bytes
-                .saturating_mul(3)
+                .saturating_sub(candidate_bytes)
                 .saturating_add(output_bytes),
         )?;
         for b in &mut buckets {
@@ -584,8 +588,12 @@ fn aggregate_budgeted(
         }
     }
 
-    // AggregateThenPaginate: complete buckets first, then deterministic
-    // ordering by output name and a single explicit slice domain.
+    Ok((order_and_page(buckets, req), total_matched))
+}
+
+/// Aggregate, then paginate: complete buckets first, then deterministic
+/// ordering by output name and a single explicit slice domain.
+fn order_and_page(mut buckets: Vec<GroupBucket>, req: &AggregateRequest) -> Vec<GroupBucket> {
     for (name, desc) in req.order_by.iter().rev() {
         buckets.sort_by(|a, b| {
             let va = bucket_metric(a, name, req);
@@ -603,7 +611,7 @@ fn aggregate_budgeted(
         buckets.push(GroupBucket::default());
     }
     apply_aggregate_pagination(&mut buckets, req);
-    Ok((buckets, total_matched))
+    buckets
 }
 
 /// A metric with no value over a global rollup's matches is `null`, as in
@@ -859,11 +867,58 @@ pub fn aggregate_to_rows_in_view_with_budget(
     Ok(rows)
 }
 
-fn ensure_bucket(buckets: &mut Vec<GroupBucket>, keys: Map<String, Json>) -> &mut GroupBucket {
-    if let Some(pos) = buckets.iter().position(|b| b.keys == keys) {
-        return &mut buckets[pos];
+/// The record properties an aggregate reads per row, as the request spells
+/// them (without the `$record.` prefix): group keys, the time-bucket field,
+/// counted, summed, averaged and min/max fields, plain projections and the
+/// fields of per-row expressions. Alias metrics (`$sum: "$employee.salary"`)
+/// read related records through their traversal, not the row, so their
+/// names resolve to nothing here.
+fn referenced_fields(req: &AggregateRequest) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    let mut add = |field: &str| {
+        names.insert(field.strip_prefix("$record.").unwrap_or(field).to_owned());
+    };
+    for g in &req.group_by {
+        if req.time_bucket_alias.as_deref() != Some(g.as_str()) {
+            add(g);
+        }
     }
-    new_bucket(buckets, keys)
+    if let Some(tb) = &req.time_bucket {
+        add(&tb.field);
+    }
+    for (_, field) in req
+        .counts
+        .iter()
+        .filter(|(_, field)| field != "*")
+        .chain(&req.sums)
+        .chain(&req.mins)
+        .chain(&req.maxs)
+        .chain(&req.avg_terms)
+        .chain(&req.plain_fields)
+    {
+        add(field);
+    }
+    for (_, expr) in req.expr_sums.iter().chain(&req.expr_avgs) {
+        expr_fields(expr, &mut add);
+    }
+    names
+}
+
+fn expr_fields(expr: &OutputExpr, add: &mut impl FnMut(&str)) {
+    match expr {
+        OutputExpr::Field(name) | OutputExpr::Ref(name) => add(name),
+        OutputExpr::Add(a, b) | OutputExpr::Subtract(a, b) | OutputExpr::Multiply(a, b) => {
+            expr_fields(a, add);
+            expr_fields(b, add);
+        }
+        OutputExpr::Divide {
+            dividend, divisor, ..
+        } => {
+            expr_fields(dividend, add);
+            expr_fields(divisor, add);
+        }
+        OutputExpr::Literal(_) => {}
+    }
 }
 
 fn new_bucket(buckets: &mut Vec<GroupBucket>, keys: Map<String, Json>) -> &mut GroupBucket {

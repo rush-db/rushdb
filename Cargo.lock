@@ -232,7 +232,7 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "atoi",
- "base64",
+ "base64 0.22.1",
  "chrono",
  "comfy-table",
  "half",
@@ -582,6 +582,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "base64"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
+
+[[package]]
+name = "base64ct"
+version = "1.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
+
+[[package]]
+name = "bcder"
+version = "0.7.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b593e5aeaf7992d388c08a9831c921cd703718064b3e50ba8e6d666d6cf86ca7"
+dependencies = [
+ "bytes",
+ "smallvec",
+]
+
+[[package]]
 name = "bigdecimal"
 version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -915,6 +937,12 @@ dependencies = [
  "unicode-segmentation",
  "unicode-width",
 ]
+
+[[package]]
+name = "const-oid"
+version = "0.9.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
 name = "const-oid"
@@ -1492,7 +1520,7 @@ checksum = "5f64c983bbbdcb729d921a2b2ac3375598719b5cc0c30345ad664936f3176fc7"
 dependencies = [
  "arrow",
  "arrow-buffer",
- "base64",
+ "base64 0.22.1",
  "blake2",
  "blake3",
  "chrono",
@@ -1810,6 +1838,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c286de4e81ea2590afc24d754e0f83810c566f50a1388fa75ebd57928c0d9745"
 
 [[package]]
+name = "der"
+version = "0.7.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb"
+dependencies = [
+ "const-oid 0.9.6",
+ "zeroize",
+]
+
+[[package]]
 name = "deranged"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1868,7 +1906,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
 dependencies = [
  "block-buffer 0.12.1",
- "const-oid",
+ "const-oid 0.10.2",
  "crypto-common 0.2.2",
  "ctutils",
 ]
@@ -2509,7 +2547,7 @@ version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96547c2556ec9d12fb1578c4eaf448b04993e7fb79cbaad930a656880a6bdfa0"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "futures-channel",
  "futures-util",
@@ -3398,7 +3436,7 @@ version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d30c53c26bc5b31a98cd02d20f25a7c8567146caf63ed593a9d87b2775291be"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "serde_core",
 ]
 
@@ -3438,6 +3476,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8265901ede50d0879fe401c6fe282e7e4ff83ae10a48c1f8e4f89b92f7d5f604"
 dependencies = [
  "async-trait",
+ "base64 0.23.1",
  "bytes",
  "chrono",
  "derive-new",
@@ -3448,13 +3487,18 @@ dependencies = [
  "pg_interval",
  "postgres-types",
  "rand 0.10.2",
+ "ring",
+ "rustls-pki-types",
  "ryu",
  "serde",
  "serde_json",
  "smol_str",
+ "stringprep",
  "thiserror 2.0.20",
  "tokio",
+ "tokio-rustls",
  "tokio-util",
+ "x509-certificate",
 ]
 
 [[package]]
@@ -3544,7 +3588,7 @@ version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08808e3c483c46e999108051c78334f473d5adb59d78bb80a1268c7e6aa6c514"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "byteorder",
  "bytes",
  "fallible-iterator",
@@ -4010,7 +4054,7 @@ version = "0.12.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "futures-core",
  "http",
@@ -4068,7 +4112,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-authz"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-query",
@@ -4082,7 +4126,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-authz-integration"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "rushdb-authz",
  "rushdb-lmpg",
@@ -4096,7 +4140,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-backup"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-storage",
@@ -4107,17 +4151,19 @@ dependencies = [
 
 [[package]]
 name = "rushdb-bolt"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "rushdb-language",
  "rushdb-protocol",
+ "rustls",
+ "rustls-pemfile",
  "serde_json",
  "tokio",
 ]
 
 [[package]]
 name = "rushdb-engine"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-query",
@@ -4132,13 +4178,14 @@ dependencies = [
 
 [[package]]
 name = "rushdb-grpc"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "bytes",
  "http",
  "http-body-util",
  "prost",
  "rushdb-protocol",
+ "rustls-pemfile",
  "serde_json",
  "tokio",
  "tokio-stream",
@@ -4148,7 +4195,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-language"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "grafeo-common",
  "grafeo-core",
@@ -4165,7 +4212,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-lmpg"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "rushdb-storage",
  "rushdb-types",
@@ -4177,7 +4224,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-mongodb"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-query",
@@ -4190,7 +4237,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-protocol"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -4199,7 +4246,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-query"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "roaring",
  "rushdb-lmpg",
@@ -4213,7 +4260,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-raft"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "openraft",
  "openraft-memstore",
@@ -4229,12 +4276,12 @@ dependencies = [
 
 [[package]]
 name = "rushdb-server"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "async-trait",
  "axum 0.8.9",
  "axum-server",
- "base64",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "crc32fast",
@@ -4278,6 +4325,7 @@ dependencies = [
  "tikv-jemallocator",
  "tokio",
  "tokio-postgres",
+ "tokio-rustls",
  "tokio-stream",
  "tonic",
  "tower-http 0.7.1",
@@ -4288,7 +4336,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-sql"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "arrow",
  "arrow-json",
@@ -4311,7 +4359,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-storage"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "crc32fast",
  "redb",
@@ -4326,7 +4374,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-storage-integration"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-storage",
@@ -4337,7 +4385,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-textsearch"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-storage",
@@ -4352,7 +4400,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-tx"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "rushdb-authz",
  "rushdb-lmpg",
@@ -4366,7 +4414,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-types"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "blake3",
  "chrono",
@@ -4380,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-vector"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "arc-swap",
  "blake3",
@@ -4717,6 +4765,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "signature"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
+dependencies = [
+ "rand_core 0.6.4",
+]
+
+[[package]]
 name = "simba"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4800,6 +4857,16 @@ checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "spki"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
+dependencies = [
+ "base64ct",
+ "der",
 ]
 
 [[package]]
@@ -4928,7 +4995,7 @@ checksum = "edde6a10743fff00a4e1a8c9ef020bf5f3cbad301b7d2d39f2b07f123c4eac07"
 dependencies = [
  "aho-corasick",
  "arc-swap",
- "base64",
+ "base64 0.22.1",
  "bitpacking",
  "bon",
  "byteorder",
@@ -5361,7 +5428,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "axum 0.7.9",
- "base64",
+ "base64 0.22.1",
  "bytes",
  "h2",
  "http",
@@ -5373,8 +5440,10 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "prost",
+ "rustls-pemfile",
  "socket2 0.5.10",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tower 0.4.13",
  "tower-layer",
@@ -5446,7 +5515,6 @@ dependencies = [
  "bytes",
  "http",
  "http-body",
- "http-body-util",
  "percent-encoding",
  "pin-project-lite",
  "tower-layer",
@@ -6110,6 +6178,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
+name = "x509-certificate"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca9eb9a0c822c67129d5b8fcc2806c6bc4f50496b420825069a440669bcfbf7f"
+dependencies = [
+ "bcder",
+ "bytes",
+ "chrono",
+ "der",
+ "hex",
+ "pem",
+ "ring",
+ "signature",
+ "spki",
+ "thiserror 2.0.20",
+ "zeroize",
+]
+
+[[package]]
 name = "yasna"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6187,6 +6274,20 @@ name = "zeroize"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
+dependencies = [
+ "zeroize_derive",
+]
+
+[[package]]
+name = "zeroize_derive"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
 
 [[package]]
 name = "zerotrie"

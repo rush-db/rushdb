@@ -36,6 +36,7 @@ fn link(node: &Node, source: &str, target: &str) {
             source_ids: vec![source.to_owned()],
             target_ids: vec![target.to_owned()],
             properties: serde_json::json!({}),
+            types: std::collections::BTreeMap::new(),
         })
         .unwrap();
 }

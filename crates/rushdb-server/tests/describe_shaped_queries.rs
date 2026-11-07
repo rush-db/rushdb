@@ -39,7 +39,7 @@ fn describe_labels_and_schema_handle_shaped_queries() {
         explicit_flags: std::collections::BTreeSet::new(),
     };
     let node = Arc::new(Node::bootstrap(&mut cfg).expect("bootstrap"));
-    let handler = NodeEnvelopeHandler::new(node.clone());
+    let handler = NodeEnvelopeHandler::new(node.clone(), &cfg);
 
     // seed a small planet -> battle -> starship graph at the lmpg level
     {

@@ -12,9 +12,10 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+rustls-pemfile = "2"
 rushdb-protocol = { workspace = true }
 serde_json = { workspace = true }
-tonic = { version = "0.12", features = ["transport", "codegen", "prost"] }
+tonic = { version = "0.12", features = ["transport", "codegen", "prost", "tls"] }
 prost = { version = "0.13", features = ["prost-derive"] }
 bytes = "1"
 tower = "0.5"

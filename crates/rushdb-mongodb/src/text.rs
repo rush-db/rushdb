@@ -35,17 +35,24 @@ pub(crate) fn take_text(
     let search = parse_spec(&spec)?;
     let text = text.ok_or("mongo: `$text` is unavailable here")?;
     let index = collection_index(snap, lmpg, collection)?;
-    let found = text.search(
-        lmpg.tenant,
-        snap,
-        TextQuery {
-            index: &index,
-            query: &search,
-            opts: LexicalOptions::default(),
-            top_k: ALL_HITS,
-        },
-        None,
-    )?;
+    let found = text
+        .search(
+            lmpg.tenant,
+            snap,
+            TextQuery {
+                index: &index,
+                query: &search,
+                // `$search` reads the query syntax (quoted phrases, `-` for
+                // a term that must not match), as MongoDB's does.
+                opts: LexicalOptions {
+                    syntax: rushdb_textsearch::TextSyntax::Query,
+                    ..LexicalOptions::default()
+                },
+                top_k: ALL_HITS,
+            },
+            None,
+        )
+        .map_err(|error| error.to_string())?;
     let mut scores = Scores::with_capacity(found.hits.len());
     for hit in found.hits {
         if let Some(header) =

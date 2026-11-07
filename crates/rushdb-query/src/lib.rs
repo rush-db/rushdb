@@ -20,6 +20,7 @@ use serde_json::{Map, Value as Json};
 use thiserror::Error;
 
 mod aggregate_budget;
+mod aggregate_catalog;
 mod aggregation;
 mod cycle;
 mod equality;
@@ -28,7 +29,6 @@ pub use aggregation::MAX_AGGREGATE_BUCKETS;
 pub use aggregation::{
     aggregate, aggregate_in_view, aggregate_to_rows, aggregate_to_rows_in_view,
     aggregate_to_rows_in_view_with_budget, aggregate_with_cancel, aggregate_with_cancel_in_view,
-    aggregate_with_cancel_in_view_with_budget,
 };
 #[cfg(test)]
 use aggregation::{eval_row_expr, exact_f64, minmax};
@@ -709,6 +709,35 @@ fn is_match(
     Ok(true)
 }
 
+/// The properties `predicate` reads of record `ord`, decoded through
+/// `reader` (which may meter the bytes): the predicate's own fields by
+/// name, or the whole record when it needs it (`$id`, a traversal, an
+/// array-typed property). A record the predicate cannot see is empty.
+fn filtered_row<R: rushdb_lmpg::reader::TryRead>(
+    reader: &R,
+    snap: &QuerySnapshot,
+    tenant: rushdb_types::ids::TenantId,
+    predicate: &Expr,
+    ord: u64,
+) -> Result<Map<String, Json>, QueryError> {
+    let mut session = reconstruct::ReconstructSession::new(reader, tenant);
+    let mut names = std::collections::BTreeSet::new();
+    let record = if point_fields::predicate_fields(predicate, &mut names) {
+        let selected: std::collections::HashSet<String> = names
+            .iter()
+            .flat_map(|name| [name.clone(), normalize(name)])
+            .collect();
+        session.reconstruct_record_selected(ord, &selected)?
+    } else {
+        session.reconstruct_record(ord)?
+    };
+    let _ = snap;
+    Ok(match record {
+        Some(Json::Object(map)) => map,
+        _ => Map::new(),
+    })
+}
+
 /// The properties `fields` names, by point reads, or the rebuilt record.
 fn read_row(
     fields: Option<&PointFields>,
@@ -1160,23 +1189,24 @@ fn attach_collects_with_budget(
             let base_bytes = retained;
             retained = retained.saturating_add(neighbors.capacity().saturating_mul(8));
             aggregate_budget::check(budget, retained)?;
+            // A collect that projects `fields` decodes those, its filter's and
+            // its ordering's properties only; one without returns whole children.
+            let selected = point_fields::collect_selection(spec);
             let mut items: Vec<RelatedItem> = Vec::new();
             for other in neighbors {
                 if is_cancelled() {
                     return Err(QueryError::Cancelled);
                 }
-                if !spec.target_labels.is_empty()
-                    && !access::record_by_ord(snap, lmpg.tenant, other)?
-                        .is_some_and(|h| spec.target_labels.contains(&h.label))
-                {
+                if !has_target_label(snap, lmpg.tenant, other, &spec.target_labels)? {
                     continue;
                 }
-                let reader = aggregate_budget::RecordReader::new(
+                let Some(child) = aggregate_budget::collected_child(
                     snap,
+                    lmpg.tenant,
+                    other,
+                    selected.as_ref(),
                     budget.map(|limit| limit.saturating_sub(retained)),
-                );
-                let Some(Json::Object(child)) =
-                    reconstruct::reconstruct_record(&reader, lmpg.tenant, other)?
+                )?
                 else {
                     continue;
                 };
@@ -1236,6 +1266,21 @@ fn attach_collects_with_budget(
 
 /// Project a collected record into a `(output_key, source_field)` map; an
 /// empty map keeps the whole record (alias-based default).
+/// Whether a collected child carries one of the collect's target labels; an
+/// empty target list accepts every child.
+fn has_target_label(
+    snap: &QuerySnapshot,
+    tenant: rushdb_types::ids::TenantId,
+    ordinal: u64,
+    target_labels: &[String],
+) -> Result<bool, QueryError> {
+    if target_labels.is_empty() {
+        return Ok(true);
+    }
+    Ok(access::record_by_ord(snap, tenant, ordinal)?
+        .is_some_and(|header| target_labels.contains(&header.label)))
+}
+
 fn project_fields_map(value: Json, fields: &[(String, String)]) -> Json {
     if fields.is_empty() {
         return value;
@@ -1388,11 +1433,7 @@ fn traverse_alias(
                             )
                         }),
                     );
-                    let props = reconstruct::reconstruct_record(&reader, tenant, other)?;
-                    let obj = props
-                        .as_ref()
-                        .and_then(|p| p.as_object().cloned())
-                        .unwrap_or_default();
+                    let obj = filtered_row(&reader, snap, tenant, pred, other)?;
                     if !eval_expr_ctx(&ctx, pred, &obj)? {
                         continue;
                     }
@@ -1515,13 +1556,16 @@ fn alias_field_values(
     let mut retained = related.capacity().saturating_mul(8);
     aggregate_budget::check(budget, retained)?;
     let mut values = Vec::new();
+    // Only the named property is decoded, by either spelling.
+    let selected: std::collections::HashSet<String> =
+        [prop.to_owned(), normalize(prop)].into_iter().collect();
     for other in related {
         let reader = aggregate_budget::RecordReader::new(
             snap,
             budget.map(|limit| limit.saturating_sub(retained)),
         );
-        if let Some(Json::Object(child)) = reconstruct::reconstruct_record(&reader, tenant, other)?
-        {
+        let mut session = reconstruct::ReconstructSession::new(&reader, tenant);
+        if let Some(Json::Object(child)) = session.reconstruct_record_selected(other, &selected)? {
             if let Some(v) = resolve_field(&child, prop) {
                 retained = retained.saturating_add(aggregate_budget::value_bytes(&v));
                 aggregate_budget::check(budget, retained)?;
@@ -1794,10 +1838,9 @@ fn eval_related(
                 }
                 if depth >= min_hops {
                     if let Some(filter) = &rel.filter {
-                        if let Some(target_json) =
-                            reconstruct::reconstruct_record(&ctx.snap, ctx.lmpg.tenant, other)?
-                        {
-                            let target_obj = target_json.as_object().cloned().unwrap_or_default();
+                        if access::record_by_ord(&ctx.snap, ctx.lmpg.tenant, other)?.is_some() {
+                            let target_obj =
+                                filtered_row(&ctx.snap, &ctx.snap, ctx.lmpg.tenant, filter, other)?;
                             if eval_expr_ctx(ctx, filter, &target_obj)? {
                                 return Ok(true);
                             }
@@ -2101,11 +2144,15 @@ fn binding_roots_with_cancel(
         Some(plan) => plan.ords.into_iter().collect(),
         None => scan::Candidates::walk(snap, lmpg.tenant, &req.labels)?.collect(is_cancelled)?,
     };
+    // The candidates and the matches they narrow to: two ordinal vectors.
     let candidate_bytes = candidates.capacity().saturating_mul(16);
     aggregate_budget::check(budget, candidate_bytes)?;
     if index_exact && req.order_by.is_empty() {
         return Ok(candidates);
     }
+    // The same liveness, residual-predicate and branch checks a records
+    // search makes (`is_match`): the predicate reads only the properties it
+    // names, by point reads, with one reconstruction session for the walk.
     let ctx = EvalCtx {
         lmpg,
         snap: snap.clone(),
@@ -2114,37 +2161,30 @@ fn binding_roots_with_cancel(
         declared_types: std::cell::RefCell::default(),
         record_types: std::cell::RefCell::default(),
     };
+    let predicate_fields = match &req.where_ {
+        Some(expr) => PointFields::for_predicate(snap, lmpg.tenant, expr)?,
+        None => None,
+    };
+    let mut session = reconstruct::ReconstructSession::new(snap, lmpg.tenant);
+    let mut working = WorkingSet {
+        limit: budget
+            .map(|limit| u64::try_from(limit.saturating_sub(candidate_bytes)).unwrap_or(u64::MAX)),
+        charged: 0,
+    };
     let mut matched: Vec<u64> = Vec::new();
     for ord in candidates {
         if is_cancelled() {
             return Err(QueryError::Cancelled);
         }
-        if access::record_by_ord(snap, lmpg.tenant, ord)?.is_none() {
-            continue;
-        }
-        if let Some(expr) = &req.where_ {
-            let reader = aggregate_budget::RecordReader::new(
-                snap,
-                budget.map(|limit| limit.saturating_sub(candidate_bytes)),
-            );
-            let mut session = reconstruct::ReconstructSession::new(&reader, lmpg.tenant);
-            let props = session.reconstruct_record(ord)?;
-            let obj = props
-                .as_ref()
-                .and_then(|p| p.as_object().cloned())
-                .unwrap_or_default();
-            if !eval_expr_ctx(&ctx, expr, &obj)? {
-                continue;
-            }
-        }
-        let mut all_branches_bound = true;
-        for spec in &req.related {
-            if !related_exists(snap, lmpg.tenant, ord, spec)? {
-                all_branches_bound = false;
-                break;
-            }
-        }
-        if all_branches_bound {
+        if is_match(
+            &ctx,
+            req,
+            req.where_.as_ref(),
+            predicate_fields.as_ref(),
+            &mut session,
+            &mut working,
+            ord,
+        )? {
             matched.push(ord);
         }
     }
@@ -2158,7 +2198,14 @@ pub fn normalize(name: &str) -> String {
 }
 
 fn resolve_field(obj: &Map<String, Json>, field: &str) -> Option<Json> {
-    let norm = normalize(field.strip_prefix("$record.").unwrap_or(field));
+    let field = field.strip_prefix("$record.").unwrap_or(field);
+    // A row keyed by the request's own spelling (point-read rows, or a
+    // record whose stored name is the request's) answers without
+    // normalizing every key.
+    if let Some(value) = obj.get(field) {
+        return Some(value.clone());
+    }
+    let norm = normalize(field);
     obj.iter()
         .find(|(k, _)| normalize(k) == norm)
         .map(|(_, v)| v.clone())

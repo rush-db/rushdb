@@ -1,9 +1,8 @@
-//! Large batch imports must not be rejected by a too-small request-body limit.
-//!
-//! The `Bytes` extractor is gated by axum's `DefaultBodyLimit` (2MB default),
-//! which is independent of the tower-http `RequestBodyLimitLayer` (64MB). A
-//! ~3MB batch import previously returned 413 "length limit exceeded" despite
-//! the intended 64MB budget.
+//! Large batch imports must not be rejected by a too-small request-body limit,
+//! and the one limit (`server.body-limit` / `--body-limit`) answers with the
+//! protocol error envelope. Before, axum's 2 MB `DefaultBodyLimit` refused a
+//! ~3 MB import, and later a body-limit layer answered 413 with the plain
+//! text `length limit exceeded` that no JSON client could read.
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -137,19 +136,31 @@ fn config_yml_body_limit_is_applied() {
         let _ = stream.flush();
         let mut raw = String::new();
         let _ = stream.read_to_string(&mut raw);
-        raw.lines().next().unwrap_or("(none)").to_string()
+        raw
     };
 
-    // > 1MiB → rejected by the configured body-limit
+    // > 1MiB → rejected by the configured body-limit, with the envelope.
     let big = serde_json::json!({
         "protocolVersion": 1, "context": {},
         "operation": { "kind": "ingest", "ingest": { "kind": "documents", "label": "BIG",
             "documents": [{ "blob": "x".repeat(1024 * 1024) }], "options": {} } }
     });
-    let big_status = send(big.to_string());
+    let big_raw = send(big.to_string());
+    let big_status = big_raw.lines().next().unwrap_or("(none)").to_string();
     assert!(
         big_status.contains("413"),
         "configured body-limit must reject >1MiB: {big_status}"
+    );
+    let body: serde_json::Value =
+        serde_json::from_str(big_raw.split("\r\n\r\n").nth(1).unwrap_or(""))
+            .unwrap_or_else(|_| panic!("not a JSON body: {big_raw:?}"));
+    assert_eq!(body["error"]["code"], "payload_too_large", "{body}");
+    assert!(
+        body["error"]["message"]
+            .as_str()
+            .unwrap_or("")
+            .contains("1048576-byte limit"),
+        "{body}"
     );
 
     // small payload passes
@@ -158,7 +169,11 @@ fn config_yml_body_limit_is_applied() {
         "operation": { "kind": "ingest", "ingest": { "kind": "documents", "label": "BIG",
             "documents": [{ "name": "ok" }], "options": {} } }
     });
-    let small_status = send(small.to_string());
+    let small_status = send(small.to_string())
+        .lines()
+        .next()
+        .unwrap_or("(none)")
+        .to_string();
     assert!(
         small_status.contains("200"),
         "small payload must pass: {small_status}"

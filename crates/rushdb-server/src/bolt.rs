@@ -27,6 +27,14 @@ pub fn bind_bolt(cfg: &ServerConfig, node: Arc<Node>) -> Result<(BoltServer, u16
     if !bolt_enabled(cfg) {
         return Ok((BoltServer::disabled(), 0));
     }
-    let handler: Arc<dyn EnvelopeHandler> = Arc::new(crate::NodeEnvelopeHandler::new(node));
-    BoltServer::bind(handler, cfg.token.clone(), &cfg.listen_addr, cfg.bolt_port)
+    let handler: Arc<dyn EnvelopeHandler> = Arc::new(crate::NodeEnvelopeHandler::new(node, cfg));
+    let tls = crate::grpc::tls_pem(cfg, "Bolt")?
+        .map(|(cert_pem, key_pem)| rushdb_bolt::BoltTls { cert_pem, key_pem });
+    BoltServer::bind(
+        handler,
+        &cfg.listen_addr,
+        cfg.bolt_port,
+        tls.as_ref(),
+        cfg.resources.bolt_advertised_address.clone(),
+    )
 }

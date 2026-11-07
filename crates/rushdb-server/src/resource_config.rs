@@ -182,6 +182,12 @@ pub struct ResourceConfig {
     /// compaction (>= 100).
     #[arg(long, env = "RUSHDB_COMPACT_GROWTH_PERCENT", default_value_t = 150)]
     pub compact_growth_percent: u32,
+    /// Largest store file automatic compaction rewrites; 0 = no cap. A
+    /// compaction holds every request while it copies the file (about 90 s
+    /// per GB on a small container), so a larger file is left to the offline
+    /// `rushdb serve --compact`, and the skip is logged
+    #[arg(long, env = "RUSHDB_COMPACT_MAX_FILE_BYTES", default_value = "1GiB")]
+    pub compact_max_file_bytes: ByteSize,
     /// History/GC sweep period in seconds (checkpoint interval); 0 = 5s.
     #[arg(long, env = "RUSHDB_CHECKPOINT_INTERVAL_SECONDS", default_value_t = 0)]
     pub checkpoint_interval_seconds: u64,
@@ -304,6 +310,11 @@ pub struct ResourceConfig {
     /// address.
     #[arg(long, env = "RUSHDB_ADVERTISED_ADDRESS")]
     pub advertised_address: Option<String>,
+    /// `host:port` the Bolt listener's `ROUTE` answer names, the address a
+    /// driver reaches it at (behind a load balancer the bound address is
+    /// unreachable or wrong); defaults to the bound address
+    #[arg(long, env = "RUSHDB_BOLT_ADVERTISED_ADDRESS")]
+    pub bolt_advertised_address: Option<String>,
     /// Require an explicit index name on vector writes and searches. When on,
     /// `createVector` / `search.vector` / inline `$vectors` without a
     /// `name`/`index` are refused instead of falling back to the derived
@@ -394,6 +405,7 @@ impl Default for ResourceConfig {
             compact_interval_seconds: 300,
             compact_quiesce_seconds: 10,
             compact_growth_percent: 150,
+            compact_max_file_bytes: ByteSize(1024 * 1024 * 1024),
             checkpoint_interval_seconds: 0,
             wal_archive_dir: None,
             idempotency_window_seconds: 24 * 3600,
@@ -419,6 +431,7 @@ impl Default for ResourceConfig {
             retention_consumer_lease_seconds: 86_400,
             http_inflight_body_bytes: ByteSize(256 * 1024 * 1024),
             advertised_address: None,
+            bolt_advertised_address: None,
             require_vector_index_name: true,
             vector_exact_max_pool: 5_000,
             vector_default_ef: 64,
@@ -525,6 +538,8 @@ impl ResourceConfig {
                 .then(|| Duration::from_secs(self.compact_interval_seconds)),
             compact_quiesce: Duration::from_secs(self.compact_quiesce_seconds),
             compact_growth_percent: self.compact_growth_percent,
+            compact_max_file_bytes: (self.compact_max_file_bytes.0 > 0)
+                .then_some(self.compact_max_file_bytes.0 as u64),
             rss_max_bytes: (self.rss_max.0 > 0).then_some(self.rss_max.0 as u64),
             wal_archive_dir: self.wal_archive_dir.clone(),
             wal_archive_retention: std::time::Duration::from_secs(
@@ -804,6 +819,7 @@ mod tests {
             crate::retention::RetentionPolicy::Commits(100_000)
         );
         assert_eq!(policy.compact_interval, Some(Duration::from_secs(300)));
+        assert_eq!(policy.compact_max_file_bytes, Some(1024 * 1024 * 1024));
         assert_eq!(policy.rss_max_bytes, None);
         assert_eq!(config.checkpoint_interval(), Duration::from_secs(5));
 
@@ -820,6 +836,7 @@ mod tests {
         );
         config.tx_log_retention_commits = 42;
         config.compact_interval_seconds = 30;
+        config.compact_max_file_bytes = ByteSize(0);
         config.checkpoint_interval_seconds = 15;
         config.rss_max = ByteSize(2 * 1024 * 1024 * 1024);
         let policy = config.maintenance("test-token");
@@ -828,6 +845,7 @@ mod tests {
             crate::retention::RetentionPolicy::Commits(42)
         );
         assert_eq!(policy.compact_interval, Some(Duration::from_secs(30)));
+        assert_eq!(policy.compact_max_file_bytes, None);
         assert_eq!(policy.rss_max_bytes, Some(2 * 1024 * 1024 * 1024));
         assert_eq!(config.checkpoint_interval(), Duration::from_secs(15));
     }
