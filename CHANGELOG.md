@@ -4,6 +4,30 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.5 — 2026-11-08
+
+### Fixed
+
+- **Dropping a vector index frees its vector space** (#423, #424). A drop
+  kept the index's space row, and the limit of 256 vector spaces per tenant
+  counted those rows, so after 256 create/drop cycles a tenant could no
+  longer create vector indexes even with none left. A drop now deletes the
+  space row, its slot counter, its ANN manifest and its persisted segments,
+  and the limit counts live indexes, so tenants already at the limit on
+  3.0.4 recover on upgrade with no migration. Past the limit, `createVector`
+  answers `resource_exhausted` (not retryable) with "vector space limit
+  reached (256 per tenant)" instead of an opaque `execution_failed`.
+- **Concurrent transactions that create records no longer conflict** (#425,
+  #424). Each transaction allocated record and relationship ids from the
+  counter as of its snapshot, so concurrent creators were handed the same id
+  and about 75% of commits aborted with four writers, even on disjoint
+  labels. Ids are now reserved when a write is staged, from one allocator per
+  store (like a PostgreSQL sequence: an aborted transaction leaves a gap), the
+  counter only moves forward, and commit-time expansion reads current state.
+  Writes to the same record, records read with `getRecord`, two transactions
+  introducing the same new property name, and writes during an index build
+  still conflict, as documented.
+
 ## 3.0.4 — 2026-11-07
 
 ### Added

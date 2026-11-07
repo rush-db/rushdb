@@ -4112,7 +4112,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-authz"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-query",
@@ -4126,7 +4126,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-authz-integration"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "rushdb-authz",
  "rushdb-lmpg",
@@ -4140,7 +4140,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-backup"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-storage",
@@ -4151,7 +4151,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-bolt"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "rushdb-language",
  "rushdb-protocol",
@@ -4163,7 +4163,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-engine"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-query",
@@ -4178,7 +4178,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-grpc"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "bytes",
  "http",
@@ -4195,7 +4195,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-language"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "grafeo-common",
  "grafeo-core",
@@ -4212,7 +4212,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-lmpg"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "rushdb-storage",
  "rushdb-types",
@@ -4224,7 +4224,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-mongodb"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-query",
@@ -4237,7 +4237,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-protocol"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "serde",
  "serde_json",
@@ -4246,7 +4246,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-query"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "roaring",
  "rushdb-lmpg",
@@ -4260,7 +4260,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-raft"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "openraft",
  "openraft-memstore",
@@ -4276,7 +4276,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-server"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "async-trait",
  "axum 0.8.9",
@@ -4336,7 +4336,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-sql"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "arrow",
  "arrow-json",
@@ -4359,7 +4359,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-storage"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "crc32fast",
  "redb",
@@ -4374,7 +4374,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-storage-integration"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-storage",
@@ -4385,7 +4385,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-textsearch"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "rushdb-lmpg",
  "rushdb-storage",
@@ -4400,7 +4400,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-tx"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "rushdb-authz",
  "rushdb-lmpg",
@@ -4414,7 +4414,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-types"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "blake3",
  "chrono",
@@ -4428,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "rushdb-vector"
-version = "3.0.4"
+version = "3.0.5"
 dependencies = [
  "arc-swap",
  "blake3",
