@@ -1213,9 +1213,9 @@ dependencies = [
  "cfg-if",
  "crossbeam-utils",
  "hashbrown 0.14.5",
- "lock_api",
+ "lock_api 0.4.14",
  "once_cell",
- "parking_lot_core",
+ "parking_lot_core 0.9.12",
 ]
 
 [[package]]
@@ -1257,7 +1257,7 @@ dependencies = [
  "itertools",
  "log",
  "object_store",
- "parking_lot",
+ "parking_lot 0.12.5",
  "sqlparser",
  "tempfile",
  "tokio",
@@ -1286,7 +1286,7 @@ dependencies = [
  "itertools",
  "log",
  "object_store",
- "parking_lot",
+ "parking_lot 0.12.5",
  "tokio",
 ]
 
@@ -1373,7 +1373,7 @@ dependencies = [
  "itertools",
  "log",
  "object_store",
- "parking_lot",
+ "parking_lot 0.12.5",
  "rand 0.9.5",
  "tokio",
  "url",
@@ -1471,7 +1471,7 @@ dependencies = [
  "futures",
  "log",
  "object_store",
- "parking_lot",
+ "parking_lot 0.12.5",
  "rand 0.9.5",
  "tempfile",
  "url",
@@ -1615,7 +1615,7 @@ dependencies = [
  "datafusion-expr",
  "datafusion-physical-expr",
  "datafusion-physical-plan",
- "parking_lot",
+ "parking_lot 0.12.5",
 ]
 
 [[package]]
@@ -1692,7 +1692,7 @@ dependencies = [
  "hashbrown 0.17.1",
  "indexmap 2.14.0",
  "itertools",
- "parking_lot",
+ "parking_lot 0.12.5",
  "petgraph",
  "recursive",
  "tokio",
@@ -1726,7 +1726,7 @@ dependencies = [
  "hashbrown 0.17.1",
  "indexmap 2.14.0",
  "itertools",
- "parking_lot",
+ "parking_lot 0.12.5",
  "pin-project",
 ]
 
@@ -1777,7 +1777,7 @@ dependencies = [
  "itertools",
  "log",
  "num-traits",
- "parking_lot",
+ "parking_lot 0.12.5",
  "pin-project-lite",
  "tokio",
 ]
@@ -1809,7 +1809,7 @@ dependencies = [
  "datafusion-execution",
  "datafusion-expr",
  "datafusion-physical-plan",
- "parking_lot",
+ "parking_lot 0.12.5",
 ]
 
 [[package]]
@@ -1982,7 +1982,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2243,10 +2243,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38cf1373a739aeaa070430588c4026b3c1aa11cd0ad6e6673bda22a390aacda4"
 dependencies = [
  "bincode",
- "grafeo-common",
+ "grafeo-common 0.5.44",
  "grafeo-core",
  "hashbrown 0.17.1",
- "parking_lot",
+ "parking_lot 0.12.5",
  "serde",
  "smallvec",
  "thiserror 2.0.20",
@@ -2254,9 +2254,9 @@ dependencies = [
 
 [[package]]
 name = "grafeo-common"
-version = "0.5.42"
+version = "0.5.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5f446c25eeedab9cccaabc85060dfa08dac2d1041974244864f36436b81ca5a"
+checksum = "57df2ae6f700d93d8f5bc7d46de2acd566b38eeb7c12edc0cb1a69923597f94f"
 dependencies = [
  "arcstr",
  "bincode",
@@ -2267,10 +2267,32 @@ dependencies = [
  "foldhash 0.2.0",
  "hashbrown 0.17.1",
  "indexmap 2.14.0",
- "parking_lot",
+ "parking_lot 0.12.5",
  "serde",
  "smallvec",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "grafeo-common"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef4e0f9d88086eddbe708976798f2523168b3d6a79b90d42356cb6b303b3eda2"
+dependencies = [
+ "arcstr",
+ "bincode",
+ "bumpalo",
+ "byteorder",
+ "bytes",
+ "dashmap",
+ "foldhash 0.2.0",
+ "hashbrown 0.17.1",
+ "indexmap 2.14.0",
+ "parking_lot 0.13.0",
+ "serde",
+ "smallvec",
+ "thiserror 2.0.20",
+ "web-time",
 ]
 
 [[package]]
@@ -2286,10 +2308,10 @@ dependencies = [
  "crc32fast",
  "dashmap",
  "foldhash 0.2.0",
- "grafeo-common",
+ "grafeo-common 0.5.44",
  "hashbrown 0.17.1",
  "indexmap 2.14.0",
- "parking_lot",
+ "parking_lot 0.12.5",
  "regex",
  "serde",
  "smallvec",
@@ -2307,11 +2329,11 @@ dependencies = [
  "bincode",
  "bytes",
  "grafeo-adapters",
- "grafeo-common",
+ "grafeo-common 0.5.44",
  "grafeo-core",
  "hashbrown 0.17.1",
  "indexmap 2.14.0",
- "parking_lot",
+ "parking_lot 0.12.5",
  "regex",
  "serde",
  "smallvec",
@@ -2885,9 +2907,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.189"
+version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
+checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
 name = "libm"
@@ -2930,6 +2952,15 @@ name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
+dependencies = [
+ "scopeguard",
+]
+
+[[package]]
+name = "lock_api"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65d91b22da179613dcf4d6ec8349563f52a363f6849e03b00dd0a185ec4a59af"
 dependencies = [
  "scopeguard",
 ]
@@ -3145,7 +3176,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3253,7 +3284,7 @@ dependencies = [
  "http",
  "humantime",
  "itertools",
- "parking_lot",
+ "parking_lot 0.12.5",
  "percent-encoding",
  "thiserror 2.0.20",
  "tokio",
@@ -3407,8 +3438,18 @@ version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
 dependencies = [
- "lock_api",
- "parking_lot_core",
+ "lock_api 0.4.14",
+ "parking_lot_core 0.9.12",
+]
+
+[[package]]
+name = "parking_lot"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9cf937ca4e1d0b7578784559063422fc39ae7c5a00f02471f2614d5486fd226"
+dependencies = [
+ "lock_api 0.5.0",
+ "parking_lot_core 0.10.0",
 ]
 
 [[package]]
@@ -3419,7 +3460,19 @@ checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall",
+ "redox_syscall 0.5.18",
+ "smallvec",
+ "windows-link",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9cfff060068cc18aa7815010fcaf80c68c7fb9e85fc7f5c0f9bf142c21d19826"
+dependencies = [
+ "libc",
+ "redox_syscall 0.9.5",
  "smallvec",
  "windows-link",
 ]
@@ -3677,7 +3730,7 @@ dependencies = [
  "fnv",
  "lazy_static",
  "memchr",
- "parking_lot",
+ "parking_lot 0.12.5",
  "protobuf",
  "thiserror 2.0.20",
 ]
@@ -3788,7 +3841,7 @@ dependencies = [
  "once_cell",
  "socket2 0.6.4",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3989,6 +4042,15 @@ name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
+name = "redox_syscall"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "580c875845b41ecb1564ad1ae4703044cef774145e3d7a94dc2b3fa7c97868fd"
 dependencies = [
  "bitflags",
 ]
@@ -4197,7 +4259,7 @@ dependencies = [
 name = "rushdb-language"
 version = "3.0.4"
 dependencies = [
- "grafeo-common",
+ "grafeo-common 0.6.1",
  "grafeo-core",
  "grafeo-engine",
  "rushdb-lmpg",
@@ -4498,7 +4560,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5145,7 +5207,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5341,7 +5403,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "log",
- "parking_lot",
+ "parking_lot 0.12.5",
  "percent-encoding",
  "phf 0.13.1",
  "pin-project-lite",
@@ -5997,7 +6059,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
