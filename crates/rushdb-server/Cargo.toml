@@ -82,7 +82,7 @@ redb = "4.2.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"] }
 tokio-postgres = "0.7"
 tonic = { version = "0.12", features = ["transport", "codegen", "prost", "tls"] }
-rcgen = "0.13"
+rcgen = "0.14"
 native-tls = "0.2"
 rustls = { version = "0.23", features = ["ring"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
