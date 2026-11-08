@@ -23,9 +23,9 @@ flowchart LR
 | Transport | Default | Enabled when | Carries | TLS |
 |---|---|---|---|---|
 | [HTTP](http-api.md) | port `3000` | always | every operation and every enabled language | yes (`--tls-cert`/`--tls-key`) |
-| [gRPC](grpc.md) | off | `--grpc-port` is non-zero | every operation and every enabled language | no |
-| [PostgreSQL wire](postgresql-wire.md) | port `5432` | the `sql` language is enabled | single SQL statements | no |
-| [Bolt](bolt.md) | off | `--bolt-port` is non-zero and `cypher` is enabled | Cypher statements and Bolt transactions | no |
+| [gRPC](grpc.md) | off | `--grpc-port` is non-zero | every operation and every enabled language | yes (`--tls-cert`/`--tls-key`) |
+| [PostgreSQL wire](postgresql-wire.md) | port `5432` | the `sql` language is enabled | single SQL statements | yes (`--tls-cert`/`--tls-key`) |
+| [Bolt](bolt.md) | off | `--bolt-port` is non-zero and `cypher` is enabled | Cypher statements and Bolt transactions | yes (`--tls-cert`/`--tls-key`) |
 
 What each transport can express:
 
@@ -36,22 +36,23 @@ What each transport can express:
 | Vector, full-text, and hybrid search | yes | yes | no | no |
 | Multi-request transactions | yes | yes | no | yes (`BEGIN`/`COMMIT`) |
 | Ingest, index management, backup, tenant purge | yes | yes | no | no |
-| Capability tokens | yes | no | no | no |
+| Capability tokens | yes | yes | yes | yes |
 
 ## Listener security
 
-All listeners bind the `--listen` address (default `127.0.0.1`). Only HTTP can
-terminate TLS. The other three transports are cleartext and authenticate with
-the bootstrap token only, so the server enforces two guards at startup:
+All listeners bind the `--listen` address (default `127.0.0.1`) and share one
+TLS certificate (`--tls-cert`/`--tls-key`). Every transport accepts the
+bootstrap token and capability tokens. The server enforces these guards at
+startup:
 
-1. On a **multitenant** server, gRPC, PostgreSQL wire, and Bolt refuse to bind
-   to a non-loopback address, because the bootstrap token is not bound to a
-   tenant and would let any holder select any tenant.
-2. On a single-tenant server, binding them to a non-loopback address requires
-   `--allow-insecure-listen`.
+- A loopback address is always allowed.
+- On a single-tenant server, a non-loopback listener requires TLS or
+  `--allow-insecure-listen`.
+- On a **multitenant** server, a non-loopback HTTP listener requires TLS or
+  `--allow-insecure-listen`; gRPC, PostgreSQL wire, and Bolt require TLS
+  **and** `--capability-secret`.
 
-For remote access to these transports, run them on loopback behind a trusted
-local proxy that terminates TLS and authenticates callers. See
+Port `0` disables a listener: nothing is bound. See
 [Security](../operations/security.md).
 
 ## Choosing a transport
