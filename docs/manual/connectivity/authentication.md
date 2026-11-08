@@ -158,18 +158,18 @@ name its tenant, and the server fails closed when it is missing:
 | Transport | Tenant selector | Accepted credentials |
 |---|---|---|
 | HTTP | `X-RushDB-Tenant` header **and** the same value in `context.scope` | bootstrap token, or a capability token bound to that tenant |
-| gRPC | `x-rushdb-tenant` metadata **and** the same value in `context.scope` | bootstrap token |
-| PostgreSQL wire | `database` startup parameter | bootstrap token |
-| Bolt | `HELLO` field `db` (see [Bolt](bolt.md)) | bootstrap token |
+| gRPC | `x-rushdb-tenant` metadata **and** the same value in `context.scope` | bootstrap token, or a capability token bound to that tenant |
+| PostgreSQL wire | `database` startup parameter | bootstrap token, or a capability token bound to that tenant |
+| Bolt | `db` of each `BEGIN` and auto-commit `RUN`, or of `HELLO` (see [Bolt](bolt.md#tenants)) | bootstrap token, or a capability token bound to that tenant |
 
 Tenant values are opaque strings of up to 1024 bytes. A new value creates its
 tenant on first use. See [Tenants](../data-model/tenants.md).
 
-> **Warning:** gRPC, PostgreSQL wire, and Bolt accept only the bootstrap token,
-> which can select any tenant. That is why, on a multitenant server, the engine
-> refuses to bind them to a non-loopback address. Put them behind a trusted
-> local proxy, and use HTTP with capability tokens for direct per-tenant
-> access.
+> **Warning:** The bootstrap token can select any tenant. That is why, on a
+> multitenant server, the engine binds gRPC, PostgreSQL wire, and Bolt to a
+> non-loopback address only with TLS and `--capability-secret`, so tenants
+> can connect with capability tokens. See
+> [Security](../operations/security.md#tenant-isolation).
 
 ## Data-access policies
 

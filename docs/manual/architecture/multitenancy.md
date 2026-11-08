@@ -31,7 +31,7 @@ carries it in its own channel:
 | HTTP | `X-RushDB-Tenant` header (at most 1024 bytes) |
 | PostgreSQL wire | The `database` startup parameter |
 | gRPC | `x-rushdb-tenant` metadata |
-| Bolt | The `db` field of `HELLO` |
+| Bolt | `db` of each `BEGIN` and auto-commit `RUN`, or of `HELLO` (see [Bolt](../connectivity/bolt.md#tenants)) |
 
 If the protocol envelope also carries `context.scope`, it must equal the
 transport's scope; a mismatch is rejected. The scope is then resolved

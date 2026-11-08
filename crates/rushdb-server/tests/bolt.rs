@@ -281,6 +281,43 @@ impl Client {
         )
     }
 
+    /// An auto-commit RUN naming `db` in its `extra` map, as drivers send
+    /// a session's database.
+    fn run_db(&mut self, statement: &str, db: &str) -> Value {
+        let mut extra = Map::new();
+        extra.insert("db".into(), Value::String(db.into()));
+        self.call(
+            0x10,
+            vec![
+                Value::String(statement.into()),
+                Value::Object(Map::new()),
+                Value::Object(extra),
+            ],
+        )
+    }
+
+    /// RUN + PULL; the records' first column, or the FAILURE.
+    fn names(&mut self, statement: &str, db: Option<&str>) -> Result<Vec<Value>, Value> {
+        let run = match db {
+            Some(db) => self.run_db(statement, db),
+            None => self.run(statement),
+        };
+        if tag_of(&run) != SUCCESS {
+            self.reset();
+            return Err(run);
+        }
+        Ok(self
+            .pull()
+            .iter()
+            .filter(|m| tag_of(m) == RECORD)
+            .map(|m| value::struct_fields(m)[0][0].clone())
+            .collect())
+    }
+
+    fn reset(&mut self) -> Value {
+        self.call(0x0F, vec![])
+    }
+
     fn pull(&mut self) -> Vec<Value> {
         let mut meta = Map::new();
         meta.insert("n".into(), Value::Number(Number::from(-1)));
@@ -302,6 +339,29 @@ impl Client {
         self.call(0x11, vec![Value::Object(Map::new())])
     }
 
+    /// BEGIN naming `db` in its `extra` map, as drivers open a transaction
+    /// in a session's database.
+    fn begin_db(&mut self, db: &str) -> Value {
+        let mut extra = Map::new();
+        extra.insert("db".into(), Value::String(db.into()));
+        self.call(0x11, vec![Value::Object(extra)])
+    }
+
+    fn route(&mut self, db: Option<&str>) -> Value {
+        let mut extra = Map::new();
+        if let Some(db) = db {
+            extra.insert("db".into(), Value::String(db.into()));
+        }
+        self.call(
+            0x66,
+            vec![
+                Value::Object(Map::new()),
+                Value::Array(Vec::new()),
+                Value::Object(extra),
+            ],
+        )
+    }
+
     fn commit(&mut self) -> Value {
         self.call(0x12, vec![])
     }
@@ -319,6 +379,15 @@ fn encode_msg(tag: u8, fields: Vec<Value>) -> Vec<u8> {
 
 fn tag_of(value: &Value) -> u8 {
     value::struct_tag(value).expect("struct response")
+}
+
+/// The `code` of a FAILURE.
+fn code_of(failure: &Value) -> String {
+    assert_eq!(tag_of(failure), FAILURE, "{failure}");
+    value::struct_fields(failure)[0]["code"]
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 #[test]
@@ -797,20 +866,211 @@ fn bolt_route_names_the_advertised_address() {
     let port = boot_tls("bolt-token", false, None, Some("db.example.internal:7687"));
     let mut client = Client::connect_tls(port);
     assert_eq!(tag_of(&client.hello("bolt-token")), SUCCESS);
-    let route = client.call(
-        0x42,
-        vec![
-            Value::Object(Map::new()),
-            Value::Array(Vec::new()),
-            Value::Object(Map::new()),
-        ],
-    );
+    let route = client.route(None);
     assert_eq!(tag_of(&route), SUCCESS, "{route}");
     let meta = value::struct_fields(&route)[0].as_object().unwrap().clone();
-    let servers = &meta["rt"]["routing"]["servers"];
-    assert_eq!(
-        servers[0]["addresses"][0],
-        Value::String("db.example.internal:7687".into()),
-        "{meta:?}"
+    // `rt` is the table drivers read: `ttl`, `servers` with every role a
+    // routing driver requires (it rejects a table without routers or
+    // readers), all on this one node.
+    let rt = &meta["rt"];
+    assert!(rt["ttl"].as_i64().is_some(), "{meta:?}");
+    assert!(rt.get("db").is_none(), "no tenant named: {meta:?}");
+    let servers = rt["servers"].as_array().unwrap();
+    let mut roles: Vec<&str> = servers
+        .iter()
+        .map(|server| server["role"].as_str().unwrap())
+        .collect();
+    roles.sort_unstable();
+    assert_eq!(roles, ["READ", "ROUTE", "WRITE"], "{meta:?}");
+    for server in servers {
+        assert_eq!(
+            server["addresses"],
+            Value::Array(vec![Value::String("db.example.internal:7687".into())]),
+            "{meta:?}"
+        );
+    }
+}
+
+/// Drivers never put `db` in HELLO: a session's database arrives in the
+/// `extra` map of each auto-commit RUN, and each one runs in that tenant.
+#[test]
+fn bolt_run_db_selects_the_tenant_of_an_auto_commit_run() {
+    let port = boot_with("bolt-token", true, true);
+    let mut client = Client::connect(port);
+    assert_eq!(tag_of(&client.hello("bolt-token")), SUCCESS);
+    for (tenant, name) in [("acme", "ada"), ("globex", "grace")] {
+        let run = client.run_db(&format!("CREATE (:Person {{name: '{name}'}})"), tenant);
+        assert_eq!(tag_of(&run), SUCCESS, "{run}");
+        client.pull();
+    }
+    let read = "MATCH (p:Person) RETURN p.name AS name";
+    assert_eq!(client.names(read, Some("acme")).unwrap(), ["ada"]);
+    assert_eq!(client.names(read, Some("globex")).unwrap(), ["grace"]);
+    // The summary names the tenant the RUN ran in.
+    assert_eq!(tag_of(&client.run_db(read, "globex")), SUCCESS);
+    let summary = client.pull().pop().unwrap();
+    assert_eq!(value::struct_fields(&summary)[0]["db"], "globex");
+    // No tenant anywhere on a multitenant server: the existing refusal.
+    let refused = client.names(read, None).unwrap_err();
+    assert_eq!(code_of(&refused), "Neo.ClientError.Security.Unauthorized");
+    let message = value::struct_fields(&refused)[0]["message"].clone();
+    assert!(
+        message.as_str().unwrap().contains("scope is required"),
+        "{message}"
     );
+}
+
+/// BEGIN's `db` is the tenant of the whole transaction; the boot token may
+/// name a different one per transaction on the same connection.
+#[test]
+fn bolt_begin_db_runs_the_transaction_in_that_tenant() {
+    let port = boot_with("bolt-token", true, true);
+    let mut client = Client::connect(port);
+    assert_eq!(tag_of(&client.hello("bolt-token")), SUCCESS);
+    for (tenant, name) in [("acme", "ada"), ("globex", "grace")] {
+        assert_eq!(tag_of(&client.begin_db(tenant)), SUCCESS);
+        // RUNs inside the transaction name no database.
+        let run = client.run(&format!("CREATE (:Person {{name: '{name}'}})"));
+        assert_eq!(tag_of(&run), SUCCESS, "{run}");
+        client.pull();
+        let read = client.names("MATCH (p:Person) RETURN p.name AS name", None);
+        assert_eq!(read.unwrap(), Vec::<Value>::new(), "staged, not committed");
+        assert_eq!(tag_of(&client.commit()), SUCCESS);
+    }
+    // A rolled-back transaction in a tenant leaves it unchanged.
+    assert_eq!(tag_of(&client.begin_db("acme")), SUCCESS);
+    client.run("CREATE (:Person {name: 'rolled-back'})");
+    client.pull();
+    assert_eq!(tag_of(&client.rollback()), SUCCESS);
+
+    let read = "MATCH (p:Person) RETURN p.name AS name";
+    assert_eq!(client.names(read, Some("acme")).unwrap(), ["ada"]);
+    assert_eq!(client.names(read, Some("globex")).unwrap(), ["grace"]);
+
+    // A RUN inside a transaction may not move it to another tenant.
+    assert_eq!(tag_of(&client.begin_db("acme")), SUCCESS);
+    let moved = client.run_db("CREATE (:Person {name: 'moved'})", "globex");
+    assert_eq!(code_of(&moved), "Neo.ClientError.Request.Invalid");
+    assert_eq!(tag_of(&client.reset()), SUCCESS);
+    assert_eq!(client.names(read, Some("globex")).unwrap(), ["grace"]);
+    assert_eq!(client.names(read, Some("acme")).unwrap(), ["ada"]);
+}
+
+/// HELLO's `db` is the session's tenant; a BEGIN or RUN naming another runs
+/// in that one (Neo4j's per-transaction database), and one naming none
+/// stays in HELLO's.
+#[test]
+fn bolt_begin_and_run_db_take_precedence_over_hello_db() {
+    let port = boot_with("bolt-token", true, true);
+    let mut client = Client::connect(port);
+    assert_eq!(
+        tag_of(&client.hello_db("bolt-token", Some("acme"))),
+        SUCCESS
+    );
+    client.run("CREATE (:Person {name: 'ada'})");
+    client.pull();
+    client.run_db("CREATE (:Person {name: 'grace'})", "globex");
+    client.pull();
+    assert_eq!(tag_of(&client.begin_db("globex")), SUCCESS);
+    client.run("CREATE (:Person {name: 'hedy'})");
+    client.pull();
+    assert_eq!(tag_of(&client.commit()), SUCCESS);
+
+    let read = "MATCH (p:Person) RETURN p.name AS name ORDER BY name";
+    assert_eq!(client.names(read, None).unwrap(), ["ada"]);
+    assert_eq!(client.names(read, Some("acme")).unwrap(), ["ada"]);
+    assert_eq!(
+        client.names(read, Some("globex")).unwrap(),
+        ["grace", "hedy"]
+    );
+}
+
+/// A capability logs in without HELLO `db` (drivers send none) to the one
+/// tenant it is bound to; a BEGIN, RUN or ROUTE naming any other tenant is
+/// forbidden and runs nothing.
+#[test]
+fn bolt_capability_is_confined_to_its_tenant_per_transaction() {
+    let secret = b"bolt-capability-secret-0123456789";
+    let port = boot_tls("bolt-token", true, Some(secret), None);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let token = rushdb_server::capability::issue_for_tenant(
+        secret,
+        "svc",
+        "read write",
+        Some("tenant-a"),
+        60,
+        now,
+    );
+    let mut client = Client::connect_tls(port);
+    let hello = client.hello(&token);
+    assert_eq!(tag_of(&hello), SUCCESS, "{hello}");
+
+    // Naming no tenant, or its own, runs in its tenant.
+    client.run("CREATE (:Note {name: 'home'})");
+    client.pull();
+    assert_eq!(tag_of(&client.begin_db("tenant-a")), SUCCESS);
+    client.run("CREATE (:Note {name: 'named'})");
+    client.pull();
+    assert_eq!(tag_of(&client.commit()), SUCCESS);
+    let read = "MATCH (n:Note) RETURN n.name AS name ORDER BY name";
+    assert_eq!(
+        client.names(read, Some("tenant-a")).unwrap(),
+        ["home", "named"]
+    );
+    let route = client.route(None);
+    assert_eq!(value::struct_fields(&route)[0]["rt"]["db"], "tenant-a");
+
+    // Another tenant: forbidden at RUN, BEGIN and ROUTE.
+    let refused = client.names("CREATE (:Note {name: 'leak'})", Some("tenant-b"));
+    assert_eq!(
+        code_of(&refused.unwrap_err()),
+        "Neo.ClientError.Security.Forbidden"
+    );
+    let begin = client.begin_db("tenant-b");
+    assert_eq!(code_of(&begin), "Neo.ClientError.Security.Forbidden");
+    assert_eq!(tag_of(&client.reset()), SUCCESS);
+    let route = client.route(Some("tenant-b"));
+    assert_eq!(code_of(&route), "Neo.ClientError.Security.Forbidden");
+    assert_eq!(tag_of(&client.reset()), SUCCESS);
+
+    // Nothing ran in tenant-b.
+    let mut operator = Client::connect_tls(port);
+    assert_eq!(tag_of(&operator.hello("bolt-token")), SUCCESS);
+    assert_eq!(
+        operator.names(read, Some("tenant-b")).unwrap(),
+        Vec::<Value>::new()
+    );
+    assert_eq!(
+        operator.names(read, Some("tenant-a")).unwrap(),
+        ["home", "named"]
+    );
+    // A bad credential still fails HELLO itself.
+    let mut client = Client::connect_tls(port);
+    assert_eq!(
+        code_of(&client.hello(&format!("{token}x"))),
+        "Neo.ClientError.Security.Unauthorized"
+    );
+}
+
+/// A single-tenant server has one keyspace: the default database name runs
+/// there, any other name is refused as HELLO `db` is.
+#[test]
+fn bolt_run_db_on_a_single_tenant_server() {
+    let port = boot("bolt-token", true);
+    let mut client = Client::connect(port);
+    assert_eq!(tag_of(&client.hello("bolt-token")), SUCCESS);
+    client.run_db("CREATE (:Person {name: 'ada'})", "neo4j");
+    client.pull();
+    let read = "MATCH (p:Person) RETURN p.name AS name";
+    assert_eq!(client.names(read, Some("neo4j")).unwrap(), ["ada"]);
+    assert_eq!(client.names(read, None).unwrap(), ["ada"]);
+    assert_eq!(
+        code_of(&client.names(read, Some("acme")).unwrap_err()),
+        "Neo.ClientError.Security.Unauthorized"
+    );
+    assert_eq!(tag_of(&client.begin_db("neo4j")), SUCCESS);
+    assert_eq!(tag_of(&client.commit()), SUCCESS);
 }

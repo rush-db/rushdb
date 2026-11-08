@@ -258,7 +258,7 @@ The same envelopes travel over:
 | Transport | Endpoint | Auth | Tenant scope |
 |---|---|---|---|
 | gRPC | service `rushdb.v1.Database` on `--grpc-port` | metadata `authorization: Bearer <token>` (boot token) | metadata `x-rushdb-tenant` |
-| Bolt | `--bolt-port` (graph statements only) | HELLO `scheme: basic`, `credentials: <token>` | HELLO `db` field |
+| Bolt | `--bolt-port` (graph statements only) | HELLO `scheme: basic`, `credentials: <token>` | `db` of `BEGIN`, auto-commit `RUN` or `HELLO` |
 | PostgreSQL wire | `--pgwire-port` (SQL only) | password = boot token; user name ignored | `database` connection parameter |
 
 Their request metrics use the routes `transport.execute` (gRPC and Bolt) and
