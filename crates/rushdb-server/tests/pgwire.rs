@@ -5,6 +5,41 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use tokio_postgres::{Config, NoTls, SimpleQueryMessage};
 
+/// A port nothing listens on right now: `--pgwire-port 0` disables pgwire, so
+/// an enabled listener needs a concrete port.
+fn free_port() -> u16 {
+    std::net::TcpListener::bind(("127.0.0.1", 0))
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+type Gateway = (
+    rushdb_server::HttpRouter,
+    u16,
+    rushdb_server::PgWireServer,
+    u16,
+    rushdb_server::GrpcServer,
+    u16,
+    rushdb_server::BoltServer,
+    u16,
+);
+
+/// [`new_gateway`] with pgwire on a [`free_port`], retried when a concurrent
+/// test's ephemeral bind took that port in between.
+fn gateway_on_free_port(config: &ServerConfig) -> Gateway {
+    let mut last = String::new();
+    for _ in 0..8 {
+        match new_gateway(config.clone(), free_port()) {
+            Ok(gateway) => return gateway,
+            Err(error) if error.contains("in use") => last = error,
+            Err(error) => panic!("gateway bootstrap: {error}"),
+        }
+    }
+    panic!("gateway bootstrap: no free pgwire port: {last}")
+}
+
 fn start(multitenant: bool, capability_secret: Option<&[u8]>) -> u16 {
     start_gateway(multitenant, capability_secret, false).1
 }
@@ -81,7 +116,7 @@ fn start_gateway_with(
         explicit_flags: std::collections::BTreeSet::new(),
     };
     let (mut http, http_port, mut pgwire, pgwire_port, grpc, grpc_port, bolt, bolt_port) =
-        new_gateway(config, 0).expect("gateway bootstrap");
+        gateway_on_free_port(&config);
     if serve_http {
         std::thread::spawn(move || http.serve_forever());
     } else {
@@ -121,11 +156,86 @@ fn start_gateway_timeout(request_timeout_ms: u64) -> (u16, u16) {
         explicit_flags: std::collections::BTreeSet::new(),
     };
     let (mut router, http_port, mut pg, pg_port, _grpc, _, _bolt, _) =
-        rushdb_server::new_gateway(config, 0).expect("gateway");
+        gateway_on_free_port(&config);
     std::thread::spawn(move || router.serve_forever());
     std::thread::spawn(move || pg.serve_forever());
     std::thread::sleep(std::time::Duration::from_millis(60));
     (http_port, pg_port)
+}
+
+/// `--pgwire-port 0` with `sql` enabled binds no PostgreSQL wire listener (as
+/// port 0 disables gRPC and Bolt), and SQL keeps working over HTTP.
+#[test]
+fn pgwire_port_zero_disables_the_listener_and_http_sql_still_works() {
+    let config = ServerConfig {
+        port: 0,
+        pgwire_port: 0,
+        grpc_port: 0,
+        bolt_port: 0,
+        token: "pgwire-token".into(),
+        data_dir: None,
+        multitenant: false,
+        capability_secret: None,
+        raft: None,
+        resources: rushdb_server::resource_config::ResourceConfig::default(),
+        transactions: rushdb_server::resource_config::TransactionConfig::default(),
+        languages: LanguageSet {
+            sql: true,
+            ..Default::default()
+        },
+        max_request_bytes: 64 * 1024 * 1024,
+        listen_addr: "127.0.0.1".into(),
+        tls_cert: None,
+        tls_key: None,
+        maintenance: false,
+        allow_insecure_listen: false,
+        require_index_warmup: false,
+        request_timeout_ms: 0,
+        max_concurrent_requests_per_tenant: 0,
+        explicit_flags: std::collections::BTreeSet::new(),
+    };
+    let (mut http, http_port, mut pgwire, pgwire_port, _grpc, grpc_port, _bolt, bolt_port) =
+        new_gateway(config, 0).expect("gateway bootstrap");
+    assert_eq!(
+        (pgwire_port, grpc_port, bolt_port),
+        (0, 0, 0),
+        "port 0 must disable pgwire, gRPC and Bolt"
+    );
+    // A disabled server has no listener: serving returns at once.
+    pgwire
+        .serve_forever()
+        .expect("disabled pgwire serves nothing");
+    std::thread::spawn(move || http.serve_forever());
+
+    put_record(
+        http_port,
+        None,
+        "Person",
+        &serde_json::json!({ "name": "Ada" }),
+    );
+    let body = serde_json::json!({
+        "protocolVersion": 1,
+        "context": {},
+        "operation": {
+            "kind": "query",
+            "query": {
+                "kind": "statement",
+                "language": "sql",
+                "statement": "SELECT name FROM Person"
+            }
+        }
+    })
+    .to_string();
+    let mut stream = TcpStream::connect(("127.0.0.1", http_port)).unwrap();
+    let request = format!(
+        "POST /protocol/v1/execute HTTP/1.1\r\nHost: localhost\r\nX-RushDB-Token: pgwire-token\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    stream.write_all(request.as_bytes()).unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    assert!(response.contains("Ada"), "{response}");
 }
 
 fn put_record(http_port: u16, scope: Option<&str>, label: &str, properties: &serde_json::Value) {

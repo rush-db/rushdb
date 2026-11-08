@@ -59,7 +59,7 @@ pub struct ServerConfig {
     pub tls_cert: Option<std::path::PathBuf>,
     /// Path to a PEM private key (PKCS#8) for TLS.
     pub tls_key: Option<std::path::PathBuf>,
-    /// PostgreSQL wire-protocol port.
+    /// PostgreSQL wire-protocol port (`0` = disabled; requires `sql`).
     pub pgwire_port: u16,
     /// gRPC transport port (`0` = disabled).
     pub grpc_port: u16,

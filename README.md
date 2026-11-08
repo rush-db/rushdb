@@ -158,7 +158,7 @@ The [manual](docs/manual/README.md) documents each surface's exact limits.
 | Surface | Default | Enable |
 |---|---|---|
 | HTTP native protocol | `127.0.0.1:3000`, `POST /protocol/v1/execute` | always on |
-| PostgreSQL wire | `127.0.0.1:5432` | on with `sql` (default) |
+| PostgreSQL wire | `127.0.0.1:5432` | on with `sql` (default); `--pgwire-port 0` turns it off |
 | gRPC (`rushdb.v1.Database/Execute`) | off | `--grpc-port` |
 | Bolt 5.0 | off | `--bolt-port` with `cypher` |
 

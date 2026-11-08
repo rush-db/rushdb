@@ -15,15 +15,17 @@ does not support. It is for anyone connecting SQL tools or PostgreSQL drivers.
 
 ## Enabling the listener
 
-The listener starts whenever the `sql` language is enabled. It binds the
-`--listen` address on `--pgwire-port` (default `5432`):
+The listener starts whenever the `sql` language is enabled and
+`--pgwire-port` is non-zero. It binds the `--listen` address on
+`--pgwire-port` (default `5432`):
 
 ```bash
 rushdb serve --data-dir ./data --languages sql --token "$RUSHDB_TOKEN"
 ```
 
 To change the port, pass `--pgwire-port` or set `server.pgwire-port` in
-`config.yml`. With `sql` disabled, nothing listens.
+`config.yml`. With `sql` disabled or the port set to `0`, nothing listens;
+SQL is still served over HTTP while `sql` is enabled.
 
 With `--tls-cert` and `--tls-key` the listener speaks TLS, with the same
 certificate as HTTP: both the classic `SSLRequest` negotiation and PostgreSQL

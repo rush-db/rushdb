@@ -158,9 +158,11 @@ rushdb serve --data-dir /var/lib/rushdb --listen 0.0.0.0 \
   --pgwire-port 0
 ```
 
-`--pgwire-port 0` is needed only when the `sql` language is enabled: an
-enabled pgwire listener is cleartext on a non-loopback address (see
-[Security](security.md#network-exposure)).
+`--pgwire-port 0` disables the PostgreSQL wire listener (port `0` turns off
+pgwire, gRPC and Bolt alike). It is needed only when the `sql` language is
+enabled: an enabled pgwire listener is cleartext on a non-loopback address
+(see [Security](security.md#network-exposure)). SQL stays available over
+HTTP.
 
 ### Bulk import window
 
